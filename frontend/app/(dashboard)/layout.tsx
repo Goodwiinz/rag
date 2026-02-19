@@ -11,7 +11,6 @@ const NO_BREADCRUMB_PAGES = [
 // Pages that should not show the default sidebar layout header
 const NO_HEADER_PAGES = [
   '/chat',
-  '/llm-chat',
 ];
 
 export default function DashboardLayout({

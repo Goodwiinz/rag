@@ -27,7 +27,7 @@ async function withRetry<T>(
       lastError = error as Error;
       if (attempt < maxRetries) {
         // Exponential backoff: wait 1s on first retry, 2s on second, etc.
-        await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+        await new Promise((r) => setTimeout(r, 1000 * (attempt + 1)));
       }
     }
   }
@@ -126,7 +126,9 @@ class EntityService {
       if (entityTypes && entityTypes.length > 0) {
         params.entity_types = entityTypes;
       }
-      const response = await apiClient.get(`${this.baseUrl}/entities`, { params });
+      const response = await apiClient.get(`${this.baseUrl}/entities`, {
+        params,
+      });
       return response as PaginatedEntitiesResponse;
     });
   }
@@ -134,14 +136,17 @@ class EntityService {
   /**
    * Get all relationships
    */
-  async getAllRelationships(limit: number = 500, offset: number = 0): Promise<GraphEdge[]> {
+  async getAllRelationships(
+    limit: number = 500,
+    offset: number = 0
+  ): Promise<GraphEdge[]> {
     try {
       const response = await apiClient.get(`${this.baseUrl}/relationships`, {
-        params: { limit, offset }
+        params: { limit, offset },
       });
       // Transform backend response to GraphEdge format
       const relationships = (response as any[]) || [];
-      return relationships.map(rel => ({
+      return relationships.map((rel) => ({
         id: rel.id,
         source: rel.source_entity_id,
         target: rel.target_entity_id,
@@ -150,7 +155,7 @@ class EntityService {
         strength: rel.strength,
         confidence: rel.confidence_score,
         context: rel.context,
-        metadata: rel.metadata
+        metadata: rel.metadata,
       }));
     } catch (error) {
       logEntityServiceError('Error in getAllRelationships', error);
@@ -184,7 +189,10 @@ class EntityService {
   /**
    * Update entity - backend validates and persists changes
    */
-  async updateEntity(entityId: string, updates: EntityUpdateRequest): Promise<Entity> {
+  async updateEntity(
+    entityId: string,
+    updates: EntityUpdateRequest
+  ): Promise<Entity> {
     const response = await apiClient.put<Entity>(
       `${this.baseUrl}/entities/${entityId}`,
       updates
@@ -210,7 +218,7 @@ class EntityService {
     const response = await apiClient.get<Entity[]>(
       `${this.baseUrl}/entities/search`,
       {
-        params: { query, entity_types: entityTypes, limit }
+        params: { query, entity_types: entityTypes, limit },
       }
     );
     return response;
@@ -229,8 +237,8 @@ class EntityService {
       {
         params: {
           relationship_type: relationshipType,
-          limit
-        }
+          limit,
+        },
       }
     );
     return response;
@@ -275,14 +283,21 @@ class EntityService {
     return response;
   }
 
-  async createMergeJob(groups: Array<{ entities: Array<{ id: string; name: string }>; suggested_primary: string }>): Promise<{ job_id: string; status: string }> {
+  async createMergeJob(
+    groups: Array<{
+      entities: Array<{ id: string; name: string }>;
+      suggested_primary: string;
+    }>
+  ): Promise<{ job_id: string; status: string }> {
     return apiClient.post<{ job_id: string; status: string }>(
       `${this.baseUrl}/merge-jobs`,
       { groups }
     );
   }
 
-  async createExtractionJob(documentIds: string[]): Promise<{ job_id: string; status: string }> {
+  async createExtractionJob(
+    documentIds: string[]
+  ): Promise<{ job_id: string; status: string }> {
     return apiClient.post<{ job_id: string; status: string }>(
       `${this.baseUrl}/extraction-jobs`,
       { document_ids: documentIds }
@@ -312,12 +327,11 @@ class EntityService {
     limit: number = 10,
     minSimilarity: number = 0.5
   ): Promise<Array<{ entity: GraphNode; similarity: number }>> {
-    const response = await apiClient.get<Array<{ entity: GraphNode; similarity: number }>>(
-      `${this.baseUrl}/entities/${entityId}/similar`,
-      {
-        params: { limit, min_similarity: minSimilarity }
-      }
-    );
+    const response = await apiClient.get<
+      Array<{ entity: GraphNode; similarity: number }>
+    >(`${this.baseUrl}/entities/${entityId}/similar`, {
+      params: { limit, min_similarity: minSimilarity },
+    });
     return response;
   }
 
@@ -346,8 +360,16 @@ class EntityService {
       logEntityServiceError('Error fetching entity types', error);
       // Return fallback hardcoded types if API fails after retry
       return [
-        'PERSON', 'ORGANIZATION', 'LOCATION', 'CONCEPT', 'EVENT',
-        'PRODUCT', 'DATE', 'TECHNOLOGY', 'DOCUMENT', 'OTHER'
+        'PERSON',
+        'ORGANIZATION',
+        'LOCATION',
+        'CONCEPT',
+        'EVENT',
+        'PRODUCT',
+        'DATE',
+        'TECHNOLOGY',
+        'DOCUMENT',
+        'OTHER',
       ];
     }
   }
@@ -365,10 +387,25 @@ class EntityService {
       logEntityServiceError('Error fetching relationship types', error);
       // Return fallback types matching backend RelationshipType enum
       return [
-        'WORKS_FOR', 'KNOWS', 'RELATED_TO', 'LOCATED_IN', 'PART_OF',
-        'MENTIONED_IN', 'APPEARS_WITH', 'CREATED_BY', 'OWNS', 'MANAGES',
-        'COLLABORATES_WITH', 'REPORTS_TO', 'MEMBER_OF', 'ATTENDED',
-        'SPOKE_AT', 'PUBLISHED_BY', 'CITED', 'REFERENCES', 'CUSTOM'
+        'WORKS_FOR',
+        'KNOWS',
+        'RELATED_TO',
+        'LOCATED_IN',
+        'PART_OF',
+        'MENTIONED_IN',
+        'APPEARS_WITH',
+        'CREATED_BY',
+        'OWNS',
+        'MANAGES',
+        'COLLABORATES_WITH',
+        'REPORTS_TO',
+        'MEMBER_OF',
+        'ATTENDED',
+        'SPOKE_AT',
+        'PUBLISHED_BY',
+        'CITED',
+        'REFERENCES',
+        'CUSTOM',
       ];
     }
   }
@@ -385,7 +422,7 @@ class EntityService {
       const response = await apiClient.get(
         `${this.baseUrl}/visualization/${entityId}`,
         {
-          params: { depth, max_nodes: maxNodes }
+          params: { depth, max_nodes: maxNodes },
         }
       );
       return response;
@@ -407,10 +444,7 @@ class EntityService {
     max_results?: number;
   }): Promise<any> {
     try {
-      const response = await apiClient.post(
-        `${this.baseUrl}/search`,
-        params
-      );
+      const response = await apiClient.post(`${this.baseUrl}/search`, params);
       return response;
     } catch (error) {
       logEntityServiceError('Error performing graph search', error);
@@ -427,10 +461,7 @@ class EntityService {
     upsert?: boolean;
   }): Promise<any> {
     try {
-      const response = await apiClient.post(
-        `${this.baseUrl}/batch`,
-        params
-      );
+      const response = await apiClient.post(`${this.baseUrl}/batch`, params);
       return response;
     } catch (error) {
       logEntityServiceError('Error in batch create', error);
@@ -454,11 +485,35 @@ class EntityService {
           params: {
             max_depth: maxDepth,
             min_strength: minStrength,
-            limit
-          }
+            limit,
+          },
         }
       );
       return response as Entity[];
+    });
+  }
+
+  /**
+   * Get neighborhood entities and relationships in a single call (with retry)
+   */
+  async getNeighborhood(
+    entityId: string,
+    maxDepth: number = 2,
+    minStrength: number = 0.1,
+    limit: number = 50
+  ): Promise<{ entities: Entity[]; relationships: any[] }> {
+    return withRetry(async () => {
+      const response = await apiClient.get(
+        `${this.baseUrl}/entities/${entityId}/neighborhood`,
+        {
+          params: {
+            max_depth: maxDepth,
+            min_strength: minStrength,
+            limit,
+          },
+        }
+      );
+      return response as { entities: Entity[]; relationships: any[] };
     });
   }
 
@@ -475,7 +530,7 @@ class EntityService {
       const response = await apiClient.get(
         `${this.baseUrl}/paths/${sourceId}/${targetId}`,
         {
-          params: { max_depth: maxDepth, min_strength: minStrength }
+          params: { max_depth: maxDepth, min_strength: minStrength },
         }
       );
       return response as any[];

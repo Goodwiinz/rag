@@ -132,7 +132,7 @@ export default function DashboardPage() {
       href: '/search',
       color: COLORS.phosphorGreen,
     },
-    { icon: Bot, label: 'Chat', href: '/llm-chat', color: COLORS.amber },
+    { icon: Bot, label: 'Chat', href: '/chat', color: COLORS.amber },
     {
       icon: Database,
       label: 'ArXiv',

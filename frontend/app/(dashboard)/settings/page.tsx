@@ -1,728 +1,236 @@
 "use client";
 
-import { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { cn } from '@/lib/utils';
+import { useMemo, useState } from 'react';
+import { CircleUserRound, ChevronRight, Link2, Plug, WalletCards, X } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
-import {
-  User,
-  Bell,
-  Shield,
-  Palette,
-  Database,
-  Key,
-  Terminal,
-  Settings,
-  ChevronRight,
-  Save,
-  Check,
-  AlertCircle,
-  Moon,
-  Sun,
-  Monitor,
-  Volume2,
-  VolumeX,
-  Mail,
-  Smartphone,
-  Lock,
-  Eye,
-  EyeOff,
-  Trash2,
-  Download,
-  Upload,
-  RefreshCw,
-  Zap,
-  Globe,
-  Clock,
-  HardDrive,
-  Cpu,
-  MemoryStick,
-  Activity,
-} from 'lucide-react';
+import { cn } from '@/lib/utils';
 
-// Terminal Observatory Theme Constants
-const PHOSPHOR_GREEN = '#00ff9f';
-const AMBER = '#ffb700';
-const CYAN = '#00d4ff';
-const CRIMSON = '#ff4757';
+type SettingsSection = 'account' | 'usage' | 'apps';
+type UsageHistoryView = 'usage' | 'addons';
 
-// Custom Toggle Switch Component
-const ToggleSwitch = ({
-  enabled,
-  onChange,
-  color = PHOSPHOR_GREEN
-}: {
-  enabled: boolean;
-  onChange: (value: boolean) => void;
-  color?: string;
-}) => (
-  <button
-    onClick={() => onChange(!enabled)}
-    className={cn(
-      "relative w-11 h-6 rounded-full transition-all duration-300",
-      "border focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-[#0a0a0f]",
-      enabled
-        ? "border-transparent"
-        : "border-white/20 bg-white/5"
-    )}
-    style={{
-      backgroundColor: enabled ? `${color}30` : undefined,
-      borderColor: enabled ? color : undefined,
-      boxShadow: enabled ? `0 0 12px ${color}40` : undefined,
-    }}
-  >
-    <motion.div
-      initial={false}
-      animate={{ x: enabled ? 22 : 2 }}
-      transition={{ type: "spring", stiffness: 500, damping: 30 }}
-      className="absolute top-1 w-4 h-4 rounded-full"
-      style={{ backgroundColor: enabled ? color : 'rgba(255,255,255,0.4)' }}
-    />
-  </button>
-);
-
-// Settings Section Component
-const SettingsSection = ({
-  title,
-  icon: Icon,
-  children,
-  delay = 0,
-}: {
-  title: string;
-  icon: any;
-  children: React.ReactNode;
-  delay?: number;
-}) => (
-  <motion.div
-    initial={{ opacity: 0, y: 20 }}
-    animate={{ opacity: 1, y: 0 }}
-    transition={{ delay }}
-    className="rounded overflow-hidden border border-white/10 bg-[#0d0d12]"
-  >
-    {/* Terminal Chrome */}
-    <div className="flex items-center gap-1.5 px-3 py-2 border-b border-white/10 bg-white/[0.02]">
-      <div className="w-2 h-2 rounded-full bg-red-500/60" />
-      <div className="w-2 h-2 rounded-full bg-yellow-500/60" />
-      <div className="w-2 h-2 rounded-full bg-green-500/60" />
-      <Icon className="w-3.5 h-3.5 text-[#00ff9f] ml-2" />
-      <span className="text-[10px] font-mono text-white/40 uppercase tracking-wider">
-        {title}
-      </span>
-    </div>
-    <div className="p-5 space-y-4">
-      {children}
-    </div>
-  </motion.div>
-);
-
-// Setting Row Component
-const SettingRow = ({
-  label,
-  description,
-  children,
-}: {
+const sectionItems: Array<{
+  id: SettingsSection;
   label: string;
-  description?: string;
-  children: React.ReactNode;
-}) => (
-  <div className="flex items-center justify-between gap-4 py-3 border-b border-white/5 last:border-0">
-    <div className="flex-1">
-      <div className="text-sm font-mono text-white/80">{label}</div>
-      {description && (
-        <div className="text-xs font-mono text-white/40 mt-0.5">{description}</div>
-      )}
-    </div>
-    <div className="shrink-0">
-      {children}
-    </div>
-  </div>
-);
+  icon: React.ComponentType<{ className?: string }>;
+}> = [
+  { id: 'account', label: 'My Account', icon: CircleUserRound },
+  { id: 'usage', label: 'Agent Usage', icon: WalletCards },
+  { id: 'apps', label: 'Connected Apps', icon: Link2 },
+];
 
-// Navigation Item
-const NavItem = ({
-  icon: Icon,
+function SectionNavButton({
   label,
   active,
   onClick,
-  color = PHOSPHOR_GREEN,
+  Icon,
 }: {
-  icon: any;
   label: string;
   active: boolean;
   onClick: () => void;
-  color?: string;
-}) => (
-  <button
-    onClick={onClick}
-    className={cn(
-      "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200",
-      "font-mono text-sm text-left",
-      active
-        ? "text-white"
-        : "text-white/50 hover:text-white/70 hover:bg-white/5"
-    )}
-    style={{
-      backgroundColor: active ? `${color}15` : undefined,
-      borderLeft: active ? `3px solid ${color}` : '3px solid transparent',
-    }}
-  >
-    <Icon
-      className="w-4 h-4 shrink-0"
-      style={{ color: active ? color : undefined }}
-    />
-    <span>{label}</span>
-    {active && (
-      <ChevronRight className="w-4 h-4 ml-auto" style={{ color }} />
-    )}
-  </button>
-);
+  Icon: React.ComponentType<{ className?: string }>;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        'flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-base transition-colors',
+        active
+          ? 'bg-[var(--terminal-surface)] text-[var(--terminal-text)] ring-1 ring-[var(--terminal-border-glow)]'
+          : 'text-[var(--terminal-text-dim)] hover:bg-[var(--terminal-surface)] hover:text-[var(--terminal-text)]'
+      )}
+    >
+      <Icon className="h-4 w-4" />
+      <span>{label}</span>
+    </button>
+  );
+}
 
 export default function SettingsPage() {
   const { user } = useAuth();
-  const [mounted, setMounted] = useState(false);
-  const [activeSection, setActiveSection] = useState('profile');
-  const [isSaving, setIsSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
+  const router = useRouter();
+  const [activeSection, setActiveSection] = useState<SettingsSection>('account');
+  const [historyView, setHistoryView] = useState<UsageHistoryView>('usage');
 
-  // Settings State
-  const [settings, setSettings] = useState({
-    // Profile
-    displayName: '',
-    email: '',
-    timezone: 'UTC',
-
-    // Appearance
-    theme: 'dark',
-    accentColor: 'var(--phosphor-green)',
-    crtEffect: true,
-    animations: true,
-    compactMode: false,
-
-    // Notifications
-    emailNotifications: true,
-    pushNotifications: false,
-    soundEnabled: true,
-    documentAlerts: true,
-    weeklyDigest: true,
-
-    // Security
-    twoFactor: false,
-    sessionTimeout: 30,
-    showPassword: false,
-
-    // Data
-    autoBackup: true,
-    backupFrequency: 'daily',
-    retentionDays: 30,
-  });
-
-  useEffect(() => {
-    setMounted(true);
-    if (user?.email) {
-      setSettings(prev => ({
-        ...prev,
-        email: user.email || '',
-        displayName: user.email?.split('@')[0] || '',
-      }));
-    }
-  }, [user]);
-
-  const handleSave = async () => {
-    setIsSaving(true);
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    setIsSaving(false);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
-  };
-
-  const sections = [
-    { id: 'profile', label: 'Identity', icon: User, color: 'var(--phosphor-green)' },
-    { id: 'appearance', label: 'Interface', icon: Palette, color: 'var(--cyan)' },
-    { id: 'notifications', label: 'Alerts', icon: Bell, color: 'var(--amber-gold)' },
-    { id: 'security', label: 'Protection', icon: Shield, color: '#ff4757' },
-    { id: 'data', label: 'Registry', icon: Database, color: 'var(--phosphor-green)' },
-    { id: 'system', label: 'Core', icon: Cpu, color: 'var(--cyan)' },
-  ];
-
-  const currentSection = sections.find(s => s.id === activeSection);
-
-  if (!mounted) return null;
+  const primaryEmail = useMemo(() => user?.email ?? 'Not provided', [user?.email]);
 
   return (
-    <div className="min-h-screen bg-[var(--terminal-bg)] flex flex-col">
-      {/* Content */}
-      <div className="relative p-6 space-y-6 flex-1 overflow-y-auto terminal-scrollbar">
-        {/* Header */}
-        <motion.div
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="rounded-xl border border-[var(--terminal-border)] bg-[var(--terminal-surface)] p-6 shadow-xl"
+    <div
+      data-testid="settings-shell"
+      className="flex min-h-screen items-center justify-center bg-[var(--terminal-bg)] p-4 sm:p-8"
+    >
+      <div
+        data-testid="settings-panel"
+        className="relative mx-auto w-full max-w-6xl min-h-[700px] overflow-hidden rounded-2xl border border-[var(--terminal-border)] bg-[var(--terminal-panel)] shadow-[0_20px_80px_rgba(0,0,0,0.55)]"
+      >
+        <button
+          type="button"
+          aria-label="Close settings"
+          onClick={() => router.back()}
+          className="absolute right-4 top-4 z-10 rounded-md p-1.5 text-[var(--terminal-text-dim)] transition-colors hover:bg-[var(--terminal-surface)] hover:text-[var(--terminal-text)]"
         >
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-lg bg-[var(--phosphor-green)]/10 border border-[var(--phosphor-green)]/20 flex items-center justify-center">
-                <Settings className="w-6 h-6 text-[var(--phosphor-green)]" />
-              </div>
-              <div>
-                <h1 className="text-xl font-mono font-bold text-[var(--terminal-text)] tracking-wider">
-                  System Configuration
-                </h1>
-                <p className="text-xs font-mono text-[var(--terminal-text-dim)] mt-0.5 uppercase tracking-widest">
-                  Preferences & Core Parameters
-                </p>
-              </div>
+          <X className="h-4 w-4" />
+        </button>
+        <div className="grid grid-cols-1 md:grid-cols-[240px_1fr]">
+          <aside className="border-b border-[var(--terminal-border)] bg-[var(--terminal-bg)] p-4 md:border-b-0 md:border-r md:p-5">
+            <div className="mb-4 pr-10">
+              <h1 className="text-2xl font-semibold text-[var(--terminal-text)]">Settings</h1>
             </div>
+            <nav className="space-y-1" aria-label="Settings sections">
+              {sectionItems.map((section) => (
+                <SectionNavButton
+                  key={section.id}
+                  label={section.label}
+                  Icon={section.icon}
+                  active={activeSection === section.id}
+                  onClick={() => setActiveSection(section.id)}
+                />
+              ))}
+            </nav>
+          </aside>
 
-            <motion.button
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              onClick={handleSave}
-              disabled={isSaving}
-              className={cn(
-                "flex items-center gap-2 px-5 py-2 rounded-lg font-mono text-xs font-bold transition-all border",
-                saved
-                  ? "bg-[var(--phosphor-green)]/20 border-[var(--phosphor-green)]/50 text-[var(--phosphor-green)]"
-                  : "bg-[var(--phosphor-green)] text-[var(--terminal-bg)] border-[var(--phosphor-green)] hover:shadow-[0_0_20px_var(--phosphor-green-glow)]"
-              )}
-            >
-              {isSaving ? (
-                <>
-                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                  PROCESSING...
-                </>
-              ) : saved ? (
-                <>
-                  <Check className="w-3.5 h-3.5" />
-                  COMMITTED
-                </>
-              ) : (
-                <>
-                  <Save className="w-3.5 h-3.5" />
-                  SYNC CHANGES
-                </>
-              )}
-            </motion.button>
-          </div>
-        </motion.div>
+          <main className="min-h-[620px] bg-[var(--terminal-panel)] p-6 sm:p-8">
+            {activeSection === 'account' && (
+              <section aria-labelledby="my-account-title" className="space-y-6">
+                <div>
+                  <h2 id="my-account-title" className="text-3xl font-semibold text-[var(--terminal-text)]">
+                    Primary email
+                  </h2>
+                  <p className="mt-2 text-xl text-[var(--terminal-text-dim)]">{primaryEmail}</p>
+                </div>
 
-        {/* Main Layout */}
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-          {/* Sidebar Navigation */}
-          <motion.div
-            initial={{ opacity: 0, x: -10 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.1 }}
-            className="lg:col-span-1"
-          >
-            <div className="rounded-xl border border-[var(--terminal-border)] bg-[var(--terminal-surface)] p-2 sticky top-6 shadow-lg">
-              <div className="px-3 py-2 border-b border-[var(--terminal-border)] mb-2">
-                <span className="text-[10px] font-mono text-[var(--terminal-text-muted)] uppercase tracking-[0.2em] font-bold">
-                  Modules
-                </span>
-              </div>
-              <div className="space-y-1">
-                {sections.map((section) => (
-                  <NavItem
-                    key={section.id}
-                    icon={section.icon}
-                    label={section.label.toUpperCase()}
-                    active={activeSection === section.id}
-                    onClick={() => setActiveSection(section.id)}
-                    color={section.color}
-                  />
-                ))}
-              </div>
-            </div>
-          </motion.div>
+                <hr className="border-[var(--terminal-border)]" />
 
-          {/* Settings Content */}
-          <div className="lg:col-span-3 space-y-6">
-            <AnimatePresence mode="wait">
-              {/* Profile Section */}
-              {activeSection === 'profile' && (
-                <motion.div
-                  key="profile"
-                  initial={{ opacity: 0, x: 5 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -5 }}
-                  className="space-y-6"
+                <div>
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <h3 className="text-3xl font-semibold text-[var(--terminal-text)]">Subscription</h3>
+                    <button
+                      type="button"
+                      className="inline-flex items-center gap-2 rounded-md border border-[var(--terminal-border-glow)] px-4 py-2 text-base font-medium text-[var(--terminal-text)] hover:bg-[var(--terminal-surface)]"
+                    >
+                      View Plans
+                      <ChevronRight className="h-4 w-4" />
+                    </button>
+                  </div>
+                  <p className="max-w-2xl text-lg text-[var(--terminal-text-dim)]">
+                    You are currently a Basic User with limited access. Upgrade to premium or higher to
+                    enjoy unlimited benefits.
+                  </p>
+                </div>
+
+                <hr className="border-[var(--terminal-border)]" />
+
+                <button
+                  type="button"
+                  className="rounded-md border border-rose-400/60 px-4 py-2 text-base font-medium text-rose-400 hover:bg-rose-500/10"
                 >
-                  <SettingsSection title="Identity Registry" icon={User}>
-                    <SettingRow label="User Alias" description="Visible system identifier">
-                      <input
-                        type="text"
-                        value={settings.displayName}
-                        onChange={(e) => setSettings(prev => ({ ...prev, displayName: e.target.value }))}
-                        className="w-48 px-3 py-1.5 rounded-lg border border-[var(--terminal-border)] bg-[var(--terminal-bg)] font-mono text-sm text-[var(--terminal-text)] focus:border-[var(--phosphor-green)]/50 outline-none transition-all"
-                        placeholder="Identifier"
-                      />
-                    </SettingRow>
+                  Log out
+                </button>
+              </section>
+            )}
 
-                    <SettingRow label="Digital Signature" description="Account email protocol">
-                      <div className="flex items-center gap-2">
-                        <Mail className="w-4 h-4 text-[var(--terminal-text-dim)]" />
-                        <span className="font-mono text-sm text-[var(--terminal-text-dim)]">{settings.email || 'UNSIGNED'}</span>
-                      </div>
-                    </SettingRow>
-
-                    <SettingRow label="Temporal Zone" description="Synchronize system clock">
-                      <select
-                        value={settings.timezone}
-                        onChange={(e) => setSettings(prev => ({ ...prev, timezone: e.target.value }))}
-                        className="px-3 py-1.5 rounded-lg border border-[var(--terminal-border)] bg-[var(--terminal-bg)] font-mono text-sm text-[var(--terminal-text)] focus:border-[var(--phosphor-green)]/50 outline-none appearance-none cursor-pointer"
+            {activeSection === 'usage' && (
+              <section aria-labelledby="agent-usage-title" className="space-y-7">
+                <div className="rounded-xl border border-[var(--terminal-border)] bg-[var(--terminal-bg)]">
+                  <div className="rounded-t-xl bg-[var(--terminal-surface)] p-4">
+                    <div className="mb-1 flex items-center justify-between gap-3 text-[var(--terminal-text-dim)]">
+                      <span className="text-lg">Plan</span>
+                      <button
+                        type="button"
+                        className="rounded-md bg-orange-500 px-4 py-2 text-sm font-semibold text-white hover:bg-orange-600"
                       >
-                        <option value="UTC">UTC (GMT+0)</option>
-                        <option value="EST">EST (GMT-5)</option>
-                        <option value="PST">PST (GMT-8)</option>
-                        <option value="CET">CET (GMT+1)</option>
-                        <option value="JST">JST (GMT+9)</option>
-                      </select>
-                    </SettingRow>
-                  </SettingsSection>
-
-                  <SettingsSection title="Clearance Level" icon={Shield}>
-                    <div className="grid grid-cols-3 gap-4">
-                      {[
-                        { label: 'ACTIVATED', value: 'Dec 2024', icon: Clock, color: 'var(--phosphor-green)' },
-                        { label: 'RANK', value: 'ADMIN', icon: Shield, color: 'var(--amber-gold)' },
-                        { label: 'QUOTA', value: '85% LOAD', icon: Zap, color: 'var(--cyan)' },
-                      ].map((stat) => (
-                        <div
-                          key={stat.label}
-                          className="p-4 rounded-xl border border-[var(--terminal-border)] bg-[var(--terminal-bg)]/20 relative group"
-                        >
-                          <div className="absolute top-0 left-0 w-full h-0.5 bg-gradient-to-r from-transparent via-current to-transparent opacity-10 group-hover:opacity-100 transition-opacity" style={{ color: stat.color }} />
-                          <stat.icon className="w-4 h-4 mb-3" style={{ color: stat.color }} />
-                          <div className="text-lg font-mono font-bold text-[var(--terminal-text)]">{stat.value}</div>
-                          <div className="text-[9px] font-mono text-[var(--terminal-text-dim)] uppercase tracking-widest mt-1">{stat.label}</div>
-                        </div>
-                      ))}
+                        Upgrade Plan
+                      </button>
                     </div>
-                  </SettingsSection>
-                </motion.div>
-              )}
+                    <p className="text-3xl font-semibold text-[var(--terminal-text)]">Basic</p>
+                  </div>
 
-              {/* Appearance Section */}
-              {activeSection === 'appearance' && (
-                <motion.div
-                  key="appearance"
-                  initial={{ opacity: 0, x: 5 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -5 }}
-                  className="space-y-6"
-                >
-                  <SettingsSection title="Visual Interface" icon={Palette}>
-                    <SettingRow label="Color Protocol" description="Interface theme mode">
-                      <div className="flex gap-2">
-                        {[
-                          { value: 'dark', icon: Moon, label: 'DARK' },
-                          { value: 'system', icon: Monitor, label: 'SYNC' },
-                        ].map((theme) => (
-                          <button
-                            key={theme.value}
-                            onClick={() => setSettings(prev => ({ ...prev, theme: theme.value }))}
-                            className={cn(
-                              "flex items-center gap-2 px-3 py-1.5 rounded-lg border font-mono text-[10px] font-bold transition-all",
-                              settings.theme === theme.value
-                                ? "border-[var(--cyan)]/50 bg-[var(--cyan)]/10 text-[var(--cyan)]"
-                                : "border-[var(--terminal-border)] bg-[var(--terminal-bg)] text-[var(--terminal-text-dim)] hover:border-[var(--terminal-border-glow)]"
-                            )}
-                          >
-                            <theme.icon className="w-3 h-3" />
-                            {theme.label}
-                          </button>
-                        ))}
-                      </div>
-                    </SettingRow>
+                  <div className="space-y-3 border-t border-[var(--terminal-border)] p-4">
+                    <div className="flex items-center justify-between gap-2 text-[var(--terminal-text)]">
+                      <span className="text-3xl font-semibold">Monthly Credits</span>
+                      <span className="text-3xl font-semibold">100 left</span>
+                    </div>
+                    <div className="flex items-center justify-between gap-2 text-lg text-[var(--terminal-text-dim)]">
+                      <span>Resets March 17, 2026</span>
+                      <span>100% left</span>
+                    </div>
+                  </div>
+                </div>
 
-                    <SettingRow label="Neural Accent" description="Primary interaction color">
-                      <div className="flex gap-3">
-                        {[
-                          { color: 'var(--phosphor-green)', label: 'PHOSPHOR' },
-                          { color: 'var(--cyan)', label: 'CYAN' },
-                          { color: 'var(--amber-gold)', label: 'AMBER' },
-                          { color: '#a855f7', label: 'PURPLE' },
-                        ].map((accent) => (
-                          <button
-                            key={accent.color}
-                            onClick={() => setSettings(prev => ({ ...prev, accentColor: accent.color }))}
-                            className={cn(
-                              "w-6 h-6 rounded-full border-2 transition-all",
-                              settings.accentColor === accent.color
-                                ? "border-[var(--terminal-text)] scale-125 shadow-lg"
-                                : "border-transparent hover:scale-110"
-                            )}
-                            style={{ backgroundColor: accent.color }}
-                            title={accent.label}
-                          />
-                        ))}
-                      </div>
-                    </SettingRow>
+                <div>
+                  <h2 id="agent-usage-title" className="mb-4 text-3xl font-semibold text-[var(--terminal-text)]">
+                    History
+                  </h2>
 
-                    <SettingRow label="CRT Processing" description="Retro scanline emulation">
-                      <ToggleSwitch
-                        enabled={settings.crtEffect}
-                        onChange={(val) => setSettings(prev => ({ ...prev, crtEffect: val }))}
-                        color="var(--cyan)"
-                      />
-                    </SettingRow>
+                  <div className="mb-4 inline-flex rounded-lg bg-[var(--terminal-surface)] p-1">
+                    <button
+                      type="button"
+                      onClick={() => setHistoryView('usage')}
+                      className={cn(
+                        'rounded-md px-4 py-2 text-base font-medium',
+                        historyView === 'usage'
+                          ? 'bg-[var(--terminal-panel)] text-[var(--terminal-text)] shadow-sm'
+                          : 'text-[var(--terminal-text-dim)] hover:text-[var(--terminal-text)]'
+                      )}
+                    >
+                      Usage
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setHistoryView('addons')}
+                      className={cn(
+                        'rounded-md px-4 py-2 text-base font-medium',
+                        historyView === 'addons'
+                          ? 'bg-[var(--terminal-panel)] text-[var(--terminal-text)] shadow-sm'
+                          : 'text-[var(--terminal-text-dim)] hover:text-[var(--terminal-text)]'
+                      )}
+                    >
+                      Add-On Purchases
+                    </button>
+                  </div>
 
-                    <SettingRow label="Kinetic Effects" description="UI animations & transitions">
-                      <ToggleSwitch
-                        enabled={settings.animations}
-                        onChange={(val) => setSettings(prev => ({ ...prev, animations: val }))}
-                        color="var(--cyan)"
-                      />
-                    </SettingRow>
-                  </SettingsSection>
-                </motion.div>
-              )}
+                  <div className="overflow-hidden rounded-xl border border-[var(--terminal-border)]">
+                    <div className="grid grid-cols-3 border-b border-[var(--terminal-border)] bg-[var(--terminal-surface)] px-4 py-3 text-base font-medium text-[var(--terminal-text-dim)]">
+                      <span>Details</span>
+                      <span className="text-center">Date</span>
+                      <span className="text-right">Credits</span>
+                    </div>
+                    <div className="px-4 py-8 text-center text-lg text-[var(--terminal-text-dim)]">No usage history found</div>
+                  </div>
+                </div>
+              </section>
+            )}
 
-              {/* Notifications Section */}
-              {activeSection === 'notifications' && (
-                <motion.div
-                  key="notifications"
-                  initial={{ opacity: 0, x: 5 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -5 }}
-                  className="space-y-6"
-                >
-                  <SettingsSection title="Alert Protocols" icon={Bell}>
-                    <SettingRow label="Email Dispatch" description="Receive alerts via digital mail">
-                      <ToggleSwitch
-                        enabled={settings.emailNotifications}
-                        onChange={(val) => setSettings(prev => ({ ...prev, emailNotifications: val }))}
-                        color={AMBER}
-                      />
-                    </SettingRow>
+            {activeSection === 'apps' && (
+              <section aria-labelledby="connected-apps-title" className="space-y-5">
+                <div>
+                  <h2 id="connected-apps-title" className="text-3xl font-semibold text-[var(--terminal-text)]">
+                    Connected Apps
+                  </h2>
+                  <p className="mt-2 text-lg text-[var(--terminal-text-dim)]">
+                    Connect external apps to streamline your research and workflow.
+                  </p>
+                </div>
 
-                    <SettingRow label="Push Signals" description="Browser push notifications">
-                      <ToggleSwitch
-                        enabled={settings.pushNotifications}
-                        onChange={(val) => setSettings(prev => ({ ...prev, pushNotifications: val }))}
-                        color={AMBER}
-                      />
-                    </SettingRow>
-
-                    <SettingRow label="Sonic Alerts" description="Audible notification signals">
-                      <div className="flex items-center gap-3">
-                        {settings.soundEnabled ? (
-                          <Volume2 className="w-4 h-4" style={{ color: AMBER }} />
-                        ) : (
-                          <VolumeX className="w-4 h-4 text-white/30" />
-                        )}
-                        <ToggleSwitch
-                          enabled={settings.soundEnabled}
-                          onChange={(val) => setSettings(prev => ({ ...prev, soundEnabled: val }))}
-                          color={AMBER}
-                        />
-                      </div>
-                    </SettingRow>
-
-                    <SettingRow label="Document Processing Alerts" description="Notify on ingestion completion">
-                      <ToggleSwitch
-                        enabled={settings.documentAlerts}
-                        onChange={(val) => setSettings(prev => ({ ...prev, documentAlerts: val }))}
-                        color={AMBER}
-                      />
-                    </SettingRow>
-
-                    <SettingRow label="Weekly Digest" description="Summarized weekly activity report">
-                      <ToggleSwitch
-                        enabled={settings.weeklyDigest}
-                        onChange={(val) => setSettings(prev => ({ ...prev, weeklyDigest: val }))}
-                        color={AMBER}
-                      />
-                    </SettingRow>
-                  </SettingsSection>
-                </motion.div>
-              )}
-
-              {/* Security Section */}
-              {activeSection === 'security' && (
-                <motion.div
-                  key="security"
-                  initial={{ opacity: 0, x: 5 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -5 }}
-                  className="space-y-6"
-                >
-                  <SettingsSection title="Security Protocols" icon={Shield}>
-                    <SettingRow label="Two-Factor Authentication" description="Secondary verification layer">
-                      <div className="flex items-center gap-3">
-                        <Lock className="w-4 h-4" style={{ color: settings.twoFactor ? PHOSPHOR_GREEN : 'rgba(255,255,255,0.3)' }} />
-                        <ToggleSwitch
-                          enabled={settings.twoFactor}
-                          onChange={(val) => setSettings(prev => ({ ...prev, twoFactor: val }))}
-                          color={PHOSPHOR_GREEN}
-                        />
-                      </div>
-                    </SettingRow>
-
-                    <SettingRow label="Session Timeout" description="Auto-disconnect idle sessions">
-                      <select
-                        value={settings.sessionTimeout}
-                        onChange={(e) => setSettings(prev => ({ ...prev, sessionTimeout: Number(e.target.value) }))}
-                        className="px-3 py-1.5 rounded-lg border border-[var(--terminal-border)] bg-[var(--terminal-bg)] font-mono text-sm text-[var(--terminal-text)] focus:border-[var(--phosphor-green)]/50 outline-none appearance-none cursor-pointer"
-                      >
-                        <option value={15}>15 minutes</option>
-                        <option value={30}>30 minutes</option>
-                        <option value={60}>1 hour</option>
-                        <option value={240}>4 hours</option>
-                        <option value={480}>8 hours</option>
-                      </select>
-                    </SettingRow>
-                  </SettingsSection>
-                </motion.div>
-              )}
-
-              {/* Data Management Section */}
-              {activeSection === 'data' && (
-                <motion.div
-                  key="data"
-                  initial={{ opacity: 0, x: 5 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -5 }}
-                  className="space-y-6"
-                >
-                  <SettingsSection title="Data Registry" icon={Database}>
-                    <SettingRow label="Auto-Backup" description="Automatic data preservation">
-                      <ToggleSwitch
-                        enabled={settings.autoBackup}
-                        onChange={(val) => setSettings(prev => ({ ...prev, autoBackup: val }))}
-                        color={PHOSPHOR_GREEN}
-                      />
-                    </SettingRow>
-
-                    <SettingRow label="Backup Frequency" description="Automated backup interval">
-                      <select
-                        value={settings.backupFrequency}
-                        onChange={(e) => setSettings(prev => ({ ...prev, backupFrequency: e.target.value }))}
-                        className="px-3 py-1.5 rounded-lg border border-[var(--terminal-border)] bg-[var(--terminal-bg)] font-mono text-sm text-[var(--terminal-text)] focus:border-[var(--phosphor-green)]/50 outline-none appearance-none cursor-pointer"
-                      >
-                        <option value="daily">Daily</option>
-                        <option value="weekly">Weekly</option>
-                        <option value="monthly">Monthly</option>
-                      </select>
-                    </SettingRow>
-
-                    <SettingRow label="Data Retention" description="Record preservation period">
-                      <select
-                        value={settings.retentionDays}
-                        onChange={(e) => setSettings(prev => ({ ...prev, retentionDays: Number(e.target.value) }))}
-                        className="px-3 py-1.5 rounded-lg border border-[var(--terminal-border)] bg-[var(--terminal-bg)] font-mono text-sm text-[var(--terminal-text)] focus:border-[var(--phosphor-green)]/50 outline-none appearance-none cursor-pointer"
-                      >
-                        <option value={30}>30 days</option>
-                        <option value={90}>90 days</option>
-                        <option value={365}>1 year</option>
-                        <option value={-1}>Forever</option>
-                      </select>
-                    </SettingRow>
-
-                    <SettingRow label="Export Data" description="Download system data archive">
-                      <motion.button
-                        whileHover={{ scale: 1.02 }}
-                        whileTap={{ scale: 0.98 }}
-                        onClick={() => alert('Data export initiated. You will receive a download link via email.')}
-                        className="flex items-center gap-2 px-4 py-1.5 rounded-lg border font-mono text-xs font-bold transition-all"
-                        style={{
-                          borderColor: `${PHOSPHOR_GREEN}50`,
-                          backgroundColor: `${PHOSPHOR_GREEN}15`,
-                          color: PHOSPHOR_GREEN,
-                        }}
-                      >
-                        <Download className="w-3.5 h-3.5" />
-                        EXPORT
-                      </motion.button>
-                    </SettingRow>
-
-                    <SettingRow label="Import Data" description="Restore from external archive">
-                      <motion.button
-                        whileHover={{ scale: 1.02 }}
-                        whileTap={{ scale: 0.98 }}
-                        onClick={() => alert('Import wizard will open. Please prepare your data archive.')}
-                        className="flex items-center gap-2 px-4 py-1.5 rounded-lg border font-mono text-xs font-bold transition-all"
-                        style={{
-                          borderColor: `${CYAN}50`,
-                          backgroundColor: `${CYAN}15`,
-                          color: CYAN,
-                        }}
-                      >
-                        <Upload className="w-3.5 h-3.5" />
-                        IMPORT
-                      </motion.button>
-                    </SettingRow>
-                  </SettingsSection>
-                </motion.div>
-              )}
-
-              {/* System Section */}
-              {activeSection === 'system' && (
-                <motion.div
-                  key="system"
-                  initial={{ opacity: 0, x: 5 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -5 }}
-                  className="space-y-6"
-                >
-                  <SettingsSection title="Core Diagnostics" icon={Cpu}>
-                    <SettingRow label="System Status" description="Current operational state">
-                      <div className="flex items-center gap-2">
-                        <span className="relative flex h-2.5 w-2.5">
-                          <span
-                            className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75"
-                            style={{ backgroundColor: PHOSPHOR_GREEN }}
-                          />
-                          <span
-                            className="relative inline-flex rounded-full h-2.5 w-2.5"
-                            style={{ backgroundColor: PHOSPHOR_GREEN }}
-                          />
-                        </span>
-                        <span className="font-mono text-sm font-bold" style={{ color: PHOSPHOR_GREEN }}>
-                          Healthy
-                        </span>
-                      </div>
-                    </SettingRow>
-
-                    <SettingRow label="Clear Cache" description="Purge temporary system data">
-                      <motion.button
-                        whileHover={{ scale: 1.02 }}
-                        whileTap={{ scale: 0.98 }}
-                        onClick={() => alert('Cache cleared successfully.')}
-                        className="flex items-center gap-2 px-4 py-1.5 rounded-lg border font-mono text-xs font-bold transition-all"
-                        style={{
-                          borderColor: `${AMBER}50`,
-                          backgroundColor: `${AMBER}15`,
-                          color: AMBER,
-                        }}
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                        CLEAR
-                      </motion.button>
-                    </SettingRow>
-
-                    <SettingRow label="Run Diagnostics" description="Execute system health check">
-                      <motion.button
-                        whileHover={{ scale: 1.02 }}
-                        whileTap={{ scale: 0.98 }}
-                        onClick={() => alert('Diagnostics running... All systems nominal.')}
-                        className="flex items-center gap-2 px-4 py-1.5 rounded-lg border font-mono text-xs font-bold transition-all"
-                        style={{
-                          borderColor: `${CYAN}50`,
-                          backgroundColor: `${CYAN}15`,
-                          color: CYAN,
-                        }}
-                      >
-                        <Activity className="w-3.5 h-3.5" />
-                        DIAGNOSE
-                      </motion.button>
-                    </SettingRow>
-                  </SettingsSection>
-                </motion.div>
-              )}
-
-            </AnimatePresence>
-          </div>
+                <div className="rounded-xl border border-[var(--terminal-border)] bg-[var(--terminal-bg)] p-6">
+                  <div className="mb-4 flex items-center gap-2 text-[var(--terminal-text)]">
+                    <Plug className="h-5 w-5" />
+                    <span className="text-lg font-medium">No connected apps yet</span>
+                  </div>
+                  <p className="mb-4 text-lg text-[var(--terminal-text-dim)]">
+                    You can connect apps like Google Drive, Notion, and Slack from here.
+                  </p>
+                  <button
+                    type="button"
+                    className="rounded-md border border-[var(--terminal-border-glow)] bg-[var(--terminal-panel)] px-4 py-2 text-base font-medium text-[var(--terminal-text)] hover:bg-[var(--terminal-surface)]"
+                  >
+                    Connect App
+                  </button>
+                </div>
+              </section>
+            )}
+          </main>
         </div>
       </div>
     </div>

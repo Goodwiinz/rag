@@ -57,7 +57,7 @@ export function TerminalChatBubble({
     <div
       className={cn(
         'group relative mb-4',
-        isUser ? 'ml-8 sm:ml-16' : 'mr-8 sm:mr-16'
+        isUser ? 'ml-4 sm:ml-10' : 'mr-4 sm:mr-10'
       )}
     >
       <div
@@ -71,31 +71,31 @@ export function TerminalChatBubble({
 
       <div
         className={cn(
-          'mb-1.5 flex items-center gap-3 text-[10px] tracking-wider',
+          'mb-2 flex items-center gap-3 text-[11px] tracking-wide',
           isUser ? 'justify-end pr-4' : 'pl-4'
         )}
         style={{ fontFamily: "'JetBrains Mono', monospace" }}
       >
         {!isUser && (
           <>
-            <div className="rounded border border-[var(--terminal-border)] bg-[var(--terminal-surface)] px-1.5 py-0.5">
-              <span className="text-[9px] font-bold text-[var(--phosphor-green)]">
+            <div className="rounded border border-[var(--terminal-border)] bg-[var(--terminal-surface)] px-2 py-0.5">
+              <span className="text-[10px] font-bold text-[var(--phosphor-green)]">
                 {isTyping || isStreaming ? 'STREAMING' : 'RECEIVED'}
               </span>
             </div>
             {modelName && (
-              <span className="rounded border border-[var(--terminal-border)] bg-[var(--terminal-surface)] px-1.5 py-0.5 text-[var(--terminal-text-dim)]">
+              <span className="rounded border border-[var(--terminal-border)] bg-[var(--terminal-surface)] px-2 py-0.5 text-[var(--terminal-text-dim)]/90">
                 {modelName}
               </span>
             )}
           </>
         )}
         {isUser && (
-          <span className="rounded border border-[var(--amber-gold)]/20 bg-[var(--amber-gold)]/10 px-1.5 py-0.5 text-[9px] font-bold text-[var(--amber-gold)]">
+          <span className="rounded border border-[var(--amber-gold)]/20 bg-[var(--amber-gold)]/10 px-2 py-0.5 text-[10px] font-bold text-[var(--amber-gold)]">
             QUERY
           </span>
         )}
-        <span className="text-[var(--terminal-text-dim)]">{timestamp}</span>
+        <span className="text-[var(--terminal-text-dim)]/90">{timestamp}</span>
 
         <div className="flex items-center gap-1 opacity-0 transition-all duration-200 group-hover:opacity-100">
           <button
@@ -184,19 +184,19 @@ export function TerminalChatBubble({
         </div>
 
         {!isUser && message.citations && message.citations.length > 0 && (
-          <div className="relative border-t border-[var(--terminal-border)] bg-[var(--terminal-bg)]/30 p-2.5">
-            <div className="flex flex-wrap items-center gap-1.5">
+          <div className="relative border-t border-[var(--terminal-border)] bg-[var(--terminal-bg)]/30 p-3">
+            <div className="flex flex-wrap items-center gap-2">
               {message.citations.map((citation, idx) => (
                 <button
                   key={idx}
-                  className="group/citation flex items-center gap-1.5 rounded border border-[var(--terminal-border)] bg-[var(--terminal-surface)] px-2 py-1 text-[9px] transition-all hover:border-[var(--phosphor-green)]/40 hover:bg-[var(--terminal-elevated)]"
+                  className="group/citation flex items-center gap-2 rounded border border-[var(--terminal-border)] bg-[var(--terminal-surface)] px-2.5 py-1.5 text-[10px] transition-all hover:border-[var(--phosphor-green)]/40 hover:bg-[var(--terminal-elevated)]"
                   style={{ fontFamily: "'JetBrains Mono', monospace" }}
                 >
                   <div className="h-1 w-1 rounded-full bg-[var(--phosphor-green)]/30 transition-colors group-hover/citation:bg-[var(--phosphor-green)]" />
-                  <span className="max-w-[150px] truncate text-[var(--terminal-text)]">
+                  <span className="max-w-[180px] truncate text-[var(--terminal-text)]">
                     {citation.title}
                   </span>
-                  <span className="border-l border-[var(--terminal-border)] pl-1.5 text-[var(--terminal-text-dim)]">
+                  <span className="border-l border-[var(--terminal-border)] pl-2 text-[var(--terminal-text-dim)]/90">
                     {Math.round(citation.score * 100)}%
                   </span>
                 </button>
@@ -210,4 +210,3 @@ export function TerminalChatBubble({
 }
 
 export default TerminalChatBubble;
-

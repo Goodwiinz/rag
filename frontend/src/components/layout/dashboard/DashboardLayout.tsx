@@ -102,7 +102,7 @@ export function DashboardLayout({ children, fullHeight = false }: DashboardLayou
   };
 
   const getBreadcrumbs = () => {
-    if (pathname?.startsWith('/llm-chat')) return { section: 'Project', page: 'Chat Assistant' };
+    if (pathname?.startsWith('/chat')) return { section: 'Project', page: 'Chat Assistant' };
     if (pathname?.startsWith('/documents/upload')) return { section: 'Project', page: 'Documents' };
     if (pathname?.startsWith('/search')) return { section: 'Project', page: 'Semantic Search' };
     if (pathname?.startsWith('/settings')) return { section: 'Organization', page: 'Settings' };

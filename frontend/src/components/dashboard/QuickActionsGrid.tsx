@@ -47,7 +47,7 @@ const quickActions: QuickAction[] = [
   {
     title: 'AI Chat',
     description: 'Chat with your AI assistant',
-    href: '/llm-chat',
+    href: '/chat',
     icon: MessageSquare,
     color: 'text-amber-500',
     bgGradient: 'from-amber-500/10 to-orange-500/10 hover:from-amber-500/20 hover:to-orange-500/20',

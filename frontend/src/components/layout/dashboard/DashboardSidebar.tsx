@@ -11,7 +11,7 @@ export function DashboardSidebar() {
 
   const projectItems = [
     { label: 'Dashboard', icon: LayoutDashboard, href: '/dashboard' },
-    { label: 'Chat Assistant', icon: MessageSquare, href: '/llm-chat' },
+    { label: 'Chat Assistant', icon: MessageSquare, href: '/chat' },
     { label: 'Documents', icon: FileText, href: '/documents/upload' },
     { label: 'Semantic Search', icon: Search, href: '/search' },
   ];

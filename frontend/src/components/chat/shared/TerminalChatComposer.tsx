@@ -51,10 +51,10 @@ export function TerminalChatComposer({
 
   return (
     <div className="z-40 bg-gradient-to-t from-[var(--terminal-bg)] via-[var(--terminal-bg)] to-transparent px-4 pb-4 pt-4">
-      <div className="mx-auto max-w-4xl">
+      <div className="mx-auto max-w-5xl 2xl:max-w-6xl">
         <div
           className={cn(
-            'overflow-visible rounded-xl border border-[var(--terminal-border)] bg-[var(--terminal-surface)] shadow-2xl shadow-black/50'
+            'overflow-visible rounded-xl border border-[var(--terminal-border)] bg-[var(--terminal-surface)] shadow-2xl shadow-black/50 ring-1 ring-[var(--terminal-border)]/30'
           )}
         >
           <div className="p-3 sm:p-4">
@@ -91,8 +91,8 @@ export function TerminalChatComposer({
                   className={cn(
                     'flex items-center gap-2 rounded-lg px-5 py-2 text-[10px] font-bold tracking-widest transition-all duration-300',
                     value.trim() && !isDisabled
-                      ? 'bg-[var(--phosphor-green)] text-[var(--terminal-bg)] hover:scale-[1.02] hover:shadow-[0_0_15px_rgba(0,255,159,0.2)] active:scale-95'
-                      : 'cursor-not-allowed border border-[var(--terminal-border)] bg-[var(--terminal-elevated)] text-[var(--terminal-text-muted)]'
+                      ? 'bg-[var(--phosphor-green)] text-[var(--terminal-bg)] shadow-[0_0_18px_rgba(0,255,159,0.25)] hover:scale-[1.02] hover:shadow-[0_0_24px_rgba(0,255,159,0.35)] active:scale-95'
+                      : 'cursor-not-allowed border border-[var(--terminal-border)] bg-[var(--terminal-elevated)] text-[var(--terminal-text-dim)]/80'
                   )}
                   style={{ fontFamily: "'JetBrains Mono', monospace" }}
                 >
@@ -118,4 +118,3 @@ export function TerminalChatComposer({
 }
 
 export default TerminalChatComposer;
-

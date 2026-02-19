@@ -40,6 +40,7 @@ const typeColors: Record<string, string> = {
   DATE: '#94a3b8', // Slate-400
   TECHNOLOGY: '#22d3ee', // Cyan-400
   DOCUMENT: '#fb923c', // Orange-400
+  OTHER: '#9ca3af', // Gray-400
   UNKNOWN: '#6b7280', // Gray-500
 };
 
@@ -47,7 +48,7 @@ export const EntityGraph: React.FC<EntityGraphProps> = ({
   entities,
   relationships = [],
   onEntityClick,
-  height = 600
+  height = 600,
 }) => {
   const svgRef = useRef<SVGSVGElement>(null);
   const [selectedEntity, setSelectedEntity] = useState<Entity | null>(null);
@@ -55,26 +56,27 @@ export const EntityGraph: React.FC<EntityGraphProps> = ({
 
   const prepareGraphData = () => {
     // Create nodes
-    const nodes = entities.map(entity => ({
+    const nodes = entities.map((entity) => ({
       id: entity.id,
       name: entity.name,
       type: entity.type || 'UNKNOWN',
       color: typeColors[entity.type] || typeColors.UNKNOWN,
-      radius: 20 + (entity.confidence || 0.8) * 10
+      radius: 20 + (entity.confidence || 0.8) * 10,
     }));
 
     // Create links from relationships
     const links = relationships
-      .filter(rel =>
-        entities.find(e => e.id === rel.source) &&
-        entities.find(e => e.id === rel.target)
+      .filter(
+        (rel) =>
+          entities.find((e) => e.id === rel.source) &&
+          entities.find((e) => e.id === rel.target)
       )
-      .map(rel => ({
+      .map((rel) => ({
         source: rel.source,
         target: rel.target,
         type: rel.type,
         strength: rel.weight || rel.strength || 0.5,
-        confidence: rel.confidence || 0.8
+        confidence: rel.confidence || 0.8,
       }));
 
     return { nodes, links };
@@ -91,20 +93,28 @@ export const EntityGraph: React.FC<EntityGraphProps> = ({
     const { nodes, links } = prepareGraphData();
 
     // Create simulation
-    const simulation = d3.forceSimulation(nodes as any)
-      .force('link', d3.forceLink(links)
-        .id((d: any) => d.id)
-        .strength((d: any) => d.strength || 0.5)
+    const simulation = d3
+      .forceSimulation(nodes as any)
+      .force(
+        'link',
+        d3
+          .forceLink(links)
+          .id((d: any) => d.id)
+          .strength((d: any) => d.strength || 0.5)
       )
       .force('charge', d3.forceManyBody().strength(-800))
       .force('center', d3.forceCenter(width / 2, height / 2))
-      .force('collision', d3.forceCollide().radius((d: any) => d.radius + 10));
+      .force(
+        'collision',
+        d3.forceCollide().radius((d: any) => d.radius + 10)
+      );
 
     // Create container
     const g = svg.append('g');
 
     // Add zoom behavior
-    const zoom = d3.zoom()
+    const zoom = d3
+      .zoom()
       .scaleExtent([0.1, 4])
       .on('zoom', (event: any) => {
         g.attr('transform', event.transform);
@@ -113,9 +123,12 @@ export const EntityGraph: React.FC<EntityGraphProps> = ({
     svg.call(zoom as any);
 
     // Create arrow markers
-    svg.append('defs').selectAll('marker')
+    svg
+      .append('defs')
+      .selectAll('marker')
       .data(['arrow'])
-      .enter().append('marker')
+      .enter()
+      .append('marker')
       .attr('id', 'arrow')
       .attr('viewBox', '0 -5 10 10')
       .attr('refX', 28) // Adjusted for node radius
@@ -128,38 +141,46 @@ export const EntityGraph: React.FC<EntityGraphProps> = ({
       .attr('fill', TERMINAL_COLORS.border);
 
     // Create links
-    const link = g.append('g')
+    const link = g
+      .append('g')
       .selectAll('line')
       .data(links)
-      .enter().append('line')
+      .enter()
+      .append('line')
       .attr('stroke', TERMINAL_COLORS.border)
       .attr('stroke-opacity', 0.6)
-      .attr('stroke-width', (d: any) => Math.max(1, Math.sqrt(d.strength || 0.5) * 3));
+      .attr('stroke-width', (d: any) =>
+        Math.max(1, Math.sqrt(d.strength || 0.5) * 3)
+      );
 
     // Create node groups
-    const node = g.append('g')
+    const node = g
+      .append('g')
       .selectAll('g')
       .data(nodes)
-      .enter().append('g')
-      .call((d3.drag() as d3.DragBehavior<SVGGElement, any, any>)
-        .on('start', (event: any, d: any) => {
-          if (!event.active) simulation.alphaTarget(0.3).restart();
-          d.fx = d.x;
-          d.fy = d.y;
-        })
-        .on('drag', (event: any, d: any) => {
-          d.fx = event.x;
-          d.fy = event.y;
-        })
-        .on('end', (event: any, d: any) => {
-          if (!event.active) simulation.alphaTarget(0);
-          d.fx = null;
-          d.fy = null;
-        }) as any
+      .enter()
+      .append('g')
+      .call(
+        (d3.drag() as d3.DragBehavior<SVGGElement, any, any>)
+          .on('start', (event: any, d: any) => {
+            if (!event.active) simulation.alphaTarget(0.3).restart();
+            d.fx = d.x;
+            d.fy = d.y;
+          })
+          .on('drag', (event: any, d: any) => {
+            d.fx = event.x;
+            d.fy = event.y;
+          })
+          .on('end', (event: any, d: any) => {
+            if (!event.active) simulation.alphaTarget(0);
+            d.fx = null;
+            d.fy = null;
+          }) as any
       );
 
     // Add circles to nodes
-    node.append('circle')
+    node
+      .append('circle')
       .attr('r', (d: any) => d.radius)
       .attr('fill', TERMINAL_COLORS.background) // Dark center
       .attr('stroke', (d: any) => d.color)
@@ -167,13 +188,13 @@ export const EntityGraph: React.FC<EntityGraphProps> = ({
       .attr('fill-opacity', 0.8)
       .style('cursor', 'pointer')
       .on('click', (event: any, d: any) => {
-        const entity = entities.find(e => e.id === d.id);
+        const entity = entities.find((e) => e.id === d.id);
         if (entity) {
           setSelectedEntity(entity);
           onEntityClick?.(entity);
         }
       })
-      .on('mouseover', function(this: SVGCircleElement, event: any, d: any) {
+      .on('mouseover', function (this: SVGCircleElement, event: any, d: any) {
         d3.select(this)
           .transition()
           .duration(200)
@@ -181,7 +202,7 @@ export const EntityGraph: React.FC<EntityGraphProps> = ({
           .attr('stroke-width', 3)
           .attr('stroke-opacity', 1);
       })
-      .on('mouseout', function(this: SVGCircleElement, event: any, d: any) {
+      .on('mouseout', function (this: SVGCircleElement, event: any, d: any) {
         d3.select(this)
           .transition()
           .duration(200)
@@ -191,7 +212,8 @@ export const EntityGraph: React.FC<EntityGraphProps> = ({
       });
 
     // Add labels
-    node.append('text')
+    node
+      .append('text')
       .text((d: any) => d.name)
       .attr('x', 0)
       .attr('y', (d: any) => d.radius + 15)
@@ -204,7 +226,8 @@ export const EntityGraph: React.FC<EntityGraphProps> = ({
       .style('text-shadow', '0px 0px 4px #000');
 
     // Add type labels
-    node.append('text')
+    node
+      .append('text')
       .text((d: any) => d.type)
       .attr('x', 0)
       .attr('y', (d: any) => d.radius + 28)
@@ -223,8 +246,7 @@ export const EntityGraph: React.FC<EntityGraphProps> = ({
         .attr('x2', (d: any) => d.target.x)
         .attr('y2', (d: any) => d.target.y);
 
-      node
-        .attr('transform', (d: any) => `translate(${d.x},${d.y})`);
+      node.attr('transform', (d: any) => `translate(${d.x},${d.y})`);
     });
   };
 
@@ -233,7 +255,10 @@ export const EntityGraph: React.FC<EntityGraphProps> = ({
     const d3 = window.d3;
     const svg = d3.select(svgRef.current);
     const zoom = d3.zoom();
-    svg.transition().duration(300).call(zoom.scaleBy as any, 1.3);
+    svg
+      .transition()
+      .duration(300)
+      .call(zoom.scaleBy as any, 1.3);
   };
 
   const handleZoomOut = () => {
@@ -241,7 +266,10 @@ export const EntityGraph: React.FC<EntityGraphProps> = ({
     const d3 = window.d3;
     const svg = d3.select(svgRef.current);
     const zoom = d3.zoom();
-    svg.transition().duration(300).call(zoom.scaleBy as any, 0.7);
+    svg
+      .transition()
+      .duration(300)
+      .call(zoom.scaleBy as any, 0.7);
   };
 
   const handleReset = () => {
@@ -249,7 +277,10 @@ export const EntityGraph: React.FC<EntityGraphProps> = ({
     const d3 = window.d3;
     const svg = d3.select(svgRef.current);
     const zoom = d3.zoom();
-    svg.transition().duration(300).call(zoom.transform as any, d3.zoomIdentity);
+    svg
+      .transition()
+      .duration(300)
+      .call(zoom.transform as any, d3.zoomIdentity);
   };
 
   const exportGraph = () => {
@@ -265,8 +296,8 @@ export const EntityGraph: React.FC<EntityGraphProps> = ({
 
     // Fill background for export
     if (ctx) {
-        ctx.fillStyle = TERMINAL_COLORS.background;
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = TERMINAL_COLORS.background;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
     }
 
     img.onload = () => {
@@ -318,35 +349,35 @@ export const EntityGraph: React.FC<EntityGraphProps> = ({
             Entity_Graph_Viz
           </CardTitle>
           <div className="flex items-center space-x-2">
-            <Button 
-                variant="ghost" 
-                size="icon" 
-                onClick={handleZoomIn}
-                className="h-7 w-7 text-[var(--terminal-text-dim)] hover:text-[var(--phosphor-green)] hover:bg-[var(--phosphor-green)]/10"
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleZoomIn}
+              className="h-7 w-7 text-[var(--terminal-text-dim)] hover:text-[var(--phosphor-green)] hover:bg-[var(--phosphor-green)]/10"
             >
               <ZoomIn className="h-4 w-4" />
             </Button>
-            <Button 
-                variant="ghost" 
-                size="icon" 
-                onClick={handleZoomOut}
-                className="h-7 w-7 text-[var(--terminal-text-dim)] hover:text-[var(--phosphor-green)] hover:bg-[var(--phosphor-green)]/10"
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleZoomOut}
+              className="h-7 w-7 text-[var(--terminal-text-dim)] hover:text-[var(--phosphor-green)] hover:bg-[var(--phosphor-green)]/10"
             >
               <ZoomOut className="h-4 w-4" />
             </Button>
-            <Button 
-                variant="ghost" 
-                size="icon" 
-                onClick={handleReset}
-                className="h-7 w-7 text-[var(--terminal-text-dim)] hover:text-[var(--phosphor-green)] hover:bg-[var(--phosphor-green)]/10"
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleReset}
+              className="h-7 w-7 text-[var(--terminal-text-dim)] hover:text-[var(--phosphor-green)] hover:bg-[var(--phosphor-green)]/10"
             >
               <RefreshCw className="h-4 w-4" />
             </Button>
-            <Button 
-                variant="ghost" 
-                size="sm" 
-                onClick={exportGraph}
-                className="h-7 text-[10px] font-mono text-[var(--terminal-text-dim)] hover:text-[var(--cyan)] hover:bg-[var(--cyan)]/10"
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={exportGraph}
+              className="h-7 text-[10px] font-mono text-[var(--terminal-text-dim)] hover:text-[var(--cyan)] hover:bg-[var(--cyan)]/10"
             >
               <Download className="h-3.5 w-3.5 mr-1.5" />
               EXPORT_IMG
@@ -364,7 +395,9 @@ export const EntityGraph: React.FC<EntityGraphProps> = ({
           <div className="relative">
             {/* Legend Overlay */}
             <div className="absolute top-4 left-4 p-3 bg-[var(--terminal-surface)]/90 backdrop-blur-sm border border-[var(--terminal-border)] rounded-lg max-w-[200px] z-10">
-              <h4 className="text-[10px] font-mono font-bold text-[var(--terminal-text-dim)] uppercase mb-2">Node_Types</h4>
+              <h4 className="text-[10px] font-mono font-bold text-[var(--terminal-text-dim)] uppercase mb-2">
+                Node_Types
+              </h4>
               <div className="flex flex-wrap gap-1.5">
                 {Object.entries(typeColors).map(([type, color]) => (
                   <Badge
@@ -378,17 +411,17 @@ export const EntityGraph: React.FC<EntityGraphProps> = ({
                 ))}
               </div>
             </div>
-            
+
             <div className="overflow-hidden bg-[var(--terminal-bg)] relative">
-                {/* Grid Background Effect */}
-                <div 
-                    className="absolute inset-0 pointer-events-none opacity-[0.03]" 
-                    style={{ 
-                        backgroundImage: `linear-gradient(${TERMINAL_COLORS.primary} 1px, transparent 1px), linear-gradient(90deg, ${TERMINAL_COLORS.primary} 1px, transparent 1px)`, 
-                        backgroundSize: '40px 40px' 
-                    }} 
-                />
-                
+              {/* Grid Background Effect */}
+              <div
+                className="absolute inset-0 pointer-events-none opacity-[0.03]"
+                style={{
+                  backgroundImage: `linear-gradient(${TERMINAL_COLORS.primary} 1px, transparent 1px), linear-gradient(90deg, ${TERMINAL_COLORS.primary} 1px, transparent 1px)`,
+                  backgroundSize: '40px 40px',
+                }}
+              />
+
               <svg
                 ref={svgRef}
                 width="100%"
@@ -397,42 +430,72 @@ export const EntityGraph: React.FC<EntityGraphProps> = ({
                 className="block"
               />
             </div>
-            
+
             {/* Selected Entity Details Overlay */}
             {selectedEntity && (
               <div className="absolute bottom-4 right-4 p-4 bg-[var(--terminal-surface)]/95 backdrop-blur-md border border-[var(--terminal-border)] rounded-lg w-64 shadow-xl z-10 animate-in fade-in slide-in-from-bottom-4">
                 <div className="flex items-center justify-between mb-2">
-                    <h3 className="font-mono text-xs font-bold text-[var(--terminal-text)] uppercase tracking-wide">Node_Inspector</h3>
-                    <Button 
-                        variant="ghost" 
-                        size="icon" 
-                        className="h-5 w-5 -mr-2" 
-                        onClick={() => setSelectedEntity(null)}
+                  <h3 className="font-mono text-xs font-bold text-[var(--terminal-text)] uppercase tracking-wide">
+                    Node_Inspector
+                  </h3>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-5 w-5 -mr-2"
+                    onClick={() => setSelectedEntity(null)}
+                  >
+                    <span className="sr-only">Close</span>
+                    <svg
+                      width="10"
+                      height="10"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      className="text-[var(--terminal-text-dim)]"
                     >
-                        <span className="sr-only">Close</span>
-                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-[var(--terminal-text-dim)]"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-                    </Button>
+                      <line x1="18" y1="6" x2="6" y2="18"></line>
+                      <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                  </Button>
                 </div>
                 <div className="space-y-2 font-mono text-xs">
-                    <div className="grid grid-cols-3 gap-1">
-                        <span className="text-[var(--terminal-text-dim)]">ID:</span>
-                        <span className="col-span-2 text-[var(--terminal-text)] truncate">{selectedEntity.name}</span>
+                  <div className="grid grid-cols-3 gap-1">
+                    <span className="text-[var(--terminal-text-dim)]">ID:</span>
+                    <span className="col-span-2 text-[var(--terminal-text)] truncate">
+                      {selectedEntity.name}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-1">
+                    <span className="text-[var(--terminal-text-dim)]">
+                      TYPE:
+                    </span>
+                    <span
+                      className="col-span-2"
+                      style={{
+                        color: typeColors[selectedEntity.type] || '#fff',
+                      }}
+                    >
+                      {selectedEntity.type}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-1">
+                    <span className="text-[var(--terminal-text-dim)]">
+                      CONF:
+                    </span>
+                    <span className="col-span-2 text-[var(--phosphor-green)]">
+                      {((selectedEntity.confidence || 0) * 100).toFixed(1)}%
+                    </span>
+                  </div>
+                  {selectedEntity.metadata?.description && (
+                    <div className="pt-2 border-t border-[var(--terminal-border)] mt-2">
+                      <p className="text-[var(--terminal-text-muted)] line-clamp-3 leading-relaxed">
+                        {selectedEntity.metadata.description}
+                      </p>
                     </div>
-                    <div className="grid grid-cols-3 gap-1">
-                        <span className="text-[var(--terminal-text-dim)]">TYPE:</span>
-                        <span className="col-span-2" style={{ color: typeColors[selectedEntity.type] || '#fff' }}>{selectedEntity.type}</span>
-                    </div>
-                    <div className="grid grid-cols-3 gap-1">
-                        <span className="text-[var(--terminal-text-dim)]">CONF:</span>
-                        <span className="col-span-2 text-[var(--phosphor-green)]">{((selectedEntity.confidence || 0) * 100).toFixed(1)}%</span>
-                    </div>
-                    {selectedEntity.metadata?.description && (
-                        <div className="pt-2 border-t border-[var(--terminal-border)] mt-2">
-                            <p className="text-[var(--terminal-text-muted)] line-clamp-3 leading-relaxed">
-                                {selectedEntity.metadata.description}
-                            </p>
-                        </div>
-                    )}
+                  )}
                 </div>
               </div>
             )}

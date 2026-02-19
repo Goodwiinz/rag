@@ -46,5 +46,32 @@ describe('messageViewModel', () => {
     expect(messages[1].role).toBe('assistant');
     expect(messages[1].citations?.[0].title).toBe('RAG Intro');
   });
-});
 
+  it('normalizes malformed citation titles to stable source labels', () => {
+    const messages = mapSearchResultToChatMessages({
+      query: 'hello',
+      answer: {
+        text: 'hi',
+        sources: [
+          {
+            document_id: 'doc-1',
+            document_title: 'message body /verified 0/100...',
+            snippet: 'message body /verified 0/100...',
+            confidence: 0.09,
+            file_type: 'pdf',
+          },
+          {
+            document_id: 'doc-2',
+            document_title: '   ',
+            snippet: 'Fallback snippet content',
+            confidence: 0.2,
+            file_type: 'pdf',
+          },
+        ],
+      },
+    } as any);
+
+    expect(messages[1].citations?.[0].title).toBe('Source 1');
+    expect(messages[1].citations?.[1].title).toBe('Source 2');
+  });
+});
