@@ -222,3 +222,6 @@ frontend/playwright-report/**/*.brv
 tests/e2e/**/*.brv
 tests/integration/**/*.brv
 backend/browser-test-cache/
+
+# Local git worktrees
+.worktrees/
