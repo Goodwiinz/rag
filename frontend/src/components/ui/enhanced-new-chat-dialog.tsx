@@ -93,9 +93,11 @@ const EnhancedAssistantCard = React.forwardRef<
       transition={{ type: "spring", stiffness: 400, damping: 25 }}
       layout
     >
-      <div
+      <button
+        type="button"
         onClick={onSelect}
         className={cn(
+          "w-full text-left focus-visible:ring-2 focus-visible:ring-orange-400 focus-visible:outline-none",
           "relative overflow-hidden rounded-xl cursor-pointer transition-all duration-300 border-2",
           "backdrop-blur-md bg-white/10 dark:bg-black/10",
           "hover:bg-white/20 dark:hover:bg-black/20",
@@ -258,7 +260,7 @@ const EnhancedAssistantCard = React.forwardRef<
             />
           )}
         </AnimatePresence>
-      </div>
+      </button>
     </motion.div>
   )
 })
