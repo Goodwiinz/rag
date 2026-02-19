@@ -10,7 +10,7 @@ export function DashboardTopbar() {
   const { user } = useAuth();
 
   const getBreadcrumbs = () => {
-    if (pathname?.startsWith('/llm-chat')) return ['Goodwiinz', 'Chat Assistant'];
+    if (pathname?.startsWith('/chat')) return ['Goodwiinz', 'Chat Assistant'];
     if (pathname?.startsWith('/documents/upload')) return ['Goodwiinz', 'Documents'];
     if (pathname?.startsWith('/search')) return ['Goodwiinz', 'Semantic Search'];
     if (pathname?.startsWith('/settings')) return ['Goodwiinz', 'Settings'];

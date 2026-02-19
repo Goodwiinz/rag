@@ -26,7 +26,6 @@ const NO_BREADCRUMB_PAGES = [
 // Pages that should not show the default sidebar layout header (e.g. chat has its own)
 const NO_HEADER_PAGES = [
   '/chat',
-  '/llm-chat',
 ];
 
 export function LayoutWrapper({ children }: LayoutWrapperProps) {

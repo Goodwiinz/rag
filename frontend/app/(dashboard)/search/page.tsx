@@ -222,7 +222,7 @@ export default function SearchPage() {
             </div>
           </div>
         ) : (
-          <div className="mx-auto w-full max-w-4xl px-4 pb-6 pt-4">
+            <div className="mx-auto flex min-h-full w-full max-w-5xl flex-col justify-end px-4 pb-4 pt-4 2xl:max-w-6xl">
             <AnimatePresence>
               {messages.map((message, idx) => (
                 <TerminalChatBubble

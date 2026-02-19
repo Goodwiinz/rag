@@ -749,17 +749,20 @@ class KnowledgeGraphService:
                 params = {"entity_id": entity_id}
 
                 if relationship_types:
+                    type_values = [t.value for t in relationship_types]
+                    # Filter by Neo4j label OR by the type property
                     type_condition = " OR ".join(
-                        [f"r.type = '{t.value}'" for t in relationship_types]
+                        [f"type(r) = '{t}' OR r.type = '{t}'" for t in type_values]
                     )
                     conditions.append(f"({type_condition})")
 
                 where_clause = " AND ".join(conditions)
 
                 query = f"""
-                MATCH (source:Entity)-[r:RELATED_TO]-(target:Entity)
+                MATCH (source:Entity)-[r]-(target:Entity)
                 WHERE {where_clause}
-                RETURN r, source.id AS source_id, target.id AS target_id
+                RETURN r, type(r) AS rel_label,
+                       source.id AS source_id, target.id AS target_id
                 """
 
                 result = session.run(query, params)
@@ -767,19 +770,29 @@ class KnowledgeGraphService:
 
                 for record in result:
                     r = record["r"]
+                    rel_label = record["rel_label"]
+
+                    # Determine relationship type: prefer r.type property,
+                    # fall back to the Neo4j relationship label
+                    raw_type = r.get("type") or rel_label
+                    try:
+                        rel_type = RelationshipType(raw_type)
+                    except ValueError:
+                        rel_type = RelationshipType.RELATED_TO
+
                     relationships.append(
                         RelationshipResponse(
-                            id=r["id"],
+                            id=r.get("id", f"{record['source_id']}-{rel_label}-{record['target_id']}"),
                             source_entity_id=record["source_id"],
                             target_entity_id=record["target_id"],
-                            relationship_type=RelationshipType(r["type"]),
-                            strength=r["strength"],
-                            confidence_score=r["confidence_score"],
+                            relationship_type=rel_type,
+                            strength=r.get("strength", r.get("confidence", 0.5)),
+                            confidence_score=r.get("confidence_score", r.get("confidence", 0.5)),
                             context=r.get("context"),
                             evidence=r.get("evidence", []),
                             metadata=r.get("metadata", {}),
-                            source_document_id=r.get("source_document_id"),
-                            created_at=r["created_at"],
+                            source_document_id=r.get("source_document_id", r.get("source_paper")),
+                            created_at=r.get("created_at", datetime.utcnow()),
                             updated_at=r.get("updated_at"),
                         )
                     )
@@ -907,6 +920,128 @@ class KnowledgeGraphService:
         except Exception as e:
             logger.error(f"Error finding related entities for {entity_id}: {e}")
             return []
+
+    def get_neighborhood(
+        self,
+        entity_id: str,
+        max_depth: int = 2,
+        min_strength: float = 0.1,
+        limit: int = 50,
+    ) -> Dict[str, Any]:
+        """Get neighborhood entities and relationships in a single query.
+
+        Returns both entities and the relationships connecting them,
+        including paths through intermediate non-Entity nodes.
+        """
+        try:
+            with self.get_session() as session:
+                # Single query: find all paths from start to related Entity nodes,
+                # return the Entity endpoints plus relationship info from each path
+                query = f"""
+                MATCH (start:Entity {{id: $entity_id}})
+                MATCH path = (start)-[*1..{max_depth}]-(related:Entity)
+                WHERE related.id <> $entity_id
+                  AND all(rel in relationships(path)
+                      WHERE coalesce(rel.strength, rel.confidence, 1.0) >= $min_strength)
+                WITH DISTINCT related, path, length(path) AS hops
+                ORDER BY hops
+                WITH related,
+                     collect(path)[0] AS shortest_path
+                WITH related,
+                     shortest_path,
+                     [rel in relationships(shortest_path) |
+                       {{label: type(rel),
+                         strength: coalesce(rel.strength, rel.confidence, 1.0),
+                         confidence: coalesce(rel.confidence_score, rel.confidence, 0.5)}}
+                     ] AS path_rels,
+                     [n in nodes(shortest_path) | n.id] AS path_node_ids
+                RETURN related, path_rels, path_node_ids
+                LIMIT $limit
+                """
+
+                result = session.run(
+                    query,
+                    {
+                        "entity_id": entity_id,
+                        "min_strength": min_strength,
+                        "limit": limit,
+                    },
+                )
+
+                entities = []
+                edges = []
+                seen_edge_keys = set()
+
+                for record in result:
+                    e = record["related"]
+                    path_rels = record["path_rels"]
+                    path_node_ids = record["path_node_ids"]
+
+                    entities.append(
+                        EntityResponse(
+                            id=e["id"],
+                            name=e["name"],
+                            entity_type=_safe_entity_type(e["type"]),
+                            confidence_score=e.get(
+                                "confidence_score", e.get("confidence", 0.5)
+                            ),
+                            extraction_method=_safe_extraction_method(
+                                e.get("extraction_method", "unknown")
+                            ),
+                            position=e.get("position"),
+                            context=e.get("context"),
+                            metadata=_parse_metadata(e.get("metadata", "{}")),
+                            source_document_id=e.get("source_document_id"),
+                            created_at=_convert_datetime(e["created_at"]),
+                            updated_at=_convert_datetime(e["updated_at"])
+                            if e.get("updated_at")
+                            else None,
+                        )
+                    )
+
+                    # Build an edge from start entity to related entity
+                    # using the relationship labels along the path
+                    source_id = entity_id
+                    target_id = e["id"]
+                    edge_key = tuple(sorted([source_id, target_id]))
+                    if edge_key not in seen_edge_keys:
+                        seen_edge_keys.add(edge_key)
+                        rel_labels = [r["label"] for r in path_rels]
+                        combined_strength = 1.0
+                        for r in path_rels:
+                            combined_strength *= r.get("strength", 1.0)
+
+                        edge_type = rel_labels[0] if len(rel_labels) == 1 else " > ".join(rel_labels)
+                        try:
+                            rel_type = RelationshipType(rel_labels[0])
+                        except ValueError:
+                            rel_type = RelationshipType.RELATED_TO
+
+                        edges.append(
+                            RelationshipResponse(
+                                id=f"{source_id}-{target_id}",
+                                source_entity_id=source_id,
+                                target_entity_id=target_id,
+                                relationship_type=rel_type,
+                                strength=round(combined_strength, 3),
+                                confidence_score=round(
+                                    sum(r.get("confidence", 0.5) for r in path_rels)
+                                    / len(path_rels),
+                                    3,
+                                ),
+                                context=edge_type if len(rel_labels) > 1 else None,
+                                evidence=[],
+                                metadata={"path_length": len(path_rels), "path_types": rel_labels},
+                                source_document_id=None,
+                                created_at=datetime.utcnow(),
+                                updated_at=None,
+                            )
+                        )
+
+                return {"entities": entities, "relationships": edges}
+        except Exception as e:
+            logger.error(f"Error getting neighborhood for {entity_id}: {e}")
+            return {"entities": [], "relationships": []}
 
     def find_paths(
         self,

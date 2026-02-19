@@ -14,33 +14,138 @@ import {
 
 export class SearchService {
   private readonly basePath = '/search';
+  private readonly searchPrimaryPath = '/search/hybrid';
+  private readonly searchFallbackPath = '/search/';
+
+  private buildFallbackAnswerText(
+    results: Array<{
+      title: string;
+      content_preview?: string;
+    }> = []
+  ): string {
+    if (results.length === 0) {
+      return 'No matching documents were found. Try a more specific query.';
+    }
+
+    const topTitles = results
+      .slice(0, 3)
+      .map((result) => result.title)
+      .filter(Boolean);
+
+    const snippet = results
+      .map((result) => result.content_preview?.trim())
+      .find((preview) => Boolean(preview));
+
+    const titleSummary =
+      topTitles.length > 0
+        ? `Top matches: ${topTitles.join(', ')}.`
+        : 'Found relevant documents for your query.';
+
+    return snippet ? `${titleSummary} ${snippet}` : titleSummary;
+  }
+
+  private isNotFoundError(error: any): boolean {
+    return error?.error?.status_code === 404 || error?.response?.status === 404;
+  }
+
+  private isSilentError(error: any): boolean {
+    return Boolean(error?.error?.silent);
+  }
+
+  private getErrorMessage(error: any): string {
+    return (
+      error?.error?.message ||
+      error?.response?.data?.message ||
+      error?.response?.data?.detail ||
+      error?.message ||
+      'Search failed'
+    );
+  }
+
+  private transformSearchResponse(
+    response: {
+      search_id?: string;
+      query?: string;
+      results?: Array<{
+        document_id: string;
+        title: string;
+        content_preview?: string;
+        relevance_score?: number;
+        document_type?: string;
+      }>;
+      search_time_ms?: number;
+      total_results?: number;
+    },
+    request: SearchRequest
+  ): APIResponse<SearchResult> {
+    const transformedResult: SearchResult = {
+      id: response.search_id || Date.now().toString(),
+      query: response.query || request.query,
+      answer: {
+        text: this.buildFallbackAnswerText(response.results),
+        sources:
+          response.results?.map((r: any) => ({
+            document_id: r.document_id,
+            document_title: r.title,
+            snippet: r.content_preview || '',
+            confidence: r.relevance_score || 0,
+            file_type: r.document_type?.toLowerCase() as any,
+          })) || [],
+        confidence: 0,
+        answer_type: 'factual' as const,
+        language_detected: 'en',
+      },
+      entities: [],
+      relationships: [],
+      metrics: {
+        latency_ms: response.search_time_ms || 0,
+        retrieval_quality: 80,
+        faithfulness_score: 90,
+        contextual_relevancy: 85,
+        hallucination_score: 10,
+        answer_relevancy: 75,
+        documents_retrieved: response.total_results || 0,
+        entities_found: 0,
+        relationships_found: 0,
+      },
+      processing_time_ms: response.search_time_ms || 0,
+      created_at: new Date().toISOString(),
+      user_id: '',
+    };
+
+    return {
+      success: true,
+      data: transformedResult,
+      message: 'Search completed successfully',
+    };
+  }
 
   /**
    * Perform a search query
    */
   async search(request: SearchRequest): Promise<APIResponse<SearchResult>> {
-    try {
-      // Transform request to match backend expectations
-      const backendRequest = {
-        query: request.query,
-        search_type: 'fulltext', // Default to fulltext search
-        limit: request.limit || 10,
-        offset: request.offset || 0,
-        filters: request.filters ? {
-          // Transform filters if needed
-          document_types: request.filters.modalities,
-          // tags: not in SearchRequest filters type
-          file_size_min: undefined,
-          file_size_max: undefined,
-          date_from: request.filters.date_range?.start,
-          date_to: request.filters.date_range?.end,
-          is_public: undefined,
-          uploaded_by_user_id: undefined,
-        } : undefined,
-        include_snippets: true,
-      };
+    // Transform request to match backend expectations
+    const backendRequest = {
+      query: request.query,
+      search_type: 'hybrid', // Use hybrid retrieval by default
+      limit: request.limit || 10,
+      offset: request.offset || 0,
+      filters: request.filters ? {
+        // Transform filters if needed
+        document_types: request.filters.modalities,
+        // tags: not in SearchRequest filters type
+        file_size_min: undefined,
+        file_size_max: undefined,
+        date_from: request.filters.date_range?.start,
+        date_to: request.filters.date_range?.end,
+        is_public: undefined,
+        uploaded_by_user_id: undefined,
+      } : undefined,
+      include_snippets: true,
+    };
 
-      const response = await apiClient.post(`${this.basePath}/`, backendRequest) as {
+    try {
+      const response = await apiClient.post(this.searchPrimaryPath, backendRequest) as {
         search_id?: string;
         query?: string;
         results?: Array<{ document_id: string; title: string; content_preview?: string; relevance_score?: number; document_type?: string }>;
@@ -48,52 +153,41 @@ export class SearchService {
         total_results?: number;
       };
 
-      // Transform backend response to match frontend expectations
-      const transformedResult: SearchResult = {
-        id: response.search_id || Date.now().toString(),
-        query: response.query || request.query,
-        answer: {
-          text: '',
-          sources: response.results?.map((r: any) => ({
-            document_id: r.document_id,
-            document_title: r.title,
-            snippet: r.content_preview || '',
-            confidence: r.relevance_score || 0,
-            file_type: r.document_type?.toLowerCase() as any,
-          })) || [],
-          confidence: 0,
-          answer_type: 'factual' as const,
-          language_detected: 'en',
-        },
-        entities: [],
-        relationships: [],
-        metrics: {
-          latency_ms: response.search_time_ms || 0,
-          retrieval_quality: 80,
-          faithfulness_score: 90,
-          contextual_relevancy: 85,
-          hallucination_score: 10,
-          answer_relevancy: 75,
-          documents_retrieved: response.total_results || 0,
-          entities_found: 0,
-          relationships_found: 0,
-        },
-        processing_time_ms: response.search_time_ms || 0,
-        created_at: new Date().toISOString(),
-        user_id: '',
-      };
-
-      return {
-        success: true,
-        data: transformedResult,
-        message: 'Search completed successfully',
-      };
+      return this.transformSearchResponse(response, request);
     } catch (error: any) {
-      console.error('Search service error:', error);
+      if (this.isNotFoundError(error)) {
+        try {
+            const fallbackResponse = await apiClient.post(
+              this.searchFallbackPath,
+              { ...backendRequest, search_type: 'fulltext' }
+            ) as {
+            search_id?: string;
+            query?: string;
+            results?: Array<{ document_id: string; title: string; content_preview?: string; relevance_score?: number; document_type?: string }>;
+            search_time_ms?: number;
+            total_results?: number;
+          };
+
+          return this.transformSearchResponse(fallbackResponse, request);
+        } catch (fallbackError: any) {
+          if (!this.isSilentError(fallbackError)) {
+            console.error('Search service fallback error:', fallbackError);
+          }
+          return {
+            success: false,
+            data: null as any,
+            message: this.getErrorMessage(fallbackError),
+          };
+        }
+      }
+
+      if (!this.isSilentError(error)) {
+        console.error('Search service error:', error);
+      }
       return {
         success: false,
         data: null as any,
-        message: error.message || 'Search failed',
+        message: this.getErrorMessage(error),
       };
     }
   }
@@ -154,9 +248,11 @@ export class SearchService {
    * Add query to history
    */
   async addToHistory(query: string, resultId: string): Promise<APIResponse<void>> {
-    return apiClient.post(`${this.basePath}/history`, {
-      query,
-      result_id: resultId,
+    return apiClient.post(`${this.basePath}/history`, null, {
+      params: {
+        query,
+        result_id: resultId,
+      },
     });
   }
 

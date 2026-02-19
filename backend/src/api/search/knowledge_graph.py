@@ -209,6 +209,29 @@ async def get_related_entities(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/entities/{entity_id}/neighborhood")
+async def get_entity_neighborhood(
+    entity_id: str,
+    max_depth: int = Query(
+        default=2, ge=1, le=5, description="Maximum traversal depth"
+    ),
+    min_strength: float = Query(
+        default=0.1, ge=0.0, le=1.0, description="Minimum relationship strength"
+    ),
+    limit: int = Query(default=50, ge=1, le=200, description="Maximum results"),
+    current_user: User = Depends(get_current_user),
+):
+    """Get neighborhood entities and relationships in a single call"""
+    try:
+        data = knowledge_graph_service.get_neighborhood(
+            entity_id, max_depth, min_strength, limit
+        )
+        return data
+    except Exception as e:
+        logger.error(f"Error getting neighborhood: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # Relationship Management Endpoints
 @router.get("/relationships", response_model=List[RelationshipResponse])
 async def get_all_relationships(

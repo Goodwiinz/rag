@@ -27,6 +27,25 @@ export function mapChatMessageToViewModel(
   return { ...input };
 }
 
+function normalizeCitationTitle(title: string | undefined, index: number): string {
+  const normalized = title?.replace(/\s+/g, ' ').trim() ?? '';
+
+  if (!normalized) {
+    return `Source ${index + 1}`;
+  }
+
+  const looksLikeTelemetry =
+    /(message\s+body|verified\s+\d+\/?\d*|duration_ms|return\s+result|lambda)/i.test(
+      normalized
+    );
+
+  if (looksLikeTelemetry) {
+    return `Source ${index + 1}`;
+  }
+
+  return normalized.length > 120 ? `${normalized.slice(0, 117)}...` : normalized;
+}
+
 export function mapSearchResultToChatMessages(
   result: SearchResult
 ): ChatMessageViewModel[] {
@@ -40,9 +59,9 @@ export function mapSearchResultToChatMessages(
     role: 'assistant',
     content: result.answer.text,
     timestamp: Date.now(),
-    citations: result.answer.sources.map((source) => ({
+    citations: result.answer.sources.map((source, index) => ({
       documentId: source.document_id,
-      title: source.document_title,
+      title: normalizeCitationTitle(source.document_title, index),
       score: source.confidence,
       content: source.snippet,
       source: source.file_type,
@@ -51,4 +70,3 @@ export function mapSearchResultToChatMessages(
 
   return [userMessage, assistantMessage];
 }
-
