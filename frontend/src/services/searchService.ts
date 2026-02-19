@@ -26,16 +26,6 @@ type BackendSearchResponse = {
   search_time_ms?: number;
   total_results?: number;
   synthesized_answer?: string;
-  confidence?: number;
-  coverage?: number;
-  decision_trace_id?: string;
-  deterministic_status?:
-    | 'SUPPORTED'
-    | 'INSUFFICIENT_EVIDENCE'
-    | 'CONFLICTING_EVIDENCE'
-    | 'NO_MATCH';
-  deterministic_message?: string;
-  suggestions?: string[];
 };
 
 type SearchError = {
@@ -103,18 +93,6 @@ const getErrorMessage = (error: unknown): string => {
   }
 
   return 'Search failed';
-};
-
-const getResearchDocumentIds = (): string[] => {
-  const raw = process.env.NEXT_PUBLIC_RESEARCH_DOCUMENT_IDS;
-  if (!raw) {
-    return [];
-  }
-
-  return raw
-    .split(',')
-    .map((value) => value.trim())
-    .filter((value) => value.length > 0);
 };
 
 export class SearchService {
@@ -186,15 +164,10 @@ export class SearchService {
             confidence: r.relevance_score || 0,
             file_type: mapDocumentTypeToFileType(r.document_type),
           })) || [],
-        confidence: response.confidence ?? 0,
-        coverage: response.coverage,
-        decisionTraceId: response.decision_trace_id,
+        confidence: 0,
         answer_type: 'factual' as const,
         language_detected: 'en',
       },
-      deterministicStatus: response.deterministic_status,
-      deterministicMessage: response.deterministic_message,
-      refinementSuggestions: response.suggestions,
       entities: [],
       relationships: [],
       metrics: {
@@ -227,13 +200,6 @@ export class SearchService {
     request: SearchRequest,
     signal?: AbortSignal
   ): Promise<APIResponse<SearchResult>> {
-    // Resolve document_ids: explicit filter > env var > none
-    const researchDocumentIds = getResearchDocumentIds();
-    const selectedDocumentIds =
-      request.filters?.document_ids && request.filters.document_ids.length > 0
-        ? request.filters.document_ids
-        : researchDocumentIds;
-
     // Transform request to match backend expectations
     const backendRequest = {
       query: request.query,
@@ -242,9 +208,9 @@ export class SearchService {
       offset: request.offset || 0,
       filters: request.filters
         ? {
-            document_ids:
-              selectedDocumentIds.length > 0 ? selectedDocumentIds : undefined,
+            // Transform filters if needed
             document_types: request.filters.modalities,
+            // tags: not in SearchRequest filters type
             file_size_min: undefined,
             file_size_max: undefined,
             date_from: request.filters.date_range?.start,
@@ -252,9 +218,7 @@ export class SearchService {
             is_public: undefined,
             uploaded_by_user_id: undefined,
           }
-        : selectedDocumentIds.length > 0
-          ? { document_ids: selectedDocumentIds }
-          : undefined,
+        : undefined,
       include_snippets: true,
       synthesize_answer: true,
     };
