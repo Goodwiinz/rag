@@ -28,7 +28,10 @@ export interface SourceReference {
 export interface SearchAnswer {
   text: string;
   sources: SourceReference[];
+  claims?: string[];
   confidence: number;
+  coverage?: number;
+  decisionTraceId?: string;
   answer_type: 'factual' | 'reasoning' | 'summarization' | 'comparison';
   language_detected: string;
 }
