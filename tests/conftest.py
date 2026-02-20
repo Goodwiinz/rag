@@ -263,6 +263,8 @@ def pytest_collection_modifyitems(config, items):
     """Modify test collection to add markers automatically"""
     for item in items:
         # Add markers based on test class names
+        if item.cls is None:
+            continue
         if "TestT2_001" in item.cls.__name__:
             item.add_marker(pytest.mark.t2_001)
         elif "TestT2_002" in item.cls.__name__:
