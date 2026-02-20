@@ -25,6 +25,16 @@ type BackendSearchResponse = {
   }>;
   search_time_ms?: number;
   total_results?: number;
+  confidence?: number;
+  coverage?: number;
+  decision_trace_id?: string;
+  deterministic_status?:
+    | 'SUPPORTED'
+    | 'INSUFFICIENT_EVIDENCE'
+    | 'CONFLICTING_EVIDENCE'
+    | 'NO_MATCH';
+  deterministic_message?: string;
+  suggestions?: string[];
 };
 
 type SearchError = {
@@ -80,6 +90,18 @@ const getErrorMessage = (error: unknown): string => {
   return 'Search failed';
 };
 
+const getResearchDocumentIds = (): string[] => {
+  const raw = process.env.NEXT_PUBLIC_RESEARCH_DOCUMENT_IDS;
+  if (!raw) {
+    return [];
+  }
+
+  return raw
+    .split(',')
+    .map((value) => value.trim())
+    .filter((value) => value.length > 0);
+};
+
 export class SearchService {
   private readonly basePath = '/search';
 
@@ -88,6 +110,12 @@ export class SearchService {
    */
   async search(request: SearchRequest): Promise<APIResponse<SearchResult>> {
     try {
+      const researchDocumentIds = getResearchDocumentIds();
+      const selectedDocumentIds =
+        request.filters?.document_ids && request.filters.document_ids.length > 0
+          ? request.filters.document_ids
+          : researchDocumentIds;
+
       // Transform request to match backend expectations
       const backendRequest = {
         query: request.query,
@@ -96,14 +124,17 @@ export class SearchService {
         offset: request.offset || 0,
         filters: request.filters ? {
           // Transform filters if needed
+          document_ids: selectedDocumentIds,
           document_types: request.filters.modalities,
-          // tags: not in SearchRequest filters type
+          tags: request.filters.tags,
           file_size_min: undefined,
           file_size_max: undefined,
           date_from: request.filters.date_range?.start,
           date_to: request.filters.date_range?.end,
           is_public: undefined,
           uploaded_by_user_id: undefined,
+        } : selectedDocumentIds.length > 0 ? {
+          document_ids: selectedDocumentIds,
         } : undefined,
         include_snippets: true,
       };
@@ -136,10 +167,15 @@ export class SearchService {
             confidence: r.relevance_score || 0,
             file_type: mapDocumentTypeToFileType(r.document_type),
           })) || [],
-          confidence: 0,
+          confidence: response.confidence ?? 0,
+          coverage: response.coverage,
+          decisionTraceId: response.decision_trace_id,
           answer_type: 'factual' as const,
           language_detected: 'en',
         },
+        deterministicStatus: response.deterministic_status,
+        deterministicMessage: response.deterministic_message,
+        refinementSuggestions: response.suggestions,
         entities: [],
         relationships: [],
         metrics: {
