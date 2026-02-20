@@ -308,8 +308,8 @@ async def resume_run(
             status_code=status.HTTP_409_CONFLICT,
             detail="Run is not currently paused",
         )
-    # Mark resumed runs as pending so they can be restarted via SSE stream.
-    run.status = RunStatus.PENDING.value
+    # Keep resumed runs in PAUSED; SSE stream computes start_from for PAUSED runs.
+    run.status = RunStatus.PAUSED.value
     await db.commit()
     await db.refresh(run)
     return RunResponse.model_validate(run)
@@ -508,6 +508,12 @@ async def stream_run(
                 event_type = event.get("event", "message")
                 data = json.dumps(event)
                 yield f"event: {event_type}\ndata: {data}\n\n"
+        except asyncio.CancelledError:
+            # Client disconnected; persist paused state so run can resume later.
+            run.status = RunStatus.PAUSED.value
+            run.total_tokens = total_tokens
+            await db.commit()
+            raise
         except Exception as exc:
             # If streaming fails unexpectedly, mark run as failed
             logger.error(f"Stream error for run {run_id}: {exc}")
