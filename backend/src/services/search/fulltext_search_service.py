@@ -163,11 +163,19 @@ class FullTextSearchService:
             "    d.is_deleted = false",
             "    AND d.processing_status = :completed_status",
             "    AND search_vector @@ plainto_tsquery(:query)",
+            "    AND NOT (",
+            "        coalesce(d.content_text, '') ILIKE :noise_pattern_1",
+            "        OR coalesce(d.content_text, '') ILIKE :noise_pattern_2",
+            "        OR coalesce(d.content_text, '') ILIKE :noise_pattern_3",
+            "    )",
         ]
 
         params = {
             "query": search_terms,
             "completed_status": ProcessingStatus.COMPLETED.name,
+            "noise_pattern_1": "%verified 0/l000 tampered whisper field isolation parse validation%",
+            "noise_pattern_2": "%all security properties verified through%",
+            "noise_pattern_3": "%replay prevention nonce + timestamp%",
         }
 
         # Add access control filters
@@ -211,11 +219,19 @@ class FullTextSearchService:
             "    d.is_deleted = false",
             "    AND d.processing_status = :completed_status",
             "    AND search_vector @@ plainto_tsquery(:query)",
+            "    AND NOT (",
+            "        coalesce(d.content_text, '') ILIKE :noise_pattern_1",
+            "        OR coalesce(d.content_text, '') ILIKE :noise_pattern_2",
+            "        OR coalesce(d.content_text, '') ILIKE :noise_pattern_3",
+            "    )",
         ]
 
         params = {
             "query": search_terms,
             "completed_status": ProcessingStatus.COMPLETED.name,
+            "noise_pattern_1": "%verified 0/l000 tampered whisper field isolation parse validation%",
+            "noise_pattern_2": "%all security properties verified through%",
+            "noise_pattern_3": "%replay prevention nonce + timestamp%",
         }
 
         # Add the same filters as the main query
@@ -263,6 +279,14 @@ class FullTextSearchService:
             clauses.append(f"    AND d.document_type IN ({placeholders})")
             for i, doc_type in enumerate(doc_types):
                 params[f"doc_type_{i}"] = doc_type
+
+        if filters.document_ids:
+            placeholders = ",".join(
+                [f":doc_id_{i}" for i in range(len(filters.document_ids))]
+            )
+            clauses.append(f"    AND d.id::text IN ({placeholders})")
+            for i, document_id in enumerate(filters.document_ids):
+                params[f"doc_id_{i}"] = document_id
 
         if filters.tags:
             # Using PostgreSQL array operators
@@ -472,6 +496,7 @@ class FullTextSearchService:
             return None
 
         return {
+            "document_ids": filters.document_ids,
             "document_types": [dt.value for dt in filters.document_types]
             if filters.document_types
             else None,

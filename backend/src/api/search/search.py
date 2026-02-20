@@ -56,8 +56,6 @@ def _ensure_deterministic_response_fields(result: Any) -> SearchResponse:
         response.answer_type = "extractive"
     if response.confidence is None:
         response.confidence = 0.0
-    if response.coverage is None:
-        response.coverage = 0.0
     trace_id = None
     if response.trace is not None:
         trace_id = response.trace.decision_trace_id
@@ -70,7 +68,97 @@ def _ensure_deterministic_response_fields(result: Any) -> SearchResponse:
     if response.trace is None:
         response.trace = DeterministicTrace(decision_trace_id=trace_id)
 
+    if response.coverage is None or (
+        response.coverage == 0.0 and len(response.results) > 0
+    ):
+        response.coverage = _calculate_source_coverage(response)
+    response.deterministic_status, response.deterministic_message = (
+        _apply_deterministic_gate(response)
+    )
+    if response.deterministic_status in {
+        "INSUFFICIENT_EVIDENCE",
+        "CONFLICTING_EVIDENCE",
+        "NO_MATCH",
+    }:
+        response.suggestions = _build_refinement_suggestions(response.query)
+
     return response
+
+
+def _calculate_source_coverage(response: SearchResponse) -> float:
+    if not response.results:
+        return 0.0
+
+    multi_source = sum(
+        1
+        for result in response.results
+        if (result.metadata or {}).get("source_count", 1) >= 2
+    )
+    return round(multi_source / len(response.results), 4)
+
+
+def _has_conflicting_signals(response: SearchResponse) -> bool:
+    positive_tokens = {
+        "effective",
+        "improves",
+        "supported",
+        "works",
+        "confirmed",
+        "benefit",
+    }
+    negative_tokens = {
+        "ineffective",
+        "does not",
+        "not effective",
+        "rejected",
+        "fails",
+        "harmful",
+    }
+
+    top_previews = [
+        (result.content_preview or "").lower() for result in response.results[:5]
+    ]
+    has_positive = any(
+        token in preview for preview in top_previews for token in positive_tokens
+    )
+    has_negative = any(
+        token in preview for preview in top_previews for token in negative_tokens
+    )
+    return has_positive and has_negative
+
+
+def _apply_deterministic_gate(response: SearchResponse) -> tuple[str, str]:
+    if not response.results:
+        return "NO_MATCH", "No matching evidence found for this query."
+
+    if (response.confidence or 0.0) < 0.2:
+        return (
+            "NO_MATCH",
+            "Top retrieved evidence is below confidence threshold for deterministic answering.",
+        )
+
+    if (response.coverage or 0.0) < 0.5:
+        return (
+            "INSUFFICIENT_EVIDENCE",
+            "Insufficient cross-source evidence to produce a deterministic answer.",
+        )
+
+    if _has_conflicting_signals(response):
+        return (
+            "CONFLICTING_EVIDENCE",
+            "Top evidence contains conflicting conclusions.",
+        )
+
+    return "SUPPORTED", "Evidence coverage is sufficient and consistent."
+
+
+def _build_refinement_suggestions(query: str) -> List[str]:
+    query = query.strip()
+    return [
+        f"Narrow the scope of '{query}' to a specific topic or document set.",
+        "Add concrete terms (framework, date range, dataset, or method).",
+        "Ask for a comparison between two specific concepts to improve precision.",
+    ]
 
 
 @router.post("/", response_model=SearchResponse)
