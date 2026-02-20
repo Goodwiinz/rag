@@ -22,7 +22,7 @@ celery==5.3.4
 redis==5.0.1
 
 # Vector Database (using compatible versions with pre-built wheels)
-qdrant-client>=1.9.0
+qdrant-client==1.16.2
 
 # Knowledge Graph
 neo4j==5.15.0
