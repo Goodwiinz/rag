@@ -346,7 +346,7 @@ const DEFAULT_SETTINGS: ChatSettings = {
 
 // Database-backed storage - no more localStorage for conversations
 
-const _STARTER_PROMPTS = [
+const STARTER_PROMPTS = [
   {
     icon: BookOpen,
     title: 'Summarize Research',
@@ -956,7 +956,7 @@ function ChatInput({
 // ============================================
 
 function WelcomeState({
-  onPromptSelect: _onPromptSelect,
+  onPromptSelect,
   selectedModel,
 }: {
   onPromptSelect: (prompt: string) => void;
@@ -1066,19 +1066,58 @@ function WelcomeState({
         </motion.div>
 
         {selectedModel && (
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
-            style={{ translateZ: 20 }}
-            className="mt-8 grid grid-cols-2 gap-4 max-w-lg mx-auto"
-          >
-            {[
-              {
-                icon: Zap,
-                label: 'RAPID PROCESSING',
-                desc: 'Sub-second response latency',
-              },
+          <>
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+              style={{ translateZ: 25 }}
+              className="mt-8 grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-2xl mx-auto"
+            >
+              {STARTER_PROMPTS.map((item, idx) => (
+                <motion.button
+                  key={idx}
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.3 + idx * 0.1 }}
+                  onClick={() => onPromptSelect(item.prompt)}
+                  aria-label={`Select prompt: ${item.title}`}
+                  className="flex items-start gap-3 p-3 rounded-lg border border-[var(--terminal-border)] bg-[var(--terminal-surface)]/80 hover:border-[var(--phosphor-green)]/30 hover:bg-[var(--terminal-elevated)] text-left transition-all group backdrop-blur-sm focus-visible:ring-2 focus-visible:ring-[var(--phosphor-green)] focus-visible:outline-none"
+                >
+                  <div className="p-2 rounded-lg bg-[var(--phosphor-green)]/10 text-[var(--phosphor-green)] group-hover:bg-[var(--phosphor-green)]/20 transition-colors">
+                    <item.icon className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3
+                      className="text-xs text-[var(--terminal-text)] mb-1 font-bold"
+                      style={{ fontFamily: "'JetBrains Mono', monospace" }}
+                    >
+                      {item.title}
+                    </h3>
+                    <p
+                      className="text-[10px] text-[var(--terminal-text-muted)] line-clamp-2"
+                      style={{ fontFamily: "'JetBrains Mono', monospace" }}
+                    >
+                      {item.prompt}
+                    </p>
+                  </div>
+                </motion.button>
+              ))}
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.6 }}
+              style={{ translateZ: 20 }}
+              className="mt-8 grid grid-cols-2 gap-4 max-w-lg mx-auto"
+            >
+              {[
+                {
+                  icon: Zap,
+                  label: 'RAPID PROCESSING',
+                  desc: 'Sub-second response latency',
+                },
               {
                 icon: Shield,
                 label: 'LOCAL ONLY',
@@ -1114,7 +1153,8 @@ function WelcomeState({
                 </p>
               </div>
             ))}
-          </motion.div>
+            </motion.div>
+          </>
         )}
       </motion.div>
     </div>
