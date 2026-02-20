@@ -13,7 +13,13 @@ import httpx
 import redis.asyncio as aioredis
 from neo4j import GraphDatabase
 from prometheus_client import Counter, Gauge, Histogram
-from qdrant_client import QdrantClient
+try:
+    from qdrant_client import QdrantClient
+
+    _QDRANT_IMPORT_ERROR: Optional[Exception] = None
+except Exception as exc:  # pragma: no cover - environment dependent
+    QdrantClient = None  # type: ignore[assignment]
+    _QDRANT_IMPORT_ERROR = exc
 
 # Metrics for health checks
 HEALTH_CHECK_TOTAL = Counter(
@@ -275,6 +281,17 @@ class HealthChecker:
         """Check Qdrant vector database connectivity."""
         start_time = time.time()
         component = "qdrant"
+
+        if QdrantClient is None:
+            response_time = time.time() - start_time
+            HEALTH_CHECK_TOTAL.labels(component=component, status="degraded").inc()
+            COMPONENT_STATUS.labels(component=component).set(0)
+            return HealthCheckResult(
+                component=component,
+                status=HealthStatus.DEGRADED,
+                message=f"Qdrant client unavailable: {_QDRANT_IMPORT_ERROR}",
+                response_time=response_time,
+            )
 
         try:
             url = self.config.get("qdrant_url")

@@ -9,22 +9,32 @@ from typing import Any, Dict, List, Optional, Union
 from uuid import uuid4
 from datetime import datetime
 import httpx
-from qdrant_client import QdrantClient
-from qdrant_client.models import (
-    CollectionInfo,
-    CollectionStatus,
-    CreateCollection,
-    Distance,
-    FieldCondition,
-    Filter,
-    MatchValue,
-    OptimizersConfigDiff,
-    PointStruct,
-    Range,
-    RecommendRequest,
-    SearchParams,
-    VectorParams,
-)
+
+try:
+    from qdrant_client import QdrantClient
+    from qdrant_client.models import (
+        CollectionInfo,
+        CollectionStatus,
+        CreateCollection,
+        Distance,
+        FieldCondition,
+        Filter,
+        MatchValue,
+        OptimizersConfigDiff,
+        PointStruct,
+        Range,
+        RecommendRequest,
+        SearchParams,
+        VectorParams,
+    )
+
+    _QDRANT_IMPORT_ERROR: Optional[Exception] = None
+except Exception as exc:  # pragma: no cover - environment dependent
+    QdrantClient = None  # type: ignore[assignment]
+    CollectionInfo = CollectionStatus = CreateCollection = Distance = FieldCondition = Filter = (  # type: ignore[assignment]
+        MatchValue
+    ) = OptimizersConfigDiff = PointStruct = Range = RecommendRequest = SearchParams = VectorParams = Any
+    _QDRANT_IMPORT_ERROR = exc
 
 from src.core.circuit_breaker import ServiceUnavailableError, get_circuit_breaker
 from src.core.config import settings
@@ -55,6 +65,13 @@ class VectorService:
 
     def _connect(self):
         """Connect to Qdrant database"""
+        if QdrantClient is None:
+            logger.warning(
+                "Qdrant client import unavailable; vector operations disabled: %s",
+                _QDRANT_IMPORT_ERROR,
+            )
+            self.client = None
+            return
         try:
             logger.info(f"Connecting to Qdrant at {self.url}")
             self.client = QdrantClient(url=self.url, api_key=self.api_key, timeout=30)
