@@ -35,6 +35,9 @@ class SearchSortOrder(str, Enum):
 class SearchFilter(BaseModel):
     """Search filters"""
 
+    document_ids: Optional[List[str]] = Field(
+        None, description="Filter by selected document IDs"
+    )
     document_types: Optional[List[DocumentType]] = Field(
         None, description="Filter by document types"
     )
@@ -153,6 +156,13 @@ class SearchResponse(BaseModel):
     )
     trace: Optional[DeterministicTrace] = Field(
         None, description="Deterministic trace object"
+    )
+    deterministic_status: Optional[str] = Field(
+        None,
+        description="Deterministic gate status (SUPPORTED, INSUFFICIENT_EVIDENCE, CONFLICTING_EVIDENCE, NO_MATCH)",
+    )
+    deterministic_message: Optional[str] = Field(
+        None, description="Deterministic gate explanation"
     )
 
 
