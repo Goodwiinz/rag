@@ -59,8 +59,6 @@ def _ensure_deterministic_response_fields(result: Any) -> SearchResponse:
         response.answer_type = "extractive"
     if response.confidence is None:
         response.confidence = 0.0
-    if response.coverage is None:
-        response.coverage = 0.0
     trace_id = None
     if response.trace is not None:
         trace_id = response.trace.decision_trace_id

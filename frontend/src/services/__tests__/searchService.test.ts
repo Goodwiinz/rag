@@ -17,8 +17,15 @@ jest.mock('../apiClient', () => ({
 const mockApiClient = apiClient as jest.Mocked<typeof apiClient>;
 
 describe('searchService deterministic routing', () => {
+  const originalResearchIds = process.env.NEXT_PUBLIC_RESEARCH_DOCUMENT_IDS;
+
   beforeEach(() => {
     jest.clearAllMocks();
+    process.env.NEXT_PUBLIC_RESEARCH_DOCUMENT_IDS = originalResearchIds;
+  });
+
+  afterAll(() => {
+    process.env.NEXT_PUBLIC_RESEARCH_DOCUMENT_IDS = originalResearchIds;
   });
 
   it('uses /search/hybrid with search_type hybrid by default', async () => {
@@ -201,5 +208,82 @@ describe('searchService deterministic routing', () => {
     expect(response.success).toBe(true);
     expect(response.data.answer.text).not.toEqual('');
     expect(response.data.answer.text).toContain('Welcome Guide');
+  });
+
+  it('maps deterministic trace and quality fields from backend response', async () => {
+    mockApiClient.post.mockResolvedValueOnce({
+      search_id: 'search-3',
+      query: 'deterministic quality check',
+      results: [],
+      search_time_ms: 18,
+      total_results: 0,
+      confidence: 0.64,
+      coverage: 0.42,
+      decision_trace_id: 'trace-xyz-123',
+      deterministic_status: 'INSUFFICIENT_EVIDENCE',
+      deterministic_message:
+        'Insufficient cross-source evidence to produce a deterministic answer.',
+      suggestions: ['Narrow query scope'],
+    });
+
+    const result = await searchService.search({
+      query: 'deterministic quality check',
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.data.answer.confidence).toBe(0.64);
+    expect(result.data.answer.coverage).toBe(0.42);
+    expect(result.data.answer.decisionTraceId).toBe('trace-xyz-123');
+    expect(result.data.deterministicStatus).toBe('INSUFFICIENT_EVIDENCE');
+    expect(result.data.deterministicMessage).toContain(
+      'Insufficient cross-source evidence'
+    );
+    expect(result.data.refinementSuggestions).toEqual(['Narrow query scope']);
+  });
+
+  it('sends selected document_ids filter to backend for research mode queries', async () => {
+    mockApiClient.post.mockResolvedValueOnce({
+      search_id: 'search-4',
+      query: 'filtered search',
+      results: [],
+      search_time_ms: 15,
+      total_results: 0,
+    });
+
+    await searchService.search({
+      query: 'filtered search',
+      filters: { document_ids: ['doc-a', 'doc-b'] },
+    });
+
+    expect(mockApiClient.post).toHaveBeenCalledWith(
+      '/search/hybrid',
+      expect.objectContaining({
+        filters: expect.objectContaining({
+          document_ids: ['doc-a', 'doc-b'],
+        }),
+      })
+    );
+  });
+
+  it('uses NEXT_PUBLIC_RESEARCH_DOCUMENT_IDS as default source filter when request filter is missing', async () => {
+    process.env.NEXT_PUBLIC_RESEARCH_DOCUMENT_IDS = 'doc-x, doc-y';
+    mockApiClient.post.mockResolvedValueOnce({
+      search_id: 'search-5',
+      query: 'env filtered search',
+      results: [],
+      search_time_ms: 14,
+      total_results: 0,
+    });
+
+    await searchService.search({ query: 'env filtered search' });
+
+    expect(mockApiClient.post).toHaveBeenCalledWith(
+      '/search/hybrid',
+      expect.objectContaining({
+        filters: expect.objectContaining({
+          document_ids: ['doc-x', 'doc-y'],
+        }),
+      })
+    );
   });
 });

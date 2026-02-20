@@ -26,6 +26,16 @@ type BackendSearchResponse = {
   search_time_ms?: number;
   total_results?: number;
   synthesized_answer?: string;
+  confidence?: number;
+  coverage?: number;
+  decision_trace_id?: string;
+  deterministic_status?:
+    | 'SUPPORTED'
+    | 'INSUFFICIENT_EVIDENCE'
+    | 'CONFLICTING_EVIDENCE'
+    | 'NO_MATCH';
+  deterministic_message?: string;
+  suggestions?: string[];
 };
 
 type SearchError = {
@@ -93,6 +103,18 @@ const getErrorMessage = (error: unknown): string => {
   }
 
   return 'Search failed';
+};
+
+const getResearchDocumentIds = (): string[] => {
+  const raw = process.env.NEXT_PUBLIC_RESEARCH_DOCUMENT_IDS;
+  if (!raw) {
+    return [];
+  }
+
+  return raw
+    .split(',')
+    .map((value) => value.trim())
+    .filter((value) => value.length > 0);
 };
 
 export class SearchService {
@@ -164,10 +186,15 @@ export class SearchService {
             confidence: r.relevance_score || 0,
             file_type: mapDocumentTypeToFileType(r.document_type),
           })) || [],
-        confidence: 0,
+        confidence: response.confidence ?? 0,
+        coverage: response.coverage,
+        decisionTraceId: response.decision_trace_id,
         answer_type: 'factual' as const,
         language_detected: 'en',
       },
+      deterministicStatus: response.deterministic_status,
+      deterministicMessage: response.deterministic_message,
+      refinementSuggestions: response.suggestions,
       entities: [],
       relationships: [],
       metrics: {
