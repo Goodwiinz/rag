@@ -100,10 +100,14 @@ def _create_provider(model_id: str):
             )
         )
 
-    if lower.startswith("ollama/") or lower.startswith("llama") or lower.startswith(
-        "mistral"
+    if (
+        lower.startswith("ollama/")
+        or lower.startswith("llama")
+        or lower.startswith("mistral")
     ):
-        ollama_model = normalized.split("/", 1)[1] if lower.startswith("ollama/") else normalized
+        ollama_model = (
+            normalized.split("/", 1)[1] if lower.startswith("ollama/") else normalized
+        )
         return OllamaProvider(
             ProviderConfig(
                 provider_type="ollama",
@@ -181,10 +185,13 @@ def _get_effective_parameters(
     base = dict(blueprint.parameters or {})
     overrides: Dict[str, Any] = {}
     manifest = run.reproducibility_manifest or {}
-    if isinstance(manifest, dict) and isinstance(manifest.get("parameters_override"), dict):
+    if isinstance(manifest, dict) and isinstance(
+        manifest.get("parameters_override"), dict
+    ):
         overrides = manifest["parameters_override"]
     base.update(overrides)
     return base, overrides
+
 
 router = APIRouter(
     prefix="/research-engine",
@@ -301,8 +308,8 @@ async def resume_run(
             status_code=status.HTTP_409_CONFLICT,
             detail="Run is not currently paused",
         )
-    # Mark resumed runs as pending so they can be restarted via SSE stream.
-    run.status = RunStatus.PENDING.value
+    # Keep resumed runs in PAUSED; SSE stream computes start_from for PAUSED runs.
+    run.status = RunStatus.PAUSED.value
     await db.commit()
     await db.refresh(run)
     return RunResponse.model_validate(run)
@@ -382,7 +389,9 @@ async def stream_run(
         }
     )
     providers = _build_providers(blueprint.steps or [])
-    missing_models = [model_id for model_id in required_models if model_id not in providers]
+    missing_models = [
+        model_id for model_id in required_models if model_id not in providers
+    ]
     if missing_models:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -393,7 +402,9 @@ async def stream_run(
         )
 
     connectors = _build_connectors()
-    effective_parameters, parameter_overrides = _get_effective_parameters(blueprint, run)
+    effective_parameters, parameter_overrides = _get_effective_parameters(
+        blueprint, run
+    )
     blueprint_dict = {
         "steps": blueprint.steps or [],
         "parameters": effective_parameters,
@@ -448,6 +459,12 @@ async def stream_run(
                 event_type = event.get("event", "message")
                 data = json.dumps(event)
                 yield f"event: {event_type}\ndata: {data}\n\n"
+        except asyncio.CancelledError:
+            # Client disconnected; persist paused state so run can resume later.
+            run.status = RunStatus.PAUSED.value
+            run.total_tokens = total_tokens
+            await db.commit()
+            raise
         except Exception as exc:
             # If streaming fails unexpectedly, mark run as failed
             logger.error(f"Stream error for run {run_id}: {exc}")
