@@ -29,7 +29,7 @@ from src.api.arxiv import (
 )
 from src.api.auth import auth_router
 from src.api.auth.api_keys import router as api_keys_router
-from src.api.documents import documents_router, files_router, integrity_router, processing_router
+from src.api.documents import documents_router, files_router, integrity_router, processing_router, table_extraction_router
 from src.api.evidence.router import router as evidence_router
 from src.api.infrastructure import evaluation_router, workers_router
 from src.api.quality import (
@@ -346,6 +346,7 @@ app.include_router(drafts_router)  # Research Assistant drafts endpoints
 app.include_router(tone_engine_router)  # Scholarly Tone Engine endpoints
 app.include_router(extraction_matrix_router)  # Extraction Matrix endpoints
 app.include_router(integrity_router)  # AI Integrity Detector endpoints
+app.include_router(table_extraction_router)  # Table & math extraction endpoints
 app.include_router(research_engine_projects_router, prefix="/api/v1")  # Research Engine projects
 app.include_router(research_engine_blueprints_router, prefix="/api/v1")  # Research Engine blueprints
 app.include_router(research_engine_runs_router, prefix="/api/v1")  # Research Engine runs
