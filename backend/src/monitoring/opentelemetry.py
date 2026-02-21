@@ -328,7 +328,7 @@ class OpenTelemetryManager:
             metric.add(-1, attributes or {})
 
     def create_span(
-        self, name: str, kind: SpanKind = SpanKind.INTERNAL
+        self, name: str, kind: "SpanKind" = SpanKind.INTERNAL
     ) -> context.Context:
         """Create a new span"""
         tracer = self.get_tracer()
@@ -367,7 +367,7 @@ otel_manager = OpenTelemetryManager()
 
 # Decorators for easy tracing and metrics
 def trace_span(
-    span_name: str = None, kind: SpanKind = SpanKind.INTERNAL, component: str = "app"
+    span_name: str = None, kind: "SpanKind" = SpanKind.INTERNAL, component: str = "app"
 ):
     """Decorator to automatically trace function execution"""
 
@@ -486,7 +486,7 @@ def trace_ml_inference(model_name: str = None):
 @contextmanager
 def trace_context(
     span_name: str,
-    kind: SpanKind = SpanKind.INTERNAL,
+    kind: "SpanKind" = SpanKind.INTERNAL,
     component: str = "app",
     attributes: Optional[Dict[str, Any]] = None,
 ):
