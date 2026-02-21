@@ -16,6 +16,12 @@ CITATION_RE = re.compile(r"\[\d+\]")
 class ToneEngineService:
     """Service for rewriting text with adjustable academic tone."""
 
+    def __init__(self) -> None:
+        import openai
+        self._openai = openai
+        api_key = settings.OPENAI_API_KEY or None
+        self._client = openai.AsyncOpenAI(api_key=api_key) if api_key else None  # type: ignore[assignment]
+
     def _extract_citations(self, text: str) -> List[str]:
         """Extract all citation markers from text."""
         return CITATION_RE.findall(text)
@@ -28,7 +34,8 @@ class ToneEngineService:
         preserve_citations: bool = True,
     ) -> Dict[str, Any]:
         """Rewrite text with the specified tone."""
-        import openai
+        if self._client is None:
+            raise RuntimeError("OpenAI API key is not configured")
 
         original_citations = self._extract_citations(text) if preserve_citations else []
 
@@ -38,15 +45,20 @@ class ToneEngineService:
 
         model_id = model or "gpt-4o"
 
-        client = openai.AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
-        response = await client.chat.completions.create(
-            model=model_id,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": text},
-            ],
-            temperature=0.7,
-        )
+        try:
+            response = await self._client.chat.completions.create(
+                model=model_id,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": text},
+                ],
+                temperature=0.7,
+            )
+        except self._openai.APIError as e:
+            raise RuntimeError(f"OpenAI API error: {e}") from e
+
+        if not response.choices:
+            raise RuntimeError("OpenAI returned no completion choices")
 
         rewritten = response.choices[0].message.content or ""
 

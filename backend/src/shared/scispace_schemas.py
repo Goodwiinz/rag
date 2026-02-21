@@ -47,6 +47,8 @@ class TriggerExtractionRequest(BaseModel):
 
 # Feature 3: Tone Engine
 
+_ALLOWED_MODELS = {"gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "claude-sonnet-4-6"}
+
 
 class ToneOption(str, Enum):
     """Available tone adjustment options."""
@@ -60,7 +62,7 @@ class ToneOption(str, Enum):
 class RewriteRequest(BaseModel):
     """Request to rewrite text with a specific tone."""
 
-    text: str = Field(..., min_length=20, description="Text to rewrite (min 20 chars)")
+    text: str = Field(..., min_length=20, max_length=50_000, description="Text to rewrite (min 20, max 50000 chars)")
     tone: ToneOption
     preserve_citations: bool = Field(True, description="Maintain citation markers")
     model: Optional[str] = Field(None, description="LLM model override")
@@ -69,6 +71,12 @@ class RewriteRequest(BaseModel):
     def text_not_too_short(cls, v):
         if len(v.split()) < 5:
             raise ValueError("Text must contain at least 5 words")
+        return v
+
+    @validator("model")
+    def model_must_be_allowed(cls, v):
+        if v is not None and v not in _ALLOWED_MODELS:
+            raise ValueError(f"model must be one of {sorted(_ALLOWED_MODELS)}")
         return v
 
 
