@@ -5,7 +5,7 @@
  * Form for configuring and generating literature review drafts
  */
 
-import React, { useState, useId } from 'react';
+import React, { useState, useId, useRef } from 'react';
 import { Sparkles, Plus, X, Loader2 } from 'lucide-react';
 
 export interface DraftGeneratorProps {
@@ -36,6 +36,8 @@ export const DraftGenerator: React.FC<DraftGeneratorProps> = ({
   const themesInputId = useId();
   const maxSectionsId = useId();
   const includeAbstractId = useId();
+  const styleLabelId = useId();
+  const styleButtonRefs = useRef<(HTMLButtonElement | null)[]>([]);
 
   const handleAddTheme = (): void => {
     const trimmed = themeInput.trim();
@@ -56,6 +58,27 @@ export const DraftGenerator: React.FC<DraftGeneratorProps> = ({
     }
   };
 
+  const handleStyleKeyDown = (
+    e: React.KeyboardEvent,
+    index: number,
+    styles: readonly string[]
+  ): void => {
+    let nextIndex = index;
+
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+      e.preventDefault();
+      nextIndex = (index + 1) % styles.length;
+    } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      nextIndex = (index - 1 + styles.length) % styles.length;
+    }
+
+    if (nextIndex !== index) {
+      setStyle(styles[nextIndex] as GenerationConfig['style']);
+      styleButtonRefs.current[nextIndex]?.focus();
+    }
+  };
+
   const handleGenerate = (): void => {
     if (themes.length === 0) return;
     onGenerate({
@@ -70,7 +93,9 @@ export const DraftGenerator: React.FC<DraftGeneratorProps> = ({
     <div className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg p-6">
       <div className="flex items-center gap-2 mb-6">
         <Sparkles className="h-5 w-5 text-[#ffb700]" />
-        <h3 className="font-mono font-bold text-gray-200">Generate Literature Review</h3>
+        <h3 className="font-mono font-bold text-gray-200">
+          Generate Literature Review
+        </h3>
       </div>
 
       <div className="space-y-5">
@@ -129,26 +154,34 @@ export const DraftGenerator: React.FC<DraftGeneratorProps> = ({
         </div>
 
         {/* Style Selector */}
-        <div role="radiogroup" aria-label="Writing Style">
-          <label className="block text-xs text-gray-500 font-mono uppercase tracking-wide mb-2">
+        <div role="radiogroup" aria-labelledby={styleLabelId}>
+          <label
+            id={styleLabelId}
+            className="block text-xs text-gray-500 font-mono uppercase tracking-wide mb-2"
+          >
             Writing Style
           </label>
           <div className="flex gap-2">
-            {(['academic', 'technical', 'summary'] as const).map((s) => (
-              <button
-                key={s}
-                role="radio"
-                aria-checked={style === s}
-                onClick={() => setStyle(s)}
-                className={`flex-1 px-3 py-2 rounded text-sm font-mono transition-colors ${
-                  style === s
-                    ? 'bg-[#00ff9f]/20 text-[#00ff9f] border border-[#00ff9f]/50'
-                    : 'bg-[#1a1a1a] text-gray-400 border border-[#333] hover:border-[#555]'
-                }`}
-              >
-                {s.charAt(0).toUpperCase() + s.slice(1)}
-              </button>
-            ))}
+            {(['academic', 'technical', 'summary'] as const).map(
+              (s, idx, arr) => (
+                <button
+                  key={s}
+                  ref={(el) => (styleButtonRefs.current[idx] = el)}
+                  role="radio"
+                  aria-checked={style === s}
+                  tabIndex={style === s ? 0 : -1}
+                  onClick={() => setStyle(s)}
+                  onKeyDown={(e) => handleStyleKeyDown(e, idx, arr)}
+                  className={`flex-1 px-3 py-2 rounded text-sm font-mono transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00ff9f] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0a0a0a] ${
+                    style === s
+                      ? 'bg-[#00ff9f]/20 text-[#00ff9f] border border-[#00ff9f]/50'
+                      : 'bg-[#1a1a1a] text-gray-400 border border-[#333] hover:border-[#555]'
+                  }`}
+                >
+                  {s.charAt(0).toUpperCase() + s.slice(1)}
+                </button>
+              )
+            )}
           </div>
         </div>
 
@@ -208,7 +241,8 @@ export const DraftGenerator: React.FC<DraftGeneratorProps> = ({
         {/* Document Count Info */}
         {documentCount > 0 && (
           <div className="p-3 bg-[#1a1a1a] rounded text-xs font-mono text-gray-400">
-            The review will analyze {documentCount} document{documentCount !== 1 ? 's' : ''} from this project.
+            The review will analyze {documentCount} document
+            {documentCount !== 1 ? 's' : ''} from this project.
           </div>
         )}
 
