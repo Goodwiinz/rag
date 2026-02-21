@@ -216,6 +216,33 @@ class WidgetConfiguration(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+# Alias for WidgetCreate as they share the same structure
+WidgetCreate = WidgetConfiguration
+
+
+class WidgetUpdate(BaseModel):
+    """Widget update model"""
+
+    title: Optional[str] = Field(None, min_length=1, max_length=255)
+    description: Optional[str] = None
+    x: Optional[int] = None
+    y: Optional[int] = None
+    width: Optional[int] = None
+    height: Optional[int] = None
+    data_source: Optional[str] = None
+    query_config: Optional[Dict[str, Any]] = None
+    visualization_config: Optional[Dict[str, Any]] = None
+    is_realtime: Optional[bool] = None
+    real_time_config: Optional[Dict[str, Any]] = None
+    filters: Optional[Dict[str, Any]] = None
+    drilldown_config: Optional[Dict[str, Any]] = None
+    cache_ttl: Optional[int] = None
+    is_active: Optional[bool] = None
+    is_visible: Optional[bool] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class DashboardCreate(BaseModel):
     """Create dashboard request model"""
 

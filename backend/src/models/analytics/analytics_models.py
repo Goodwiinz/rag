@@ -145,7 +145,7 @@ class AnalyticsMetric(SQLBaseModel):
 
     # Relationships
     kpis = relationship("AnalyticsKPI", back_populates="metric")
-    aggregations = relationship("MetricAggregation", back_populates="metric")
+    aggregations = relationship("src.models.analytics.analytics_models.MetricAggregation", back_populates="metric")
 
 
 class AnalyticsKPI(SQLBaseModel):

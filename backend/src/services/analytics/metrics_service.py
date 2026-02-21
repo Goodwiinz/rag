@@ -5,6 +5,7 @@ Metrics Aggregation Service for analytics metrics
 import asyncio
 import logging
 import time
+import uuid
 from collections import defaultdict
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -849,20 +850,24 @@ class MetricsService:
                 (AggregationType.COUNT, len(numeric_values)),
             ]
 
-            for agg_type, agg_value in aggregations:
-                # Check if aggregation already exists
-                existing_query = select(MetricAggregation).where(
-                    and_(
-                        MetricAggregation.metric_id == metric_id,
-                        MetricAggregation.aggregation_type == agg_type,
-                        MetricAggregation.time_window == resolution,
-                        MetricAggregation.timestamp == bucket_time,
-                        MetricAggregation.dimensions_hash
-                        == str(hash(str(values[0].get("dimensions", {}))) % 10000),
-                    )
+            # Fetch all existing aggregations for this bucket at once
+            dimensions_hash = str(hash(str(values[0].get("dimensions", {}))) % 10000)
+            existing_query = select(MetricAggregation).where(
+                and_(
+                    MetricAggregation.metric_id == metric_id,
+                    MetricAggregation.time_window == resolution,
+                    MetricAggregation.timestamp == bucket_time,
+                    MetricAggregation.dimensions_hash == dimensions_hash,
                 )
-                existing_result = await db.execute(existing_query)
-                existing_agg = existing_result.scalar_one_or_none()
+            )
+            existing_result = await db.execute(existing_query)
+            existing_aggs = existing_result.scalars().all()
+
+            # Map existing aggregations by type for quick lookup
+            existing_map = {agg.aggregation_type: agg for agg in existing_aggs}
+
+            for agg_type, agg_value in aggregations:
+                existing_agg = existing_map.get(agg_type)
 
                 if existing_agg:
                     # Update existing aggregation
@@ -879,7 +884,7 @@ class MetricsService:
                         aggregation_type=agg_type,
                         time_window=resolution,
                         timestamp=bucket_time,
-                        dimensions_hash=str(hash(str(dimensions)) % 10000),
+                        dimensions_hash=dimensions_hash,
                         dimensions=dimensions,
                         value=agg_value,
                         count=len(numeric_values),
