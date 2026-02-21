@@ -34,14 +34,14 @@ class ToneEngineService:
         preserve_citations: bool = True,
     ) -> Dict[str, Any]:
         """Rewrite text with the specified tone."""
+        system_prompt = TONE_PROMPTS.get(tone)
+        if not system_prompt:
+            raise ValueError(f"Unknown tone: {tone}. Valid: {list(TONE_PROMPTS.keys())}")
+
         if self._client is None:
             raise RuntimeError("OpenAI API key is not configured")
 
         original_citations = self._extract_citations(text) if preserve_citations else []
-
-        system_prompt = TONE_PROMPTS.get(tone)
-        if not system_prompt:
-            raise ValueError(f"Unknown tone: {tone}. Valid: {list(TONE_PROMPTS.keys())}")
 
         model_id = model or "gpt-4o"
 
