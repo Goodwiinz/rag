@@ -2,6 +2,7 @@
 Analytics-specific authentication and authorization middleware
 Provides role-based access control for T3 analytics endpoints
 """
+from __future__ import annotations
 
 import logging
 from datetime import datetime, timedelta
