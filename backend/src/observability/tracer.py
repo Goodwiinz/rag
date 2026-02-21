@@ -47,7 +47,7 @@ from .config import config
 _tracer = None
 
 
-def configure_tracing() -> trace.Tracer:
+def configure_tracing() -> Any:
     """Configure OpenTelemetry tracing with Jaeger and OTLP exporters"""
     global _tracer
 
@@ -104,7 +104,7 @@ def configure_tracing() -> trace.Tracer:
     return _tracer
 
 
-def get_tracer(name: Optional[str] = None) -> trace.Tracer:
+def get_tracer(name: Optional[str] = None) -> Any:
     """Get a tracer instance"""
     if _tracer is None:
         configure_tracing()
