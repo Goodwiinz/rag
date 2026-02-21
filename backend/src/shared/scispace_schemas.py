@@ -1,0 +1,102 @@
+"""SciSpace integration schemas shared across features."""
+
+from datetime import datetime
+from enum import Enum
+from typing import Any, Dict, List, Optional
+from uuid import UUID
+
+from pydantic import BaseModel, Field, validator
+
+
+# Feature 1: Extraction Matrix
+
+
+class ExtractionColumn(BaseModel):
+    """A column definition for the extraction matrix."""
+
+    name: str = Field(
+        ..., min_length=1, max_length=100, description="Column header name"
+    )
+    description: Optional[str] = Field(
+        None, max_length=500, description="What to extract"
+    )
+
+
+class ExtractionCellResponse(BaseModel):
+    """A single cell in the extraction matrix."""
+
+    document_id: UUID
+    column_name: str
+    value: Optional[str] = None
+    citation_snippet: Optional[str] = None
+    confidence: Optional[float] = None
+
+
+class CreateMatrixRequest(BaseModel):
+    """Request to create an extraction matrix."""
+
+    name: str = Field(..., min_length=1, max_length=255)
+    columns: List[ExtractionColumn] = Field(..., min_length=1, max_length=20)
+
+
+class TriggerExtractionRequest(BaseModel):
+    """Request to trigger extraction on selected documents."""
+
+    document_ids: List[UUID] = Field(..., min_length=1, max_length=100)
+
+
+# Feature 3: Tone Engine
+
+
+class ToneOption(str, Enum):
+    """Available tone adjustment options."""
+
+    ACADEMIC = "academic"
+    SIMPLIFIED = "simplified"
+    CONCISE = "concise"
+    EXPANDED = "expanded"
+
+
+class RewriteRequest(BaseModel):
+    """Request to rewrite text with a specific tone."""
+
+    text: str = Field(..., min_length=20, description="Text to rewrite (min 20 chars)")
+    tone: ToneOption
+    preserve_citations: bool = Field(True, description="Maintain citation markers")
+    model: Optional[str] = Field(None, description="LLM model override")
+
+    @validator("text")
+    def text_not_too_short(cls, v):
+        if len(v.split()) < 5:
+            raise ValueError("Text must contain at least 5 words")
+        return v
+
+
+class RewriteResponse(BaseModel):
+    """Response from the tone engine."""
+
+    original: str
+    rewritten: str
+    tone_applied: ToneOption
+    citations_preserved: List[str] = Field(default_factory=list)
+
+
+# Feature 5: Integrity Detector
+
+
+class IntegritySegmentScore(BaseModel):
+    """AI detection score for a text segment."""
+
+    text_preview: str = Field(..., max_length=200)
+    ai_probability: float = Field(..., ge=0.0, le=1.0)
+
+
+class IntegrityScoreResponse(BaseModel):
+    """Full integrity score for a document."""
+
+    document_id: str
+    ai_probability: float = Field(..., ge=0.0, le=1.0)
+    human_probability: float = Field(..., ge=0.0, le=1.0)
+    method: str = "roberta-base-openai-detector"
+    analyzed_at: Optional[datetime] = None
+    segment_scores: List[IntegritySegmentScore] = Field(default_factory=list)

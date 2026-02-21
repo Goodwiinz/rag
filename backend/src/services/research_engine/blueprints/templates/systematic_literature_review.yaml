@@ -1,0 +1,91 @@
+name: "Systematic Literature Review"
+description: "Conduct a systematic literature review following PRISMA-like methodology: search multiple academic databases, screen results by inclusion/exclusion criteria, extract key data, synthesize findings, verify grounding, and export a structured report."
+parameters:
+  query: ""
+  databases:
+    - arxiv
+    - semantic_scholar
+    - pubmed
+  max_results_per_source: 50
+  inclusion_criteria: []
+  exclusion_criteria: []
+  extraction_fields:
+    - title
+    - authors
+    - year
+    - methodology
+    - findings
+    - limitations
+
+steps:
+  - type: search
+    name: "Academic Database Search"
+    description: "Search arxiv, Semantic Scholar, and PubMed for papers matching the research query."
+    parameters:
+      sources:
+        - arxiv
+        - semantic_scholar
+        - pubmed
+      max_results_per_source: 50
+    model_id: null
+    mode: deterministic
+    system_prompt_template: null
+
+  - type: screen
+    name: "Title and Abstract Screening"
+    description: "Screen retrieved papers by title and abstract using inclusion and exclusion criteria to determine relevance."
+    parameters:
+      screening_fields:
+        - title
+        - abstract
+      inclusion_criteria: "{inclusion_criteria}"
+      exclusion_criteria: "{exclusion_criteria}"
+    model_id: "claude-sonnet-4-6"
+    mode: deterministic
+    system_prompt_template: >
+      You are a systematic review screening assistant. Evaluate each paper against the following criteria.
+      Inclusion: {inclusion_criteria}
+      Exclusion: {exclusion_criteria}
+      Return a JSON object with fields: included (bool), reason (string).
+
+  - type: extract
+    name: "Data Extraction"
+    description: "Extract key data fields from each included paper: title, authors, year, methodology, findings, and limitations."
+    parameters:
+      fields: "{extraction_fields}"
+    model_id: "claude-sonnet-4-6"
+    mode: deterministic
+    system_prompt_template: >
+      Extract the following fields from the paper: {extraction_fields}.
+      Return structured JSON matching the requested schema.
+
+  - type: synthesize
+    name: "Narrative Synthesis"
+    description: "Synthesize extracted findings into a coherent narrative covering themes, agreements, disagreements, and gaps in the literature."
+    parameters: {}
+    model_id: "claude-sonnet-4-6"
+    mode: deterministic
+    system_prompt_template: >
+      Synthesize the extracted data into a narrative literature review.
+      Identify key themes, areas of agreement, disagreements, and gaps.
+      Cite sources inline using [Author, Year] format.
+
+  - type: verify
+    name: "Source Grounding Verification"
+    description: "Verify that all claims in the synthesis are properly grounded in the extracted source material."
+    parameters: {}
+    model_id: "claude-sonnet-4-6"
+    mode: deterministic
+    system_prompt_template: >
+      Verify each claim in the synthesis against the source material.
+      Flag any claim that is not directly supported by the extracted data.
+      Return a list of verified and unverified claims with source references.
+
+  - type: export
+    name: "Markdown Report Export"
+    description: "Export the complete systematic review as a structured markdown report with sections for methodology, results, synthesis, and references."
+    parameters:
+      format: markdown
+    model_id: null
+    mode: deterministic
+    system_prompt_template: null

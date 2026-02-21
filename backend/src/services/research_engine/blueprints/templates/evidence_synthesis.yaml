@@ -1,0 +1,70 @@
+name: "Evidence Synthesis"
+description: "Search academic and web sources, extract claims and supporting evidence, build an evidence map, verify grounding, and export a synthesis report."
+parameters:
+  query: ""
+  sources:
+    - arxiv
+    - semantic_scholar
+    - web
+  max_results: 30
+  claim_threshold: 0.7
+
+steps:
+  - type: search
+    name: "Multi-Source Search"
+    description: "Search academic databases and web sources for documents related to the research query."
+    parameters:
+      sources:
+        - arxiv
+        - semantic_scholar
+        - web
+      max_results: 30
+    model_id: null
+    mode: deterministic
+    system_prompt_template: null
+
+  - type: extract
+    name: "Claim and Evidence Extraction"
+    description: "Extract individual claims and their supporting evidence from each retrieved document."
+    parameters:
+      extract_claims: true
+      extract_evidence: true
+      confidence_threshold: 0.7
+    model_id: "claude-sonnet-4-6"
+    mode: deterministic
+    system_prompt_template: >
+      Extract all factual claims from the document along with supporting evidence.
+      For each claim, provide: claim_text, evidence_text, confidence (0-1), and page_reference.
+      Return as a JSON array.
+
+  - type: synthesize
+    name: "Evidence Map Construction"
+    description: "Build an evidence map linking claims to supporting and contradicting evidence across sources."
+    parameters: {}
+    model_id: "claude-sonnet-4-6"
+    mode: deterministic
+    system_prompt_template: >
+      Build an evidence map from the extracted claims and evidence.
+      Group related claims, identify supporting and contradicting evidence,
+      and assess overall strength of evidence for each claim cluster.
+
+  - type: verify
+    name: "Grounding Verification"
+    description: "Verify that all synthesized claims are grounded in the original source material."
+    parameters: {}
+    model_id: "claude-sonnet-4-6"
+    mode: deterministic
+    system_prompt_template: >
+      Verify each claim in the evidence map against original source material.
+      Mark each claim as verified, unverified, or contradicted.
+      Provide source references for verification.
+
+  - type: export
+    name: "Synthesis Report Export"
+    description: "Export the evidence synthesis as a structured report with evidence map visualization data."
+    parameters:
+      format: markdown
+      include_evidence_map: true
+    model_id: null
+    mode: deterministic
+    system_prompt_template: null

@@ -23,10 +23,17 @@ wheels/
 *.egg
 MANIFEST
 
-# Virtual Environment
+# Virtual Environments
+.venv/
+.ven/
 venv/
 env/
 ENV/
+**/.venv/
+**/.ven/
+**/venv/
+**/env/
+**/ENV/
 
 # IDE
 .vscode/
@@ -215,3 +222,6 @@ frontend/playwright-report/**/*.brv
 tests/e2e/**/*.brv
 tests/integration/**/*.brv
 backend/browser-test-cache/
+
+# Local git worktrees
+.worktrees/

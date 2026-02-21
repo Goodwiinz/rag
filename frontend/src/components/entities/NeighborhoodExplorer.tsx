@@ -34,34 +34,26 @@ export const NeighborhoodExplorer: React.FC<NeighborhoodExplorerProps> = ({
     try {
       setLoading(true);
 
-      // Fetch related entities using service with retry
-      const relatedEntities = await entityService.getRelatedEntities(
+      // Single call to get both entities and relationships
+      const neighborhood = await entityService.getNeighborhood(
         centralEntity.id,
         depth,
         minStrength,
         maxNodes
       );
 
-      // Include central entity
-      const allEntities = [centralEntity, ...relatedEntities];
+      // Include central entity; map entity_type → type for API responses
+      const mappedEntities = neighborhood.entities.map((e: any) => ({
+        ...e,
+        type: e.type || e.entity_type || 'OTHER',
+        confidence: e.confidence ?? e.confidence_score ?? 0.5,
+      }));
+      const allEntities = [centralEntity, ...mappedEntities];
       setEntities(allEntities);
 
-      // Fetch relationships for all entities using service with retry
-      const allEntityIds = allEntities.map(e => e.id);
-      const relationshipPromises = allEntityIds.map(entityId =>
-        entityService.getEntityRelationships(entityId)
-      );
-
-      const relationshipArrays = await Promise.all(relationshipPromises);
-      const allRelationships = relationshipArrays.flat();
-
-      // Filter to only include relationships between entities in our set
-      const entityIdSet = new Set(allEntityIds);
-      const filteredRelationships = allRelationships
-        .filter((rel: any) =>
-          entityIdSet.has(rel.source_entity_id) && entityIdSet.has(rel.target_entity_id)
-        )
-        .map((rel: any) => ({
+      // Map relationships to graph edge format
+      const mappedRelationships = (neighborhood.relationships || []).map(
+        (rel: any) => ({
           id: rel.id,
           source: rel.source_entity_id,
           target: rel.target_entity_id,
@@ -70,12 +62,13 @@ export const NeighborhoodExplorer: React.FC<NeighborhoodExplorerProps> = ({
           strength: rel.strength,
           confidence: rel.confidence_score,
           context: rel.context,
-          metadata: rel.metadata
-        }));
+          metadata: rel.metadata,
+        })
+      );
 
-      setRelationships(filteredRelationships);
+      setRelationships(mappedRelationships);
 
-      toast.success(`Found ${relatedEntities.length} related entities`);
+      toast.success(`Found ${neighborhood.entities.length} related entities`);
     } catch (error) {
       console.error('Error fetching neighborhood:', error);
       toast.error('Failed to fetch neighborhood');
