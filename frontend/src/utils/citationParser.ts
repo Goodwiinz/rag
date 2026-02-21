@@ -35,12 +35,44 @@ export interface ParsedSegment {
 }
 
 /**
- * Regular expression to match citation patterns like [Doc 1], [Doc 2], etc.
- * Also matches variations: [Doc1], [Source 1], [Ref 1], and simple [1], [2], [3]
- * The simple [N] pattern is common when LLMs don't follow the exact [Doc N] format
- * Uses [\s\u00a0\u2002\u2003]* to match various whitespace including non-breaking spaces
+ * Matches any bracketed section so we can parse both single and grouped
+ * citation styles such as:
+ * - [Doc 1]
+ * - [1]
+ * - [Doc 2, Doc 3, Doc 4]
  */
-const CITATION_PATTERN = /\[(?:(Doc|Source|Ref)[\s\u00a0\u2002\u2003]*)?(\d+)\]/gi;
+const BRACKET_GROUP_PATTERN = /\[([^\]]+)\]/g;
+const CITATION_ITEM_PATTERN = /(?:(Doc|Source|Ref)[\s\u00a0\u2002\u2003]*)?(\d+)/gi;
+const GROUP_DELIMITER_PATTERN = /^[,\s\u00a0\u2002\u2003]*$/;
+
+function parseCitationGroup(content: string): number[] | null {
+  const indices: number[] = [];
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  CITATION_ITEM_PATTERN.lastIndex = 0;
+
+  while ((match = CITATION_ITEM_PATTERN.exec(content)) !== null) {
+    const between = content.slice(lastIndex, match.index);
+    if (!GROUP_DELIMITER_PATTERN.test(between)) {
+      return null;
+    }
+
+    indices.push(parseInt(match[2], 10));
+    lastIndex = match.index + match[0].length;
+  }
+
+  if (indices.length === 0) {
+    return null;
+  }
+
+  const trailing = content.slice(lastIndex);
+  if (!GROUP_DELIMITER_PATTERN.test(trailing)) {
+    return null;
+  }
+
+  return indices;
+}
 
 /**
  * Parse message content into segments of text and citations
@@ -61,11 +93,9 @@ export function parseMessageWithCitations(content: string): ParsedSegment[] {
   let lastIndex = 0;
   let match: RegExpExecArray | null;
 
-  // Reset regex state
-  CITATION_PATTERN.lastIndex = 0;
+  BRACKET_GROUP_PATTERN.lastIndex = 0;
 
-  while ((match = CITATION_PATTERN.exec(content)) !== null) {
-    // Add text segment before this citation
+  while ((match = BRACKET_GROUP_PATTERN.exec(content)) !== null) {
     if (match.index > lastIndex) {
       segments.push({
         type: 'text',
@@ -73,13 +103,30 @@ export function parseMessageWithCitations(content: string): ParsedSegment[] {
       });
     }
 
-    // Add citation segment
-    const citationIndex = parseInt(match[2], 10);
-    segments.push({
-      type: 'citation',
-      content: match[0],
-      citationIndex,
-    });
+    const groupContent = match[1];
+    const citationIndices = parseCitationGroup(groupContent);
+
+    if (!citationIndices) {
+      segments.push({
+        type: 'text',
+        content: match[0],
+      });
+    } else {
+      citationIndices.forEach((citationIndex, index) => {
+        segments.push({
+          type: 'citation',
+          content: `[Doc ${citationIndex}]`,
+          citationIndex,
+        });
+
+        if (index < citationIndices.length - 1) {
+          segments.push({
+            type: 'text',
+            content: ', ',
+          });
+        }
+      });
+    }
 
     lastIndex = match.index + match[0].length;
   }
@@ -102,8 +149,7 @@ export function parseMessageWithCitations(content: string): ParsedSegment[] {
  * @returns True if content contains citation patterns
  */
 export function hasCitations(content: string): boolean {
-  CITATION_PATTERN.lastIndex = 0;
-  return CITATION_PATTERN.test(content);
+  return extractCitationIndices(content).length > 0;
 }
 
 /**
@@ -113,16 +159,12 @@ export function hasCitations(content: string): boolean {
  * @returns Array of unique citation indices (1-based)
  */
 export function extractCitationIndices(content: string): number[] {
-  const indices = new Set<number>();
-  let match: RegExpExecArray | null;
+  const indices = parseMessageWithCitations(content)
+    .filter((segment) => segment.type === 'citation')
+    .map((segment) => segment.citationIndex)
+    .filter((index): index is number => typeof index === 'number');
 
-  CITATION_PATTERN.lastIndex = 0;
-
-  while ((match = CITATION_PATTERN.exec(content)) !== null) {
-    indices.add(parseInt(match[2], 10));
-  }
-
-  return Array.from(indices).sort((a, b) => a - b);
+  return Array.from(new Set(indices)).sort((a, b) => a - b);
 }
 
 /**

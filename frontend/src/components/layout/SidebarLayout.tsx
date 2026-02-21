@@ -49,7 +49,6 @@ const pathNameMap: Record<string, string> = {
   '': 'Home',
   dashboard: 'Overview',
   search: 'Search',
-  'llm-chat': 'AI Chat',
   documents: 'Documents',
   upload: 'Upload',
   arxiv: 'ArXiv Papers',

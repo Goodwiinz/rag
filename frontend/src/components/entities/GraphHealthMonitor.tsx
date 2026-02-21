@@ -19,6 +19,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
+import { apiClient } from '@/services/apiClient';
 import toast from 'react-hot-toast';
 
 interface HealthIssue {
@@ -49,6 +50,71 @@ interface GraphHealthStatus {
   last_check: string;
 }
 
+interface BackendGraphHealthStatus {
+  status?: 'healthy' | 'degraded' | 'unhealthy' | 'critical';
+  node_count?: number;
+  relationship_count?: number;
+  database_size?: string | number;
+  uptime?: string | number;
+}
+
+const toNumber = (value: unknown, fallback: number = 0): number => {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+  if (typeof value === 'string') {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : fallback;
+  }
+  return fallback;
+};
+
+const normalizeHealthStatus = (
+  raw: Partial<GraphHealthStatus & BackendGraphHealthStatus>
+): GraphHealthStatus => {
+  const normalizedStatus = raw.overall_status
+    ? raw.overall_status
+    : raw.status === 'unhealthy'
+      ? 'critical'
+      : raw.status === 'critical'
+        ? 'critical'
+        : raw.status === 'degraded'
+          ? 'degraded'
+          : 'healthy';
+
+  const totalEntities = toNumber(raw.total_entities, toNumber(raw.node_count, 0));
+  const totalRelationships = toNumber(
+    raw.total_relationships,
+    toNumber(raw.relationship_count, 0)
+  );
+
+  return {
+    overall_status: normalizedStatus,
+    health_score: toNumber(raw.health_score, normalizedStatus === 'healthy' ? 100 : 50),
+    total_entities: totalEntities,
+    total_relationships: totalRelationships,
+    issues: Array.isArray(raw.issues) ? raw.issues : [],
+    metrics: {
+      isolated_entities: toNumber(raw.metrics?.isolated_entities, 0),
+      entities_without_confidence: toNumber(
+        raw.metrics?.entities_without_confidence,
+        0
+      ),
+      low_confidence_entities: toNumber(raw.metrics?.low_confidence_entities, 0),
+      orphaned_relationships: toNumber(raw.metrics?.orphaned_relationships, 0),
+      duplicate_relationships: toNumber(raw.metrics?.duplicate_relationships, 0),
+      avg_relationship_strength: toNumber(raw.metrics?.avg_relationship_strength, 0),
+      weakly_connected_components: toNumber(
+        raw.metrics?.weakly_connected_components,
+        0
+      ),
+    },
+    database_size: toNumber(raw.database_size, 0),
+    uptime: toNumber(raw.uptime, 0),
+    last_check: raw.last_check ?? new Date().toISOString(),
+  };
+};
+
 export const GraphHealthMonitor: React.FC = () => {
   const [health, setHealth] = useState<GraphHealthStatus | null>(null);
   const [loading, setLoading] = useState(true);
@@ -68,18 +134,12 @@ export const GraphHealthMonitor: React.FC = () => {
   const fetchHealth = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/knowledge-graph/health', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch health status');
-      }
-
-      const data = await response.json();
-      setHealth(data);
+      const data = await apiClient.get<
+        Partial<GraphHealthStatus & BackendGraphHealthStatus>
+      >(
+        'knowledge-graph/health'
+      );
+      setHealth(normalizeHealthStatus(data));
     } catch (error) {
       console.error('Error fetching health:', error);
       toast.error('Failed to fetch graph health');
@@ -150,6 +210,11 @@ export const GraphHealthMonitor: React.FC = () => {
     );
   }
 
+  const connectivityScore =
+    health.total_entities > 0
+      ? Math.max(0, 100 - (health.metrics.isolated_entities / health.total_entities) * 100)
+      : 0;
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -178,7 +243,9 @@ export const GraphHealthMonitor: React.FC = () => {
             size="sm"
             className="font-mono text-xs"
           >
-            <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+            <RefreshCw
+              className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`}
+            />
             REFRESH
           </Button>
         </div>
@@ -191,7 +258,9 @@ export const GraphHealthMonitor: React.FC = () => {
             <div className="flex items-center gap-4">
               <div
                 className="p-4 rounded-lg"
-                style={{ backgroundColor: `${getStatusColor(health.overall_status)}20` }}
+                style={{
+                  backgroundColor: `${getStatusColor(health.overall_status)}20`,
+                }}
               >
                 <div style={{ color: getStatusColor(health.overall_status) }}>
                   {getStatusIcon(health.overall_status)}
@@ -215,12 +284,11 @@ export const GraphHealthMonitor: React.FC = () => {
               </p>
               <p className="text-5xl font-mono font-bold text-[var(--terminal-text)] mt-1">
                 {health.health_score}
-                <span className="text-2xl text-[var(--terminal-text-dim)]">/100</span>
+                <span className="text-2xl text-[var(--terminal-text-dim)]">
+                  /100
+                </span>
               </p>
-              <Progress
-                value={health.health_score}
-                className="w-32 h-2 mt-2"
-              />
+              <Progress value={health.health_score} className="w-32 h-2 mt-2" />
             </div>
           </div>
         </CardContent>
@@ -407,43 +475,45 @@ export const GraphHealthMonitor: React.FC = () => {
           <div className="space-y-3">
             <div className="space-y-1">
               <div className="flex items-center justify-between text-xs font-mono">
-                <span className="text-[var(--terminal-text)]">Data Quality</span>
-                <span className="text-[var(--terminal-text-dim)]">
-                  {Math.max(0, 100 - health.metrics.entities_without_confidence * 2)}%
+                <span className="text-[var(--terminal-text)]">
+                  Data Quality
                 </span>
-              </div>
-              <Progress
-                value={Math.max(0, 100 - health.metrics.entities_without_confidence * 2)}
-                className="h-2"
-              />
-            </div>
-            <div className="space-y-1">
-              <div className="flex items-center justify-between text-xs font-mono">
-                <span className="text-[var(--terminal-text)]">Connectivity</span>
                 <span className="text-[var(--terminal-text-dim)]">
                   {Math.max(
                     0,
-                    100 -
-                      (health.metrics.isolated_entities /
-                        health.total_entities) *
-                        100
-                  ).toFixed(0)}
+                    100 - health.metrics.entities_without_confidence * 2
+                  )}
                   %
                 </span>
               </div>
               <Progress
                 value={Math.max(
                   0,
-                  100 -
-                    (health.metrics.isolated_entities / health.total_entities) *
-                      100
+                  100 - health.metrics.entities_without_confidence * 2
                 )}
                 className="h-2"
               />
             </div>
             <div className="space-y-1">
               <div className="flex items-center justify-between text-xs font-mono">
-                <span className="text-[var(--terminal-text)]">Relationship Quality</span>
+                <span className="text-[var(--terminal-text)]">
+                  Connectivity
+                </span>
+                <span className="text-[var(--terminal-text-dim)]">
+                  {connectivityScore.toFixed(0)}
+                  %
+                </span>
+              </div>
+              <Progress
+                value={connectivityScore}
+                className="h-2"
+              />
+            </div>
+            <div className="space-y-1">
+              <div className="flex items-center justify-between text-xs font-mono">
+                <span className="text-[var(--terminal-text)]">
+                  Relationship Quality
+                </span>
                 <span className="text-[var(--terminal-text-dim)]">
                   {(health.metrics.avg_relationship_strength * 100).toFixed(0)}%
                 </span>
