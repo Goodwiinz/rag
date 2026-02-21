@@ -53,6 +53,7 @@ from .encrypted_user import (
     EncryptionAuditLog,
 )
 from .entity import Entity, EntityType, ExtractionMethod, entity_relationships
+from .extraction_matrix import ExtractionCell, ExtractionMatrix
 from .generated_draft import GeneratedDraft
 from .message_attachment import MessageAttachment
 from .organization import Organization, StorageTier
@@ -187,6 +188,9 @@ __all__ = [
     "ExperimentAssignment",
     "ExperimentMetric",
     "ExperimentSegment",
+    # Extraction Matrix models
+    "ExtractionMatrix",
+    "ExtractionCell",
     # Research Engine models
     "ResearchProject",
     "ResearchBlueprint",
