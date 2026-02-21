@@ -169,7 +169,7 @@ describe('ArxivManagement', () => {
 
   it('extracts features from paper IDs in the extract tab', async () => {
     mockApiClient.postWithLongTimeout.mockImplementation(
-      async (url: string) => {
+      async (url: string) =>~ {
         if (url === '/arxiv/extraction/extract-features') {
           return {
             status: 'success',

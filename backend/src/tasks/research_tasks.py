@@ -17,6 +17,8 @@ from src.models.research_run import ResearchRun, RunStatus
 from src.models.research_step import ResearchStep
 from src.services.research_engine.connectors import (
     ArxivConnector,
+    CrossrefConnector,
+    PubMedConnector,
     RagStoreConnector,
     SemanticScholarConnector,
 )
@@ -131,13 +133,12 @@ async def _search_rag_store(query: str, max_results: int = 50) -> Dict[str, Any]
 
 def _build_connectors() -> dict:
     """Create connector instances for the workflow."""
-    semantic_connector = SemanticScholarConnector()
     return {
         "arxiv": ArxivConnector(),
-        "semantic_scholar": semantic_connector,
-        # Temporary aliases until dedicated connectors are implemented.
-        "pubmed": semantic_connector,
-        "web": semantic_connector,
+        "semantic_scholar": SemanticScholarConnector(),
+        "crossref": CrossrefConnector(mailto="admin@multimodal-rag.com"),
+        "pubmed": PubMedConnector(),
+        "web": SemanticScholarConnector(),  # fallback alias
         "rag_store": RagStoreConnector(search_fn=_search_rag_store),
     }
 
