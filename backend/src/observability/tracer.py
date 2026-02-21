@@ -38,7 +38,6 @@ except ImportError:
     trace = None
     baggage = None
     context = None
-from opentelemetry.propagators.jaeger import JaegerPropagator
 from opentelemetry.trace import SpanKind, Status, StatusCode
 from opentelemetry.trace.propagation import get_current_span
 
@@ -118,9 +117,9 @@ def get_tracer(name: Optional[str] = None) -> trace.Tracer:
 @contextmanager
 def trace_span(
     name: str,
-    kind: "SpanKind" = SpanKind.INTERNAL,
+    kind: Any = SpanKind.INTERNAL,
     attributes: Optional[Dict[str, Any]] = None,
-    status: Optional["Status"] = None,
+    status: Any = None,
 ):
     """Context manager for creating spans"""
     tracer = get_tracer()
@@ -141,9 +140,9 @@ def trace_span(
 @asynccontextmanager
 async def async_trace_span(
     name: str,
-    kind: "SpanKind" = SpanKind.INTERNAL,
+    kind: Any = SpanKind.INTERNAL,
     attributes: Optional[Dict[str, Any]] = None,
-    status: Optional["Status"] = None,
+    status: Any = None,
 ):
     """Async context manager for creating spans"""
     tracer = get_tracer()
@@ -163,7 +162,7 @@ async def async_trace_span(
 
 def trace_function(
     name: Optional[str] = None,
-    kind: "SpanKind" = SpanKind.INTERNAL,
+    kind: Any = SpanKind.INTERNAL,
     attributes: Optional[Dict[str, Any]] = None,
     record_exception: bool = True,
 ):
@@ -215,7 +214,7 @@ def trace_function(
 
 def trace_async_function(
     name: Optional[str] = None,
-    kind: "SpanKind" = SpanKind.INTERNAL,
+    kind: Any = SpanKind.INTERNAL,
     attributes: Optional[Dict[str, Any]] = None,
     record_exception: bool = True,
 ):
