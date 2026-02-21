@@ -467,6 +467,7 @@ jobs:
           # Start backend with pre-built image
           docker run -d --name backend-e2e \
             --network rag_system_ci-network \
+            --network-alias backend \
             -p 8000:8000 \
             -e DATABASE_URL=postgresql://test:test@postgres:5432/test_db \
             -e REDIS_URL=redis://redis:6379/0 \
@@ -480,6 +481,7 @@ jobs:
           # Start frontend with pre-built image
           docker run -d --name frontend-e2e \
             --network rag_system_ci-network \
+            --network-alias frontend \
             -p 3000:3000 \
             -e BACKEND_URL=http://backend-e2e:8000 \
             -e NEXT_PUBLIC_API_URL=http://localhost:8000 \
@@ -518,10 +520,10 @@ jobs:
           # Determine which tests to run based on event type
           if [ "$EVENT_NAME" == "pull_request" ]; then
             echo "Running smoke tests for PR..."
-            docker compose -p rag_system -f docker-compose.ci.yml --profile smoke run --rm smoke-tests
+            docker compose -p rag_system -f docker-compose.ci.yml --profile smoke run --rm --no-deps smoke-tests
           else
             echo "Running full E2E tests..."
-            docker compose -p rag_system -f docker-compose.ci.yml --profile e2e run --rm e2e-tests
+            docker compose -p rag_system -f docker-compose.ci.yml --profile e2e run --rm --no-deps e2e-tests
           fi
 
       - name: Upload E2E test results
