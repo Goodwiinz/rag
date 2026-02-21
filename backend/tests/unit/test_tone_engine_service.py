@@ -14,21 +14,30 @@ async def test_rewrite_preserves_citations():
     mock_response = MagicMock()
     mock_response.choices = [MagicMock(message=MagicMock(content="The findings [1] suggest improvements [3]."))]
 
-    with patch("openai.AsyncOpenAI") as mock_client_cls:
-        mock_client = AsyncMock()
-        mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
-        mock_client_cls.return_value = mock_client
+    mock_client = AsyncMock()
+    mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
+    service._client = mock_client
 
-        result = await service.rewrite(
-            text="Results [1] show that this works [3].",
-            tone="academic",
-        )
+    result = await service.rewrite(
+        text="Results [1] show that this works [3].",
+        tone="academic",
+    )
 
     assert "[1]" in result["rewritten"]
     assert "[3]" in result["rewritten"]
     assert result["tone_applied"] == "academic"
     assert "[1]" in result["citations_preserved"]
     assert "[3]" in result["citations_preserved"]
+
+
+@pytest.mark.asyncio
+async def test_rewrite_unknown_tone_raises_error():
+    service = ToneEngineService()
+    with pytest.raises(ValueError, match="Unknown tone"):
+        await service.rewrite(
+            text="This is a test sentence for rewriting purposes.",
+            tone="nonexistent_tone",
+        )
 
 
 def test_extract_citations():
