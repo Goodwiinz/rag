@@ -2,6 +2,7 @@
 User Management Service - Port 8007
 Handles authentication, authorization, user management, and RBAC
 """
+from __future__ import annotations
 
 import asyncio
 import uuid

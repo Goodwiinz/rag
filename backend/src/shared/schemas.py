@@ -1,6 +1,7 @@
 """
 Shared schemas for microservices communication
 """
+from __future__ import annotations
 
 from datetime import datetime
 from enum import Enum
@@ -18,7 +19,7 @@ class BaseResponse(BaseModel):
     timestamp: datetime = Field(default_factory=datetime.utcnow)
 
 
-class ErrorResponse(BaseResponse):
+class ErrorResponse(BaseModel):
     """Error response model"""
 
     success: bool = False

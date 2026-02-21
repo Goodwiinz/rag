@@ -1,17 +1,13 @@
 """
 User model and related functionality
 """
+from __future__ import annotations
 
 from sqlalchemy import Column, String, Boolean, DateTime, Enum, ForeignKey, Integer, Index
 from sqlalchemy.orm import relationship, selectinload, joinedload
 from enum import Enum as PyEnum
 import bcrypt
 from datetime import datetime
-from enum import Enum as PyEnum
-
-import bcrypt
-from sqlalchemy import Boolean, Column, DateTime, Enum, ForeignKey, Integer, String
-from sqlalchemy.orm import relationship
 
 from .base import GUID, BaseModel
 
