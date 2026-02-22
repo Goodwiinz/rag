@@ -231,18 +231,26 @@ async def get_api_key_data(
     
     try:
         raw_key = credentials.credentials
-        if not raw_key or not raw_key.startswith("rag_"):
+        if not raw_key or not raw_key.startswith("rag_") or len(raw_key) < 8:
             logger.warning(f"Invalid API key format from {request.client.host}")
             raise credentials_exception
         
-        # Get key hash
-        key_hash = hashlib.sha256(raw_key.encode()).hexdigest()
+        # Extract prefix to find candidate keys
+        # We lookup by prefix (public) then verify hash (secret) to prevent timing attacks
+        key_prefix = raw_key[:8]
         
-        # Find API key in database
-        api_key_record = db.query(APIKey).filter(
-            APIKey.key_hash == key_hash,
+        # Find potential API keys by prefix
+        potential_keys = db.query(APIKey).filter(
+            APIKey.key_prefix == key_prefix,
             APIKey.is_active == True
-        ).first()
+        ).all()
+
+        # Verify hash using constant-time comparison
+        api_key_record = None
+        for key in potential_keys:
+            if verify_api_key(raw_key, key.key_hash):
+                api_key_record = key
+                break
         
         if not api_key_record:
             logger.warning(f"API key not found or inactive from {request.client.host}")

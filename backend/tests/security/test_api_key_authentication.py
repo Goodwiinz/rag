@@ -126,7 +126,7 @@ class TestAPIKeyAuthentication:
     def test_nonexistent_api_key(self, mock_get_db):
         """Test request with API key not in database"""
         mock_db = mock_get_db.return_value
-        mock_db.query.return_value.filter.return_value.first.return_value = None
+        mock_db.query.return_value.filter.return_value.all.return_value = []
 
         response = client.post(
             "/api/v1/search/authenticated/hybrid",
@@ -200,9 +200,17 @@ class TestAPIKeyAuthentication:
         inactive_key_record["is_active"] = False
 
         mock_db = mock_get_db.return_value
-        mock_db.query.return_value.filter.return_value.first.return_value = type(
-            "APIKey", (), inactive_key_record
-        )
+        # Mocking for prefix lookup and iteration
+        mock_key = MagicMock()
+        mock_key.key_hash = self.valid_key_hash
+        mock_key.is_active = False
+        mock_key.expires_at = None
+        mock_key.key_prefix = self.valid_api_key[:8]
+        # Copy other attributes
+        for k, v in inactive_key_record.items():
+            setattr(mock_key, k, v)
+
+        mock_db.query.return_value.filter.return_value.all.return_value = [mock_key]
 
         response = client.post(
             "/api/v1/search/authenticated/hybrid",
@@ -361,7 +369,7 @@ class TestSecurityLogging:
     def test_failed_auth_logging(self, mock_logger, mock_get_db):
         """Test that failed authentication attempts are logged"""
         mock_db = mock_get_db.return_value
-        mock_db.query.return_value.filter.return_value.first.return_value = None
+        mock_db.query.return_value.filter.return_value.all.return_value = []
 
         response = client.post(
             "/api/v1/search/authenticated/hybrid",
