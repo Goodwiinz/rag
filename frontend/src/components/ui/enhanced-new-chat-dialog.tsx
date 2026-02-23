@@ -93,9 +93,13 @@ const EnhancedAssistantCard = React.forwardRef<
       transition={{ type: "spring", stiffness: 400, damping: 25 }}
       layout
     >
-      <div
+      <button
+        type="button"
         onClick={onSelect}
+        aria-pressed={isSelected}
+        aria-label={`Select ${assistant.name}`}
         className={cn(
+          "w-full text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-400/50",
           "relative overflow-hidden rounded-xl cursor-pointer transition-all duration-300 border-2",
           "backdrop-blur-md bg-white/10 dark:bg-black/10",
           "hover:bg-white/20 dark:hover:bg-black/20",
@@ -258,7 +262,7 @@ const EnhancedAssistantCard = React.forwardRef<
             />
           )}
         </AnimatePresence>
-      </div>
+      </button>
     </motion.div>
   )
 })
@@ -398,11 +402,15 @@ export function EnhancedNewChatDialog({
                 transition={{ delay: 0.1 }}
                 className="relative"
               >
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                <Search
+                  className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground"
+                  aria-hidden="true"
+                />
                 <Input
                   placeholder="Search by name, capability, or category..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
+                  aria-label="Search assistants"
                   className="h-12 pl-12 pr-12 text-base bg-background/50 backdrop-blur-sm border-border/50 focus:border-orange-400/50 focus:ring-2 focus:ring-orange-400/20 transition-all duration-300"
                 />
                 {searchQuery && (
@@ -410,6 +418,7 @@ export function EnhancedNewChatDialog({
                     variant="ghost"
                     size="sm"
                     onClick={() => setSearchQuery("")}
+                    aria-label="Clear search"
                     className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8 p-0 hover:bg-muted/50"
                   >
                     ×
