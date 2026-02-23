@@ -100,10 +100,14 @@ def _create_provider(model_id: str):
             )
         )
 
-    if lower.startswith("ollama/") or lower.startswith("llama") or lower.startswith(
-        "mistral"
+    if (
+        lower.startswith("ollama/")
+        or lower.startswith("llama")
+        or lower.startswith("mistral")
     ):
-        ollama_model = normalized.split("/", 1)[1] if lower.startswith("ollama/") else normalized
+        ollama_model = (
+            normalized.split("/", 1)[1] if lower.startswith("ollama/") else normalized
+        )
         return OllamaProvider(
             ProviderConfig(
                 provider_type="ollama",
@@ -181,10 +185,13 @@ def _get_effective_parameters(
     base = dict(blueprint.parameters or {})
     overrides: Dict[str, Any] = {}
     manifest = run.reproducibility_manifest or {}
-    if isinstance(manifest, dict) and isinstance(manifest.get("parameters_override"), dict):
+    if isinstance(manifest, dict) and isinstance(
+        manifest.get("parameters_override"), dict
+    ):
         overrides = manifest["parameters_override"]
     base.update(overrides)
     return base, overrides
+
 
 router = APIRouter(
     prefix="/research-engine",
@@ -361,18 +368,17 @@ async def stream_run(
             detail="Blueprint not found",
         )
 
-    # Determine start_from for paused runs (I3 fix)
+    # Determine resume offset from persisted steps for both paused and resumed runs.
     start_from = 0
-    if run.status == RunStatus.PAUSED.value:
-        step_query = (
-            select(ResearchStep)
-            .where(ResearchStep.run_id == run_id)
-            .order_by(ResearchStep.step_index.desc())
-        )
-        step_result = await db.execute(step_query)
-        last_step = step_result.scalars().first()
-        if last_step is not None:
-            start_from = last_step.step_index + 1
+    step_query = (
+        select(ResearchStep)
+        .where(ResearchStep.run_id == run_id)
+        .order_by(ResearchStep.step_index.desc())
+    )
+    step_result = await db.execute(step_query)
+    last_step = step_result.scalars().first()
+    if last_step is not None:
+        start_from = last_step.step_index + 1
 
     required_models = sorted(
         {
@@ -382,7 +388,9 @@ async def stream_run(
         }
     )
     providers = _build_providers(blueprint.steps or [])
-    missing_models = [model_id for model_id in required_models if model_id not in providers]
+    missing_models = [
+        model_id for model_id in required_models if model_id not in providers
+    ]
     if missing_models:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -393,7 +401,9 @@ async def stream_run(
         )
 
     connectors = _build_connectors()
-    effective_parameters, parameter_overrides = _get_effective_parameters(blueprint, run)
+    effective_parameters, parameter_overrides = _get_effective_parameters(
+        blueprint, run
+    )
     blueprint_dict = {
         "steps": blueprint.steps or [],
         "parameters": effective_parameters,
@@ -419,8 +429,58 @@ async def stream_run(
                 start_from_step=start_from,
             ):
                 event_type = event.get("event")
+                await db.refresh(run)
+
+                # Honor external pause requests before moving to the next step.
+                if run.status == RunStatus.PAUSED.value and event_type != "run_paused":
+                    run.total_tokens = total_tokens
+                    await db.commit()
+                    paused_event = {
+                        "event": "run_paused",
+                        "run_id": str(run.id),
+                        "reason": "Paused by user",
+                    }
+                    data = json.dumps(paused_event)
+                    yield f"event: run_paused\ndata: {data}\n\n"
+                    break
+
                 if event_type == "step_complete":
+                    step_index = int(event.get("step_index") or 0)
+                    step_def = {}
+                    if 0 <= step_index < len(blueprint_dict["steps"]):
+                        step_def = blueprint_dict["steps"][step_index] or {}
+
+                    params = _get_step_params(step_def)
+                    model_id = step_def.get("model_id") or params.get("model_id")
+                    mode = step_def.get("mode") or params.get("mode") or "deterministic"
+                    temperature = params.get("temperature", 0.0)
+                    seed = params.get("seed")
+                    output = event.get("output")
+                    if output is not None and not isinstance(output, dict):
+                        output = {"value": output}
+
+                    db.add(
+                        ResearchStep(
+                            run_id=run_id,
+                            step_index=step_index,
+                            step_type=str(
+                                event.get("step_type")
+                                or step_def.get("type")
+                                or "search"
+                            ),
+                            mode=str(mode),
+                            model_id=str(model_id) if model_id is not None else None,
+                            temperature=float(temperature),
+                            seed=int(seed) if seed is not None else None,
+                            output=output,
+                            quality_marks=event.get("quality_marks") or [],
+                            token_count=int(event.get("token_count") or 0),
+                            completed_at=datetime.now(timezone.utc),
+                        )
+                    )
                     total_tokens += int(event.get("token_count") or 0)
+                    run.total_tokens = total_tokens
+                    await db.commit()
                 elif event_type == "run_paused":
                     run.status = RunStatus.PAUSED.value
                     run.total_tokens = total_tokens
