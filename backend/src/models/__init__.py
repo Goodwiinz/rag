@@ -88,6 +88,17 @@ from .research_run import ResearchRun, RunStatus
 from .research_source import ResearchSource
 from .research_step import ExecutionMode, ResearchStep, StepType
 
+# Evaluation models (must import after User/Organization for monkey-patched relationships)
+from .evaluation import (
+    EvaluationComparison,
+    EvaluationDataset,
+    EvaluationJob,
+    EvaluationMetric,
+    EvaluationReport,
+    EvaluationStatus,
+    EvaluationThreshold,
+)
+
 # Thread-centric chat models (Terminal Observatory)
 from .workspace import Workspace, WorkspaceMember, WorkspaceRole
 
