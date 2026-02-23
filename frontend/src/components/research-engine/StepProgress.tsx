@@ -25,7 +25,7 @@ export interface StepData {
     passed: boolean;
     details?: string;
   }>;
-  output?: string;
+  output?: string | Record<string, unknown>;
   sources?: string[];
   prompt?: string;
   errorMessage?: string;
@@ -37,6 +37,15 @@ interface StepProgressProps {
 
 export function StepProgress({ step }: StepProgressProps) {
   const [expanded, setExpanded] = useState(false);
+  const outputPreview = (() => {
+    if (!step.output) return null;
+    if (typeof step.output === 'string') return step.output;
+    try {
+      return JSON.stringify(step.output, null, 2);
+    } catch {
+      return String(step.output);
+    }
+  })();
 
   const statusIcon = () => {
     switch (step.status) {
@@ -148,16 +157,16 @@ export function StepProgress({ step }: StepProgressProps) {
           )}
 
           {/* Output preview */}
-          {step.output && (
+          {outputPreview && (
             <div className="mt-3">
               <h4 className="text-xs font-mono text-gray-500 uppercase tracking-wide mb-1">
                 Output
               </h4>
               <div className="p-3 bg-black/40 rounded border border-white/5 max-h-40 overflow-auto">
                 <p className="text-xs font-mono text-gray-300 whitespace-pre-wrap">
-                  {step.output.length > 500
-                    ? step.output.slice(0, 500) + '...'
-                    : step.output}
+                  {outputPreview.length > 500
+                    ? outputPreview.slice(0, 500) + '...'
+                    : outputPreview}
                 </p>
               </div>
             </div>

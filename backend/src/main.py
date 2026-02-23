@@ -60,6 +60,12 @@ from src.api.research_engine import (
     research_engine_runs_router,
     research_engine_steps_router,
 )
+from src.api.research_engine import (
+    research_engine_blueprints_router,
+    research_engine_projects_router,
+    research_engine_runs_router,
+    research_engine_steps_router,
+)
 from src.api.search import (
     knowledge_graph_router,
     multi_agent_search_router,

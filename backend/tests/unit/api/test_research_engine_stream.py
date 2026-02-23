@@ -59,13 +59,18 @@ def _make_blueprint(**overrides):
     return bp
 
 
-def _mock_db_returning(run_result=None, blueprint_result=None, project_result=None):
+def _mock_db_returning(
+    run_result=None,
+    blueprint_result=None,
+    project_result=None,
+    last_step_index=None,
+):
     """Build an AsyncMock DB that returns expected query results.
 
     After C2 fix, _get_owned_run uses a single JOIN query that returns
     the run directly (or None if not owned). For the stream endpoint:
-    - Query 1: _get_owned_run (single JOIN) → run_result
-    - Query 2: get blueprint (for streaming) → blueprint_result
+    - Query 1: _get_owned_run (single JOIN) -> run_result
+    - Query 2: get blueprint (for streaming) -> blueprint_result
     - Query 3: get last completed step (for paused runs)
     """
     db = AsyncMock()
@@ -85,16 +90,21 @@ def _mock_db_returning(run_result=None, blueprint_result=None, project_result=No
             bp_stream_mock.scalars.return_value.first.return_value = blueprint_result
             results.append(bp_stream_mock)
 
-            # Query 3: Step query for paused runs
-            if run_result.status == "paused":
-                step_mock = Mock()
+            # Query 3: Last-step lookup for resume offset
+            step_mock = Mock()
+            if last_step_index is None:
                 step_mock.scalars.return_value.first.return_value = None
-                results.append(step_mock)
+            else:
+                last_step = Mock()
+                last_step.step_index = last_step_index
+                step_mock.scalars.return_value.first.return_value = last_step
+            results.append(step_mock)
 
     db.execute = AsyncMock(side_effect=results)
     # commit/refresh are no-ops in tests
     db.commit = AsyncMock()
     db.refresh = AsyncMock()
+    db.add = Mock()
     return db
 
 
@@ -149,14 +159,11 @@ class TestStreamEndpointSuccess:
 
     def _patch_engine_and_get(self, stream_app, stream_client, run_id, mock_engine_run):
         """Patch engine classes and collect a bounded SSE response snapshot."""
-        with patch(
-            "src.api.research_engine.runs.WorkflowEngine"
-        ) as mock_engine_cls, patch(
-            "src.api.research_engine.runs.StepExecutor"
-        ), patch(
-            "src.api.research_engine.runs.ArxivConnector"
-        ), patch(
-            "src.api.research_engine.runs.SemanticScholarConnector"
+        with (
+            patch("src.api.research_engine.runs.WorkflowEngine") as mock_engine_cls,
+            patch("src.api.research_engine.runs.StepExecutor"),
+            patch("src.api.research_engine.runs.ArxivConnector"),
+            patch("src.api.research_engine.runs.SemanticScholarConnector"),
         ):
             engine = Mock()
             engine.run = mock_engine_run
@@ -185,9 +192,7 @@ class TestStreamEndpointSuccess:
                     text="".join(chunks),
                 )
 
-    def test_stream_returns_200_with_sse_content_type(
-        self, stream_app, stream_client
-    ):
+    def test_stream_returns_200_with_sse_content_type(self, stream_app, stream_client):
         run_id = uuid.uuid4()
         bp_id = uuid.uuid4()
         mock_run = _make_run(id=run_id, blueprint_id=bp_id, status="pending")
@@ -208,9 +213,7 @@ class TestStreamEndpointSuccess:
         assert "text/event-stream" in response.headers["content-type"]
         stream_app.dependency_overrides.pop(get_db, None)
 
-    def test_stream_returns_correct_sse_headers(
-        self, stream_app, stream_client
-    ):
+    def test_stream_returns_correct_sse_headers(self, stream_app, stream_client):
         run_id = uuid.uuid4()
         bp_id = uuid.uuid4()
         mock_run = _make_run(id=run_id, blueprint_id=bp_id, status="pending")
@@ -279,6 +282,105 @@ class TestStreamEndpointSuccess:
         assert response.status_code == 200
         stream_app.dependency_overrides.pop(get_db, None)
 
+    def test_stream_pending_run_resumes_from_last_completed_step(
+        self, stream_app, stream_client
+    ):
+        run_id = uuid.uuid4()
+        bp_id = uuid.uuid4()
+        mock_run = _make_run(id=run_id, blueprint_id=bp_id, status="pending")
+        mock_bp = _make_blueprint(id=bp_id)
+        db = _mock_db_returning(
+            run_result=mock_run,
+            blueprint_result=mock_bp,
+            last_step_index=2,
+        )
+
+        stream_app.dependency_overrides[get_db] = lambda: db
+
+        captured_start_from: dict[str, int | None] = {"value": None}
+
+        async def mock_engine_run(blueprint, run_id, start_from_step=0):
+            captured_start_from["value"] = start_from_step
+            yield {"event": "run_complete", "run_id": str(run_id), "context": {}}
+
+        response = self._patch_engine_and_get(
+            stream_app, stream_client, run_id, mock_engine_run
+        )
+
+        assert response.status_code == 200
+        assert captured_start_from["value"] == 3
+        stream_app.dependency_overrides.pop(get_db, None)
+
+    def test_stream_persists_steps_on_step_complete(self, stream_app, stream_client):
+        run_id = uuid.uuid4()
+        bp_id = uuid.uuid4()
+        mock_run = _make_run(id=run_id, blueprint_id=bp_id, status="pending")
+        mock_bp = _make_blueprint(
+            id=bp_id,
+            steps=[{"type": "search", "mode": "deterministic"}],
+        )
+        db = _mock_db_returning(run_result=mock_run, blueprint_result=mock_bp)
+
+        stream_app.dependency_overrides[get_db] = lambda: db
+
+        async def mock_engine_run(blueprint, run_id, start_from_step=0):
+            yield {
+                "event": "step_complete",
+                "run_id": str(run_id),
+                "step_index": 0,
+                "step_type": "search",
+                "output": {"content": "ok"},
+                "quality_marks": [],
+                "token_count": 42,
+            }
+            yield {"event": "run_complete", "run_id": str(run_id), "context": {}}
+
+        response = self._patch_engine_and_get(
+            stream_app, stream_client, run_id, mock_engine_run
+        )
+
+        assert response.status_code == 200
+        db.add.assert_called()
+        stream_app.dependency_overrides.pop(get_db, None)
+
+    def test_stream_honors_external_pause_request(self, stream_app, stream_client):
+        run_id = uuid.uuid4()
+        bp_id = uuid.uuid4()
+        mock_run = _make_run(id=run_id, blueprint_id=bp_id, status="pending")
+        mock_bp = _make_blueprint(id=bp_id)
+        db = _mock_db_returning(run_result=mock_run, blueprint_result=mock_bp)
+
+        refresh_counter = {"count": 0}
+
+        async def refresh_with_pause(_obj):
+            refresh_counter["count"] += 1
+            if refresh_counter["count"] >= 3:
+                mock_run.status = "paused"
+
+        db.refresh = AsyncMock(side_effect=refresh_with_pause)
+
+        stream_app.dependency_overrides[get_db] = lambda: db
+
+        async def mock_engine_run(blueprint, run_id, start_from_step=0):
+            yield {"event": "step_start", "run_id": str(run_id), "step_index": 0}
+            yield {
+                "event": "step_complete",
+                "run_id": str(run_id),
+                "step_index": 0,
+                "output": {"content": "done"},
+                "quality_marks": [],
+                "token_count": 10,
+            }
+            yield {"event": "step_start", "run_id": str(run_id), "step_index": 1}
+
+        response = self._patch_engine_and_get(
+            stream_app, stream_client, run_id, mock_engine_run
+        )
+
+        assert "event: run_paused" in response.text
+        assert '"step_index": 1' not in response.text
+        stream_app.dependency_overrides.pop(get_db, None)
+
 
 # ============================================================================
 # Error Cases
@@ -288,23 +390,17 @@ class TestStreamEndpointSuccess:
 class TestStreamEndpointErrors:
     """Test error cases for the streaming endpoint."""
 
-    def test_stream_returns_404_for_nonexistent_run(
-        self, stream_app, stream_client
-    ):
+    def test_stream_returns_404_for_nonexistent_run(self, stream_app, stream_client):
         run_id = uuid.uuid4()
         db = _mock_db_returning(run_result=None)
 
         stream_app.dependency_overrides[get_db] = lambda: db
 
-        response = stream_client.get(
-            f"/api/v1/research-engine/runs/{run_id}/stream"
-        )
+        response = stream_client.get(f"/api/v1/research-engine/runs/{run_id}/stream")
         assert response.status_code == 404
         stream_app.dependency_overrides.pop(get_db, None)
 
-    def test_stream_returns_409_for_completed_run(
-        self, stream_app, stream_client
-    ):
+    def test_stream_returns_409_for_completed_run(self, stream_app, stream_client):
         run_id = uuid.uuid4()
         bp_id = uuid.uuid4()
         mock_run = _make_run(id=run_id, blueprint_id=bp_id, status="completed")
@@ -313,15 +409,11 @@ class TestStreamEndpointErrors:
 
         stream_app.dependency_overrides[get_db] = lambda: db
 
-        response = stream_client.get(
-            f"/api/v1/research-engine/runs/{run_id}/stream"
-        )
+        response = stream_client.get(f"/api/v1/research-engine/runs/{run_id}/stream")
         assert response.status_code == 409
         stream_app.dependency_overrides.pop(get_db, None)
 
-    def test_stream_returns_409_for_failed_run(
-        self, stream_app, stream_client
-    ):
+    def test_stream_returns_409_for_failed_run(self, stream_app, stream_client):
         run_id = uuid.uuid4()
         bp_id = uuid.uuid4()
         mock_run = _make_run(id=run_id, blueprint_id=bp_id, status="failed")
@@ -330,15 +422,11 @@ class TestStreamEndpointErrors:
 
         stream_app.dependency_overrides[get_db] = lambda: db
 
-        response = stream_client.get(
-            f"/api/v1/research-engine/runs/{run_id}/stream"
-        )
+        response = stream_client.get(f"/api/v1/research-engine/runs/{run_id}/stream")
         assert response.status_code == 409
         stream_app.dependency_overrides.pop(get_db, None)
 
-    def test_stream_returns_409_for_running_run(
-        self, stream_app, stream_client
-    ):
+    def test_stream_returns_409_for_running_run(self, stream_app, stream_client):
         run_id = uuid.uuid4()
         bp_id = uuid.uuid4()
         mock_run = _make_run(id=run_id, blueprint_id=bp_id, status="running")
@@ -347,8 +435,6 @@ class TestStreamEndpointErrors:
 
         stream_app.dependency_overrides[get_db] = lambda: db
 
-        response = stream_client.get(
-            f"/api/v1/research-engine/runs/{run_id}/stream"
-        )
+        response = stream_client.get(f"/api/v1/research-engine/runs/{run_id}/stream")
         assert response.status_code == 409
         stream_app.dependency_overrides.pop(get_db, None)

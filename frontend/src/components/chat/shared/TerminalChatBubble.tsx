@@ -189,6 +189,12 @@ export function TerminalChatBubble({
               {message.citations.map((citation, idx) => (
                 <button
                   key={idx}
+                  type="button"
+                  onClick={() => {
+                    if (onCitationClick && message.citations) {
+                      onCitationClick(message.citations as Citation[], citation);
+                    }
+                  }}
                   className="group/citation flex items-center gap-2 rounded border border-[var(--terminal-border)] bg-[var(--terminal-surface)] px-2.5 py-1.5 text-[10px] transition-all hover:border-[var(--phosphor-green)]/40 hover:bg-[var(--terminal-elevated)]"
                   style={{ fontFamily: "'JetBrains Mono', monospace" }}
                 >
