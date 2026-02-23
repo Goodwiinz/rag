@@ -39,10 +39,14 @@ async def trigger_integrity_check(
     the resulting integrity score. Returns 202 Accepted since analysis may
     take time for large documents.
     """
-    # Verify document exists
+    # Verify document exists and belongs to current user
     doc_result = await db.execute(
         select(Document).where(
-            and_(Document.id == document_id, Document.is_deleted == False)
+            and_(
+                Document.id == document_id,
+                Document.uploaded_by_user_id == current_user.id,
+                Document.is_deleted == False,
+            )
         )
     )
     document = doc_result.scalar_one_or_none()

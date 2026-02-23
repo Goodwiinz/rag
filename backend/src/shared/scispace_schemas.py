@@ -1,11 +1,14 @@
 """SciSpace integration schemas shared across features."""
 
+import re
 from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
+
+_SAFE_COLUMN_NAME_RE = re.compile(r"^[\w\s\-\(\)\/\.,:]+$")
 
 
 # Feature 1: Extraction Matrix
@@ -21,6 +24,13 @@ class ExtractionColumn(BaseModel):
         None, max_length=500, description="What to extract"
     )
 
+    @field_validator("name")
+    @classmethod
+    def name_must_be_safe(cls, v: str) -> str:
+        if not _SAFE_COLUMN_NAME_RE.match(v):
+            raise ValueError("Column name contains disallowed characters")
+        return v
+
 
 class ExtractionCellResponse(BaseModel):
     """A single cell in the extraction matrix."""
@@ -29,7 +39,7 @@ class ExtractionCellResponse(BaseModel):
     column_name: str
     value: Optional[str] = None
     citation_snippet: Optional[str] = None
-    confidence: Optional[float] = None
+    confidence: Optional[float] = Field(None, ge=0.0, le=1.0)
 
 
 class CreateMatrixRequest(BaseModel):
@@ -67,14 +77,16 @@ class RewriteRequest(BaseModel):
     preserve_citations: bool = Field(True, description="Maintain citation markers")
     model: Optional[str] = Field(None, description="LLM model override")
 
-    @validator("text")
-    def text_not_too_short(cls, v):
+    @field_validator("text")
+    @classmethod
+    def text_not_too_short(cls, v: str) -> str:
         if len(v.split()) < 5:
             raise ValueError("Text must contain at least 5 words")
         return v
 
-    @validator("model")
-    def model_must_be_allowed(cls, v):
+    @field_validator("model")
+    @classmethod
+    def model_must_be_allowed(cls, v: Optional[str]) -> Optional[str]:
         if v is not None and v not in _ALLOWED_MODELS:
             raise ValueError(f"model must be one of {sorted(_ALLOWED_MODELS)}")
         return v

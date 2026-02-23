@@ -1,5 +1,7 @@
 """AI Integrity Detection service using RoBERTa classifier."""
 
+import asyncio
+import threading
 from typing import Any, Dict, List
 
 import structlog
@@ -13,24 +15,33 @@ class IntegrityDetectionService:
     def __init__(self) -> None:
         self._model = None
         self._tokenizer = None
+        self._load_lock = threading.Lock()
 
     def _load_model(self) -> None:
         if self._model is not None:
             return
-        from transformers import AutoModelForSequenceClassification, AutoTokenizer
+        with self._load_lock:
+            if self._model is not None:
+                return
+            from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
-        logger.info("loading_integrity_model", model=self.MODEL_NAME)
-        self._tokenizer = AutoTokenizer.from_pretrained(self.MODEL_NAME)
-        self._model = AutoModelForSequenceClassification.from_pretrained(self.MODEL_NAME)
-        self._model.requires_grad_(False)
+            logger.info("loading_integrity_model", model=self.MODEL_NAME)
+            self._tokenizer = AutoTokenizer.from_pretrained(self.MODEL_NAME)
+            self._model = AutoModelForSequenceClassification.from_pretrained(self.MODEL_NAME)
+            self._model.requires_grad_(False)
 
-    def _split_into_segments(self, text: str, max_tokens: int = 512) -> List[str]:
+    def _split_into_segments(self, text: str, max_words: int = 380) -> List[str]:
+        """Split text into segments by word count.
+
+        Uses max_words (not tokens) as a conservative approximation
+        for the 512-token RoBERTa context window.
+        """
         words = text.split()
-        if len(words) <= max_tokens:
+        if len(words) <= max_words:
             return [text]
         segments = []
-        for i in range(0, len(words), max_tokens):
-            segments.append(" ".join(words[i : i + max_tokens]))
+        for i in range(0, len(words), max_words):
+            segments.append(" ".join(words[i : i + max_words]))
         return segments
 
     def _aggregate_scores(self, segment_scores: List[Dict[str, Any]]) -> float:
@@ -42,7 +53,8 @@ class IntegrityDetectionService:
             / total_weight
         )
 
-    async def analyze(self, text: str) -> Dict[str, Any]:
+    def _analyze_sync(self, text: str) -> Dict[str, Any]:
+        """Run synchronous inference (CPU-bound). Called via run_in_executor."""
         import torch
 
         self._load_model()
@@ -76,3 +88,8 @@ class IntegrityDetectionService:
                 for s in segment_scores
             ],
         }
+
+    async def analyze(self, text: str) -> Dict[str, Any]:
+        """Analyze text for AI authorship. Offloads to thread pool to avoid blocking."""
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(None, self._analyze_sync, text)

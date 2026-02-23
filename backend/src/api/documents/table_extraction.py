@@ -51,7 +51,11 @@ async def extract_tables(
     """
     doc_result = await db.execute(
         select(Document).where(
-            and_(Document.id == document_id, Document.is_deleted == False)
+            and_(
+                Document.id == document_id,
+                Document.uploaded_by_user_id == current_user.id,
+                Document.is_deleted == False,
+            )
         )
     )
     document = doc_result.scalar_one_or_none()
@@ -59,6 +63,12 @@ async def extract_tables(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Document not found",
+        )
+
+    if not document.file_path or not document.file_path.lower().endswith(".pdf"):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Table extraction is only supported for PDF documents",
         )
 
     try:
@@ -100,7 +110,11 @@ async def extract_region(
     """
     doc_result = await db.execute(
         select(Document).where(
-            and_(Document.id == document_id, Document.is_deleted == False)
+            and_(
+                Document.id == document_id,
+                Document.uploaded_by_user_id == current_user.id,
+                Document.is_deleted == False,
+            )
         )
     )
     document = doc_result.scalar_one_or_none()
@@ -108,6 +122,12 @@ async def extract_region(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Document not found",
+        )
+
+    if not document.file_path or not document.file_path.lower().endswith(".pdf"):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Region extraction is only supported for PDF documents",
         )
 
     try:
