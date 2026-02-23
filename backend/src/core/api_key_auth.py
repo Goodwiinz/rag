@@ -11,7 +11,8 @@ from fastapi import HTTPException, status, Depends, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
-from sqlalchemy import Column, String, Boolean, DateTime, Integer, Text
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import Column, String, Boolean, DateTime, Integer, Text, select
 import logging
 import redis.asyncio as redis
 
@@ -215,7 +216,7 @@ async def cleanup_api_key_auth():
 async def get_api_key_data(
     request: Request,
     credentials: HTTPAuthorizationCredentials = Depends(api_key_security),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ) -> tuple[APIKeyData, str]:
     """
     Validate API key and return key data with endpoint tracking
@@ -235,17 +236,28 @@ async def get_api_key_data(
             logger.warning(f"Invalid API key format from {request.client.host}")
             raise credentials_exception
         
-        # Get key hash
-        key_hash = hashlib.sha256(raw_key.encode()).hexdigest()
+        # Extract prefix to narrow down candidates
+        # API keys are format: rag_<32 chars>
+        # key_prefix stores the first 8 chars of the raw key (rag_ + 4 chars)
+        key_prefix = raw_key[:8]
         
-        # Find API key in database
-        api_key_record = db.query(APIKey).filter(
-            APIKey.key_hash == key_hash,
+        # Find potential API keys by prefix
+        # This avoids looking up by hash directly in DB (timing attack mitigation)
+        stmt = select(APIKey).where(
+            APIKey.key_prefix == key_prefix,
             APIKey.is_active == True
-        ).first()
+        )
+        result = await db.execute(stmt)
+        candidate_keys = result.scalars().all()
+
+        api_key_record = None
+        for key in candidate_keys:
+             if verify_api_key(raw_key, key.key_hash):
+                 api_key_record = key
+                 break
         
         if not api_key_record:
-            logger.warning(f"API key not found or inactive from {request.client.host}")
+            logger.warning(f"API key not found or invalid from {request.client.host}")
             raise credentials_exception
         
         # Check if expired
@@ -272,7 +284,7 @@ async def get_api_key_data(
         # Update usage stats in database
         api_key_record.last_used_at = datetime.utcnow()
         api_key_record.usage_count += 1
-        db.commit()
+        await db.commit()
         
         logger.info(f"Valid API key used: {api_key_record.name} ({api_key_record.key_prefix}***) from {request.client.host}")
         
@@ -297,7 +309,7 @@ async def get_api_key_data(
 async def get_api_key_optional(
     request: Request,
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(HTTPBearer(auto_error=False)),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ) -> Optional[tuple[APIKeyData, str]]:
     """Optional API key validation - returns None if no key provided"""
     if not credentials:
