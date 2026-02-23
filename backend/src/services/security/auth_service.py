@@ -265,22 +265,23 @@ class AuthService:
             result = await self.db.execute(stmt)
             organization = result.scalar_one_or_none()
 
-            if not organization:
-                # Create new organization
-                organization = Organization(
-                    name=organization_name,
-                    storage_tier=StorageTier.FREE,
-                    storage_limit_bytes=Organization.get_default_storage_limit(
-                        StorageTier.FREE
-                    ),
-                    is_active=True,
-                )
-                self.db.add(organization)
-                await self.db.flush()  # Get the organization ID
+            if organization:
+                raise RegistrationError("Organization name already taken")
 
-                # First user in organization becomes admin
-                role = UserRole.ADMIN
-            # If organization exists, use default USER role (don't make them admin)
+            # Create new organization
+            organization = Organization(
+                name=organization_name,
+                storage_tier=StorageTier.FREE,
+                storage_limit_bytes=Organization.get_default_storage_limit(
+                    StorageTier.FREE
+                ),
+                is_active=True,
+            )
+            self.db.add(organization)
+            await self.db.flush()  # Get the organization ID
+
+            # First user in organization becomes admin
+            role = UserRole.ADMIN
 
         else:
             raise RegistrationError(

@@ -55,7 +55,6 @@ class UserRegistration(BaseModel):
     first_name: str
     last_name: str
     organization_name: Optional[str] = None
-    organization_id: Optional[str] = None
 
 
 class UserLogin(BaseModel):
@@ -106,7 +105,6 @@ async def register(
             first_name=user_data.first_name,
             last_name=user_data.last_name,
             organization_name=user_data.organization_name,
-            organization_id=user_data.organization_id,
         )
 
         return {
