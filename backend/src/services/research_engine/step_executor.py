@@ -7,8 +7,15 @@ from string import Template
 from typing import Any, Dict, List, Optional
 
 from src.services.research_engine.connectors.base import SourceConnector, SourceDocument
-from src.services.research_engine.providers.base import LLMProvider, LLMRequest, LLMResponse
-from src.services.research_engine.verification import QualityMark
+from src.services.research_engine.providers.base import (
+    LLMProvider,
+    LLMRequest,
+    LLMResponse,
+)
+from src.services.research_engine.verification import (
+    QualityMark,
+    run_source_grounding_check,
+)
 
 
 def _safe_render(template_str: str, context: Dict[str, Any]) -> str:
@@ -78,9 +85,7 @@ class StepExecutor:
         """Get step parameters, checking both 'params' and 'parameters' keys."""
         return step_def.get("params") or step_def.get("parameters") or {}
 
-    async def _execute_search(
-        self, step_def: Dict, context: Dict
-    ) -> StepResult:
+    async def _execute_search(self, step_def: Dict, context: Dict) -> StepResult:
         """Search across configured source connectors."""
         params = self._get_params(step_def)
         sources = list(params.get("sources", []) or [])
@@ -103,38 +108,53 @@ class StepExecutor:
             sources_used=all_sources,
         )
 
-    async def _execute_screen(
-        self, step_def: Dict, context: Dict
-    ) -> StepResult:
+    async def _execute_screen(self, step_def: Dict, context: Dict) -> StepResult:
         return await self._execute_llm_step(step_def, context)
 
-    async def _execute_extract(
-        self, step_def: Dict, context: Dict
-    ) -> StepResult:
+    async def _execute_extract(self, step_def: Dict, context: Dict) -> StepResult:
         return await self._execute_llm_step(step_def, context)
 
-    async def _execute_synthesize(
-        self, step_def: Dict, context: Dict
-    ) -> StepResult:
+    async def _execute_synthesize(self, step_def: Dict, context: Dict) -> StepResult:
         return await self._execute_llm_step(step_def, context)
 
-    async def _execute_export(
-        self, step_def: Dict, context: Dict
-    ) -> StepResult:
-        return await self._execute_llm_step(step_def, context)
+    async def _execute_export(self, step_def: Dict, context: Dict) -> StepResult:
+        params = self._get_params(step_def)
+        export_fields = params.get("fields")
+        if isinstance(export_fields, list) and export_fields:
+            exported = {
+                field_name: context.get(field_name) for field_name in export_fields
+            }
+        else:
+            exported = dict(context)
 
-    async def _execute_verify(
-        self, step_def: Dict, context: Dict
-    ) -> StepResult:
-        """Verification step - returns a pass-through result."""
         return StepResult(
-            output={"verified": True},
-            quality_marks=[],
+            output={
+                "exported": exported,
+                "format": params.get("format", "json"),
+            }
         )
 
-    async def _execute_llm_step(
-        self, step_def: Dict, context: Dict
-    ) -> StepResult:
+    async def _execute_verify(self, step_def: Dict, context: Dict) -> StepResult:
+        """Verification step with deterministic source-grounding quality mark."""
+        claim = str(context.get("claim") or context.get("content") or "")
+        source_text = str(
+            context.get("source_text")
+            or context.get("evidence")
+            or context.get("context")
+            or ""
+        )
+        quality_mark = run_source_grounding_check(claim, source_text)
+
+        return StepResult(
+            output={
+                "verified": quality_mark.passed,
+                "check": quality_mark.check_type,
+                "details": quality_mark.details,
+            },
+            quality_marks=[quality_mark],
+        )
+
+    async def _execute_llm_step(self, step_def: Dict, context: Dict) -> StepResult:
         """Execute a step that requires LLM completion."""
         params = self._get_params(step_def)
         model_id = step_def.get("model_id") or params.get("model_id", "")

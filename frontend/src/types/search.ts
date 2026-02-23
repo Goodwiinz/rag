@@ -4,6 +4,7 @@ export interface SearchRequest {
   filters?: {
     modalities?: ('text' | 'image' | 'audio' | 'video')[];
     document_ids?: string[];
+    tags?: string[];
     date_range?: {
       start: string;
       end: string;
@@ -28,7 +29,10 @@ export interface SourceReference {
 export interface SearchAnswer {
   text: string;
   sources: SourceReference[];
+  claims?: string[];
   confidence: number;
+  coverage?: number;
+  decisionTraceId?: string;
   answer_type: 'factual' | 'reasoning' | 'summarization' | 'comparison';
   language_detected: string;
 }
@@ -37,6 +41,13 @@ export interface SearchResult {
   id: string;
   query: string;
   answer: SearchAnswer;
+  deterministicStatus?:
+    | 'SUPPORTED'
+    | 'INSUFFICIENT_EVIDENCE'
+    | 'CONFLICTING_EVIDENCE'
+    | 'NO_MATCH';
+  deterministicMessage?: string;
+  refinementSuggestions?: string[];
   entities: Entity[];
   relationships: Relationship[];
   metrics: SearchMetrics;

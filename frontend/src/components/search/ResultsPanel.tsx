@@ -315,6 +315,48 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
     }
   };
 
+  const getDeterministicStatusConfig = (
+    status?: SearchResult['deterministicStatus']
+  ) => {
+    switch (status) {
+      case 'SUPPORTED':
+        return {
+          label: 'SUPPORTED',
+          color: THEME.colors.primary,
+          bg: `${THEME.colors.primary}15`,
+          border: `${THEME.colors.primary}30`,
+        };
+      case 'INSUFFICIENT_EVIDENCE':
+        return {
+          label: 'INSUFFICIENT EVIDENCE',
+          color: '#f59e0b',
+          bg: '#f59e0b15',
+          border: '#f59e0b40',
+        };
+      case 'CONFLICTING_EVIDENCE':
+        return {
+          label: 'CONFLICTING EVIDENCE',
+          color: '#f97316',
+          bg: '#f9731615',
+          border: '#f9731640',
+        };
+      case 'NO_MATCH':
+        return {
+          label: 'NO MATCH',
+          color: '#ef4444',
+          bg: '#ef444415',
+          border: '#ef444440',
+        };
+      default:
+        return {
+          label: 'UNKNOWN',
+          color: '#6b7280',
+          bg: '#6b728015',
+          border: '#6b728030',
+        };
+    }
+  };
+
   const handleSourceClick = useCallback((source: SourceReference) => {
     onSourceClick?.(source);
   }, [onSourceClick]);
@@ -403,6 +445,7 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
   }
 
   const answerTypeConfig = getAnswerTypeConfig(result.answer.answer_type);
+  const deterministicStatusConfig = getDeterministicStatusConfig(result.deterministicStatus);
 
   return (
     <div className={cn("space-y-6", className)}>
@@ -432,6 +475,26 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
                 <SparklesIcon className="h-3.5 w-3.5 mr-1" />
                 {Math.round(result.answer.confidence * 100)}% confidence
               </span>
+              {typeof result.answer.coverage === 'number' && (
+                <span className="flex items-center font-mono text-xs text-gray-400">
+                  COVERAGE {Math.round(result.answer.coverage * 100)}%
+                </span>
+              )}
+              <span
+                className="font-mono text-[10px] px-2 py-1 rounded"
+                style={{
+                  background: deterministicStatusConfig.bg,
+                  border: `1px solid ${deterministicStatusConfig.border}`,
+                  color: deterministicStatusConfig.color,
+                }}
+              >
+                {deterministicStatusConfig.label}
+              </span>
+              {result.answer.decisionTraceId && (
+                <span className="text-[10px] font-mono text-gray-500">
+                  trace: {result.answer.decisionTraceId}
+                </span>
+              )}
             </div>
           </div>
 
@@ -459,6 +522,26 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
         <div className="text-gray-300 font-mono text-sm leading-relaxed min-h-[60px]">
           <TypewriterText text={result.answer.text} speed={10} />
         </div>
+
+        {result.deterministicStatus && result.deterministicStatus !== 'SUPPORTED' && (
+          <div
+            className="rounded-lg px-3 py-2 text-xs font-mono"
+            style={{
+              background: deterministicStatusConfig.bg,
+              border: `1px solid ${deterministicStatusConfig.border}`,
+              color: deterministicStatusConfig.color,
+            }}
+          >
+            {result.deterministicMessage}
+            {result.refinementSuggestions && result.refinementSuggestions.length > 0 && (
+              <div className="mt-2 text-gray-300">
+                {result.refinementSuggestions.slice(0, 2).map((suggestion, index) => (
+                  <div key={`${suggestion}-${index}`}>- {suggestion}</div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Metrics */}
         <div className="pt-4">

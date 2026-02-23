@@ -17,6 +17,8 @@ class SearchType(str, Enum):
     FULLTEXT = "fulltext"
     SEMANTIC = "semantic"
     HYBRID = "hybrid"
+    VECTOR = "vector"
+    KNOWLEDGE_GRAPH = "knowledge_graph"
     GRAPH = "graph"
 
 
@@ -33,6 +35,9 @@ class SearchSortOrder(str, Enum):
 class SearchFilter(BaseModel):
     """Search filters"""
 
+    document_ids: Optional[List[str]] = Field(
+        None, description="Filter by selected document IDs"
+    )
     document_types: Optional[List[DocumentType]] = Field(
         None, description="Filter by document types"
     )
@@ -111,6 +116,12 @@ class SearchResult(BaseModel):
     )
 
 
+class DeterministicTrace(BaseModel):
+    """Deterministic trace metadata for response auditing"""
+
+    decision_trace_id: str = Field(..., description="Deterministic decision trace ID")
+
+
 class SearchResponse(BaseModel):
     """Search response with results and metadata"""
 
@@ -127,6 +138,31 @@ class SearchResponse(BaseModel):
     suggestions: Optional[List[str]] = Field(None, description="Search suggestions")
     filters_applied: Optional[Dict[str, Any]] = Field(
         None, description="Applied filters"
+    )
+    answer_type: Optional[str] = Field(
+        None, description="Deterministic answer strategy used"
+    )
+    claims: List[str] = Field(
+        default_factory=list, description="Deterministic extracted claims"
+    )
+    confidence: Optional[float] = Field(
+        None, ge=0.0, le=1.0, description="Deterministic answer confidence"
+    )
+    coverage: Optional[float] = Field(
+        None, ge=0.0, le=1.0, description="Deterministic evidence coverage"
+    )
+    decision_trace_id: Optional[str] = Field(
+        None, description="Deterministic decision trace identifier"
+    )
+    trace: Optional[DeterministicTrace] = Field(
+        None, description="Deterministic trace object"
+    )
+    deterministic_status: Optional[str] = Field(
+        None,
+        description="Deterministic gate status (SUPPORTED, INSUFFICIENT_EVIDENCE, CONFLICTING_EVIDENCE, NO_MATCH)",
+    )
+    deterministic_message: Optional[str] = Field(
+        None, description="Deterministic gate explanation"
     )
 
 

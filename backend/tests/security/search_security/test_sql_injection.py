@@ -498,26 +498,42 @@ class TestSQLInjectionPrevention(SecurityTestCase):
             if response.status_code != 200:
                 self.assert_safe_error_response(response)
             
-            # Check for evidence of successful injection
-            dangerous_patterns = [
-                'hacked', 'password', 'breach', 'version()', 'users',
-                'information_schema', 'pg_sleep', 'rand()', 'updated'
-            ]
-            
-            self.assert_no_information_disclosure(response, dangerous_patterns)
+            # Check for evidence of successful injection.
+            # Pydantic validation errors intentionally reflect the original
+            # input (e.g. "hacked", "password") so we only check for patterns
+            # that indicate real server-side disclosure when the response is a
+            # validation error.
+            if self._is_validation_error_body(response):
+                self.assert_no_server_info_disclosure(response)
+            else:
+                dangerous_patterns = [
+                    'hacked', 'password', 'breach', 'version()', 'users',
+                    'information_schema', 'pg_sleep', 'rand()', 'updated'
+                ]
+                self.assert_no_information_disclosure(response, dangerous_patterns)
 
-    @patch('src.services.search.fulltext_search_service.fulltext_search_service')
+    @patch('src.api.search.search.fulltext_search_service')
     def test_service_layer_injection_protection(self, mock_service, security_test_client, authentication_headers):
         """Test that service layer properly sanitizes inputs"""
-        
-        # Mock service to check what parameters it receives
-        mock_service.search.return_value = {
-            'results': [],
-            'total': 0,
-            'search_time_ms': 50,
-            'query': 'test'
-        }
-        
+
+        from src.models.search_schemas import SearchResponse, SearchType
+
+        # Mock service to return a valid SearchResponse (not a raw dict)
+        mock_service.search.return_value = SearchResponse(
+            query="test",
+            search_id="mock-search-id",
+            search_type=SearchType.FULLTEXT,
+            results=[],
+            total_results=0,
+            returned_results=0,
+            search_time_ms=50,
+            limit=20,
+            offset=0,
+            has_more=False,
+            suggestions=[],
+            filters_applied={},
+        )
+
         injection_payload = {
             "query": "test'; DROP TABLE documents; --",
             "search_type": "fulltext",
@@ -525,30 +541,30 @@ class TestSQLInjectionPrevention(SecurityTestCase):
                 "organization_id": "uuid'; SELECT * FROM users; --"
             }
         }
-        
+
         response = security_test_client.make_request(
             'POST',
             '/search/',
             headers=authentication_headers['valid_jwt'],
             json=injection_payload
         )
-        
+
         # Check that service was called
         mock_service.search.assert_called()
-        
+
         # Check the arguments passed to the service
         call_args = mock_service.search.call_args
         search_request = call_args[1]['search_request']
-        
+
         # The service should receive sanitized parameters
         # (The exact sanitization behavior depends on implementation)
         assert search_request.query is not None
         assert isinstance(search_request.query, str)
-        
+
         # Verify that obvious SQL injection patterns are not passed through
         dangerous_sql = ['drop table', 'select *', '; --']
         query_lower = search_request.query.lower()
-        
+
         for pattern in dangerous_sql:
             if pattern in query_lower:
                 # If SQL patterns are present, they should be properly escaped/sanitized
