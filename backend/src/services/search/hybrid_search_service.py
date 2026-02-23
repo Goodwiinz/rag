@@ -131,6 +131,8 @@ class HybridSearchService:
 
             # Create response
             search_time_ms = (time.time() - start_time) * 1000
+            coverage = self._calculate_deterministic_coverage(final_results)
+            confidence = self._calculate_deterministic_confidence(final_results)
 
             return SearchResponse(
                 query=search_request.query,
@@ -146,6 +148,10 @@ class HybridSearchService:
                 suggestions=self._get_hybrid_suggestions(
                     search_request, source_results
                 ),
+                answer_type="extractive",
+                confidence=confidence,
+                coverage=coverage,
+                deterministic_status="SUPPORTED" if final_results else "NO_MATCH",
             )
 
         except Exception as e:
@@ -186,7 +192,10 @@ class HybridSearchService:
         )
 
         start_time = time.time()
-        trace = RetrievalTrace(query=search_request.query, search_type=search_request.search_type or "hybrid")
+        trace = RetrievalTrace(
+            query=search_request.query,
+            search_type=search_request.search_type or "hybrid",
+        )
 
         effective_weights = {
             "fulltext": self.fulltext_weight,
@@ -244,7 +253,9 @@ class HybridSearchService:
             for sr in source_results.values():
                 if sr.success:
                     for r in sr.results:
-                        doc_sources[r.document_id] = doc_sources.get(r.document_id, 0) + 1
+                        doc_sources[r.document_id] = (
+                            doc_sources.get(r.document_id, 0) + 1
+                        )
             multi_source_count = sum(1 for c in doc_sources.values() if c > 1)
 
             fused_scores = [r.relevance_score for r in fused_results]
@@ -269,7 +280,9 @@ class HybridSearchService:
             # Step 4: Rerank with diagnostics
             if cohere_rerank_service.is_enabled and fused_results:
                 rerank_start = time.time()
-                pre_rerank_scores = {r.document_id: r.relevance_score for r in fused_results}
+                pre_rerank_scores = {
+                    r.document_id: r.relevance_score for r in fused_results
+                }
 
                 try:
                     reranked = self._apply_cohere_reranking(
@@ -334,7 +347,13 @@ class HybridSearchService:
                 limit=search_request.limit,
                 offset=search_request.offset,
                 has_more=len(final_results) >= search_request.limit,
-                suggestions=self._get_hybrid_suggestions(search_request, source_results),
+                suggestions=self._get_hybrid_suggestions(
+                    search_request, source_results
+                ),
+                answer_type="extractive",
+                confidence=self._calculate_deterministic_confidence(final_results),
+                coverage=self._calculate_deterministic_coverage(final_results),
+                deterministic_status="SUPPORTED" if final_results else "NO_MATCH",
             )
 
             return response, trace
@@ -342,7 +361,9 @@ class HybridSearchService:
         except Exception as e:
             logger.error(f"Error in search_with_diagnostics: {e}")
             trace.total_time_ms = round((time.time() - start_time) * 1000, 2)
-            fallback = self._fallback_to_fulltext(search_request, user_id, organization_id)
+            fallback = self._fallback_to_fulltext(
+                search_request, user_id, organization_id
+            )
             return fallback, trace
 
     def _route_search_query(
@@ -746,7 +767,9 @@ class HybridSearchService:
                     }
 
                 # Add source-specific score
-                weight = self._get_source_weight(source_type, source_weights=source_weights)
+                weight = self._get_source_weight(
+                    source_type, source_weights=source_weights
+                )
                 normalized_score = self._normalize_score(
                     result.relevance_score, source_type
                 )
@@ -797,10 +820,57 @@ class HybridSearchService:
 
             fused_results.append(fused_result)
 
-        # Sort by fused score
-        fused_results.sort(key=lambda x: x.relevance_score, reverse=True)
+        # Sort deterministically:
+        # 1) fused score desc
+        # 2) source quality tier asc (better source first)
+        # 3) updated_at timestamp desc (newer first)
+        # 4) document_id lexicographic asc
+        fused_results.sort(key=self._deterministic_fusion_sort_key)
 
         return fused_results
+
+    def _deterministic_fusion_sort_key(
+        self, result: RawSearchResult
+    ) -> Tuple[float, int, float, str]:
+        """Create deterministic sort key for fused results."""
+        source_quality_tier = self._get_source_quality_tier(result)
+        updated_at_ts = self._extract_updated_at_timestamp(result)
+        return (
+            -result.relevance_score,
+            source_quality_tier,
+            -updated_at_ts,
+            result.document_id,
+        )
+
+    def _get_source_quality_tier(self, result: RawSearchResult) -> int:
+        """Return best (lowest) source quality tier for the result."""
+        source_tier_map = {
+            SearchSourceType.FULLTEXT: 0,
+            SearchSourceType.VECTOR: 1,
+            SearchSourceType.KNOWLEDGE_GRAPH: 2,
+        }
+        original_sources = result.metadata.get("original_sources", [])
+        if not original_sources:
+            return source_tier_map.get(result.source_type, 99)
+
+        tiers = [source_tier_map.get(source, 99) for source in original_sources]
+        return min(tiers) if tiers else 99
+
+    def _extract_updated_at_timestamp(self, result: RawSearchResult) -> float:
+        """Extract comparable timestamp for deterministic tie-breaks."""
+        if not result.search_result:
+            return 0.0
+
+        updated_at = result.search_result.updated_at or result.search_result.created_at
+        if not updated_at:
+            return 0.0
+
+        if updated_at.tzinfo is None:
+            from datetime import timezone
+
+            updated_at = updated_at.replace(tzinfo=timezone.utc)
+
+        return updated_at.timestamp()
 
     def _get_source_weight(
         self,
@@ -943,11 +1013,38 @@ class HybridSearchService:
         organization_id: str,
     ) -> List[SearchResult]:
         """Apply final filtering and pagination to fused results"""
+        selected_document_ids = (
+            set(search_request.filters.document_ids or [])
+            if search_request.filters
+            else set()
+        )
+        selected_tags = (
+            set(search_request.filters.tags or []) if search_request.filters else set()
+        )
+
+        filtered_fused_results: List[RawSearchResult] = []
+        for result in fused_results:
+            if self._is_noisy_result(result):
+                continue
+
+            if (
+                selected_document_ids
+                and result.document_id not in selected_document_ids
+            ):
+                continue
+
+            if selected_tags and result.search_result:
+                result_tags = set(result.search_result.tags or [])
+                if not (result_tags & selected_tags):
+                    continue
+
+            filtered_fused_results.append(result)
+
         # Apply offset and limit
         start_idx = search_request.offset
         end_idx = start_idx + search_request.limit
 
-        paginated_results = fused_results[start_idx:end_idx]
+        paginated_results = filtered_fused_results[start_idx:end_idx]
 
         # Convert to SearchResult objects
         final_results = []
@@ -959,6 +1056,45 @@ class HybridSearchService:
                 final_results.append(result.search_result)
 
         return final_results
+
+    def _is_noisy_result(self, result: RawSearchResult) -> bool:
+        """Filter out known noisy synthetic verification strings from retrieval results."""
+        content = ""
+        if result.search_result:
+            content = (
+                f"{result.search_result.title} {result.search_result.content_preview}"
+            ).lower()
+
+        if not content:
+            return False
+
+        noisy_markers = [
+            "verified 0/l000 tampered whisper field isolation parse validation",
+            "all security properties verified through",
+            "replay prevention nonce + timestamp",
+        ]
+        return any(marker in content for marker in noisy_markers)
+
+    def _calculate_deterministic_coverage(self, results: List[SearchResult]) -> float:
+        """Calculate deterministic evidence coverage from fused metadata."""
+        if not results:
+            return 0.0
+
+        multi_source_results = 0
+        for result in results:
+            source_count = (result.metadata or {}).get("source_count", 1)
+            if source_count >= 2:
+                multi_source_results += 1
+
+        return round(multi_source_results / len(results), 4)
+
+    def _calculate_deterministic_confidence(self, results: List[SearchResult]) -> float:
+        """Calculate deterministic confidence from final relevance scores."""
+        if not results:
+            return 0.0
+
+        scores = [max(0.0, min(1.0, result.relevance_score)) for result in results]
+        return round(sum(scores) / len(scores), 4)
 
     def _get_hybrid_suggestions(
         self,
