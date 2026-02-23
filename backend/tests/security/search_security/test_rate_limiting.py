@@ -134,38 +134,37 @@ class TestRateLimiting(SecurityTestCase):
             for response in rate_limited_responses:
                 self._assert_rate_limit_headers(response)
 
-    def test_rate_limit_bypass_attempts(self, security_test_client, search_service_mocks):
+    def test_rate_limit_bypass_attempts(self, unauthenticated_security_test_client, search_service_mocks):
         """Test attempts to bypass rate limiting"""
-        
-        # Test with different authentication methods
+
+        # Test with different authentication methods (unauthenticated client)
         bypass_attempts = [
             # Different User-Agent strings
             {'Authorization': 'Bearer token1', 'User-Agent': 'Mozilla/5.0'},
             {'Authorization': 'Bearer token1', 'User-Agent': 'Chrome/91.0'},
             {'Authorization': 'Bearer token1', 'User-Agent': 'Safari/14.0'},
-            
+
             # Different IP headers (if behind proxy)
             {'Authorization': 'Bearer token1', 'X-Forwarded-For': '192.168.1.1'},
             {'Authorization': 'Bearer token1', 'X-Forwarded-For': '10.0.0.1'},
             {'Authorization': 'Bearer token1', 'X-Real-IP': '172.16.0.1'},
-            
+
             # Empty or modified headers
             {'Authorization': 'Bearer token1', 'X-Request-ID': 'unique1'},
             {'Authorization': 'Bearer token1', 'X-Request-ID': 'unique2'},
         ]
-        
+
         for headers in bypass_attempts:
-            response = security_test_client.make_request(
+            response = unauthenticated_security_test_client.make_request(
                 'POST',
                 '/search/',
                 headers=headers,
                 json={"query": "bypass_test", "search_type": "fulltext"}
             )
-            
+
             # Should not bypass authentication
             if 'Bearer token1' in headers.get('Authorization', ''):
-                # If using invalid token, should get 401
-                assert response.status_code == 401, \
+                assert response.status_code in [401, 403], \
                     "Invalid token should not bypass authentication regardless of headers"
 
     def test_concurrent_request_rate_limiting(self, security_test_client, authentication_headers, search_service_mocks):
@@ -343,21 +342,21 @@ class TestRateLimiting(SecurityTestCase):
                     if response.status_code == 429:
                         self._assert_rate_limit_headers(response)
 
-    def test_rate_limit_with_invalid_authentication(self, security_test_client, search_service_mocks):
+    def test_rate_limit_with_invalid_authentication(self, unauthenticated_security_test_client, search_service_mocks):
         """Test rate limiting behavior with invalid authentication"""
-        
+
         invalid_auth_headers = [
             {'Authorization': 'Bearer invalid_token'},
             {'Authorization': 'Bearer malformed.jwt.token'},
             {'X-API-Key': 'invalid_api_key'},
             {},  # No authentication
         ]
-        
+
         for headers in invalid_auth_headers:
             responses = []
-            
+
             for i in range(3):
-                response = security_test_client.make_request(
+                response = unauthenticated_security_test_client.make_request(
                     'POST',
                     '/search/',
                     headers=headers,
@@ -365,7 +364,7 @@ class TestRateLimiting(SecurityTestCase):
                 )
                 responses.append(response)
                 time.sleep(0.1)
-            
+
             # Should get authentication errors, not rate limit errors
             for response in responses:
                 assert response.status_code in [401, 403], \
