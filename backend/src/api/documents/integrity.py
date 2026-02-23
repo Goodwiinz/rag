@@ -141,6 +141,22 @@ async def get_integrity_score(
     Returns the most recent integrity analysis result. Returns 404 if no
     analysis has been run for this document yet.
     """
+    # Verify document exists and belongs to current user
+    doc_result = await db.execute(
+        select(Document).where(
+            and_(
+                Document.id == document_id,
+                Document.uploaded_by_user_id == current_user.id,
+                Document.is_deleted == False,
+            )
+        )
+    )
+    if not doc_result.scalar_one_or_none():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Document not found",
+        )
+
     result = await db.execute(
         select(IntegrityScore).where(
             and_(
