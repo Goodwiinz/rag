@@ -138,7 +138,7 @@ def _build_connectors() -> dict:
         "semantic_scholar": SemanticScholarConnector(),
         "crossref": CrossrefConnector(mailto=settings.CROSSREF_MAILTO),
         "pubmed": PubMedConnector(api_key=settings.NCBI_API_KEY),
-        "web": SemanticScholarConnector(),  # Semantic Scholar fallback for 'web' source type
+        "web": SemanticScholarConnector(),  # fallback alias
         "rag_store": RagStoreConnector(search_fn=_search_rag_store),
     }
 

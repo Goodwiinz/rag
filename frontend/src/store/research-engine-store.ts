@@ -31,7 +31,7 @@ export interface RunStepEvent {
     details?: string;
   }>;
   mode?: string;
-  output?: string;
+  output?: string | Record<string, unknown>;
   sources?: string[];
   prompt?: string;
   error_message?: string;
