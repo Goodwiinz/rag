@@ -1,14 +1,18 @@
 """PubMed source connector via NCBI E-Utilities."""
 
-import xml.etree.ElementTree as ET
+import re
 from typing import Any, Dict, List, Optional
 
 import httpx
+from defusedxml import ElementTree as ET
 
 from src.services.research_engine.connectors.base import SourceConnector, SourceDocument
 
 ESEARCH_URL = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi"
 EFETCH_URL = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi"
+
+_PMID_RE = re.compile(r"^\d{1,8}$")
+MAX_RESULTS_LIMIT = 200
 
 
 class PubMedConnector(SourceConnector):
@@ -21,6 +25,8 @@ class PubMedConnector(SourceConnector):
         self, query: str, max_results: int = 50, **kwargs: Any
     ) -> List[SourceDocument]:
         """Search PubMed: esearch for PMIDs, then efetch for full records."""
+        max_results = min(max_results, MAX_RESULTS_LIMIT)
+
         base_params: Dict[str, Any] = {}
         if self.api_key:
             base_params["api_key"] = self.api_key
@@ -42,7 +48,11 @@ class PubMedConnector(SourceConnector):
                 root = ET.fromstring(search_resp.text)
             except ET.ParseError as exc:
                 raise ValueError(f"PubMedConnector: failed to parse esearch XML: {exc}") from exc
-            pmids = [el.text for el in root.findall(".//IdList/Id") if el.text]
+            pmids = [
+                el.text
+                for el in root.findall(".//IdList/Id")
+                if el.text and _PMID_RE.match(el.text)
+            ]
 
             if not pmids:
                 return []

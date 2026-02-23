@@ -77,8 +77,14 @@ def upgrade() -> None:
         "integrity_scores",
         ["document_id"],
     )
+    op.create_unique_constraint(
+        "uq_integrity_doc_method",
+        "integrity_scores",
+        ["document_id", "method"],
+    )
 
 
 def downgrade() -> None:
+    op.drop_constraint("uq_integrity_doc_method", "integrity_scores", type_="unique")
     op.drop_index("ix_integrity_scores_document_id", table_name="integrity_scores")
     op.drop_table("integrity_scores")

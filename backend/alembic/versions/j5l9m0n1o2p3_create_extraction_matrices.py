@@ -117,10 +117,22 @@ def upgrade() -> None:
         "extraction_cells",
         ["document_id"],
     )
+    op.create_unique_constraint(
+        "uq_cell_matrix_doc_col",
+        "extraction_cells",
+        ["matrix_id", "document_id", "column_name"],
+    )
+    op.create_check_constraint(
+        "ck_cell_confidence_range",
+        "extraction_cells",
+        "confidence IS NULL OR (confidence >= 0.0 AND confidence <= 1.0)",
+    )
 
 
 def downgrade() -> None:
-    # Drop extraction_cells indexes and table
+    # Drop extraction_cells constraints, indexes and table
+    op.drop_constraint("ck_cell_confidence_range", "extraction_cells", type_="check")
+    op.drop_constraint("uq_cell_matrix_doc_col", "extraction_cells", type_="unique")
     op.drop_index("ix_extraction_cells_document_id", table_name="extraction_cells")
     op.drop_index("ix_extraction_cells_matrix_id", table_name="extraction_cells")
     op.drop_table("extraction_cells")

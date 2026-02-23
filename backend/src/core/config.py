@@ -178,6 +178,10 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: Optional[str] = None
     ANTHROPIC_API_KEY: Optional[str] = None
 
+    # Research Connector APIs
+    CROSSREF_MAILTO: Optional[str] = None
+    NCBI_API_KEY: Optional[str] = None
+
     # Azure OpenAI Configuration
     AZURE_OPENAI_API_KEY: Optional[str] = None
     AZURE_OPENAI_ENDPOINT: Optional[str] = None

@@ -2,9 +2,12 @@
 
 import csv
 import io
+import os
 from typing import Any, Dict, List, Optional
 
 import structlog
+
+from src.core.config import settings
 
 logger = structlog.get_logger()
 
@@ -24,6 +27,19 @@ class TableExtractionService:
             return False
         return True
 
+    def _safe_pdf_path(self, pdf_path: str) -> str:
+        """Validate that pdf_path is within the configured upload directory."""
+        upload_root = os.path.realpath(settings.UPLOAD_DIR)
+        resolved = os.path.realpath(pdf_path)
+        if not resolved.startswith(upload_root + os.sep) and resolved != upload_root:
+            raise ValueError("Document path is outside the upload directory")
+        return resolved
+
+    @staticmethod
+    def _escape_md_cell(cell: str) -> str:
+        """Escape pipe characters in markdown table cells."""
+        return cell.replace("|", r"\|").replace("\n", " ")
+
     def _csv_to_markdown(self, csv_data: str) -> str:
         """Convert CSV string to markdown table."""
         reader = csv.reader(io.StringIO(csv_data))
@@ -32,13 +48,13 @@ class TableExtractionService:
             return ""
 
         # Header
-        header = "| " + " | ".join(rows[0]) + " |"
+        header = "| " + " | ".join(self._escape_md_cell(c) for c in rows[0]) + " |"
         separator = "| " + " | ".join("---" for _ in rows[0]) + " |"
 
         # Data rows
         data_rows = []
         for row in rows[1:]:
-            data_rows.append("| " + " | ".join(row) + " |")
+            data_rows.append("| " + " | ".join(self._escape_md_cell(c) for c in row) + " |")
 
         return "\n".join([header, separator] + data_rows)
 
@@ -62,6 +78,7 @@ class TableExtractionService:
 
         import fitz  # PyMuPDF - lazy import
 
+        pdf_path = self._safe_pdf_path(pdf_path)
         doc = fitz.open(pdf_path)
         if page > len(doc):
             raise ValueError(
@@ -98,6 +115,8 @@ class TableExtractionService:
         except ImportError:
             logger.warning("camelot_not_installed")
             return []
+
+        pdf_path = self._safe_pdf_path(pdf_path)
 
         try:
             tables = camelot.read_pdf(pdf_path, flavor="lattice", pages="all")

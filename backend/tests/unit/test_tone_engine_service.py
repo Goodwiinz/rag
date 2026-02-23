@@ -50,3 +50,14 @@ def test_extract_citations_empty():
     service = ToneEngineService()
     citations = service._extract_citations("No citations here.")
     assert citations == []
+
+
+@pytest.mark.asyncio
+async def test_rewrite_raises_when_no_api_key():
+    service = ToneEngineService()
+    service._client = None
+    with pytest.raises(RuntimeError, match="OpenAI API key is not configured"):
+        await service.rewrite(
+            text="Some academic text to rewrite here please.",
+            tone="academic",
+        )
