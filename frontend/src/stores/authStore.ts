@@ -172,10 +172,12 @@ export const useAuthStore = create<AuthState>()(
 
           debugLog(`🔐 Login successful - Session: ${rememberMe ? '30 days' : '7 days'}`);
         } catch (error) {
+          const authError = error instanceof Error ? error : new Error('Login failed');
           set({
-            error: error instanceof Error ? error.message : 'Login failed',
+            error: authError.message,
             isLoading: false,
           });
+          throw authError;
         }
       },
 
