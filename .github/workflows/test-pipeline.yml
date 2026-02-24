@@ -295,8 +295,8 @@ jobs:
           exit "$exit_code"
         env:
           ENVIRONMENT: testing
-          DATABASE_URL: "postgresql://test:test@localhost:${{ job.services.postgres.ports[5432] }}/test_db"
-          REDIS_URL: "redis://localhost:${{ job.services.redis.ports[6379] }}/0"
+          DATABASE_URL: "postgresql://test:test@localhost:${{ job.services.postgres.ports['5432'] }}/test_db"
+          REDIS_URL: "redis://localhost:${{ job.services.redis.ports['6379'] }}/0"
 
       - name: Upload coverage
         uses: codecov/codecov-action@v4
@@ -415,7 +415,7 @@ jobs:
             -v
         env:
           ENVIRONMENT: testing
-          DATABASE_URL: "postgresql://test:test@localhost:${{ job.services.postgres.ports[5432] }}/test_db"
+          DATABASE_URL: "postgresql://test:test@localhost:${{ job.services.postgres.ports['5432'] }}/test_db"
         continue-on-error: true  # Allow failures during development
 
   # ==========================================================================
@@ -604,7 +604,7 @@ jobs:
             -v
         env:
           ENVIRONMENT: testing
-          DATABASE_URL: "postgresql://test:test@localhost:${{ job.services.postgres.ports[5432] }}/test_db"
+          DATABASE_URL: "postgresql://test:test@localhost:${{ job.services.postgres.ports['5432'] }}/test_db"
 
       - name: Store benchmark results
         uses: actions/upload-artifact@v4
