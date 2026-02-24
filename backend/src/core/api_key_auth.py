@@ -104,10 +104,6 @@ def verify_api_key(raw_key: str, key_hash: str) -> bool:
         hashlib.sha256(raw_key.encode()).hexdigest(), key_hash
     )
 
-# Rate limiter for API key endpoints
-api_key_rate_limiter = RateLimiter(max_attempts=1000, window_minutes=60)
-
-
 class RedisRateLimiter:
     """Redis-based rate limiter for distributed environments"""
     
