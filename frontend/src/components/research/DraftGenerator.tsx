@@ -5,7 +5,7 @@
  * Form for configuring and generating literature review drafts
  */
 
-import React, { useState, useId } from 'react';
+import React, { useState, useId, useRef } from 'react';
 import { Sparkles, Plus, X, Loader2 } from 'lucide-react';
 
 export interface DraftGeneratorProps {
@@ -32,10 +32,14 @@ export const DraftGenerator: React.FC<DraftGeneratorProps> = ({
   const [maxSections, setMaxSections] = useState(5);
   const [includeAbstract, setIncludeAbstract] = useState(true);
 
+  // Refs for managing focus in the radio group
+  const styleButtonsRef = useRef<(HTMLButtonElement | null)[]>([]);
+
   // Generate unique IDs for accessibility
   const themesInputId = useId();
   const maxSectionsId = useId();
   const includeAbstractId = useId();
+  const writingStyleLabelId = useId();
 
   const handleAddTheme = (): void => {
     const trimmed = themeInput.trim();
@@ -53,6 +57,24 @@ export const DraftGenerator: React.FC<DraftGeneratorProps> = ({
     if (e.key === 'Enter') {
       e.preventDefault();
       handleAddTheme();
+    }
+  };
+
+  const handleStyleKeyDown = (e: React.KeyboardEvent, index: number) => {
+    const styles = ['academic', 'technical', 'summary'] as const;
+    let nextIndex = index;
+
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+      e.preventDefault();
+      nextIndex = (index + 1) % styles.length;
+    } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      nextIndex = (index - 1 + styles.length) % styles.length;
+    }
+
+    if (nextIndex !== index) {
+      setStyle(styles[nextIndex]);
+      styleButtonsRef.current[nextIndex]?.focus();
     }
   };
 
@@ -129,17 +151,25 @@ export const DraftGenerator: React.FC<DraftGeneratorProps> = ({
         </div>
 
         {/* Style Selector */}
-        <div role="radiogroup" aria-label="Writing Style">
-          <label className="block text-xs text-gray-500 font-mono uppercase tracking-wide mb-2">
+        <div role="radiogroup" aria-labelledby={writingStyleLabelId}>
+          <label
+            id={writingStyleLabelId}
+            className="block text-xs text-gray-500 font-mono uppercase tracking-wide mb-2"
+          >
             Writing Style
           </label>
           <div className="flex gap-2">
-            {(['academic', 'technical', 'summary'] as const).map((s) => (
+            {(['academic', 'technical', 'summary'] as const).map((s, index) => (
               <button
                 key={s}
+                ref={(el) => {
+                  styleButtonsRef.current[index] = el;
+                }}
                 role="radio"
                 aria-checked={style === s}
+                tabIndex={style === s ? 0 : -1}
                 onClick={() => setStyle(s)}
+                onKeyDown={(e) => handleStyleKeyDown(e, index)}
                 className={`flex-1 px-3 py-2 rounded text-sm font-mono transition-colors ${
                   style === s
                     ? 'bg-[#00ff9f]/20 text-[#00ff9f] border border-[#00ff9f]/50'

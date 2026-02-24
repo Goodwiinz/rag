@@ -74,4 +74,44 @@ describe('DraftGenerator Accessibility', () => {
     fireEvent.click(toggle);
     expect(toggle).toHaveAttribute('aria-checked', 'false');
   });
+
+  it('supports keyboard navigation for Writing Style radio group', () => {
+    render(<DraftGenerator onGenerate={mockOnGenerate} />);
+
+    const academicRadio = screen.getByRole('radio', { name: /Academic/i });
+    const technicalRadio = screen.getByRole('radio', { name: /Technical/i });
+    const summaryRadio = screen.getByRole('radio', { name: /Summary/i });
+
+    // Initial state: Academic selected
+    expect(academicRadio).toHaveAttribute('aria-checked', 'true');
+    expect(academicRadio).toHaveAttribute('tabindex', '0');
+    expect(technicalRadio).toHaveAttribute('tabindex', '-1');
+    expect(summaryRadio).toHaveAttribute('tabindex', '-1');
+
+    // Focus academic radio
+    academicRadio.focus();
+    expect(document.activeElement).toBe(academicRadio);
+
+    // Press ArrowRight -> Technical
+    fireEvent.keyDown(academicRadio, { key: 'ArrowRight', code: 'ArrowRight' });
+    expect(technicalRadio).toHaveAttribute('aria-checked', 'true');
+    expect(technicalRadio).toHaveAttribute('tabindex', '0');
+    expect(academicRadio).toHaveAttribute('tabindex', '-1');
+    expect(document.activeElement).toBe(technicalRadio);
+
+    // Press ArrowRight -> Summary
+    fireEvent.keyDown(technicalRadio, { key: 'ArrowRight', code: 'ArrowRight' });
+    expect(summaryRadio).toHaveAttribute('aria-checked', 'true');
+    expect(document.activeElement).toBe(summaryRadio);
+
+    // Press ArrowRight -> Loop back to Academic
+    fireEvent.keyDown(summaryRadio, { key: 'ArrowRight', code: 'ArrowRight' });
+    expect(academicRadio).toHaveAttribute('aria-checked', 'true');
+    expect(document.activeElement).toBe(academicRadio);
+
+    // Press ArrowLeft -> Summary (wrap around)
+    fireEvent.keyDown(academicRadio, { key: 'ArrowLeft', code: 'ArrowLeft' });
+    expect(summaryRadio).toHaveAttribute('aria-checked', 'true');
+    expect(document.activeElement).toBe(summaryRadio);
+  });
 });
