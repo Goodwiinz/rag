@@ -136,8 +136,8 @@ def _build_connectors() -> dict:
     return {
         "arxiv": ArxivConnector(),
         "semantic_scholar": SemanticScholarConnector(),
-        "crossref": CrossrefConnector(mailto="admin@multimodal-rag.com"),
-        "pubmed": PubMedConnector(),
+        "crossref": CrossrefConnector(mailto=settings.CROSSREF_MAILTO),
+        "pubmed": PubMedConnector(api_key=settings.NCBI_API_KEY),
         "web": SemanticScholarConnector(),  # fallback alias
         "rag_store": RagStoreConnector(search_fn=_search_rag_store),
     }
