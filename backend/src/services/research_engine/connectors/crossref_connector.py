@@ -7,7 +7,8 @@ import httpx
 
 from src.services.research_engine.connectors.base import SourceConnector, SourceDocument
 
-JATS_TAG_RE = re.compile(r"<[^>]+>")
+JATS_TAG_RE = re.compile(r"</?[a-zA-Z][^>]*>")
+MAX_RESULTS_LIMIT = 200
 
 
 class CrossrefConnector(SourceConnector):
@@ -20,6 +21,8 @@ class CrossrefConnector(SourceConnector):
         self, query: str, max_results: int = 50, **kwargs: Any
     ) -> List[SourceDocument]:
         """Search Crossref for works matching the query."""
+        max_results = min(max_results, MAX_RESULTS_LIMIT)
+
         params: Dict[str, Any] = {"query": query, "rows": max_results}
         headers: Dict[str, str] = {}
         if self.mailto:
@@ -32,8 +35,8 @@ class CrossrefConnector(SourceConnector):
                 headers=headers,
             )
             response.raise_for_status()
+            data = response.json()
 
-        data = response.json()
         items = data.get("message", {}).get("items", [])
         documents: List[SourceDocument] = []
 

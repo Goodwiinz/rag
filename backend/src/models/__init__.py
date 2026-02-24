@@ -53,6 +53,8 @@ from .encrypted_user import (
     EncryptionAuditLog,
 )
 from .entity import Entity, EntityType, ExtractionMethod, entity_relationships
+from .extraction_matrix import ExtractionCell, ExtractionMatrix
+from .integrity_score import IntegrityScore
 from .generated_draft import GeneratedDraft
 from .message_attachment import MessageAttachment
 from .organization import Organization, StorageTier
@@ -85,6 +87,17 @@ from .research_project import ResearchProject
 from .research_run import ResearchRun, RunStatus
 from .research_source import ResearchSource
 from .research_step import ExecutionMode, ResearchStep, StepType
+
+# Evaluation models (must import after User/Organization for monkey-patched relationships)
+from .evaluation import (
+    EvaluationComparison,
+    EvaluationDataset,
+    EvaluationJob,
+    EvaluationMetric,
+    EvaluationReport,
+    EvaluationStatus,
+    EvaluationThreshold,
+)
 
 # Thread-centric chat models (Terminal Observatory)
 from .workspace import Workspace, WorkspaceMember, WorkspaceRole
@@ -187,6 +200,11 @@ __all__ = [
     "ExperimentAssignment",
     "ExperimentMetric",
     "ExperimentSegment",
+    # Extraction Matrix models
+    "ExtractionMatrix",
+    "ExtractionCell",
+    # Integrity Score models
+    "IntegrityScore",
     # Research Engine models
     "ResearchProject",
     "ResearchBlueprint",
