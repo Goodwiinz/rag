@@ -45,6 +45,7 @@ export function GlobalJobCenter() {
         <Button
           variant="ghost"
           size="sm"
+          aria-label="Open job center"
           className="relative h-8 px-2 font-mono text-xs text-[#a1a1aa] hover:text-[#fafafa]"
         >
           {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Bell className="w-4 h-4" />}

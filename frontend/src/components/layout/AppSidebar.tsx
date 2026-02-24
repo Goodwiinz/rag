@@ -148,11 +148,12 @@ export function AppSidebar() {
             'group-data-[collapsible=icon]:!h-9 group-data-[collapsible=icon]:!w-9 group-data-[collapsible=icon]:!p-0 group-data-[collapsible=icon]:rounded-md group-data-[collapsible=icon]:border-l-0',
             active
               ? 'bg-[#00FF88]/10 text-[#fafafa] border-l-[#00FF88] group-data-[collapsible=icon]:bg-[#00FF88]/15'
-              : 'text-[#71717a] border-l-transparent hover:text-[#fafafa] hover:bg-[#1A1A1A] hover:border-l-[#00FF88]/50 group-data-[collapsible=icon]:hover:bg-[#1A1A1A]'
+              : 'text-[#a1a1aa] border-l-transparent hover:text-[#fafafa] hover:bg-[#1A1A1A] hover:border-l-[#00FF88]/50 group-data-[collapsible=icon]:hover:bg-[#1A1A1A]'
           )}
         >
           <Link
             href={item.url}
+            data-testid={item.url === '/analytics' ? 'analytics-nav-link' : undefined}
             className="flex items-center gap-3 w-full px-5 group-data-[collapsible=icon]:px-0 group-data-[collapsible=icon]:justify-center"
           >
             <Icon
@@ -160,7 +161,7 @@ export function AppSidebar() {
                 'w-4 h-4 flex-shrink-0 transition-colors duration-200',
                 active
                   ? 'text-[#00ff9f]'
-                  : 'text-[#52525b] group-hover/nav:text-[#00ff9f]'
+                  : 'text-[#a1a1aa] group-hover/nav:text-[#00ff9f]'
               )}
             />
             <span className="truncate group-data-[collapsible=icon]:hidden font-medium">
@@ -195,7 +196,7 @@ export function AppSidebar() {
             <span className="font-mono font-semibold text-[13px] text-[#fafafa] tracking-wider">
               RAG SYSTEM
             </span>
-            <span className="font-mono text-[9px] text-[#52525b]">v2.1.0</span>
+            <span className="font-mono text-[9px] text-[#a1a1aa]">v2.1.0</span>
           </div>
         </Link>
       </SidebarHeader>
@@ -257,7 +258,7 @@ export function AppSidebar() {
             <SectionLabel>SYSTEM STATUS</SectionLabel>
             <div className="space-y-2 mt-2">
               <div className="flex justify-between items-center">
-                <span className="font-mono text-[10px] text-[#71717a]">
+                <span className="font-mono text-[10px] text-[#a1a1aa]">
                   UPTIME
                 </span>
                 <span className="font-mono text-[10px] font-medium text-[#00ff9f]">
@@ -265,7 +266,7 @@ export function AppSidebar() {
                 </span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="font-mono text-[10px] text-[#71717a]">
+                <span className="font-mono text-[10px] text-[#a1a1aa]">
                   CPU
                 </span>
                 <span className="font-mono text-[10px] font-medium text-[#fafafa]">
@@ -273,7 +274,7 @@ export function AppSidebar() {
                 </span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="font-mono text-[10px] text-[#71717a]">
+                <span className="font-mono text-[10px] text-[#a1a1aa]">
                   MEMORY
                 </span>
                 <span className="font-mono text-[10px] font-medium text-[#ffb700]">
@@ -281,7 +282,7 @@ export function AppSidebar() {
                 </span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="font-mono text-[10px] text-[#71717a]">
+                <span className="font-mono text-[10px] text-[#a1a1aa]">
                   QUERIES
                 </span>
                 <span className="font-mono text-[10px] font-medium text-[#00d4ff]">
@@ -321,6 +322,7 @@ export function AppSidebar() {
                 <DropdownMenuTrigger asChild>
                   <SidebarMenuButton
                     size="lg"
+                    data-testid="user-menu"
                     className="h-auto px-5 py-3 hover:bg-[#0A0A0A] data-[state=open]:bg-[#0A0A0A] rounded-none group-data-[collapsible=icon]:!w-9 group-data-[collapsible=icon]:!h-9 group-data-[collapsible=icon]:!p-0 group-data-[collapsible=icon]:rounded-md group-data-[collapsible=icon]:mx-auto"
                   >
                     {/* Avatar */}
@@ -334,7 +336,7 @@ export function AppSidebar() {
                       <span className="font-mono text-[11px] font-medium text-[#fafafa] truncate">
                         {displayName}
                       </span>
-                      <span className="font-mono text-[9px] text-[#71717a] truncate">
+                      <span className="font-mono text-[9px] text-[#a1a1aa] truncate">
                         Administrator
                       </span>
                     </div>
@@ -347,12 +349,12 @@ export function AppSidebar() {
                   align="start"
                   sideOffset={4}
                 >
-                  <DropdownMenuLabel className="text-[#71717a] text-xs font-normal">
+                  <DropdownMenuLabel className="text-[#a1a1aa] text-xs font-normal">
                     <div className="flex flex-col gap-1">
                       <span className="text-[#fafafa] font-medium">
                         {displayName}
                       </span>
-                      <span className="text-[#52525b] text-[10px]">
+                      <span className="text-[#a1a1aa] text-[10px]">
                         {user?.email || 'Not signed in'}
                       </span>
                     </div>
@@ -397,6 +399,7 @@ export function AppSidebar() {
                   <DropdownMenuSeparator className="bg-[#1A1A1A]" />
                   <DropdownMenuItem
                     onClick={handleLogout}
+                    data-testid="logout-button"
                     className="text-red-400 hover:text-red-300 hover:bg-red-500/10 focus:bg-red-500/10 cursor-pointer"
                   >
                     <LogOut className="w-4 h-4 mr-2" />
