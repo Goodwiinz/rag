@@ -193,7 +193,8 @@ const Sidebar = React.forwardRef<
 
     if (collapsible === 'none') {
       return (
-        <div
+        <aside
+          aria-label="Sidebar"
           className={cn(
             'flex h-full w-[--sidebar-width] flex-col bg-[#0a0a0f] text-[var(--terminal-text)]',
             className
@@ -202,7 +203,7 @@ const Sidebar = React.forwardRef<
           {...props}
         >
           {children}
-        </div>
+        </aside>
       );
     }
 
@@ -231,8 +232,10 @@ const Sidebar = React.forwardRef<
     }
 
     return (
-      <div
+      <aside
         ref={ref}
+        aria-label="Sidebar"
+        role="complementary"
         className="group peer hidden text-[var(--terminal-text)] md:block"
         data-state={state}
         data-collapsible={state === 'collapsed' ? collapsible : ''}
@@ -271,7 +274,7 @@ const Sidebar = React.forwardRef<
             {children}
           </div>
         </div>
-      </div>
+      </aside>
     );
   }
 );
