@@ -137,7 +137,9 @@ class TestRateLimiting(SecurityTestCase):
     def test_rate_limit_bypass_attempts(self, unauthenticated_security_test_client, search_service_mocks):
         """Test attempts to bypass rate limiting"""
 
-        # Test with different authentication methods (unauthenticated client)
+        # Test with different authentication methods.
+        # Use the unauthenticated client so the real ``get_current_user``
+        # dependency runs and rejects invalid tokens with 401.
         bypass_attempts = [
             # Different User-Agent strings
             {'Authorization': 'Bearer token1', 'User-Agent': 'Mozilla/5.0'},
@@ -164,7 +166,8 @@ class TestRateLimiting(SecurityTestCase):
 
             # Should not bypass authentication
             if 'Bearer token1' in headers.get('Authorization', ''):
-                assert response.status_code in [401, 403], \
+                # If using invalid token, should get 401
+                assert response.status_code == 401, \
                     "Invalid token should not bypass authentication regardless of headers"
 
     def test_concurrent_request_rate_limiting(self, security_test_client, authentication_headers, search_service_mocks):

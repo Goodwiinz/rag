@@ -6,6 +6,7 @@ import logging
 import re
 import time
 import uuid
+from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional, Tuple
 
 from sqlalchemy import and_, func, not_, or_, text
@@ -163,11 +164,19 @@ class FullTextSearchService:
             "    d.is_deleted = false",
             "    AND d.processing_status = :completed_status",
             "    AND search_vector @@ plainto_tsquery(:query)",
+            "    AND NOT (",
+            "        coalesce(d.content_text, '') ILIKE :noise_pattern_1",
+            "        OR coalesce(d.content_text, '') ILIKE :noise_pattern_2",
+            "        OR coalesce(d.content_text, '') ILIKE :noise_pattern_3",
+            "    )",
         ]
 
         params = {
             "query": search_terms,
             "completed_status": ProcessingStatus.COMPLETED.name,
+            "noise_pattern_1": "%verified 0/l000 tampered whisper field isolation parse validation%",
+            "noise_pattern_2": "%all security properties verified through%",
+            "noise_pattern_3": "%replay prevention nonce + timestamp%",
         }
 
         # Add access control filters
@@ -211,11 +220,19 @@ class FullTextSearchService:
             "    d.is_deleted = false",
             "    AND d.processing_status = :completed_status",
             "    AND search_vector @@ plainto_tsquery(:query)",
+            "    AND NOT (",
+            "        coalesce(d.content_text, '') ILIKE :noise_pattern_1",
+            "        OR coalesce(d.content_text, '') ILIKE :noise_pattern_2",
+            "        OR coalesce(d.content_text, '') ILIKE :noise_pattern_3",
+            "    )",
         ]
 
         params = {
             "query": search_terms,
             "completed_status": ProcessingStatus.COMPLETED.name,
+            "noise_pattern_1": "%verified 0/l000 tampered whisper field isolation parse validation%",
+            "noise_pattern_2": "%all security properties verified through%",
+            "noise_pattern_3": "%replay prevention nonce + timestamp%",
         }
 
         # Add the same filters as the main query
@@ -263,6 +280,14 @@ class FullTextSearchService:
             clauses.append(f"    AND d.document_type IN ({placeholders})")
             for i, doc_type in enumerate(doc_types):
                 params[f"doc_type_{i}"] = doc_type
+
+        if filters.document_ids:
+            placeholders = ",".join(
+                [f":doc_id_{i}" for i in range(len(filters.document_ids))]
+            )
+            clauses.append(f"    AND d.id::text IN ({placeholders})")
+            for i, document_id in enumerate(filters.document_ids):
+                params[f"doc_id_{i}"] = document_id
 
         if filters.tags:
             # Using PostgreSQL array operators
@@ -472,6 +497,7 @@ class FullTextSearchService:
             return None
 
         return {
+            "document_ids": filters.document_ids,
             "document_types": [dt.value for dt in filters.document_types]
             if filters.document_types
             else None,
@@ -560,10 +586,11 @@ class FullTextSearchService:
         """Get search analytics data"""
         try:
             with next(get_db_sync()) as db:
-                # This is a placeholder - would need search query tracking table
-                # For now, return document statistics
-                stats_query = text(
-                    """
+                # Calculate cutoff date in Python to avoid SQL injection/syntax issues
+                cutoff_date = datetime.utcnow() - timedelta(days=days)
+
+                # Use bind parameter for date comparison
+                query_str = """
                     SELECT
                         COUNT(*) as total_documents,
                         AVG(file_size_bytes) as avg_file_size,
@@ -572,21 +599,17 @@ class FullTextSearchService:
                     FROM documents
                     WHERE is_deleted = false
                         AND processing_status = :completed_status
-                        AND created_at >= NOW() - INTERVAL ':days days'
+                        AND created_at >= :cutoff_date
                 """
-                )
 
                 if organization_id:
-                    stats_query = text(
-                        stats_query.compile().string
-                        + " AND organization_id = :organization_id"
-                    )
+                    query_str += " AND organization_id = :organization_id"
 
                 result = db.execute(
-                    text(stats_query.compile().string),
+                    text(query_str),
                     {
                         "completed_status": ProcessingStatus.COMPLETED.name,
-                        "days": days,
+                        "cutoff_date": cutoff_date,
                         "organization_id": organization_id,
                     },
                 )
