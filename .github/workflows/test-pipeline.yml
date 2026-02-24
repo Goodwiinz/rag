@@ -489,17 +489,17 @@ jobs:
 
           # Wait for services to be ready
           echo "Waiting for application services..."
-          for i in {1..30}; do
+          for attempt in {1..30}; do
             if curl -sf http://localhost:8000/health > /dev/null 2>&1; then
-              echo "Backend is healthy!"
+              echo "Backend is healthy on attempt $attempt"
               break
             fi
             sleep 3
           done
 
-          for i in {1..30}; do
+          for attempt in {1..30}; do
             if curl -sf http://localhost:3000 > /dev/null 2>&1; then
-              echo "Frontend is healthy!"
+              echo "Frontend is healthy on attempt $attempt"
               break
             fi
             sleep 3
