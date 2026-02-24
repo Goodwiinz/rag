@@ -423,6 +423,7 @@ export function AnalyticsChart({
                 variant={chartType === 'line' ? 'default' : 'ghost'}
                 size="sm"
                 onClick={() => setChartType('line')}
+                aria-label={`Show ${title} as line chart`}
                 className="h-7 w-7 p-0"
               >
                 <LineChartIcon className="h-3 w-3" />
@@ -431,6 +432,7 @@ export function AnalyticsChart({
                 variant={chartType === 'bar' ? 'default' : 'ghost'}
                 size="sm"
                 onClick={() => setChartType('bar')}
+                aria-label={`Show ${title} as bar chart`}
                 className="h-7 w-7 p-0"
               >
                 <BarChart3 className="h-3 w-3" />
@@ -439,6 +441,7 @@ export function AnalyticsChart({
                 variant={chartType === 'area' ? 'default' : 'ghost'}
                 size="sm"
                 onClick={() => setChartType('area')}
+                aria-label={`Show ${title} as area chart`}
                 className="h-7 w-7 p-0"
               >
                 <Activity className="h-3 w-3" />
@@ -448,6 +451,7 @@ export function AnalyticsChart({
                   variant={chartType === 'pie' ? 'default' : 'ghost'}
                   size="sm"
                   onClick={() => setChartType('pie')}
+                  aria-label={`Show ${title} as pie chart`}
                   className="h-7 w-7 p-0"
                 >
                   <PieChartIcon className="h-3 w-3" />
@@ -459,7 +463,10 @@ export function AnalyticsChart({
 
             {/* Time Range Selector */}
             <Select value={timeRange} onValueChange={setTimeRange}>
-              <SelectTrigger className="h-7 w-[80px]">
+              <SelectTrigger
+                className="h-7 w-[80px]"
+                aria-label={`${title} time range`}
+              >
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -479,6 +486,7 @@ export function AnalyticsChart({
                     variant="ghost"
                     size="sm"
                     onClick={actions.onExport}
+                    aria-label={`Export ${title} chart data`}
                     className="h-7 w-7 p-0"
                   >
                     <Download className="h-3 w-3" />
@@ -489,6 +497,7 @@ export function AnalyticsChart({
                     variant="ghost"
                     size="sm"
                     onClick={actions.onSettings}
+                    aria-label={`${title} chart settings`}
                     className="h-7 w-7 p-0"
                   >
                     <Settings className="h-3 w-3" />
