@@ -18,7 +18,10 @@ export default function AnalyticsPage() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-[#0a0a0f] p-6">
+    <div
+      data-testid="analytics-dashboard"
+      className="min-h-screen bg-[#0a0a0f] p-6 text-[#fafafa]"
+    >
       <AnalyticsDashboard />
     </div>
   );

@@ -2,7 +2,15 @@
 Search API endpoints for hybrid search functionality
 """
 
-from fastapi import APIRouter, HTTPException, Depends, Query, BackgroundTasks, Request
+from fastapi import (
+    APIRouter,
+    HTTPException,
+    Depends,
+    Query,
+    BackgroundTasks,
+    Request,
+    status,
+)
 from fastapi.responses import JSONResponse
 from typing import List, Dict, Any, Optional
 import logging
@@ -17,6 +25,7 @@ from src.core.api_key_auth import get_api_key_data, APIKeyData, APIKeyUsageLog
 from src.services.search.fulltext_search_service import fulltext_search_service
 from src.services.search.hybrid_search_service import hybrid_search_service
 from src.models.search_schemas import (
+    DeterministicTrace,
     SearchAnalytics,
     SearchIndex,
     SearchQuery,
@@ -33,6 +42,123 @@ from src.services.search.hybrid_search_service import hybrid_search_service
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/search", tags=["search"])
+
+
+def _ensure_deterministic_response_fields(result: Any) -> SearchResponse:
+    """Ensure deterministic response fields are present for hybrid endpoints."""
+    response = (
+        result
+        if isinstance(result, SearchResponse)
+        else SearchResponse.model_validate(result)
+    )
+
+    if response.answer_type is None:
+        response.answer_type = "extractive"
+    if response.confidence is None:
+        response.confidence = 0.0
+    trace_id = None
+    if response.trace is not None:
+        trace_id = response.trace.decision_trace_id
+    elif response.decision_trace_id is not None:
+        trace_id = response.decision_trace_id
+    else:
+        trace_id = f"trace-{response.search_id}"
+
+    response.decision_trace_id = trace_id
+    if response.trace is None:
+        response.trace = DeterministicTrace(decision_trace_id=trace_id)
+
+    if response.coverage is None or (
+        response.coverage == 0.0 and len(response.results) > 0
+    ):
+        response.coverage = _calculate_source_coverage(response)
+    response.deterministic_status, response.deterministic_message = (
+        _apply_deterministic_gate(response)
+    )
+    if response.deterministic_status in {
+        "INSUFFICIENT_EVIDENCE",
+        "CONFLICTING_EVIDENCE",
+        "NO_MATCH",
+    }:
+        response.suggestions = _build_refinement_suggestions(response.query)
+
+    return response
+
+
+def _calculate_source_coverage(response: SearchResponse) -> float:
+    if not response.results:
+        return 0.0
+
+    multi_source = sum(
+        1
+        for result in response.results
+        if (result.metadata or {}).get("source_count", 1) >= 2
+    )
+    return round(multi_source / len(response.results), 4)
+
+
+def _has_conflicting_signals(response: SearchResponse) -> bool:
+    positive_tokens = {
+        "effective",
+        "improves",
+        "supported",
+        "works",
+        "confirmed",
+        "benefit",
+    }
+    negative_tokens = {
+        "ineffective",
+        "does not",
+        "not effective",
+        "rejected",
+        "fails",
+        "harmful",
+    }
+
+    top_previews = [
+        (result.content_preview or "").lower() for result in response.results[:5]
+    ]
+    has_positive = any(
+        token in preview for preview in top_previews for token in positive_tokens
+    )
+    has_negative = any(
+        token in preview for preview in top_previews for token in negative_tokens
+    )
+    return has_positive and has_negative
+
+
+def _apply_deterministic_gate(response: SearchResponse) -> tuple[str, str]:
+    if not response.results:
+        return "NO_MATCH", "No matching evidence found for this query."
+
+    if (response.confidence or 0.0) < 0.2:
+        return (
+            "NO_MATCH",
+            "Top retrieved evidence is below confidence threshold for deterministic answering.",
+        )
+
+    if (response.coverage or 0.0) < 0.5:
+        return (
+            "INSUFFICIENT_EVIDENCE",
+            "Insufficient cross-source evidence to produce a deterministic answer.",
+        )
+
+    if _has_conflicting_signals(response):
+        return (
+            "CONFLICTING_EVIDENCE",
+            "Top evidence contains conflicting conclusions.",
+        )
+
+    return "SUPPORTED", "Evidence coverage is sufficient and consistent."
+
+
+def _build_refinement_suggestions(query: str) -> List[str]:
+    query = query.strip()
+    return [
+        f"Narrow the scope of '{query}' to a specific topic or document set.",
+        "Add concrete terms (framework, date range, dataset, or method).",
+        "Ask for a comparison between two specific concepts to improve precision.",
+    ]
 
 
 @router.post("/", response_model=SearchResponse)
@@ -73,7 +199,10 @@ async def search_documents(
                 organization_id=str(current_user.organization_id),
                 db=db,
             )
-        elif search_request.search_type == SearchType.KNOWLEDGE_GRAPH:
+        elif search_request.search_type in (
+            SearchType.KNOWLEDGE_GRAPH,
+            SearchType.GRAPH,
+        ):
             # Use knowledge graph search service
             from src.services.knowledge_graph.knowledge_graph_service import (
                 knowledge_graph_service,
@@ -133,6 +262,7 @@ async def hybrid_search(
             user_id=str(current_user.id),
             organization_id=str(current_user.organization_id),
         )
+        result = _ensure_deterministic_response_fields(result)
 
         # Log search query in background
         background_tasks.add_task(
@@ -350,7 +480,9 @@ async def get_search_indexes(
 
 @router.post("/documents/{document_id}/reindex")
 async def reindex_document(
-    document_id: str, current_user: User = Depends(get_current_user), db=Depends(get_db_sync)
+    document_id: str,
+    current_user: User = Depends(get_current_user),
+    db=Depends(get_db_sync),
 ):
     """
     Rebuild search vector for a specific document
@@ -624,17 +756,17 @@ async def authenticated_hybrid_search(
     background_tasks: BackgroundTasks,
     request: Request,
     api_key_data: tuple = Depends(get_api_key_data),
-    db = Depends(get_db)
+    db=Depends(get_db),
 ):
     """
     API Key authenticated hybrid search endpoint.
     Requires valid API key for secure external access.
-    
+
     This endpoint replaces the previous unauthenticated '/public/hybrid' endpoint
     to prevent unauthorized access to search functionality.
     """
     api_key, endpoint = api_key_data
-    
+
     try:
         # Force hybrid search type
         search_request.search_type = SearchType.HYBRID
@@ -643,14 +775,14 @@ async def authenticated_hybrid_search(
         if not api_key.organization_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="API key is not scoped to an organization"
+                detail="API key is not scoped to an organization",
             )
 
         # Perform hybrid search with API key context
         result = hybrid_search_service.search(
             search_request=search_request,
             user_id=f"api_key:{api_key.id}",
-            organization_id=api_key.organization_id
+            organization_id=api_key.organization_id,
         )
 
         # Enhanced logging for API key usage
@@ -665,11 +797,12 @@ async def authenticated_hybrid_search(
             user_agent=request.headers.get("user-agent", "unknown"),
             background_tasks=background_tasks,
             endpoint=request.url.path,
-            method=request.method
+            method=request.method,
         )
 
         # Log API access for security audit
         from src.core.api_key_auth import log_api_access
+
         log_api_access(
             api_key_data,
             request,
@@ -678,54 +811,57 @@ async def authenticated_hybrid_search(
                 "query_length": len(search_request.query),
                 "search_type": search_request.search_type.value,
                 "results_count": len(result.results),
-                "search_time_ms": result.search_time_ms
-            }
+                "search_time_ms": result.search_time_ms,
+            },
         )
 
-        return result
+        return _ensure_deterministic_response_fields(result)
+
+    except HTTPException:
+        raise
 
     except Exception as e:
         logger.error(f"Error performing authenticated hybrid search: {e}")
-        
+
         # Log failed search attempt
         from src.core.api_key_auth import log_api_access
+
         log_api_access(
             api_key_data,
             request,
             "search_failed",
-            {"error": str(e), "query_length": len(search_request.query)}
+            {"error": str(e), "query_length": len(search_request.query)},
         )
-        
+
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/authenticated/health")
 async def authenticated_search_health_check(
-    request: Request,
-    api_key_data: tuple = Depends(get_api_key_data)
+    request: Request, api_key_data: tuple = Depends(get_api_key_data)
 ):
     """
     API Key authenticated health check for search services.
     Requires valid API key to prevent information disclosure.
     """
     api_key, endpoint = api_key_data
-    
+
     try:
         health_status = {
-            "status": "healthy", 
+            "status": "healthy",
             "services": {},
             "timestamp": datetime.utcnow().isoformat(),
             "api_key": {
                 "name": api_key.name,
                 "prefix": api_key.key_prefix,
-                "usage_count": api_key.usage_count
-            }
+                "usage_count": api_key.usage_count,
+            },
         }
 
         # Test basic API functionality
         health_status["services"]["api"] = {
             "status": "healthy",
-            "message": "Search API is accessible with valid authentication"
+            "message": "Search API is accessible with valid authentication",
         }
 
         # Test hybrid search service availability (without performing actual search)
@@ -742,27 +878,24 @@ async def authenticated_search_health_check(
 
         # Log API access
         from src.core.api_key_auth import log_api_access
+
         log_api_access(
             api_key_data,
-            request, 
+            request,
             "health_check",
-            {"services_checked": len(health_status["services"])}
+            {"services_checked": len(health_status["services"])},
         )
 
         return health_status
 
     except Exception as e:
         logger.error(f"Authenticated search health check failed: {e}")
-        
+
         # Log failed health check
         from src.core.api_key_auth import log_api_access
-        log_api_access(
-            api_key_data,
-            request,
-            "health_check_failed", 
-            {"error": str(e)}
-        )
-        
+
+        log_api_access(api_key_data, request, "health_check_failed", {"error": str(e)})
+
         return JSONResponse(
             status_code=503,
             content={
@@ -793,6 +926,7 @@ async def log_search_query(
     except Exception as e:
         logger.error(f"Error logging search query: {e}")
 
+
 async def persist_api_key_usage_log(
     api_key_id: str,
     endpoint: str,
@@ -802,14 +936,14 @@ async def persist_api_key_usage_log(
     response_time_ms: float,
     search_query: str,
     results_count: int,
-    response_status: int = 200
+    response_status: int = 200,
 ):
     """
     Persist API key usage to database for audit trail (background task)
     """
     try:
         from src.core.database import SessionLocal
-        
+
         db = SessionLocal()
         try:
             usage_log = APIKeyUsageLog(
@@ -819,29 +953,33 @@ async def persist_api_key_usage_log(
                 client_ip=client_ip,
                 user_agent=user_agent[:500] if user_agent else None,  # Limit length
                 response_time_ms=int(response_time_ms),
-                search_query=search_query[:1000] if search_query else None,  # Limit length
+                search_query=search_query[:1000]
+                if search_query
+                else None,  # Limit length
                 results_count=results_count,
-                response_status=response_status
+                response_status=response_status,
             )
-            
+
             db.add(usage_log)
             db.commit()
-            
-            logger.debug(f"API usage logged to database: key_id={api_key_id}, endpoint={endpoint}")
-            
+
+            logger.debug(
+                f"API usage logged to database: key_id={api_key_id}, endpoint={endpoint}"
+            )
+
         except Exception as e:
             db.rollback()
             logger.error(f"Failed to persist API usage log to database: {e}")
         finally:
             db.close()
-            
+
     except Exception as e:
         logger.error(f"Error in persist_api_key_usage_log background task: {e}")
 
 
 async def log_authenticated_search_query(
     api_key_id: str,
-    api_key_name: str, 
+    api_key_name: str,
     query: str,
     result_count: int,
     search_time_ms: float,
@@ -850,18 +988,20 @@ async def log_authenticated_search_query(
     user_agent: str,
     background_tasks: BackgroundTasks,
     endpoint: str = "/search/public",
-    method: str = "POST"
+    method: str = "POST",
 ):
     """
     Log authenticated search query with enhanced security context
     """
     try:
         # Enhanced logging for API key searches with security context
-        logger.info(f"API Key Search: key_id={api_key_id}, key_name='{api_key_name}', "
-                   f"query_hash='{hash(query) % 10000}', query_length={len(query)}, "
-                   f"results={result_count}, time={search_time_ms:.2f}ms, "
-                   f"type={search_type}, ip={client_ip}, ua='{user_agent[:100]}'")
-        
+        logger.info(
+            f"API Key Search: key_id={api_key_id}, key_name='{api_key_name}', "
+            f"query_hash='{hash(query) % 10000}', query_length={len(query)}, "
+            f"results={result_count}, time={search_time_ms:.2f}ms, "
+            f"type={search_type}, ip={client_ip}, ua='{user_agent[:100]}'"
+        )
+
         # Store in api_key_usage_log table for audit trail (async background task)
         background_tasks.add_task(
             persist_api_key_usage_log,
@@ -873,9 +1013,9 @@ async def log_authenticated_search_query(
             response_time_ms=search_time_ms,
             search_query=query,
             results_count=result_count,
-            response_status=200
+            response_status=200,
         )
-        
+
     except Exception as e:
         logger.error(f"Error logging authenticated search query: {e}")
 

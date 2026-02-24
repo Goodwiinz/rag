@@ -16,8 +16,15 @@ import redis.asyncio as redis
 from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Query, status
 from fastapi.middleware.cors import CORSMiddleware
 from neo4j import GraphDatabase
-from qdrant_client import QdrantClient
-from qdrant_client.models import FieldCondition, Filter, MatchValue, Vector
+try:
+    from qdrant_client import QdrantClient
+    from qdrant_client.models import FieldCondition, Filter, MatchValue, Vector
+
+    _QDRANT_IMPORT_ERROR: Optional[Exception] = None
+except Exception as exc:  # pragma: no cover - environment dependent
+    QdrantClient = None  # type: ignore[assignment]
+    FieldCondition = Filter = MatchValue = Vector = None  # type: ignore[assignment]
+    _QDRANT_IMPORT_ERROR = exc
 from sqlalchemy import and_, desc, func, or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -102,7 +109,11 @@ metrics = MetricsCollector(SEARCH_SERVICE_CONFIG["service_name"])
 cache = AsyncCache(settings.REDIS_URL, SEARCH_SERVICE_CONFIG["cache_ttl_seconds"])
 
 # Initialize external service clients
-qdrant_client = QdrantClient(url=settings.QDRANT_URL, api_key=settings.QDRANT_API_KEY)
+qdrant_client = (
+    QdrantClient(url=settings.QDRANT_URL, api_key=settings.QDRANT_API_KEY)
+    if QdrantClient is not None
+    else None
+)
 neo4j_driver = GraphDatabase.driver(
     settings.NEO4J_URI, auth=(settings.NEO4J_USER, settings.NEO4J_PASSWORD)
 )
@@ -201,6 +212,22 @@ class HybridSearchEngine:
         start_time = time.time()
 
         try:
+            if qdrant_client is None:
+                await event_logger.log_event(
+                    event_type="warning",
+                    event_data={
+                        "warning_type": "qdrant_client_unavailable",
+                        "operation": "vector_search",
+                        "reason": str(_QDRANT_IMPORT_ERROR),
+                    },
+                )
+                return SearchComponentResult(
+                    results=[],
+                    component_name="vector_search",
+                    search_time_ms=(time.time() - start_time) * 1000,
+                    total_results=0,
+                )
+
             # Build Qdrant filter
             qdrant_filter = None
             if filters or organization_id:

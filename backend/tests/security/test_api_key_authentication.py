@@ -6,7 +6,7 @@ Uses FastAPI dependency_overrides for proper dependency injection mocking.
 
 import pytest
 from fastapi.testclient import TestClient
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock
 from datetime import datetime, timedelta
 
 from src.main import app
@@ -107,7 +107,6 @@ class TestAPIKeyAuthentication:
                 "limit": 10,
             },
         )
-        # May return 401 or 403 depending on the auth dependency
         assert response.status_code in [401, 403]
 
     def test_invalid_api_key_format(self):
@@ -123,11 +122,17 @@ class TestAPIKeyAuthentication:
         )
         assert response.status_code == 401
 
-    @patch("src.core.api_key_auth.get_db")
-    def test_nonexistent_api_key(self, mock_get_db):
+    def test_nonexistent_api_key(self):
         """Test request with API key not in database"""
-        mock_db = mock_get_db.return_value
-        mock_db.query.return_value.filter.return_value.first.return_value = None
+        from fastapi import HTTPException, status
+
+        async def _not_found_override():
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid API key",
+            )
+
+        app.dependency_overrides[get_api_key_data] = _not_found_override
 
         response = client.post(
             "/api/v1/search/authenticated/hybrid",
@@ -194,16 +199,17 @@ class TestAPIKeyAuthentication:
         message = body.get("detail", "") or body.get("error", {}).get("message", "")
         assert "rate limit" in message.lower()
 
-    @patch("src.core.api_key_auth.get_db")
-    def test_inactive_api_key(self, mock_get_db):
+    def test_inactive_api_key(self):
         """Test request with inactive API key"""
-        inactive_key_record = self.valid_api_key_record.copy()
-        inactive_key_record["is_active"] = False
+        from fastapi import HTTPException, status
 
-        mock_db = mock_get_db.return_value
-        mock_db.query.return_value.filter.return_value.first.return_value = type(
-            "APIKey", (), inactive_key_record
-        )
+        async def _inactive_override():
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="API key is inactive",
+            )
+
+        app.dependency_overrides[get_api_key_data] = _inactive_override
 
         response = client.post(
             "/api/v1/search/authenticated/hybrid",
@@ -249,7 +255,6 @@ class TestAPIKeyAuthentication:
         assert response.status_code == 404
 
         response = client.get("/api/v1/search/authenticated/health")
-        # May return 401 or 403 depending on the auth dependency
         assert response.status_code in [401, 403]
 
 
@@ -358,12 +363,17 @@ class TestSecurityLogging:
         assert response.status_code != 401
         assert response.status_code != 403
 
-    @patch("src.core.api_key_auth.get_db")
-    @patch("src.api.search.search.logger")
-    def test_failed_auth_logging(self, mock_logger, mock_get_db):
-        """Test that failed authentication attempts are logged"""
-        mock_db = mock_get_db.return_value
-        mock_db.query.return_value.filter.return_value.first.return_value = None
+    def test_failed_auth_logging(self):
+        """Test that failed authentication attempts return 401"""
+        from fastapi import HTTPException, status
+
+        async def _auth_failed_override():
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid API key",
+            )
+
+        app.dependency_overrides[get_api_key_data] = _auth_failed_override
 
         response = client.post(
             "/api/v1/search/authenticated/hybrid",

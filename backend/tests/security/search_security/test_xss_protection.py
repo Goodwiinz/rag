@@ -328,34 +328,41 @@ class TestXSSProtection(SecurityTestCase):
 
     def test_content_type_security(self, security_test_client, authentication_headers, search_service_mocks):
         """Test Content-Type header security for XSS prevention"""
-        
+
         response = security_test_client.make_request(
             'POST',
             '/search/',
             headers=authentication_headers['valid_jwt'],
             json={"query": "<script>alert('XSS')</script>", "search_type": "fulltext"}
         )
-        
+
         # Should have proper Content-Type header
         content_type = response.headers.get('content-type', '')
-        
+
         # Should be JSON with charset specified
         assert 'application/json' in content_type.lower(), "Should return JSON content type"
-        
+
         # Should not be text/html which could execute scripts
         assert 'text/html' not in content_type.lower(), "Should not return HTML content type"
-        
-        # Check for security headers (advisory - FastAPI doesn't add these
-        # by default; they are typically added by a reverse proxy or middleware)
-        security_headers = [
+
+        # Check for security headers (if present, validate them).
+        # These headers are recommended but may not be configured in every
+        # branch.  We log a warning instead of failing hard.
+        import warnings
+
+        recommended_headers = [
             'x-content-type-options',  # nosniff
             'x-frame-options',         # deny/sameorigin
         ]
 
-        for header in security_headers:
-            if header.lower() not in [h.lower() for h in response.headers.keys()]:
-                import warnings
-                warnings.warn(f"Security header not present: {header}")
+        response_header_names = [h.lower() for h in response.headers.keys()]
+        for header in recommended_headers:
+            if header.lower() not in response_header_names:
+                warnings.warn(
+                    f"Recommended security header missing: {header}",
+                    UserWarning,
+                    stacklevel=1,
+                )
 
     def test_json_response_encoding(self, security_test_client, authentication_headers, search_service_mocks):
         """Test proper JSON encoding prevents XSS"""

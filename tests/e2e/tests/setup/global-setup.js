@@ -155,7 +155,7 @@ async function setupTestAuth() {
     await page.click('[data-testid="login-button"]');
 
     // Wait for successful login
-    await page.waitForURL('/dashboard', { timeout: 10000 });
+    await page.waitForURL('**/dashboard', { timeout: 10000 });
 
     // Get auth token
     const cookies = await context.cookies();
@@ -211,7 +211,7 @@ async function setupUserAuth(userType) {
     await page.fill('[data-testid="password-input"]', config.password);
     await page.click('[data-testid="login-button"]');
 
-    await page.waitForURL('/dashboard', { timeout: 10000 });
+    await page.waitForURL('**/dashboard', { timeout: 10000 });
 
     await context.storageState({
       path: path.join(__dirname, `../auth-states/${config.stateFile}`)

@@ -84,9 +84,15 @@ function MetricCard({
 
   const TrendIcon = changeType === 'increase' ? TrendingUp : changeType === 'decrease' ? TrendingDown : Minus;
   const trendColors = {
-    increase: 'text-emerald-500 bg-emerald-500/10',
-    decrease: 'text-rose-500 bg-rose-500/10',
-    neutral: 'text-muted-foreground bg-muted'
+    increase: 'border',
+    decrease: 'border',
+    neutral: 'border'
+  };
+
+  const trendStyles = {
+    increase: { color: '#FFFFFF', backgroundColor: '#047857', borderColor: '#10B981' },
+    decrease: { color: '#FFFFFF', backgroundColor: '#B91C1C', borderColor: '#F87171' },
+    neutral: { color: '#FFFFFF', backgroundColor: '#334155', borderColor: '#64748B' }
   };
 
   return (
@@ -103,7 +109,10 @@ function MetricCard({
       <div className="absolute inset-0 bg-gradient-to-br from-amber-500/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
 
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium text-muted-foreground">
+        <CardTitle
+          className="text-sm font-medium"
+          style={{ color: '#E4E4E7' }}
+        >
           {title}
         </CardTitle>
         <div className={cn(
@@ -133,18 +142,19 @@ function MetricCard({
                   'font-medium',
                   trendColors[changeType]
                 )}
+                style={trendStyles[changeType]}
               >
                 <TrendIcon className="h-3 w-3 mr-1" />
                 {change !== undefined ? `${change > 0 ? '+' : ''}${change}%` : ''}
               </Badge>
-              <span className="text-xs text-muted-foreground">
+              <span className="text-xs" style={{ color: '#E4E4E7' }}>
                 vs last period
               </span>
             </div>
           )}
 
           {description && (
-            <p className="text-xs text-muted-foreground mt-1">
+            <p className="text-xs mt-1" style={{ color: '#E4E4E7' }}>
               {description}
             </p>
           )}
@@ -284,7 +294,7 @@ export function AnalyticsOverview({
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold tracking-tight">Analytics Overview</h2>
-          <p className="text-muted-foreground">
+          <p className="text-[#c0c0c8]">
             Monitor your RAG system performance and user engagement
           </p>
         </div>
@@ -333,7 +343,7 @@ export function AnalyticsOverview({
       </div>
 
       {/* Last Updated */}
-      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+      <div className="flex items-center gap-2 text-xs text-[#c0c0c8]">
         <Clock className="h-3 w-3" />
         Last updated: {lastUpdated.toLocaleTimeString()}
       </div>
@@ -367,7 +377,7 @@ export function AnalyticsOverview({
               </div>
               <div>
                 <p className="text-sm font-medium">Strong User Growth</p>
-                <p className="text-xs text-muted-foreground">
+                <p className="text-xs text-[#c0c0c8]">
                   Active users increased by 8.2% this period
                 </p>
               </div>
@@ -379,7 +389,7 @@ export function AnalyticsOverview({
               </div>
               <div>
                 <p className="text-sm font-medium">High Engagement</p>
-                <p className="text-xs text-muted-foreground">
+                <p className="text-xs text-[#c0c0c8]">
                   Document uploads up 18.3% showing strong adoption
                 </p>
               </div>
@@ -391,7 +401,7 @@ export function AnalyticsOverview({
               </div>
               <div>
                 <p className="text-sm font-medium">System Health</p>
-                <p className="text-xs text-muted-foreground">
+                <p className="text-xs text-[#c0c0c8]">
                   Error rate decreased by 0.3% - stable performance
                 </p>
               </div>

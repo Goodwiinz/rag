@@ -115,7 +115,9 @@ class BlueprintCreate(BaseModel):
 
     @field_validator("steps")
     @classmethod
-    def steps_not_empty(cls, v: List[BlueprintStepDefinition]) -> List[BlueprintStepDefinition]:
+    def steps_not_empty(
+        cls, v: List[BlueprintStepDefinition]
+    ) -> List[BlueprintStepDefinition]:
         if len(v) == 0:
             raise ValueError("steps must not be empty")
         return v

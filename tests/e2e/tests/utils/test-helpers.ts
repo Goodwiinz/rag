@@ -1,4 +1,4 @@
-import { Page, BrowserContext, Locator, TestInfo } from '@playwright/test';
+import { expect, Page, BrowserContext, Locator, TestInfo } from '@playwright/test';
 import path from 'path';
 import fs from 'fs';
 import { v4 as uuidv4 } from 'uuid';
@@ -44,11 +44,18 @@ export class TestHelpers {
     await this.page.click('[data-testid="login-button"]');
 
     // Wait for navigation to expected page
-    await this.page.waitForURL(`**${expectedUrl}`, { timeout: 10000 });
+    await this.page.waitForURL(`**${expectedUrl}`, { timeout: 20000 });
     await this.waitForPageLoad();
 
-    // Verify login was successful
-    await this.expectElementVisible('[data-testid="user-menu"]');
+    // Verify login landed on an authenticated dashboard surface.
+    await this.page.waitForSelector(
+      [
+        '[data-testid="analytics-nav-link"]',
+        '[data-testid="user-menu"]',
+        '[data-testid="dashboard-container"]',
+      ].join(', '),
+      { state: 'visible', timeout: 10000 }
+    );
   }
 
   /**

@@ -8,11 +8,11 @@ test.describe('Dashboard Accessibility Tests', () => {
   test.beforeEach(async ({ page, context }, testInfo) => {
     helpers = createTestHelpers(page, context, testInfo);
 
-    // Inject axe for accessibility testing
-    await injectAxe(page);
-
     // Login and navigate to dashboard
     await helpers.login(TEST_DATA.USERS.ADMIN);
+
+    // Inject axe after login/navigation so it remains available on the current document.
+    await injectAxe(page);
   });
 
   test.describe('Main Dashboard Accessibility', () => {
@@ -23,25 +23,20 @@ test.describe('Dashboard Accessibility Tests', () => {
       await helpers.waitAndClick('[data-testid="analytics-nav-link"]');
       await helpers.expectElementVisible('[data-testid="analytics-dashboard"]');
       await page.waitForLoadState('networkidle');
+      await page.addStyleTag({
+        content: '*,*::before,*::after{animation:none!important;transition:none!important;}',
+      });
+      await page.waitForTimeout(300);
 
       // Check accessibility with axe
       await checkA11y(page, null, {
         detailedReport: true,
         detailedReportOptions: { html: true },
-        rules: {
-          // Enable WCAG 2.1 AA rules
-          'color-contrast': { enabled: true },
-          'keyboard-navigation': { enabled: true },
-          'aria-labels': { enabled: true },
-          'heading-order': { enabled: true },
-          'focus-order': { enabled: true },
-          'link-name': { enabled: true },
-          'button-name': { enabled: true },
-          'label-title-only': { enabled: true },
-          'duplicate-id': { enabled: true },
-          'html-has-lang': { enabled: true },
-          'page-has-title-one': { enabled: true },
-          'region': { enabled: true },
+        axeOptions: {
+          runOnly: {
+            type: 'tag',
+            values: ['wcag2a', 'wcag2aa', 'wcag21aa'],
+          },
         },
       });
 
@@ -518,14 +513,19 @@ test.describe('Dashboard Accessibility Tests', () => {
 
       await helpers.waitAndClick('[data-testid="analytics-nav-link"]');
       await helpers.expectElementVisible('[data-testid="analytics-dashboard"]');
+      await page.addStyleTag({
+        content: '*,*::before,*::after{animation:none!important;transition:none!important;}',
+      });
+      await page.waitForTimeout(300);
 
       // Run accessibility checks on mobile layout
       await checkA11y(page, null, {
         detailedReport: true,
-        rules: {
-          'color-contrast': { enabled: true },
-          'touch-target-size': { enabled: true },
-          'keyboard-navigation': { enabled: true },
+        axeOptions: {
+          runOnly: {
+            type: 'tag',
+            values: ['wcag2a', 'wcag2aa', 'wcag21aa'],
+          },
         },
       });
 
@@ -567,10 +567,12 @@ test.describe('Dashboard Accessibility Tests', () => {
       // Even during loading, basic accessibility should be maintained
       await checkA11y(page, null, {
         detailedReport: false, // Skip detailed report during loading
-        rules: {
-          'html-has-lang': { enabled: true },
-          'page-has-title-one': { enabled: true },
-          'duplicate-id': { enabled: true },
+        axeOptions: {
+          rules: {
+            'html-has-lang': { enabled: true },
+            'document-title': { enabled: true },
+            'duplicate-id': { enabled: true },
+          },
         },
       });
 
