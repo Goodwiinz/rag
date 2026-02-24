@@ -56,5 +56,5 @@ psutil==5.9.6
 memory-profiler==0.61.0
 
 # Data processing
-pandas==2.1.4
+pandas==3.0.1
 jsonschema==4.20.0
