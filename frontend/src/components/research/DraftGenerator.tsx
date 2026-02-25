@@ -156,7 +156,9 @@ export const DraftGenerator: React.FC<DraftGeneratorProps> = ({
             {(['academic', 'technical', 'summary'] as const).map((s, idx) => (
               <button
                 key={s}
-                ref={(el) => (styleButtonRefs.current[idx] = el)}
+                ref={(el) => {
+                  styleButtonRefs.current[idx] = el;
+                }}
                 role="radio"
                 aria-checked={style === s}
                 tabIndex={style === s ? 0 : -1}
