@@ -223,5 +223,8 @@ tests/e2e/**/*.brv
 tests/integration/**/*.brv
 backend/browser-test-cache/
 
+# Axon code intelligence
+.axon/
+
 # Local git worktrees
 .worktrees/

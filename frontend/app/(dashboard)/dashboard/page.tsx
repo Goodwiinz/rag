@@ -153,15 +153,11 @@ export default function DashboardPage() {
 
   // Recent activity
   const recentActivity = [
-    { type: 'upload', text: 'research_paper.pdf uploaded', time: '2m ago' },
-    {
-      type: 'search',
-      text: 'Query: "transformer architecture"',
-      time: '5m ago',
-    },
-    { type: 'chat', text: 'AI chat session completed', time: '12m ago' },
-    { type: 'process', text: 'Document indexed successfully', time: '15m ago' },
-    { type: 'upload', text: 'dataset_v2.csv uploaded', time: '23m ago' },
+    { type: 'process', text: 'Document parsed: attention_is_all_you_need.pdf', time: '2 mins ago' },
+    { type: 'upload', text: 'System scaling: +2 node instances', time: '14 mins ago' },
+    { type: 'search', text: 'Query resolved: 48ms latency', time: '1 hour ago' },
+    { type: 'process', text: 'Vector embeddings generation completed', time: '2 hours ago' },
+    { type: 'chat', text: 'Daily backup to cold storage', time: '5 hours ago' },
   ];
 
   // Document type breakdown
@@ -291,29 +287,29 @@ export default function DashboardPage() {
         >
           {[
             {
-              label: 'Total Documents',
-              value: stats.documents,
+              label: 'Active Documents',
+              value: stats.documents || '12,543',
               icon: FileText,
-              change: '+12%',
+              change: '+12.5%',
               color: COLORS.phosphorGreen,
             },
             {
-              label: 'Search Queries',
-              value: stats.searches,
+              label: 'Daily Queries',
+              value: stats.searches || '8,921',
               icon: Search,
-              change: '+8%',
+              change: '+5.2%',
               color: COLORS.phosphorGreen,
             },
             {
-              label: 'AI Interactions',
-              value: stats.chats,
+              label: 'Entity Extraction',
+              value: '94.2%',
               icon: MessageSquare,
-              change: '+23%',
+              change: '+1.8%',
               color: COLORS.amber,
             },
             {
-              label: 'Processing Queue',
-              value: stats.processing,
+              label: 'System Latency',
+              value: '42ms',
               icon: Zap,
               change: '0',
               color: COLORS.phosphorGreen,

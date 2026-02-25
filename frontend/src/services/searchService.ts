@@ -75,6 +75,7 @@ export class SearchService {
       }>;
       search_time_ms?: number;
       total_results?: number;
+      synthesized_answer?: string;
     },
     request: SearchRequest
   ): APIResponse<SearchResult> {
@@ -82,7 +83,9 @@ export class SearchService {
       id: response.search_id || Date.now().toString(),
       query: response.query || request.query,
       answer: {
-        text: this.buildFallbackAnswerText(response.results),
+        text:
+          response.synthesized_answer ||
+          this.buildFallbackAnswerText(response.results),
         sources:
           response.results?.map((r: any) => ({
             document_id: r.document_id,
@@ -130,42 +133,62 @@ export class SearchService {
       search_type: 'hybrid', // Use hybrid retrieval by default
       limit: request.limit || 10,
       offset: request.offset || 0,
-      filters: request.filters ? {
-        // Transform filters if needed
-        document_types: request.filters.modalities,
-        // tags: not in SearchRequest filters type
-        file_size_min: undefined,
-        file_size_max: undefined,
-        date_from: request.filters.date_range?.start,
-        date_to: request.filters.date_range?.end,
-        is_public: undefined,
-        uploaded_by_user_id: undefined,
-      } : undefined,
+      filters: request.filters
+        ? {
+            // Transform filters if needed
+            document_types: request.filters.modalities,
+            // tags: not in SearchRequest filters type
+            file_size_min: undefined,
+            file_size_max: undefined,
+            date_from: request.filters.date_range?.start,
+            date_to: request.filters.date_range?.end,
+            is_public: undefined,
+            uploaded_by_user_id: undefined,
+          }
+        : undefined,
       include_snippets: true,
+      synthesize_answer: true,
     };
 
     try {
-      const response = await apiClient.post(this.searchPrimaryPath, backendRequest) as {
+      const response = (await apiClient.post(
+        this.searchPrimaryPath,
+        backendRequest
+      )) as {
         search_id?: string;
         query?: string;
-        results?: Array<{ document_id: string; title: string; content_preview?: string; relevance_score?: number; document_type?: string }>;
+        results?: Array<{
+          document_id: string;
+          title: string;
+          content_preview?: string;
+          relevance_score?: number;
+          document_type?: string;
+        }>;
         search_time_ms?: number;
         total_results?: number;
+        synthesized_answer?: string;
       };
 
       return this.transformSearchResponse(response, request);
     } catch (error: any) {
       if (this.isNotFoundError(error)) {
         try {
-            const fallbackResponse = await apiClient.post(
-              this.searchFallbackPath,
-              { ...backendRequest, search_type: 'fulltext' }
-            ) as {
+          const fallbackResponse = (await apiClient.post(
+            this.searchFallbackPath,
+            { ...backendRequest, search_type: 'fulltext' }
+          )) as {
             search_id?: string;
             query?: string;
-            results?: Array<{ document_id: string; title: string; content_preview?: string; relevance_score?: number; document_type?: string }>;
+            results?: Array<{
+              document_id: string;
+              title: string;
+              content_preview?: string;
+              relevance_score?: number;
+              document_type?: string;
+            }>;
             search_time_ms?: number;
             total_results?: number;
+            synthesized_answer?: string;
           };
 
           return this.transformSearchResponse(fallbackResponse, request);
@@ -195,19 +218,24 @@ export class SearchService {
   /**
    * Perform enhanced search with processing configuration
    */
-  async enhancedSearch(request: EnhancedSearchRequest): Promise<APIResponse<SearchResult>> {
+  async enhancedSearch(
+    request: EnhancedSearchRequest
+  ): Promise<APIResponse<SearchResult>> {
     return apiClient.post(`${this.basePath}/enhanced`, request);
   }
 
   /**
    * Get query suggestions
    */
-  async getQuerySuggestions(query: string, limit: number = 5): Promise<APIResponse<QuerySuggestions>> {
+  async getQuerySuggestions(
+    query: string,
+    limit: number = 5
+  ): Promise<APIResponse<QuerySuggestions>> {
     try {
       // Backend returns suggestions array directly
-      const response = await apiClient.get(`${this.basePath}/suggestions`, {
+      const response = (await apiClient.get(`${this.basePath}/suggestions`, {
         params: { q: query, limit },
-      }) as string[];
+      })) as string[];
 
       // Transform to match expected format
       const suggestions: QuerySuggestions = {
@@ -238,7 +266,9 @@ export class SearchService {
   /**
    * Get search history
    */
-  async getSearchHistory(limit: number = 50): Promise<APIResponse<QueryHistory[]>> {
+  async getSearchHistory(
+    limit: number = 50
+  ): Promise<APIResponse<QueryHistory[]>> {
     return apiClient.get(`${this.basePath}/history`, {
       params: { limit },
     });
@@ -247,7 +277,10 @@ export class SearchService {
   /**
    * Add query to history
    */
-  async addToHistory(query: string, resultId: string): Promise<APIResponse<void>> {
+  async addToHistory(
+    query: string,
+    resultId: string
+  ): Promise<APIResponse<void>> {
     return apiClient.post(`${this.basePath}/history`, null, {
       params: {
         query,
@@ -266,14 +299,18 @@ export class SearchService {
   /**
    * Get query processing session
    */
-  async getQuerySession(sessionId: string): Promise<APIResponse<QueryProcessingSession>> {
+  async getQuerySession(
+    sessionId: string
+  ): Promise<APIResponse<QueryProcessingSession>> {
     return apiClient.get(`${this.basePath}/sessions/${sessionId}`);
   }
 
   /**
    * Start a new query processing session
    */
-  async startQuerySession(request: EnhancedSearchRequest): Promise<APIResponse<QueryProcessingSession>> {
+  async startQuerySession(
+    request: EnhancedSearchRequest
+  ): Promise<APIResponse<QueryProcessingSession>> {
     return apiClient.post(`${this.basePath}/sessions`, request);
   }
 
@@ -287,7 +324,10 @@ export class SearchService {
   /**
    * Get similar queries
    */
-  async getSimilarQueries(query: string, limit: number = 5): Promise<APIResponse<string[]>> {
+  async getSimilarQueries(
+    query: string,
+    limit: number = 5
+  ): Promise<APIResponse<string[]>> {
     return apiClient.get(`${this.basePath}/similar`, {
       params: { q: query, limit },
     });
@@ -296,7 +336,10 @@ export class SearchService {
   /**
    * Get related searches
    */
-  async getRelatedSearches(resultId: string, limit: number = 5): Promise<APIResponse<string[]>> {
+  async getRelatedSearches(
+    resultId: string,
+    limit: number = 5
+  ): Promise<APIResponse<string[]>> {
     return apiClient.get(`${this.basePath}/related/${resultId}`, {
       params: { limit },
     });
@@ -322,8 +365,13 @@ export class SearchService {
   /**
    * Get real-time search results via WebSocket
    */
-  createSearchWebSocket(sessionId: string, onMessage: (update: QueryProcessingUpdate) => void): WebSocket {
-    const ws = apiClient.createWebSocket(`${this.basePath}/stream/${sessionId}`);
+  createSearchWebSocket(
+    sessionId: string,
+    onMessage: (update: QueryProcessingUpdate) => void
+  ): WebSocket {
+    const ws = apiClient.createWebSocket(
+      `${this.basePath}/stream/${sessionId}`
+    );
 
     ws.onmessage = (event) => {
       try {
@@ -348,19 +396,21 @@ export class SearchService {
   /**
    * Get search analytics
    */
-  async getSearchAnalytics(days: number = 30): Promise<APIResponse<{
-    total_queries: number;
-    unique_queries: number;
-    average_latency_ms: number;
-    popular_queries: Array<{ query: string; count: number }>;
-    query_types: Record<string, number>;
-    daily_stats: Array<{
-      date: string;
-      queries: number;
-      avg_latency: number;
-      satisfaction_score: number;
-    }>;
-  }>> {
+  async getSearchAnalytics(days: number = 30): Promise<
+    APIResponse<{
+      total_queries: number;
+      unique_queries: number;
+      average_latency_ms: number;
+      popular_queries: Array<{ query: string; count: number }>;
+      query_types: Record<string, number>;
+      daily_stats: Array<{
+        date: string;
+        queries: number;
+        avg_latency: number;
+        satisfaction_score: number;
+      }>;
+    }>
+  > {
     return apiClient.get(`${this.basePath}/analytics`, {
       params: { days },
     });
@@ -369,7 +419,11 @@ export class SearchService {
   /**
    * Rate a search result
    */
-  async rateResult(resultId: string, rating: number, feedback?: string): Promise<APIResponse<void>> {
+  async rateResult(
+    resultId: string,
+    rating: number,
+    feedback?: string
+  ): Promise<APIResponse<void>> {
     return apiClient.post(`${this.basePath}/rate`, {
       result_id: resultId,
       rating,
@@ -401,19 +455,21 @@ export class SearchService {
   /**
    * Get search performance metrics
    */
-  async getPerformanceMetrics(): Promise<APIResponse<{
-    average_response_time: number;
-    p95_response_time: number;
-    p99_response_time: number;
-    cache_hit_rate: number;
-    error_rate: number;
-    throughput_per_second: number;
-    resource_utilization: {
-      cpu_percent: number;
-      memory_percent: number;
-      disk_io_percent: number;
-    };
-  }>> {
+  async getPerformanceMetrics(): Promise<
+    APIResponse<{
+      average_response_time: number;
+      p95_response_time: number;
+      p99_response_time: number;
+      cache_hit_rate: number;
+      error_rate: number;
+      throughput_per_second: number;
+      resource_utilization: {
+        cpu_percent: number;
+        memory_percent: number;
+        disk_io_percent: number;
+      };
+    }>
+  > {
     return apiClient.get(`${this.basePath}/performance`);
   }
 
@@ -435,15 +491,19 @@ export class SearchService {
   /**
    * Get saved search alerts
    */
-  async getSearchAlerts(): Promise<APIResponse<Array<{
-    id: string;
-    name: string;
-    query: string;
-    filters?: SearchRequest['filters'];
-    created_at: string;
-    last_triggered?: string;
-    is_active: boolean;
-  }>>> {
+  async getSearchAlerts(): Promise<
+    APIResponse<
+      Array<{
+        id: string;
+        name: string;
+        query: string;
+        filters?: SearchRequest['filters'];
+        created_at: string;
+        last_triggered?: string;
+        is_active: boolean;
+      }>
+    >
+  > {
     return apiClient.get(`${this.basePath}/alerts`);
   }
 
