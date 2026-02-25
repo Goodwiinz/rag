@@ -11,6 +11,10 @@
     "redis": {
       "command": "npx",
       "args": ["-y", "@modelcontextprotocol/server-redis", "redis://localhost:6379"]
+    },
+    "axon": {
+      "command": "/Users/goodwiinz/development/RAG_system/backend/.venv/bin/axon",
+      "args": ["serve", "--watch"]
     }
   }
 }

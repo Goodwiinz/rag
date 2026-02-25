@@ -38,6 +38,7 @@ class Settings(BaseSettings):
         "X-Request-ID,"
         "X-Correlation-ID,"
         "X-Organization-ID,"
+        "X-Client-Version,"
         "Cache-Control"
     )
     CORS_ALLOWED_METHODS: str = "GET,POST,PUT,DELETE,PATCH,OPTIONS,HEAD"
