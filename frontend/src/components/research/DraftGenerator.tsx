@@ -5,7 +5,7 @@
  * Form for configuring and generating literature review drafts
  */
 
-import React, { useState, useId } from 'react';
+import React, { useState, useId, useRef } from 'react';
 import { Sparkles, Plus, X, Loader2 } from 'lucide-react';
 
 export interface DraftGeneratorProps {
@@ -36,6 +36,25 @@ export const DraftGenerator: React.FC<DraftGeneratorProps> = ({
   const themesInputId = useId();
   const maxSectionsId = useId();
   const includeAbstractId = useId();
+  const styleButtonRefs = useRef<(HTMLButtonElement | null)[]>([]);
+
+  const handleStyleKeyDown = (e: React.KeyboardEvent, index: number) => {
+    const styles = ['academic', 'technical', 'summary'] as const;
+    let nextIndex = -1;
+
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+      nextIndex = (index + 1) % styles.length;
+    } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+      nextIndex = (index - 1 + styles.length) % styles.length;
+    }
+
+    if (nextIndex !== -1) {
+      e.preventDefault();
+      const newStyle = styles[nextIndex];
+      setStyle(newStyle);
+      styleButtonRefs.current[nextIndex]?.focus();
+    }
+  };
 
   const handleAddTheme = (): void => {
     const trimmed = themeInput.trim();
@@ -134,12 +153,15 @@ export const DraftGenerator: React.FC<DraftGeneratorProps> = ({
             Writing Style
           </label>
           <div className="flex gap-2">
-            {(['academic', 'technical', 'summary'] as const).map((s) => (
+            {(['academic', 'technical', 'summary'] as const).map((s, idx) => (
               <button
                 key={s}
+                ref={(el) => (styleButtonRefs.current[idx] = el)}
                 role="radio"
                 aria-checked={style === s}
+                tabIndex={style === s ? 0 : -1}
                 onClick={() => setStyle(s)}
+                onKeyDown={(e) => handleStyleKeyDown(e, idx)}
                 className={`flex-1 px-3 py-2 rounded text-sm font-mono transition-colors ${
                   style === s
                     ? 'bg-[#00ff9f]/20 text-[#00ff9f] border border-[#00ff9f]/50'
