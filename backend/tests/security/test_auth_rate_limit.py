@@ -1,9 +1,10 @@
 import pytest
 from fastapi import FastAPI, Request
 from fastapi.testclient import TestClient
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import AsyncMock, Mock, patch
 from src.services.security.auth_service import AuthService, get_auth_service
 from src.core.security import auth_rate_limiter, get_client_ip
+from src.core.rate_limit import InMemoryRateLimiter
 from src.api.auth.auth import router as auth_router
 
 # Create a minimal app for testing to avoid importing src.main and its heavy dependencies
@@ -33,11 +34,17 @@ def get_mock_auth_service():
 
 app.dependency_overrides[get_auth_service] = get_mock_auth_service
 
-def setup_function():
-    # Reset rate limiter before each test
-    auth_rate_limiter.attempts = {}
+@pytest.fixture
+def mock_rate_limiter():
+    # Force use of InMemoryRateLimiter to avoid Redis connection issues during tests
+    # and ensure deterministic behavior.
+    limiter = InMemoryRateLimiter(max_attempts=50, window_minutes=15)
 
-def test_login_rate_limit_enforces_ip_check():
+    # We need to patch where it is USED, which is src.api.auth.auth
+    with patch("src.api.auth.auth.auth_rate_limiter", limiter):
+        yield limiter
+
+def test_login_rate_limit_enforces_ip_check(mock_rate_limiter):
     """
     Test that multiple login attempts from the same IP with DIFFERENT emails
     ARE blocked by the IP-based rate limiting.
@@ -78,14 +85,11 @@ def test_get_client_ip():
     req.headers = {"X-Forwarded-For": "spoofed_ip, real_ip"}
     assert get_client_ip(req) == "real_ip"
 
-def test_login_rate_limit_respects_x_forwarded_for():
+def test_login_rate_limit_respects_x_forwarded_for(mock_rate_limiter):
     """
     Test that requests with different X-Forwarded-For headers are treated as different IPs.
     """
     blocked_count = 0
-
-    # Reset rate limiter
-    auth_rate_limiter.attempts = {}
 
     for i in range(60):
         email = f"user{i}@example.com"

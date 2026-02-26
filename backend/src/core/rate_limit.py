@@ -84,6 +84,14 @@ class RedisRateLimiter(RateLimiterInterface):
         self.window_minutes = window_minutes
         self.redis_url = redis_url or settings.REDIS_URL
         self._redis: Optional[redis.Redis] = None
+        # Lua script to atomically increment and set expire only on first use
+        self._incr_expire_script = """
+        local current = redis.call("INCR", KEYS[1])
+        if current == 1 then
+            redis.call("EXPIRE", KEYS[1], ARGV[1])
+        end
+        return current
+        """
 
     async def _get_redis(self) -> redis.Redis:
         """Get or create Redis connection"""
@@ -97,14 +105,16 @@ class RedisRateLimiter(RateLimiterInterface):
             client = await self._get_redis()
             key = f"auth_rate_limit:{prefix}:{identifier}" if prefix else f"auth_rate_limit:{identifier}"
 
-            # Use pipeline for atomicity
-            async with client.pipeline(transaction=True) as pipe:
-                pipe.incr(key)
-                pipe.expire(key, self.window_minutes * 60)
-                result = await pipe.execute()
+            # Execute Lua script for atomicity and correct expiration behavior
+            # ARGV[1] is expiration in seconds
+            current = await client.eval(
+                self._incr_expire_script,
+                1,
+                key,
+                self.window_minutes * 60
+            )
 
-            current = result[0]
-            return current <= self.max_attempts
+            return int(current) <= self.max_attempts
 
         except Exception as e:
             logger.error(f"Redis rate limit error: {e}")

@@ -29,38 +29,31 @@ async def test_in_memory_rate_limiter():
 async def test_redis_rate_limiter():
     # Mock redis client
     mock_redis = MagicMock()
-    # Pipeline object itself (synchronous methods mostly)
-    mock_pipeline = MagicMock()
-    # execute is async
-    mock_pipeline.execute = AsyncMock()
-
-    # Configure pipeline context manager
-    mock_redis.pipeline.return_value.__aenter__.return_value = mock_pipeline
+    # eval is async
+    mock_redis.eval = AsyncMock()
 
     # Patch from_url to return mock
     with patch("redis.asyncio.from_url", return_value=mock_redis):
         limiter = RedisRateLimiter(max_attempts=2, window_minutes=1, redis_url="redis://test")
 
         # First attempt
-        mock_pipeline.execute.return_value = [1, True] # incr result, expire result
+        mock_redis.eval.return_value = 1
         assert await limiter.is_allowed("test_user") is True
 
-        # Verify pipeline usage
-        mock_redis.pipeline.assert_called_with(transaction=True)
-        # In the implementation, we call pipe.incr() synchronously to queue
-        mock_pipeline.incr.assert_called_with("auth_rate_limit:test_user")
-        mock_pipeline.expire.assert_called_with("auth_rate_limit:test_user", 60)
-        mock_pipeline.execute.assert_called_once()
-
-        # Reset mocks
-        mock_pipeline.reset_mock()
+        # Verify eval usage
+        mock_redis.eval.assert_called_with(
+            limiter._incr_expire_script,
+            1,
+            "auth_rate_limit:test_user",
+            60
+        )
 
         # Second attempt
-        mock_pipeline.execute.return_value = [2, True]
+        mock_redis.eval.return_value = 2
         assert await limiter.is_allowed("test_user") is True
 
         # Third attempt - blocked
-        mock_pipeline.execute.return_value = [3, True]
+        mock_redis.eval.return_value = 3
         assert await limiter.is_allowed("test_user") is False
 
         # Close
@@ -91,10 +84,7 @@ async def test_redis_rate_limiter_get_remaining():
 async def test_redis_rate_limiter_fail_open():
     # Mock redis client that raises exception
     mock_redis = MagicMock()
-    # pipeline returns context manager, enter returns pipeline
-    # we want the call to pipeline() or enter to fail?
-    # implementation: async with client.pipeline(transaction=True) as pipe:
-    mock_redis.pipeline.side_effect = Exception("Redis down")
+    mock_redis.eval = AsyncMock(side_effect=Exception("Redis down"))
 
     with patch("redis.asyncio.from_url", return_value=mock_redis):
         limiter = RedisRateLimiter(max_attempts=2, window_minutes=1)
