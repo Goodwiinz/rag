@@ -15,6 +15,28 @@ declare module 'cytoscape-popper' {
   export default popper;
 }
 
+// KaTeX (optional dependency for math rendering)
+declare module 'katex' {
+  interface KatexOptions {
+    throwOnError?: boolean;
+    displayMode?: boolean;
+    errorColor?: string;
+    macros?: Record<string, string>;
+    colorIsTextColor?: boolean;
+    maxSize?: number;
+    maxExpand?: number;
+    trust?: boolean;
+    strict?: boolean | string;
+  }
+  const katex: {
+    renderToString(tex: string, options?: KatexOptions): string;
+    render(tex: string, element: HTMLElement, options?: KatexOptions): void;
+  };
+  export default katex;
+}
+
+declare module 'katex/dist/katex.min.css';
+
 // Theme management
 declare module 'next-themes' {
   import { ReactNode } from 'react';

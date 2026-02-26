@@ -5,7 +5,7 @@
 
 'use client';
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuthStore } from '@/stores/authStore';
 import { apiClient } from '@/services/apiClient';
@@ -33,35 +33,61 @@ import {
   Terminal,
   Code,
   BookOpen,
-  Loader2
+  Loader2,
+  Table2,
+  Crop,
 } from 'lucide-react';
 import { ProcessingStatus } from '@/components/documents/ProcessingStatus';
+import { IntegrityBadge } from '@/components/documents/IntegrityBadge';
+import { IntegrityDetail } from '@/components/documents/IntegrityDetail';
 import { citationService } from '@/services/citationService';
+import { getIntegrityScore, extractTables } from '@/services/scispaceService';
+import { ExtractedTablePreview } from '@/components/documents/ExtractedTablePreview';
+import { CropExtractOverlay } from '@/components/documents/CropExtractOverlay';
+import type { ExtractedTable, ExtractRegionResponse } from '@/types/scispace';
+import { AxiosError } from 'axios';
 import type { CitationResponse } from '@/types/research';
 
 export default function DocumentDetailPage() {
   const params = useParams();
   const router = useRouter();
   const { isAuthenticated } = useAuthStore();
-  
+
   const [document, setDocument] = useState<Document | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'overview' | 'metadata' | 'preview'>('overview');
-  
+  const [activeTab, setActiveTab] = useState<
+    'overview' | 'metadata' | 'preview' | 'tables'
+  >('overview');
+
   // Citation extraction state
   const [citations, setCitations] = useState<CitationResponse[]>([]);
   const [extracting, setExtracting] = useState(false);
   const [extractionError, setExtractionError] = useState<string | null>(null);
 
+  const [tables, setTables] = useState<ExtractedTable[]>([]);
+  const [tablesLoading, setTablesLoading] = useState(false);
+  const [regionResult, setRegionResult] =
+    useState<ExtractRegionResponse | null>(null);
+  const [cropActive, setCropActive] = useState(false);
+  const tablesContainerRef = useRef<HTMLDivElement>(null);
+
+  const [integrityOpen, setIntegrityOpen] = useState(false);
+  const [integrityScore, setIntegrityScore] = useState<{
+    ai_probability: number;
+    human_probability: number;
+  } | null>(null);
+
   const documentId = params.id as string;
 
   const fetchDocument = useCallback(async () => {
     if (!documentId) return;
-    
+
     setLoading(true);
     try {
-      const response = await apiClient.get<Document>(`/documents/${documentId}`);
+      const response = await apiClient.get<Document>(
+        `/documents/${documentId}`
+      );
       if (response) {
         setDocument(response);
       } else {
@@ -87,8 +113,12 @@ export default function DocumentDetailPage() {
 
   const handleDelete = async () => {
     if (!document) return;
-    
-    if (confirm('Are you sure you want to delete this document? This action cannot be undone.')) {
+
+    if (
+      confirm(
+        'Are you sure you want to delete this document? This action cannot be undone.'
+      )
+    ) {
       try {
         await apiClient.delete(`/documents/${document.id}`);
         router.push('/documents');
@@ -101,7 +131,7 @@ export default function DocumentDetailPage() {
 
   const handleRetry = async () => {
     if (!document) return;
-    
+
     try {
       await apiClient.post(`/documents/${document.id}/retry`);
       fetchDocument();
@@ -122,7 +152,9 @@ export default function DocumentDetailPage() {
       await citationService.extractCitations(document.id, 'auto');
 
       // Fetch all citations for this document
-      const allCitations = await citationService.getCitationsForDocument(document.id);
+      const allCitations = await citationService.getCitationsForDocument(
+        document.id
+      );
       setCitations(allCitations);
     } catch (err) {
       console.error('Citation extraction failed:', err);
@@ -136,12 +168,43 @@ export default function DocumentDetailPage() {
     }
   };
 
+  const handleFetchTables = async () => {
+    if (!document) return;
+    setTablesLoading(true);
+    try {
+      const data = await extractTables(document.id);
+      setTables(data.tables);
+    } catch {
+      console.error('Failed to extract tables');
+    } finally {
+      setTablesLoading(false);
+    }
+  };
+
   // Fetch citations on load
   useEffect(() => {
     if (document) {
-      citationService.getCitationsForDocument(document.id)
+      citationService
+        .getCitationsForDocument(document.id)
         .then(setCitations)
-        .catch(err => console.error('Failed to fetch citations:', err));
+        .catch((err) => console.error('Failed to fetch citations:', err));
+    }
+  }, [document]);
+
+  useEffect(() => {
+    if (document) {
+      getIntegrityScore(document.id)
+        .then((data) =>
+          setIntegrityScore({
+            ai_probability: data.ai_probability,
+            human_probability: data.human_probability,
+          })
+        )
+        .catch((err) => {
+          const axiosErr = err as AxiosError;
+          if (axiosErr.response?.status !== 404)
+            console.error('Failed to fetch integrity:', err);
+        });
     }
   }, [document]);
 
@@ -163,7 +226,9 @@ export default function DocumentDetailPage() {
       <div className="min-h-screen bg-[#0a0a0f] flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
           <div className="w-12 h-12 border-4 border-[#00ff9f]/30 border-t-[#00ff9f] rounded-full animate-spin" />
-          <p className="text-[#00ff9f] font-mono text-sm animate-pulse">ACCESSING ARCHIVE...</p>
+          <p className="text-[#00ff9f] font-mono text-sm animate-pulse">
+            ACCESSING ARCHIVE...
+          </p>
         </div>
       </div>
     );
@@ -174,8 +239,12 @@ export default function DocumentDetailPage() {
       <div className="min-h-screen bg-[#0a0a0f] flex items-center justify-center p-6">
         <div className="max-w-md w-full border border-red-500/30 bg-red-500/5 rounded-xl p-8 text-center">
           <AlertTriangle className="w-12 h-12 text-red-500 mx-auto mb-4" />
-          <h2 className="text-xl font-mono font-bold text-red-500 mb-2">ACCESS DENIED</h2>
-          <p className="text-red-400/80 font-mono text-sm mb-6">{error || 'Document not found'}</p>
+          <h2 className="text-xl font-mono font-bold text-red-500 mb-2">
+            ACCESS DENIED
+          </h2>
+          <p className="text-red-400/80 font-mono text-sm mb-6">
+            {error || 'Document not found'}
+          </p>
           <button
             onClick={() => router.push('/documents')}
             className="px-4 py-2 rounded-lg bg-red-500/10 border border-red-500/30 text-red-500 font-mono text-sm hover:bg-red-500/20 transition-all"
@@ -193,7 +262,7 @@ export default function DocumentDetailPage() {
       <header className="border-b border-[#1a1a28] bg-[#0a0a0f]/80 backdrop-blur-xl sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <button 
+            <button
               onClick={() => router.push('/documents')}
               className="p-2 rounded-lg hover:bg-[#1a1a28] text-gray-400 hover:text-[#00ff9f] transition-all"
             >
@@ -224,7 +293,7 @@ export default function DocumentDetailPage() {
               <Share2 className="w-3.5 h-3.5" />
               SHARE
             </button>
-            <button 
+            <button
               onClick={handleDelete}
               className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-red-500/20 bg-red-500/5 text-xs font-mono text-red-500 hover:bg-red-500/10 transition-all"
             >
@@ -239,7 +308,6 @@ export default function DocumentDetailPage() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Main Content Area */}
           <div className="lg:col-span-2 space-y-6">
-            
             {/* Status Card */}
             <div className="rounded-xl border border-[#1a1a28] bg-[#0d0d14] overflow-hidden">
               <div className="px-6 py-4 border-b border-[#1a1a28] flex items-center justify-between">
@@ -248,7 +316,7 @@ export default function DocumentDetailPage() {
                   Processing Status
                 </h2>
                 {document.processing_status === 'failed' && (
-                  <button 
+                  <button
                     onClick={handleRetry}
                     className="text-xs font-mono text-[#00ff9f] hover:underline flex items-center gap-1"
                   >
@@ -258,8 +326,8 @@ export default function DocumentDetailPage() {
                 )}
               </div>
               <div className="p-6">
-                <ProcessingStatus 
-                  document={document} 
+                <ProcessingStatus
+                  document={document}
                   enableRealtime={true}
                   compact={false}
                   className="bg-transparent border-none p-0"
@@ -276,12 +344,14 @@ export default function DocumentDetailPage() {
                 </h2>
                 <button
                   onClick={handleExtractCitations}
-                  disabled={extracting || document.processing_status !== 'indexed'}
-                  className={cn(
-                    "px-3 py-1.5 rounded-lg text-xs font-mono font-bold flex items-center gap-2 transition-all",
+                  disabled={
                     extracting || document.processing_status !== 'indexed'
-                      ? "bg-gray-800 text-gray-500 cursor-not-allowed"
-                      : "bg-[#00ff9f]/10 border border-[#00ff9f]/30 text-[#00ff9f] hover:bg-[#00ff9f]/20 hover:shadow-[0_0_20px_rgba(0,255,159,0.2)]"
+                  }
+                  className={cn(
+                    'px-3 py-1.5 rounded-lg text-xs font-mono font-bold flex items-center gap-2 transition-all',
+                    extracting || document.processing_status !== 'indexed'
+                      ? 'bg-gray-800 text-gray-500 cursor-not-allowed'
+                      : 'bg-[#00ff9f]/10 border border-[#00ff9f]/30 text-[#00ff9f] hover:bg-[#00ff9f]/20 hover:shadow-[0_0_20px_rgba(0,255,159,0.2)]'
                   )}
                 >
                   {extracting ? (
@@ -297,15 +367,19 @@ export default function DocumentDetailPage() {
                   )}
                 </button>
               </div>
-              
+
               <div className="p-6">
                 {/* Extraction Error */}
                 {extractionError && (
                   <div className="mb-4 p-4 rounded-lg border border-red-500/30 bg-red-500/5 flex items-start gap-3">
                     <AlertTriangle className="w-5 h-5 text-red-500 mt-0.5 flex-shrink-0" />
                     <div>
-                      <p className="text-sm font-mono font-bold text-red-500">Extraction Failed</p>
-                      <p className="text-xs font-mono text-red-400/80 mt-1">{extractionError}</p>
+                      <p className="text-sm font-mono font-bold text-red-500">
+                        Extraction Failed
+                      </p>
+                      <p className="text-xs font-mono text-red-400/80 mt-1">
+                        {extractionError}
+                      </p>
                     </div>
                   </div>
                 )}
@@ -316,9 +390,12 @@ export default function DocumentDetailPage() {
                     <div className="flex items-center gap-3">
                       <div className="w-8 h-8 rounded-full border-4 border-[#00ff9f]/30 border-t-[#00ff9f] animate-spin" />
                       <div>
-                        <p className="text-sm font-mono font-bold text-[#00ff9f]">Analyzing Document...</p>
+                        <p className="text-sm font-mono font-bold text-[#00ff9f]">
+                          Analyzing Document...
+                        </p>
                         <p className="text-xs font-mono text-gray-500 mt-0.5">
-                          Using hybrid extraction pipeline (ArXiv → Semantic Scholar → CrossRef)
+                          Using hybrid extraction pipeline (ArXiv → Semantic
+                          Scholar → CrossRef)
                         </p>
                       </div>
                     </div>
@@ -333,10 +410,14 @@ export default function DocumentDetailPage() {
                   <div className="space-y-3">
                     <div className="flex items-center justify-between mb-4">
                       <p className="text-xs font-mono text-gray-400">
-                        Found <span className="text-[#00ff9f] font-bold">{citations.length}</span> citation{citations.length !== 1 ? 's' : ''}
+                        Found{' '}
+                        <span className="text-[#00ff9f] font-bold">
+                          {citations.length}
+                        </span>{' '}
+                        citation{citations.length !== 1 ? 's' : ''}
                       </p>
                     </div>
-                    
+
                     <div className="space-y-3 max-h-96 overflow-y-auto pr-2">
                       {citations.map((citation) => (
                         <div
@@ -351,7 +432,9 @@ export default function DocumentDetailPage() {
                               <p className="text-xs font-mono text-gray-400">
                                 {citation.authors && citation.authors.length > 0
                                   ? citation.authors.slice(0, 3).join(', ') +
-                                    (citation.authors.length > 3 ? ', et al.' : '')
+                                    (citation.authors.length > 3
+                                      ? ', et al.'
+                                      : '')
                                   : 'Unknown authors'}
                                 {citation.year && ` (${citation.year})`}
                               </p>
@@ -361,7 +444,7 @@ export default function DocumentDetailPage() {
                                 </p>
                               )}
                             </div>
-                            
+
                             {citation.needsReview && (
                               <span className="px-2 py-1 rounded text-[9px] font-mono font-bold uppercase tracking-wider bg-[#ffb700]/10 text-[#ffb700] border border-[#ffb700]/20 flex items-center gap-1 flex-shrink-0">
                                 <AlertTriangle className="w-3 h-3" />
@@ -369,7 +452,7 @@ export default function DocumentDetailPage() {
                               </span>
                             )}
                           </div>
-                          
+
                           {(citation.arxivId || citation.doi) && (
                             <div className="mt-3 pt-3 border-t border-[#1a1a28] flex flex-wrap gap-2">
                               {citation.arxivId && (
@@ -394,7 +477,9 @@ export default function DocumentDetailPage() {
                 {!extracting && citations.length === 0 && !extractionError && (
                   <div className="text-center py-12">
                     <BookOpen className="w-12 h-12 text-gray-600 mx-auto mb-4" />
-                    <p className="font-mono text-sm text-gray-500 mb-2">No citations extracted yet</p>
+                    <p className="font-mono text-sm text-gray-500 mb-2">
+                      No citations extracted yet
+                    </p>
                     <p className="font-mono text-xs text-gray-600">
                       Click "Extract Citations" to analyze this document
                     </p>
@@ -409,15 +494,16 @@ export default function DocumentDetailPage() {
                 { id: 'overview', label: 'Overview', icon: Terminal },
                 { id: 'metadata', label: 'Metadata', icon: Code },
                 { id: 'preview', label: 'Preview', icon: Eye },
+                { id: 'tables', label: 'Tables', icon: Table2 },
               ].map((tab) => (
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id as any)}
                   className={cn(
-                    "px-4 py-3 text-xs font-mono font-bold flex items-center gap-2 border-b-2 transition-all",
+                    'px-4 py-3 text-xs font-mono font-bold flex items-center gap-2 border-b-2 transition-all',
                     activeTab === tab.id
-                      ? "border-[#00ff9f] text-[#00ff9f] bg-[#00ff9f]/5"
-                      : "border-transparent text-gray-500 hover:text-gray-300 hover:bg-[#1a1a28]/50"
+                      ? 'border-[#00ff9f] text-[#00ff9f] bg-[#00ff9f]/5'
+                      : 'border-transparent text-gray-500 hover:text-gray-300 hover:bg-[#1a1a28]/50'
                   )}
                 >
                   <tab.icon className="w-4 h-4" />
@@ -437,15 +523,19 @@ export default function DocumentDetailPage() {
                       Content Summary
                     </h3>
                     <p className="text-sm leading-relaxed text-gray-300">
-                      {document.description || "No description available for this document."}
+                      {document.description ||
+                        'No description available for this document.'}
                     </p>
-                    
+
                     {/* Tags */}
                     {document.tags && document.tags.length > 0 && (
                       <div className="mt-6 pt-6 border-t border-[#1a1a28]">
                         <div className="flex flex-wrap gap-2">
-                          {document.tags.map(tag => (
-                            <span key={tag} className="px-2 py-1 rounded bg-[#1a1a28] text-[10px] font-mono text-[#00ff9f] border border-[#00ff9f]/20 flex items-center gap-1">
+                          {document.tags.map((tag) => (
+                            <span
+                              key={tag}
+                              className="px-2 py-1 rounded bg-[#1a1a28] text-[10px] font-mono text-[#00ff9f] border border-[#00ff9f]/20 flex items-center gap-1"
+                            >
                               <Tag className="w-3 h-3" />
                               {tag}
                             </span>
@@ -464,18 +554,28 @@ export default function DocumentDetailPage() {
                       <Cpu className="w-4 h-4" />
                       AI Analysis
                     </h3>
-                    
+
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="p-4 rounded-lg bg-[#1a1a28]/50 border border-[#1a1a28]">
-                        <span className="text-[10px] font-mono text-gray-500 uppercase">Entity Density</span>
+                        <span className="text-[10px] font-mono text-gray-500 uppercase">
+                          Entity Density
+                        </span>
                         <div className="text-xl font-mono font-bold text-white mt-1">
-                          High <span className="text-xs font-normal text-gray-500">(Top 10%)</span>
+                          High{' '}
+                          <span className="text-xs font-normal text-gray-500">
+                            (Top 10%)
+                          </span>
                         </div>
                       </div>
                       <div className="p-4 rounded-lg bg-[#1a1a28]/50 border border-[#1a1a28]">
-                        <span className="text-[10px] font-mono text-gray-500 uppercase">Knowledge Graph</span>
+                        <span className="text-[10px] font-mono text-gray-500 uppercase">
+                          Knowledge Graph
+                        </span>
                         <div className="text-xl font-mono font-bold text-white mt-1">
-                          Connected <span className="text-xs font-normal text-gray-500">(12 Nodes)</span>
+                          Connected{' '}
+                          <span className="text-xs font-normal text-gray-500">
+                            (12 Nodes)
+                          </span>
                         </div>
                       </div>
                     </div>
@@ -494,17 +594,30 @@ export default function DocumentDetailPage() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-[#1a1a28] font-mono text-xs">
-                        {Object.entries(document.metadata || {}).map(([key, value]) => (
-                          <tr key={key} className="hover:bg-[#1a1a28]/50 transition-colors">
-                            <td className="px-6 py-3 text-[#00ff9f]">{key}</td>
-                            <td className="px-6 py-3 text-gray-300">
-                              {typeof value === 'object' ? JSON.stringify(value) : String(value)}
-                            </td>
-                          </tr>
-                        ))}
-                        {(!document.metadata || Object.keys(document.metadata).length === 0) && (
+                        {Object.entries(document.metadata || {}).map(
+                          ([key, value]) => (
+                            <tr
+                              key={key}
+                              className="hover:bg-[#1a1a28]/50 transition-colors"
+                            >
+                              <td className="px-6 py-3 text-[#00ff9f]">
+                                {key}
+                              </td>
+                              <td className="px-6 py-3 text-gray-300">
+                                {typeof value === 'object'
+                                  ? JSON.stringify(value)
+                                  : String(value)}
+                              </td>
+                            </tr>
+                          )
+                        )}
+                        {(!document.metadata ||
+                          Object.keys(document.metadata).length === 0) && (
                           <tr>
-                            <td colSpan={2} className="px-6 py-8 text-center text-gray-500 italic">
+                            <td
+                              colSpan={2}
+                              className="px-6 py-8 text-center text-gray-500 italic"
+                            >
                               No metadata extracted
                             </td>
                           </tr>
@@ -517,17 +630,115 @@ export default function DocumentDetailPage() {
 
               {activeTab === 'preview' && (
                 <div className="py-6 flex items-center justify-center min-h-[400px] rounded-xl border border-[#1a1a28] border-dashed bg-[#0d0d14]/50">
-                   <div className="text-center">
-                      <Eye className="w-12 h-12 text-gray-600 mx-auto mb-4" />
-                      <p className="font-mono text-sm text-gray-500">Preview not available in this view</p>
-                      <button className="mt-4 px-4 py-2 rounded-lg bg-[#1a1a28] text-xs font-mono text-[#00ff9f] hover:bg-[#00ff9f]/10 transition-all">
-                        OPEN ORIGINAL FILE
+                  <div className="text-center">
+                    <Eye className="w-12 h-12 text-gray-600 mx-auto mb-4" />
+                    <p className="font-mono text-sm text-gray-500">
+                      Preview not available in this view
+                    </p>
+                    <button className="mt-4 px-4 py-2 rounded-lg bg-[#1a1a28] text-xs font-mono text-[#00ff9f] hover:bg-[#00ff9f]/10 transition-all">
+                      OPEN ORIGINAL FILE
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {activeTab === 'tables' && (
+                <div
+                  ref={tablesContainerRef}
+                  className="py-6 space-y-6 relative"
+                >
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-xs font-mono font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2">
+                      <Table2 className="w-4 h-4 text-[#00d4ff]" />
+                      Extracted Tables & Formulas
+                    </h3>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setCropActive(true)}
+                        className="px-3 py-1.5 rounded-lg text-xs font-mono font-bold bg-[#00d4ff]/10 border border-[#00d4ff]/30 text-[#00d4ff] hover:bg-[#00d4ff]/20 transition-all flex items-center gap-2"
+                      >
+                        <Crop className="w-3.5 h-3.5" />
+                        CROP EXTRACT
                       </button>
-                   </div>
+                      <button
+                        onClick={handleFetchTables}
+                        disabled={
+                          tablesLoading ||
+                          document.processing_status !== 'indexed'
+                        }
+                        className={cn(
+                          'px-3 py-1.5 rounded-lg text-xs font-mono font-bold flex items-center gap-2 transition-all',
+                          tablesLoading ||
+                            document.processing_status !== 'indexed'
+                            ? 'bg-gray-800 text-gray-500 cursor-not-allowed'
+                            : 'bg-[#00ff9f]/10 border border-[#00ff9f]/30 text-[#00ff9f] hover:bg-[#00ff9f]/20'
+                        )}
+                      >
+                        {tablesLoading ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <Table2 className="w-3.5 h-3.5" />
+                        )}
+                        {tablesLoading ? 'EXTRACTING...' : 'EXTRACT TABLES'}
+                      </button>
+                    </div>
+                  </div>
+
+                  {regionResult && (
+                    <div>
+                      <h4 className="text-xs font-mono text-gray-400 mb-2">
+                        Crop Extraction Result
+                      </h4>
+                      <ExtractedTablePreview
+                        documentId={documentId}
+                        regionResult={regionResult}
+                        onClose={() => setRegionResult(null)}
+                      />
+                    </div>
+                  )}
+
+                  {tables.length > 0 ? (
+                    <div className="space-y-4">
+                      {tables.map((table, idx) => (
+                        <ExtractedTablePreview
+                          key={idx}
+                          documentId={documentId}
+                          table={table}
+                          onClose={() =>
+                            setTables((prev) =>
+                              prev.filter((_, i) => i !== idx)
+                            )
+                          }
+                        />
+                      ))}
+                    </div>
+                  ) : !tablesLoading ? (
+                    <div className="text-center py-12 rounded-xl border border-[#1a1a28] border-dashed bg-[#0d0d14]/50">
+                      <Table2 className="w-12 h-12 text-gray-600 mx-auto mb-4" />
+                      <p className="font-mono text-sm text-gray-500">
+                        No tables extracted yet
+                      </p>
+                      <p className="font-mono text-xs text-gray-600 mt-2">
+                        Click &quot;Extract Tables&quot; to find tables in this
+                        document
+                      </p>
+                    </div>
+                  ) : null}
+
+                  <CropExtractOverlay
+                    active={cropActive}
+                    pageNumber={1}
+                    documentId={documentId}
+                    containerRef={tablesContainerRef}
+                    onCancel={() => setCropActive(false)}
+                    onExtracted={(data) => {
+                      setRegionResult(data);
+                      setCropActive(false);
+                    }}
+                  />
                 </div>
               )}
             </div>
-
           </div>
 
           {/* Sidebar */}
@@ -538,49 +749,74 @@ export default function DocumentDetailPage() {
                 <HardDrive className="w-4 h-4" />
                 File Details
               </h3>
-              
+
               <div className="space-y-4 font-mono text-xs">
                 <div className="flex justify-between items-center border-b border-[#1a1a28] pb-2">
                   <span className="text-gray-500">Filename</span>
-                  <span className="text-white truncate max-w-[150px]" title={document.filename}>{document.filename}</span>
+                  <span
+                    className="text-white truncate max-w-[150px]"
+                    title={document.filename}
+                  >
+                    {document.filename}
+                  </span>
                 </div>
                 <div className="flex justify-between items-center border-b border-[#1a1a28] pb-2">
                   <span className="text-gray-500">Type</span>
-                  <span className="text-[#00ff9f] bg-[#00ff9f]/10 px-2 py-0.5 rounded">{document.file_type?.toUpperCase() || document.mime_type?.toUpperCase() || 'UNKNOWN'}</span>
+                  <span className="text-[#00ff9f] bg-[#00ff9f]/10 px-2 py-0.5 rounded">
+                    {document.file_type?.toUpperCase() ||
+                      document.mime_type?.toUpperCase() ||
+                      'UNKNOWN'}
+                  </span>
                 </div>
                 <div className="flex justify-between items-center border-b border-[#1a1a28] pb-2">
                   <span className="text-gray-500">Size</span>
-                  <span className="text-white">{formatFileSize(document.file_size)}</span>
+                  <span className="text-white">
+                    {formatFileSize(document.file_size)}
+                  </span>
                 </div>
                 <div className="flex justify-between items-center border-b border-[#1a1a28] pb-2">
                   <span className="text-gray-500">Uploaded</span>
-                  <span className="text-white">{formatDate(document.upload_timestamp)}</span>
+                  <span className="text-white">
+                    {formatDate(document.upload_timestamp)}
+                  </span>
                 </div>
-                 <div className="flex justify-between items-center">
+                <div className="flex justify-between items-center">
                   <span className="text-gray-500">Last Modified</span>
-                  <span className="text-white">{formatDate(document.upload_timestamp)}</span>
+                  <span className="text-white">
+                    {formatDate(document.upload_timestamp)}
+                  </span>
                 </div>
               </div>
             </div>
 
-            {/* Security Card */}
+            {/* AI Integrity Card */}
             <div className="rounded-xl border border-[#1a1a28] bg-[#0d0d14] p-6">
               <h3 className="text-xs font-mono font-bold text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2">
                 <Shield className="w-4 h-4" />
-                Security
+                AI Integrity
               </h3>
-              <div className="flex items-center gap-3 p-3 rounded-lg bg-[#00ff9f]/5 border border-[#00ff9f]/20">
-                <CheckCircle className="w-5 h-5 text-[#00ff9f]" />
-                <div>
-                  <p className="text-xs font-mono font-bold text-[#00ff9f]">PASSED SCAN</p>
-                  <p className="text-[10px] font-mono text-gray-500">No threats detected</p>
-                </div>
+              <div className="flex items-center justify-between mb-4">
+                <IntegrityBadge
+                  documentId={documentId}
+                  score={integrityScore}
+                  onRequestCheck={() => setIntegrityOpen(true)}
+                />
               </div>
+              <button
+                onClick={() => setIntegrityOpen(true)}
+                className="w-full px-3 py-2 rounded-lg border border-[#1a1a28] bg-[#1a1a28]/50 text-xs font-mono text-gray-400 hover:text-[#00ff9f] hover:border-[#00ff9f]/30 transition-all"
+              >
+                View Details
+              </button>
             </div>
-
           </div>
         </div>
       </main>
+      <IntegrityDetail
+        documentId={documentId}
+        isOpen={integrityOpen}
+        onClose={() => setIntegrityOpen(false)}
+      />
     </div>
   );
 }
