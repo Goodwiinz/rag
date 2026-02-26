@@ -1,0 +1,390 @@
+'use client';
+
+import { useCallback, useEffect, useState } from 'react';
+import { Download, Loader2, Play, Trash2 } from 'lucide-react';
+import type {
+  ExtractionColumn,
+  ExtractionMatrix as ExtractionMatrixType,
+} from '@/types/scispace';
+import {
+  createMatrix,
+  deleteMatrix,
+  getMatrix,
+  triggerExtraction,
+} from '@/services/scispaceService';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { ColumnEditor } from './ColumnEditor';
+import { CellCitation } from './CellCitation';
+
+interface ExtractionMatrixProps {
+  projectId: string;
+  matrixId?: string;
+  documents?: Array<{ id: string; title: string }>;
+}
+
+export function ExtractionMatrix({
+  projectId,
+  matrixId,
+  documents = [],
+}: ExtractionMatrixProps) {
+  const [matrix, setMatrix] = useState<ExtractionMatrixType | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [extracting, setExtracting] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+
+  const [createName, setCreateName] = useState('');
+  const [createColumns, setCreateColumns] = useState<ExtractionColumn[]>([
+    { name: '', description: '' },
+  ]);
+  const [creating, setCreating] = useState(false);
+
+  const fetchMatrix = useCallback(async (id: string) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await getMatrix(id);
+      setMatrix(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load matrix');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (matrixId) {
+      fetchMatrix(matrixId);
+    }
+  }, [matrixId, fetchMatrix]);
+
+  const handleCreate = async () => {
+    const validColumns = createColumns.filter((c) => c.name.trim());
+    if (!createName.trim() || validColumns.length === 0) return;
+
+    setCreating(true);
+    setError(null);
+    try {
+      const result = await createMatrix(projectId, {
+        name: createName.trim(),
+        columns: validColumns.map((c) => ({
+          name: c.name.trim(),
+          description: c.description?.trim() || undefined,
+        })),
+      });
+      await fetchMatrix(result.id);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to create matrix');
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const handleExtract = async () => {
+    if (!matrix || documents.length === 0) return;
+
+    setExtracting(true);
+    setError(null);
+    try {
+      await triggerExtraction(matrix.id, {
+        document_ids: documents.map((d) => d.id),
+      });
+      await fetchMatrix(matrix.id);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Extraction failed');
+    } finally {
+      setExtracting(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!matrix) return;
+
+    setDeleting(true);
+    setError(null);
+    try {
+      await deleteMatrix(matrix.id);
+      setMatrix(null);
+      setDeleteOpen(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete matrix');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const handleExportCsv = () => {
+    if (!matrix) return;
+
+    const headers = ['Document', ...matrix.columns.map((c) => c.name)];
+    const rows = documents.map((doc) => {
+      const docCells = matrix.columns.map((col) => {
+        const cell = matrix.cells.find(
+          (c) => c.document_id === doc.id && c.column_name === col.name
+        );
+        return cell?.value ?? '';
+      });
+      return [doc.title, ...docCells];
+    });
+
+    const escape = (val: string) => {
+      if (val.includes(',') || val.includes('"') || val.includes('\n')) {
+        return `"${val.replace(/"/g, '""')}"`;
+      }
+      return val;
+    };
+
+    const csv = [
+      headers.map(escape).join(','),
+      ...rows.map((r) => r.map(escape).join(',')),
+    ].join('\n');
+
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${matrix.name.replace(/\s+/g, '_')}_extraction.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const getCellValue = (documentId: string, columnName: string) => {
+    return (
+      matrix?.cells.find(
+        (c) => c.document_id === documentId && c.column_name === columnName
+      ) ?? null
+    );
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-16">
+        <Loader2 className="h-6 w-6 animate-spin text-[#00d4ff]" />
+        <span className="ml-2 text-sm font-mono text-gray-500">
+          Loading matrix...
+        </span>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="rounded-md border border-red-500/30 bg-red-500/5 p-4">
+        <p className="text-sm font-mono text-red-400">{error}</p>
+        {matrixId && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="mt-3 border-red-500/30 text-red-400 hover:bg-red-500/10 font-mono text-xs"
+            onClick={() => fetchMatrix(matrixId)}
+          >
+            Retry
+          </Button>
+        )}
+      </div>
+    );
+  }
+
+  if (!matrix && !matrixId) {
+    return (
+      <div className="space-y-6 rounded-lg border border-[#1a1a1a] bg-black/30 p-6">
+        <div>
+          <h3 className="text-sm font-mono font-bold text-[#00d4ff] uppercase tracking-wide mb-4">
+            Create Extraction Matrix
+          </h3>
+          <div className="space-y-4">
+            <div>
+              <Label className="text-xs text-gray-500 font-mono uppercase tracking-wide">
+                Matrix Name
+              </Label>
+              <Input
+                value={createName}
+                onChange={(e) => setCreateName(e.target.value)}
+                placeholder="e.g. Literature Review 2024"
+                className="mt-1.5 bg-[#1a1a1a] border-[#333] text-sm font-mono text-gray-300 placeholder-gray-600 focus:border-[#00d4ff]"
+              />
+            </div>
+
+            <ColumnEditor columns={createColumns} onChange={setCreateColumns} />
+
+            <Button
+              className="bg-[#00d4ff]/10 text-[#00d4ff] border border-[#00d4ff]/30 hover:bg-[#00d4ff]/20 font-mono text-sm"
+              disabled={
+                creating ||
+                !createName.trim() ||
+                createColumns.filter((c) => c.name.trim()).length === 0
+              }
+              isLoading={creating}
+              loadingText="Creating..."
+              onClick={handleCreate}
+            >
+              Create Matrix
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!matrix) return null;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between rounded-lg border border-[#1a1a1a] bg-black/30 px-4 py-3">
+        <h3 className="text-sm font-mono font-bold text-[#00d4ff]">
+          {matrix.name}
+        </h3>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            className="border-[#00ff9f]/30 text-[#00ff9f] hover:bg-[#00ff9f]/10 font-mono text-xs"
+            disabled={extracting || documents.length === 0}
+            isLoading={extracting}
+            loadingText="Extracting..."
+            onClick={handleExtract}
+          >
+            <Play className="h-3 w-3 mr-1" />
+            Extract
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="border-[#ffb700]/30 text-[#ffb700] hover:bg-[#ffb700]/10 font-mono text-xs"
+            onClick={handleExportCsv}
+            disabled={matrix.cells.length === 0}
+          >
+            <Download className="h-3 w-3 mr-1" />
+            Export CSV
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="border-red-500/30 text-red-400 hover:bg-red-500/10 font-mono text-xs"
+            onClick={() => setDeleteOpen(true)}
+          >
+            <Trash2 className="h-3 w-3 mr-1" />
+            Delete
+          </Button>
+        </div>
+      </div>
+
+      <div className="rounded-lg border border-[#1a1a1a] bg-black/30 overflow-hidden">
+        <Table>
+          <TableHeader>
+            <TableRow className="border-[#1a1a1a] hover:bg-transparent">
+              <TableHead className="text-xs font-mono text-gray-500 uppercase tracking-wide bg-[#0a0a0a] min-w-[200px]">
+                Document
+              </TableHead>
+              {matrix.columns.map((col) => (
+                <TableHead
+                  key={col.name}
+                  className="text-xs font-mono text-gray-500 uppercase tracking-wide bg-[#0a0a0a] min-w-[150px]"
+                  title={col.description}
+                >
+                  {col.name}
+                </TableHead>
+              ))}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {documents.length === 0 ? (
+              <TableRow className="border-[#1a1a1a]">
+                <TableCell
+                  colSpan={matrix.columns.length + 1}
+                  className="text-center text-sm font-mono text-gray-600 py-8"
+                >
+                  No documents available
+                </TableCell>
+              </TableRow>
+            ) : (
+              documents.map((doc) => (
+                <TableRow
+                  key={doc.id}
+                  className="border-[#1a1a1a] hover:bg-white/[0.02]"
+                >
+                  <TableCell className="text-sm font-mono text-gray-300 font-medium">
+                    {doc.title}
+                  </TableCell>
+                  {matrix.columns.map((col) => {
+                    const cell = getCellValue(doc.id, col.name);
+                    return (
+                      <TableCell
+                        key={col.name}
+                        className="text-sm font-mono text-gray-400"
+                      >
+                        <div className="flex items-start gap-1.5">
+                          <span className="flex-1">{cell?.value ?? ''}</span>
+                          <CellCitation
+                            citation_snippet={cell?.citation_snippet ?? null}
+                            confidence={cell?.confidence ?? null}
+                          />
+                        </div>
+                      </TableCell>
+                    );
+                  })}
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </div>
+
+      <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <DialogContent className="bg-[#0a0a0a] border-[#1a1a1a]">
+          <DialogHeader>
+            <DialogTitle className="font-mono text-gray-300">
+              Delete Matrix
+            </DialogTitle>
+            <DialogDescription className="font-mono text-gray-500">
+              This will permanently delete &quot;{matrix.name}&quot; and all
+              extracted data. This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              size="sm"
+              className="font-mono text-xs border-[#333] text-gray-400"
+              onClick={() => setDeleteOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              className="font-mono text-xs"
+              disabled={deleting}
+              isLoading={deleting}
+              loadingText="Deleting..."
+              onClick={handleDelete}
+            >
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+export default ExtractionMatrix;
