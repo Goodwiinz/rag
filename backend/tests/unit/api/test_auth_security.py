@@ -1,5 +1,5 @@
 import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch, MagicMock, AsyncMock
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from src.api.auth.auth import router as auth_router, get_auth_service
@@ -19,8 +19,8 @@ def test_password_reset_rate_limit_check(test_client):
     # but the fixture returns it. We need access to the underlying app to set overrides.
     app = test_client.app
 
-    # Mock the auth service
-    mock_service = MagicMock()
+    # Mock the auth service (async)
+    mock_service = AsyncMock()
     mock_service.initiate_password_reset.return_value = "reset-token"
 
     # Override the dependency
@@ -29,8 +29,8 @@ def test_password_reset_rate_limit_check(test_client):
     try:
         # We patch the auth_rate_limiter imported in src.api.auth.auth
         with patch("src.api.auth.auth.auth_rate_limiter") as mock_limiter:
-            # Mock is_allowed to return True so the request proceeds
-            mock_limiter.is_allowed.return_value = True
+            # Mock is_allowed to return True so the request proceeds (async)
+            mock_limiter.is_allowed = AsyncMock(return_value=True)
 
             # Make the request
             response = test_client.post(
