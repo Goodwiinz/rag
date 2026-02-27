@@ -87,6 +87,7 @@ from src.core.config import settings
 from src.core.database import Base, engine
 from src.middleware.rate_limiting import AnalyticsRateLimitMiddleware
 from src.health.endpoints import router as health_router
+from src.core.security import auth_rate_limiter
 
 # from src.services.documents.file_service import redis_client  # Not exported, not needed here
 
@@ -186,6 +187,13 @@ async def lifespan(app: FastAPI):
             logger.info("Redis client closed successfully")
         except redis.RedisError as e:
             logger.error(f"Error closing Redis client: {e}")
+
+    # Close auth rate limiter
+    try:
+        await auth_rate_limiter.close()
+        logger.info("Auth rate limiter closed successfully")
+    except Exception as e:
+        logger.error(f"Error closing auth rate limiter: {e}")
 
     # Shutdown WebSocket services
     try:

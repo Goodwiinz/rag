@@ -88,7 +88,7 @@ async def register(
     # Get client IP for rate limiting
     client_ip = get_client_ip(request)
 
-    if not auth_rate_limiter.is_allowed(client_ip):
+    if not await auth_rate_limiter.is_allowed(client_ip):
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail="Too many registration attempts. Please try again later.",
@@ -137,13 +137,13 @@ async def login(
     # Dual-layer rate limiting: IP + email
     client_ip = get_client_ip(request)
 
-    if not auth_rate_limiter.is_allowed(client_ip, prefix="ip"):
+    if not await auth_rate_limiter.is_allowed(client_ip, prefix="ip"):
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail="Too many login attempts from this IP. Please try again later."
         )
 
-    if not auth_rate_limiter.is_allowed(user_credentials.email, prefix="email"):
+    if not await auth_rate_limiter.is_allowed(user_credentials.email, prefix="email"):
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail="Too many login attempts for this account. Please try again later."
@@ -268,7 +268,7 @@ async def request_password_reset(
     # Get client IP for rate limiting
     client_ip = get_client_ip(request)
 
-    if not auth_rate_limiter.is_allowed(client_ip):
+    if not await auth_rate_limiter.is_allowed(client_ip):
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail="Too many password reset attempts. Please try again later.",
