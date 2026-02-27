@@ -3,6 +3,7 @@
 import { cn } from '@/lib/utils';
 import { Citation } from '@/utils/citationParser';
 import { motion } from 'framer-motion';
+import { IconButton } from '@/components/ui/icon-button';
 import { Check, Copy, FileText, RefreshCw } from 'lucide-react';
 import { useState } from 'react';
 import { CitationRenderer } from './CitationRenderer';
@@ -122,30 +123,24 @@ export function ChatMessage({
 
         {/* Quick Actions - visible on hover */}
         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-          <button
+          <IconButton
+            icon={copied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+            label={copied ? 'Copied!' : 'Copy message'}
             onClick={handleCopy}
             className={cn(
-              'p-1 rounded hover:bg-[var(--terminal-elevated)] transition-all',
+              'p-1 h-auto w-auto rounded hover:bg-[var(--terminal-elevated)] transition-all',
               copied
-                ? 'text-[var(--phosphor-green)]'
+                ? 'text-[var(--phosphor-green)] hover:text-[var(--phosphor-green)] hover:bg-transparent'
                 : 'text-[var(--terminal-text-muted)] hover:text-[var(--terminal-text)]'
             )}
-            title={copied ? 'Copied!' : 'Copy message'}
-          >
-            {copied ? (
-              <Check className="w-3 h-3" />
-            ) : (
-              <Copy className="w-3 h-3" />
-            )}
-          </button>
+          />
           {isUser && onRetry && (
-            <button
+            <IconButton
+              icon={<RefreshCw className="w-3 h-3" />}
+              label="Retry"
               onClick={onRetry}
-              className="p-1 rounded hover:bg-[var(--terminal-elevated)] text-[var(--terminal-text-muted)] hover:text-[var(--terminal-text)] transition-all"
-              title="Retry"
-            >
-              <RefreshCw className="w-3 h-3" />
-            </button>
+              className="p-1 h-auto w-auto rounded hover:bg-[var(--terminal-elevated)] text-[var(--terminal-text-muted)] hover:text-[var(--terminal-text)] transition-all"
+            />
           )}
         </div>
       </div>
