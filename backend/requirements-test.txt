@@ -89,4 +89,4 @@ pytest-parallel==0.1.1
 python-dotenv==1.0.0
 
 # Utils
-tenacity==8.2.3
+tenacity==9.1.4
