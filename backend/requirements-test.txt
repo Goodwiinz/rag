@@ -71,7 +71,7 @@ docker==7.1.0
 testcontainers==3.7.1
 
 # Data Testing
-pandas==2.2.2
+pandas==3.0.1
 numpy==1.26.4
 
 # API Testing
