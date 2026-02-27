@@ -11,7 +11,7 @@ asyncpg==0.29.0
 sqlalchemy[asyncio]==2.0.23
 
 # Caching and session management
-redis[asyncio]==5.0.1
+redis[asyncio]==7.2.0
 aioredis==2.0.1
 
 # Authentication and security
