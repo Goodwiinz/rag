@@ -18,7 +18,9 @@ import {
 } from '@/services/researchEngineService';
 import type { BlueprintStepDef } from '@/services/researchEngineService';
 import type { ResearchProject } from '@/store/research-engine-store';
+import type { SourceConnectorType } from '@/types/scispace';
 import { StepCard } from './StepCard';
+import { SourceSelector } from './SourceSelector';
 import { TemplateSelector } from './TemplateSelector';
 
 interface Blueprint {
@@ -443,6 +445,31 @@ export function BlueprintEditor({ projectId }: BlueprintEditorProps) {
                     })
                   }
                   className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#333] rounded text-sm font-mono text-gray-300 focus:outline-none focus:border-[#00ff9f]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs text-gray-500 font-mono mb-1">
+                  Search Sources
+                </label>
+                <SourceSelector
+                  selected={
+                    (Array.isArray(globalParams.sources)
+                      ? globalParams.sources
+                      : [
+                          'arxiv',
+                          'semantic_scholar',
+                          'crossref',
+                          'pubmed',
+                        ]) as SourceConnectorType[]
+                  }
+                  onChange={(sources) =>
+                    setGlobalParams((prev) => {
+                      const next = { ...prev, sources };
+                      setGlobalParamsText(JSON.stringify(next, null, 2));
+                      return next;
+                    })
+                  }
                 />
               </div>
             </div>

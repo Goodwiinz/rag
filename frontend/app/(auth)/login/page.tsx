@@ -347,6 +347,7 @@ export default function LoginPage(): React.JSX.Element | null {
                       </div>
                       <input
                         id="email"
+                        data-testid="email-input"
                         name="email"
                         type="email"
                         required
@@ -376,6 +377,7 @@ export default function LoginPage(): React.JSX.Element | null {
                       </div>
                       <input
                         id="password"
+                        data-testid="password-input"
                         name="password"
                         type={showPassword ? 'text' : 'password'}
                         required
@@ -400,6 +402,7 @@ export default function LoginPage(): React.JSX.Element | null {
                   <div className="pt-2">
                       <button
                         type="submit"
+                        data-testid="login-button"
                         disabled={isSubmitting}
                         className={cn(
                           "group w-full flex items-center justify-center gap-3 py-3.5 px-4 rounded-lg font-mono text-xs font-bold uppercase tracking-[0.2em] relative overflow-hidden",

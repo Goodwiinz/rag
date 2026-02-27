@@ -64,4 +64,18 @@ describe('SearchInterface', () => {
     expect(screen.getByLabelText('Toggle filters')).toBeInTheDocument();
     expect(screen.getByLabelText('Search')).toBeInTheDocument();
   });
+
+  it('shows keyboard shortcut hint when query is empty', () => {
+    render(<SearchInterface {...defaultProps} />);
+
+    // Hint should be visible when empty
+    expect(screen.getByText('/')).toBeInTheDocument();
+
+    // Type text
+    const input = screen.getByPlaceholderText('Search your documents...');
+    fireEvent.change(input, { target: { value: 'test query' } });
+
+    // Hint should be gone (replaced by clear button)
+    expect(screen.queryByText('/')).not.toBeInTheDocument();
+  });
 });

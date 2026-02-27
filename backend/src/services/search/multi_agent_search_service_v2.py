@@ -60,7 +60,7 @@ class AgentType(Enum):
     QUERY_UNDERSTANDING = "query_understanding"
     RESULT_ENRICHMENT = "result_enrichment"
     CONTEXT_ANALYSIS = "context_analysis"
-    STRUCTURED_EXTRACTION = "structured_extraction"  # SciSpace: extraction matrix
+    STRUCTURED_EXTRACTION = "structured_extraction"  # SciSpace: extraction matrix (placeholder — agent not yet wired)
 
 
 class WorkflowType(Enum):

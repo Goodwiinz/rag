@@ -69,8 +69,8 @@ def _mock_db_returning(
 
     After C2 fix, _get_owned_run uses a single JOIN query that returns
     the run directly (or None if not owned). For the stream endpoint:
-    - Query 1: _get_owned_run (single JOIN) → run_result
-    - Query 2: get blueprint (for streaming) → blueprint_result
+    - Query 1: _get_owned_run (single JOIN) -> run_result
+    - Query 2: get blueprint (for streaming) -> blueprint_result
     - Query 3: get last completed step (for paused runs)
     """
     db = AsyncMock()

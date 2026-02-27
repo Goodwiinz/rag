@@ -38,6 +38,12 @@ from src.models.search_schemas import (
 from src.models.user import User
 from src.services.search.fulltext_search_service import fulltext_search_service
 from src.services.search.hybrid_search_service import hybrid_search_service
+from src.api.research.chat import (
+    RAG_SYSTEM_PROMPT,
+    RetrievedContext,
+    build_context_prompt,
+)
+from src.services.infrastructure.azure_openai_service import azure_openai_service
 
 logger = logging.getLogger(__name__)
 
@@ -263,6 +269,47 @@ async def hybrid_search(
             organization_id=str(current_user.organization_id),
         )
         result = _ensure_deterministic_response_fields(result)
+
+        # Synthesize LLM answer from retrieved results when requested
+        if search_request.synthesize_answer and result.results:
+            contexts = []
+            for r in result.results[:5]:
+                metadata = getattr(r, "metadata", {}) or {}
+                content = (
+                    metadata.get("full_text")
+                    or metadata.get("text")
+                    or getattr(r, "content_preview", "")
+                    or ""
+                )
+                contexts.append(
+                    RetrievedContext(
+                        document_id=str(r.document_id) if r.document_id else None,
+                        title=r.title or "Untitled",
+                        content=content[:3000],
+                        score=float(r.relevance_score or 0),
+                        source=metadata.get("source_type", "unknown"),
+                    )
+                )
+
+            context_prompt = build_context_prompt(contexts)
+            messages = [
+                {
+                    "role": "system",
+                    "content": f"{RAG_SYSTEM_PROMPT}\n\n{context_prompt}",
+                },
+                {"role": "user", "content": search_request.query},
+            ]
+
+            try:
+                llm_response = await azure_openai_service.chat_completion(
+                    messages=messages,
+                    temperature=0.3,
+                    max_tokens=1024,
+                    stream=False,
+                )
+                result.synthesized_answer = llm_response.get("content", "")
+            except Exception as e:
+                logger.warning(f"Answer synthesis failed: {e}")
 
         # Log search query in background
         background_tasks.add_task(

@@ -38,6 +38,7 @@ class Settings(BaseSettings):
         "X-Request-ID,"
         "X-Correlation-ID,"
         "X-Organization-ID,"
+        "X-Client-Version,"
         "Cache-Control"
     )
     CORS_ALLOWED_METHODS: str = "GET,POST,PUT,DELETE,PATCH,OPTIONS,HEAD"
@@ -177,6 +178,10 @@ class Settings(BaseSettings):
     # External APIs
     OPENAI_API_KEY: Optional[str] = None
     ANTHROPIC_API_KEY: Optional[str] = None
+
+    # Research Connector APIs
+    CROSSREF_MAILTO: Optional[str] = None
+    NCBI_API_KEY: Optional[str] = None
 
     # Azure OpenAI Configuration
     AZURE_OPENAI_API_KEY: Optional[str] = None

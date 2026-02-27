@@ -115,7 +115,7 @@ export function SidebarLayout({
                     ) : (
                       <BreadcrumbLink
                         href="/dashboard"
-                        className="text-[#71717a] hover:text-[#fafafa] transition-colors"
+                        className="text-[#d4d4d8] hover:text-[#fafafa] transition-colors"
                       >
                         Dashboard
                       </BreadcrumbLink>
@@ -137,7 +137,7 @@ export function SidebarLayout({
                           ) : (
                             <BreadcrumbLink
                               href={item.path}
-                              className="text-[#71717a] hover:text-[#fafafa] transition-colors"
+                              className="text-[#d4d4d8] hover:text-[#fafafa] transition-colors"
                             >
                               {item.name}
                             </BreadcrumbLink>
@@ -162,7 +162,7 @@ export function SidebarLayout({
         )}
 
         {/* Main Content */}
-        <main className="flex-1 overflow-auto">{children}</main>
+        <div className="flex-1 overflow-auto">{children}</div>
       </SidebarInset>
     </SidebarProvider>
   );

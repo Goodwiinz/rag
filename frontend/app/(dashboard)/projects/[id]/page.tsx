@@ -18,6 +18,7 @@ import {
   Download,
   Loader2,
   MessageSquare,
+  Grid3X3,
 } from 'lucide-react';
 import { DraftGenerator } from '@/components/research/DraftGenerator';
 import { DraftViewer } from '@/components/research/DraftViewer';
@@ -25,6 +26,7 @@ import { DraftGenerationProgress } from '@/components/research/DraftGenerationPr
 import { DraftComparison } from '@/components/research/DraftComparison';
 import { DraftExportModal } from '@/components/research/DraftExportModal';
 import { ProjectChatTab } from '@/components/research/ProjectChatTab';
+import { ExtractionMatrix } from '@/components/research/ExtractionMatrix';
 import { NoteEditor } from '@/components/research/NoteEditor';
 import { NoteList } from '@/components/research/NoteList';
 import {
@@ -37,7 +39,13 @@ import { useProjectStore } from '@/store/projectStore';
 import { useAuthStore } from '@/stores/authStore';
 import type { ProjectNote, ProjectNoteCreate } from '@/services/projectService';
 
-type TabType = 'documents' | 'notes' | 'bibliography' | 'drafts' | 'chat';
+type TabType =
+  | 'documents'
+  | 'notes'
+  | 'bibliography'
+  | 'drafts'
+  | 'chat'
+  | 'matrix';
 
 export default function ProjectDetailPage() {
   const params = useParams();
@@ -69,7 +77,9 @@ export default function ProjectDetailPage() {
 
   const [mounted, setMounted] = useState(false);
   const [activeTab, setActiveTab] = useState<TabType>('documents');
-  const [bibFormat, setBibFormat] = useState<'bibtex' | 'ieee' | 'apa' | 'mla'>('bibtex');
+  const [bibFormat, setBibFormat] = useState<'bibtex' | 'ieee' | 'apa' | 'mla'>(
+    'bibtex'
+  );
 
   // Draft state
   const [currentDraft, setCurrentDraft] = useState<Draft | null>(null);
@@ -83,22 +93,25 @@ export default function ProjectDetailPage() {
   >([]);
   const [draftsLoading, setDraftsLoading] = useState(false);
   const [generationTaskId, setGenerationTaskId] = useState<string | null>(null);
-  const [generationStatus, setGenerationStatus] = useState<GenerationStatus | null>(null);
+  const [generationStatus, setGenerationStatus] =
+    useState<GenerationStatus | null>(null);
   const [compareVersionA, setCompareVersionA] = useState<number | null>(null);
   const [compareVersionB, setCompareVersionB] = useState<number | null>(null);
-  const [draftComparison, setDraftComparison] = useState<DraftComparisonData | null>(null);
+  const [draftComparison, setDraftComparison] =
+    useState<DraftComparisonData | null>(null);
   const [comparisonDraftA, setComparisonDraftA] = useState<Draft | null>(null);
   const [comparisonDraftB, setComparisonDraftB] = useState<Draft | null>(null);
   const [comparisonLoading, setComparisonLoading] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
-  const [exportInitialFormat, setExportInitialFormat] = useState<'markdown' | 'latex'>(
-    'markdown'
-  );
+  const [exportInitialFormat, setExportInitialFormat] = useState<
+    'markdown' | 'latex'
+  >('markdown');
 
   // Note editing state
   const [editingNote, setEditingNote] = useState<ProjectNote | null>(null);
   const [showNoteEditor, setShowNoteEditor] = useState(false);
   const [selectedNoteTag, setSelectedNoteTag] = useState('');
+  const [matrixId, setMatrixId] = useState<string | null>(null);
 
   useEffect(() => {
     setMounted(true);
@@ -110,13 +123,22 @@ export default function ProjectDetailPage() {
       fetchProjectDocuments(projectId);
       fetchProjectNotes(projectId);
     }
-  }, [mounted, isAuthenticated, projectId, fetchProject, fetchProjectDocuments, fetchProjectNotes]);
+  }, [
+    mounted,
+    isAuthenticated,
+    projectId,
+    fetchProject,
+    fetchProjectDocuments,
+    fetchProjectNotes,
+  ]);
 
   const loadDrafts = useCallback(
     async (preferredVersion?: number) => {
       setDraftsLoading(true);
       try {
-        const response = await projectService.listDrafts(projectId, { limit: 50 });
+        const response = await projectService.listDrafts(projectId, {
+          limit: 50,
+        });
         const versions = response.drafts.map((draft) => ({
           id: draft.id,
           version: draft.version,
@@ -142,23 +164,35 @@ export default function ProjectDetailPage() {
           versions[0].version;
 
         const selectedDraftMeta =
-          versions.find((draft) => draft.version === selectedVersion) ?? versions[0];
+          versions.find((draft) => draft.version === selectedVersion) ??
+          versions[0];
 
-        const selectedDraft = await projectService.getDraft(projectId, selectedDraftMeta.id);
+        const selectedDraft = await projectService.getDraft(
+          projectId,
+          selectedDraftMeta.id
+        );
         setCurrentDraft(selectedDraft);
 
         setCompareVersionA((previous) => {
-          if (previous && versions.some((draft) => draft.version === previous)) {
+          if (
+            previous &&
+            versions.some((draft) => draft.version === previous)
+          ) {
             return previous;
           }
           return versions[0].version;
         });
 
         setCompareVersionB((previous) => {
-          if (previous && versions.some((draft) => draft.version === previous)) {
+          if (
+            previous &&
+            versions.some((draft) => draft.version === previous)
+          ) {
             return previous;
           }
-          return versions.length > 1 ? versions[1].version : versions[0].version;
+          return versions.length > 1
+            ? versions[1].version
+            : versions[0].version;
         });
       } catch (err) {
         console.error('Failed to load drafts:', err);
@@ -193,8 +227,12 @@ export default function ProjectDetailPage() {
       return;
     }
 
-    const draftA = draftVersions.find((draft) => draft.version === compareVersionA);
-    const draftB = draftVersions.find((draft) => draft.version === compareVersionB);
+    const draftA = draftVersions.find(
+      (draft) => draft.version === compareVersionA
+    );
+    const draftB = draftVersions.find(
+      (draft) => draft.version === compareVersionB
+    );
 
     if (!draftA || !draftB) {
       return;
@@ -203,7 +241,11 @@ export default function ProjectDetailPage() {
     setComparisonLoading(true);
     try {
       const [comparison, draftAData, draftBData] = await Promise.all([
-        projectService.compareDrafts(projectId, compareVersionA, compareVersionB),
+        projectService.compareDrafts(
+          projectId,
+          compareVersionA,
+          compareVersionB
+        ),
         projectService.getDraft(projectId, draftA.id),
         projectService.getDraft(projectId, draftB.id),
       ]);
@@ -344,7 +386,10 @@ export default function ProjectDetailPage() {
       {error && (
         <div className="mb-6 p-4 bg-red-500/10 border border-red-500/30 rounded-lg">
           <p className="text-red-400 font-mono text-sm">{error}</p>
-          <button onClick={clearError} className="mt-2 text-xs text-red-400 underline">
+          <button
+            onClick={clearError}
+            className="mt-2 text-xs text-red-400 underline"
+          >
             Dismiss
           </button>
         </div>
@@ -407,6 +452,17 @@ export default function ProjectDetailPage() {
           <MessageSquare className="h-4 w-4" />
           Chat
         </button>
+        <button
+          onClick={() => handleTabChange('matrix')}
+          className={`flex items-center gap-2 px-4 py-2 font-mono text-sm border-b-2 transition-colors ${
+            activeTab === 'matrix'
+              ? 'text-[#00ff9f] border-[#00ff9f]'
+              : 'text-gray-500 border-transparent hover:text-gray-300'
+          }`}
+        >
+          <Grid3X3 className="h-4 w-4" />
+          Matrix
+        </button>
       </div>
 
       {/* Tab Content */}
@@ -421,7 +477,9 @@ export default function ProjectDetailPage() {
             ) : projectDocuments.length === 0 ? (
               <div className="text-center py-12 bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg">
                 <FileText className="h-12 w-12 text-gray-600 mx-auto mb-4" />
-                <p className="text-gray-400 font-mono">No documents in this project</p>
+                <p className="text-gray-400 font-mono">
+                  No documents in this project
+                </p>
                 <p className="text-sm text-gray-500 mt-2">
                   Add documents from the Documents page
                 </p>
@@ -437,12 +495,16 @@ export default function ProjectDetailPage() {
                       <FileText className="h-5 w-5 text-[#00ff9f]" />
                       <div>
                         <p className="font-mono text-gray-200">
-                          {doc.document?.title || doc.document?.filename || 'Untitled'}
+                          {doc.document?.title ||
+                            doc.document?.filename ||
+                            'Untitled'}
                         </p>
                         <p className="text-xs text-gray-500 font-mono">
                           Added{' '}
                           {new Date(
-                            doc.added_at || doc.document?.created_at || Date.now()
+                            doc.added_at ||
+                              doc.document?.created_at ||
+                              Date.now()
                           ).toLocaleDateString()}
                         </p>
                       </div>
@@ -537,7 +599,8 @@ export default function ProjectDetailPage() {
                     {bibliography.citation_count} citations
                   </span>
                   <span className="text-xs text-gray-600 font-mono">
-                    Generated {new Date(bibliography.generated_at).toLocaleString()}
+                    Generated{' '}
+                    {new Date(bibliography.generated_at).toLocaleString()}
                   </span>
                 </div>
                 <pre className="text-sm text-gray-300 font-mono overflow-x-auto whitespace-pre-wrap max-h-[500px] overflow-y-auto">
@@ -547,9 +610,12 @@ export default function ProjectDetailPage() {
             ) : (
               <div className="text-center py-12 bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg">
                 <BookOpen className="h-12 w-12 text-gray-600 mx-auto mb-4" />
-                <p className="text-gray-400 font-mono">No bibliography available</p>
+                <p className="text-gray-400 font-mono">
+                  No bibliography available
+                </p>
                 <p className="text-sm text-gray-500 mt-2">
-                  Add documents with extracted citations to generate a bibliography
+                  Add documents with extracted citations to generate a
+                  bibliography
                 </p>
               </div>
             )}
@@ -564,7 +630,10 @@ export default function ProjectDetailPage() {
               <DraftGenerationProgress
                 status={generationStatus}
                 onCancel={async () => {
-                  await projectService.cancelGeneration(projectId, generationTaskId);
+                  await projectService.cancelGeneration(
+                    projectId,
+                    generationTaskId
+                  );
                   setGenerationTaskId(null);
                   setGenerationStatus(null);
                 }}
@@ -572,7 +641,10 @@ export default function ProjectDetailPage() {
                   setGenerationTaskId(null);
                   setGenerationStatus(null);
                   try {
-                    const draft = await projectService.getDraft(projectId, draftId);
+                    const draft = await projectService.getDraft(
+                      projectId,
+                      draftId
+                    );
                     await loadDrafts(draft.version);
                   } catch (err) {
                     console.error('Failed to load draft:', err);
@@ -586,7 +658,7 @@ export default function ProjectDetailPage() {
             {!generationTaskId && (
               <div className="space-y-4">
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                {/* Draft Generator */}
+                  {/* Draft Generator */}
                   <div className="lg:col-span-1 space-y-4">
                     <DraftGenerator
                       loading={draftsLoading}
@@ -607,12 +679,17 @@ export default function ProjectDetailPage() {
                           // Poll for status
                           const pollStatus = async () => {
                             try {
-                              const status = await projectService.getGenerationStatus(
-                                projectId,
-                                result.task_id
-                              );
+                              const status =
+                                await projectService.getGenerationStatus(
+                                  projectId,
+                                  result.task_id
+                                );
                               setGenerationStatus(status);
-                              if (!['completed', 'failed', 'cancelled'].includes(status.status)) {
+                              if (
+                                !['completed', 'failed', 'cancelled'].includes(
+                                  status.status
+                                )
+                              ) {
                                 setTimeout(pollStatus, 1000);
                               }
                             } catch (err) {
@@ -630,13 +707,17 @@ export default function ProjectDetailPage() {
 
                     {draftVersions.length > 0 && (
                       <div className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg p-4">
-                        <h3 className="text-sm font-mono text-gray-300 mb-3">Draft Versions</h3>
+                        <h3 className="text-sm font-mono text-gray-300 mb-3">
+                          Draft Versions
+                        </h3>
                         <div className="space-y-2 max-h-[220px] overflow-y-auto">
                           {draftVersions.map((draftVersion) => (
                             <button
                               key={draftVersion.id}
                               onClick={() => {
-                                void handleDraftVersionChange(draftVersion.version);
+                                void handleDraftVersionChange(
+                                  draftVersion.version
+                                );
                               }}
                               className={`w-full text-left px-3 py-2 rounded border font-mono text-xs transition-colors ${
                                 currentDraft?.version === draftVersion.version
@@ -653,7 +734,9 @@ export default function ProjectDetailPage() {
                                 )}
                               </div>
                               <div className="text-[10px] text-gray-500 mt-1">
-                                {new Date(draftVersion.created_at).toLocaleString()}
+                                {new Date(
+                                  draftVersion.created_at
+                                ).toLocaleString()}
                               </div>
                             </button>
                           ))}
@@ -663,7 +746,9 @@ export default function ProjectDetailPage() {
 
                     {draftVersions.length > 1 && (
                       <div className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg p-4 space-y-3">
-                        <h3 className="text-sm font-mono text-gray-300">Compare Versions</h3>
+                        <h3 className="text-sm font-mono text-gray-300">
+                          Compare Versions
+                        </h3>
                         <div className="grid grid-cols-2 gap-2">
                           <select
                             value={compareVersionA ?? ''}
@@ -676,7 +761,10 @@ export default function ProjectDetailPage() {
                             className="px-3 py-2 bg-[#1a1a1a] border border-[#333] rounded text-xs font-mono text-gray-300 focus:outline-none focus:border-[#00ff9f]"
                           >
                             {draftVersions.map((draftVersion) => (
-                              <option key={`a-${draftVersion.id}`} value={draftVersion.version}>
+                              <option
+                                key={`a-${draftVersion.id}`}
+                                value={draftVersion.version}
+                              >
                                 v{draftVersion.version}
                               </option>
                             ))}
@@ -692,7 +780,10 @@ export default function ProjectDetailPage() {
                             className="px-3 py-2 bg-[#1a1a1a] border border-[#333] rounded text-xs font-mono text-gray-300 focus:outline-none focus:border-[#00ff9f]"
                           >
                             {draftVersions.map((draftVersion) => (
-                              <option key={`b-${draftVersion.id}`} value={draftVersion.version}>
+                              <option
+                                key={`b-${draftVersion.id}`}
+                                value={draftVersion.version}
+                              >
                                 v{draftVersion.version}
                               </option>
                             ))}
@@ -710,7 +801,9 @@ export default function ProjectDetailPage() {
                           }
                           className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-[#00ff9f]/10 text-[#00ff9f] border border-[#00ff9f]/30 rounded font-mono text-xs hover:bg-[#00ff9f]/20 transition-colors disabled:opacity-50"
                         >
-                          {comparisonLoading && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                          {comparisonLoading && (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          )}
                           Compare Drafts
                         </button>
                       </div>
@@ -737,9 +830,12 @@ export default function ProjectDetailPage() {
                     ) : (
                       <div className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg p-12 text-center">
                         <Sparkles className="h-12 w-12 text-gray-600 mx-auto mb-4" />
-                        <p className="text-gray-400 font-mono">No draft generated yet</p>
+                        <p className="text-gray-400 font-mono">
+                          No draft generated yet
+                        </p>
                         <p className="text-sm text-gray-500 mt-2">
-                          Configure themes and generate a literature review draft
+                          Configure themes and generate a literature review
+                          draft
                         </p>
                       </div>
                     )}
@@ -749,8 +845,16 @@ export default function ProjectDetailPage() {
                 {draftComparison && (
                   <DraftComparison
                     comparison={draftComparison}
-                    draftA={comparisonDraftA ? { content: comparisonDraftA.content } : undefined}
-                    draftB={comparisonDraftB ? { content: comparisonDraftB.content } : undefined}
+                    draftA={
+                      comparisonDraftA
+                        ? { content: comparisonDraftA.content }
+                        : undefined
+                    }
+                    draftB={
+                      comparisonDraftB
+                        ? { content: comparisonDraftB.content }
+                        : undefined
+                    }
                   />
                 )}
               </div>
@@ -759,8 +863,19 @@ export default function ProjectDetailPage() {
         )}
 
         {/* Chat Tab */}
-        {activeTab === 'chat' && (
-          <ProjectChatTab projectId={projectId} />
+        {activeTab === 'chat' && <ProjectChatTab projectId={projectId} />}
+
+        {/* Matrix Tab */}
+        {activeTab === 'matrix' && (
+          <ExtractionMatrix
+            projectId={projectId}
+            matrixId={matrixId ?? undefined}
+            documents={projectDocuments.map((doc) => ({
+              id: doc.document_id,
+              title:
+                doc.document?.title || doc.document?.filename || 'Untitled',
+            }))}
+          />
         )}
       </div>
 

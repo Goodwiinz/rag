@@ -295,8 +295,8 @@ jobs:
           exit "$exit_code"
         env:
           ENVIRONMENT: testing
-          DATABASE_URL: "postgresql://test:test@localhost:${{ job.services.postgres.ports[5432] }}/test_db"
-          REDIS_URL: "redis://localhost:${{ job.services.redis.ports[6379] }}/0"
+          DATABASE_URL: "postgresql://test:test@localhost:${{ job.services.postgres.ports['5432'] }}/test_db"
+          REDIS_URL: "redis://localhost:${{ job.services.redis.ports['6379'] }}/0"
 
       - name: Upload coverage
         uses: codecov/codecov-action@v4
@@ -415,7 +415,7 @@ jobs:
             -v
         env:
           ENVIRONMENT: testing
-          DATABASE_URL: "postgresql://test:test@localhost:${{ job.services.postgres.ports[5432] }}/test_db"
+          DATABASE_URL: "postgresql://test:test@localhost:${{ job.services.postgres.ports['5432'] }}/test_db"
         continue-on-error: true  # Allow failures during development
 
   # ==========================================================================
@@ -489,17 +489,17 @@ jobs:
 
           # Wait for services to be ready
           echo "Waiting for application services..."
-          for i in {1..30}; do
+          for attempt in {1..30}; do
             if curl -sf http://localhost:8000/health > /dev/null 2>&1; then
-              echo "Backend is healthy!"
+              echo "Backend is healthy on attempt $attempt"
               break
             fi
             sleep 3
           done
 
-          for i in {1..30}; do
+          for attempt in {1..30}; do
             if curl -sf http://localhost:3000 > /dev/null 2>&1; then
-              echo "Frontend is healthy!"
+              echo "Frontend is healthy on attempt $attempt"
               break
             fi
             sleep 3
@@ -604,7 +604,7 @@ jobs:
             -v
         env:
           ENVIRONMENT: testing
-          DATABASE_URL: "postgresql://test:test@localhost:${{ job.services.postgres.ports[5432] }}/test_db"
+          DATABASE_URL: "postgresql://test:test@localhost:${{ job.services.postgres.ports['5432'] }}/test_db"
 
       - name: Store benchmark results
         uses: actions/upload-artifact@v4
@@ -633,69 +633,71 @@ jobs:
     steps:
       - name: Generate test results summary
         run: |
-          echo "## Test Results Summary" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| Test Suite | Status |" >> $GITHUB_STEP_SUMMARY
-          echo "|------------|--------|" >> $GITHUB_STEP_SUMMARY
+          {
+            echo "## Test Results Summary"
+            echo ""
+            echo "| Test Suite | Status |"
+            echo "|------------|--------|"
 
-          # Unit Tests
-          if [ "$UNIT_RESULT" == "success" ]; then
-            echo "| Unit Tests | :white_check_mark: Passed |" >> $GITHUB_STEP_SUMMARY
-          elif [ "$UNIT_RESULT" == "skipped" ]; then
-            echo "| Unit Tests | :fast_forward: Skipped |" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "| Unit Tests | :x: $UNIT_RESULT |" >> $GITHUB_STEP_SUMMARY
-          fi
+            # Unit Tests
+            if [ "$UNIT_RESULT" = "success" ]; then
+              echo "| Unit Tests | :white_check_mark: Passed |"
+            elif [ "$UNIT_RESULT" = "skipped" ]; then
+              echo "| Unit Tests | :fast_forward: Skipped |"
+            else
+              echo "| Unit Tests | :x: $UNIT_RESULT |"
+            fi
 
-          # Integration Tests
-          if [ "$INTEGRATION_RESULT" == "success" ]; then
-            echo "| Integration Tests | :white_check_mark: Passed |" >> $GITHUB_STEP_SUMMARY
-          elif [ "$INTEGRATION_RESULT" == "skipped" ]; then
-            echo "| Integration Tests | :fast_forward: Skipped |" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "| Integration Tests | :x: $INTEGRATION_RESULT |" >> $GITHUB_STEP_SUMMARY
-          fi
+            # Integration Tests
+            if [ "$INTEGRATION_RESULT" = "success" ]; then
+              echo "| Integration Tests | :white_check_mark: Passed |"
+            elif [ "$INTEGRATION_RESULT" = "skipped" ]; then
+              echo "| Integration Tests | :fast_forward: Skipped |"
+            else
+              echo "| Integration Tests | :x: $INTEGRATION_RESULT |"
+            fi
 
-          # Resilience Tests
-          if [ "$RESILIENCE_RESULT" == "success" ]; then
-            echo "| Resilience Tests | :white_check_mark: Passed |" >> $GITHUB_STEP_SUMMARY
-          elif [ "$RESILIENCE_RESULT" == "skipped" ]; then
-            echo "| Resilience Tests | :fast_forward: Skipped |" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "| Resilience Tests | :x: $RESILIENCE_RESULT |" >> $GITHUB_STEP_SUMMARY
-          fi
+            # Resilience Tests
+            if [ "$RESILIENCE_RESULT" = "success" ]; then
+              echo "| Resilience Tests | :white_check_mark: Passed |"
+            elif [ "$RESILIENCE_RESULT" = "skipped" ]; then
+              echo "| Resilience Tests | :fast_forward: Skipped |"
+            else
+              echo "| Resilience Tests | :x: $RESILIENCE_RESULT |"
+            fi
 
-          # Frontend Tests
-          if [ "$FRONTEND_RESULT" == "success" ]; then
-            echo "| Frontend Tests | :white_check_mark: Passed |" >> $GITHUB_STEP_SUMMARY
-          elif [ "$FRONTEND_RESULT" == "skipped" ]; then
-            echo "| Frontend Tests | :fast_forward: Skipped |" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "| Frontend Tests | :x: $FRONTEND_RESULT |" >> $GITHUB_STEP_SUMMARY
-          fi
+            # Frontend Tests
+            if [ "$FRONTEND_RESULT" = "success" ]; then
+              echo "| Frontend Tests | :white_check_mark: Passed |"
+            elif [ "$FRONTEND_RESULT" = "skipped" ]; then
+              echo "| Frontend Tests | :fast_forward: Skipped |"
+            else
+              echo "| Frontend Tests | :x: $FRONTEND_RESULT |"
+            fi
 
-          # Security Scan
-          if [ "$SECURITY_RESULT" == "success" ]; then
-            echo "| Security Scan | :white_check_mark: Passed |" >> $GITHUB_STEP_SUMMARY
-          elif [ "$SECURITY_RESULT" == "skipped" ]; then
-            echo "| Security Scan | :fast_forward: Skipped |" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "| Security Scan | :x: $SECURITY_RESULT |" >> $GITHUB_STEP_SUMMARY
-          fi
+            # Security Scan
+            if [ "$SECURITY_RESULT" = "success" ]; then
+              echo "| Security Scan | :white_check_mark: Passed |"
+            elif [ "$SECURITY_RESULT" = "skipped" ]; then
+              echo "| Security Scan | :fast_forward: Skipped |"
+            else
+              echo "| Security Scan | :x: $SECURITY_RESULT |"
+            fi
 
-          # API Contract Tests
-          if [ "$CONTRACT_RESULT" == "success" ]; then
-            echo "| API Contract Tests | :white_check_mark: Passed |" >> $GITHUB_STEP_SUMMARY
-          elif [ "$CONTRACT_RESULT" == "skipped" ]; then
-            echo "| API Contract Tests | :fast_forward: Skipped |" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "| API Contract Tests | :x: $CONTRACT_RESULT |" >> $GITHUB_STEP_SUMMARY
-          fi
+            # API Contract Tests
+            if [ "$CONTRACT_RESULT" = "success" ]; then
+              echo "| API Contract Tests | :white_check_mark: Passed |"
+            elif [ "$CONTRACT_RESULT" = "skipped" ]; then
+              echo "| API Contract Tests | :fast_forward: Skipped |"
+            else
+              echo "| API Contract Tests | :x: $CONTRACT_RESULT |"
+            fi
 
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Workflow:** \`$GH_WORKFLOW\`" >> $GITHUB_STEP_SUMMARY
-          echo "**Branch:** \`$GH_REF\`" >> $GITHUB_STEP_SUMMARY
-          echo "**Commit:** \`$GH_SHA\`" >> $GITHUB_STEP_SUMMARY
+            echo ""
+            echo "**Workflow:** \`$GH_WORKFLOW\`"
+            echo "**Branch:** \`$GH_REF\`"
+            echo "**Commit:** \`$GH_SHA\`"
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Fail if critical tests failed
         env:
