@@ -314,60 +314,12 @@ def verify_sensitive_data_hash(data: str, hashed: str) -> bool:
     return hashlib.sha256(data.encode()).hexdigest() == hashed
 
 
-class RateLimiter:
-    """Simple rate limiter for authentication endpoints"""
-
-    def __init__(self, max_attempts: int = 5, window_minutes: int = 15):
-        self.max_attempts = max_attempts
-        self.window_minutes = window_minutes
-        self.attempts = {}  # Simple in-memory storage
-
-    def is_allowed(self, identifier: str, prefix: str = "") -> bool:
-        """Check if identifier is allowed to make an attempt"""
-        key = f"{prefix}:{identifier}" if prefix else identifier
-        now = datetime.utcnow()
-        window_start = now - timedelta(minutes=self.window_minutes)
-
-        # Clean old attempts
-        if key in self.attempts:
-            self.attempts[key] = [
-                attempt_time
-                for attempt_time in self.attempts[key]
-                if attempt_time > window_start
-            ]
-        else:
-            self.attempts[key] = []
-
-        # Check if under limit
-        if len(self.attempts[key]) >= self.max_attempts:
-            return False
-
-        # Record this attempt
-        self.attempts[key].append(now)
-        return True
-
-    def get_remaining_attempts(self, identifier: str, prefix: str = "") -> int:
-        """Get remaining attempts for identifier"""
-        key = f"{prefix}:{identifier}" if prefix else identifier
-        if key not in self.attempts:
-            return self.max_attempts
-
-        now = datetime.utcnow()
-        window_start = now - timedelta(minutes=self.window_minutes)
-
-        # Count recent attempts
-        recent_attempts = [
-            attempt_time
-            for attempt_time in self.attempts[key]
-            if attempt_time > window_start
-        ]
-
-        return max(0, self.max_attempts - len(recent_attempts))
-
+# Import RateLimiter implementations
+from src.core.rate_limit import create_rate_limiter, InMemoryRateLimiter as RateLimiter
 
 # Global rate limiter instance (will be initialized after settings import)
 # Use higher limits for development to avoid blocking during testing
-auth_rate_limiter = RateLimiter(
+auth_rate_limiter = create_rate_limiter(
     max_attempts=settings.AUTH_RATE_LIMIT_ATTEMPTS,
     window_minutes=settings.AUTH_RATE_LIMIT_WINDOW_MINUTES,
 )
