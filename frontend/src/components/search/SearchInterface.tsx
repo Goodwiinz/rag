@@ -407,8 +407,8 @@ export const SearchInterface: React.FC<SearchInterfaceProps> = ({
             aria-label="Search query"
           />
 
-          {/* Clear Button */}
-          {query && (
+          {/* Clear Button / Keyboard Hint */}
+          {query ? (
             <button
               type="button"
               onClick={handleClear}
@@ -417,6 +417,13 @@ export const SearchInterface: React.FC<SearchInterfaceProps> = ({
             >
               <XMarkIcon className="h-4 w-4" />
             </button>
+          ) : (
+            <div
+              className="absolute right-28 top-1/2 transform -translate-y-1/2 hidden sm:flex pointer-events-none select-none items-center gap-1 rounded border border-muted-foreground/30 bg-muted/20 px-1.5 font-mono text-[10px] font-medium text-muted-foreground opacity-70"
+              aria-hidden="true"
+            >
+              <span className="text-xs">/</span>
+            </div>
           )}
 
           {/* Search Actions */}

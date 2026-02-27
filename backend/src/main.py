@@ -29,7 +29,7 @@ from src.api.arxiv import (
 )
 from src.api.auth import auth_router
 from src.api.auth.api_keys import router as api_keys_router
-from src.api.documents import documents_router, files_router, processing_router
+from src.api.documents import documents_router, files_router, integrity_router, processing_router, table_extraction_router
 from src.api.evidence.router import router as evidence_router
 from src.api.infrastructure import evaluation_router, workers_router
 from src.api.quality import (
@@ -49,8 +49,16 @@ from src.api.research import (
     citations_router,
     drafts_router,
     export_router,
+    extraction_matrix_router,
     project_chat_router,
     projects_router,
+    tone_engine_router,
+)
+from src.api.research_engine import (
+    research_engine_blueprints_router,
+    research_engine_projects_router,
+    research_engine_runs_router,
+    research_engine_steps_router,
 )
 from src.api.research_engine import (
     research_engine_blueprints_router,
@@ -79,6 +87,7 @@ from src.core.config import settings
 from src.core.database import Base, engine
 from src.middleware.rate_limiting import AnalyticsRateLimitMiddleware
 from src.health.endpoints import router as health_router
+from src.core.security import auth_rate_limiter
 
 # from src.services.documents.file_service import redis_client  # Not exported, not needed here
 
@@ -178,6 +187,13 @@ async def lifespan(app: FastAPI):
             logger.info("Redis client closed successfully")
         except redis.RedisError as e:
             logger.error(f"Error closing Redis client: {e}")
+
+    # Close auth rate limiter
+    try:
+        await auth_rate_limiter.close()
+        logger.info("Auth rate limiter closed successfully")
+    except Exception as e:
+        logger.error(f"Error closing auth rate limiter: {e}")
 
     # Shutdown WebSocket services
     try:
@@ -341,6 +357,10 @@ app.include_router(citations_router)  # Research Assistant citations endpoints
 app.include_router(projects_router)  # Research Assistant projects endpoints
 app.include_router(project_chat_router)  # Project-Chat integration endpoints
 app.include_router(drafts_router)  # Research Assistant drafts endpoints
+app.include_router(tone_engine_router)  # Scholarly Tone Engine endpoints
+app.include_router(extraction_matrix_router)  # Extraction Matrix endpoints
+app.include_router(integrity_router)  # AI Integrity Detector endpoints
+app.include_router(table_extraction_router)  # Table & math extraction endpoints
 app.include_router(research_engine_projects_router, prefix="/api/v1")  # Research Engine projects
 app.include_router(research_engine_blueprints_router, prefix="/api/v1")  # Research Engine blueprints
 app.include_router(research_engine_runs_router, prefix="/api/v1")  # Research Engine runs

@@ -79,6 +79,9 @@ class SearchQuery(BaseModel):
     highlight_tags: tuple = Field(
         default=("mark", "/mark"), description="HTML tags for highlighting"
     )
+    synthesize_answer: bool = Field(
+        default=False, description="Generate LLM-synthesized answer from results"
+    )
 
 
 class TextSnippet(BaseModel):
@@ -163,6 +166,9 @@ class SearchResponse(BaseModel):
     )
     deterministic_message: Optional[str] = Field(
         None, description="Deterministic gate explanation"
+    )
+    synthesized_answer: Optional[str] = Field(
+        None, description="LLM-synthesized answer from retrieved context"
     )
 
 

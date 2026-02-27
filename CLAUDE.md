@@ -33,7 +33,7 @@ cd frontend && npm run validate      # lint + type-check + test
 - **Python**: Black (88), isort, mypy strict, snake_case, structlog
 - **TypeScript**: Prettier, ESLint, strict mode, camelCase/PascalCase
 - **Imports**: `@/*` aliases for src/app paths
-- **Theme**: Terminal Observatory - PHOSPHOR_GREEN=#00ff9f, AMBER=#ffb700, CYAN=#00d4ff
+- **Theme**: Vercel Aesthetic / shadcn/ui neutral - Primary: `hsl(var(--primary))`, Background: `hsl(var(--background))`. Clean, minimalist styling. No brutalist effects or scanlines.
 
 ## Gotchas
 
