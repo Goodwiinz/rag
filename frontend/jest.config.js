@@ -35,9 +35,8 @@ const customJestConfig = {
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1',
     '\\.(css|less|scss|sass)$': 'identity-obj-proxy',
-    '^react(/.*)?$': '<rootDir>/../node_modules/react$1',
-    '^react-dom(/.*)?$': '<rootDir>/../node_modules/react-dom$1',
-    '^react-router-dom$': '<rootDir>/../node_modules/react-router-dom',
+    // Removed manual mappings for react/react-dom/react-router-dom to rely on standard resolution
+    // which should work in both local and CI environments if dependencies are installed correctly.
   },
 
   // Reporters
