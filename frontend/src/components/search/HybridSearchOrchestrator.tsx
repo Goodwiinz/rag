@@ -98,7 +98,7 @@ const SearchStage: React.FC<SearchStageProps> = ({ stage, isActive, isCompleted,
             </span>
           )}
           {hasError && onRetry && (
-            <Button variant="ghost" size="sm" onClick={onRetry} className="h-6 w-6 p-0">
+            <Button variant="ghost" size="sm" onClick={onRetry} className="h-6 w-6 p-0" aria-label="Retry search stage">
               <ArrowPathIcon className="h-3 w-3" />
             </Button>
           )}
@@ -562,6 +562,7 @@ export const HybridSearchOrchestrator: React.FC<HybridSearchOrchestratorProps> =
                 size="sm"
                 onClick={() => setShowDetailDialog(true)}
                 className="h-8 w-8 p-0"
+                aria-label="Show search details"
               >
                 <InformationCircleIcon className="h-4 w-4" />
               </Button>

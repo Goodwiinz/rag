@@ -357,7 +357,7 @@ export function MessageBubble({
             {!isUser && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="sm" className="h-7 w-7 p-0">
+                  <Button variant="ghost" size="sm" className="h-7 w-7 p-0" aria-label="More actions">
                     <MoreVertical className="w-3 h-3" />
                   </Button>
                 </DropdownMenuTrigger>
