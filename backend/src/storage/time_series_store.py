@@ -434,7 +434,8 @@ class PostgreSQLTimeSeriesStore:
 
         # Add limit
         if query.limit:
-            sql += f" LIMIT {query.limit}"
+            sql += " LIMIT :limit"
+            params["limit"] = int(query.limit)
 
         result = db.execute(text(sql), params)
         rows = result.fetchall()
@@ -508,7 +509,8 @@ class PostgreSQLTimeSeriesStore:
 
         # Add limit
         if query.limit:
-            sql += f" LIMIT {query.limit}"
+            sql += " LIMIT :limit"
+            params["limit"] = int(query.limit)
 
         result = db.execute(text(sql), params)
         rows = result.fetchall()
@@ -585,7 +587,8 @@ class PostgreSQLTimeSeriesStore:
 
         # Add limit
         if query.limit:
-            sql += f" LIMIT {query.limit}"
+            sql += " LIMIT :limit"
+            params["limit"] = int(query.limit)
 
         result = db.execute(text(sql), params)
         rows = result.fetchall()
