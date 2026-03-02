@@ -1,10 +1,17 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Eye, Pencil, Save, X } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import type { ProjectDocument, ProjectNote, ProjectNoteCreate } from '@/services/projectService';
+import type {
+  ProjectDocument,
+  ProjectNote,
+  ProjectNoteCreate,
+} from '@/services/projectService';
+import { ToneToolbar } from './ToneToolbar';
+import { RewriteDiffView } from './RewriteDiffView';
+import type { RewriteResponse } from '@/types/scispace';
 
 export interface NoteEditorValue extends ProjectNoteCreate {
   title: string;
@@ -32,6 +39,19 @@ export function NoteEditor({
   const [linkedDocumentIds, setLinkedDocumentIds] = useState<string[]>([]);
   const [preview, setPreview] = useState(false);
   const [saving, setSaving] = useState(false);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [selectedText, setSelectedText] = useState('');
+  const [selectionRange, setSelectionRange] = useState<{
+    start: number;
+    end: number;
+  } | null>(null);
+  const [toneToolbarPos, setToneToolbarPos] = useState<{
+    top: number;
+    left: number;
+  } | null>(null);
+  const [rewriteResult, setRewriteResult] = useState<RewriteResponse | null>(
+    null
+  );
 
   useEffect(() => {
     if (!isOpen) return;
@@ -43,7 +63,52 @@ export function NoteEditor({
     setPreview(false);
   }, [initialNote, isOpen]);
 
-  const canSave = useMemo(() => title.trim().length > 0 && !saving, [title, saving]);
+  const canSave = useMemo(
+    () => title.trim().length > 0 && !saving,
+    [title, saving]
+  );
+
+  const handleTextSelect = useCallback(() => {
+    const ta = textareaRef.current;
+    if (!ta) return;
+    const start = ta.selectionStart;
+    const end = ta.selectionEnd;
+    const text = content.slice(start, end).trim();
+    if (text.split(/\s+/).length >= 5) {
+      setSelectedText(text);
+      setSelectionRange({ start, end });
+      setToneToolbarPos({ top: -44, left: 0 });
+    } else {
+      setSelectedText('');
+      setSelectionRange(null);
+      setToneToolbarPos(null);
+    }
+  }, [content]);
+
+  const handleToneRewrite = useCallback((result: RewriteResponse) => {
+    setRewriteResult(result);
+    setToneToolbarPos(null);
+  }, []);
+
+  const handleAcceptRewrite = useCallback(
+    (rewritten: string) => {
+      if (selectionRange) {
+        const before = content.slice(0, selectionRange.start);
+        const after = content.slice(selectionRange.end);
+        setContent(before + rewritten + after);
+      }
+      setRewriteResult(null);
+      setSelectedText('');
+      setSelectionRange(null);
+    },
+    [content, selectionRange]
+  );
+
+  const handleRejectRewrite = useCallback(() => {
+    setRewriteResult(null);
+    setSelectedText('');
+    setSelectionRange(null);
+  }, []);
 
   if (!isOpen) return null;
 
@@ -91,12 +156,19 @@ export function NoteEditor({
               className="px-3 py-1.5 text-xs font-mono border border-[#333] rounded text-gray-300 hover:border-[#00ff9f]/50"
             >
               {preview ? (
-                <span className="inline-flex items-center gap-1"><Pencil className="h-3.5 w-3.5" /> Edit</span>
+                <span className="inline-flex items-center gap-1">
+                  <Pencil className="h-3.5 w-3.5" /> Edit
+                </span>
               ) : (
-                <span className="inline-flex items-center gap-1"><Eye className="h-3.5 w-3.5" /> Preview</span>
+                <span className="inline-flex items-center gap-1">
+                  <Eye className="h-3.5 w-3.5" /> Preview
+                </span>
               )}
             </button>
-            <button onClick={onClose} className="p-1 text-gray-500 hover:text-gray-300">
+            <button
+              onClick={onClose}
+              className="p-1 text-gray-500 hover:text-gray-300"
+            >
               <X className="h-5 w-5" />
             </button>
           </div>
@@ -121,13 +193,41 @@ export function NoteEditor({
               Content (Markdown)
             </label>
             {!preview ? (
-              <textarea
-                value={content}
-                onChange={(e) => setContent(e.target.value)}
-                placeholder="Write note content in markdown..."
-                rows={12}
-                className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#333] rounded text-sm font-mono text-gray-300 placeholder-gray-600 focus:outline-none focus:border-[#00ff9f] resize-none"
-              />
+              <div className="relative">
+                {toneToolbarPos && selectedText && !rewriteResult && (
+                  <ToneToolbar
+                    selectedText={selectedText}
+                    position={{ top: -44, left: 0 }}
+                    onRewrite={handleToneRewrite}
+                    onClose={() => {
+                      setToneToolbarPos(null);
+                      setSelectedText('');
+                    }}
+                  />
+                )}
+                <textarea
+                  ref={textareaRef}
+                  value={content}
+                  onChange={(e) => setContent(e.target.value)}
+                  onMouseUp={handleTextSelect}
+                  onKeyUp={handleTextSelect}
+                  placeholder="Write note content in markdown..."
+                  rows={12}
+                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#333] rounded text-sm font-mono text-gray-300 placeholder-gray-600 focus:outline-none focus:border-[#00ff9f] resize-none"
+                />
+                {rewriteResult && (
+                  <div className="mt-3">
+                    <RewriteDiffView
+                      original={rewriteResult.original}
+                      rewritten={rewriteResult.rewritten}
+                      toneApplied={rewriteResult.tone_applied}
+                      citationsPreserved={rewriteResult.citations_preserved}
+                      onAccept={handleAcceptRewrite}
+                      onReject={handleRejectRewrite}
+                    />
+                  </div>
+                )}
+              </div>
             ) : (
               <div className="p-3 bg-[#111] border border-[#333] rounded min-h-[180px] prose prose-invert prose-sm max-w-none">
                 <ReactMarkdown remarkPlugins={[remarkGfm]}>
@@ -167,7 +267,9 @@ export function NoteEditor({
                 {tags.map((tag) => (
                   <button
                     key={tag}
-                    onClick={() => setTags((prev) => prev.filter((t) => t !== tag))}
+                    onClick={() =>
+                      setTags((prev) => prev.filter((t) => t !== tag))
+                    }
                     className="px-2 py-1 bg-[#1a1a1a] border border-[#333] rounded text-xs font-mono text-gray-300 hover:border-red-400 hover:text-red-300"
                   >
                     {tag}
@@ -194,7 +296,9 @@ export function NoteEditor({
                       onChange={() => toggleDocumentLink(doc.document_id)}
                     />
                     <span className="truncate font-mono text-xs">
-                      {doc.document?.title || doc.document?.filename || doc.document_id}
+                      {doc.document?.title ||
+                        doc.document?.filename ||
+                        doc.document_id}
                     </span>
                   </label>
                 ))}
