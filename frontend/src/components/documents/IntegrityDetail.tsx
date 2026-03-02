@@ -17,7 +17,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { AxiosError } from 'axios';
+import { APIErrorClass } from '@/types/api';
 
 interface IntegrityDetailProps {
   documentId: string;
@@ -57,8 +57,7 @@ export const IntegrityDetail: React.FC<IntegrityDetailProps> = ({
       const data = await getIntegrityScore(documentId);
       setScore(data);
     } catch (err) {
-      const axiosErr = err as AxiosError;
-      if (axiosErr.response?.status === 404) {
+      if (err instanceof APIErrorClass && err.error.status_code === 404) {
         setNoScore(true);
       } else {
         setError('Failed to load integrity score.');

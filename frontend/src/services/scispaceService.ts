@@ -12,18 +12,22 @@ import type {
   ExtractRegionResponse,
   IntegrityCheckResponse,
   IntegrityScoreResponse,
+  OutlineRequest,
+  OutlineResponse,
   RewriteRequest,
   RewriteResponse,
   TablesResponse,
   TriggerExtractionRequest,
   TriggerExtractionResponse,
+  WriteRequest,
+  WriteResponse,
 } from '@/types/scispace';
 
 // ============================================================================
 // Feature 1: Extraction Matrix
 // ============================================================================
 
-const RESEARCH_BASE = '/api/v1/research';
+const RESEARCH_BASE = '/research';
 
 export const createMatrix = (projectId: string, data: CreateMatrixRequest) =>
   apiClient.post<{
@@ -55,7 +59,7 @@ export const deleteMatrix = (matrixId: string) =>
 // Feature 2: Table/Math Extraction
 // ============================================================================
 
-const DOCUMENTS_BASE = '/api/v1/documents';
+const DOCUMENTS_BASE = '/documents';
 
 export const extractTables = (documentId: string) =>
   apiClient.get<TablesResponse>(`${DOCUMENTS_BASE}/${documentId}/tables`);
@@ -85,4 +89,17 @@ export const triggerIntegrityCheck = (documentId: string) =>
 export const getIntegrityScore = (documentId: string) =>
   apiClient.get<IntegrityScoreResponse>(
     `${DOCUMENTS_BASE}/${documentId}/integrity-score`
+  );
+
+// ============================================================================
+// Feature 6: AI Writer
+// ============================================================================
+
+export const writeText = (data: WriteRequest) =>
+  apiClient.postWithLongTimeout<WriteResponse>(`${RESEARCH_BASE}/write`, data);
+
+export const generateOutline = (data: OutlineRequest) =>
+  apiClient.postWithLongTimeout<OutlineResponse>(
+    `${RESEARCH_BASE}/outline`,
+    data
   );

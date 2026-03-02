@@ -45,7 +45,6 @@ import { getIntegrityScore, extractTables } from '@/services/scispaceService';
 import { ExtractedTablePreview } from '@/components/documents/ExtractedTablePreview';
 import { CropExtractOverlay } from '@/components/documents/CropExtractOverlay';
 import type { ExtractedTable, ExtractRegionResponse } from '@/types/scispace';
-import { AxiosError } from 'axios';
 import type { CitationResponse } from '@/types/research';
 
 export default function DocumentDetailPage() {
@@ -201,9 +200,11 @@ export default function DocumentDetailPage() {
           })
         )
         .catch((err) => {
-          const axiosErr = err as AxiosError;
-          if (axiosErr.response?.status !== 404)
+          if (
+            !(err instanceof APIErrorClass && err.error.status_code === 404)
+          ) {
             console.error('Failed to fetch integrity:', err);
+          }
         });
     }
   }, [document]);
