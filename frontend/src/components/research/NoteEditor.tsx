@@ -11,7 +11,9 @@ import type {
 } from '@/services/projectService';
 import { ToneToolbar } from './ToneToolbar';
 import { RewriteDiffView } from './RewriteDiffView';
-import type { RewriteResponse } from '@/types/scispace';
+import { WriterToolbar } from './WriterToolbar';
+import { InsertPreview } from './InsertPreview';
+import type { RewriteResponse, WriteResponse } from '@/types/scispace';
 
 export interface NoteEditorValue extends ProjectNoteCreate {
   title: string;
@@ -21,6 +23,7 @@ export interface NoteEditorProps {
   isOpen: boolean;
   initialNote?: ProjectNote | null;
   availableDocuments?: ProjectDocument[];
+  documentIds?: string[];
   onClose: () => void;
   onSave: (value: NoteEditorValue) => Promise<void>;
 }
@@ -29,6 +32,7 @@ export function NoteEditor({
   isOpen,
   initialNote,
   availableDocuments = [],
+  documentIds,
   onClose,
   onSave,
 }: NoteEditorProps) {
@@ -52,6 +56,11 @@ export function NoteEditor({
   const [rewriteResult, setRewriteResult] = useState<RewriteResponse | null>(
     null
   );
+  const [writerToolbarPos, setWriterToolbarPos] = useState<{
+    top: number;
+    left: number;
+  } | null>(null);
+  const [writeResult, setWriteResult] = useState<WriteResponse | null>(null);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -73,15 +82,29 @@ export function NoteEditor({
     if (!ta) return;
     const start = ta.selectionStart;
     const end = ta.selectionEnd;
+
+    if (start === end) {
+      // Collapsed cursor → WriterToolbar
+      setSelectedText('');
+      setSelectionRange(null);
+      setToneToolbarPos(null);
+      if (content.trim().length > 0) {
+        setWriterToolbarPos({ top: -44, left: 0 });
+      }
+      return;
+    }
+
     const text = content.slice(start, end).trim();
     if (text.split(/\s+/).length >= 5) {
       setSelectedText(text);
       setSelectionRange({ start, end });
       setToneToolbarPos({ top: -44, left: 0 });
+      setWriterToolbarPos(null);
     } else {
       setSelectedText('');
       setSelectionRange(null);
       setToneToolbarPos(null);
+      setWriterToolbarPos(null);
     }
   }, [content]);
 
@@ -109,6 +132,21 @@ export function NoteEditor({
     setSelectedText('');
     setSelectionRange(null);
   }, []);
+
+  const handleWriteInsert = useCallback((result: WriteResponse) => {
+    setWriteResult(result);
+    setWriterToolbarPos(null);
+  }, []);
+
+  const handleAcceptWrite = useCallback(
+    (text: string) => {
+      const ta = textareaRef.current;
+      const cursorPos = ta ? ta.selectionStart : content.length;
+      setContent(content.slice(0, cursorPos) + text + content.slice(cursorPos));
+      setWriteResult(null);
+    },
+    [content]
+  );
 
   if (!isOpen) return null;
 
@@ -205,6 +243,19 @@ export function NoteEditor({
                     }}
                   />
                 )}
+                {writerToolbarPos &&
+                  !selectedText &&
+                  !writeResult &&
+                  !rewriteResult && (
+                    <WriterToolbar
+                      cursorContext={content}
+                      position={{ top: -44, left: 0 }}
+                      documentIds={documentIds}
+                      onInsert={handleWriteInsert}
+                      onOutlineRequest={() => setWriterToolbarPos(null)}
+                      onClose={() => setWriterToolbarPos(null)}
+                    />
+                  )}
                 <textarea
                   ref={textareaRef}
                   value={content}
@@ -224,6 +275,19 @@ export function NoteEditor({
                       citationsPreserved={rewriteResult.citations_preserved}
                       onAccept={handleAcceptRewrite}
                       onReject={handleRejectRewrite}
+                    />
+                  </div>
+                )}
+                {writeResult && (
+                  <div className="mt-3">
+                    <InsertPreview
+                      generated={writeResult.generated}
+                      citationsUsed={writeResult.citations_used}
+                      sectionType={writeResult.section_type}
+                      confidence={writeResult.confidence}
+                      onAccept={handleAcceptWrite}
+                      onEditFirst={handleAcceptWrite}
+                      onDiscard={() => setWriteResult(null)}
                     />
                   </div>
                 )}
