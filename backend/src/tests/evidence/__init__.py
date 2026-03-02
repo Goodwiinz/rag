@@ -1,3 +1,0 @@
-"""
-Evidence Agreement Meter tests
-"""
