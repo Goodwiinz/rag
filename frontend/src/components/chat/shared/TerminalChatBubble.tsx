@@ -107,6 +107,7 @@ export function TerminalChatBubble({
                 : 'text-[var(--terminal-text-dim)] hover:text-[var(--terminal-text)]'
             )}
             title={copied ? 'Copied!' : 'Copy message'}
+            aria-label={copied ? 'Copied!' : 'Copy message'}
           >
             {copied ? (
               <Check className="h-3.5 w-3.5" />
@@ -119,6 +120,7 @@ export function TerminalChatBubble({
               onClick={onRetry}
               className="rounded border border-transparent p-1 text-[var(--terminal-text-dim)] transition-all hover:border-[var(--terminal-border)] hover:bg-[var(--terminal-elevated)] hover:text-[var(--terminal-text)]"
               title="Retry"
+              aria-label="Retry message"
             >
               <RefreshCw className="h-3.5 w-3.5" />
             </button>

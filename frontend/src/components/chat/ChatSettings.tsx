@@ -384,6 +384,7 @@ export function ChatSettingsPanel({
                         size="sm"
                         variant="outline"
                         onClick={() => setCustomPromptOpen(true)}
+                        aria-label="Add custom prompt"
                       >
                         <Plus className="w-4 h-4 mr-1" />
                         Custom

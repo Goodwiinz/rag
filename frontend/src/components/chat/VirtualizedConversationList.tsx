@@ -249,6 +249,7 @@ const ConversationItem = memo<{
           <Button
             variant="ghost"
             size="sm"
+            aria-label="Conversation options"
             className="absolute right-2 top-2 h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
           >
             <MoreVertical className="w-3 h-3" />

@@ -1,0 +1,3 @@
+## 2024-05-18 - Missing ARIA Labels on Key Icon-Only Buttons
+**Learning:** Found multiple instances where critical interactive elements—such as 'Copy', 'Retry', and 'Conversation Options' (the three vertical dots menu)—were implemented as icon-only `<button>` or `<Button>` components without an `aria-label`. While some used the `title` attribute which provides visual tooltip context, screen readers rely more reliably on `aria-label` for accurate voicing. Specifically, dropdown triggers wrapping icon-only buttons often miss this crucial context.
+**Action:** When auditing or implementing interactive icon-only components like dropdown triggers or utility actions, always explicitly assign `aria-label` alongside any visual tooltips to guarantee full screen reader support.
