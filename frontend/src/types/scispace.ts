@@ -152,3 +152,55 @@ export function getIntegrityLevel(aiProbability: number): IntegrityLevel {
   if (aiProbability <= 0.7) return 'mixed';
   return 'ai';
 }
+
+// ============================================================================
+// Feature 6: AI Writer
+// ============================================================================
+
+export type WriterAction = 'complete' | 'generate_section' | 'generate_outline';
+
+export type SectionType =
+  | 'introduction'
+  | 'methodology'
+  | 'results'
+  | 'discussion'
+  | 'conclusion'
+  | 'abstract'
+  | 'custom';
+
+export interface WriteRequest {
+  action: WriterAction;
+  cursor_context: string;
+  section_type?: SectionType;
+  style?: 'academic' | 'technical' | 'summary';
+  document_ids?: string[];
+}
+
+export interface WriteResponse {
+  generated: string;
+  action: WriterAction;
+  section_type: SectionType | null;
+  citations_used: string[];
+  confidence: number;
+}
+
+export interface OutlineSection {
+  title: string;
+  section_type: SectionType;
+  description: string;
+  suggested_word_count: number;
+}
+
+export interface OutlineRequest {
+  research_question: string;
+  style?: 'academic' | 'technical' | 'summary';
+  document_ids?: string[];
+  section_types?: SectionType[];
+}
+
+export interface OutlineResponse {
+  research_question: string;
+  sections: OutlineSection[];
+  style: 'academic' | 'technical' | 'summary';
+  total_suggested_words: number;
+}

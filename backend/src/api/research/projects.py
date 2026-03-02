@@ -193,8 +193,8 @@ async def get_project(
                 {
                     "id": str(cd.document.id),
                     "filename": cd.document.filename,
-                    "file_type": cd.document.file_type,
-                    "status": cd.document.status,
+                    "file_type": cd.document.document_type,
+                    "status": cd.document.processing_status,
                     "created_at": cd.document.created_at.isoformat(),
                     "sort_order": cd.sort_order,
                 }
@@ -336,7 +336,7 @@ async def list_project_documents(
                         "id": str(cd.document.id),
                         "title": cd.document.title or cd.document.filename,
                         "filename": cd.document.filename,
-                        "status": cd.document.status,
+                        "status": cd.document.processing_status,
                         "created_at": cd.document.created_at.isoformat()
                         if cd.document.created_at
                         else None,
@@ -435,7 +435,7 @@ async def add_document_to_project(
                 "id": str(document.id),
                 "title": document.title or document.filename,
                 "filename": document.filename,
-                "status": document.status,
+                "status": document.processing_status,
                 "created_at": document.created_at.isoformat()
                 if document.created_at
                 else None,

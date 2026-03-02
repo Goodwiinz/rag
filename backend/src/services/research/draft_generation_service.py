@@ -167,13 +167,13 @@ class DraftGenerationService:
             if document_ids:
                 docs_query = select(Document).where(Document.id.in_(document_ids))
             else:
-                # Get all documents in project through project_documents
-                from src.models.project_document import ProjectDocument
+                # Get all documents in project through collection_documents
+                from src.models.collection import CollectionDocument
 
                 docs_query = (
                     select(Document)
-                    .join(ProjectDocument, Document.id == ProjectDocument.document_id)
-                    .where(ProjectDocument.project_id == project_id)
+                    .join(CollectionDocument, Document.id == CollectionDocument.document_id)
+                    .where(CollectionDocument.collection_id == project_id)
                 )
 
             result = await self.db.execute(docs_query)
@@ -244,7 +244,6 @@ class DraftGenerationService:
             # Create the draft
             draft = GeneratedDraft(
                 project_id=project_id,
-                user_id=user_id,
                 version=new_version,
                 title=f"Literature Review - {', '.join(themes[:3])}",
                 content=draft_content,
