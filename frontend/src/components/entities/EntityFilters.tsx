@@ -163,6 +163,7 @@ export const EntityFilters: React.FC<EntityFiltersProps> = ({
               size="icon"
               onClick={() => onSearchChange('')}
               className="absolute right-2 top-1/2 -translate-y-1/2 h-6 w-6 text-[var(--terminal-text-dim)] hover:text-white"
+              aria-label="Clear search"
             >
               <X className="h-3 w-3" />
             </Button>
