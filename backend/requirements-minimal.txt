@@ -33,7 +33,7 @@ neo4j==5.15.0
 PyMuPDF==1.23.18
 Pillow==10.3.0
 python-magic==0.4.27
-aiofiles==23.2.1
+aiofiles==25.1.0
 
 # HTTP Client
 httpx==0.25.2
