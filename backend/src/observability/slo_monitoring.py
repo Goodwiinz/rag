@@ -12,11 +12,14 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from .config import config
 from .logging import get_logger
-
-# Define SLI constants locally to avoid circular import with metrics.py
-SLI_AVAILABILITY = "availability"
-SLI_ERROR_RATE = "error_rate"
-SLI_RESPONSE_TIME = "response_time"
+from .metrics import (
+    SLI_AVAILABILITY,
+    SLI_ERROR_RATE,
+    SLI_RESPONSE_TIME,
+    increment_counter,
+    increment_updown_counter,
+    record_histogram,
+)
 
 logger = get_logger(__name__)
 
@@ -220,7 +223,6 @@ class SLAMonitor:
         self.sli_data[key] = [(t, v) for t, v in self.sli_data[key] if t > cutoff_time]
 
         # Record to metrics system
-        from .metrics import record_histogram
         record_histogram(f"sli_{sli_name}", value, {"slo": slo_name})
 
     def evaluate_slo(self, slo_name: str) -> SLOStatus:
@@ -362,13 +364,13 @@ class SLAMonitor:
     ):
         """Record request metrics for SLO monitoring."""
         # Record response time
-        self.record_sli(SLI_RESPONSE_TIME, "response_time", duration)
+        self.record_sli("response_time", "response_time", duration)
 
         # Record error rate
-        self.record_sli(SLI_ERROR_RATE, "error_rate", 0.0 if success else 1.0)
+        self.record_sli("error_rate", "error_rate", 0.0 if success else 1.0)
 
         # Record availability
-        self.record_sli(SLI_AVAILABILITY, "availability", 1.0 if success else 0.0)
+        self.record_sli("availability", "availability", 1.0 if success else 0.0)
 
     def record_rag_quality_metrics(
         self, answer_relevancy: float, faithfulness: float, contextual_relevancy: float

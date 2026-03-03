@@ -1,6 +1,15 @@
 
-import pytest
+import sys
 from unittest.mock import MagicMock, AsyncMock, call
+
+# Mock out broken dependencies BEFORE importing metrics_service
+sys.modules['src.services.analytics.dashboard_service'] = MagicMock()
+sys.modules['src.models.analytics.dashboard_models'] = MagicMock()
+sys.modules['src.services.analytics.graph_analytics_service'] = MagicMock()
+sys.modules['src.services.analytics.realtime_service'] = MagicMock()
+sys.modules['src.services.analytics.report_service'] = MagicMock()
+
+import pytest
 from uuid import uuid4
 from datetime import datetime
 from src.services.analytics.metrics_service import MetricsService, MetricResolution, AggregationType

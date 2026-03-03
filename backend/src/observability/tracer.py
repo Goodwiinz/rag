@@ -38,6 +38,7 @@ except ImportError:
     trace = None
     baggage = None
     context = None
+from opentelemetry.propagators.jaeger import JaegerPropagator
 from opentelemetry.trace import SpanKind, Status, StatusCode
 from opentelemetry.trace.propagation import get_current_span
 
@@ -47,7 +48,7 @@ from .config import config
 _tracer = None
 
 
-def configure_tracing() -> Any:
+def configure_tracing() -> trace.Tracer:
     """Configure OpenTelemetry tracing with Jaeger and OTLP exporters"""
     global _tracer
 
@@ -104,7 +105,7 @@ def configure_tracing() -> Any:
     return _tracer
 
 
-def get_tracer(name: Optional[str] = None) -> Any:
+def get_tracer(name: Optional[str] = None) -> trace.Tracer:
     """Get a tracer instance"""
     if _tracer is None:
         configure_tracing()
@@ -117,9 +118,9 @@ def get_tracer(name: Optional[str] = None) -> Any:
 @contextmanager
 def trace_span(
     name: str,
-    kind: Any = SpanKind.INTERNAL,
+    kind: SpanKind = SpanKind.INTERNAL,
     attributes: Optional[Dict[str, Any]] = None,
-    status: Any = None,
+    status: Optional[Status] = None,
 ):
     """Context manager for creating spans"""
     tracer = get_tracer()
@@ -140,9 +141,9 @@ def trace_span(
 @asynccontextmanager
 async def async_trace_span(
     name: str,
-    kind: Any = SpanKind.INTERNAL,
+    kind: SpanKind = SpanKind.INTERNAL,
     attributes: Optional[Dict[str, Any]] = None,
-    status: Any = None,
+    status: Optional[Status] = None,
 ):
     """Async context manager for creating spans"""
     tracer = get_tracer()
@@ -162,7 +163,7 @@ async def async_trace_span(
 
 def trace_function(
     name: Optional[str] = None,
-    kind: Any = SpanKind.INTERNAL,
+    kind: SpanKind = SpanKind.INTERNAL,
     attributes: Optional[Dict[str, Any]] = None,
     record_exception: bool = True,
 ):
@@ -214,7 +215,7 @@ def trace_function(
 
 def trace_async_function(
     name: Optional[str] = None,
-    kind: Any = SpanKind.INTERNAL,
+    kind: SpanKind = SpanKind.INTERNAL,
     attributes: Optional[Dict[str, Any]] = None,
     record_exception: bool = True,
 ):

@@ -442,7 +442,7 @@ class ProcessingJobDetail(ProcessingJob):
 class LoginRequest(BaseModel):
     """Login request"""
 
-    email: str = Field(pattern=r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$")
+    email: str = Field(pattern="^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$")
     password: str = Field(min_length=1)
 
 
@@ -473,7 +473,7 @@ class TokenResponse(BaseModel):
 class CreateUserRequest(BaseModel):
     """Create user request"""
 
-    email: str = Field(pattern=r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$")
+    email: str = Field(pattern="^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$")
     first_name: str = Field(min_length=1, max_length=100)
     last_name: str = Field(min_length=1, max_length=100)
     password: str = Field(min_length=8)

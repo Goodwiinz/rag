@@ -316,7 +316,7 @@ class StatusUpdate(BaseModel):
     user_response = Column(JSON, nullable=True)  # User's response to update
 
     # Relationships
-    connection = relationship("WebSocketConnection", back_populates="status_updates")
+    connection = relationship("src.models.websocket_status.WebSocketConnection", back_populates="status_updates")
 
     # Indexes
     __table_args__ = (
@@ -466,7 +466,7 @@ class ConnectionEvent(BaseModel):
     error_stack = Column(Text, nullable=True)
 
     # Relationships
-    connection = relationship("WebSocketConnection", back_populates="connection_events")
+    connection = relationship("src.models.websocket_status.WebSocketConnection", back_populates="connection_events")
 
     def __repr__(self):
         return f"<ConnectionEvent(type={self.event_type}, connection_id={self.connection_id})>"

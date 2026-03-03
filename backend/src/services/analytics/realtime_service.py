@@ -23,7 +23,6 @@ from src.models.analytics.realtime_models import (
     ChannelMetrics,
     ConnectionStats,
     EventStream,
-    EventStreamData,
     LiveMetric,
     LiveMetricData,
     RealtimeAnalyticsSummary,
