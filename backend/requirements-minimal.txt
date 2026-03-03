@@ -58,4 +58,4 @@ typer==0.9.0
 
 # Testing
 pytest-cov==7.0.0
-faker==20.1.0
+faker==40.5.1
