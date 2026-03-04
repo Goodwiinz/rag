@@ -7,18 +7,24 @@
 import { apiClient } from '@/services/apiClient';
 import type {
   CreateMatrixRequest,
+  CreateMatrixResponse,
   ExtractionMatrix,
+  ExtractionTaskStatus,
   ExtractRegionRequest,
   ExtractRegionResponse,
   IntegrityCheckResponse,
   IntegrityScoreResponse,
   OutlineRequest,
   OutlineResponse,
+  PipelineState,
   RewriteRequest,
   RewriteResponse,
   TablesResponse,
   TriggerExtractionRequest,
   TriggerExtractionResponse,
+  UpdateMatrixRequest,
+  UpdateMatrixResponse,
+  UpdatePipelineRequest,
   WriteRequest,
   WriteResponse,
 } from '@/types/scispace';
@@ -29,14 +35,23 @@ import type {
 
 const RESEARCH_BASE = '/research';
 
+export const listMatrices = (projectId: string) =>
+  apiClient.get<{
+    matrices: Array<{
+      id: string;
+      project_id: string;
+      name: string;
+      columns: CreateMatrixRequest['columns'];
+      created_at: string;
+    }>;
+    total: number;
+  }>(`${RESEARCH_BASE}/projects/${projectId}/matrices`);
+
 export const createMatrix = (projectId: string, data: CreateMatrixRequest) =>
-  apiClient.post<{
-    id: string;
-    project_id: string;
-    name: string;
-    columns: CreateMatrixRequest['columns'];
-    created_at: string;
-  }>(`${RESEARCH_BASE}/projects/${projectId}/matrices`, data);
+  apiClient.post<CreateMatrixResponse>(
+    `${RESEARCH_BASE}/projects/${projectId}/matrices`,
+    data
+  );
 
 export const getMatrix = (matrixId: string) =>
   apiClient.get<ExtractionMatrix>(`${RESEARCH_BASE}/matrices/${matrixId}`);
@@ -50,9 +65,20 @@ export const triggerExtraction = (
     data
   );
 
+export const updateMatrix = (matrixId: string, data: UpdateMatrixRequest) =>
+  apiClient.patch<UpdateMatrixResponse>(
+    `${RESEARCH_BASE}/matrices/${matrixId}`,
+    data
+  );
+
 export const deleteMatrix = (matrixId: string) =>
   apiClient.delete<{ message: string; matrix_id: string }>(
     `${RESEARCH_BASE}/matrices/${matrixId}`
+  );
+
+export const getExtractionTaskStatus = (taskId: string) =>
+  apiClient.get<ExtractionTaskStatus>(
+    `${RESEARCH_BASE}/extraction-tasks/${taskId}`
   );
 
 // ============================================================================
@@ -102,4 +128,27 @@ export const generateOutline = (data: OutlineRequest) =>
   apiClient.postWithLongTimeout<OutlineResponse>(
     `${RESEARCH_BASE}/outline`,
     data
+  );
+
+// ============================================================================
+// Feature 7: Research Pipeline
+// ============================================================================
+
+export const getPipeline = (projectId: string) =>
+  apiClient.get<PipelineState>(
+    `${RESEARCH_BASE}/projects/${projectId}/pipeline`
+  );
+
+export const updatePipeline = (
+  projectId: string,
+  data: UpdatePipelineRequest
+) =>
+  apiClient.patch<PipelineState>(
+    `${RESEARCH_BASE}/projects/${projectId}/pipeline`,
+    data
+  );
+
+export const resetPipeline = (projectId: string) =>
+  apiClient.post<PipelineState>(
+    `${RESEARCH_BASE}/projects/${projectId}/pipeline/reset`
   );

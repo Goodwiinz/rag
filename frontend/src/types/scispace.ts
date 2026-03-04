@@ -39,11 +39,46 @@ export interface TriggerExtractionRequest {
   document_ids: string[];
 }
 
+export interface UpdateMatrixRequest {
+  name?: string;
+  columns?: ExtractionColumn[];
+  clear_stale_cells?: boolean;
+}
+
+export interface UpdateMatrixResponse {
+  id: string;
+  project_id: string;
+  name: string;
+  columns: ExtractionColumn[];
+  columns_changed: boolean;
+  stale_document_ids: string[];
+  updated_at: string | null;
+}
+
+export interface CreateMatrixResponse {
+  id: string;
+  project_id: string;
+  name: string;
+  columns: ExtractionColumn[];
+  created_at: string;
+  extraction_task_id: string | null;
+}
+
 export interface TriggerExtractionResponse {
   matrix_id: string;
   document_ids: string[];
   status: string;
   message: string;
+}
+
+export interface ExtractionTaskStatus {
+  status: 'running' | 'completed' | 'failed';
+  matrix_id: string;
+  total: number;
+  completed: number;
+  failed: number;
+  skipped: number;
+  error?: string;
 }
 
 // ============================================================================
@@ -203,4 +238,49 @@ export interface OutlineResponse {
   sections: OutlineSection[];
   style: 'academic' | 'technical' | 'summary';
   total_suggested_words: number;
+}
+
+// ============================================================================
+// Feature 7: Research Pipeline
+// ============================================================================
+
+export type PipelineStepStatus =
+  | 'completed'
+  | 'active'
+  | 'skipped'
+  | 'upcoming'
+  | 'invalidated';
+
+export interface PipelineStep {
+  index: number;
+  label: string;
+  skippable: boolean;
+}
+
+export const PIPELINE_STEPS: PipelineStep[] = [
+  { index: 0, label: 'Collect', skippable: false },
+  { index: 1, label: 'Extract', skippable: true },
+  { index: 2, label: 'Cite', skippable: false },
+  { index: 3, label: 'Draft', skippable: false },
+  { index: 4, label: 'Export', skippable: false },
+];
+
+export interface PipelineState {
+  id: string;
+  project_id: string;
+  current_step: number;
+  completed_steps: number[];
+  skipped_steps: number[];
+  step_data: Record<string, unknown>;
+  invalidated_steps: number[];
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+export interface UpdatePipelineRequest {
+  current_step?: number;
+  completed_steps?: number[];
+  skipped_steps?: number[];
+  step_data?: Record<string, unknown>;
+  invalidated_steps?: number[];
 }
