@@ -49,6 +49,17 @@ class CreateMatrixRequest(BaseModel):
     columns: List[ExtractionColumn] = Field(..., min_length=1, max_length=20)
 
 
+class UpdateMatrixRequest(BaseModel):
+    """Request to update an existing extraction matrix."""
+
+    name: Optional[str] = Field(None, min_length=1, max_length=255)
+    columns: Optional[List[ExtractionColumn]] = Field(None, min_length=1, max_length=20)
+    clear_stale_cells: bool = Field(
+        False,
+        description="Delete cells whose column_name no longer matches any column",
+    )
+
+
 class TriggerExtractionRequest(BaseModel):
     """Request to trigger extraction on selected documents."""
 
