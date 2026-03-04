@@ -9,7 +9,7 @@ import os
 import secrets
 from typing import Dict, List, Optional
 
-from pydantic import field_validator
+from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings
 
 
@@ -98,6 +98,13 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7  # Default refresh token lifetime
     REMEMBER_ME_REFRESH_TOKEN_DAYS: int = 30  # Extended session for "Remember Me"
+
+    @model_validator(mode="after")
+    def _override_database_url_from_supabase(self):
+        """Override DATABASE_URL when SUPABASE_DB_URL is set."""
+        if self.SUPABASE_DB_URL:
+            self.DATABASE_URL = self.SUPABASE_DB_URL
+        return self
 
     @field_validator("SECRET_KEY", mode="before")
     @classmethod
