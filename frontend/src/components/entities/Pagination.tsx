@@ -123,6 +123,7 @@ export const Pagination: React.FC<PaginationProps> = ({
           size="icon"
           onClick={() => onPageChange(1)}
           disabled={!canGoPrevious}
+          aria-label="First page"
           className="h-8 w-8 text-[var(--terminal-text-dim)] hover:text-[var(--phosphor-green)] hover:bg-[var(--phosphor-green)]/10 disabled:opacity-30"
         >
           <ChevronsLeft className="h-4 w-4" />
@@ -134,6 +135,7 @@ export const Pagination: React.FC<PaginationProps> = ({
           size="icon"
           onClick={() => onPageChange(currentPage - 1)}
           disabled={!canGoPrevious}
+          aria-label="Previous page"
           className="h-8 w-8 text-[var(--terminal-text-dim)] hover:text-[var(--phosphor-green)] hover:bg-[var(--phosphor-green)]/10 disabled:opacity-30"
         >
           <ChevronLeft className="h-4 w-4" />
@@ -174,6 +176,7 @@ export const Pagination: React.FC<PaginationProps> = ({
           size="icon"
           onClick={() => onPageChange(currentPage + 1)}
           disabled={!canGoNext}
+          aria-label="Next page"
           className="h-8 w-8 text-[var(--terminal-text-dim)] hover:text-[var(--phosphor-green)] hover:bg-[var(--phosphor-green)]/10 disabled:opacity-30"
         >
           <ChevronRight className="h-4 w-4" />
@@ -185,6 +188,7 @@ export const Pagination: React.FC<PaginationProps> = ({
           size="icon"
           onClick={() => onPageChange(totalPages)}
           disabled={!canGoNext}
+          aria-label="Last page"
           className="h-8 w-8 text-[var(--terminal-text-dim)] hover:text-[var(--phosphor-green)] hover:bg-[var(--phosphor-green)]/10 disabled:opacity-30"
         >
           <ChevronsRight className="h-4 w-4" />
