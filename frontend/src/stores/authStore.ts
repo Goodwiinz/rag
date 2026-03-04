@@ -523,3 +523,28 @@ export const useAuthStore = create<AuthState>()(
     }
   )
 );
+
+// Listen for Supabase auth state changes (token refresh, sign out)
+supabase.auth.onAuthStateChange((event, session) => {
+  if (event === 'TOKEN_REFRESHED' && session) {
+    debugLog('🔄 Supabase token refreshed via onAuthStateChange');
+    useAuthStore.setState({
+      token: session.access_token,
+      refreshTokenValue: session.refresh_token,
+      tokenExpiresAt: session.expires_at ? session.expires_at * 1000 : null,
+    });
+  }
+  if (event === 'SIGNED_OUT') {
+    debugLog('🔓 Supabase signed out via onAuthStateChange');
+    useAuthStore.setState({
+      user: null,
+      organization: null,
+      token: null,
+      refreshTokenValue: null,
+      isAuthenticated: false,
+      rememberMe: false,
+      tokenExpiresAt: null,
+      refreshExpiresAt: null,
+    });
+  }
+});
