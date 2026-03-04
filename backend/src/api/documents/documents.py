@@ -1004,10 +1004,12 @@ async def reprocess_document(
         await db.commit()
 
         # Create new processing job
+        from src.models.processing import JobPriority, JobType
+
         processing_job = ProcessingJob(
-            job_type="document_reprocessing",
+            job_type=JobType.DOCUMENT_INGESTION,
             status=JobStatus.PENDING,
-            priority="normal",
+            priority=JobPriority.NORMAL,
             document_id=document.id,
             organization_id=organization.id,
             created_by_user_id=current_user.id,
