@@ -18,18 +18,19 @@ import { usePathname } from 'next/navigation';
 import * as React from 'react';
 import dynamic from 'next/dynamic';
 import { GlobalJobCenter } from './GlobalJobCenter';
+import { useProjectStore } from '@/store/projectStore';
 
 const AppSidebar = dynamic(
   () => import('./AppSidebar').then((mod) => mod.AppSidebar),
   {
     loading: () => (
-      <aside className="hidden lg:block w-60 border-r border-[#1A1A1A] bg-[#080808] h-full">
-        <div className="h-16 border-b border-[#1A1A1A] px-5 py-4">
-          <div className="h-8 w-32 bg-[#0A0A0A] animate-pulse" />
+      <aside className="hidden lg:block w-60 border-r border-border bg-background h-full">
+        <div className="h-16 border-b border-border px-5 py-4">
+          <div className="h-8 w-32 bg-muted animate-pulse rounded" />
         </div>
         <div className="p-5 space-y-3">
           {[1, 2, 3, 4, 5].map((i) => (
-            <div key={i} className="h-10 bg-[#0A0A0A] animate-pulse" />
+            <div key={i} className="h-10 bg-muted animate-pulse rounded" />
           ))}
         </div>
       </aside>
@@ -75,14 +76,21 @@ export function SidebarLayout({
   showHeader = true,
 }: SidebarLayoutProps) {
   const pathname = usePathname();
+  const currentProject = useProjectStore((s) => s.currentProject);
 
   // Generate breadcrumb items from pathname
   const pathSegments = pathname?.split('/').filter(Boolean) || [];
   const breadcrumbItems = pathSegments.map((segment, index) => {
     const path = '/' + pathSegments.slice(0, index + 1).join('/');
-    const name =
-      pathNameMap[segment] ||
-      segment.charAt(0).toUpperCase() + segment.slice(1);
+    // Resolve project name for UUID segments under /projects/<id>
+    const isProjectId =
+      index > 0 &&
+      pathSegments[index - 1] === 'projects' &&
+      !pathNameMap[segment];
+    const name = isProjectId
+      ? currentProject?.name || 'Project'
+      : pathNameMap[segment] ||
+        segment.charAt(0).toUpperCase() + segment.slice(1);
     const isLast = index === pathSegments.length - 1;
     return { path, name, isLast };
   });
@@ -96,26 +104,26 @@ export function SidebarLayout({
   return (
     <SidebarProvider defaultOpen={true}>
       <AppSidebar />
-      <SidebarInset className="!bg-[#080808]">
+      <SidebarInset className="!bg-background">
         {/* Top Header Bar */}
         {showHeader && (
-          <header className="flex h-14 shrink-0 items-center gap-3 border-b border-[#1A1A1A] bg-[#080808]/95 backdrop-blur px-4">
-            <SidebarTrigger className="h-7 w-7 text-[#52525b] hover:text-[#00FF88] hover:bg-[#0A0A0A] border border-[#1A1A1A] transition-all duration-200 rounded-md" />
-            <Separator orientation="vertical" className="h-4 bg-[#1A1A1A]" />
+          <header className="flex h-14 shrink-0 items-center gap-3 border-b border-border bg-background/95 backdrop-blur px-4">
+            <SidebarTrigger className="h-7 w-7 text-muted-foreground hover:text-primary hover:bg-muted border border-border transition-all duration-200 rounded-md" />
+            <Separator orientation="vertical" className="h-4 bg-border" />
 
             {showBreadcrumb && (
               <Breadcrumb>
-                <BreadcrumbList className="font-mono text-xs">
+                <BreadcrumbList className="text-xs">
                   {/* Show Dashboard as root, but highlight if we're on dashboard page */}
                   <BreadcrumbItem>
                     {pathname === '/dashboard' ? (
-                      <BreadcrumbPage className="text-[#00FF88]">
+                      <BreadcrumbPage className="text-primary">
                         Dashboard
                       </BreadcrumbPage>
                     ) : (
                       <BreadcrumbLink
                         href="/dashboard"
-                        className="text-[#d4d4d8] hover:text-[#fafafa] transition-colors"
+                        className="text-muted-foreground hover:text-foreground transition-colors"
                       >
                         Dashboard
                       </BreadcrumbLink>
@@ -126,18 +134,18 @@ export function SidebarLayout({
                     .filter((item) => item.path !== '/dashboard')
                     .map((item) => (
                       <React.Fragment key={item.path}>
-                        <BreadcrumbSeparator className="text-[#52525b]">
+                        <BreadcrumbSeparator className="text-muted-foreground/50">
                           /
                         </BreadcrumbSeparator>
                         <BreadcrumbItem>
                           {item.isLast ? (
-                            <BreadcrumbPage className="text-[#00FF88]">
+                            <BreadcrumbPage className="text-primary">
                               {item.name}
                             </BreadcrumbPage>
                           ) : (
                             <BreadcrumbLink
                               href={item.path}
-                              className="text-[#d4d4d8] hover:text-[#fafafa] transition-colors"
+                              className="text-muted-foreground hover:text-foreground transition-colors"
                             >
                               {item.name}
                             </BreadcrumbLink>
@@ -153,9 +161,7 @@ export function SidebarLayout({
             <div className="ml-auto flex items-center gap-2">
               <GlobalJobCenter />
               <div className="md:hidden">
-              <span className="text-sm font-mono text-[#fafafa]">
-                {currentPage}
-              </span>
+                <span className="text-sm text-foreground">{currentPage}</span>
               </div>
             </div>
           </header>
