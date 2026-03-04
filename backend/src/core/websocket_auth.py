@@ -102,11 +102,35 @@ class WebSocketAuthenticator:
             )
 
         try:
+            # Try Supabase JWT first
+            if settings.SUPABASE_JWT_SECRET:
+                try:
+                    payload = jwt.decode(
+                        token,
+                        settings.SUPABASE_JWT_SECRET,
+                        algorithms=["HS256"],
+                        audience="authenticated",
+                    )
+                    # Map Supabase JWT claims to expected format
+                    app_metadata = payload.get("app_metadata", {})
+                    if "role" not in payload:
+                        payload["role"] = app_metadata.get("role", "USER")
+
+                    payload["_auth_method"] = auth_method
+                    payload["_authenticated_at"] = datetime.now(timezone.utc).isoformat()
+
+                    logger.info(
+                        f"WebSocket authenticated (Supabase): user={payload.get('sub')} method={auth_method}"
+                    )
+                    return payload
+                except jwt.JWTError:
+                    pass  # Fall through to custom JWT
+
+            # Fallback: custom JWT
             payload = jwt.decode(
                 token, settings.JWT_SECRET_KEY, algorithms=[settings.JWT_ALGORITHM]
             )
 
-            # Add authentication metadata
             payload["_auth_method"] = auth_method
             payload["_authenticated_at"] = datetime.now(timezone.utc).isoformat()
 

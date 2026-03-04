@@ -158,13 +158,39 @@ def create_refresh_token(
 
 
 def verify_token(token: str) -> Optional[TokenData]:
-    """Verify and decode JWT token"""
+    """Verify JWT token — supports both Supabase and custom JWTs."""
+    # Try Supabase JWT first (signed with Supabase JWT secret)
+    if settings.SUPABASE_JWT_SECRET:
+        try:
+            payload = jwt.decode(
+                token,
+                settings.SUPABASE_JWT_SECRET,
+                algorithms=["HS256"],
+                audience="authenticated",
+            )
+            user_id = payload.get("sub")
+            email = payload.get("email")
+            app_metadata = payload.get("app_metadata", {})
+            role = app_metadata.get("role", "USER")
+            exp = payload.get("exp")
+            if user_id:
+                return TokenData(
+                    user_id=user_id,
+                    email=email,
+                    organization_id=None,  # Resolved in get_current_user
+                    role=role,
+                    exp=datetime.utcfromtimestamp(exp) if exp else None,
+                )
+        except JWTError:
+            pass  # Fall through to custom JWT
+
+    # Fallback: custom JWT (existing logic)
     try:
         payload = jwt.decode(
             token, settings.JWT_SECRET_KEY, algorithms=[settings.JWT_ALGORITHM]
         )
-        user_id: str = payload.get("sub")  # sub contains the user ID
-        email: str = payload.get("email")  # email is a separate field
+        user_id: str = payload.get("sub")
+        email: str = payload.get("email")
         organization_id: str = payload.get("organization_id")
         role: str = payload.get("role")
         exp: int = payload.get("exp")
@@ -172,15 +198,13 @@ def verify_token(token: str) -> Optional[TokenData]:
         if user_id is None:
             return None
 
-        token_data = TokenData(
+        return TokenData(
             user_id=user_id,
             email=email,
             organization_id=organization_id,
             role=role,
             exp=datetime.utcfromtimestamp(exp) if exp else None,
         )
-        return token_data
-
     except JWTError:
         return None
 
