@@ -73,6 +73,13 @@ class Settings(BaseSettings):
     DATABASE_URL: str = (
         "postgresql://postgres:postgres@localhost:5432/multimodal_rag_dev"
     )
+
+    # Supabase
+    SUPABASE_URL: str = "http://localhost:54321"
+    SUPABASE_ANON_KEY: str = ""
+    SUPABASE_SERVICE_ROLE_KEY: str = ""
+    SUPABASE_DB_URL: str = ""  # If set, overrides DATABASE_URL for Supabase connection
+
     REDIS_URL: str = "redis://localhost:6379"
 
     # Neo4j Configuration
