@@ -6,6 +6,8 @@ notes, and bibliography generation.
 User Story 4: Organize Documents into Research Projects
 """
 
+import asyncio
+import uuid
 from datetime import datetime
 from typing import List, Optional
 from uuid import UUID
@@ -423,6 +425,41 @@ async def add_document_to_project(
             document_id=str(document_id),
         )
 
+        # Auto-extract: fire background extraction for all matrices in this project
+        extraction_task_ids = []
+        if document.content_text:
+            from src.models.extraction_matrix import ExtractionMatrix as EM
+            from src.services.research.extraction_matrix_service import (
+                ExtractionMatrixService,
+            )
+
+            matrix_query = select(EM).where(
+                and_(EM.project_id == project_id, EM.is_deleted == False)
+            )
+            matrix_result = await db.execute(matrix_query)
+            matrices = matrix_result.scalars().all()
+
+            service = ExtractionMatrixService()
+            for m in matrices:
+                task_id = f"auto-doc-{uuid.uuid4().hex[:12]}"
+                asyncio.create_task(
+                    service.run_background_extraction(
+                        matrix_id=m.id,
+                        document_ids=[document_id],
+                        columns=m.columns,
+                        task_id=task_id,
+                    )
+                )
+                extraction_task_ids.append(task_id)
+
+            if extraction_task_ids:
+                logger.info(
+                    "auto_extraction_on_doc_add",
+                    project_id=str(project_id),
+                    document_id=str(document_id),
+                    task_count=len(extraction_task_ids),
+                )
+
         return {
             "id": str(collection_doc.id),
             "project_id": str(project_id),
@@ -440,6 +477,7 @@ async def add_document_to_project(
                 if document.created_at
                 else None,
             },
+            "extraction_task_ids": extraction_task_ids,
         }
 
     except HTTPException:
