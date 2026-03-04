@@ -2,24 +2,26 @@
 
 /**
  * Project Detail Page
- * Displays project information with tabs for Documents, Notes, and Bibliography
+ * Displays project information with tabs for Documents, Notes, Bibliography,
+ * Drafts, Chat, Matrix, and Pipeline
  */
 
-import { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import {
-  ArrowLeft,
   FileText,
   StickyNote,
   BookOpen,
   Sparkles,
   Plus,
-  Trash2,
   Download,
   Loader2,
   MessageSquare,
   Grid3X3,
+  GitBranch,
 } from 'lucide-react';
+import { ProjectHeader } from '@/components/research/ProjectHeader';
+import { DocumentList } from '@/components/research/DocumentList';
 import { DraftGenerator } from '@/components/research/DraftGenerator';
 import { DraftViewer } from '@/components/research/DraftViewer';
 import { DraftGenerationProgress } from '@/components/research/DraftGenerationProgress';
@@ -27,6 +29,7 @@ import { DraftComparison } from '@/components/research/DraftComparison';
 import { DraftExportModal } from '@/components/research/DraftExportModal';
 import { ProjectChatTab } from '@/components/research/ProjectChatTab';
 import { ExtractionMatrix } from '@/components/research/ExtractionMatrix';
+import { ResearchPipeline } from '@/components/research/ResearchPipeline';
 import { NoteEditor } from '@/components/research/NoteEditor';
 import { NoteList } from '@/components/research/NoteList';
 import {
@@ -45,7 +48,8 @@ type TabType =
   | 'bibliography'
   | 'drafts'
   | 'chat'
-  | 'matrix';
+  | 'matrix'
+  | 'pipeline';
 
 export default function ProjectDetailPage() {
   const params = useParams();
@@ -76,6 +80,7 @@ export default function ProjectDetailPage() {
   } = useProjectStore();
 
   const [mounted, setMounted] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<TabType>('documents');
   const [bibFormat, setBibFormat] = useState<'bibtex' | 'ieee' | 'apa' | 'mla'>(
     'bibtex'
@@ -119,7 +124,7 @@ export default function ProjectDetailPage() {
 
   useEffect(() => {
     if (mounted && isAuthenticated && projectId) {
-      fetchProject(projectId);
+      fetchProject(projectId).finally(() => setInitialLoading(false));
       fetchProjectDocuments(projectId);
       fetchProjectNotes(projectId);
     }
@@ -270,7 +275,6 @@ export default function ProjectDetailPage() {
   );
 
   const handleRemoveDocument = async (documentId: string) => {
-    if (!confirm('Remove this document from the project?')) return;
     try {
       await removeDocument(projectId, documentId);
     } catch (err) {
@@ -332,10 +336,10 @@ export default function ProjectDetailPage() {
     }
   };
 
-  if (!mounted || loading) {
+  if (!mounted || initialLoading) {
     return (
       <div className="flex items-center justify-center h-full">
-        <Loader2 className="h-8 w-8 animate-spin text-[#00ff9f]" />
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
   }
@@ -343,10 +347,10 @@ export default function ProjectDetailPage() {
   if (!currentProject) {
     return (
       <div className="p-6 text-center">
-        <p className="text-gray-400 font-mono">Project not found</p>
+        <p className="text-muted-foreground">Project not found</p>
         <button
           onClick={() => router.push('/projects')}
-          className="mt-4 text-[#00ff9f] underline font-mono text-sm"
+          className="mt-4 text-primary underline text-sm"
         >
           Back to projects
         </button>
@@ -354,41 +358,48 @@ export default function ProjectDetailPage() {
     );
   }
 
+  const tabs: Array<{
+    id: TabType;
+    label: string;
+    icon: React.ElementType;
+    count?: number;
+  }> = [
+    {
+      id: 'documents',
+      label: 'Documents',
+      icon: FileText,
+      count: projectDocuments.length,
+    },
+    {
+      id: 'notes',
+      label: 'Notes',
+      icon: StickyNote,
+      count: projectNotes.length,
+    },
+    { id: 'bibliography', label: 'Bibliography', icon: BookOpen },
+    {
+      id: 'drafts',
+      label: 'Drafts',
+      icon: Sparkles,
+      count: draftVersions.length || undefined,
+    },
+    { id: 'chat', label: 'Chat', icon: MessageSquare },
+    { id: 'matrix', label: 'Matrix', icon: Grid3X3 },
+    { id: 'pipeline', label: 'Pipeline', icon: GitBranch },
+  ];
+
   return (
     <div className="p-6 max-w-7xl mx-auto">
       {/* Header */}
-      <div className="mb-6">
-        <button
-          onClick={() => router.push('/projects')}
-          className="flex items-center gap-2 text-gray-400 hover:text-[#00ff9f] font-mono text-sm mb-4"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Back to Projects
-        </button>
-
-        <div className="flex items-start justify-between">
-          <div>
-            <h1 className="text-2xl font-mono font-bold text-[#00ff9f]">
-              {currentProject.name}
-            </h1>
-            {currentProject.description && (
-              <p className="text-gray-400 mt-2">{currentProject.description}</p>
-            )}
-          </div>
-          <div className="flex items-center gap-4 text-sm text-gray-500 font-mono">
-            <span>{currentProject.document_count || 0} documents</span>
-            <span>{currentProject.citation_count || 0} citations</span>
-          </div>
-        </div>
-      </div>
+      <ProjectHeader project={currentProject} />
 
       {/* Error Display */}
       {error && (
-        <div className="mb-6 p-4 bg-red-500/10 border border-red-500/30 rounded-lg">
-          <p className="text-red-400 font-mono text-sm">{error}</p>
+        <div className="mb-6 p-4 bg-destructive/10 border border-destructive/30 rounded-lg">
+          <p className="text-destructive text-sm">{error}</p>
           <button
             onClick={clearError}
-            className="mt-2 text-xs text-red-400 underline"
+            className="mt-2 text-xs text-destructive underline"
           >
             Dismiss
           </button>
@@ -396,131 +407,47 @@ export default function ProjectDetailPage() {
       )}
 
       {/* Tabs */}
-      <div className="flex items-center gap-1 mb-6 border-b border-[#1a1a1a]">
-        <button
-          onClick={() => handleTabChange('documents')}
-          className={`flex items-center gap-2 px-4 py-2 font-mono text-sm border-b-2 transition-colors ${
-            activeTab === 'documents'
-              ? 'text-[#00ff9f] border-[#00ff9f]'
-              : 'text-gray-500 border-transparent hover:text-gray-300'
-          }`}
-        >
-          <FileText className="h-4 w-4" />
-          Documents
-        </button>
-        <button
-          onClick={() => handleTabChange('notes')}
-          className={`flex items-center gap-2 px-4 py-2 font-mono text-sm border-b-2 transition-colors ${
-            activeTab === 'notes'
-              ? 'text-[#00ff9f] border-[#00ff9f]'
-              : 'text-gray-500 border-transparent hover:text-gray-300'
-          }`}
-        >
-          <StickyNote className="h-4 w-4" />
-          Notes
-        </button>
-        <button
-          onClick={() => handleTabChange('bibliography')}
-          className={`flex items-center gap-2 px-4 py-2 font-mono text-sm border-b-2 transition-colors ${
-            activeTab === 'bibliography'
-              ? 'text-[#00ff9f] border-[#00ff9f]'
-              : 'text-gray-500 border-transparent hover:text-gray-300'
-          }`}
-        >
-          <BookOpen className="h-4 w-4" />
-          Bibliography
-        </button>
-        <button
-          onClick={() => handleTabChange('drafts')}
-          className={`flex items-center gap-2 px-4 py-2 font-mono text-sm border-b-2 transition-colors ${
-            activeTab === 'drafts'
-              ? 'text-[#00ff9f] border-[#00ff9f]'
-              : 'text-gray-500 border-transparent hover:text-gray-300'
-          }`}
-        >
-          <Sparkles className="h-4 w-4" />
-          Drafts
-        </button>
-        <button
-          onClick={() => handleTabChange('chat')}
-          className={`flex items-center gap-2 px-4 py-2 font-mono text-sm border-b-2 transition-colors ${
-            activeTab === 'chat'
-              ? 'text-[#00ff9f] border-[#00ff9f]'
-              : 'text-gray-500 border-transparent hover:text-gray-300'
-          }`}
-        >
-          <MessageSquare className="h-4 w-4" />
-          Chat
-        </button>
-        <button
-          onClick={() => handleTabChange('matrix')}
-          className={`flex items-center gap-2 px-4 py-2 font-mono text-sm border-b-2 transition-colors ${
-            activeTab === 'matrix'
-              ? 'text-[#00ff9f] border-[#00ff9f]'
-              : 'text-gray-500 border-transparent hover:text-gray-300'
-          }`}
-        >
-          <Grid3X3 className="h-4 w-4" />
-          Matrix
-        </button>
+      <div className="flex items-center gap-1 mb-6 border-b border-border">
+        {tabs.map((tab, index) => (
+          <React.Fragment key={tab.id}>
+            {index === 3 && <div className="w-px h-5 bg-border mx-1" />}
+            <button
+              onClick={() => handleTabChange(tab.id)}
+              className={`relative flex items-center gap-2 px-3 py-2.5 text-sm rounded-t-md transition-colors ${
+                activeTab === tab.id
+                  ? 'text-foreground bg-muted/60 border-b-2 border-primary'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-muted/30'
+              }`}
+            >
+              <tab.icon className="h-4 w-4" />
+              {tab.label}
+              {tab.count !== undefined && tab.count > 0 && (
+                <span
+                  className={`ml-1 text-xs rounded-full px-1.5 py-0.5 ${
+                    activeTab === tab.id
+                      ? 'bg-primary/15 text-primary'
+                      : 'bg-muted text-muted-foreground'
+                  }`}
+                >
+                  {tab.count}
+                </span>
+              )}
+            </button>
+          </React.Fragment>
+        ))}
       </div>
 
       {/* Tab Content */}
       <div className="min-h-[400px]">
         {/* Documents Tab */}
         {activeTab === 'documents' && (
-          <div>
-            {documentsLoading ? (
-              <div className="flex items-center justify-center py-12">
-                <Loader2 className="h-6 w-6 animate-spin text-[#00ff9f]" />
-              </div>
-            ) : projectDocuments.length === 0 ? (
-              <div className="text-center py-12 bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg">
-                <FileText className="h-12 w-12 text-gray-600 mx-auto mb-4" />
-                <p className="text-gray-400 font-mono">
-                  No documents in this project
-                </p>
-                <p className="text-sm text-gray-500 mt-2">
-                  Add documents from the Documents page
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {projectDocuments.map((doc) => (
-                  <div
-                    key={doc.id}
-                    className="flex items-center justify-between p-4 bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg hover:border-[#333] transition-colors"
-                  >
-                    <div className="flex items-center gap-3">
-                      <FileText className="h-5 w-5 text-[#00ff9f]" />
-                      <div>
-                        <p className="font-mono text-gray-200">
-                          {doc.document?.title ||
-                            doc.document?.filename ||
-                            'Untitled'}
-                        </p>
-                        <p className="text-xs text-gray-500 font-mono">
-                          Added{' '}
-                          {new Date(
-                            doc.added_at ||
-                              doc.document?.created_at ||
-                              Date.now()
-                          ).toLocaleDateString()}
-                        </p>
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => handleRemoveDocument(doc.document_id)}
-                      className="p-2 text-gray-500 hover:text-red-400 transition-colors"
-                      title="Remove from project"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+          <DocumentList
+            documents={projectDocuments}
+            loading={documentsLoading}
+            onRemove={(documentId) => {
+              void handleRemoveDocument(documentId);
+            }}
+          />
         )}
 
         {/* Notes Tab */}
@@ -529,7 +456,7 @@ export default function ProjectDetailPage() {
             <div className="flex justify-end mb-4">
               <button
                 onClick={handleCreateNote}
-                className="flex items-center gap-2 px-4 py-2 bg-[#00ff9f]/10 text-[#00ff9f] border border-[#00ff9f]/30 rounded font-mono text-sm hover:bg-[#00ff9f]/20 transition-colors"
+                className="flex items-center gap-2 px-4 py-2 bg-primary/10 text-primary border border-primary/30 rounded-md text-sm hover:bg-primary/20 transition-colors"
               >
                 <Plus className="h-4 w-4" />
                 New Note
@@ -538,7 +465,7 @@ export default function ProjectDetailPage() {
 
             {notesLoading ? (
               <div className="flex items-center justify-center py-12">
-                <Loader2 className="h-6 w-6 animate-spin text-[#00ff9f]" />
+                <Loader2 className="h-6 w-6 animate-spin text-primary" />
               </div>
             ) : (
               <NoteList
@@ -562,7 +489,7 @@ export default function ProjectDetailPage() {
           <div>
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
-                <span className="text-sm text-gray-500 font-mono">Format:</span>
+                <span className="text-sm text-muted-foreground">Format:</span>
                 <select
                   value={bibFormat}
                   onChange={(e) => {
@@ -570,7 +497,7 @@ export default function ProjectDetailPage() {
                     setBibFormat(format);
                     fetchBibliography(projectId, format);
                   }}
-                  className="px-3 py-1.5 bg-[#1a1a1a] border border-[#333] rounded text-sm font-mono text-gray-300 focus:outline-none focus:border-[#00ff9f]"
+                  className="px-3 py-1.5 bg-muted border border-border rounded-md text-sm text-foreground focus:outline-none focus:border-primary"
                 >
                   <option value="bibtex">BibTeX</option>
                   <option value="ieee">IEEE</option>
@@ -581,7 +508,7 @@ export default function ProjectDetailPage() {
               <button
                 onClick={handleExportBibliography}
                 disabled={!bibliography}
-                className="flex items-center gap-2 px-4 py-2 bg-[#00ff9f]/10 text-[#00ff9f] border border-[#00ff9f]/30 rounded font-mono text-sm hover:bg-[#00ff9f]/20 transition-colors disabled:opacity-50"
+                className="flex items-center gap-2 px-4 py-2 bg-primary/10 text-primary border border-primary/30 rounded-md text-sm hover:bg-primary/20 transition-colors disabled:opacity-50"
               >
                 <Download className="h-4 w-4" />
                 Download
@@ -590,30 +517,30 @@ export default function ProjectDetailPage() {
 
             {loading ? (
               <div className="flex items-center justify-center py-12">
-                <Loader2 className="h-6 w-6 animate-spin text-[#00ff9f]" />
+                <Loader2 className="h-6 w-6 animate-spin text-primary" />
               </div>
             ) : bibliography ? (
-              <div className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg p-4">
+              <div className="bg-card border border-border rounded-lg p-4">
                 <div className="flex items-center justify-between mb-3">
-                  <span className="text-sm text-gray-500 font-mono">
+                  <span className="text-sm text-muted-foreground">
                     {bibliography.citation_count} citations
                   </span>
-                  <span className="text-xs text-gray-600 font-mono">
+                  <span className="text-xs text-muted-foreground/60">
                     Generated{' '}
                     {new Date(bibliography.generated_at).toLocaleString()}
                   </span>
                 </div>
-                <pre className="text-sm text-gray-300 font-mono overflow-x-auto whitespace-pre-wrap max-h-[500px] overflow-y-auto">
+                <pre className="text-sm text-foreground font-mono overflow-x-auto whitespace-pre-wrap max-h-[500px] overflow-y-auto">
                   {bibliography.content}
                 </pre>
               </div>
             ) : (
-              <div className="text-center py-12 bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg">
-                <BookOpen className="h-12 w-12 text-gray-600 mx-auto mb-4" />
-                <p className="text-gray-400 font-mono">
+              <div className="flex flex-col items-center justify-center py-16 rounded-xl border border-dashed border-border">
+                <BookOpen className="h-10 w-10 text-muted-foreground/40 mb-3" />
+                <p className="text-sm font-medium text-muted-foreground">
                   No bibliography available
                 </p>
-                <p className="text-sm text-gray-500 mt-2">
+                <p className="text-xs text-muted-foreground/60 mt-1">
                   Add documents with extracted citations to generate a
                   bibliography
                 </p>
@@ -676,7 +603,6 @@ export default function ProjectDetailPage() {
                             }
                           );
                           setGenerationTaskId(result.task_id);
-                          // Poll for status
                           const pollStatus = async () => {
                             try {
                               const status =
@@ -706,8 +632,8 @@ export default function ProjectDetailPage() {
                     />
 
                     {draftVersions.length > 0 && (
-                      <div className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg p-4">
-                        <h3 className="text-sm font-mono text-gray-300 mb-3">
+                      <div className="bg-card border border-border rounded-lg p-4">
+                        <h3 className="text-sm text-foreground mb-3">
                           Draft Versions
                         </h3>
                         <div className="space-y-2 max-h-[220px] overflow-y-auto">
@@ -719,21 +645,23 @@ export default function ProjectDetailPage() {
                                   draftVersion.version
                                 );
                               }}
-                              className={`w-full text-left px-3 py-2 rounded border font-mono text-xs transition-colors ${
+                              className={`w-full text-left px-3 py-2 rounded-md border text-xs transition-colors ${
                                 currentDraft?.version === draftVersion.version
-                                  ? 'bg-[#00ff9f]/10 border-[#00ff9f]/40 text-[#00ff9f]'
-                                  : 'bg-[#1a1a1a] border-[#333] text-gray-400 hover:border-[#555]'
+                                  ? 'bg-primary/10 border-primary/40 text-primary'
+                                  : 'bg-muted border-border text-muted-foreground hover:border-muted-foreground/30'
                               }`}
                             >
                               <div className="flex items-center justify-between">
-                                <span>Version {draftVersion.version}</span>
+                                <span className="font-mono">
+                                  Version {draftVersion.version}
+                                </span>
                                 {draftVersion.is_current && (
-                                  <span className="text-[10px] uppercase tracking-wide text-[#00ff9f]">
+                                  <span className="text-[10px] uppercase tracking-wide text-primary">
                                     Current
                                   </span>
                                 )}
                               </div>
-                              <div className="text-[10px] text-gray-500 mt-1">
+                              <div className="text-[10px] text-muted-foreground mt-1 font-mono">
                                 {new Date(
                                   draftVersion.created_at
                                 ).toLocaleString()}
@@ -745,8 +673,8 @@ export default function ProjectDetailPage() {
                     )}
 
                     {draftVersions.length > 1 && (
-                      <div className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg p-4 space-y-3">
-                        <h3 className="text-sm font-mono text-gray-300">
+                      <div className="bg-card border border-border rounded-lg p-4 space-y-3">
+                        <h3 className="text-sm text-foreground">
                           Compare Versions
                         </h3>
                         <div className="grid grid-cols-2 gap-2">
@@ -758,7 +686,7 @@ export default function ProjectDetailPage() {
                               setComparisonDraftA(null);
                               setComparisonDraftB(null);
                             }}
-                            className="px-3 py-2 bg-[#1a1a1a] border border-[#333] rounded text-xs font-mono text-gray-300 focus:outline-none focus:border-[#00ff9f]"
+                            className="px-3 py-2 bg-muted border border-border rounded-md text-xs font-mono text-foreground focus:outline-none focus:border-primary"
                           >
                             {draftVersions.map((draftVersion) => (
                               <option
@@ -777,7 +705,7 @@ export default function ProjectDetailPage() {
                               setComparisonDraftA(null);
                               setComparisonDraftB(null);
                             }}
-                            className="px-3 py-2 bg-[#1a1a1a] border border-[#333] rounded text-xs font-mono text-gray-300 focus:outline-none focus:border-[#00ff9f]"
+                            className="px-3 py-2 bg-muted border border-border rounded-md text-xs font-mono text-foreground focus:outline-none focus:border-primary"
                           >
                             {draftVersions.map((draftVersion) => (
                               <option
@@ -799,7 +727,7 @@ export default function ProjectDetailPage() {
                             compareVersionB === null ||
                             compareVersionA === compareVersionB
                           }
-                          className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-[#00ff9f]/10 text-[#00ff9f] border border-[#00ff9f]/30 rounded font-mono text-xs hover:bg-[#00ff9f]/20 transition-colors disabled:opacity-50"
+                          className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-primary/10 text-primary border border-primary/30 rounded-md text-xs hover:bg-primary/20 transition-colors disabled:opacity-50"
                         >
                           {comparisonLoading && (
                             <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -828,12 +756,12 @@ export default function ProjectDetailPage() {
                         }}
                       />
                     ) : (
-                      <div className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg p-12 text-center">
-                        <Sparkles className="h-12 w-12 text-gray-600 mx-auto mb-4" />
-                        <p className="text-gray-400 font-mono">
+                      <div className="flex flex-col items-center justify-center py-16 rounded-xl border border-dashed border-border">
+                        <Sparkles className="h-10 w-10 text-muted-foreground/40 mb-3" />
+                        <p className="text-sm font-medium text-muted-foreground">
                           No draft generated yet
                         </p>
-                        <p className="text-sm text-gray-500 mt-2">
+                        <p className="text-xs text-muted-foreground/60 mt-1">
                           Configure themes and generate a literature review
                           draft
                         </p>
@@ -877,6 +805,9 @@ export default function ProjectDetailPage() {
             }))}
           />
         )}
+
+        {/* Pipeline Tab */}
+        {activeTab === 'pipeline' && <ResearchPipeline projectId={projectId} />}
       </div>
 
       <NoteEditor
