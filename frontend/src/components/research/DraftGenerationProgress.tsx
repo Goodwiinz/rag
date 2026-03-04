@@ -24,11 +24,9 @@ const statusSteps = [
   { key: 'completed', label: 'Complete' },
 ];
 
-export const DraftGenerationProgress: React.FC<DraftGenerationProgressProps> = ({
-  status,
-  onCancel,
-  onComplete,
-}) => {
+export const DraftGenerationProgress: React.FC<
+  DraftGenerationProgressProps
+> = ({ status, onCancel, onComplete }) => {
   const [elapsed, setElapsed] = useState(0);
 
   useEffect(() => {
@@ -38,7 +36,10 @@ export const DraftGenerationProgress: React.FC<DraftGenerationProgressProps> = (
   }, [status.status, status.draft_id, onComplete]);
 
   useEffect(() => {
-    if (status.started_at && !['completed', 'failed', 'cancelled'].includes(status.status)) {
+    if (
+      status.started_at &&
+      !['completed', 'failed', 'cancelled'].includes(status.status)
+    ) {
       const startTime = new Date(status.started_at).getTime();
       const interval = setInterval(() => {
         setElapsed(Math.floor((Date.now() - startTime) / 1000));
@@ -63,25 +64,27 @@ export const DraftGenerationProgress: React.FC<DraftGenerationProgressProps> = (
   const isRunning = !isCompleted && !isFailed && !isCancelled;
 
   return (
-    <div className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg p-6">
+    <div className="bg-card border border-border rounded-lg p-6">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
-          {isRunning && <Loader2 className="h-5 w-5 animate-spin text-[#00ff9f]" />}
-          {isCompleted && <CheckCircle className="h-5 w-5 text-[#00ff9f]" />}
+          {isRunning && (
+            <Loader2 className="h-5 w-5 animate-spin text-primary" />
+          )}
+          {isCompleted && <CheckCircle className="h-5 w-5 text-primary" />}
           {isFailed && <AlertCircle className="h-5 w-5 text-red-400" />}
-          {isCancelled && <XCircle className="h-5 w-5 text-gray-500" />}
+          {isCancelled && <XCircle className="h-5 w-5 text-muted-foreground" />}
           <div>
-            <h3 className="font-mono font-medium text-gray-200">
+            <h3 className="font-mono font-medium text-foreground">
               {isCompleted
                 ? 'Draft Generated'
                 : isFailed
-                ? 'Generation Failed'
-                : isCancelled
-                ? 'Generation Cancelled'
-                : 'Generating Draft'}
+                  ? 'Generation Failed'
+                  : isCancelled
+                    ? 'Generation Cancelled'
+                    : 'Generating Draft'}
             </h3>
-            <p className="text-xs text-gray-500 font-mono">
+            <p className="text-xs text-muted-foreground font-mono">
               {status.current_step}
             </p>
           </div>
@@ -90,7 +93,7 @@ export const DraftGenerationProgress: React.FC<DraftGenerationProgressProps> = (
         {isRunning && onCancel && (
           <button
             onClick={onCancel}
-            className="px-3 py-1.5 text-xs font-mono text-gray-400 hover:text-red-400 border border-[#333] rounded hover:border-red-400/50 transition-colors"
+            className="px-3 py-1.5 text-xs font-mono text-muted-foreground hover:text-red-400 border border-border rounded hover:border-red-400/50 transition-colors"
           >
             Cancel
           </button>
@@ -100,17 +103,21 @@ export const DraftGenerationProgress: React.FC<DraftGenerationProgressProps> = (
       {/* Progress Bar */}
       <div className="mb-4">
         <div className="flex items-center justify-between mb-1">
-          <span className="text-xs text-gray-500 font-mono">Progress</span>
-          <span className="text-xs text-[#00ff9f] font-mono">{status.progress}%</span>
+          <span className="text-xs text-muted-foreground font-mono">
+            Progress
+          </span>
+          <span className="text-xs text-primary font-mono">
+            {status.progress}%
+          </span>
         </div>
-        <div className="h-2 bg-[#1a1a1a] rounded-full overflow-hidden">
+        <div className="h-2 bg-muted rounded-full overflow-hidden">
           <div
             className={`h-full transition-all duration-500 ${
               isFailed
                 ? 'bg-red-500'
                 : isCancelled
-                ? 'bg-gray-500'
-                : 'bg-gradient-to-r from-[#00ff9f] to-[#00d4ff]'
+                  ? 'bg-muted-foreground'
+                  : 'bg-gradient-to-r from-primary to-primary/60'
             }`}
             style={{ width: `${status.progress}%` }}
           />
@@ -123,30 +130,31 @@ export const DraftGenerationProgress: React.FC<DraftGenerationProgressProps> = (
           const currentIdx = getCurrentStepIndex();
           const isActive = idx === currentIdx;
           const isDone = idx < currentIdx || isCompleted;
-          const isPending = idx > currentIdx && !isCompleted;
 
           return (
             <div
               key={step.key}
               className={`flex items-center gap-3 text-sm font-mono ${
                 isActive
-                  ? 'text-[#00ff9f]'
+                  ? 'text-primary'
                   : isDone
-                  ? 'text-gray-400'
-                  : 'text-gray-600'
+                    ? 'text-muted-foreground'
+                    : 'text-muted-foreground/40'
               }`}
             >
               <div
                 className={`w-5 h-5 rounded-full flex items-center justify-center ${
                   isActive
-                    ? 'bg-[#00ff9f]/20 border border-[#00ff9f]'
+                    ? 'bg-primary/20 border border-primary'
                     : isDone
-                    ? 'bg-[#00ff9f]/10'
-                    : 'bg-[#1a1a1a]'
+                      ? 'bg-primary/10'
+                      : 'bg-muted'
                 }`}
               >
-                {isDone && <CheckCircle className="w-3 h-3 text-[#00ff9f]" />}
-                {isActive && <div className="w-2 h-2 bg-[#00ff9f] rounded-full animate-pulse" />}
+                {isDone && <CheckCircle className="w-3 h-3 text-primary" />}
+                {isActive && (
+                  <div className="w-2 h-2 bg-primary rounded-full animate-pulse" />
+                )}
               </div>
               <span>{step.label}</span>
             </div>
@@ -155,7 +163,7 @@ export const DraftGenerationProgress: React.FC<DraftGenerationProgressProps> = (
       </div>
 
       {/* Time Info */}
-      <div className="flex items-center justify-between text-xs text-gray-500 font-mono pt-4 border-t border-[#1a1a1a]">
+      <div className="flex items-center justify-between text-xs text-muted-foreground font-mono pt-4 border-t border-border">
         <span>Elapsed: {formatTime(elapsed)}</span>
         {status.duration && isCompleted && (
           <span>Completed in {status.duration.toFixed(1)}s</span>

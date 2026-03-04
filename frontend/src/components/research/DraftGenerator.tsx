@@ -86,10 +86,12 @@ export const DraftGenerator: React.FC<DraftGeneratorProps> = ({
   };
 
   return (
-    <div className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg p-6">
+    <div className="bg-card border border-border rounded-lg p-6">
       <div className="flex items-center gap-2 mb-6">
-        <Sparkles className="h-5 w-5 text-[#ffb700]" />
-        <h3 className="font-mono font-bold text-gray-200">Generate Literature Review</h3>
+        <Sparkles className="h-5 w-5 text-primary" />
+        <h3 className="font-mono font-bold text-foreground">
+          Generate Literature Review
+        </h3>
       </div>
 
       <div className="space-y-5">
@@ -97,7 +99,7 @@ export const DraftGenerator: React.FC<DraftGeneratorProps> = ({
         <div>
           <label
             htmlFor={themesInputId}
-            className="block text-xs text-gray-500 font-mono uppercase tracking-wide mb-2"
+            className="block text-xs text-muted-foreground font-mono uppercase tracking-wide mb-2"
           >
             Themes / Topics *
           </label>
@@ -109,14 +111,14 @@ export const DraftGenerator: React.FC<DraftGeneratorProps> = ({
               onChange={(e) => setThemeInput(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder="Enter a theme and press Enter..."
-              className="flex-1 px-3 py-2 bg-[#1a1a1a] border border-[#333] rounded text-sm font-mono text-gray-300 placeholder-gray-600 focus:outline-none focus:border-[#00ff9f]"
+              className="flex-1 px-3 py-2 bg-muted border border-border rounded text-sm font-mono text-foreground placeholder-muted-foreground focus:outline-none focus:border-primary"
             />
             <button
               type="button"
               onClick={handleAddTheme}
               disabled={!themeInput.trim()}
               aria-label="Add theme"
-              className="px-3 py-2 bg-[#00ff9f]/10 text-[#00ff9f] border border-[#00ff9f]/30 rounded font-mono text-sm hover:bg-[#00ff9f]/20 transition-colors disabled:opacity-50"
+              className="px-3 py-2 bg-primary/10 text-primary border border-primary/30 rounded font-mono text-sm hover:bg-primary/20 transition-colors disabled:opacity-50"
             >
               <Plus className="h-4 w-4" />
             </button>
@@ -126,7 +128,7 @@ export const DraftGenerator: React.FC<DraftGeneratorProps> = ({
               {themes.map((theme, idx) => (
                 <span
                   key={idx}
-                  className="flex items-center gap-1 px-2 py-1 bg-[#00ff9f]/10 text-[#00ff9f] text-xs font-mono rounded"
+                  className="flex items-center gap-1 px-2 py-1 bg-primary/10 text-primary text-xs font-mono rounded"
                 >
                   {theme}
                   <button
@@ -141,7 +143,7 @@ export const DraftGenerator: React.FC<DraftGeneratorProps> = ({
             </div>
           )}
           {themes.length === 0 && (
-            <p className="text-xs text-gray-500 font-mono">
+            <p className="text-xs text-muted-foreground font-mono">
               Add at least one theme for the review
             </p>
           )}
@@ -149,7 +151,7 @@ export const DraftGenerator: React.FC<DraftGeneratorProps> = ({
 
         {/* Style Selector */}
         <div role="radiogroup" aria-label="Writing Style">
-          <label className="block text-xs text-gray-500 font-mono uppercase tracking-wide mb-2">
+          <label className="block text-xs text-muted-foreground font-mono uppercase tracking-wide mb-2">
             Writing Style
           </label>
           <div className="flex gap-2">
@@ -166,8 +168,8 @@ export const DraftGenerator: React.FC<DraftGeneratorProps> = ({
                 onKeyDown={(e) => handleStyleKeyDown(e, idx)}
                 className={`flex-1 px-3 py-2 rounded text-sm font-mono transition-colors ${
                   style === s
-                    ? 'bg-[#00ff9f]/20 text-[#00ff9f] border border-[#00ff9f]/50'
-                    : 'bg-[#1a1a1a] text-gray-400 border border-[#333] hover:border-[#555]'
+                    ? 'bg-primary/20 text-primary border border-primary/50'
+                    : 'bg-muted text-muted-foreground border border-border hover:border-muted-foreground/50'
                 }`}
               >
                 {s.charAt(0).toUpperCase() + s.slice(1)}
@@ -180,9 +182,9 @@ export const DraftGenerator: React.FC<DraftGeneratorProps> = ({
         <div>
           <label
             htmlFor={maxSectionsId}
-            className="block text-xs text-gray-500 font-mono uppercase tracking-wide mb-2"
+            className="block text-xs text-muted-foreground font-mono uppercase tracking-wide mb-2"
           >
-            Max Sections: <span className="text-[#00ff9f]">{maxSections}</span>
+            Max Sections: <span className="text-primary">{maxSections}</span>
           </label>
           <input
             id={maxSectionsId}
@@ -191,9 +193,9 @@ export const DraftGenerator: React.FC<DraftGeneratorProps> = ({
             max={10}
             value={maxSections}
             onChange={(e) => setMaxSections(parseInt(e.target.value, 10))}
-            className="w-full h-1 bg-[#333] rounded-lg appearance-none cursor-pointer accent-[#00ff9f]"
+            className="w-full h-1 bg-muted rounded-lg appearance-none cursor-pointer accent-primary"
           />
-          <div className="flex justify-between text-xs text-gray-500 font-mono mt-1">
+          <div className="flex justify-between text-xs text-muted-foreground font-mono mt-1">
             <span>2</span>
             <span>6</span>
             <span>10</span>
@@ -204,7 +206,7 @@ export const DraftGenerator: React.FC<DraftGeneratorProps> = ({
         <div className="flex items-center justify-between">
           <label
             id={includeAbstractId}
-            className="text-xs text-gray-500 font-mono uppercase tracking-wide"
+            className="text-xs text-muted-foreground font-mono uppercase tracking-wide"
           >
             Include Abstract
           </label>
@@ -215,15 +217,15 @@ export const DraftGenerator: React.FC<DraftGeneratorProps> = ({
             onClick={() => setIncludeAbstract(!includeAbstract)}
             className={`relative w-12 h-6 rounded-full transition-colors ${
               includeAbstract
-                ? 'bg-[#00ff9f]/30 border-[#00ff9f]'
-                : 'bg-[#333] border-[#555]'
+                ? 'bg-primary/30 border-primary'
+                : 'bg-muted border-muted-foreground/50'
             } border`}
           >
             <span
               className={`absolute top-0.5 w-5 h-5 rounded-full transition-transform ${
                 includeAbstract
-                  ? 'translate-x-6 bg-[#00ff9f]'
-                  : 'translate-x-0.5 bg-gray-500'
+                  ? 'translate-x-6 bg-primary'
+                  : 'translate-x-0.5 bg-muted-foreground'
               }`}
             />
           </button>
@@ -231,8 +233,9 @@ export const DraftGenerator: React.FC<DraftGeneratorProps> = ({
 
         {/* Document Count Info */}
         {documentCount > 0 && (
-          <div className="p-3 bg-[#1a1a1a] rounded text-xs font-mono text-gray-400">
-            The review will analyze {documentCount} document{documentCount !== 1 ? 's' : ''} from this project.
+          <div className="p-3 bg-muted rounded text-xs font-mono text-muted-foreground">
+            The review will analyze {documentCount} document
+            {documentCount !== 1 ? 's' : ''} from this project.
           </div>
         )}
 
@@ -240,7 +243,7 @@ export const DraftGenerator: React.FC<DraftGeneratorProps> = ({
         <button
           onClick={handleGenerate}
           disabled={themes.length === 0 || loading}
-          className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-[#ffb700]/10 text-[#ffb700] border border-[#ffb700]/30 rounded font-mono text-sm hover:bg-[#ffb700]/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-primary/10 text-primary border border-primary/30 rounded font-mono text-sm hover:bg-primary/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {loading ? (
             <>
