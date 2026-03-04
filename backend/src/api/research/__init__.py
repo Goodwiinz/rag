@@ -1,6 +1,6 @@
 """
 Research API routes for citations, projects, drafts, chat, export, project-chat integration,
-tone engine, extraction matrix, and AI writer
+tone engine, extraction matrix, AI writer, and research pipeline
 """
 
 from .chat import router as chat_router
@@ -8,6 +8,7 @@ from .citations import router as citations_router
 from .drafts import router as drafts_router
 from .export import router as export_router
 from .extraction_matrix import router as extraction_matrix_router
+from .pipeline import router as pipeline_router
 from .project_chat import router as project_chat_router
 from .projects import router as projects_router
 from .tone_engine import router as tone_engine_router
@@ -23,4 +24,5 @@ __all__ = [
     "tone_engine_router",
     "extraction_matrix_router",
     "writer_router",
+    "pipeline_router",
 ]
