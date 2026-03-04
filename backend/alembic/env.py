@@ -64,19 +64,15 @@ target_metadata = Base.metadata
 
 
 def get_url():
-    """Get database URL from environment or settings"""
-    # Try to get from environment first (for setup scripts)
-    database_url = os.getenv("DATABASE_URL")
-    if database_url:
-        return database_url
-
-    # Fallback to settings (for runtime)
+    """Get database URL from environment."""
+    url = os.getenv("SUPABASE_DB_URL") or os.getenv("DATABASE_URL")
+    if url:
+        return url
     try:
         from src.core.config import settings
         return settings.DATABASE_URL
-    except ImportError:
-        # Final fallback to default
-        return "postgresql://raguser:rag_password_123@localhost:5432/ragdb"
+    except Exception:
+        return config.get_main_option("sqlalchemy.url")
 
 
 def run_migrations_offline() -> None:
