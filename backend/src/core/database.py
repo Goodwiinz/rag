@@ -23,19 +23,26 @@ from src.models.user import User, UserRole
 
 logger = logging.getLogger(__name__)
 
-# Database configuration
-DATABASE_URL = os.getenv(
-    "DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/multimodal_rag_dev"
+# Database URL resolution: prefer SUPABASE_DB_URL if set
+_supabase_db_url = os.getenv("SUPABASE_DB_URL", "")
+DATABASE_URL = _supabase_db_url or os.getenv(
+    "DATABASE_URL",
+    "postgresql://postgres:postgres@localhost:5432/multimodal_rag_dev",
 )
+
+# Async variant
+if "asyncpg" not in DATABASE_URL:
+    ASYNC_DATABASE_URL = DATABASE_URL.replace(
+        "postgresql://", "postgresql+asyncpg://"
+    )
+else:
+    ASYNC_DATABASE_URL = DATABASE_URL
 
 # Seed user passwords - MUST be set in production via environment variables
 # In development, uses defaults for convenience (warning will be shown)
 SEED_ADMIN_PASSWORD = os.getenv("SEED_ADMIN_PASSWORD", "")
 SEED_DEMO_PASSWORD = os.getenv("SEED_DEMO_PASSWORD", "")
 SEED_LAB_ADMIN_PASSWORD = os.getenv("SEED_LAB_ADMIN_PASSWORD", "")
-ASYNC_DATABASE_URL = os.getenv(
-    "ASYNC_DATABASE_URL", DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://")
-)
 
 # Check if using SQLite (for testing) - SQLite doesn't support pool options
 _is_sqlite = DATABASE_URL.startswith("sqlite")
@@ -78,11 +85,15 @@ else:
     # Instead, we rely on pool_recycle to handle stale connections.
     async_engine = create_async_engine(
         ASYNC_DATABASE_URL,
+        pool_size=10,
+        max_overflow=20,
+        pool_timeout=30,
+        pool_recycle=300,
         pool_pre_ping=False,  # Disabled - causes greenlet issues with asyncpg
-        pool_recycle=300,  # Recycle connections every 5 minutes to avoid stale connections
-        pool_size=10,  # Base pool size
-        max_overflow=20,  # Allow up to 30 total connections
-        pool_timeout=30,  # Wait 30s for available connection
+        connect_args={
+            "prepared_statement_cache_size": 0,
+            "statement_cache_size": 0,
+        },
         echo=os.getenv("ENVIRONMENT") == "development",
     )
 
