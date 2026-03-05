@@ -60,6 +60,7 @@ export function SidebarToggle() {
         <Button
           variant="ghost"
           size="icon"
+          aria-label={isMobile ? 'Menu' : isCollapsed ? 'Open Sidebar' : 'Close Sidebar'}
           className={cn(
             "h-8 w-8 transition-all duration-200",
             "hover:bg-accent hover:text-accent-foreground"
