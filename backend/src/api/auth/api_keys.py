@@ -98,7 +98,7 @@ async def list_api_keys(
     Note: Raw API keys are never returned, only metadata.
     """
     try:
-        query = db.query(APIKey)
+        query = db.query(APIKey).filter(APIKey.organization_id == str(current_user.organization_id))
         
         if active_only:
             query = query.filter(APIKey.is_active == True)
@@ -140,7 +140,10 @@ async def get_api_key(
     Get API key details by ID (Admin only).
     """
     try:
-        api_key = db.query(APIKey).filter(APIKey.id == api_key_id).first()
+        api_key = db.query(APIKey).filter(
+            APIKey.id == api_key_id,
+            APIKey.organization_id == str(current_user.organization_id)
+        ).first()
         
         if not api_key:
             raise HTTPException(status_code=404, detail="API key not found")
@@ -176,7 +179,10 @@ async def update_api_key(
     Update API key properties (Admin only).
     """
     try:
-        api_key = db.query(APIKey).filter(APIKey.id == api_key_id).first()
+        api_key = db.query(APIKey).filter(
+            APIKey.id == api_key_id,
+            APIKey.organization_id == str(current_user.organization_id)
+        ).first()
         
         if not api_key:
             raise HTTPException(status_code=404, detail="API key not found")
@@ -231,7 +237,10 @@ async def delete_api_key(
     but are marked as inactive.
     """
     try:
-        api_key = db.query(APIKey).filter(APIKey.id == api_key_id).first()
+        api_key = db.query(APIKey).filter(
+            APIKey.id == api_key_id,
+            APIKey.organization_id == str(current_user.organization_id)
+        ).first()
         
         if not api_key:
             raise HTTPException(status_code=404, detail="API key not found")
@@ -266,7 +275,10 @@ async def get_api_key_usage(
     Get usage statistics for an API key (Admin only).
     """
     try:
-        api_key = db.query(APIKey).filter(APIKey.id == api_key_id).first()
+        api_key = db.query(APIKey).filter(
+            APIKey.id == api_key_id,
+            APIKey.organization_id == str(current_user.organization_id)
+        ).first()
         
         if not api_key:
             raise HTTPException(status_code=404, detail="API key not found")
@@ -314,7 +326,10 @@ async def regenerate_api_key(
     The new key is only shown once.
     """
     try:
-        api_key = db.query(APIKey).filter(APIKey.id == api_key_id).first()
+        api_key = db.query(APIKey).filter(
+            APIKey.id == api_key_id,
+            APIKey.organization_id == str(current_user.organization_id)
+        ).first()
         
         if not api_key:
             raise HTTPException(status_code=404, detail="API key not found")
@@ -362,17 +377,25 @@ async def get_api_keys_usage_summary(
     Get overall usage summary for all API keys (Admin only).
     """
     try:
+        org_id = str(current_user.organization_id)
+
         # Get basic statistics
-        total_keys = db.query(APIKey).count()
-        active_keys = db.query(APIKey).filter(APIKey.is_active == True).count()
+        total_keys = db.query(APIKey).filter(APIKey.organization_id == org_id).count()
+        active_keys = db.query(APIKey).filter(
+            APIKey.organization_id == org_id,
+            APIKey.is_active == True
+        ).count()
         
         # Get most active keys
         most_active = db.query(APIKey).filter(
+            APIKey.organization_id == org_id,
             APIKey.is_active == True
         ).order_by(APIKey.usage_count.desc()).limit(5).all()
         
         # Get recently created keys
-        recent_keys = db.query(APIKey).order_by(
+        recent_keys = db.query(APIKey).filter(
+            APIKey.organization_id == org_id
+        ).order_by(
             APIKey.created_at.desc()
         ).limit(5).all()
         
