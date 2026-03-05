@@ -64,6 +64,7 @@ export function ChatInput({
               <Button
                 onClick={onStop}
                 size="icon"
+                aria-label="Stop generating"
                 className="h-10 w-10 rounded-xl bg-red-500/10 text-red-500 hover:bg-red-500/20 border border-red-500/20 shadow-lg"
               >
                 <Square className="w-4 h-4" />
@@ -73,6 +74,7 @@ export function ChatInput({
                 onClick={onSubmit}
                 disabled={!value.trim() || !selectedModel}
                 size="icon"
+                aria-label="Send message"
                 className={`h-10 w-10 rounded-xl transition-all shadow-lg \${
                   value.trim() && selectedModel
                     ? 'bg-gradient-to-br from-purple-600 to-purple-700 hover:from-purple-500 hover:to-purple-600 text-white shadow-purple-600/30 hover:shadow-purple-600/50'
