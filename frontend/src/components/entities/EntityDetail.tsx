@@ -381,6 +381,7 @@ export const EntityDetail: React.FC<EntityDetailProps> = ({
                             disabled={!canDelete}
                             className="h-6 w-6 text-red-500/50 hover:text-red-400 hover:bg-red-400/10 disabled:opacity-30 disabled:cursor-not-allowed"
                             title={!canDelete ? 'Admin access required' : 'Delete relationship'}
+                            aria-label="Delete relationship"
                           >
                             <Trash2 className="h-3.5 w-3.5" />
                           </Button>

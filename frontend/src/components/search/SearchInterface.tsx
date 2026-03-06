@@ -440,7 +440,7 @@ export const SearchInterface: React.FC<SearchInterfaceProps> = ({
                   'text-primary bg-primary/10 hover:bg-primary/20'
               )}
               title="Filters"
-              aria-label="Toggle filters"
+              aria-label="Toggle search filters"
               aria-expanded={showFilters}
             >
               <FunnelIcon className="h-5 w-5" />

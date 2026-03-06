@@ -61,7 +61,7 @@ describe('SearchInterface', () => {
     render(<SearchInterface {...defaultProps} />);
 
     expect(screen.getByLabelText('Search query')).toBeInTheDocument();
-    expect(screen.getByLabelText('Toggle filters')).toBeInTheDocument();
+    expect(screen.getByLabelText('Toggle search filters')).toBeInTheDocument();
     expect(screen.getByLabelText('Search')).toBeInTheDocument();
   });
 

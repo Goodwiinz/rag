@@ -269,6 +269,7 @@ export const EntityList: React.FC<EntityListProps> = ({
                             onClick={() => onView(entity)}
                             className="h-8 w-8 text-[var(--terminal-text-dim)] hover:text-[var(--phosphor-green)] hover:bg-[var(--phosphor-green)]/10"
                             title="View entity details"
+                            aria-label="View entity details"
                           >
                             <Eye className="h-4 w-4" />
                           </Button>
@@ -281,6 +282,7 @@ export const EntityList: React.FC<EntityListProps> = ({
                             disabled={!canEdit}
                             className="h-8 w-8 text-[var(--terminal-text-dim)] hover:text-[var(--cyan)] hover:bg-[var(--cyan)]/10 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent"
                             title={!canEdit ? 'Admin access required' : 'Edit entity'}
+                            aria-label="Edit entity"
                           >
                             <Edit className="h-4 w-4" />
                           </Button>
@@ -292,6 +294,7 @@ export const EntityList: React.FC<EntityListProps> = ({
                             onClick={() => window.open(`/documents/${entity.source_document_id}`, '_blank')}
                             className="h-8 w-8 text-[var(--terminal-text-dim)] hover:text-[var(--amber-gold)] hover:bg-[var(--amber-gold)]/10"
                             title="View source document"
+                            aria-label="View source document"
                           >
                             <ExternalLink className="h-4 w-4" />
                           </Button>
@@ -304,6 +307,7 @@ export const EntityList: React.FC<EntityListProps> = ({
                             disabled={!canDelete}
                             className="h-8 w-8 text-[var(--terminal-text-dim)] hover:text-red-400 hover:bg-red-400/10 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent"
                             title={!canDelete ? 'Admin access required' : 'Delete entity'}
+                            aria-label="Delete entity"
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>

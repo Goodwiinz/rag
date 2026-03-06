@@ -65,6 +65,7 @@ export function ChatInput({
                 onClick={onStop}
                 size="icon"
                 className="h-10 w-10 rounded-xl bg-red-500/10 text-red-500 hover:bg-red-500/20 border border-red-500/20 shadow-lg"
+                aria-label="Stop generation"
               >
                 <Square className="w-4 h-4" />
               </Button>
@@ -78,6 +79,7 @@ export function ChatInput({
                     ? 'bg-gradient-to-br from-purple-600 to-purple-700 hover:from-purple-500 hover:to-purple-600 text-white shadow-purple-600/30 hover:shadow-purple-600/50'
                     : 'bg-[#1A1A1A] text-gray-600 hover:bg-[#252525] shadow-black/20'
                 }`}
+                aria-label="Send message"
               >
                 <Send className="w-4 h-4" />
               </Button>

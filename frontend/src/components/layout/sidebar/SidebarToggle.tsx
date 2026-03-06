@@ -65,6 +65,7 @@ export function SidebarToggle() {
             "hover:bg-accent hover:text-accent-foreground"
           )}
           onClick={() => setIsCollapsed(!isCollapsed)}
+          aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
         >
           {isMobile ? (
             <Menu className="h-4 w-4" />
