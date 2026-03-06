@@ -18,7 +18,7 @@ faker==25.2.0
 model-bakery==1.12.2
 
 # HTTP Testing
-httpx==0.25.2
+httpx<0.28.0,>=0.26.0
 requests-mock==1.12.1
 responses==0.25.0
 aioresponses==0.7.6
