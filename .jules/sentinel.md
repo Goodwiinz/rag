@@ -60,3 +60,8 @@ Also, testing this endpoint proved difficult because the codebase has side effec
 **Vulnerability:** Rate limiting relied on `request.client.host`, which returns the load balancer's IP in production, causing global rate limiting instead of per-user.
 **Learning:** In containerized environments with reverse proxies (Traefik/Nginx), the real client IP is in `X-Forwarded-For`. The last IP in this list is the only one guaranteed to be the connecting client (added by the trusted proxy).
 **Prevention:** Use a centralized `get_client_ip` utility that parses `X-Forwarded-For` (taking the last entry) before falling back to `request.client.host`.
+
+## 2024-05-23 - Insecure Direct Object Reference (IDOR) in SQLAlchemy Queries for Tenant-Isolated Models
+**Vulnerability:** API endpoints interacting with `APIKey` models restricted by role decorators (e.g., `Depends(require_admin)`) did not scope queries to the specific user's organization. This allowed an admin from one organization to manipulate (list, view, update, delete) API keys belonging to a different organization by supplying its ID.
+**Learning:** Role-based access control (RBAC) via route dependencies (e.g. `require_admin`) only validates the user's privilege level; it does *not* inherently provide tenant isolation at the data access layer.
+**Prevention:** Always explicitly append a `.filter(Model.organization_id == str(current_user.organization_id))` condition to SQLAlchemy database queries within endpoints dealing with tenant-isolated resources to prevent cross-tenant access and IDOR vulnerabilities.
