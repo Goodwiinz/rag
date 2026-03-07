@@ -411,8 +411,9 @@ def hash_sensitive_data(data: str) -> str:
 def verify_sensitive_data_hash(data: str, hashed: str) -> bool:
     """Verify sensitive data against its hash"""
     import hashlib
+    import secrets
 
-    return hashlib.sha256(data.encode()).hexdigest() == hashed
+    return secrets.compare_digest(hashlib.sha256(data.encode()).hexdigest(), hashed)
 
 
 # Import RateLimiter implementations

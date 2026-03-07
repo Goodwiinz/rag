@@ -555,8 +555,9 @@ class HashUtils:
         Returns:
             True if password matches
         """
+        import secrets
         test_hash, _ = HashUtils.hash_password(password, salt)
-        return test_hash == hashed_password
+        return secrets.compare_digest(test_hash, hashed_password)
 
     @staticmethod
     def hash_data(data: Union[str, bytes], algorithm: str = "sha256") -> str:
