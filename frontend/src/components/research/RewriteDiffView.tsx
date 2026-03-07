@@ -188,6 +188,7 @@ export const RewriteDiffView: React.FC<RewriteDiffViewProps> = ({
           size="sm"
           className="gap-1.5 text-gray-400 hover:bg-[#1a1a1a] hover:text-gray-200"
           onClick={onReject}
+          aria-label="Reject rewrite"
         >
           <X className="h-3.5 w-3.5" />
           Reject
@@ -196,6 +197,7 @@ export const RewriteDiffView: React.FC<RewriteDiffViewProps> = ({
           size="sm"
           className="gap-1.5 bg-[#00ff9f]/10 text-[#00ff9f] hover:bg-[#00ff9f]/20"
           onClick={() => onAccept(rewritten)}
+          aria-label="Accept rewrite"
         >
           <Check className="h-3.5 w-3.5" />
           Accept
