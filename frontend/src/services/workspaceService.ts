@@ -177,14 +177,13 @@ v2Client.interceptors.response.use(
       console.error('[WorkspaceService] Request failed:', cleanedInfo);
     }
 
-    // If it's a 401/403, the user needs to re-authenticate
-    if (error.response?.status === 401 || error.response?.status === 403) {
-      console.warn(
-        '[WorkspaceService] Authentication error - redirecting to login'
-      );
-      if (typeof window !== 'undefined') {
-        window.location.href = '/login';
-      }
+    // If it's a 401, the user needs to re-authenticate (403 is forbidden, not unauthenticated)
+    if (error.response?.status === 401) {
+      console.warn('[WorkspaceService] Authentication error - logging out');
+      // Dynamic import to avoid circular dependencies
+      import('@/stores/authStore').then(({ useAuthStore }) => {
+        useAuthStore.getState().logout();
+      });
     }
 
     return Promise.reject(error);
