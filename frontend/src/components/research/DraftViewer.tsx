@@ -6,6 +6,7 @@
  */
 
 import React, { useCallback, useMemo, useRef, useState } from 'react';
+import DOMPurify from 'dompurify';
 import { Download, FileText, Code, History } from 'lucide-react';
 import type { Draft } from '@/services/projectService';
 import { ToneToolbar } from './ToneToolbar';
@@ -232,13 +233,15 @@ export const DraftViewer: React.FC<DraftViewerProps> = ({
         </div>
       )}
 
-      {/* Content — dangerouslySetInnerHTML is used with internally-generated markdown only, not user input */}
+      {/* Content — HTML is sanitized via DOMPurify before rendering */}
       <div className="p-6 max-h-[600px] overflow-y-auto">
         <div
           ref={contentRef}
           className="prose prose-invert prose-sm max-w-none text-muted-foreground relative"
           onMouseUp={handleTextSelect}
-          dangerouslySetInnerHTML={{ __html: formatMarkdown(formattedContent) }}
+          dangerouslySetInnerHTML={{
+            __html: DOMPurify.sanitize(formatMarkdown(formattedContent)),
+          }}
         />
         {toneToolbarPos && selectedText && !rewriteResult && (
           <ToneToolbar
