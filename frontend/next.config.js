@@ -16,7 +16,7 @@ const nextConfig = {
 
   // Ignore TypeScript build errors temporarily
   typescript: {
-    ignoreBuildErrors: true,
+    ignoreBuildErrors: process.env.NODE_ENV !== 'production',
   },
 
   // Experimental features for better performance
@@ -26,10 +26,6 @@ const nextConfig = {
     // Optimize package imports
     optimizePackageImports: ['lucide-react', '@radix-ui/react-icons'],
   },
-
-  // Turbopack configuration (Next.js 16+ uses Turbopack by default)
-  // Empty config acknowledges webpack config exists but Turbopack is preferred
-  turbopack: {},
 
   // Image optimization
   images: {
@@ -101,7 +97,11 @@ const nextConfig = {
       {
         source: '/api/:path*',
         headers: [
-          { key: 'Access-Control-Allow-Origin', value: '*' },
+          {
+            key: 'Access-Control-Allow-Origin',
+            value:
+              process.env.NEXT_PUBLIC_FRONTEND_URL || 'http://localhost:3000',
+          },
           {
             key: 'Access-Control-Allow-Methods',
             value: 'GET, POST, PUT, DELETE, OPTIONS',
