@@ -2,6 +2,7 @@
 
 import { useChatPersistence } from '@/hooks';
 import { cn } from '@/lib/utils';
+import { useAuthStore } from '@/stores/authStore';
 import { workspaceService } from '@/services/workspaceService';
 import type {
   Collection as WorkspaceCollection,
@@ -600,7 +601,7 @@ function ContextPanel({
     async (lastAssistantContent: string, lastCitations: CitationItem[]) => {
       setLoadingSuggestions(true);
       try {
-        const token = localStorage.getItem('access_token');
+        const token = useAuthStore.getState().token;
         if (!token) {
           setSuggestions([]);
           setLoadingSuggestions(false);
