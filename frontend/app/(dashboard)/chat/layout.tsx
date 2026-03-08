@@ -695,7 +695,7 @@ function ContextPanel({
           <button
             onClick={onClose}
             className="p-1.5 rounded hover:bg-[var(--terminal-elevated)] text-[var(--terminal-text-dim)] hover:text-[var(--terminal-text)] transition-colors"
-            title="Close panel"
+            aria-label="Close context panel"
           >
             <X className="w-4 h-4" />
           </button>
