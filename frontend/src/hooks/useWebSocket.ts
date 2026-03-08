@@ -28,6 +28,11 @@ export const useWebSocket = (): UseWebSocketReturn => {
   >('disconnected');
   const [error, setError] = useState<string | null>(null);
   const managerRef = useRef<WebSocketManager | null>(null);
+  const handlersRef = useRef<{
+    connected: (() => void) | null;
+    disconnected: (() => void) | null;
+    error: ((data: any) => void) | null;
+  }>({ connected: null, disconnected: null, error: null });
 
   const connect = useCallback(async () => {
     if (!token || !user || !isAuthenticated) {
@@ -57,6 +62,12 @@ export const useWebSocket = (): UseWebSocketReturn => {
       const handleError = (data: any) => {
         setStatus('error');
         setError(data.error?.message || 'WebSocket connection error');
+      };
+
+      handlersRef.current = {
+        connected: handleConnected,
+        disconnected: handleDisconnected,
+        error: handleError,
       };
 
       manager.on('connected', handleConnected);
@@ -103,10 +114,12 @@ export const useWebSocket = (): UseWebSocketReturn => {
     return () => {
       // Cleanup on unmount
       const manager = managerRef.current;
+      const handlers = handlersRef.current;
       if (manager) {
-        manager.off('connected');
-        manager.off('disconnected');
-        manager.off('error');
+        if (handlers.connected) manager.off('connected', handlers.connected);
+        if (handlers.disconnected)
+          manager.off('disconnected', handlers.disconnected);
+        if (handlers.error) manager.off('error', handlers.error);
       }
     };
   }, [isAuthenticated, token, user, connect, disconnect]);
