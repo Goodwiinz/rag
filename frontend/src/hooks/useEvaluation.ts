@@ -2,12 +2,9 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   EvaluationMetrics,
   Evaluation,
-  EvaluationConfig
+  EvaluationConfig,
 } from '@/types/evaluation';
-import {
-  PerformanceAnalytics,
-  UsageAnalytics
-} from '@/types/analytics';
+import { PerformanceAnalytics, UsageAnalytics } from '@/types/analytics';
 
 // API Types
 interface CreateEvaluationRequest {
@@ -50,7 +47,7 @@ interface EvaluationComparison {
 }
 
 // Base API URL
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 // API client functions
 const evaluationApi = {
@@ -67,7 +64,9 @@ const evaluationApi = {
     return response.json();
   },
 
-  createEvaluation: async (data: CreateEvaluationRequest): Promise<Evaluation> => {
+  createEvaluation: async (
+    data: CreateEvaluationRequest
+  ): Promise<Evaluation> => {
     const response = await fetch(`${API_BASE_URL}/api/v1/evaluations`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -77,7 +76,10 @@ const evaluationApi = {
     return response.json();
   },
 
-  updateEvaluation: async (id: string, data: Partial<Evaluation>): Promise<Evaluation> => {
+  updateEvaluation: async (
+    id: string,
+    data: Partial<Evaluation>
+  ): Promise<Evaluation> => {
     const response = await fetch(`${API_BASE_URL}/api/v1/evaluations/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -96,57 +98,88 @@ const evaluationApi = {
 
   // Evaluation Runs
   runEvaluation: async (evaluationId: string): Promise<EvaluationRun> => {
-    const response = await fetch(`${API_BASE_URL}/api/v1/evaluations/${evaluationId}/run`, {
-      method: 'POST',
-    });
+    const response = await fetch(
+      `${API_BASE_URL}/api/v1/evaluations/${evaluationId}/run`,
+      {
+        method: 'POST',
+      }
+    );
     if (!response.ok) throw new Error('Failed to run evaluation');
     return response.json();
   },
 
   getEvaluationRuns: async (evaluationId: string): Promise<EvaluationRun[]> => {
-    const response = await fetch(`${API_BASE_URL}/api/v1/evaluations/${evaluationId}/runs`);
+    const response = await fetch(
+      `${API_BASE_URL}/api/v1/evaluations/${evaluationId}/runs`
+    );
     if (!response.ok) throw new Error('Failed to fetch evaluation runs');
     return response.json();
   },
 
-  getEvaluationRun: async (evaluationId: string, runId: string): Promise<EvaluationRun> => {
-    const response = await fetch(`${API_BASE_URL}/api/v1/evaluations/${evaluationId}/runs/${runId}`);
+  getEvaluationRun: async (
+    evaluationId: string,
+    runId: string
+  ): Promise<EvaluationRun> => {
+    const response = await fetch(
+      `${API_BASE_URL}/api/v1/evaluations/${evaluationId}/runs/${runId}`
+    );
     if (!response.ok) throw new Error('Failed to fetch evaluation run');
     return response.json();
   },
 
   // Evaluation Results
-  getEvaluationResults: async (evaluationId: string, runId: string): Promise<EvaluationMetrics[]> => {
-    const response = await fetch(`${API_BASE_URL}/api/v1/evaluations/${evaluationId}/runs/${runId}/results`);
+  getEvaluationResults: async (
+    evaluationId: string,
+    runId: string
+  ): Promise<EvaluationMetrics[]> => {
+    const response = await fetch(
+      `${API_BASE_URL}/api/v1/evaluations/${evaluationId}/runs/${runId}/results`
+    );
     if (!response.ok) throw new Error('Failed to fetch evaluation results');
     return response.json();
   },
 
-  exportEvaluationResults: async (evaluationId: string, runId: string, format: 'csv' | 'json' | 'pdf'): Promise<Blob> => {
-    const response = await fetch(`${API_BASE_URL}/api/v1/evaluations/${evaluationId}/runs/${runId}/export?format=${format}`);
+  exportEvaluationResults: async (
+    evaluationId: string,
+    runId: string,
+    format: 'csv' | 'json' | 'pdf'
+  ): Promise<Blob> => {
+    const response = await fetch(
+      `${API_BASE_URL}/api/v1/evaluations/${evaluationId}/runs/${runId}/export?format=${format}`
+    );
     if (!response.ok) throw new Error('Failed to export evaluation results');
     return response.blob();
   },
 
   // Comparisons
-  createComparison: async (data: { name: string; evaluations: string[] }): Promise<EvaluationComparison> => {
-    const response = await fetch(`${API_BASE_URL}/api/v1/evaluations/comparisons`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    });
+  createComparison: async (data: {
+    name: string;
+    evaluations: string[];
+  }): Promise<EvaluationComparison> => {
+    const response = await fetch(
+      `${API_BASE_URL}/api/v1/evaluations/comparisons`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      }
+    );
     if (!response.ok) throw new Error('Failed to create comparison');
     return response.json();
   },
 
   getComparisons: async (): Promise<EvaluationComparison[]> => {
-    const response = await fetch(`${API_BASE_URL}/api/v1/evaluations/comparisons`);
+    const response = await fetch(
+      `${API_BASE_URL}/api/v1/evaluations/comparisons`
+    );
     if (!response.ok) throw new Error('Failed to fetch comparisons');
     return response.json();
   },
 
   getComparison: async (id: string): Promise<EvaluationComparison> => {
-    const response = await fetch(`${API_BASE_URL}/api/v1/evaluations/comparisons/${id}`);
+    const response = await fetch(
+      `${API_BASE_URL}/api/v1/evaluations/comparisons/${id}`
+    );
     if (!response.ok) throw new Error('Failed to fetch comparison');
     return response.json();
   },
@@ -217,7 +250,8 @@ export const useRunEvaluation = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (evaluationId: string) => evaluationApi.runEvaluation(evaluationId),
+    mutationFn: (evaluationId: string) =>
+      evaluationApi.runEvaluation(evaluationId),
   });
 };
 
@@ -272,7 +306,11 @@ export const useEvaluationResults = (evaluationId: string, runId: string) => {
 // Export evaluation results
 export const useExportEvaluationResults = () => {
   return useMutation({
-    mutationFn: ({ evaluationId, runId, format }: {
+    mutationFn: ({
+      evaluationId,
+      runId,
+      format,
+    }: {
       evaluationId: string;
       runId: string;
       format: 'csv' | 'json' | 'pdf';
@@ -281,7 +319,8 @@ export const useExportEvaluationResults = () => {
       const url = window.URL.createObjectURL(new Blob([data]));
       const link = document.createElement('a');
       link.href = url;
-      link.download = 'evaluation_results_' + evaluationId + '_' + runId + '.' + format;
+      link.download =
+        'evaluation_results_' + evaluationId + '_' + runId + '.' + format;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -335,15 +374,31 @@ const calculateResultsSummary = (results: EvaluationMetrics[]) => {
   if (results.length === 0) return null;
 
   const totalQueries = results.length;
-  const avgAnswerRelevancy = results.reduce((sum, r) => sum + r.rag_triad.answer_relevancy, 0) / totalQueries;
-  const avgFaithfulness = results.reduce((sum, r) => sum + r.rag_triad.faithfulness, 0) / totalQueries;
-  const avgContextualRelevancy = results.reduce((sum, r) => sum + r.rag_triad.contextual_relevancy, 0) / totalQueries;
-  const avgLatency = results.reduce((sum, r) => sum + r.performance.latency_ms, 0) / totalQueries;
-  const avgHallucinationScore = results.reduce((sum, r) => sum + r.quality.hallucination_score, 0) / totalQueries;
+  const avgAnswerRelevancy =
+    results.reduce((sum, r) => sum + r.rag_triad.answer_relevancy, 0) /
+    totalQueries;
+  const avgFaithfulness =
+    results.reduce((sum, r) => sum + r.rag_triad.faithfulness, 0) /
+    totalQueries;
+  const avgContextualRelevancy =
+    results.reduce((sum, r) => sum + r.rag_triad.contextual_relevancy, 0) /
+    totalQueries;
+  const avgLatency =
+    results.reduce((sum, r) => sum + r.performance.latency_ms, 0) /
+    totalQueries;
+  const avgHallucinationScore =
+    results.reduce((sum, r) => sum + r.quality.hallucination_score, 0) /
+    totalQueries;
 
-  const passingAnswerRelevancy = results.filter(r => r.rag_triad.answer_relevancy >= 70).length;
-  const passingFaithfulness = results.filter(r => r.rag_triad.faithfulness >= 90).length;
-  const passingContextualRelevancy = results.filter(r => r.rag_triad.contextual_relevancy >= 70).length;
+  const passingAnswerRelevancy = results.filter(
+    (r) => r.rag_triad.answer_relevancy >= 70
+  ).length;
+  const passingFaithfulness = results.filter(
+    (r) => r.rag_triad.faithfulness >= 90
+  ).length;
+  const passingContextualRelevancy = results.filter(
+    (r) => r.rag_triad.contextual_relevancy >= 70
+  ).length;
 
   return {
     totalQueries,
@@ -373,9 +428,13 @@ const calculateResultsSummary = (results: EvaluationMetrics[]) => {
 const calculateRAGTriadSummary = (results: EvaluationMetrics[]) => {
   if (results.length === 0) return null;
 
-  const answerRelevancyScores = results.map(r => r.rag_triad.answer_relevancy);
-  const faithfulnessScores = results.map(r => r.rag_triad.faithfulness);
-  const contextualRelevancyScores = results.map(r => r.rag_triad.contextual_relevancy);
+  const answerRelevancyScores = results.map(
+    (r) => r.rag_triad.answer_relevancy
+  );
+  const faithfulnessScores = results.map((r) => r.rag_triad.faithfulness);
+  const contextualRelevancyScores = results.map(
+    (r) => r.rag_triad.contextual_relevancy
+  );
 
   return {
     answerRelevancy: {
@@ -405,8 +464,8 @@ const calculateRAGTriadSummary = (results: EvaluationMetrics[]) => {
 const calculatePerformanceSummary = (results: EvaluationMetrics[]) => {
   if (results.length === 0) return null;
 
-  const latencies = results.map(r => r.performance.latency_ms);
-  const cacheHitRates = results.map(r => r.performance.cache_hit_rate);
+  const latencies = results.map((r) => r.performance.latency_ms);
+  const cacheHitRates = results.map((r) => r.performance.cache_hit_rate);
 
   return {
     latency: {
@@ -428,25 +487,30 @@ const calculatePerformanceSummary = (results: EvaluationMetrics[]) => {
 const calculateQualitySummary = (results: EvaluationMetrics[]) => {
   if (results.length === 0) return null;
 
-  const hallucinationScores = results.map(r => r.quality.hallucination_score);
-  const factualAccuracyScores = results.map(r => r.quality.factual_accuracy);
-  const coherenceScores = results.map(r => r.quality.coherence_score);
+  const hallucinationScores = results.map((r) => r.quality.hallucination_score);
+  const factualAccuracyScores = results.map((r) => r.quality.factual_accuracy);
+  const coherenceScores = results.map((r) => r.quality.coherence_score);
 
   return {
     hallucinationScore: {
-      average: hallucinationScores.reduce((a, b) => a + b, 0) / hallucinationScores.length,
+      average:
+        hallucinationScores.reduce((a, b) => a + b, 0) /
+        hallucinationScores.length,
       min: Math.min(...hallucinationScores),
       max: Math.max(...hallucinationScores),
       distribution: calculateDistribution(hallucinationScores),
     },
     factualAccuracy: {
-      average: factualAccuracyScores.reduce((a, b) => a + b, 0) / factualAccuracyScores.length,
+      average:
+        factualAccuracyScores.reduce((a, b) => a + b, 0) /
+        factualAccuracyScores.length,
       min: Math.min(...factualAccuracyScores),
       max: Math.max(...factualAccuracyScores),
       distribution: calculateDistribution(factualAccuracyScores),
     },
     coherenceScore: {
-      average: coherenceScores.reduce((a, b) => a + b, 0) / coherenceScores.length,
+      average:
+        coherenceScores.reduce((a, b) => a + b, 0) / coherenceScores.length,
       min: Math.min(...coherenceScores),
       max: Math.max(...coherenceScores),
       distribution: calculateDistribution(coherenceScores),
@@ -460,7 +524,7 @@ const calculateMedian = (values: number[]): number => {
   const mid = Math.floor(sorted.length / 2);
   return sorted.length % 2 === 0
     ? ((sorted[mid - 1] ?? 0) + (sorted[mid] ?? 0)) / 2
-    : sorted[mid] ?? 0;
+    : (sorted[mid] ?? 0);
 };
 
 const calculatePercentile = (values: number[], percentile: number): number => {
@@ -470,7 +534,9 @@ const calculatePercentile = (values: number[], percentile: number): number => {
   return sorted[Math.max(0, index)] ?? 0;
 };
 
-const calculateDistribution = (values: number[]): Array<{ range: string; count: number; percentage: number }> => {
+const calculateDistribution = (
+  values: number[]
+): Array<{ range: string; count: number; percentage: number }> => {
   const ranges = [
     { min: 0, max: 50, label: '0-50' },
     { min: 50, max: 60, label: '50-60' },
@@ -481,8 +547,8 @@ const calculateDistribution = (values: number[]): Array<{ range: string; count: 
   ];
 
   const total = values.length;
-  return ranges.map(range => {
-    const count = values.filter(v => v >= range.min && v < range.max).length;
+  return ranges.map((range) => {
+    const count = values.filter((v) => v >= range.min && v < range.max).length;
     return {
       range: range.label,
       count,
@@ -493,11 +559,13 @@ const calculateDistribution = (values: number[]): Array<{ range: string; count: 
 
 const formatComparisonData = (comparison: EvaluationComparison) => {
   return {
-    labels: comparison.results.map(r => 'Evaluation ' + r.evaluation_id.slice(0, 8)),
+    labels: comparison.results.map(
+      (r) => 'Evaluation ' + r.evaluation_id.slice(0, 8)
+    ),
     datasets: [
       {
         label: 'Average Answer Relevancy',
-        data: comparison.results.map(r => r.summary.average_score),
+        data: comparison.results.map((r) => r.summary.average_score),
         backgroundColor: 'rgba(75, 192, 192, 0.8)',
       },
     ],
@@ -510,22 +578,34 @@ const generateComparisonInsights = (comparison: EvaluationComparison) => {
 
   if (results.length > 1) {
     const best = results.reduce((best, current) =>
-      current.summary.average_score > best.summary.average_score ? current : best
+      current.summary.average_score > best.summary.average_score
+        ? current
+        : best
     );
     const worst = results.reduce((worst, current) =>
-      current.summary.average_score < worst.summary.average_score ? current : worst
+      current.summary.average_score < worst.summary.average_score
+        ? current
+        : worst
     );
 
     insights.push({
       type: 'performance',
       title: 'Best Performing Evaluation',
-      description: 'Evaluation ' + best.evaluation_id.slice(0, 8) + ' achieved the highest average score of ' + best.summary.average_score.toFixed(1) + '%',
+      description:
+        'Evaluation ' +
+        best.evaluation_id.slice(0, 8) +
+        ' achieved the highest average score of ' +
+        best.summary.average_score.toFixed(1) +
+        '%',
     });
 
     insights.push({
       type: 'improvement',
       title: 'Improvement Opportunity',
-      description: 'There is a ' + (best.summary.average_score - worst.summary.average_score).toFixed(1) + '% difference between best and worst performing evaluations',
+      description:
+        'There is a ' +
+        (best.summary.average_score - worst.summary.average_score).toFixed(1) +
+        '% difference between best and worst performing evaluations',
     });
   }
 

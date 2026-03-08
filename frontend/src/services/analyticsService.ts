@@ -7,15 +7,19 @@ import {
   UsageAnalytics,
   TimeRange,
   CustomTimeRange,
-  AnalyticsFilters
+  AnalyticsFilters,
 } from '@/types';
 
 // Type guard for CustomTimeRange
-const isCustomTimeRange = (timeRange: TimeRange): timeRange is CustomTimeRange => {
-  return typeof timeRange === 'object' && 'start' in timeRange && 'end' in timeRange;
+const isCustomTimeRange = (
+  timeRange: TimeRange
+): timeRange is CustomTimeRange => {
+  return (
+    typeof timeRange === 'object' && 'start' in timeRange && 'end' in timeRange
+  );
 };
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 export interface QualityMetric {
   id: string;
@@ -120,7 +124,13 @@ export interface Recommendation {
   id: string;
   title: string;
   description: string;
-  category: 'content' | 'search_algorithm' | 'infrastructure' | 'user_experience' | 'indexing' | 'monitoring';
+  category:
+    | 'content'
+    | 'search_algorithm'
+    | 'infrastructure'
+    | 'user_experience'
+    | 'indexing'
+    | 'monitoring';
   priority: 'critical' | 'high' | 'medium' | 'low';
   impact_assessment: string;
   effort_required: 'low' | 'medium' | 'high';
@@ -154,9 +164,14 @@ class AnalyticsService {
   private apiClient = apiClient;
 
   // Quality Metrics
-  async getQualityMetrics(): Promise<{ metrics: QualityMetric[]; alerts: QualityAlert[] }> {
+  async getQualityMetrics(): Promise<{
+    metrics: QualityMetric[];
+    alerts: QualityAlert[];
+  }> {
     try {
-      const response = await this.apiClient.get('/api/v1/analytics/quality/metrics') as any;
+      const response = (await this.apiClient.get(
+        '/api/v1/analytics/quality/metrics'
+      )) as any;
       return response.data;
     } catch (error) {
       // Fallback to mock data if API fails
@@ -171,7 +186,9 @@ class AnalyticsService {
     sessions: UserSession[];
   }> {
     try {
-      const response = await this.apiClient.get(`/api/analytics/user-behavior?timeRange=${timeRange}`) as any;
+      const response = (await this.apiClient.get(
+        `/api/analytics/user-behavior?timeRange=${timeRange}`
+      )) as any;
       return response.data;
     } catch (error) {
       // Fallback to mock data if API fails
@@ -186,7 +203,9 @@ class AnalyticsService {
     alerts: PerformanceAlert[];
   }> {
     try {
-      const response = await this.apiClient.get('/api/analytics/performance') as any;
+      const response = (await this.apiClient.get(
+        '/api/analytics/performance'
+      )) as any;
       return response.data;
     } catch (error) {
       // Fallback to mock data if API fails
@@ -201,7 +220,9 @@ class AnalyticsService {
     improvements: any[];
   }> {
     try {
-      const response = await this.apiClient.get('/api/analytics/recommendations') as any;
+      const response = (await this.apiClient.get(
+        '/api/analytics/recommendations'
+      )) as any;
       return response.data;
     } catch (error) {
       // Fallback to mock data if API fails
@@ -215,7 +236,10 @@ class AnalyticsService {
     status: Recommendation['status']
   ): Promise<void> {
     try {
-      await this.apiClient.patch(`/api/analytics/recommendations/${recommendationId}`, { status });
+      await this.apiClient.patch(
+        `/api/analytics/recommendations/${recommendationId}`,
+        { status }
+      );
     } catch (error) {
       console.error('Failed to update recommendation status:', error);
       throw error;
@@ -228,7 +252,10 @@ class AnalyticsService {
     voteType: 'up' | 'down'
   ): Promise<void> {
     try {
-      await this.apiClient.post(`/api/analytics/recommendations/${recommendationId}/vote`, { voteType });
+      await this.apiClient.post(
+        `/api/analytics/recommendations/${recommendationId}/vote`,
+        { voteType }
+      );
     } catch (error) {
       console.error('Failed to vote on recommendation:', error);
       throw error;
@@ -236,7 +263,9 @@ class AnalyticsService {
   }
 
   // RAG Triad Metrics (New architecture)
-  async getRAGTriadMetrics(timeRange: TimeRange): Promise<{ metrics: RAGTriadMetrics }> {
+  async getRAGTriadMetrics(
+    timeRange: TimeRange
+  ): Promise<{ metrics: RAGTriadMetrics }> {
     try {
       const params = isCustomTimeRange(timeRange)
         ? { start: timeRange.start, end: timeRange.end }
@@ -254,7 +283,10 @@ class AnalyticsService {
     timeRange: TimeRange
   ): Promise<PerformanceAnalytics> {
     try {
-      return await this.apiClient.post('/api/analytics/performance', { filters, timeRange });
+      return await this.apiClient.post('/api/analytics/performance', {
+        filters,
+        timeRange,
+      });
     } catch (error) {
       console.error('Failed to fetch performance analytics:', error);
       throw error;
@@ -285,12 +317,17 @@ class AnalyticsService {
   }
 
   // Historical Trends (New architecture)
-  async getHistoricalTrends(metric: string, timeRange: TimeRange): Promise<any> {
+  async getHistoricalTrends(
+    metric: string,
+    timeRange: TimeRange
+  ): Promise<any> {
     try {
       const params = isCustomTimeRange(timeRange)
         ? { start: timeRange.start, end: timeRange.end }
         : { preset: timeRange };
-      return await this.apiClient.get(`/api/analytics/trends/${metric}`, { params });
+      return await this.apiClient.get(`/api/analytics/trends/${metric}`, {
+        params,
+      });
     } catch (error) {
       console.error('Failed to fetch historical trends:', error);
       throw error;
@@ -300,7 +337,9 @@ class AnalyticsService {
   // Comparison Data (New architecture)
   async getComparisonData(timeRanges: TimeRange[]): Promise<any> {
     try {
-      return await this.apiClient.post('/api/analytics/compare', { timeRanges });
+      return await this.apiClient.post('/api/analytics/compare', {
+        timeRanges,
+      });
     } catch (error) {
       console.error('Failed to fetch comparison data:', error);
       throw error;
@@ -314,7 +353,10 @@ class AnalyticsService {
     timeRange: TimeRange
   ): Promise<void> {
     try {
-      await this.apiClient.download(`/api/analytics/export?format=${format}`, `analytics-${Date.now()}.${format}`);
+      await this.apiClient.download(
+        `/api/analytics/export?format=${format}`,
+        `analytics-${Date.now()}.${format}`
+      );
     } catch (error) {
       console.error('Failed to export analytics:', error);
       throw error;
@@ -334,7 +376,8 @@ class AnalyticsService {
         trend: 'improving',
         status: 'good',
         last_updated: new Date().toISOString(),
-        description: 'Measures how relevant the generated answers are to the user query'
+        description:
+          'Measures how relevant the generated answers are to the user query',
       },
       {
         id: 'faithfulness',
@@ -346,7 +389,8 @@ class AnalyticsService {
         trend: 'stable',
         status: 'warning',
         last_updated: new Date().toISOString(),
-        description: 'Ensures answers are factually consistent with source documents'
+        description:
+          'Ensures answers are factually consistent with source documents',
       },
       {
         id: 'contextual_relevancy',
@@ -358,7 +402,7 @@ class AnalyticsService {
         trend: 'improving',
         status: 'good',
         last_updated: new Date().toISOString(),
-        description: 'Measures how well retrieved context matches the query'
+        description: 'Measures how well retrieved context matches the query',
       },
       {
         id: 'response_time',
@@ -370,7 +414,7 @@ class AnalyticsService {
         trend: 'improving',
         status: 'good',
         last_updated: new Date().toISOString(),
-        description: 'Average time to generate responses'
+        description: 'Average time to generate responses',
       },
       {
         id: 'user_satisfaction',
@@ -382,7 +426,7 @@ class AnalyticsService {
         trend: 'stable',
         status: 'warning',
         last_updated: new Date().toISOString(),
-        description: 'Average user rating of response quality'
+        description: 'Average user rating of response quality',
       },
       {
         id: 'hallucination_rate',
@@ -394,8 +438,8 @@ class AnalyticsService {
         trend: 'declining',
         status: 'warning',
         last_updated: new Date().toISOString(),
-        description: 'Percentage of responses with factual inconsistencies'
-      }
+        description: 'Percentage of responses with factual inconsistencies',
+      },
     ];
 
     const mockAlerts: QualityAlert[] = [
@@ -405,9 +449,10 @@ class AnalyticsService {
         title: 'Faithfulness Below Target',
         description: 'Faithfulness score has fallen below the 90% threshold',
         metric_name: 'Faithfulness',
-        recommendation: 'Review context retrieval and adjust similarity thresholds',
-        created_at: new Date(Date.now() - 3600000).toISOString()
-      }
+        recommendation:
+          'Review context retrieval and adjust similarity thresholds',
+        created_at: new Date(Date.now() - 3600000).toISOString(),
+      },
     ];
 
     return { metrics: mockMetrics, alerts: mockAlerts };
@@ -426,7 +471,7 @@ class AnalyticsService {
       search_volume_week: 5678,
       user_satisfaction_score: 4.6,
       returning_users: 890,
-      new_users: 360
+      new_users: 360,
     };
 
     const mockQueries: SearchQuery[] = [
@@ -441,8 +486,8 @@ class AnalyticsService {
         user_rating: 'up',
         clicked_results: 3,
         filters_used: ['date_range', 'content_type'],
-        content_types: ['PDF', 'DOCX']
-      }
+        content_types: ['PDF', 'DOCX'],
+      },
     ];
 
     const mockSessions: UserSession[] = [
@@ -455,8 +500,8 @@ class AnalyticsService {
         search_count: 8,
         document_views: 12,
         session_quality: 'high',
-        satisfaction_score: 5.0
-      }
+        satisfaction_score: 5.0,
+      },
     ];
 
     return { stats: mockStats, queries: mockQueries, sessions: mockSessions };
@@ -470,12 +515,12 @@ class AnalyticsService {
       disk_usage: 34.1,
       network_io: {
         bytes_in: 1024000,
-        bytes_out: 2048000
+        bytes_out: 2048000,
       },
       response_time: 245,
       request_rate: 125.5,
       error_rate: 1.2,
-      active_connections: 89
+      active_connections: 89,
     };
 
     const mockServices: ServiceStatus[] = [
@@ -485,7 +530,7 @@ class AnalyticsService {
         response_time: 245,
         last_check: new Date().toISOString(),
         uptime: 99.9,
-        error_count: 0
+        error_count: 0,
       },
       {
         name: 'Database',
@@ -493,7 +538,7 @@ class AnalyticsService {
         response_time: 12,
         last_check: new Date().toISOString(),
         uptime: 99.95,
-        error_count: 0
+        error_count: 0,
       },
       {
         name: 'Vector Store',
@@ -501,8 +546,8 @@ class AnalyticsService {
         response_time: 450,
         last_check: new Date().toISOString(),
         uptime: 97.2,
-        error_count: 3
-      }
+        error_count: 3,
+      },
     ];
 
     const mockAlerts: PerformanceAlert[] = [
@@ -514,8 +559,8 @@ class AnalyticsService {
         description: 'Vector store response time is above threshold',
         service: 'Vector Store',
         timestamp: new Date(Date.now() - 300000).toISOString(),
-        resolved: false
-      }
+        resolved: false,
+      },
     ];
 
     return { metrics: mockMetrics, services: mockServices, alerts: mockAlerts };
@@ -526,23 +571,25 @@ class AnalyticsService {
       {
         id: '1',
         title: 'Improve Document Quality Scores',
-        description: 'Update outdated content and enhance metadata for better search relevance',
+        description:
+          'Update outdated content and enhance metadata for better search relevance',
         category: 'content',
         priority: 'high',
-        impact_assessment: 'High impact on search accuracy and user satisfaction',
+        impact_assessment:
+          'High impact on search accuracy and user satisfaction',
         effort_required: 'medium',
         actionable_steps: [
           'Audit existing documents for quality issues',
           'Update document metadata and tags',
-          'Implement content quality scoring system'
+          'Implement content quality scoring system',
         ],
         expected_outcome: '15-20% improvement in search relevance',
         estimated_improvement: 18,
         status: 'pending',
         created_at: '2025-10-09T21:41:00Z',
         updated_at: '2025-10-09T21:41:00Z',
-        votes: { up: 5, down: 1 }
-      }
+        votes: { up: 5, down: 1 },
+      },
     ];
 
     const mockRules: RecommendationRule[] = [
@@ -555,11 +602,15 @@ class AnalyticsService {
         condition: 'avg_response_time > 2000ms',
         recommendation_template: 'Optimize {service} performance',
         last_triggered: '2025-10-09T20:30:00Z',
-        trigger_count: 15
-      }
+        trigger_count: 15,
+      },
     ];
 
-    return { recommendations: mockRecommendations, rules: mockRules, improvements: [] };
+    return {
+      recommendations: mockRecommendations,
+      rules: mockRules,
+      improvements: [],
+    };
   }
 }
 
