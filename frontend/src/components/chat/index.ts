@@ -21,10 +21,6 @@ export {
   default as CitationRendererComponent,
 } from './CitationRenderer';
 export {
-  ConversationSidebar,
-  default as ConversationSidebarComponent,
-} from './ConversationSidebar';
-export {
   MessageBubble,
   default as MessageBubbleComponent,
 } from './MessageBubble';
@@ -52,7 +48,6 @@ export {
 // Re-export types
 export type { ChatMetrics } from './ChatAnalytics';
 export type { ChatSettings } from './ChatSettings';
-export type { Conversation, Folder } from './ConversationSidebar';
 export type { ModelLoadingProgressProps } from './ModelLoadingProgress';
 export type { Model } from './ModelSelector';
 export type { WelcomeStateProps } from './WelcomeState';
