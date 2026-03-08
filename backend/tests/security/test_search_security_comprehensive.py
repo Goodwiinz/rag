@@ -321,7 +321,7 @@ class TestUtilityFunctions:
         mock_request.client.host = '127.0.0.1'
         
         ip = extract_client_ip(mock_request)
-        assert ip == '10.0.0.1'  # First IP in chain
+        assert ip == '192.168.1.1'  # Last IP in chain
     
     def test_extract_client_ip_real_ip(self):
         """Test IP extraction from X-Real-IP header"""

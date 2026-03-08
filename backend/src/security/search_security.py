@@ -499,8 +499,8 @@ def extract_client_ip(request) -> str:
     """Extract client IP with proxy awareness"""
     forwarded = request.headers.get('X-Forwarded-For', '')
     if forwarded:
-        # First IP in chain is the original client
-        return forwarded.split(',')[0].strip()
+        # Last IP in chain is the original client behind trusted proxy
+        return forwarded.split(',')[-1].strip()
     
     real_ip = request.headers.get('X-Real-IP', '')
     if real_ip:

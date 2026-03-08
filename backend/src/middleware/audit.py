@@ -168,7 +168,7 @@ class AuditMiddleware(BaseHTTPMiddleware):
         # Check for forwarded IP first
         forwarded_for = request.headers.get("x-forwarded-for")
         if forwarded_for:
-            return forwarded_for.split(",")[0].strip()
+            return forwarded_for.split(",")[-1].strip()
 
         # Check for real IP
         real_ip = request.headers.get("x-real-ip")
