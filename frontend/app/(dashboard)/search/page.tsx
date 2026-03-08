@@ -21,7 +21,6 @@ export default function SearchPage() {
   const [messages, setMessages] = useState<ChatMessageViewModel[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [isCitationPanelOpen, setIsCitationPanelOpen] = useState(false);
   const [citationPanelCitations, setCitationPanelCitations] = useState<
     Citation[]
@@ -33,6 +32,7 @@ export default function SearchPage() {
   const router = useRouter();
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   const suggestedQueries = [
     {
@@ -56,6 +56,13 @@ export default function SearchPage() {
       cmd: 'system performance metrics',
     },
   ];
+
+  // Cancel in-flight requests on unmount
+  useEffect(() => {
+    return () => {
+      abortControllerRef.current?.abort();
+    };
+  }, []);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -122,7 +129,7 @@ export default function SearchPage() {
 
       setMessages((prev) => [...prev, userMessage]);
       setInput('');
-      setError(null);
+
       setIsLoading(true);
 
       try {
@@ -132,9 +139,13 @@ export default function SearchPage() {
         // noop
       }
 
+      abortControllerRef.current?.abort();
+      const controller = new AbortController();
+      abortControllerRef.current = controller;
+
       try {
         const request: SearchRequest = { query, limit: 10 };
-        const response = await searchService.search(request);
+        const response = await searchService.search(request, controller.signal);
 
         if (response.success && response.data) {
           const mappedMessages = mapSearchResultToChatMessages(response.data);
@@ -151,7 +162,7 @@ export default function SearchPage() {
         }
 
         const msg = response.message || 'Search failed';
-        setError(msg);
+
         setMessages((prev) => [
           ...prev,
           {
@@ -161,8 +172,15 @@ export default function SearchPage() {
           },
         ]);
       } catch (err: any) {
+        if (
+          controller.signal.aborted ||
+          err?.name === 'CanceledError' ||
+          err?.code === 'ERR_CANCELED'
+        ) {
+          return; // User cancelled — don't append error message
+        }
         const msg = toErrorMessage(err);
-        setError(msg);
+
         setMessages((prev) => [
           ...prev,
           {
@@ -222,46 +240,55 @@ export default function SearchPage() {
             </div>
           </div>
         ) : (
-            <div className="mx-auto flex min-h-full w-full max-w-5xl flex-col justify-end px-4 pb-4 pt-4 2xl:max-w-6xl">
+          <div className="mx-auto flex min-h-full w-full max-w-5xl flex-col justify-end px-4 pb-4 pt-4 2xl:max-w-6xl">
             <AnimatePresence>
               {messages.map((message, idx) => (
-                <TerminalChatBubble
+                <motion.div
                   key={message.id || `search-msg-${idx}`}
-                  message={message}
-                  index={idx}
-                  modelName={message.role === 'assistant' ? 'SEMANTIC-RAG' : undefined}
-                  onCitationClick={(citations, clickedCitation) => {
-                    setCitationPanelCitations(citations);
-                    setActiveCitationId(clickedCitation.documentId);
-                    setIsCitationPanelOpen(true);
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, transition: { duration: 0.2 } }}
+                  transition={{
+                    duration: 0.3,
+                    delay: Math.min(idx * 0.03, 0.3),
                   }}
-                />
+                >
+                  <TerminalChatBubble
+                    message={message}
+                    index={idx}
+                    modelName={
+                      message.role === 'assistant' ? 'SEMANTIC-RAG' : undefined
+                    }
+                    onCitationClick={(citations, clickedCitation) => {
+                      setCitationPanelCitations(citations);
+                      setActiveCitationId(clickedCitation.documentId);
+                      setIsCitationPanelOpen(true);
+                    }}
+                  />
+                </motion.div>
               ))}
 
               {isLoading && (
-                <TerminalChatBubble
-                  key="search-streaming-message"
-                  message={{
-                    role: 'assistant',
-                    content: '',
-                    timestamp: Date.now(),
-                  }}
-                  index={messages.length}
-                  isStreaming={true}
-                  streamingContent=""
-                  modelName="SEMANTIC-RAG"
-                />
+                <motion.div
+                  key="search-loading-message"
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10, transition: { duration: 0.2 } }}
+                  transition={{ duration: 0.3 }}
+                >
+                  <TerminalChatBubble
+                    message={{
+                      role: 'assistant',
+                      content: '',
+                      timestamp: Date.now(),
+                    }}
+                    index={messages.length}
+                    isTyping={true}
+                    modelName="SEMANTIC-RAG"
+                  />
+                </motion.div>
               )}
             </AnimatePresence>
-
-            {error && (
-              <p
-                className="mt-2 px-4 text-xs text-[var(--error-red)]"
-                style={{ fontFamily: "'JetBrains Mono', monospace" }}
-              >
-                {error}
-              </p>
-            )}
 
             <div ref={messagesEndRef} />
           </div>
@@ -272,7 +299,10 @@ export default function SearchPage() {
         value={input}
         onChange={setInput}
         onSubmit={() => runSearch()}
-        onStop={() => setIsLoading(false)}
+        onStop={() => {
+          abortControllerRef.current?.abort();
+          setIsLoading(false);
+        }}
         isLoading={isLoading}
         textareaRef={composerRef}
       />
