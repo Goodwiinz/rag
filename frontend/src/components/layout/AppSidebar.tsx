@@ -1,46 +1,46 @@
 'use client';
 
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuLabel,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import {
-  Sidebar,
-  SidebarContent,
-  SidebarFooter,
-  SidebarGroup,
-  SidebarGroupContent,
-  SidebarHeader,
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
-  SidebarRail,
+    Sidebar,
+    SidebarContent,
+    SidebarFooter,
+    SidebarGroup,
+    SidebarGroupContent,
+    SidebarHeader,
+    SidebarMenu,
+    SidebarMenuButton,
+    SidebarMenuItem,
+    SidebarRail,
+    useSidebar,
 } from '@/components/ui/sidebar';
 import { useAuth } from '@/hooks/useAuth';
 import { cn } from '@/lib/utils';
 import {
-  Activity,
-  BarChart3,
-  Bell,
-  BookOpen,
-  ChevronsUpDown,
-  Files,
-  FlaskConical,
-  FolderKanban,
-  HelpCircle,
-  LayoutDashboard,
-  LogOut,
-  MessageSquare,
-  Network,
-  Search,
-  Settings,
-  Sparkles,
-  Terminal,
-  Upload,
+    Activity,
+    BarChart3,
+    Bell,
+    BookOpen,
+    ChevronsUpDown,
+    Files,
+    FolderKanban,
+    HelpCircle,
+    LayoutDashboard,
+    LogOut,
+    MessageSquare,
+    Network,
+    Search,
+    Settings,
+    Sparkles,
+    Terminal,
+    Upload
 } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
@@ -82,6 +82,16 @@ export function AppSidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const { user, isAuthenticated, logout } = useAuth();
+  const { setOpen } = useSidebar();
+
+  // Auto-collapse sidebar on specific routes like /chat
+  useEffect(() => {
+    if (pathname === '/chat' || pathname?.startsWith('/chat/')) {
+      setOpen(false);
+    } else {
+      setOpen(true);
+    }
+  }, [pathname, setOpen]);
 
   // System metrics state (would be fetched from API in production)
   const [metrics, setMetrics] = useState<SystemMetrics>({
