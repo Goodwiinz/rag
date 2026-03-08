@@ -166,18 +166,17 @@ function extractTitleFromSnippet(snippet?: string): string | null {
  * - Parser format: { documentId, externalReferenceId, title, score, content, source }
  */
 function normalizeCitation(
-  citation: DBCitation | Citation | Record<string, any>
+  citation: DBCitation | Citation | Record<string, unknown>
 ): Citation {
+  const c = citation as Record<string, unknown>;
   // Handle both snake_case (from DB) and camelCase (from API response)
-  const documentId =
-    (citation as any).documentId || (citation as any).document_id;
+  const documentId = (c.documentId as string) || (c.document_id as string);
   const externalReferenceId =
-    (citation as any).externalReferenceId ||
-    (citation as any).external_reference_id;
+    (c.externalReferenceId as string) || (c.external_reference_id as string);
   const snippet =
-    (citation as any).content ||
-    (citation as any).snippet ||
-    (citation as any).snippet_preview;
+    (c.content as string) ||
+    (c.snippet as string) ||
+    (c.snippet_preview as string);
 
   return {
     // Only set documentId if it's a valid non-empty value
@@ -186,13 +185,13 @@ function normalizeCitation(
     externalReferenceId: externalReferenceId || undefined,
     // Extract title from snippet if document_title is missing
     title:
-      (citation as any).title ||
-      (citation as any).document_title ||
+      (c.title as string) ||
+      (c.document_title as string) ||
       extractTitleFromSnippet(snippet) ||
       'Unknown Document',
-    score: (citation as any).score ?? 0,
+    score: (c.score as number) ?? 0,
     content: snippet,
-    source: (citation as any).source || (citation as any).document_type,
+    source: (c.source as string) || (c.document_type as string),
   };
 }
 
@@ -542,8 +541,10 @@ function ChatInput({
   enableRAG: boolean;
   onRAGToggle: (enabled: boolean) => void;
   isRAGLoading?: boolean;
+  inputRef?: React.RefObject<HTMLTextAreaElement | null>;
 }) {
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const internalRef = useRef<HTMLTextAreaElement>(null);
+  const textareaRef = inputRef || internalRef;
   const [isFocused, setIsFocused] = useState(false);
 
   useEffect(() => {
@@ -975,6 +976,7 @@ function ChatPageContent() {
   const engineRef = useRef<MLCEngine | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const chatInputRef = useRef<HTMLTextAreaElement>(null);
   const isHydratedRef = useRef(false);
   const hasRestoredThreadRef = useRef(false);
   const lastStreamedContentRef = useRef<string>('');
@@ -1045,10 +1047,7 @@ function ChatPageContent() {
       if (event.detail) {
         setInput(event.detail);
         // Focus the textarea after populating
-        const textarea = document.querySelector('textarea');
-        if (textarea) {
-          textarea.focus();
-        }
+        chatInputRef.current?.focus();
       }
     };
 
@@ -1224,25 +1223,16 @@ function ChatPageContent() {
         );
 
         // Map threads to UI conversations
-        const uiConversations: Conversation[] = await Promise.all(
-          threadResponse.threads.map(async (thread) => {
-            // Load messages for each thread
-            const msgResponse = await workspaceService.listMessages(thread.id, {
-              limit: 100,
-            });
-            const uiMessages = msgResponse.messages.map(
-              mapDbMessageToUiMessage
-            );
-
-            return {
-              id: thread.id,
-              title: thread.title || 'New Chat',
-              messages: uiMessages,
-              createdAt: new Date(thread.created_at).getTime(),
-              updatedAt: new Date(thread.updated_at).getTime(),
-              threadId: thread.id,
-              conversationId: conversationId,
-            };
+        // Map threads without loading messages (lazy-loaded on selection)
+        const uiConversations: Conversation[] = threadResponse.threads.map(
+          (thread) => ({
+            id: thread.id,
+            title: thread.title || 'New Chat',
+            messages: [],
+            createdAt: new Date(thread.created_at).getTime(),
+            updatedAt: new Date(thread.updated_at).getTime(),
+            threadId: thread.id,
+            conversationId: conversationId,
           })
         );
 
@@ -1407,15 +1397,46 @@ function ChatPageContent() {
     initializeFromDb();
   }, [isAuthenticated, token, loadThreadsFromDb]);
 
-  // Load messages when active conversation changes
+  // Load messages when active conversation changes (lazy-load from API)
   useEffect(() => {
-    if (activeConversationId) {
-      const conv = conversations.find((c) => c.id === activeConversationId);
-      if (conv) {
-        setMessages(conv.messages);
-      }
+    if (!activeConversationId) return;
+    const conv = conversations.find((c) => c.id === activeConversationId);
+    if (!conv) return;
+
+    // If messages already loaded, use them directly
+    if (conv.messages.length > 0) {
+      setMessages(conv.messages);
+      return;
     }
-  }, [activeConversationId, conversations]);
+
+    // Lazy-load messages for this thread
+    let cancelled = false;
+    (async () => {
+      try {
+        const msgResponse = await workspaceService.listMessages(
+          activeConversationId,
+          { limit: 100 }
+        );
+        if (cancelled) return;
+        const uiMessages = msgResponse.messages.map(mapDbMessageToUiMessage);
+        // Update conversation cache so subsequent switches are instant
+        setConversations((prev) =>
+          prev.map((c) =>
+            c.id === activeConversationId ? { ...c, messages: uiMessages } : c
+          )
+        );
+        setMessages(uiMessages);
+      } catch (err) {
+        if (!cancelled) {
+          console.error('[Chat] Failed to load messages:', err);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only trigger on thread selection, not conversation updates
+  }, [activeConversationId, mapDbMessageToUiMessage]);
 
   // Auto-scroll when new messages arrive or streaming content updates
   useEffect(() => {
@@ -2089,6 +2110,7 @@ function ChatPageContent() {
           enableRAG={enableRAG}
           onRAGToggle={setEnableRAG}
           isRAGLoading={isRAGLoading}
+          inputRef={chatInputRef}
         />
 
         {/* Citation Panel Sidebar */}
