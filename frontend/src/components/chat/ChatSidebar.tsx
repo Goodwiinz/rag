@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { memo, useMemo, useState } from 'react';
 
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
@@ -30,7 +30,7 @@ interface ChatSidebarProps {
   className?: string;
 }
 
-export function ChatSidebar({
+export const ChatSidebar = memo(function ChatSidebar({
   conversations,
   activeId,
   onSelect,
@@ -39,11 +39,15 @@ export function ChatSidebar({
 }: ChatSidebarProps) {
   const [searchQuery, setSearchQuery] = useState('');
 
-  const filteredConversations = searchQuery.trim()
-    ? conversations.filter((conv) =>
-        conv.title.toLowerCase().includes(searchQuery.toLowerCase())
-      )
-    : conversations;
+  const filteredConversations = useMemo(
+    () =>
+      searchQuery.trim()
+        ? conversations.filter((conv) =>
+            conv.title.toLowerCase().includes(searchQuery.toLowerCase())
+          )
+        : conversations,
+    [conversations, searchQuery]
+  );
 
   return (
     <div
@@ -211,4 +215,4 @@ export function ChatSidebar({
       </div>
     </div>
   );
-}
+});

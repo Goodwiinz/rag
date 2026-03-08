@@ -1,50 +1,50 @@
 'use client';
 
 import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuLabel,
-    DropdownMenuSeparator,
-    DropdownMenuTrigger,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import {
-    Sidebar,
-    SidebarContent,
-    SidebarFooter,
-    SidebarGroup,
-    SidebarGroupContent,
-    SidebarHeader,
-    SidebarMenu,
-    SidebarMenuButton,
-    SidebarMenuItem,
-    SidebarRail,
-    useSidebar,
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarHeader,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarRail,
+  useSidebar,
 } from '@/components/ui/sidebar';
 import { useAuth } from '@/hooks/useAuth';
 import { cn } from '@/lib/utils';
 import {
-    Activity,
-    BarChart3,
-    Bell,
-    BookOpen,
-    ChevronsUpDown,
-    Files,
-    FolderKanban,
-    HelpCircle,
-    LayoutDashboard,
-    LogOut,
-    MessageSquare,
-    Network,
-    Search,
-    Settings,
-    Sparkles,
-    Terminal,
-    Upload
+  Activity,
+  BarChart3,
+  Bell,
+  BookOpen,
+  ChevronsUpDown,
+  Files,
+  FolderKanban,
+  HelpCircle,
+  LayoutDashboard,
+  LogOut,
+  MessageSquare,
+  Network,
+  Search,
+  Settings,
+  Sparkles,
+  Terminal,
+  Upload,
 } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 
 // Navigation items organized by section
 const mainNavItems = [
@@ -93,29 +93,13 @@ export function AppSidebar() {
     }
   }, [pathname, setOpen]);
 
-  // System metrics state (would be fetched from API in production)
-  const [metrics, setMetrics] = useState<SystemMetrics>({
+  // Static metrics (replace with real API call when backend endpoint is available)
+  const metrics: SystemMetrics = {
     uptime: '99.4%',
     cpu: '23%',
     memory: '67%',
     queries: '1,247',
-  });
-
-  // Simulate metrics update (replace with real API call)
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setMetrics((prev) => ({
-        ...prev,
-        cpu: `${Math.floor(Math.random() * 30 + 15)}%`,
-        memory: `${Math.floor(Math.random() * 20 + 55)}%`,
-        queries: (
-          parseInt(prev.queries.replace(',', '')) +
-          Math.floor(Math.random() * 5)
-        ).toLocaleString(),
-      }));
-    }, 5000);
-    return () => clearInterval(interval);
-  }, []);
+  };
 
   const handleLogout = () => {
     logout();
@@ -163,7 +147,9 @@ export function AppSidebar() {
         >
           <Link
             href={item.url}
-            data-testid={item.url === '/analytics' ? 'analytics-nav-link' : undefined}
+            data-testid={
+              item.url === '/analytics' ? 'analytics-nav-link' : undefined
+            }
             className="flex items-center gap-3 w-full px-5 group-data-[collapsible=icon]:px-0 group-data-[collapsible=icon]:justify-center"
           >
             <Icon
