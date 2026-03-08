@@ -23,6 +23,7 @@ import {
   Sparkles,
   X,
 } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 // ============================================
@@ -1001,6 +1002,7 @@ export default function ChatLayout({
 }: {
   children: React.ReactNode;
 }) {
+  const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [contextPanelOpen, setContextPanelOpen] = useState(false);
@@ -1135,19 +1137,19 @@ export default function ChatLayout({
         onExecute={(id) => {
           switch (id) {
             case 'new-chat':
-              window.location.href = '/chat/new';
+              router.push('/chat/new');
               break;
             case 'search':
-              window.location.href = '/search';
+              router.push('/search');
               break;
             case 'arxiv':
-              window.location.href = '/arxiv';
+              router.push('/arxiv');
               break;
             case 'dashboard':
-              window.location.href = '/dashboard';
+              router.push('/dashboard');
               break;
             case 'entities':
-              window.location.href = '/entities';
+              router.push('/entities');
               break;
           }
         }}
