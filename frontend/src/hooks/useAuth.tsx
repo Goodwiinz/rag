@@ -1,19 +1,33 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, createContext, useContext, ReactNode } from 'react';
+import React, {
+  useState,
+  useEffect,
+  useCallback,
+  createContext,
+  useContext,
+  ReactNode,
+} from 'react';
 import { AuthState, User, LoginRequest, RegisterRequest } from '@/types';
 import { apiClient, setAuth, clearAuth } from '@/services/api';
 import { useAuthStore } from '@/stores/authStore';
 import { cleanupWebSocket } from '@/services/websocket';
 
 interface AuthContextType extends AuthState {
-  login: (email: string, password: string, rememberMe?: boolean) => Promise<void>;
+  login: (
+    email: string,
+    password: string,
+    rememberMe?: boolean
+  ) => Promise<void>;
   register: (userData: RegisterRequest) => Promise<void>;
   logout: () => void;
   refreshToken: () => Promise<void>;
   handleAuthError: () => void;
   rememberMe: boolean;
-  sessionTimeRemaining: () => { accessRemaining: number; refreshRemaining: number };
+  sessionTimeRemaining: () => {
+    accessRemaining: number;
+    refreshRemaining: number;
+  };
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -71,18 +85,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     storeLogout();
   }, [storeLogout]);
 
-  // Store auth data in localStorage
-  const storeAuthData = useCallback((token: string, user: User) => {
-    try {
-      localStorage.setItem('access_token', token);
-      localStorage.setItem('user_data', JSON.stringify(user));
-      setAuth(token, user.organization_id);
-    } catch (error) {
-      console.error('Error storing auth data:', error);
-    }
-  }, []);
-
-  // Sync auth state with store
+  // Sync auth state with store and localStorage
   useEffect(() => {
     setAuthState({
       user,
@@ -92,21 +95,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       error,
     });
 
-    // Keep the old API client in sync for now
-    if (token && user?.organization_id) {
-      setAuth(token, user.organization_id);
-    } else {
-      clearAuth();
-    }
-  }, [user, token, isAuthenticated, isLoading, error, setAuth, clearAuth]);
-
-  // Initialize auth store from localStorage on mount
-  useEffect(() => {
-    initializeFromStorage();
-  }, [initializeFromStorage]);
-
-  // Keep localStorage in sync with store (for compatibility with old system)
-  useEffect(() => {
+    // Keep the old API client and localStorage in sync
     try {
       if (token && user) {
         localStorage.setItem('access_token', token);
@@ -120,17 +109,28 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     } catch (error) {
       console.error('Error syncing auth data to localStorage:', error);
     }
-  }, [token, user, setAuth, clearAuth]);
+  }, [user, token, isAuthenticated, isLoading, error, setAuth, clearAuth]);
+
+  // Initialize auth store from localStorage on mount
+  useEffect(() => {
+    initializeFromStorage();
+  }, [initializeFromStorage]);
 
   // Login function with optional rememberMe for 30-day sessions
-  const login = useCallback(async (email: string, password: string, rememberMe: boolean = false) => {
-    await storeLogin(email, password, rememberMe);
-  }, [storeLogin]);
+  const login = useCallback(
+    async (email: string, password: string, rememberMe: boolean = false) => {
+      await storeLogin(email, password, rememberMe);
+    },
+    [storeLogin]
+  );
 
   // Register function
-  const register = useCallback(async (userData: RegisterRequest) => {
-    await storeRegister(userData);
-  }, [storeRegister]);
+  const register = useCallback(
+    async (userData: RegisterRequest) => {
+      await storeRegister(userData);
+    },
+    [storeRegister]
+  );
 
   // Refresh token function
   const refreshTokenCallback = useCallback(async () => {
