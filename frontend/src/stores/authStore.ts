@@ -360,9 +360,9 @@ export const useAuthStore = create<AuthState>()(
 
             set({
               token: session.access_token,
-              refreshTokenValue: session.refresh_token,
+              refreshTokenValue: session.refresh_token ?? null,
               tokenExpiresAt,
-            } as any);
+            });
 
             get().startProactiveRefresh();
             debugLog('🔄 Supabase token refreshed successfully');
@@ -393,7 +393,7 @@ export const useAuthStore = create<AuthState>()(
             updates.rememberMe = data.remember_me;
           }
 
-          set(updates as any);
+          set(updates);
           get().startProactiveRefresh();
           debugLog('🔄 Custom token refreshed successfully');
         } catch (error) {
