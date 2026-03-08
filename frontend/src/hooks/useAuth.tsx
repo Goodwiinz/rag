@@ -109,7 +109,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     } catch (error) {
       console.error('Error syncing auth data to localStorage:', error);
     }
-  }, [user, token, isAuthenticated, isLoading, error, setAuth, clearAuth]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- setAuth/clearAuth are module-level imports, not reactive
+  }, [user, token, isAuthenticated, isLoading, error]);
 
   // Initialize auth store from localStorage on mount
   useEffect(() => {
