@@ -45,7 +45,7 @@ describe('TerminalChatBubble', () => {
     const onCitationClick = jest.fn();
     const citations = [
       {
-        marker: '[1]',
+        documentId: 'doc-1',
         title: 'A Foundational Paper',
         score: 0.91,
       },
@@ -64,7 +64,9 @@ describe('TerminalChatBubble', () => {
       />
     );
 
-    fireEvent.click(screen.getByRole('button', { name: /a foundational paper/i }));
+    fireEvent.click(
+      screen.getByRole('button', { name: /a foundational paper/i })
+    );
 
     expect(onCitationClick).toHaveBeenCalledTimes(1);
     expect(onCitationClick).toHaveBeenCalledWith(citations, citations[0]);

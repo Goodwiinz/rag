@@ -2,7 +2,7 @@
 
 import { cn } from '@/lib/utils';
 import type { Citation } from '@/utils/citationParser';
-import { Check, Copy, RefreshCw } from 'lucide-react';
+import { Activity, Check, Copy, RefreshCw } from 'lucide-react';
 import { useState } from 'react';
 import { CitationRenderer } from '../CitationRenderer';
 
@@ -48,9 +48,15 @@ export function TerminalChatBubble({
     : '--:--';
 
   const handleCopy = async () => {
-    await navigator.clipboard.writeText(message.content);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    try {
+      const textToCopy = streamingContent || message.content;
+      if (!textToCopy) return;
+      await navigator.clipboard.writeText(textToCopy);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // clipboard access denied or page unfocused
+    }
   };
 
   return (
@@ -80,7 +86,11 @@ export function TerminalChatBubble({
           <>
             <div className="rounded border border-[var(--terminal-border)] bg-[var(--terminal-surface)] px-2 py-0.5">
               <span className="text-[10px] font-bold text-[var(--phosphor-green)]">
-                {isTyping || isStreaming ? 'STREAMING' : 'RECEIVED'}
+                {isStreaming
+                  ? 'STREAMING'
+                  : isTyping
+                    ? 'PROCESSING'
+                    : 'RECEIVED'}
               </span>
             </div>
             {modelName && (
@@ -158,6 +168,29 @@ export function TerminalChatBubble({
                 data-testid="streaming-cursor"
               />
             </div>
+          ) : isTyping && !message.content ? (
+            <div
+              className="flex items-center gap-3 text-sm text-[var(--phosphor-green)]"
+              style={{ fontFamily: "'JetBrains Mono', monospace" }}
+            >
+              <div className="flex items-center gap-1.5">
+                <span
+                  className="h-1 w-1 animate-bounce rounded-full bg-[var(--phosphor-green)]"
+                  style={{ animationDelay: '0ms' }}
+                />
+                <span
+                  className="h-1 w-1 animate-bounce rounded-full bg-[var(--phosphor-green)]"
+                  style={{ animationDelay: '150ms' }}
+                />
+                <span
+                  className="h-1 w-1 animate-bounce rounded-full bg-[var(--phosphor-green)]"
+                  style={{ animationDelay: '300ms' }}
+                />
+              </div>
+              <span className="text-[10px] uppercase tracking-wider opacity-70">
+                Processing...
+              </span>
+            </div>
           ) : (
             <div
               className={cn(
@@ -174,7 +207,10 @@ export function TerminalChatBubble({
                   citations={message.citations as Citation[]}
                   onCitationClick={(citation) => {
                     if (onCitationClick && message.citations) {
-                      onCitationClick(message.citations as Citation[], citation);
+                      onCitationClick(
+                        message.citations as Citation[],
+                        citation
+                      );
                     }
                   }}
                 />
@@ -192,7 +228,10 @@ export function TerminalChatBubble({
                   type="button"
                   onClick={() => {
                     if (onCitationClick && message.citations) {
-                      onCitationClick(message.citations as Citation[], citation);
+                      onCitationClick(
+                        message.citations as Citation[],
+                        citation
+                      );
                     }
                   }}
                   className="group/citation flex items-center gap-2 rounded border border-[var(--terminal-border)] bg-[var(--terminal-surface)] px-2.5 py-1.5 text-[10px] transition-all hover:border-[var(--phosphor-green)]/40 hover:bg-[var(--terminal-elevated)]"
@@ -207,6 +246,17 @@ export function TerminalChatBubble({
                   </span>
                 </button>
               ))}
+              {message.diagnosticsTraceId && (
+                <a
+                  href={`/diagnostics?trace=${message.diagnosticsTraceId}`}
+                  className="ml-auto flex items-center gap-1 rounded border border-[var(--terminal-border)] bg-[var(--terminal-surface)] px-2 py-1 text-[9px] text-[var(--cyan-pulse)] transition-all hover:border-[var(--cyan-pulse)]/40 hover:bg-[var(--terminal-elevated)]"
+                  style={{ fontFamily: "'JetBrains Mono', monospace" }}
+                  title="View retrieval diagnostics"
+                >
+                  <Activity className="h-3 w-3" />
+                  <span>DIAG</span>
+                </a>
+              )}
             </div>
           </div>
         )}
