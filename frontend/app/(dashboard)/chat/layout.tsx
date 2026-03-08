@@ -2,19 +2,19 @@
 
 import { ExportDialog } from '@/components/export';
 import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
+    Breadcrumb,
+    BreadcrumbItem,
+    BreadcrumbLink,
+    BreadcrumbList,
+    BreadcrumbPage,
+    BreadcrumbSeparator,
 } from '@/components/ui/breadcrumb';
 import { DeleteConfirmDialog } from '@/components/ui/confirm-dialog';
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu';
 import { Separator } from '@/components/ui/separator';
 import { SidebarTrigger } from '@/components/ui/sidebar';
@@ -25,44 +25,44 @@ import { useChatStore } from '@/store/chat-store';
 import type { Collection as WorkspaceCollection, Workspace as WorkspaceType } from '@/types/workspace';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
-  Activity,
-  Archive,
-  ArrowUp,
-  BookOpen,
-  Check,
-  CheckCircle,
-  CheckSquare,
-  ChevronDown,
-  ChevronRight,
-  Clock,
-  Cpu,
-  Download,
-  ExternalLink,
-  FileText,
-  FolderOpen,
-  Library,
-  Loader2,
-  Menu,
-  MessageSquare,
-  MoreVertical,
-  Pin,
-  Plus,
-  Search,
-  Settings,
-  Share2,
-  Sparkles,
-  Sun,
-  Trash2,
-  Users,
-  X
+    Activity,
+    Archive,
+    ArrowUp,
+    BookOpen,
+    Check,
+    CheckCircle,
+    CheckSquare,
+    ChevronDown,
+    ChevronRight,
+    Clock,
+    Cpu,
+    Download,
+    ExternalLink,
+    FileText,
+    FolderOpen,
+    Library,
+    Loader2,
+    Menu,
+    MessageSquare,
+    MoreVertical,
+    Pin,
+    Plus,
+    Search,
+    Settings,
+    Share2,
+    Sparkles,
+    Sun,
+    Trash2,
+    Users,
+    X
 } from 'lucide-react';
 import Link from 'next/link';
 import {
-  usePathname,
-  useRouter,
-  useSearchParams
+    usePathname,
+    useRouter,
+    useSearchParams
 } from 'next/navigation';
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 // ============================================
 // TYPES
@@ -1796,28 +1796,8 @@ export default function ChatLayout({
 
   return (
     <div className="h-screen flex flex-col star-field terminal-grid noise-texture overflow-hidden">
-      {/* Workspace Bar */}
-      <WorkspaceBar
-        onCommandPalette={() => setCommandPaletteOpen(true)}
-        onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
-        workspaces={workspaces}
-        currentWorkspaceId={currentWorkspaceId}
-        onWorkspaceChange={handleWorkspaceChange}
-        isLoadingWorkspaces={isLoadingWorkspaces}
-      />
-
       {/* Main Layout */}
       <div className="flex-1 flex overflow-hidden relative">
-        {/* Left Sidebar */}
-        <Suspense fallback={<div className="w-72 border-r border-[var(--terminal-border)] bg-[var(--terminal-bg)]" />}>
-          <ConversationSidebar
-            isOpen={sidebarOpen}
-            onClose={() => setSidebarOpen(false)}
-            projects={projects}
-            isLoadingProjects={isLoadingProjects}
-          />
-        </Suspense>
-
         {/* Main Content */}
         <main className="flex-1 flex flex-col overflow-hidden">
           {children}
