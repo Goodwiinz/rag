@@ -14,7 +14,7 @@ import {
   NotificationMessage,
   ConnectionStatusMessage,
   DocumentProcessingState,
-  WebSocketConnectionState
+  WebSocketConnectionState,
 } from '@/types/realtime-processing';
 
 export interface WebSocketConfig {
@@ -75,7 +75,9 @@ export class RealtimeWebSocketService {
 
   constructor(config: Partial<WebSocketConfig> = {}) {
     this.config = {
-      url: process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8000/ws/document-processing',
+      url:
+        process.env.NEXT_PUBLIC_WS_URL ||
+        'ws://localhost:8000/ws/document-processing',
       reconnectAttempts: 5,
       reconnectInterval: 2000,
       heartbeatInterval: 30000,
@@ -84,7 +86,7 @@ export class RealtimeWebSocketService {
       enableCompression: true,
       bufferMessages: true,
       maxBufferSize: 1000,
-      ...config
+      ...config,
     };
 
     this.connectionState = {
@@ -124,9 +126,9 @@ export class RealtimeWebSocketService {
 
     try {
       const wsUrl = new URL(this.config.url);
-      wsUrl.searchParams.set('token', authToken);
-
-      this.ws = new WebSocket(wsUrl.toString(), this.config.protocols);
+      // SECURITY: Use Sec-WebSocket-Protocol for token authentication (not URL params)
+      const protocols = ['auth', authToken];
+      this.ws = new WebSocket(wsUrl.toString(), protocols);
 
       // Set up connection timeout
       const timeoutId = setTimeout(() => {
@@ -144,7 +146,6 @@ export class RealtimeWebSocketService {
       this.ws.onmessage = this.handleMessage;
       this.ws.onerror = this.handleError;
       this.ws.onclose = this.handleClose;
-
     } catch (error) {
       this.handleConnectionError(error as Error);
     }
@@ -181,12 +182,13 @@ export class RealtimeWebSocketService {
       const messageStr = JSON.stringify(message);
 
       if (messageStr.length > this.config.maxMessageSize) {
-        throw new Error(`Message size exceeds limit: ${messageStr.length} bytes`);
+        throw new Error(
+          `Message size exceeds limit: ${messageStr.length} bytes`
+        );
       }
 
       this.ws.send(messageStr);
       this.messageCount++;
-
     } catch (error) {
       this.errorCount++;
       console.error('Failed to send message:', error);
@@ -268,7 +270,7 @@ export class RealtimeWebSocketService {
     this.send({
       type: 'subscribe_documents',
       payload: { document_ids: documentIds },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }
 
@@ -279,7 +281,7 @@ export class RealtimeWebSocketService {
     this.send({
       type: 'subscribe_system_metrics',
       payload: {},
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }
 
@@ -290,7 +292,7 @@ export class RealtimeWebSocketService {
       status: 'connected',
       lastConnectedAt: new Date().toISOString(),
       reconnectionAttempts: 0,
-      lastError: undefined
+      lastError: undefined,
     });
 
     // Start heartbeat
@@ -319,7 +321,6 @@ export class RealtimeWebSocketService {
       if (!this.processingBatch) {
         this.processMessageBatch();
       }
-
     } catch (error) {
       this.errorCount++;
       console.error('Failed to parse WebSocket message:', error);
@@ -332,10 +333,10 @@ export class RealtimeWebSocketService {
     this.processingBatch = true;
     const batch = this.messageQueue.splice(0, 100); // Process max 100 messages per batch
 
-    batch.forEach(message => {
+    batch.forEach((message) => {
       // Route message to appropriate handlers
       const handlers = this.messageHandlers.get(message.type) || [];
-      handlers.forEach(handler => {
+      handlers.forEach((handler) => {
         try {
           handler(message);
         } catch (error) {
@@ -345,7 +346,7 @@ export class RealtimeWebSocketService {
 
       // Send to wildcard handlers
       const wildcardHandlers = this.messageHandlers.get('*') || [];
-      wildcardHandlers.forEach(handler => {
+      wildcardHandlers.forEach((handler) => {
         try {
           handler(message);
         } catch (error) {
@@ -373,7 +374,10 @@ export class RealtimeWebSocketService {
     this.updateConnectionState({ status: 'disconnected' });
 
     // Attempt reconnection if not a clean close
-    if (event.code !== 1000 && this.connectionState.reconnectionAttempts < this.config.reconnectAttempts) {
+    if (
+      event.code !== 1000 &&
+      this.connectionState.reconnectionAttempts < this.config.reconnectAttempts
+    ) {
       this.scheduleReconnect();
     }
   }
@@ -381,14 +385,16 @@ export class RealtimeWebSocketService {
   private handleConnectionError(error: Error): void {
     this.updateConnectionState({
       status: 'error',
-      lastError: error.message
+      lastError: error.message,
     });
   }
 
-  private updateConnectionState(updates: Partial<WebSocketConnectionState>): void {
+  private updateConnectionState(
+    updates: Partial<WebSocketConnectionState>
+  ): void {
     this.connectionState = { ...this.connectionState, ...updates };
 
-    this.connectionHandlers.forEach(handler => {
+    this.connectionHandlers.forEach((handler) => {
       try {
         handler(this.connectionState);
       } catch (error) {
@@ -418,7 +424,7 @@ export class RealtimeWebSocketService {
         this.send({
           type: 'heartbeat',
           payload: { timestamp: Date.now() },
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
         });
       }
     }, this.config.heartbeatInterval);
@@ -432,14 +438,18 @@ export class RealtimeWebSocketService {
 
   private updatePerformanceMetrics(): void {
     const now = Date.now();
-    const uptime = this.connectionStartTime > 0 ? now - this.connectionStartTime : 0;
+    const uptime =
+      this.connectionStartTime > 0 ? now - this.connectionStartTime : 0;
 
     // Calculate message rate (messages per second over last 5 seconds)
     const messageRate = this.messageCount / 5;
     this.messageCount = 0;
 
     // Calculate error rate
-    const errorRate = this.errorCount > 0 ? (this.errorCount / (messageRate + this.errorCount)) * 100 : 0;
+    const errorRate =
+      this.errorCount > 0
+        ? (this.errorCount / (messageRate + this.errorCount)) * 100
+        : 0;
     this.errorCount = 0;
 
     // Calculate latency if we have heartbeat responses
@@ -454,7 +464,7 @@ export class RealtimeWebSocketService {
       lastMessageTimestamp: this.metrics.lastMessageTimestamp,
     };
 
-    this.performanceHandlers.forEach(handler => {
+    this.performanceHandlers.forEach((handler) => {
       try {
         handler(this.metrics);
       } catch (error) {
@@ -482,7 +492,7 @@ export class RealtimeWebSocketService {
 
   private flushMessageBuffer(): void {
     const messages = this.messageBuffer.splice(0);
-    messages.forEach(buffered => {
+    messages.forEach((buffered) => {
       this.send(buffered.message);
     });
   }
