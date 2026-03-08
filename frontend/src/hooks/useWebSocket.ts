@@ -8,7 +8,7 @@ import {
   WebSocketEventHandler,
   DocumentProcessingUpdate,
   QueryStatusUpdate,
-  SystemNotification
+  SystemNotification,
 } from '@/services/websocket';
 import { UI_CONFIG } from '@/types';
 
@@ -23,7 +23,9 @@ interface UseWebSocketReturn {
 
 export const useWebSocket = (): UseWebSocketReturn => {
   const { token, user, isAuthenticated } = useAuth();
-  const [status, setStatus] = useState<'connecting' | 'connected' | 'disconnected' | 'error'>('disconnected');
+  const [status, setStatus] = useState<
+    'connecting' | 'connected' | 'disconnected' | 'error'
+  >('disconnected');
   const [error, setError] = useState<string | null>(null);
   const managerRef = useRef<WebSocketManager | null>(null);
 
@@ -33,10 +35,11 @@ export const useWebSocket = (): UseWebSocketReturn => {
     }
 
     try {
-      const wsUrl = process.env.REACT_APP_WS_URL || 'ws://localhost:8000/ws';
+      const wsUrl = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8000/ws';
 
       // Initialize or get existing manager
-      const manager = getWebSocketManager() ||
+      const manager =
+        getWebSocketManager() ||
         initializeWebSocket(wsUrl, token, user.organization_id);
 
       managerRef.current = manager;
@@ -67,9 +70,9 @@ export const useWebSocket = (): UseWebSocketReturn => {
       if (!manager.isConnected()) {
         await manager.connect();
       }
-
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to connect WebSocket';
+      const errorMessage =
+        err instanceof Error ? err.message : 'Failed to connect WebSocket';
       setError(errorMessage);
       setStatus('error');
     }
@@ -135,9 +138,11 @@ export const useDocumentProcessingUpdates = () => {
     if (!manager) return;
 
     const handleUpdate = (data: DocumentProcessingUpdate) => {
-      setUpdates(prev => {
+      setUpdates((prev) => {
         // Update existing or add new
-        const index = prev.findIndex(u => u.payload.job_id === data.payload.job_id);
+        const index = prev.findIndex(
+          (u) => u.payload.job_id === data.payload.job_id
+        );
         if (index >= 0) {
           const updated = [...prev];
           updated[index] = data;
@@ -170,9 +175,11 @@ export const useQueryStatusUpdates = () => {
     if (!manager) return;
 
     const handleUpdate = (data: QueryStatusUpdate) => {
-      setQueryUpdates(prev => {
+      setQueryUpdates((prev) => {
         // Update existing or add new
-        const index = prev.findIndex(u => u.payload.query_id === data.payload.query_id);
+        const index = prev.findIndex(
+          (u) => u.payload.query_id === data.payload.query_id
+        );
         if (index >= 0) {
           const updated = [...prev];
           updated[index] = data;
@@ -205,12 +212,12 @@ export const useSystemNotifications = () => {
     if (!manager) return;
 
     const handleNotification = (data: SystemNotification) => {
-      setNotifications(prev => [...prev, data]);
+      setNotifications((prev) => [...prev, data]);
 
       // Auto-remove non-persistent notifications after 5 seconds
       if (!data.payload.persistent) {
         setTimeout(() => {
-          setNotifications(prev => prev.filter(n => n !== data));
+          setNotifications((prev) => prev.filter((n) => n !== data));
         }, 5000);
       }
     };
@@ -223,7 +230,7 @@ export const useSystemNotifications = () => {
   }, [manager]);
 
   const clearNotification = useCallback((notification: SystemNotification) => {
-    setNotifications(prev => prev.filter(n => n !== notification));
+    setNotifications((prev) => prev.filter((n) => n !== notification));
   }, []);
 
   const clearAllNotifications = useCallback(() => {
