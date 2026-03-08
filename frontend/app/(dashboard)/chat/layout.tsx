@@ -38,9 +38,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 function CommandPalette({
   isOpen,
   onClose,
+  onExecute,
 }: {
   isOpen: boolean;
   onClose: () => void;
+  onExecute?: (commandId: string) => void;
 }) {
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -126,7 +128,7 @@ function CommandPalette({
         setSelectedIndex((i) => Math.max(i - 1, 0));
       } else if (e.key === 'Enter' && filteredCommands[selectedIndex]) {
         e.preventDefault();
-        // Execute command
+        onExecute?.(filteredCommands[selectedIndex].id);
         onClose();
       } else if (e.key === 'Escape') {
         onClose();
@@ -135,7 +137,7 @@ function CommandPalette({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, filteredCommands, selectedIndex, onClose]);
+  }, [isOpen, filteredCommands, selectedIndex, onClose, onExecute]);
 
   if (!isOpen) return null;
 
@@ -208,7 +210,10 @@ function CommandPalette({
                           ? 'bg-[var(--phosphor-green)]/10 border border-[var(--phosphor-green)]/30'
                           : 'hover:bg-[var(--terminal-elevated)]'
                       )}
-                      onClick={onClose}
+                      onClick={() => {
+                        onExecute?.(cmd.id);
+                        onClose();
+                      }}
                     >
                       <cmd.icon
                         className={cn(
@@ -1126,6 +1131,25 @@ export default function ChatLayout({
       <CommandPalette
         isOpen={commandPaletteOpen}
         onClose={() => setCommandPaletteOpen(false)}
+        onExecute={(id) => {
+          switch (id) {
+            case 'new-chat':
+              window.location.href = '/chat/new';
+              break;
+            case 'search':
+              window.location.href = '/search';
+              break;
+            case 'arxiv':
+              window.location.href = '/arxiv';
+              break;
+            case 'dashboard':
+              window.location.href = '/dashboard';
+              break;
+            case 'entities':
+              window.location.href = '/entities';
+              break;
+          }
+        }}
       />
     </div>
   );
