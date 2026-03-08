@@ -6,6 +6,9 @@ import {
   Model,
   RAGToggle,
 } from '@/components/chat';
+import { ChatHeader } from '@/components/chat/ChatHeader';
+import { ChatSidebar } from '@/components/chat/ChatSidebar';
+import { TerminalChatBubble } from '@/components/chat/shared/TerminalChatBubble';
 import { cn } from '@/lib/utils';
 import {
   buildRAGSystemPrompt,
@@ -35,22 +38,18 @@ import {
   useSpring,
   useTransform,
 } from 'framer-motion';
-import dynamic from 'next/dynamic';
 import {
   Activity,
   ArrowDown,
   ArrowUp,
   BookOpen,
-  Check,
   ChevronDown,
-  Copy,
   Cpu,
   FileText,
   Loader2,
   Mic,
   Paperclip,
   Radio,
-  RefreshCw,
   Satellite,
   Shield,
   Sparkles,
@@ -59,20 +58,6 @@ import {
 } from 'lucide-react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
-
-// Lazy load CitationRenderer to reduce initial bundle size
-const CitationRenderer = dynamic(
-  () =>
-    import('@/components/chat/CitationRenderer').then(
-      (mod) => mod.CitationRenderer
-    ),
-  {
-    loading: () => (
-      <div className="h-20 w-full animate-pulse bg-white/5 rounded-lg"></div>
-    ),
-    ssr: false,
-  }
-);
 
 // ============================================
 // HELPERS
@@ -151,14 +136,25 @@ function extractTitleFromSnippet(snippet?: string): string | null {
     return titleMatch[1].trim();
   }
 
-  // Fallback: use first line or first 100 chars as title
+  // Fallback: use first line IF it looks like a title (not code, URLs, or log lines)
   const firstLine = snippet.split('\n')[0].trim();
-  if (firstLine.length > 0 && firstLine.length <= 200) {
-    return firstLine;
+  if (firstLine.length > 0 && firstLine.length <= 120) {
+    // Skip lines that look like code, URLs, logs, or raw data
+    const looksLikeNonTitle =
+      /^[{(\[<`]/.test(firstLine) || // Starts with code brackets
+      /[{};=>\[\]`]/.test(firstLine) || // Contains code syntax
+      /https?:\/\//.test(firstLine) || // Contains URLs
+      /\d{4}-\d{2}-\d{2}/.test(firstLine) || // Contains timestamps
+      /duration_ms|count=|debug|error|warn/i.test(firstLine) || // Log lines
+      /^\w+=\d/.test(firstLine); // Key=value patterns
+
+    if (!looksLikeNonTitle) {
+      return firstLine;
+    }
   }
 
-  // Last resort: truncate snippet
-  return snippet.length > 80 ? snippet.slice(0, 80).trim() + '...' : snippet;
+  // Don't use garbled content as title - return null to trigger "Unknown Document" fallback
+  return null;
 }
 
 /**
@@ -371,251 +367,6 @@ const _STARTER_PROMPTS = [
 ];
 
 // ============================================
-// MESSAGE COMPONENT
-// ============================================
-
-function ChatMessage({
-  message,
-  index,
-  modelName,
-  isTyping,
-  isStreaming,
-  streamingContent,
-  onRetry,
-  onCitationClick,
-}: {
-  message: Message;
-  index: number;
-  modelName?: string;
-  isTyping?: boolean;
-  isStreaming?: boolean;
-  streamingContent?: string;
-  onRetry?: () => void;
-  onCitationClick?: (citations: Citation[], clickedCitation: Citation) => void;
-}) {
-  const isUser = message.role === 'user';
-  const [copied, setCopied] = useState(false);
-  const timestamp = message.timestamp
-    ? new Date(message.timestamp).toLocaleTimeString('en-US', {
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false,
-      })
-    : '--:--';
-
-  const handleCopy = async () => {
-    await navigator.clipboard.writeText(message.content);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 20, scale: 0.98 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      transition={{
-        duration: 0.4,
-        delay: index * 0.03,
-        ease: [0.25, 0.46, 0.45, 0.94],
-      }}
-      className={cn(
-        'group relative mb-4',
-        isUser ? 'ml-8 sm:ml-16' : 'mr-8 sm:mr-16'
-      )}
-    >
-      {/* Transmission Line - Refined opacity */}
-      <div
-        className={cn(
-          'absolute top-0 h-full w-[1px] transition-all duration-500 opacity-30',
-          isUser
-            ? 'right-0 bg-gradient-to-b from-[var(--amber-gold)] via-[var(--amber-gold)]/10 to-transparent'
-            : 'left-0 bg-gradient-to-b from-[var(--phosphor-green)] via-[var(--phosphor-green)]/10 to-transparent'
-        )}
-      />
-
-      {/* Message Header - Tightened gap */}
-      <div
-        className={cn(
-          'flex items-center gap-3 mb-1.5 text-[10px] tracking-wider',
-          isUser ? 'justify-end pr-4' : 'pl-4'
-        )}
-        style={{ fontFamily: "'JetBrains Mono', monospace" }}
-      >
-        {!isUser && (
-          <>
-            <div className="flex items-center gap-2 px-1.5 py-0.5 rounded bg-[var(--terminal-surface)] border border-[var(--terminal-border)]">
-              <span className="text-[var(--phosphor-green)] font-bold text-[9px]">
-                {isTyping || isStreaming ? 'STREAMING' : 'RECEIVED'}
-              </span>
-            </div>
-            {modelName && (
-              <span className="text-[var(--terminal-text-dim)] border border-[var(--terminal-border)] px-1.5 py-0.5 rounded bg-[var(--terminal-surface)]">
-                {modelName}
-              </span>
-            )}
-          </>
-        )}
-        {isUser && (
-          <span className="text-[var(--amber-gold)] font-bold px-1.5 py-0.5 rounded bg-[var(--amber-gold)]/10 border border-[var(--amber-gold)]/20 text-[9px]">
-            QUERY
-          </span>
-        )}
-        <span className="text-[var(--terminal-text-dim)]">{timestamp}</span>
-
-        {/* Quick Actions */}
-        <div
-          className={cn(
-            'flex items-center gap-1 transition-all duration-200',
-            'opacity-0 group-hover:opacity-100'
-          )}
-        >
-          <button
-            onClick={handleCopy}
-            className={cn(
-              'p-1 rounded hover:bg-[var(--terminal-elevated)] transition-all border border-transparent hover:border-[var(--terminal-border)]',
-              copied
-                ? 'text-[var(--phosphor-green)]'
-                : 'text-[var(--terminal-text-dim)] hover:text-[var(--terminal-text)]'
-            )}
-            title={copied ? 'Copied!' : 'Copy message'}
-          >
-            {copied ? (
-              <Check className="w-3.5 h-3.5" />
-            ) : (
-              <Copy className="w-3.5 h-3.5" />
-            )}
-          </button>
-          {isUser && onRetry && (
-            <button
-              onClick={onRetry}
-              className="p-1 rounded hover:bg-[var(--terminal-elevated)] text-[var(--terminal-text-dim)] hover:text-[var(--terminal-text)] transition-all border border-transparent hover:border-[var(--terminal-border)]"
-              title="Retry"
-            >
-              <RefreshCw className="w-3.5 h-3.5" />
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* Message Content - Balanced padding */}
-      <div
-        className={cn(
-          'relative rounded-xl overflow-hidden transition-all duration-300 shadow-sm backdrop-blur-sm',
-          isUser
-            ? 'bg-gradient-to-br from-[var(--terminal-elevated)] to-[var(--terminal-bg)] border border-[var(--amber-gold)]/20 mr-4 hover:border-[var(--amber-gold)]/40 hover:shadow-[0_0_15px_-10px_var(--amber-gold)]'
-            : 'bg-[var(--terminal-surface)] border border-[var(--terminal-border)] ml-4 hover:border-[var(--phosphor-green)]/30 hover:shadow-[0_0_15px_-10px_var(--phosphor-green)]'
-        )}
-      >
-        <div className="absolute inset-0 bg-[linear-gradient(rgba(18,18,18,0)_50%,rgba(0,0,0,0.2)_50%)] z-0 pointer-events-none bg-[length:100%_2px] opacity-10" />
-
-        <div className="relative p-4 sm:p-5 z-10">
-          {isStreaming && !streamingContent ? (
-            /* Streaming: waiting for first token - show pulsing cursor */
-            <div
-              className="text-[14px] leading-relaxed text-[var(--terminal-text)]"
-              style={{ fontFamily: "'JetBrains Mono', monospace" }}
-            >
-              <span className="inline-block w-2 h-4 bg-[var(--phosphor-green)] animate-pulse ml-0.5" />
-            </div>
-          ) : isStreaming && streamingContent ? (
-            /* Streaming: rendering incoming tokens with cursor */
-            <div
-              className="text-[14px] leading-relaxed text-[var(--terminal-text)]"
-              style={{ fontFamily: "'JetBrains Mono', monospace" }}
-            >
-              <span className="whitespace-pre-wrap">{streamingContent}</span>
-              <span className="inline-block w-2 h-4 bg-[var(--phosphor-green)] animate-pulse ml-0.5" />
-            </div>
-          ) : isTyping && !message.content ? (
-            <div
-              className="flex items-center gap-3 text-[var(--phosphor-green)] text-sm"
-              style={{ fontFamily: "'JetBrains Mono', monospace" }}
-            >
-              <div className="flex items-center gap-1.5">
-                <span
-                  className="w-1 h-1 rounded-full bg-[var(--phosphor-green)] animate-bounce"
-                  style={{ animationDelay: '0ms' }}
-                />
-                <span
-                  className="w-1 h-1 rounded-full bg-[var(--phosphor-green)] animate-bounce"
-                  style={{ animationDelay: '150ms' }}
-                />
-                <span
-                  className="w-1 h-1 rounded-full bg-[var(--phosphor-green)] animate-bounce"
-                  style={{ animationDelay: '300ms' }}
-                />
-              </div>
-              <span className="opacity-70 text-[10px] tracking-wider uppercase">
-                Processing...
-              </span>
-            </div>
-          ) : (
-            <div
-              className={cn(
-                'text-[14px] leading-relaxed',
-                isUser ? 'text-[#e8d5b5]' : 'text-[var(--terminal-text)]'
-              )}
-              style={{ fontFamily: "'JetBrains Mono', monospace" }}
-            >
-              {isUser ? (
-                <p className="whitespace-pre-wrap">{message.content}</p>
-              ) : (
-                <CitationRenderer
-                  content={message.content}
-                  citations={message.citations as Citation[]}
-                  onCitationClick={(citation) => {
-                    if (onCitationClick && message.citations) {
-                      onCitationClick(
-                        message.citations as Citation[],
-                        citation
-                      );
-                    }
-                  }}
-                />
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* Citations Footer */}
-        {!isUser && message.citations && message.citations.length > 0 && (
-          <div className="relative border-t border-[var(--terminal-border)] p-2.5 bg-[var(--terminal-bg)]/30">
-            <div className="flex flex-wrap items-center gap-1.5">
-              {message.citations.map((citation, idx) => (
-                <button
-                  key={idx}
-                  className="flex items-center gap-1.5 px-2 py-1 rounded bg-[var(--terminal-surface)] border border-[var(--terminal-border)] hover:border-[var(--phosphor-green)]/40 hover:bg-[var(--terminal-elevated)] text-[9px] transition-all group/citation"
-                  style={{ fontFamily: "'JetBrains Mono', monospace" }}
-                >
-                  <div className="w-1 h-1 rounded-full bg-[var(--phosphor-green)]/30 group-hover/citation:bg-[var(--phosphor-green)] transition-colors" />
-                  <span className="text-[var(--terminal-text)] truncate max-w-[150px]">
-                    {citation.title}
-                  </span>
-                  <span className="text-[var(--terminal-text-dim)] border-l border-[var(--terminal-border)] pl-1.5">
-                    {Math.round(citation.score * 100)}%
-                  </span>
-                </button>
-              ))}
-              {message.diagnosticsTraceId && (
-                <a
-                  href={`/diagnostics?trace=${message.diagnosticsTraceId}`}
-                  className="ml-auto flex items-center gap-1 px-2 py-1 rounded bg-[var(--terminal-surface)] border border-[var(--terminal-border)] hover:border-[var(--cyan-pulse)]/40 hover:bg-[var(--terminal-elevated)] text-[9px] text-[var(--cyan-pulse)] transition-all"
-                  style={{ fontFamily: "'JetBrains Mono', monospace" }}
-                  title="View retrieval diagnostics"
-                >
-                  <Activity className="w-3 h-3" />
-                  <span>DIAG</span>
-                </a>
-              )}
-            </div>
-          </div>
-        )}
-      </div>
-    </motion.div>
-  );
-}
-
-// ============================================
 // MODEL SELECTOR
 // ============================================
 
@@ -818,14 +569,14 @@ function ChatInput({
   const isNearLimit = charCount > maxChars * 0.8;
 
   return (
-    <div className="z-40 bg-gradient-to-t from-[var(--terminal-bg)] via-[var(--terminal-bg)] to-transparent pt-4 pb-4 px-4">
+    <div className="z-40 bg-[var(--terminal-bg)] pt-2 pb-4 px-4 border-t border-[var(--terminal-border)]">
       <div className="max-w-4xl mx-auto">
         <motion.div
           className={cn(
-            'relative rounded-xl overflow-visible backdrop-blur-xl transition-all duration-300',
-            'bg-[var(--terminal-surface)] border border-[var(--terminal-border)] shadow-2xl shadow-black/50',
+            'relative rounded-lg overflow-visible transition-all duration-300',
+            'bg-[#0A0A0A] border border-[var(--terminal-border)]',
             isFocused &&
-              'border-[var(--phosphor-green)]/30 shadow-[0_0_20px_-5px_rgba(0,255,159,0.05)] ring-1 ring-[var(--phosphor-green)]/5'
+              'border-[var(--phosphor-green)]/30 ring-1 ring-[var(--phosphor-green)]/10 shadow-[0_0_15px_-5px_rgba(0,255,159,0.1)]'
           )}
         >
           {/* Top Bar: Model Selector, RAG Toggle & Status */}
@@ -920,10 +671,10 @@ function ChatInput({
                   onClick={onSubmit}
                   disabled={!value.trim() || isDisabled}
                   className={cn(
-                    'flex items-center gap-2 px-5 py-2 rounded-lg text-[10px] font-bold tracking-widest transition-all duration-300',
+                    'flex items-center gap-2 px-6 py-2 rounded text-[10px] font-bold tracking-widest transition-all duration-300',
                     value.trim() && !isDisabled
-                      ? 'bg-[var(--phosphor-green)] text-[var(--terminal-bg)] hover:shadow-[0_0_15px_rgba(0,255,159,0.2)] hover:scale-[1.02] active:scale-95'
-                      : 'bg-[var(--terminal-elevated)] text-[var(--terminal-text-muted)] cursor-not-allowed border border-[var(--terminal-border)]'
+                      ? 'bg-[var(--phosphor-green)] text-[#0A0A0A] hover:bg-[var(--phosphor-green)]/90 hover:shadow-[0_0_15px_rgba(0,255,159,0.3)] active:scale-95'
+                      : 'bg-transparent text-[var(--terminal-text-dim)] border border-[var(--terminal-border)] cursor-not-allowed'
                   )}
                   style={{ fontFamily: "'JetBrains Mono', monospace" }}
                 >
@@ -1259,6 +1010,14 @@ function ChatPageContent() {
   const _storeStreamingCitations = useChatStore(
     (state) => state.streamingCitations
   );
+
+  // Capture a stable timestamp when streaming begins
+  const streamingTimestampRef = useRef(Date.now());
+  useEffect(() => {
+    if (storeIsStreaming) {
+      streamingTimestampRef.current = Date.now();
+    }
+  }, [storeIsStreaming]);
 
   // Track streaming content in a ref for post-stream fallback
   useEffect(() => {
@@ -2114,193 +1873,237 @@ function ChatPageContent() {
   const currentModel = AVAILABLE_MODELS.find((m) => m.id === selectedModel);
 
   return (
-    <div className="flex flex-col h-full overflow-hidden relative">
-      {/* Model Loading Progress */}
-      <AnimatePresence>
-        {isModelLoading && (
-          <ModelLoadingProgress progress={progress} progressVal={progressVal} />
-        )}
-      </AnimatePresence>
-
-      {/* Messages Area Wrapper */}
-      <div className="flex-1 relative min-h-0">
-        <div
-          ref={scrollContainerRef}
-          onScroll={handleScroll}
-          className="h-full overflow-y-auto terminal-scrollbar"
-        >
-          {/* Authentication Required State */}
-          {!isAuthenticated ? (
-            <div className="h-full flex flex-col items-center justify-center p-8">
-              <div className="text-center">
-                <Loader2 className="w-8 h-8 text-[var(--amber-gold)] animate-spin mx-auto mb-4" />
-                <p className="text-sm font-mono text-[var(--terminal-text-muted)] mt-2">
-                  Authentication required. Redirecting...
-                </p>
-              </div>
-            </div>
-          ) : isInitializing ? (
-            /* Loading State */
-            <div className="h-full flex flex-col items-center justify-center p-8">
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="text-center"
-              >
-                <div className="relative w-12 h-12 mx-auto mb-6">
-                  <Loader2 className="w-12 h-12 text-[var(--phosphor-green)] animate-spin" />
-                </div>
-                <h2
-                  className="text-sm text-[var(--phosphor-green)] mb-2 tracking-widest"
-                  style={{ fontFamily: "'JetBrains Mono', monospace" }}
-                >
-                  INITIALIZING...
-                </h2>
-              </motion.div>
-            </div>
-          ) : initError ? (
-            /* Error State */
-            <div className="h-full flex flex-col items-center justify-center p-8">
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="text-center max-w-md"
-              >
-                <div className="relative w-16 h-16 mx-auto mb-6">
-                  <div className="absolute inset-0 rounded-full bg-[var(--error-red)]/10" />
-                  <div className="absolute inset-2 rounded-full border border-[var(--error-red)]/30 flex items-center justify-center">
-                    <Activity className="w-6 h-6 text-[var(--error-red)]" />
-                  </div>
-                </div>
-                <h2
-                  className="text-lg text-[var(--error-red)] mb-3"
-                  style={{ fontFamily: "'JetBrains Mono', monospace" }}
-                >
-                  CONNECTION ERROR
-                </h2>
-                <p
-                  className="text-xs text-[var(--terminal-text-muted)] mb-6 p-3 rounded bg-[var(--error-red)]/5 border border-[var(--error-red)]/10"
-                  style={{ fontFamily: "'JetBrains Mono', monospace" }}
-                >
-                  {initError}
-                </p>
-                <button
-                  onClick={() => window.location.reload()}
-                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[var(--terminal-surface)] border border-[var(--terminal-border)] text-[var(--terminal-text)] text-xs font-medium hover:border-[var(--phosphor-green)]/30 transition-all"
-                  style={{ fontFamily: "'JetBrains Mono', monospace" }}
-                >
-                  <Activity className="w-3.5 h-3.5" />
-                  RETRY CONNECTION
-                </button>
-              </motion.div>
-            </div>
-          ) : messages.length === 0 && !storeIsStreaming ? (
-            <WelcomeState
-              onPromptSelect={handlePromptSelect}
-              selectedModel={selectedModel}
-            />
-          ) : (
-            <div className="max-w-4xl mx-auto pt-4 px-4 pb-6">
-              <AnimatePresence>
-                {messages.map((message, index) => (
-                  <ChatMessage
-                    key={message.id || `msg-${index}`}
-                    message={message}
-                    index={index}
-                    modelName={
-                      message.role === 'assistant'
-                        ? currentModel?.name
-                        : undefined
-                    }
-                    isTyping={
-                      index === messages.length - 1 &&
-                      isLoading &&
-                      message.role === 'assistant'
-                    }
-                    onCitationClick={(citations, clickedCitation) => {
-                      setCitationPanelCitations(citations);
-                      setActiveCitationId(clickedCitation.documentId);
-                      setIsCitationPanelOpen(true);
-                    }}
-                  />
-                ))}
-
-                {/* Virtual streaming assistant message (shown during SSE streaming) */}
-                {storeIsStreaming && (
-                  <ChatMessage
-                    key="streaming-message"
-                    message={{
-                      role: 'assistant',
-                      content: '',
-                      timestamp: Date.now(),
-                    }}
-                    index={messages.length}
-                    modelName={currentModel?.name}
-                    isStreaming={true}
-                    streamingContent={storeStreamingContent}
-                    onCitationClick={(citations, clickedCitation) => {
-                      setCitationPanelCitations(citations);
-                      setActiveCitationId(clickedCitation.documentId);
-                      setIsCitationPanelOpen(true);
-                    }}
-                  />
-                )}
-              </AnimatePresence>
-              <div ref={messagesEndRef} />
-            </div>
-          )}
-        </div>
-
-        {/* Scroll to bottom button - Absolute positioned within wrapper */}
-        <AnimatePresence>
-          {showScrollButton && (
-            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-50 pointer-events-none">
-              <motion.button
-                initial={{ opacity: 0, y: 10, scale: 0.9 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: 10, scale: 0.9 }}
-                onClick={scrollToBottom}
-                className="flex items-center gap-2 px-4 py-2 rounded-full bg-[var(--phosphor-green)] text-[var(--terminal-bg)] text-xs font-bold shadow-[0_0_20px_var(--phosphor-green-glow)] hover:shadow-[0_0_30px_var(--phosphor-green-glow)] transition-all pointer-events-auto border border-[var(--terminal-bg)]"
-                style={{ fontFamily: "'JetBrains Mono', monospace" }}
-              >
-                <ArrowDown className="w-4 h-4" />
-                <span className="hidden sm:inline tracking-wider">
-                  NEW MESSAGES
-                </span>
-              </motion.button>
-            </div>
-          )}
-        </AnimatePresence>
+    <div className="flex h-full w-full overflow-hidden bg-[var(--terminal-bg)]">
+      {/* New Chat Sidebar */}
+      <div className="hidden md:block h-full shrink-0">
+        <ChatSidebar
+          conversations={conversations}
+          activeId={activeConversationId}
+          onSelect={setActiveConversationId}
+          onNew={() => {
+            setActiveConversationId(null);
+            setMessages([]);
+          }}
+        />
       </div>
 
-      {/* Input Area */}
-      <ChatInput
-        value={input}
-        onChange={setInput}
-        onSubmit={handleSubmit}
-        onStop={handleStop}
-        isLoading={isLoading || storeIsStreaming}
-        isModelLoading={isModelLoading}
-        selectedModel={selectedModel}
-        models={AVAILABLE_MODELS}
-        onModelChange={handleModelChange}
-        enableRAG={enableRAG}
-        onRAGToggle={setEnableRAG}
-        isRAGLoading={isRAGLoading}
-      />
+      {/* Main Chat Area */}
+      <div className="flex-1 flex flex-col relative h-full min-w-0 overflow-hidden">
+        <ChatHeader currentWorkspace={_workspace} />
 
-      {/* Citation Panel Sidebar */}
-      <CitationPanel
-        citations={citationPanelCitations}
-        isOpen={isCitationPanelOpen}
-        onClose={() => setIsCitationPanelOpen(false)}
-        onCitationClick={(citation) => {
-          setActiveCitationId(citation.documentId);
-          // Navigate to document detail page
-          router.push(`/documents/${citation.documentId}`);
-        }}
-        activeCitationId={activeCitationId}
-      />
+        {/* Model Loading Progress */}
+        <AnimatePresence>
+          {isModelLoading && (
+            <ModelLoadingProgress
+              progress={progress}
+              progressVal={progressVal}
+            />
+          )}
+        </AnimatePresence>
+
+        {/* Messages Area Wrapper */}
+        <div className="flex-1 relative min-h-0">
+          <div
+            ref={scrollContainerRef}
+            onScroll={handleScroll}
+            className="h-full overflow-y-auto terminal-scrollbar"
+          >
+            {/* Authentication Required State */}
+            {!isAuthenticated ? (
+              <div className="h-full flex flex-col items-center justify-center p-8">
+                <div className="text-center">
+                  <Loader2 className="w-8 h-8 text-[var(--amber-gold)] animate-spin mx-auto mb-4" />
+                  <p className="text-sm font-mono text-[var(--terminal-text-muted)] mt-2">
+                    Authentication required. Redirecting...
+                  </p>
+                </div>
+              </div>
+            ) : isInitializing ? (
+              /* Loading State */
+              <div className="h-full flex flex-col items-center justify-center p-8">
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="text-center"
+                >
+                  <div className="relative w-12 h-12 mx-auto mb-6">
+                    <Loader2 className="w-12 h-12 text-[var(--phosphor-green)] animate-spin" />
+                  </div>
+                  <h2
+                    className="text-sm text-[var(--phosphor-green)] mb-2 tracking-widest"
+                    style={{ fontFamily: "'JetBrains Mono', monospace" }}
+                  >
+                    INITIALIZING...
+                  </h2>
+                </motion.div>
+              </div>
+            ) : initError ? (
+              /* Error State */
+              <div className="h-full flex flex-col items-center justify-center p-8">
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="text-center max-w-md"
+                >
+                  <div className="relative w-16 h-16 mx-auto mb-6">
+                    <div className="absolute inset-0 rounded-full bg-[var(--error-red)]/10" />
+                    <div className="absolute inset-2 rounded-full border border-[var(--error-red)]/30 flex items-center justify-center">
+                      <Activity className="w-6 h-6 text-[var(--error-red)]" />
+                    </div>
+                  </div>
+                  <h2
+                    className="text-lg text-[var(--error-red)] mb-3"
+                    style={{ fontFamily: "'JetBrains Mono', monospace" }}
+                  >
+                    CONNECTION ERROR
+                  </h2>
+                  <p
+                    className="text-xs text-[var(--terminal-text-muted)] mb-6 p-3 rounded bg-[var(--error-red)]/5 border border-[var(--error-red)]/10"
+                    style={{ fontFamily: "'JetBrains Mono', monospace" }}
+                  >
+                    {initError}
+                  </p>
+                  <button
+                    onClick={() => window.location.reload()}
+                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[var(--terminal-surface)] border border-[var(--terminal-border)] text-[var(--terminal-text)] text-xs font-medium hover:border-[var(--phosphor-green)]/30 transition-all"
+                    style={{ fontFamily: "'JetBrains Mono', monospace" }}
+                  >
+                    <Activity className="w-3.5 h-3.5" />
+                    RETRY CONNECTION
+                  </button>
+                </motion.div>
+              </div>
+            ) : messages.length === 0 && !storeIsStreaming ? (
+              <WelcomeState
+                onPromptSelect={handlePromptSelect}
+                selectedModel={selectedModel}
+              />
+            ) : (
+              <div className="max-w-4xl mx-auto pt-4 px-4 pb-6">
+                <AnimatePresence>
+                  {messages.map((message, index) => (
+                    <motion.div
+                      key={message.id || `msg-${index}`}
+                      initial={{ opacity: 0, y: 20, scale: 0.98 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, transition: { duration: 0.2 } }}
+                      transition={{
+                        duration: 0.4,
+                        delay: Math.min(index * 0.03, 0.3),
+                        ease: [0.25, 0.46, 0.45, 0.94],
+                      }}
+                    >
+                      <TerminalChatBubble
+                        message={message}
+                        index={index}
+                        modelName={
+                          message.role === 'assistant'
+                            ? currentModel?.name
+                            : undefined
+                        }
+                        isTyping={
+                          index === messages.length - 1 &&
+                          isLoading &&
+                          !storeIsStreaming &&
+                          message.role === 'assistant'
+                        }
+                        onCitationClick={(citations, clickedCitation) => {
+                          setCitationPanelCitations(citations);
+                          setActiveCitationId(clickedCitation.documentId);
+                          setIsCitationPanelOpen(true);
+                        }}
+                      />
+                    </motion.div>
+                  ))}
+
+                  {/* Virtual streaming assistant message (shown during SSE streaming) */}
+                  {storeIsStreaming && (
+                    <motion.div
+                      key="streaming-message"
+                      initial={{ opacity: 0, y: 20, scale: 0.98 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{
+                        opacity: 0,
+                        y: -10,
+                        transition: { duration: 0.2 },
+                      }}
+                      transition={{ duration: 0.3 }}
+                    >
+                      <TerminalChatBubble
+                        message={{
+                          role: 'assistant',
+                          content: '',
+                          timestamp: streamingTimestampRef.current,
+                        }}
+                        index={messages.length}
+                        modelName={currentModel?.name}
+                        isStreaming={true}
+                        streamingContent={storeStreamingContent}
+                        onCitationClick={(citations, clickedCitation) => {
+                          setCitationPanelCitations(citations);
+                          setActiveCitationId(clickedCitation.documentId);
+                          setIsCitationPanelOpen(true);
+                        }}
+                      />
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+                <div ref={messagesEndRef} />
+              </div>
+            )}
+          </div>
+
+          {/* Scroll to bottom button - Absolute positioned within wrapper */}
+          <AnimatePresence>
+            {showScrollButton && (
+              <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-50 pointer-events-none">
+                <motion.button
+                  initial={{ opacity: 0, y: 10, scale: 0.9 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 10, scale: 0.9 }}
+                  onClick={scrollToBottom}
+                  className="flex items-center gap-2 px-4 py-2 rounded-full bg-[var(--phosphor-green)] text-[var(--terminal-bg)] text-xs font-bold shadow-[0_0_20px_var(--phosphor-green-glow)] hover:shadow-[0_0_30px_var(--phosphor-green-glow)] transition-all pointer-events-auto border border-[var(--terminal-bg)]"
+                  style={{ fontFamily: "'JetBrains Mono', monospace" }}
+                >
+                  <ArrowDown className="w-4 h-4" />
+                  <span className="hidden sm:inline tracking-wider">
+                    NEW MESSAGES
+                  </span>
+                </motion.button>
+              </div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        {/* Input Area */}
+        <ChatInput
+          value={input}
+          onChange={setInput}
+          onSubmit={handleSubmit}
+          onStop={handleStop}
+          isLoading={isLoading || storeIsStreaming}
+          isModelLoading={isModelLoading}
+          selectedModel={selectedModel}
+          models={AVAILABLE_MODELS}
+          onModelChange={handleModelChange}
+          enableRAG={enableRAG}
+          onRAGToggle={setEnableRAG}
+          isRAGLoading={isRAGLoading}
+        />
+
+        {/* Citation Panel Sidebar */}
+        <CitationPanel
+          citations={citationPanelCitations}
+          isOpen={isCitationPanelOpen}
+          onClose={() => setIsCitationPanelOpen(false)}
+          onCitationClick={(citation) => {
+            setActiveCitationId(citation.documentId);
+            // Navigate to document detail page
+            router.push(`/documents/${citation.documentId}`);
+          }}
+          activeCitationId={activeCitationId}
+        />
+      </div>
     </div>
   );
 }
