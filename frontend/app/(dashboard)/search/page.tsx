@@ -33,6 +33,7 @@ export default function SearchPage() {
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const loadingTimestampRef = useRef(Date.now());
 
   const suggestedQueries = [
     {
@@ -130,6 +131,7 @@ export default function SearchPage() {
       setMessages((prev) => [...prev, userMessage]);
       setInput('');
 
+      loadingTimestampRef.current = Date.now();
       setIsLoading(true);
 
       try {
@@ -280,7 +282,7 @@ export default function SearchPage() {
                     message={{
                       role: 'assistant',
                       content: '',
-                      timestamp: Date.now(),
+                      timestamp: loadingTimestampRef.current,
                     }}
                     index={messages.length}
                     isTyping={true}

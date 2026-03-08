@@ -116,6 +116,7 @@ export function TerminalChatBubble({
                 ? 'text-[var(--phosphor-green)]'
                 : 'text-[var(--terminal-text-dim)] hover:text-[var(--terminal-text)]'
             )}
+            aria-label={copied ? 'Copied!' : 'Copy message'}
             title={copied ? 'Copied!' : 'Copy message'}
           >
             {copied ? (
@@ -128,6 +129,7 @@ export function TerminalChatBubble({
             <button
               onClick={onRetry}
               className="rounded border border-transparent p-1 text-[var(--terminal-text-dim)] transition-all hover:border-[var(--terminal-border)] hover:bg-[var(--terminal-elevated)] hover:text-[var(--terminal-text)]"
+              aria-label="Retry"
               title="Retry"
             >
               <RefreshCw className="h-3.5 w-3.5" />
@@ -248,7 +250,7 @@ export function TerminalChatBubble({
               ))}
               {message.diagnosticsTraceId && (
                 <a
-                  href={`/diagnostics?trace=${message.diagnosticsTraceId}`}
+                  href={`/diagnostics?trace=${encodeURIComponent(message.diagnosticsTraceId)}`}
                   className="ml-auto flex items-center gap-1 rounded border border-[var(--terminal-border)] bg-[var(--terminal-surface)] px-2 py-1 text-[9px] text-[var(--cyan-pulse)] transition-all hover:border-[var(--cyan-pulse)]/40 hover:bg-[var(--terminal-elevated)]"
                   style={{ fontFamily: "'JetBrains Mono', monospace" }}
                   title="View retrieval diagnostics"

@@ -9,13 +9,15 @@ import {
   Settings2,
   TerminalSquare,
 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { memo, useEffect, useState } from 'react';
 
 interface ChatHeaderProps {
   currentWorkspace: Workspace | null;
 }
 
-export function ChatHeader({ currentWorkspace }: ChatHeaderProps) {
+export const ChatHeader = memo(function ChatHeader({
+  currentWorkspace,
+}: ChatHeaderProps) {
   const [time, setTime] = useState<string>('00:00:00');
 
   useEffect(() => {
@@ -44,7 +46,10 @@ export function ChatHeader({ currentWorkspace }: ChatHeaderProps) {
           </span>
         </div>
 
-        <button className="flex items-center gap-2 ml-4 px-3 py-1.5 rounded border border-[var(--terminal-border)] bg-[var(--terminal-surface)] hover:bg-[var(--terminal-elevated)] transition-colors">
+        <button
+          aria-label="Select workspace"
+          className="flex items-center gap-2 ml-4 px-3 py-1.5 rounded border border-[var(--terminal-border)] bg-[var(--terminal-surface)] hover:bg-[var(--terminal-elevated)] transition-colors"
+        >
           <Network className="w-3.5 h-3.5 text-[var(--phosphor-green)]" />
           <span
             className="text-xs text-[var(--terminal-text)]"
@@ -92,13 +97,19 @@ export function ChatHeader({ currentWorkspace }: ChatHeaderProps) {
           </span>
         </div>
 
-        <button className="p-1.5 text-[var(--terminal-text-dim)] hover:text-[var(--terminal-text)] transition-colors">
+        <button
+          aria-label="Terminal"
+          className="p-1.5 text-[var(--terminal-text-dim)] hover:text-[var(--terminal-text)] transition-colors"
+        >
           <TerminalSquare className="w-4 h-4" />
         </button>
-        <button className="p-1.5 text-[var(--terminal-text-dim)] hover:text-[var(--terminal-text)] transition-colors">
+        <button
+          aria-label="Settings"
+          className="p-1.5 text-[var(--terminal-text-dim)] hover:text-[var(--terminal-text)] transition-colors"
+        >
           <Settings2 className="w-4 h-4" />
         </button>
       </div>
     </div>
   );
-}
+});
