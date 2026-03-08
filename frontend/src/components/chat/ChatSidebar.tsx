@@ -7,7 +7,6 @@ import { formatDistanceToNow } from 'date-fns';
 import {
   CheckSquare,
   ChevronDown,
-  LayoutGrid,
   MessageSquare,
   Plus,
   Search,
@@ -182,34 +181,6 @@ export const ChatSidebar = memo(function ChatSidebar({
                 </button>
               );
             })}
-          </div>
-        </div>
-
-        {/* PROJECTS SECTION (Placeholder mappings) */}
-        <div>
-          <div className="flex items-center justify-between px-2 mb-2">
-            <div className="flex items-center gap-2 text-[var(--terminal-text-dim)]">
-              <ChevronDown className="w-3.5 h-3.5" />
-              <span
-                className="text-[10px] uppercase tracking-wider"
-                style={{ fontFamily: "'JetBrains Mono', monospace" }}
-              >
-                Projects
-              </span>
-            </div>
-          </div>
-          <div className="space-y-1">
-            <button className="w-full text-left flex gap-3 p-2.5 rounded hover:bg-[var(--terminal-elevated)] transition-all">
-              <LayoutGrid className="w-4 h-4 text-[var(--phosphor-green)] mt-0.5" />
-              <div className="flex-1 min-w-0">
-                <span className="block text-xs text-[var(--terminal-text)]/80 font-medium truncate">
-                  Test Project for Chat In...
-                </span>
-                <span className="block text-[9px] text-[var(--terminal-text-dim)] truncate mt-0.5">
-                  Testing project-chat integration
-                </span>
-              </div>
-            </button>
           </div>
         </div>
       </div>
