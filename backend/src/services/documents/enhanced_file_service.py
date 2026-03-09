@@ -82,10 +82,24 @@ class SecurityThreat:
 class EnhancedFileService:
     """Enhanced service for handling file uploads, validation, and security scanning"""
 
+    # Map document types to storage bucket names
+    TYPE_TO_BUCKET = {
+        DocumentType.TEXT: "documents",
+        DocumentType.PDF: "documents",
+        DocumentType.SPREADSHEET: "documents",
+        DocumentType.PRESENTATION: "documents",
+        DocumentType.IMAGE: "images",
+        DocumentType.AUDIO: "audio",
+        DocumentType.VIDEO: "video",
+        DocumentType.MULTIMODAL: "documents",
+    }
+
     def __init__(self, db: Session):
         self.db = db
         self.upload_dir = Path(settings.UPLOAD_DIR)
         self.upload_dir.mkdir(parents=True, exist_ok=True)
+        self._storage_enabled = settings.SUPABASE_STORAGE_ENABLED
+        self._storage_helper = None
 
         # Security scan configuration
         # Use standard ClamAV socket locations, configurable via settings
@@ -152,6 +166,15 @@ class EnhancedFileService:
 
         for subdir in subdirs:
             (self.upload_dir / subdir).mkdir(parents=True, exist_ok=True)
+
+    @property
+    def storage_helper(self):
+        """Lazy-load StorageHelper only when Supabase Storage is enabled."""
+        if self._storage_helper is None and self._storage_enabled:
+            from src.core.supabase_client import StorageHelper
+
+            self._storage_helper = StorageHelper()
+        return self._storage_helper
 
     async def validate_and_scan_file(
         self, file: UploadFile, user: User, organization: Organization
@@ -933,36 +956,69 @@ class EnhancedFileService:
     ) -> Document:
         """Process and store uploaded file with enhanced validation"""
         try:
-            # Generate file path
-            file_path = self.generate_file_path(
-                validation_result["basic_validation"]["document_type"],
-                str(organization.id),
-            )
-
-            # Add original extension to file path
+            basic = validation_result["basic_validation"]
             original_ext = Path(file.filename).suffix
-            file_path_with_ext = f"{file_path}{original_ext}"
+            mime_type = basic["detected_mime_type"]
 
-            # Save file
-            saved_path = await self.save_file_permanently(file, file_path_with_ext)
+            if self._storage_enabled:
+                # --- Supabase Storage path ---
+                import uuid as _uuid
 
-            # Calculate file hash
-            file_hash = self.calculate_file_hash(saved_path)
+                doc_id = str(_uuid.uuid4())
+                bucket = self.TYPE_TO_BUCKET.get(basic["document_type"], "documents")
+                key = (
+                    f"{organization.id}/{doc_id}/"
+                    f"{int(time.time())}_{_uuid.uuid4().hex[:8]}{original_ext}"
+                )
 
-            # Create document record
-            document = Document(
-                title=title,
-                filename=file.filename,
-                file_path=saved_path,
-                file_size_bytes=validation_result["basic_validation"]["file_size"],
-                mime_type=validation_result["basic_validation"]["detected_mime_type"],
-                document_type=validation_result["basic_validation"]["document_type"],
-                processing_status=ProcessingStatus.PENDING,
-                is_public=is_public,
-                tags=tags,
-                organization_id=organization.id,
-                uploaded_by_user_id=user.id,
-            )
+                file_content = await file.read()
+                file.file.seek(0)
+                file_hash = hashlib.sha256(file_content).hexdigest()
+
+                storage_key = self.storage_helper.upload_file(
+                    bucket, key, file_content, mime_type
+                )
+
+                document = Document(
+                    id=doc_id,
+                    title=title,
+                    filename=file.filename,
+                    file_path=f"supabase://{storage_key}",
+                    file_size_bytes=basic["file_size"],
+                    mime_type=mime_type,
+                    document_type=basic["document_type"],
+                    processing_status=ProcessingStatus.PENDING,
+                    is_public=is_public,
+                    tags=tags,
+                    organization_id=organization.id,
+                    uploaded_by_user_id=user.id,
+                    storage_path=storage_key,
+                    storage_backend="supabase",
+                )
+            else:
+                # --- Local filesystem path (unchanged) ---
+                file_path = self.generate_file_path(
+                    basic["document_type"],
+                    str(organization.id),
+                )
+                file_path_with_ext = f"{file_path}{original_ext}"
+                saved_path = await self.save_file_permanently(file, file_path_with_ext)
+                file_hash = self.calculate_file_hash(saved_path)
+
+                document = Document(
+                    title=title,
+                    filename=file.filename,
+                    file_path=saved_path,
+                    file_size_bytes=basic["file_size"],
+                    mime_type=mime_type,
+                    document_type=basic["document_type"],
+                    processing_status=ProcessingStatus.PENDING,
+                    is_public=is_public,
+                    tags=tags,
+                    organization_id=organization.id,
+                    uploaded_by_user_id=user.id,
+                    storage_backend="local",
+                )
 
             # Add metadata
             document.add_metadata("file_hash", file_hash)
@@ -981,9 +1037,7 @@ class EnhancedFileService:
             self.db.refresh(document)
 
             # Update organization storage usage
-            organization.update_storage_usage(
-                validation_result["basic_validation"]["file_size"]
-            )
+            organization.update_storage_usage(basic["file_size"])
             self.db.commit()
 
             return document
@@ -1037,12 +1091,16 @@ class EnhancedFileService:
     async def rescan_file_security(self, document: Document) -> Dict[str, Any]:
         """Rescan document for security threats"""
         try:
-            # Read file content
-            with open(document.file_path, "rb") as f:
-                content = f.read()
+            # Read file content — download from Storage if needed
+            if document.storage_backend == "supabase" and document.storage_path:
+                from src.core.supabase_client import parse_storage_key
 
-            # This is a simplified implementation
-            # In practice, you'd create a proper UploadFile wrapper
+                bucket, key = parse_storage_key(document.storage_path)
+                content = self.storage_helper.download_file(bucket, key)
+            else:
+                with open(document.file_path, "rb") as f:
+                    content = f.read()
+
             class TempUploadFile:
                 def __init__(self, filename: str, content: bytes):
                     self.filename = filename

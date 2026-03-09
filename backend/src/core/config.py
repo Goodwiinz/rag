@@ -181,6 +181,10 @@ class Settings(BaseSettings):
     MAX_FILE_SIZE_MB: int = 10
     FREE_TIER_STORAGE_GB: int = 10
 
+    # Supabase Storage
+    SUPABASE_STORAGE_ENABLED: bool = False
+    SUPABASE_STORAGE_TEMP_DIR: str = "/tmp/rag_storage"
+
     # Security directories
     SECURITY_DIR: str = "./security"  # Directory for encryption keys and security files
 

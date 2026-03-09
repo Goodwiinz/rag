@@ -48,6 +48,10 @@ class Document(BaseModel):
     mime_type = Column(String(100), nullable=False)
     document_type = Column(Enum(DocumentType), nullable=False, index=True)
 
+    # Supabase Storage
+    storage_path = Column(String(2000), nullable=True)  # Storage key (bucket/key)
+    storage_backend = Column(String(20), nullable=False, server_default="local")
+
     # Content
     content_text = Column(Text, nullable=True)  # Extracted text content
     content_summary = Column(Text, nullable=True)  # AI-generated summary
@@ -163,6 +167,11 @@ class Document(BaseModel):
     def set_metadata(self, value):
         """Set document metadata"""
         self.document_metadata = value
+
+    @property
+    def effective_file_path(self) -> str:
+        """Return the best available file path (storage_path preferred over file_path)."""
+        return self.storage_path or self.file_path
 
     @property
     def file_size_mb(self) -> float:
