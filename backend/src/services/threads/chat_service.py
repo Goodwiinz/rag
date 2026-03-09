@@ -5,6 +5,7 @@ Provides CRUD operations for workspaces, conversations, threads, and messages.
 """
 
 import logging
+import uuid as uuid_mod
 from datetime import datetime
 from typing import List, Optional, Tuple
 from uuid import UUID
@@ -371,7 +372,9 @@ class ChatService:
         if not conversation.workspace.can_user_edit(str(user_id)):
             return None
 
+        thread_id = uuid_mod.uuid4()
         thread = Thread(
+            id=thread_id,
             conversation_id=data.conversation_id,
             title=data.title,
             status=ThreadStatus.ACTIVE,
@@ -385,7 +388,7 @@ class ChatService:
         # Create initial message if provided
         if data.initial_message:
             initial_msg = ChatMessage.create_user_message(
-                thread_id=thread.id, user_id=str(user_id), content=data.initial_message
+                thread_id=thread_id, user_id=str(user_id), content=data.initial_message
             )
             self.db.add(initial_msg)
             thread.message_count = 1

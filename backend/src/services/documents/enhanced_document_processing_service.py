@@ -331,8 +331,18 @@ class MultimodalProcessor:
                 processing_time_ms=(datetime.now() - start_time).total_seconds() * 1000
             )
 
-    async def _download_from_storage(self, file_path: str) -> bytes:
-        """Download file from MinIO storage"""
+    async def _download_from_storage(self, file_path: str, document=None) -> bytes:
+        """Download file from storage (Supabase Storage or MinIO).
+
+        If a document is provided and uses Supabase backend, downloads from
+        Supabase Storage. Otherwise falls back to MinIO.
+        """
+        # Check if document uses Supabase Storage
+        if document and getattr(document, "storage_backend", "local") == "supabase" and document.storage_path:
+            from src.services.documents.storage_utils import download_document_bytes
+
+            return download_document_bytes(document)
+
         try:
             bucket_name = settings.MINIO_BUCKET_NAME
             response = self.minio_client.get_object(bucket_name, file_path)
