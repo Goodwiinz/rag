@@ -44,7 +44,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 
 // Navigation items organized by section
 const mainNavItems = [
@@ -84,11 +84,19 @@ export function AppSidebar() {
   const { user, isAuthenticated, logout } = useAuth();
   const { setOpen } = useSidebar();
 
-  // Auto-collapse sidebar on specific routes like /chat
+  // Auto-collapse sidebar when navigating to /chat, but only on route change
+  // so the user can still toggle it open manually
+  const prevPathnameRef = useRef(pathname);
   useEffect(() => {
-    if (pathname === '/chat' || pathname?.startsWith('/chat/')) {
+    const prev = prevPathnameRef.current;
+    prevPathnameRef.current = pathname;
+
+    const isChat = pathname === '/chat' || pathname?.startsWith('/chat/');
+    const wasChat = prev === '/chat' || prev?.startsWith('/chat/');
+
+    if (isChat && !wasChat) {
       setOpen(false);
-    } else {
+    } else if (!isChat && wasChat) {
       setOpen(true);
     }
   }, [pathname, setOpen]);

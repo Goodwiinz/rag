@@ -119,12 +119,16 @@ class EntityService {
   async getEntities(
     limit: number = 100,
     offset: number = 0,
-    entityTypes?: EntityType[]
+    entityTypes?: EntityType[],
+    connectedOnly?: boolean
   ): Promise<PaginatedEntitiesResponse> {
     return withRetry(async () => {
       const params: Record<string, any> = { limit, offset };
       if (entityTypes && entityTypes.length > 0) {
         params.entity_types = entityTypes;
+      }
+      if (connectedOnly) {
+        params.connected_only = true;
       }
       const response = await apiClient.get(`${this.baseUrl}/entities`, {
         params,

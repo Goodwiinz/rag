@@ -5,19 +5,45 @@
 
 'use client';
 
-import React, { useState, useEffect, useCallback, useMemo, Suspense } from 'react';
+import React, {
+  useState,
+  useEffect,
+  useCallback,
+  useMemo,
+  Suspense,
+} from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { Plus, Download, RefreshCw, Network, TrendingUp, Database, Filter, BarChart3, PieChart, Loader2 } from 'lucide-react';
+import {
+  Plus,
+  Download,
+  RefreshCw,
+  Network,
+  TrendingUp,
+  Database,
+  Filter,
+  BarChart3,
+  PieChart,
+  Loader2,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { EntityList } from '@/components/entities/EntityList';
 import { EntityForm } from '@/components/entities/EntityForm';
 import { EntityDetail } from '@/components/entities/EntityDetail';
 import { EntityGraph } from '@/components/entities/EntityGraph';
-import { EntityFilters, SortField, SortOrder } from '@/components/entities/EntityFilters';
+import {
+  EntityFilters,
+  SortField,
+  SortOrder,
+} from '@/components/entities/EntityFilters';
 import { Pagination } from '@/components/entities/Pagination';
 import { RelationshipForm } from '@/components/entities/RelationshipForm';
 import { PathFinder } from '@/components/entities/PathFinder';
@@ -33,7 +59,10 @@ import { KeyboardShortcutsDialog } from '@/components/entities/KeyboardShortcuts
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import { useEntityPermissions } from '@/hooks/useEntityPermissions';
 import { Entity, EntityType, GraphEdge } from '@/types/entity';
-import { entityService, PaginatedEntitiesResponse } from '@/services/entityService';
+import {
+  entityService,
+  PaginatedEntitiesResponse,
+} from '@/services/entityService';
 import { APIErrorClass } from '@/types/api';
 import { cn } from '@/lib/utils';
 import toast from 'react-hot-toast';
@@ -48,8 +77,13 @@ const isServiceUnavailableError = (error: unknown): boolean => {
     );
   }
   const message =
-    error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
-  return message.includes('service unavailable') || message.includes('circuit breaker');
+    error instanceof Error
+      ? error.message.toLowerCase()
+      : String(error).toLowerCase();
+  return (
+    message.includes('service unavailable') ||
+    message.includes('circuit breaker')
+  );
 };
 
 const logEntityPageError = (context: string, error: unknown) => {
@@ -67,6 +101,7 @@ function EntityManagementContent() {
 
   // Core state
   const [entities, setEntities] = useState<Entity[]>([]);
+  const [graphEntities, setGraphEntities] = useState<Entity[]>([]);
   const [relationships, setRelationships] = useState<GraphEdge[]>([]);
   const [selectedEntity, setSelectedEntity] = useState<Entity | null>(null);
   const [loading, setLoading] = useState(true);
@@ -80,7 +115,9 @@ function EntityManagementContent() {
   // Filter state
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTypes, setSelectedTypes] = useState<EntityType[]>([]);
-  const [confidenceRange, setConfidenceRange] = useState<[number, number]>([0, 100]);
+  const [confidenceRange, setConfidenceRange] = useState<[number, number]>([
+    0, 100,
+  ]);
   const [sortField, setSortField] = useState<SortField>('created_at');
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
 
@@ -92,29 +129,31 @@ function EntityManagementContent() {
   const [sourceEntityId, setSourceEntityId] = useState<string | null>(null);
   const [shortcutsDialogOpen, setShortcutsDialogOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
-  
+
   // Dynamic types from API
-  const [availableEntityTypes, setAvailableEntityTypes] = useState<string[]>([]);
-  const [availableRelationshipTypes, setAvailableRelationshipTypes] = useState<string[]>([]);
+  const [availableEntityTypes, setAvailableEntityTypes] = useState<string[]>(
+    []
+  );
+  const [availableRelationshipTypes, setAvailableRelationshipTypes] = useState<
+    string[]
+  >([]);
   const [typeCounts, setTypeCounts] = useState<Record<string, number>>({});
 
   useEffect(() => {
     setMounted(true);
-    
+
     // Initialize state from URL params
     const tab = searchParams.get('tab');
     const entityId = searchParams.get('entity');
     const page = searchParams.get('page');
     const types = searchParams.get('types');
-    
+
     if (tab) setActiveTab(tab);
     if (page) setCurrentPage(parseInt(page));
     if (types) {
       setSelectedTypes(types.split(',') as EntityType[]);
     }
   }, []);
-
-
 
   // Update URL when state changes
   useEffect(() => {
@@ -125,7 +164,7 @@ function EntityManagementContent() {
     if (currentPage !== 1) params.set('page', currentPage.toString());
     if (selectedTypes.length > 0) params.set('types', selectedTypes.join(','));
     if (selectedEntity) params.set('entity', selectedEntity.id);
-    
+
     const newUrl = params.toString() ? `?${params.toString()}` : '/entities';
     router.replace(newUrl, { scroll: false });
   }, [activeTab, currentPage, selectedTypes, selectedEntity, mounted, router]);
@@ -137,7 +176,7 @@ function EntityManagementContent() {
         const [entityTypes, relationshipTypes, analytics] = await Promise.all([
           entityService.getEntityTypes(),
           entityService.getRelationshipTypes(),
-          entityService.getAnalytics()
+          entityService.getAnalytics(),
         ]);
         setAvailableEntityTypes(entityTypes);
         setAvailableRelationshipTypes(relationshipTypes);
@@ -163,22 +202,24 @@ function EntityManagementContent() {
 
       // Handle paginated response
       const paginatedResponse = response as PaginatedEntitiesResponse;
-      
+
       // Convert EntityResponse to Entity format for display
-      const convertedEntities: Entity[] = paginatedResponse.entities.map(entity => ({
-        id: entity.id,
-        name: entity.name,
-        type: entity.entity_type,
-        confidence: entity.confidence_score,
-        confidence_score: entity.confidence_score,
-        extraction_method: entity.extraction_method,
-        position: entity.position,
-        context: entity.context,
-        metadata: entity.metadata,
-        created_at: entity.created_at,
-        updated_at: entity.updated_at,
-        source_document_id: entity.source_document_id
-      }));
+      const convertedEntities: Entity[] = paginatedResponse.entities.map(
+        (entity) => ({
+          id: entity.id,
+          name: entity.name,
+          type: entity.entity_type,
+          confidence: entity.confidence_score,
+          confidence_score: entity.confidence_score,
+          extraction_method: entity.extraction_method,
+          position: entity.position,
+          context: entity.context,
+          metadata: entity.metadata,
+          created_at: entity.created_at,
+          updated_at: entity.updated_at,
+          source_document_id: entity.source_document_id,
+        })
+      );
 
       setEntities(convertedEntities);
       setTotalEntities(paginatedResponse.total);
@@ -192,15 +233,36 @@ function EntityManagementContent() {
     }
   }, [currentPage, pageSize, selectedTypes]);
 
-  // Fetch relationships for graph view
+  // Fetch relationships and connected entities for graph view
   const fetchRelationships = useCallback(async () => {
     try {
       setRelationshipsLoading(true);
-      const rels = await entityService.getAllRelationships(500);
+      const [rels, connectedResponse] = await Promise.all([
+        entityService.getAllRelationships(500),
+        entityService.getEntities(500, 0, undefined, true),
+      ]);
       setRelationships(rels);
+
+      const paginatedResponse = connectedResponse as PaginatedEntitiesResponse;
+      const converted: Entity[] = paginatedResponse.entities.map((entity) => ({
+        id: entity.id,
+        name: entity.name,
+        type: entity.entity_type,
+        confidence: entity.confidence_score,
+        confidence_score: entity.confidence_score,
+        extraction_method: entity.extraction_method,
+        position: entity.position,
+        context: entity.context,
+        metadata: entity.metadata,
+        created_at: entity.created_at,
+        updated_at: entity.updated_at,
+        source_document_id: entity.source_document_id,
+      }));
+      setGraphEntities(converted);
     } catch (error) {
       logEntityPageError('Error fetching relationships', error);
       setRelationships([]);
+      setGraphEntities([]);
     } finally {
       setRelationshipsLoading(false);
     }
@@ -211,12 +273,12 @@ function EntityManagementContent() {
     fetchEntities();
   }, [fetchEntities]);
 
-  // Fetch relationships when switching to graph tab
+  // Fetch relationships and connected entities when switching to graph tab
   useEffect(() => {
-    if (activeTab === 'graph' && relationships.length === 0) {
+    if (activeTab === 'graph' && graphEntities.length === 0) {
       fetchRelationships();
     }
-  }, [activeTab, relationships.length, fetchRelationships]);
+  }, [activeTab, graphEntities.length, fetchRelationships]);
 
   // Client-side filtering and sorting
   const filteredEntities = useMemo(() => {
@@ -225,12 +287,16 @@ function EntityManagementContent() {
     // Filter by entity type (including special null type filter)
     if (selectedTypes.length > 0) {
       const hasNullFilter = selectedTypes.includes('__null__' as EntityType);
-      const regularTypes = selectedTypes.filter(t => t !== '__null__' as any);
+      const regularTypes = selectedTypes.filter(
+        (t) => t !== ('__null__' as any)
+      );
 
-      filtered = filtered.filter(entity => {
+      filtered = filtered.filter((entity) => {
         const entityType = entity.type as string;
-        const isNullType = !entityType || entityType === '' || entityType === 'null';
-        const matchesRegularType = regularTypes.length === 0 || regularTypes.includes(entity.type);
+        const isNullType =
+          !entityType || entityType === '' || entityType === 'null';
+        const matchesRegularType =
+          regularTypes.length === 0 || regularTypes.includes(entity.type);
 
         if (hasNullFilter && regularTypes.length > 0) {
           // Include both null types AND regular selected types
@@ -248,17 +314,20 @@ function EntityManagementContent() {
     // Filter by search query
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(entity =>
-        entity.name.toLowerCase().includes(query) ||
-        (entity.type && entity.type.toLowerCase().includes(query)) ||
-        entity.metadata?.description?.toLowerCase().includes(query)
+      filtered = filtered.filter(
+        (entity) =>
+          entity.name.toLowerCase().includes(query) ||
+          (entity.type && entity.type.toLowerCase().includes(query)) ||
+          entity.metadata?.description?.toLowerCase().includes(query)
       );
     }
 
     // Filter by confidence range
-    filtered = filtered.filter(entity => {
+    filtered = filtered.filter((entity) => {
       const confidence = (entity.confidence || 0) * 100;
-      return confidence >= confidenceRange[0] && confidence <= confidenceRange[1];
+      return (
+        confidence >= confidenceRange[0] && confidence <= confidenceRange[1]
+      );
     });
 
     // Sort
@@ -272,7 +341,8 @@ function EntityManagementContent() {
           comparison = (a.confidence || 0) - (b.confidence || 0);
           break;
         case 'created_at':
-          comparison = new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+          comparison =
+            new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
           break;
         case 'type':
           comparison = (a.type || '').localeCompare(b.type || '');
@@ -282,7 +352,14 @@ function EntityManagementContent() {
     });
 
     return filtered;
-  }, [entities, selectedTypes, searchQuery, confidenceRange, sortField, sortOrder]);
+  }, [
+    entities,
+    selectedTypes,
+    searchQuery,
+    confidenceRange,
+    sortField,
+    sortOrder,
+  ]);
 
   // Calculate statistics
   const statistics = useMemo(() => {
@@ -290,10 +367,10 @@ function EntityManagementContent() {
     let totalConfidence = 0;
     let confidenceCount = 0;
 
-    entities.forEach(entity => {
+    entities.forEach((entity) => {
       // Type distribution
       typeDistribution[entity.type] = (typeDistribution[entity.type] || 0) + 1;
-      
+
       // Average confidence
       if (entity.confidence) {
         totalConfidence += entity.confidence;
@@ -304,7 +381,8 @@ function EntityManagementContent() {
     return {
       totalEntities,
       uniqueTypes: Object.keys(typeDistribution).length,
-      averageConfidence: confidenceCount > 0 ? totalConfidence / confidenceCount : 0,
+      averageConfidence:
+        confidenceCount > 0 ? totalConfidence / confidenceCount : 0,
       typeDistribution,
       totalRelationships: relationships.length,
     };
@@ -339,7 +417,10 @@ function EntityManagementContent() {
     setCurrentPage(1);
   };
 
-  const handleEntityUpdate = async (entityId: string, updates: Partial<Entity>) => {
+  const handleEntityUpdate = async (
+    entityId: string,
+    updates: Partial<Entity>
+  ) => {
     try {
       await entityService.updateEntity(entityId, updates);
       await fetchEntities();
@@ -352,7 +433,11 @@ function EntityManagementContent() {
   };
 
   const handleEntityDelete = async (entityId: string) => {
-    if (!window.confirm('Are you sure you want to delete this entity and all its relationships?')) {
+    if (
+      !window.confirm(
+        'Are you sure you want to delete this entity and all its relationships?'
+      )
+    ) {
       return;
     }
 
@@ -368,7 +453,8 @@ function EntityManagementContent() {
 
   const exportEntities = () => {
     const dataStr = JSON.stringify(filteredEntities, null, 2);
-    const dataUri = 'data:application/json;charset=utf-8,' + encodeURIComponent(dataStr);
+    const dataUri =
+      'data:application/json;charset=utf-8,' + encodeURIComponent(dataStr);
     const exportFileDefaultName = `entities-${new Date().toISOString().split('T')[0]}.json`;
     const linkElement = document.createElement('a');
     linkElement.setAttribute('href', dataUri);
@@ -409,19 +495,76 @@ function EntityManagementContent() {
   const totalPages = Math.ceil(totalEntities / pageSize);
 
   // Keyboard shortcuts
-  useKeyboardShortcuts([
-    { key: 'n', ctrl: true, action: () => {  setSelectedEntity(null); setEditDialogOpen(true); }, description: 'Create new entity' },
-    { key: 'r', ctrl: true, action: () => { fetchEntities(); if (activeTab === 'graph') fetchRelationships(); }, description: 'Refresh data' },
-    { key: 'e', ctrl: true, shift: true, action: exportEntities, description: 'Export data' },
-    { key: 'g', action: () => setActiveTab('graph'), description: 'Toggle graph view' },
-    { key: 'a', action: () => setActiveTab('analytics'), description: 'Toggle analytics' },
-    { key: 'p', action: () => setActiveTab('pathfinder'), description: 'Open path finder' },
-    { key: 'b', action: () => setActiveTab('bulk'), description: 'Open bulk operations' },
-    { key: 'h', action: () => setActiveTab('health'), description: 'Open health monitor' },
-    { key: 'm', action: () => setActiveTab('merge'), description: 'Open merge tool' },
-    { key: 'd', action: () => setActiveTab('extractor'), description: 'Open document extractor' },
-    { key: '?', action: () => setShortcutsDialogOpen(true), description: 'Show keyboard shortcuts' },
-  ], mounted);
+  useKeyboardShortcuts(
+    [
+      {
+        key: 'n',
+        ctrl: true,
+        action: () => {
+          setSelectedEntity(null);
+          setEditDialogOpen(true);
+        },
+        description: 'Create new entity',
+      },
+      {
+        key: 'r',
+        ctrl: true,
+        action: () => {
+          fetchEntities();
+          if (activeTab === 'graph') fetchRelationships();
+        },
+        description: 'Refresh data',
+      },
+      {
+        key: 'e',
+        ctrl: true,
+        shift: true,
+        action: exportEntities,
+        description: 'Export data',
+      },
+      {
+        key: 'g',
+        action: () => setActiveTab('graph'),
+        description: 'Toggle graph view',
+      },
+      {
+        key: 'a',
+        action: () => setActiveTab('analytics'),
+        description: 'Toggle analytics',
+      },
+      {
+        key: 'p',
+        action: () => setActiveTab('pathfinder'),
+        description: 'Open path finder',
+      },
+      {
+        key: 'b',
+        action: () => setActiveTab('bulk'),
+        description: 'Open bulk operations',
+      },
+      {
+        key: 'h',
+        action: () => setActiveTab('health'),
+        description: 'Open health monitor',
+      },
+      {
+        key: 'm',
+        action: () => setActiveTab('merge'),
+        description: 'Open merge tool',
+      },
+      {
+        key: 'd',
+        action: () => setActiveTab('extractor'),
+        description: 'Open document extractor',
+      },
+      {
+        key: '?',
+        action: () => setShortcutsDialogOpen(true),
+        description: 'Show keyboard shortcuts',
+      },
+    ],
+    mounted
+  );
 
   if (!mounted) return null;
 
@@ -460,7 +603,12 @@ function EntityManagementContent() {
                 disabled={loading}
                 className="font-mono text-[10px] font-bold border-[var(--terminal-border)] hover:bg-[var(--terminal-elevated)]"
               >
-                <RefreshCw className={cn("h-3.5 w-3.5 mr-1.5", loading && "animate-spin")} />
+                <RefreshCw
+                  className={cn(
+                    'h-3.5 w-3.5 mr-1.5',
+                    loading && 'animate-spin'
+                  )}
+                />
                 REFRESH
               </Button>
               <Button
@@ -504,7 +652,11 @@ function EntityManagementContent() {
               onClearFilters={handleClearFilters}
               totalCount={totalEntities}
               filteredCount={filteredEntities.length}
-              availableTypes={availableEntityTypes.length > 0 ? availableEntityTypes : undefined}
+              availableTypes={
+                availableEntityTypes.length > 0
+                  ? availableEntityTypes
+                  : undefined
+              }
               typeCounts={typeCounts}
             />
           </CardContent>
@@ -513,34 +665,64 @@ function EntityManagementContent() {
         {/* Workspace Area */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="bg-[var(--terminal-bg)] border border-[var(--terminal-border)] p-1 rounded-xl mb-4 flex-wrap">
-            <TabsTrigger value="list" className="rounded-lg data-[state=active]:bg-[var(--terminal-elevated)] data-[state=active]:text-[var(--phosphor-green)] font-mono text-xs font-bold">
+            <TabsTrigger
+              value="list"
+              className="rounded-lg data-[state=active]:bg-[var(--terminal-elevated)] data-[state=active]:text-[var(--phosphor-green)] font-mono text-xs font-bold"
+            >
               LIST_LOG
             </TabsTrigger>
-            <TabsTrigger value="graph" className="rounded-lg data-[state=active]:bg-[var(--terminal-elevated)] data-[state=active]:text-[var(--phosphor-green)] font-mono text-xs font-bold">
+            <TabsTrigger
+              value="graph"
+              className="rounded-lg data-[state=active]:bg-[var(--terminal-elevated)] data-[state=active]:text-[var(--phosphor-green)] font-mono text-xs font-bold"
+            >
               GRAPH_VIZ
             </TabsTrigger>
-            <TabsTrigger value="statistics" className="rounded-lg data-[state=active]:bg-[var(--terminal-elevated)] data-[state=active]:text-[var(--phosphor-green)] font-mono text-xs font-bold">
+            <TabsTrigger
+              value="statistics"
+              className="rounded-lg data-[state=active]:bg-[var(--terminal-elevated)] data-[state=active]:text-[var(--phosphor-green)] font-mono text-xs font-bold"
+            >
               METRICS
             </TabsTrigger>
-            <TabsTrigger value="pathfinder" className="rounded-lg data-[state=active]:bg-[var(--terminal-elevated)] data-[state=active]:text-[var(--phosphor-green)] font-mono text-xs font-bold">
+            <TabsTrigger
+              value="pathfinder"
+              className="rounded-lg data-[state=active]:bg-[var(--terminal-elevated)] data-[state=active]:text-[var(--phosphor-green)] font-mono text-xs font-bold"
+            >
               PATH_FINDER
             </TabsTrigger>
-            <TabsTrigger value="search" className="rounded-lg data-[state=active]:bg-[var(--terminal-elevated)] data-[state=active]:text-[var(--phosphor-green)] font-mono text-xs font-bold">
+            <TabsTrigger
+              value="search"
+              className="rounded-lg data-[state=active]:bg-[var(--terminal-elevated)] data-[state=active]:text-[var(--phosphor-green)] font-mono text-xs font-bold"
+            >
               SEARCH
             </TabsTrigger>
-            <TabsTrigger value="analytics" className="rounded-lg data-[state=active]:bg-[var(--terminal-elevated)] data-[state=active]:text-[var(--phosphor-green)] font-mono text-xs font-bold">
+            <TabsTrigger
+              value="analytics"
+              className="rounded-lg data-[state=active]:bg-[var(--terminal-elevated)] data-[state=active]:text-[var(--phosphor-green)] font-mono text-xs font-bold"
+            >
               ANALYTICS
             </TabsTrigger>
-            <TabsTrigger value="bulk" className="rounded-lg data-[state=active]:bg-[var(--terminal-elevated)] data-[state=active]:text-[var(--phosphor-green)] font-mono text-xs font-bold">
+            <TabsTrigger
+              value="bulk"
+              className="rounded-lg data-[state=active]:bg-[var(--terminal-elevated)] data-[state=active]:text-[var(--phosphor-green)] font-mono text-xs font-bold"
+            >
               BULK_OPS
             </TabsTrigger>
-            <TabsTrigger value="extractor" className="rounded-lg data-[state=active]:bg-[var(--terminal-elevated)] data-[state=active]:text-[var(--phosphor-green)] font-mono text-xs font-bold">
+            <TabsTrigger
+              value="extractor"
+              className="rounded-lg data-[state=active]:bg-[var(--terminal-elevated)] data-[state=active]:text-[var(--phosphor-green)] font-mono text-xs font-bold"
+            >
               EXTRACTOR
             </TabsTrigger>
-            <TabsTrigger value="merge" className="rounded-lg data-[state=active]:bg-[var(--terminal-elevated)] data-[state=active]:text-[var(--phosphor-green)] font-mono text-xs font-bold">
+            <TabsTrigger
+              value="merge"
+              className="rounded-lg data-[state=active]:bg-[var(--terminal-elevated)] data-[state=active]:text-[var(--phosphor-green)] font-mono text-xs font-bold"
+            >
               MERGE
             </TabsTrigger>
-            <TabsTrigger value="health" className="rounded-lg data-[state=active]:bg-[var(--terminal-elevated)] data-[state=active]:text-[var(--phosphor-green)] font-mono text-xs font-bold">
+            <TabsTrigger
+              value="health"
+              className="rounded-lg data-[state=active]:bg-[var(--terminal-elevated)] data-[state=active]:text-[var(--phosphor-green)] font-mono text-xs font-bold"
+            >
               HEALTH
             </TabsTrigger>
           </TabsList>
@@ -587,20 +769,20 @@ function EntityManagementContent() {
                       <div className="absolute top-1/2 -right-6 w-3 h-3 rounded-full bg-[var(--terminal-border)] animate-pulse delay-300" />
                       <div className="absolute -top-4 left-1/2 w-2 h-2 rounded-full bg-[var(--terminal-border)] animate-pulse delay-500" />
                     </div>
-                    
+
                     {/* Loading spinner */}
                     <Loader2 className="w-6 h-6 text-[var(--phosphor-green)] animate-spin" />
-                    
+
                     {/* Status text */}
                     <div className="text-center space-y-2">
                       <p className="font-mono text-sm text-[var(--terminal-text)]">
                         LOADING_GRAPH_DATA...
                       </p>
                       <p className="font-mono text-xs text-[var(--terminal-text-dim)]">
-                        Fetching {filteredEntities.length} nodes and relationships
+                        Fetching connected nodes and relationships
                       </p>
                     </div>
-                    
+
                     {/* Progress skeleton bars */}
                     <div className="w-48 space-y-2">
                       <div className="h-1 bg-[var(--terminal-bg)] rounded-full overflow-hidden border border-[var(--terminal-border)]">
@@ -611,7 +793,7 @@ function EntityManagementContent() {
                 </div>
               ) : (
                 <EntityGraph
-                  entities={filteredEntities}
+                  entities={graphEntities}
                   relationships={relationships}
                   onEntityClick={(entity) => {
                     setSelectedEntity(entity);
@@ -623,25 +805,59 @@ function EntityManagementContent() {
             </div>
           </TabsContent>
 
-          <TabsContent value="statistics" className="mt-0 outline-none space-y-6">
+          <TabsContent
+            value="statistics"
+            className="mt-0 outline-none space-y-6"
+          >
             {/* Summary Cards */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               {[
-                { label: 'Total Entities', value: statistics.totalEntities.toLocaleString(), icon: Database, color: 'var(--phosphor-green)' },
-                { label: 'Unique Types', value: statistics.uniqueTypes, icon: Filter, color: 'var(--cyan)' },
-                { label: 'Avg Confidence', value: `${(statistics.averageConfidence * 100).toFixed(1)}%`, icon: TrendingUp, color: 'var(--amber-gold)' },
-                { label: 'Relationships', value: statistics.totalRelationships.toLocaleString(), icon: Network, color: 'var(--purple)' },
+                {
+                  label: 'Total Entities',
+                  value: statistics.totalEntities.toLocaleString(),
+                  icon: Database,
+                  color: 'var(--phosphor-green)',
+                },
+                {
+                  label: 'Unique Types',
+                  value: statistics.uniqueTypes,
+                  icon: Filter,
+                  color: 'var(--cyan)',
+                },
+                {
+                  label: 'Avg Confidence',
+                  value: `${(statistics.averageConfidence * 100).toFixed(1)}%`,
+                  icon: TrendingUp,
+                  color: 'var(--amber-gold)',
+                },
+                {
+                  label: 'Relationships',
+                  value: statistics.totalRelationships.toLocaleString(),
+                  icon: Network,
+                  color: 'var(--purple)',
+                },
               ].map((stat) => (
-                <Card key={stat.label} className="border-[var(--terminal-border)] bg-[var(--terminal-surface)] shadow-lg overflow-hidden relative group">
-                  <div className="absolute top-0 left-0 w-1 h-full opacity-20 group-hover:opacity-100 transition-opacity" style={{ backgroundColor: stat.color }} />
+                <Card
+                  key={stat.label}
+                  className="border-[var(--terminal-border)] bg-[var(--terminal-surface)] shadow-lg overflow-hidden relative group"
+                >
+                  <div
+                    className="absolute top-0 left-0 w-1 h-full opacity-20 group-hover:opacity-100 transition-opacity"
+                    style={{ backgroundColor: stat.color }}
+                  />
                   <CardHeader className="p-4 pb-1">
                     <CardTitle className="text-[10px] font-mono text-[var(--terminal-text-dim)] uppercase tracking-widest flex items-center gap-2">
-                      <stat.icon className="w-3 h-3" style={{ color: stat.color }} />
+                      <stat.icon
+                        className="w-3 h-3"
+                        style={{ color: stat.color }}
+                      />
                       {stat.label}
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="p-4 pt-0">
-                    <p className="text-2xl font-mono font-bold text-[var(--terminal-text)]">{stat.value}</p>
+                    <p className="text-2xl font-mono font-bold text-[var(--terminal-text)]">
+                      {stat.value}
+                    </p>
                   </CardContent>
                 </Card>
               ))}
@@ -664,7 +880,9 @@ function EntityManagementContent() {
                       return (
                         <div key={type} className="space-y-1">
                           <div className="flex justify-between text-xs font-mono">
-                            <span className="text-[var(--terminal-text)]">{type}</span>
+                            <span className="text-[var(--terminal-text)]">
+                              {type}
+                            </span>
                             <span className="text-[var(--terminal-text-dim)]">
                               {count} ({percentage.toFixed(1)}%)
                             </span>
@@ -688,7 +906,7 @@ function EntityManagementContent() {
             <PathFinder
               entities={entities}
               onEntityClick={(entityId) => {
-                const entity = entities.find(e => e.id === entityId);
+                const entity = entities.find((e) => e.id === entityId);
                 if (entity) {
                   setSelectedEntity(entity);
                   setDetailDialogOpen(true);
@@ -701,7 +919,7 @@ function EntityManagementContent() {
           <TabsContent value="search" className="mt-0 outline-none">
             <EnhancedSearch
               onEntityClick={(entityId) => {
-                const entity = entities.find(e => e.id === entityId);
+                const entity = entities.find((e) => e.id === entityId);
                 if (entity) {
                   setSelectedEntity(entity);
                   setDetailDialogOpen(true);
@@ -712,7 +930,7 @@ function EntityManagementContent() {
 
           {/* Analytics Dashboard Tab */}
           <TabsContent value="analytics" className="mt-0 outline-none">
-            <GraphAnalyticsDashboard 
+            <GraphAnalyticsDashboard
               onTypeClick={(entityType) => {
                 // Filter by clicked entity type
                 setSelectedTypes([entityType]);
@@ -790,7 +1008,9 @@ function EntityManagementContent() {
       <Dialog open={detailDialogOpen} onOpenChange={setDetailDialogOpen}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto bg-[var(--terminal-surface)] border-[var(--terminal-border)] text-[var(--terminal-text)] font-mono">
           <DialogHeader className="border-b border-[var(--terminal-border)] pb-4">
-            <DialogTitle className="text-lg font-bold tracking-tight uppercase">Node_Analysis_Dump</DialogTitle>
+            <DialogTitle className="text-lg font-bold tracking-tight uppercase">
+              Node_Analysis_Dump
+            </DialogTitle>
           </DialogHeader>
           {selectedEntity && (
             <div className="py-4">
@@ -812,13 +1032,18 @@ function EntityManagementContent() {
       </Dialog>
 
       {/* Relationship Creation Dialog */}
-      <Dialog open={relationshipDialogOpen} onOpenChange={(open) => {
-        setRelationshipDialogOpen(open);
-        if (!open) setSourceEntityId(null);
-      }}>
+      <Dialog
+        open={relationshipDialogOpen}
+        onOpenChange={(open) => {
+          setRelationshipDialogOpen(open);
+          if (!open) setSourceEntityId(null);
+        }}
+      >
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto bg-[var(--terminal-surface)] border-[var(--terminal-border)] text-[var(--terminal-text)] font-mono">
           <DialogHeader className="border-b border-[var(--terminal-border)] pb-4">
-            <DialogTitle className="text-lg font-bold tracking-tight uppercase">ESTABLISH_NEW_LINK</DialogTitle>
+            <DialogTitle className="text-lg font-bold tracking-tight uppercase">
+              ESTABLISH_NEW_LINK
+            </DialogTitle>
           </DialogHeader>
           <div className="py-4">
             <RelationshipForm
