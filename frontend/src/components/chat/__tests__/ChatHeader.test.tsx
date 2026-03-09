@@ -48,6 +48,7 @@ describe('ChatHeader', () => {
     expect(screen.getByLabelText('Terminal')).toBeInTheDocument();
     expect(screen.getByLabelText('Settings')).toBeInTheDocument();
     expect(screen.getByLabelText('Select workspace')).toBeInTheDocument();
+    expect(screen.getByLabelText('Open command palette')).toBeInTheDocument();
   });
 
   it('displays the clock time', () => {

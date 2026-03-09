@@ -21,10 +21,6 @@ export {
   default as CitationRendererComponent,
 } from './CitationRenderer';
 export {
-  MessageBubble,
-  default as MessageBubbleComponent,
-} from './MessageBubble';
-export {
   ModelSelector,
   default as ModelSelectorComponent,
 } from './ModelSelector';

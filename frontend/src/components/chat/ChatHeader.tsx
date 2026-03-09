@@ -13,10 +13,12 @@ import { memo, useEffect, useState } from 'react';
 
 interface ChatHeaderProps {
   currentWorkspace: Workspace | null;
+  onCommandPaletteOpen?: () => void;
 }
 
 export const ChatHeader = memo(function ChatHeader({
   currentWorkspace,
+  onCommandPaletteOpen,
 }: ChatHeaderProps) {
   const [time, setTime] = useState<string>('00:00:00');
 
@@ -70,6 +72,16 @@ export const ChatHeader = memo(function ChatHeader({
           type="text"
           placeholder="Search or command..."
           readOnly
+          role="button"
+          aria-label="Open command palette"
+          tabIndex={0}
+          onClick={onCommandPaletteOpen}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              onCommandPaletteOpen?.();
+            }
+          }}
           className="w-full bg-[var(--terminal-surface)] border border-[var(--terminal-border)] rounded-md py-1.5 pl-9 pr-[60px] text-xs text-[var(--terminal-text)] cursor-pointer hover:border-[var(--phosphor-green)]/30 transition-colors"
           style={{ fontFamily: "'JetBrains Mono', monospace" }}
         />
