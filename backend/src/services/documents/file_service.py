@@ -53,10 +53,24 @@ class FileStorageError(Exception):
 class FileService:
     """Service for handling file uploads, validation, and storage"""
 
+    # Map document types to storage bucket names
+    TYPE_TO_BUCKET = {
+        DocumentType.TEXT: "documents",
+        DocumentType.PDF: "documents",
+        DocumentType.SPREADSHEET: "documents",
+        DocumentType.PRESENTATION: "documents",
+        DocumentType.IMAGE: "images",
+        DocumentType.AUDIO: "audio",
+        DocumentType.VIDEO: "video",
+        DocumentType.MULTIMODAL: "documents",
+    }
+
     def __init__(self, db: AsyncSession):
         self.db = db
         self.upload_dir = Path(settings.UPLOAD_DIR)
         self.upload_dir.mkdir(parents=True, exist_ok=True)
+        self._storage_enabled = settings.SUPABASE_STORAGE_ENABLED
+        self._storage_helper = None
 
         # Create subdirectories for different file types
         self.create_subdirectories()
@@ -67,6 +81,43 @@ class FileService:
 
         for subdir in subdirs:
             (self.upload_dir / subdir).mkdir(parents=True, exist_ok=True)
+
+    @property
+    def storage_helper(self):
+        """Lazy-load StorageHelper only when Supabase Storage is enabled."""
+        if self._storage_helper is None and self._storage_enabled:
+            from src.core.supabase_client import StorageHelper
+
+            self._storage_helper = StorageHelper()
+        return self._storage_helper
+
+    def generate_storage_key(
+        self,
+        document_type: DocumentType,
+        organization_id: str,
+        doc_id: str,
+        ext: str,
+    ) -> tuple[str, str]:
+        """Generate a Supabase Storage key for a file.
+
+        Returns (bucket, key) tuple.
+        """
+        bucket = self.TYPE_TO_BUCKET.get(document_type, "documents")
+        key = f"{organization_id}/{doc_id}/{int(time.time())}_{uuid.uuid4().hex[:8]}{ext}"
+        return bucket, key
+
+    async def save_file_to_storage(
+        self, file: UploadFile, bucket: str, key: str, mime_type: str
+    ) -> str:
+        """Upload file content to Supabase Storage. Returns the full storage key."""
+        content = await file.read()
+        file.file.seek(0)
+        return self.storage_helper.upload_file(bucket, key, content, mime_type)
+
+    @staticmethod
+    def calculate_file_hash_from_bytes(data: bytes) -> str:
+        """Calculate SHA-256 hash from raw bytes."""
+        return hashlib.sha256(data).hexdigest()
 
     def get_file_type(self, filename: str, content: bytes = None) -> DocumentType:
         """Determine document type based on file extension and content"""
@@ -271,36 +322,69 @@ class FileService:
         try:
             # Validate file
             validation_result = self.validate_file(file, user, organization)
-
-            # Generate file path
-            file_path = self.generate_file_path(
-                validation_result["document_type"], str(organization.id)
-            )
-
-            # Add original extension to file path
             original_ext = Path(file.filename).suffix
-            file_path_with_ext = f"{file_path}{original_ext}"
+            mime_type = validation_result["mime_type"] or "application/octet-stream"
 
-            # Save file
-            saved_path = await self.save_file(file, file_path_with_ext)
+            if self._storage_enabled:
+                # --- Supabase Storage path ---
+                # We need a doc_id before uploading, generate one ahead of time
+                doc_id = str(uuid.uuid4())
+                bucket, key = self.generate_storage_key(
+                    validation_result["document_type"],
+                    str(organization.id),
+                    doc_id,
+                    original_ext,
+                )
 
-            # Calculate file hash
-            file_hash = self.calculate_file_hash(saved_path)
+                # Read file content for hash + upload
+                file_content = await file.read()
+                file.file.seek(0)
+                file_hash = self.calculate_file_hash_from_bytes(file_content)
 
-            # Create document record
-            document = Document(
-                title=title,
-                filename=file.filename,
-                file_path=saved_path,
-                file_size_bytes=validation_result["file_size"],
-                mime_type=validation_result["mime_type"],
-                document_type=validation_result["document_type"],
-                processing_status=ProcessingStatus.PENDING,
-                is_public=is_public,
-                tags=tags or [],
-                organization_id=organization.id,
-                uploaded_by_user_id=user.id,
-            )
+                # Upload to Supabase Storage
+                storage_key = self.storage_helper.upload_file(
+                    bucket, key, file_content, mime_type
+                )
+
+                document = Document(
+                    id=doc_id,
+                    title=title,
+                    filename=file.filename,
+                    file_path=f"supabase://{storage_key}",
+                    file_size_bytes=validation_result["file_size"],
+                    mime_type=mime_type,
+                    document_type=validation_result["document_type"],
+                    processing_status=ProcessingStatus.PENDING,
+                    is_public=is_public,
+                    tags=tags or [],
+                    organization_id=organization.id,
+                    uploaded_by_user_id=user.id,
+                    storage_path=storage_key,
+                    storage_backend="supabase",
+                )
+            else:
+                # --- Local filesystem path (unchanged) ---
+                file_path = self.generate_file_path(
+                    validation_result["document_type"], str(organization.id)
+                )
+                file_path_with_ext = f"{file_path}{original_ext}"
+                saved_path = await self.save_file(file, file_path_with_ext)
+                file_hash = self.calculate_file_hash(saved_path)
+
+                document = Document(
+                    title=title,
+                    filename=file.filename,
+                    file_path=saved_path,
+                    file_size_bytes=validation_result["file_size"],
+                    mime_type=mime_type,
+                    document_type=validation_result["document_type"],
+                    processing_status=ProcessingStatus.PENDING,
+                    is_public=is_public,
+                    tags=tags or [],
+                    organization_id=organization.id,
+                    uploaded_by_user_id=user.id,
+                    storage_backend="local",
+                )
 
             # Add file hash as metadata
             document.add_metadata("file_hash", file_hash)
@@ -324,12 +408,13 @@ class FileService:
                 created_by_user_id=user.id,
                 parameters={
                     "document_id": str(document.id),
-                    "file_path": document.file_path,
+                    "file_path": document.effective_file_path,
                     "document_type": document.document_type.value,
                     "mime_type": document.mime_type,
+                    "storage_backend": document.storage_backend,
                 },
                 config={"max_retries": 3, "timeout_seconds": 300},
-                total_steps=5,  # Text extraction, entity extraction, embedding, indexing, quality check
+                total_steps=5,
                 queue_name="document_processing",
             )
 
@@ -349,10 +434,21 @@ class FileService:
             raise FileStorageError(f"Failed to upload file: {str(e)}")
 
     def extract_text_content(self, document: Document) -> str:
-        """Extract text content from document"""
-        try:
-            file_path = document.file_path
+        """Extract text content from document.
 
+        Uses local_file_for_document to transparently handle Supabase-backed files.
+        """
+        from src.services.documents.storage_utils import local_file_for_document
+
+        try:
+            with local_file_for_document(document) as file_path:
+                return self._extract_text_from_path(file_path, document)
+        except Exception as e:
+            return f"Error extracting text: {str(e)}"
+
+    def _extract_text_from_path(self, file_path: str, document: Document) -> str:
+        """Extract text from a local file path."""
+        try:
             if document.document_type == DocumentType.TEXT:
                 # Simple text file
                 with open(file_path, "r", encoding="utf-8") as f:
@@ -411,12 +507,20 @@ class FileService:
             return f"Error extracting text: {str(e)}"
 
     def extract_metadata(self, document: Document) -> Dict[str, Any]:
-        """Extract metadata from document"""
+        """Extract metadata from document.
+
+        Uses local_file_for_document to transparently handle Supabase-backed files.
+        """
+        from src.services.documents.storage_utils import local_file_for_document
+
+        with local_file_for_document(document) as file_path:
+            return self._extract_metadata_from_path(file_path, document)
+
+    def _extract_metadata_from_path(self, file_path: str, document: Document) -> Dict[str, Any]:
+        """Extract metadata from a local file path."""
         metadata = {}
 
         try:
-            file_path = document.file_path
-
             if document.document_type == DocumentType.IMAGE:
                 # Image metadata
                 with Image.open(file_path) as img:
@@ -470,6 +574,17 @@ class FileService:
 
         return metadata
 
+    def delete_physical_file(self, document: Document) -> None:
+        """Delete the physical file from either Supabase Storage or local disk."""
+        if document.storage_backend == "supabase" and document.storage_path:
+            from src.core.supabase_client import parse_storage_key
+
+            bucket, key = parse_storage_key(document.storage_path)
+            self.storage_helper.delete_file(bucket, key)
+        else:
+            if os.path.exists(document.file_path):
+                os.remove(document.file_path)
+
     async def delete_file(self, document: Document, user: User) -> bool:
         """Delete file and update storage"""
         try:
@@ -482,9 +597,8 @@ class FileService:
                     detail="Can only delete your own files or require admin role",
                 )
 
-            # Delete physical file
-            if os.path.exists(document.file_path):
-                os.remove(document.file_path)
+            # Delete physical file (local or Supabase)
+            self.delete_physical_file(document)
 
             # Soft delete document record
             document.soft_delete()
