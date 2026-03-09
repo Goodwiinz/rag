@@ -75,12 +75,11 @@ export function CitationRenderer({
                   inline,
                   className,
                   children,
-                  ...props
                 }: {
                   inline?: boolean;
                   className?: string;
                   children?: React.ReactNode;
-                } & React.HTMLAttributes<HTMLElement>) {
+                }) {
                   const match = /language-(\w+)/.exec(className || '');
                   const language = match ? match[1] : '';
                   return !inline && language ? (
@@ -88,15 +87,11 @@ export function CitationRenderer({
                       style={oneDark}
                       language={language}
                       PreTag="div"
-                      {...props}
                     >
                       {String(children).replace(/\n$/, '')}
                     </SyntaxHighlighter>
                   ) : (
-                    <code
-                      className="rounded bg-[#1a1a1a] px-1.5 py-0.5 text-[11px] font-mono text-[#00ff9f]"
-                      {...props}
-                    >
+                    <code className="rounded bg-[#1a1a1a] px-1.5 py-0.5 text-[11px] font-mono text-[#00ff9f]">
                       {children}
                     </code>
                   );
