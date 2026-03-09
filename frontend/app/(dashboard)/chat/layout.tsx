@@ -1,6 +1,6 @@
 'use client';
 
-import { useChatPersistence } from '@/hooks';
+import { useChatPersistence, useCitationsForThread } from '@/hooks';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/stores/authStore';
 import { workspaceService } from '@/services/workspaceService';
@@ -50,64 +50,71 @@ function CommandPalette({
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const commands = [
-    {
-      id: 'new-chat',
-      label: 'New Chat',
-      icon: Plus,
-      shortcut: '⌘N',
-      category: 'actions',
-    },
-    {
-      id: 'upload',
-      label: 'Upload Document',
-      icon: FileText,
-      shortcut: '⌘U',
-      category: 'actions',
-    },
-    {
-      id: 'search',
-      label: 'Search Documents',
-      icon: Search,
-      shortcut: '⌘/',
-      category: 'actions',
-    },
-    {
-      id: 'collection',
-      label: 'Create Collection',
-      icon: FolderOpen,
-      shortcut: '⌘G',
-      category: 'actions',
-    },
-    {
-      id: 'settings',
-      label: 'Open Settings',
-      icon: Settings,
-      shortcut: '⌘,',
-      category: 'actions',
-    },
-    {
-      id: 'arxiv',
-      label: 'Browse ArXiv Papers',
-      icon: BookOpen,
-      category: 'navigate',
-    },
-    {
-      id: 'dashboard',
-      label: 'Go to Dashboard',
-      icon: Activity,
-      category: 'navigate',
-    },
-    {
-      id: 'entities',
-      label: 'Knowledge Graph',
-      icon: Share2,
-      category: 'navigate',
-    },
-  ];
+  const commands = useMemo(
+    () => [
+      {
+        id: 'new-chat',
+        label: 'New Chat',
+        icon: Plus,
+        shortcut: '⌘N',
+        category: 'actions',
+      },
+      {
+        id: 'upload',
+        label: 'Upload Document',
+        icon: FileText,
+        shortcut: '⌘U',
+        category: 'actions',
+      },
+      {
+        id: 'search',
+        label: 'Search Documents',
+        icon: Search,
+        shortcut: '⌘/',
+        category: 'actions',
+      },
+      {
+        id: 'collection',
+        label: 'Create Collection',
+        icon: FolderOpen,
+        shortcut: '⌘G',
+        category: 'actions',
+      },
+      {
+        id: 'settings',
+        label: 'Open Settings',
+        icon: Settings,
+        shortcut: '⌘,',
+        category: 'actions',
+      },
+      {
+        id: 'arxiv',
+        label: 'Browse ArXiv Papers',
+        icon: BookOpen,
+        category: 'navigate',
+      },
+      {
+        id: 'dashboard',
+        label: 'Go to Dashboard',
+        icon: Activity,
+        category: 'navigate',
+      },
+      {
+        id: 'entities',
+        label: 'Knowledge Graph',
+        icon: Share2,
+        category: 'navigate',
+      },
+    ],
+    []
+  );
 
-  const filteredCommands = commands.filter((cmd) =>
-    cmd.label.toLowerCase().includes(query.toLowerCase())
+  const filteredCommands = useMemo(
+    () =>
+      commands.filter((cmd) =>
+        cmd.label.toLowerCase().includes(query.toLowerCase())
+      ),
+    [commands, query]
   );
 
   useEffect(() => {
@@ -141,16 +148,22 @@ function CommandPalette({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, filteredCommands, selectedIndex, onClose, onExecute]);
 
-  if (!isOpen) return null;
+  // Memoize grouped commands and build index lookup to avoid indexOf per item
+  const { groupedCommands, commandIndexMap } = useMemo(() => {
+    const grouped = filteredCommands.reduce(
+      (acc, cmd) => {
+        if (!acc[cmd.category]) acc[cmd.category] = [];
+        acc[cmd.category].push(cmd);
+        return acc;
+      },
+      {} as Record<string, typeof commands>
+    );
+    const indexMap = new Map<string, number>();
+    filteredCommands.forEach((cmd, i) => indexMap.set(cmd.id, i));
+    return { groupedCommands: grouped, commandIndexMap: indexMap };
+  }, [filteredCommands]);
 
-  const groupedCommands = filteredCommands.reduce(
-    (acc, cmd) => {
-      if (!acc[cmd.category]) acc[cmd.category] = [];
-      acc[cmd.category].push(cmd);
-      return acc;
-    },
-    {} as Record<string, typeof commands>
-  );
+  if (!isOpen) return null;
 
   return (
     <AnimatePresence>
@@ -201,8 +214,8 @@ function CommandPalette({
                 >
                   {category === 'actions' ? '⚡ Quick Actions' : '🔗 Navigate'}
                 </div>
-                {cmds.map((cmd, _idx) => {
-                  const globalIdx = filteredCommands.indexOf(cmd);
+                {cmds.map((cmd) => {
+                  const globalIdx = commandIndexMap.get(cmd.id) ?? -1;
                   return (
                     <button
                       key={cmd.id}
@@ -314,43 +327,7 @@ interface CitationItem {
 }
 
 function CitationsTabContent() {
-  const { conversations, currentThreadId } = useChatPersistence();
-
-  // Get citations from the current conversation's messages
-  // Only include citations that are actually referenced in the response text
-  const citations = useMemo(() => {
-    if (!currentThreadId) return [];
-
-    const currentConv = conversations.find(
-      (c) => c.threadId === currentThreadId
-    );
-    if (!currentConv) return [];
-
-    // Collect only citations that are actually referenced in assistant messages
-    const allCitations: CitationItem[] = [];
-    const seenIds = new Set<string>();
-
-    currentConv.messages.forEach((msg) => {
-      if (msg.role === 'assistant' && msg.citations) {
-        const msgCitations = msg.citations as CitationItem[];
-
-        // Show all retrieved sources in the Citations panel
-        // The inline citations in the text ([1], [Doc 1], etc.) will link to specific sources
-        // but the panel shows all available sources for reference
-        const citationsToShow = msgCitations;
-
-        citationsToShow.forEach((cit) => {
-          const citId = cit.documentId || cit.externalReferenceId || cit.id;
-          if (citId && !seenIds.has(citId)) {
-            seenIds.add(citId);
-            allCitations.push(cit);
-          }
-        });
-      }
-    });
-
-    return allCitations;
-  }, [conversations, currentThreadId]);
+  const { allCitations: citations } = useCitationsForThread();
 
   if (citations.length === 0) {
     return (
@@ -535,67 +512,11 @@ function ContextPanel({
   const [activeTab, setActiveTab] = useState<
     'context' | 'citations' | 'settings'
   >('context');
-  const {
-    conversations,
-    currentThreadId,
-    messages: _messages,
-  } = useChatPersistence();
+  const { conversations, currentThreadId } = useChatPersistence();
+  const { activeDocument, relatedResults } = useCitationsForThread();
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [loadingSuggestions, setLoadingSuggestions] = useState(false);
   const lastMessageIdRef = useRef<string | null>(null);
-
-  // Get the most relevant document (highest score citation)
-  const activeDocument = useMemo((): CitationItem | null => {
-    if (!currentThreadId) return null;
-    const currentConv = conversations.find(
-      (c) => c.threadId === currentThreadId
-    );
-    if (!currentConv) return null;
-
-    let highestScoreCitation: CitationItem | null = null;
-    let highestScore = 0;
-
-    currentConv.messages.forEach((msg) => {
-      if (msg.role === 'assistant' && msg.citations) {
-        (msg.citations as CitationItem[]).forEach((cit) => {
-          if ((cit.score || 0) > highestScore) {
-            highestScore = cit.score || 0;
-            highestScoreCitation = cit;
-          }
-        });
-      }
-    });
-
-    return highestScoreCitation;
-  }, [conversations, currentThreadId]);
-
-  // Get all related results (deduplicated citations sorted by score)
-  const relatedResults = useMemo((): CitationItem[] => {
-    if (!currentThreadId) return [];
-    const currentConv = conversations.find(
-      (c) => c.threadId === currentThreadId
-    );
-    if (!currentConv) return [];
-
-    const allCitations: CitationItem[] = [];
-    const seenIds = new Set<string>();
-
-    currentConv.messages.forEach((msg) => {
-      if (msg.role === 'assistant' && msg.citations) {
-        (msg.citations as CitationItem[]).forEach((cit) => {
-          const citId = cit.documentId || cit.externalReferenceId;
-          if (citId && !seenIds.has(citId)) {
-            seenIds.add(citId);
-            allCitations.push(cit);
-          }
-        });
-      }
-    });
-
-    return allCitations
-      .sort((a, b) => (b.score || 0) - (a.score || 0))
-      .slice(0, 5);
-  }, [conversations, currentThreadId]);
 
   // Fetch AI-generated suggestions when a new assistant message appears
   const fetchSuggestions = useCallback(
@@ -783,7 +704,6 @@ function ContextPanel({
                     const scorePercent = doc.score
                       ? Math.round(doc.score * 100)
                       : 0;
-                    const _isExternal = !doc.documentId;
                     return (
                       <button
                         key={doc.documentId || doc.externalReferenceId || idx}
@@ -977,7 +897,6 @@ export default function ChatLayout({
   children: React.ReactNode;
 }) {
   const router = useRouter();
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [contextPanelOpen, setContextPanelOpen] = useState(false);
 
