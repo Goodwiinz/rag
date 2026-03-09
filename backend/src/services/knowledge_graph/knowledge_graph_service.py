@@ -477,6 +477,8 @@ class KnowledgeGraphService:
         limit: int = 100,
         offset: int = 0,
         entity_types: Optional[List[EntityType]] = None,
+        source_document_ids: Optional[List[str]] = None,
+        connected_only: bool = False,
     ) -> List[EntityResponse]:
         """Get all entities with pagination and optional filtering"""
         try:
@@ -491,13 +493,26 @@ class KnowledgeGraphService:
                     conditions.append("e.type IN $entity_types")
                     params["entity_types"] = type_values
 
+                if source_document_ids is not None:
+                    conditions.append(
+                        "(e.source_document_id IN $source_document_ids OR e.source_document_id IS NULL)"
+                    )
+                    params["source_document_ids"] = source_document_ids
+
                 where_clause = "WHERE " + " AND ".join(conditions) if conditions else ""
 
-                # Query entities by label 'Entity' (how they're actually stored)
+                # When connected_only, only return entities involved in relationships
+                if connected_only:
+                    match_clause = "MATCH (e:Entity)-[:RELATED_TO]-()"
+                    return_distinct = "RETURN DISTINCT e"
+                else:
+                    match_clause = "MATCH (e:Entity)"
+                    return_distinct = "RETURN e"
+
                 query = f"""
-                MATCH (e:Entity)
+                {match_clause}
                 {where_clause}
-                RETURN e
+                {return_distinct}
                 ORDER BY e.created_at DESC
                 SKIP $offset
                 LIMIT $limit
@@ -560,7 +575,12 @@ class KnowledgeGraphService:
             logger.error(f"Error getting all entities: {e}")
             raise  # Re-raise to see actual error, don't silently return empty
 
-    def count_entities(self, entity_types: Optional[List[EntityType]] = None) -> int:
+    def count_entities(
+        self,
+        entity_types: Optional[List[EntityType]] = None,
+        source_document_ids: Optional[List[str]] = None,
+        connected_only: bool = False,
+    ) -> int:
         """Count total entities with optional filtering"""
         try:
             with self.get_session() as session:
@@ -572,12 +592,25 @@ class KnowledgeGraphService:
                     conditions.append("e.type IN $entity_types")
                     params["entity_types"] = type_values
 
+                if source_document_ids is not None:
+                    conditions.append(
+                        "(e.source_document_id IN $source_document_ids OR e.source_document_id IS NULL)"
+                    )
+                    params["source_document_ids"] = source_document_ids
+
                 where_clause = "WHERE " + " AND ".join(conditions) if conditions else ""
 
+                if connected_only:
+                    match_clause = "MATCH (e:Entity)-[:RELATED_TO]-()"
+                    count_expr = "count(DISTINCT e)"
+                else:
+                    match_clause = "MATCH (e:Entity)"
+                    count_expr = "count(e)"
+
                 query = f"""
-                MATCH (e:Entity)
+                {match_clause}
                 {where_clause}
-                RETURN count(e) as total
+                RETURN {count_expr} as total
                 """
 
                 result = session.run(query, params)
@@ -592,6 +625,7 @@ class KnowledgeGraphService:
         limit: int = 500,
         offset: int = 0,
         relationship_types: Optional[List[RelationshipType]] = None,
+        source_document_ids: Optional[List[str]] = None,
     ) -> List[RelationshipResponse]:
         """Get all relationships with pagination"""
         try:
@@ -603,6 +637,15 @@ class KnowledgeGraphService:
                     type_values = [t.value for t in relationship_types]
                     conditions.append("r.type IN $relationship_types")
                     params["relationship_types"] = type_values
+
+                if source_document_ids is not None:
+                    conditions.append(
+                        "(source.source_document_id IN $source_document_ids OR source.source_document_id IS NULL)"
+                    )
+                    conditions.append(
+                        "(target.source_document_id IN $source_document_ids OR target.source_document_id IS NULL)"
+                    )
+                    params["source_document_ids"] = source_document_ids
 
                 where_clause = "WHERE " + " AND ".join(conditions) if conditions else ""
 
