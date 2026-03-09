@@ -12,7 +12,7 @@
       ],
       "primary_category": "cs.CL"
     },
-    "deleted": "2025-12-29T01:39:43.027481+00:00"
+    "miss_count": 1
   },
   "2512.21332v1": {
     "hash": "addd71cd950b794ba37ae7427367b7b74fd2b23a808f5f8e4260d70d7f26c6e7",
@@ -28,7 +28,7 @@
       ],
       "primary_category": "cs.CL"
     },
-    "deleted": "2025-12-29T01:39:43.027497+00:00"
+    "miss_count": 1
   },
   "2512.21326v1": {
     "hash": "30cd6a21f2f3bc3555881166d809ed38961beab5350a4802394c301fa1e3467d",
@@ -40,7 +40,7 @@
       ],
       "primary_category": "cs.LG"
     },
-    "deleted": "2025-12-29T01:39:43.027418+00:00"
+    "miss_count": 1
   },
   "2512.21316v1": {
     "hash": "1135fb301da8f3c4caf909b2b5de772f2daf5260b6c24b1dc0aa16f5b674ffd1",
@@ -52,7 +52,7 @@
       ],
       "primary_category": "econ.GN"
     },
-    "deleted": "2025-12-29T01:39:43.027514+00:00"
+    "miss_count": 1
   },
   "2512.21288v1": {
     "hash": "d6acd8fbd3cf0a0b3e64caaa7bc783079eb4b408375486f270fb7704c75def0d",
@@ -65,7 +65,7 @@
       ],
       "primary_category": "cs.LG"
     },
-    "deleted": "2025-12-29T01:39:43.027555+00:00"
+    "miss_count": 1
   },
   "2512.21280v1": {
     "hash": "23a09904dda24db1a3435c2edaded3f07501b9ef0de16313bffcad6db5acb99b",
@@ -78,7 +78,7 @@
       ],
       "primary_category": "cs.CL"
     },
-    "deleted": "2025-12-29T01:39:43.027437+00:00"
+    "miss_count": 1
   },
   "2512.21246v1": {
     "hash": "8b9a9576f4a540749e488a0eec62d6da61ffd2d3fff7dda9b23f2675ab522da1",
@@ -92,7 +92,7 @@
       ],
       "primary_category": "cs.HC"
     },
-    "deleted": "2025-12-29T01:39:43.027510+00:00"
+    "miss_count": 1
   },
   "2512.21243v1": {
     "hash": "df25e960d371f4afc49226f42fc817b825e2c4b463cedf6130cd0257000147bf",
@@ -106,7 +106,7 @@
       ],
       "primary_category": "cs.RO"
     },
-    "deleted": "2025-12-29T01:39:43.027535+00:00"
+    "miss_count": 1
   },
   "2512.21241v1": {
     "hash": "5c1204fc143efde68a1be0e608087514f639006562baa7b61af5dd972e1918c1",
@@ -122,7 +122,7 @@
       ],
       "primary_category": "cs.LG"
     },
-    "deleted": "2025-12-29T01:39:43.027518+00:00"
+    "miss_count": 1
   },
   "2512.21236v1": {
     "hash": "269867e543ff00f277e64ea5307a5a5489c6e585261d0cb4ac092fd41f6e79ad",
@@ -138,7 +138,7 @@
       ],
       "primary_category": "cs.CR"
     },
-    "deleted": "2025-12-29T01:39:43.027547+00:00"
+    "miss_count": 1
   },
   "2512.21227v1": {
     "hash": "bf59de6fcdc5628aef4fdcaed26ac917c1e5164e5cd15a25207b3a70ddaf512a",
@@ -153,7 +153,7 @@
       ],
       "primary_category": "cond-mat.mtrl-sci"
     },
-    "deleted": "2025-12-29T01:39:43.027543+00:00"
+    "miss_count": 1
   },
   "2512.21221v1": {
     "hash": "703c4c116278cf04279acb5ba99239db8f73df7587301fdd21cc8a08d670d1c8",
@@ -169,7 +169,7 @@
       ],
       "primary_category": "cs.CV"
     },
-    "deleted": "2025-12-29T01:39:43.027526+00:00"
+    "miss_count": 1
   },
   "2512.21220v1": {
     "hash": "769b9659cc9a5c6531975b498487f1be03ae983037ef38eb6c1b627637c093dd",
@@ -185,7 +185,7 @@
       ],
       "primary_category": "cs.AI"
     },
-    "deleted": "2025-12-29T01:39:43.027567+00:00"
+    "miss_count": 1
   },
   "2512.21204v1": {
     "hash": "5335e88e9ea73b5e6561a3acb742e4b99e02bc26729f9e5943fcb1a6a85abfc3",
@@ -201,7 +201,7 @@
       ],
       "primary_category": "cs.CL"
     },
-    "deleted": "2025-12-29T01:39:43.027492+00:00"
+    "miss_count": 1
   },
   "2512.21201v1": {
     "hash": "d97c1750b7d1ad9c471c252b882e23dbd185a77dd9e18eb513542ab53aa2a565",
@@ -217,7 +217,7 @@
       ],
       "primary_category": "cs.RO"
     },
-    "deleted": "2025-12-29T01:39:43.027551+00:00"
+    "miss_count": 1
   },
   "2512.21165v1": {
     "hash": "f5009fee2f2f829d9c70c5fb3f389fff5dd6a6d8db565b0d8bc926ae4e08ab63",
@@ -229,7 +229,7 @@
       ],
       "primary_category": "cs.LG"
     },
-    "deleted": "2025-12-29T01:39:43.027505+00:00"
+    "miss_count": 1
   },
   "2512.21152v1": {
     "hash": "d9e726b27a452f28c2405b0e013bc8b199e99ba9df6cf3247e0eecd5b0c23a87",
@@ -243,7 +243,7 @@
       ],
       "primary_category": "cs.LG"
     },
-    "deleted": "2025-12-29T01:39:43.027531+00:00"
+    "miss_count": 1
   },
   "2512.21135v1": {
     "hash": "986a2810c45593e3b595901319d9bce39d37b8e922b8fb98621ae1e0ae2ef1ff",
@@ -259,7 +259,7 @@
       ],
       "primary_category": "cs.CV"
     },
-    "deleted": "2025-12-29T01:39:43.027539+00:00"
+    "miss_count": 1
   },
   "2512.21132v1": {
     "hash": "0ad8cf093027a90a92aecee6e6ae39980c6c064bd62d7048764108d6a67755d7",
@@ -275,7 +275,7 @@
       ],
       "primary_category": "cs.CR"
     },
-    "deleted": "2025-12-29T01:39:43.027522+00:00"
+    "miss_count": 1
   },
   "2512.21127v1": {
     "hash": "def083e19cf0ec6ea530619ce31fd0188c75591d458e9c3bc14a636ba51740b9",
@@ -291,7 +291,7 @@
       ],
       "primary_category": "cs.AI"
     },
-    "deleted": "2025-12-29T01:39:43.027501+00:00"
+    "miss_count": 1
   },
   "2512.21335v1": {
     "hash": "3e1fc63a0bc43626f4800b486ff07da249afd62b05bd1b90dae57be7b2a6e393",
@@ -307,7 +307,7 @@
       ],
       "primary_category": "physics.med-ph"
     },
-    "deleted": "2025-12-29T01:44:03.075237+00:00"
+    "miss_count": 1
   },
   "2512.21323v1": {
     "hash": "d18c3d71a43d89fc4fd13649f832b59d72c0efb48a7b266e24eb534b6a490801",
@@ -323,7 +323,7 @@
       ],
       "primary_category": "cs.CL"
     },
-    "deleted": "2025-12-29T01:44:03.075215+00:00"
+    "miss_count": 1
   },
   "2512.21319v1": {
     "hash": "942a40c11fab100eac8e73e3ecc815ee53dd7cd80577b15b5f732c1d0e03bb26",
@@ -337,7 +337,7 @@
       ],
       "primary_category": "math.NA"
     },
-    "deleted": "2025-12-29T01:44:03.075204+00:00"
+    "miss_count": 1
   },
   "2512.21315v1": {
     "hash": "7150e6b5a5c700028e9cb54e970230c3dc7418dd03e3b8c6c4dfdebadffb7d88",
@@ -350,7 +350,7 @@
       ],
       "primary_category": "cs.LG"
     },
-    "deleted": "2025-12-29T01:44:03.075195+00:00"
+    "miss_count": 1
   },
   "2512.21311v1": {
     "hash": "02cefb767088305e3cd0ee83b7bb3adb9e7661e6f1b0805f2dac449371ff00ae",
@@ -365,7 +365,7 @@
       ],
       "primary_category": "cs.LG"
     },
-    "deleted": "2025-12-29T01:44:03.075211+00:00"
+    "miss_count": 1
   },
   "2512.21301v1": {
     "hash": "383de1976166897bdeea9b40e3643fd0145f34db331ce6b469bfff1ee6651042",
@@ -381,7 +381,7 @@
       ],
       "primary_category": "cs.LG"
     },
-    "deleted": "2025-12-29T01:44:03.075208+00:00"
+    "miss_count": 1
   },
   "2512.21238v1": {
     "hash": "8d8c2944d9d665e3ab938c16d21b61f4596691355833861c9e42b9499698003f",
@@ -397,7 +397,7 @@
       ],
       "primary_category": "cs.SE"
     },
-    "deleted": "2025-12-29T01:44:03.075230+00:00"
+    "miss_count": 1
   },
   "2512.21231v1": {
     "hash": "438b1df169dfc24c1ad75d80178bf6604d76c6f1a3275a4686e87bfc46bf399c",
@@ -413,7 +413,7 @@
       ],
       "primary_category": "cs.LG"
     },
-    "deleted": "2025-12-29T01:44:03.075233+00:00"
+    "miss_count": 1
   },
   "2512.21211v1": {
     "hash": "4f05bd31d4524e7c99dce9ca51d46d0eb2d76ae3c37fdc1349190c29a51d6de1",
@@ -429,7 +429,7 @@
       ],
       "primary_category": "stat.ML"
     },
-    "deleted": "2025-12-29T01:44:03.075226+00:00"
+    "miss_count": 1
   },
   "2512.21208v1": {
     "hash": "b306e4faf0d9a1dfe473476c416110c43ab268c087b23777b87fc5a029671e63",
@@ -441,7 +441,7 @@
       ],
       "primary_category": "cs.LG"
     },
-    "deleted": "2025-12-29T01:44:03.075219+00:00"
+    "miss_count": 1
   },
   "2512.21170v1": {
     "hash": "d846e3aed374e1d5faa14dad82d28b4edbf9a4b67b4f8a4b6bac511747a15a80",
@@ -455,7 +455,7 @@
       ],
       "primary_category": "cs.LG"
     },
-    "deleted": "2025-12-29T01:44:03.075200+00:00"
+    "miss_count": 1
   },
   "2512.21166v1": {
     "hash": "ee7711191588aa5f6f7e8cb978d34a7bb72c122e6d016d880009b2887145c373",
@@ -468,7 +468,7 @@
       ],
       "primary_category": "cs.SI"
     },
-    "deleted": "2025-12-29T01:44:03.075222+00:00"
+    "miss_count": 1
   },
   "2512.21153v1": {
     "hash": "39917fcf57dcc99177db63568d06a93035faff2520faa0ebeb974e264120123b",
@@ -481,7 +481,7 @@
       ],
       "primary_category": "cs.AR"
     },
-    "deleted": "2025-12-29T01:44:03.075176+00:00"
+    "miss_count": 1
   },
   "2512.21338v1": {
     "hash": "33fd27bdf3f137c37a7b6dd21d0971cc9c54bfa33b1db8bc0edc3bbd25a1931e",
@@ -497,7 +497,7 @@
       ],
       "primary_category": "cs.CV"
     },
-    "deleted": "2025-12-29T01:52:36.777624+00:00"
+    "miss_count": 1
   },
   "2512.21337v1": {
     "hash": "8b9cb93727c0595c164ab580fcdd4b78d02610c42b58ac655f9cae942f9bd926",
@@ -513,7 +513,7 @@
       ],
       "primary_category": "cs.CV"
     },
-    "deleted": "2025-12-29T01:52:36.777874+00:00"
+    "miss_count": 1
   },
   "2512.21334v1": {
     "hash": "ba260ca6d66c2e52f469f2f9b685678db1cb62ffd5366b04e19860a3dd8e5e18",
@@ -529,7 +529,7 @@
       ],
       "primary_category": "cs.CV"
     },
-    "deleted": "2025-12-29T01:52:36.777437+00:00"
+    "miss_count": 1
   },
   "2512.21333v1": {
     "hash": "55741f57571d892c5f8d4409aae5302d35a6e5fa24badcb83d81a747d2ca5e4d",
@@ -545,7 +545,7 @@
       ],
       "primary_category": "cs.CV"
     },
-    "deleted": "2025-12-29T01:52:36.777792+00:00"
+    "miss_count": 1
   },
   "2512.21331v1": {
     "hash": "1b0d0183d73abfa9a527e15555a4c93884fd1f80cf3065010d870760034d1009",
@@ -561,7 +561,7 @@
       ],
       "primary_category": "cs.CV"
     },
-    "deleted": "2025-12-29T01:52:36.777714+00:00"
+    "miss_count": 1
   },
   "2512.21302v1": {
     "hash": "60178946ef50cc2a407a2c82cc5829ebd657cd9d7e3276caaf12b2beca7fda3b",
@@ -577,7 +577,7 @@
       ],
       "primary_category": "cs.CV"
     },
-    "deleted": "2025-12-29T01:52:36.777725+00:00"
+    "miss_count": 1
   },
   "2512.21287v1": {
     "hash": "b09f2cf2338024064b907aff7d1ac3df6c4a62f1924c86df5f07554861f97a03",
@@ -589,7 +589,7 @@
       ],
       "primary_category": "cs.CV"
     },
-    "deleted": "2025-12-29T01:52:36.777422+00:00"
+    "miss_count": 1
   },
   "2512.21284v1": {
     "hash": "53e77ed439919e73f67a8e1d1d389621ef59ec926f0f9d1473e976b55fcabc0f",
@@ -605,7 +605,7 @@
       ],
       "primary_category": "cs.CV"
     },
-    "deleted": "2025-12-29T01:52:36.777570+00:00"
+    "miss_count": 1
   },
   "2512.21276v1": {
     "hash": "1c955dcf462b004982da796defbe1def3660c0f9462bfaa2df1c663a158bcd1f",
@@ -621,7 +621,7 @@
       ],
       "primary_category": "cs.CV"
     },
-    "deleted": "2025-12-29T01:52:36.777489+00:00"
+    "miss_count": 1
   },
   "2512.21268v1": {
     "hash": "6ad0927abd7404ac3b034ef3e7463301cce616e42e48093765d04f1705c037ea",
@@ -636,7 +636,7 @@
       ],
       "primary_category": "cs.CV"
     },
-    "deleted": "2025-12-29T01:52:36.777574+00:00"
+    "miss_count": 1
   },
   "2512.21264v1": {
     "hash": "5fcc7b60faa9f935fd49db838b65b9b53d1e4baf2df33b273e7156f91555ee4a",
@@ -652,7 +652,7 @@
       ],
       "primary_category": "cs.CV"
     },
-    "deleted": "2025-12-29T01:52:36.777492+00:00"
+    "miss_count": 1
   },
   "2512.21252v1": {
     "hash": "85a7878cf7c1280158a58bffc9a6a534fee44792e452766b46ba33eb6f4f856b",
@@ -668,7 +668,7 @@
       ],
       "primary_category": "cs.CV"
     },
-    "deleted": "2025-12-29T01:52:36.777649+00:00"
+    "miss_count": 1
   },
   "2512.21237v1": {
     "hash": "c459c18c96d42f3cb12385a2d9cb9f883f64313b2dfbdc8748f57a4f526b989a",
@@ -684,7 +684,7 @@
       ],
       "primary_category": "cs.CV"
     },
-    "deleted": "2025-12-29T01:52:36.777428+00:00"
+    "miss_count": 1
   },
   "2512.21218v1": {
     "hash": "8d60e3c75c5019c170a6199512f4b110670266a08bb03ad20608a3a8248a0b81",
@@ -700,7 +700,7 @@
       ],
       "primary_category": "cs.CV"
     },
-    "deleted": "2025-12-29T01:52:36.777581+00:00"
+    "miss_count": 1
   },
   "2512.21209v1": {
     "hash": "a0c14f9ef40d3abccd0d54995f4a4a9f12a64dcba02fa6e6e8ba27008d57a369",
@@ -716,7 +716,7 @@
       ],
       "primary_category": "cs.CV"
     },
-    "deleted": "2025-12-29T01:52:36.777636+00:00"
+    "miss_count": 1
   },
   "2512.21313v1": {
     "hash": "1855d9b95b926976383841bf5b95e339ed1d4845f44d7fb973e3ec4a443f4196",
@@ -731,7 +731,7 @@
       ],
       "primary_category": "cond-mat.stat-mech"
     },
-    "deleted": "2025-12-29T01:52:36.777527+00:00"
+    "miss_count": 1
   },
   "2512.21310v1": {
     "hash": "49f84b355d6805225af4f93229a647b8a087cd1a90ffc4050a514aca79d6fa94",
@@ -744,7 +744,7 @@
       ],
       "primary_category": "quant-ph"
     },
-    "deleted": "2025-12-29T01:52:36.777632+00:00"
+    "miss_count": 1
   },
   "2512.21304v1": {
     "hash": "fb0ec11ba1ce241ff1fd6761a990324397bc742cd719c6382f9a3f109b4a0d28",
@@ -757,7 +757,7 @@
       ],
       "primary_category": "quant-ph"
     },
-    "deleted": "2025-12-29T01:52:36.777588+00:00"
+    "miss_count": 1
   },
   "2512.21282v1": {
     "hash": "c130349af648cb49ac199d4da4b6809e8557d7f702c7f4cfca230b6cbc4c7fc0",
@@ -772,7 +772,7 @@
       ],
       "primary_category": "quant-ph"
     },
-    "deleted": "2025-12-29T01:52:36.777805+00:00"
+    "miss_count": 1
   },
   "2512.21281v1": {
     "hash": "23ee52bc1be8a704abb8271677ed1a8148b6c57a98ce10c0c93fe562b68c6f87",
@@ -784,7 +784,7 @@
       ],
       "primary_category": "math-ph"
     },
-    "deleted": "2025-12-29T01:52:36.777531+00:00"
+    "miss_count": 1
   },
   "2512.21272v1": {
     "hash": "507a22e431d805887daa2c3e32aa145560630dbe9e4118bd22ae6065ce1fc349",
@@ -798,7 +798,7 @@
       ],
       "primary_category": "quant-ph"
     },
-    "deleted": "2025-12-29T01:52:36.777541+00:00"
+    "miss_count": 1
   },
   "2512.21263v1": {
     "hash": "59b58289ad2b6f80cb30c5576d5d61b8d824924b93f8e1c6f2ecd2d7c0c845de",
@@ -814,7 +814,7 @@
       ],
       "primary_category": "physics.flu-dyn"
     },
-    "deleted": "2025-12-29T01:52:36.777613+00:00"
+    "miss_count": 1
   },
   "2512.21260v1": {
     "hash": "d00926a899ae851872de383bb69c7ca1b6f68451eb2c4bb7648a705a42cc2f91",
@@ -828,7 +828,7 @@
       ],
       "primary_category": "quant-ph"
     },
-    "deleted": "2025-12-29T01:52:36.777718+00:00"
+    "miss_count": 1
   },
   "2512.21229v1": {
     "hash": "1c26190440b107437b6857d930715bd920a388daa697933df19970bb9fbaf6ce",
@@ -842,7 +842,7 @@
       ],
       "primary_category": "quant-ph"
     },
-    "deleted": "2025-12-29T01:52:36.777645+00:00"
+    "miss_count": 1
   },
   "2512.21228v1": {
     "hash": "7446407316aff6768e3955aab3d576365c7b225f052e109bc1215eb267eb0d73",
@@ -858,7 +858,7 @@
       ],
       "primary_category": "hep-ph"
     },
-    "deleted": "2025-12-29T01:52:36.777877+00:00"
+    "miss_count": 1
   },
   "2512.21213v1": {
     "hash": "d764c5b3c0d4700d146efbf449d4b95df6d78e78f42d02225634e592941d7d31",
@@ -874,7 +874,7 @@
       ],
       "primary_category": "quant-ph"
     },
-    "deleted": "2025-12-29T01:52:36.777523+00:00"
+    "miss_count": 1
   },
   "2512.21199v1": {
     "hash": "d410bce1d6aefe945de717c627666d6b0138919293fec602b34437343c98f51f",
@@ -890,7 +890,7 @@
       ],
       "primary_category": "quant-ph"
     },
-    "deleted": "2025-12-29T01:52:36.777653+00:00"
+    "miss_count": 1
   },
   "2512.21197v1": {
     "hash": "8d32a655d9d447fc5f4bda6852ebd56a9c548c9024c5215e1244757ce7a7e1c5",
@@ -904,7 +904,7 @@
       ],
       "primary_category": "physics.optics"
     },
-    "deleted": "2025-12-29T01:52:36.777737+00:00"
+    "miss_count": 1
   },
   "2512.21189v1": {
     "hash": "2af07c3d08651ad86579b312098d718b18928b32a703461745cfd61767db9e3d",
@@ -918,7 +918,7 @@
       ],
       "primary_category": "quant-ph"
     },
-    "deleted": "2025-12-29T01:52:36.777788+00:00"
+    "miss_count": 1
   },
   "2512.21181v1": {
     "hash": "d5d10d491196dc085b23bd0b9fe0d9d85b711b2fe6c169258fbae4fc7999df8d",
@@ -934,7 +934,7 @@
       ],
       "primary_category": "quant-ph"
     },
-    "deleted": "2025-12-29T01:52:36.777578+00:00"
+    "miss_count": 1
   },
   "2512.21179v1": {
     "hash": "aee34a2d2259aaccb700ad31c7a282b69196ec44697b9fe65af1507ae17b417d",
@@ -947,7 +947,7 @@
       ],
       "primary_category": "cond-mat.mes-hall"
     },
-    "deleted": "2025-12-29T01:52:36.777770+00:00"
+    "miss_count": 1
   },
   "2512.21157v1": {
     "hash": "10e707a421b87e05f32c8f5d21ff654ec41b9415931f175f3d1e1cec1b060241",
@@ -963,7 +963,7 @@
       ],
       "primary_category": "quant-ph"
     },
-    "deleted": "2025-12-29T01:52:36.777656+00:00"
+    "miss_count": 1
   },
   "2512.21148v1": {
     "hash": "c41d5b9f41f8962516936c413189091877582d2b64a98a0fda4ec74761b7deac",
@@ -978,7 +978,7 @@
       ],
       "primary_category": "cond-mat.str-el"
     },
-    "deleted": "2025-12-29T01:52:36.777485+00:00"
+    "miss_count": 1
   },
   "2512.21142v1": {
     "hash": "174b1c6036c74fb4ddc7a024d2ed24814baab2e83cfac61f7ebeecefce6d2d99",
@@ -993,7 +993,7 @@
       ],
       "primary_category": "quant-ph"
     },
-    "deleted": "2025-12-29T01:52:36.777519+00:00"
+    "miss_count": 1
   },
   "2512.21125v1": {
     "hash": "d8f936dec81400497392dadc84bf366ad5e8e6fd860033e904d2fdaed40f3b13",
@@ -1009,7 +1009,7 @@
       ],
       "primary_category": "quant-ph"
     },
-    "deleted": "2025-12-29T01:52:36.777500+00:00"
+    "miss_count": 1
   },
   "2512.21275v1": {
     "hash": "b3863fdeaef45892c33a2f1b0dda2e371dbc621bbb89896256b94adaa7f6b23d",
@@ -1022,7 +1022,7 @@
       ],
       "primary_category": "math.OC"
     },
-    "deleted": "2025-12-29T01:52:36.777683+00:00"
+    "miss_count": 1
   },
   "2512.21269v1": {
     "hash": "12e5e63f1126df72c6f957b5e21e705c37893792cd7ad140ca87c332963d027c",
@@ -1036,7 +1036,7 @@
       ],
       "primary_category": "math.OC"
     },
-    "deleted": "2025-12-29T01:52:36.777820+00:00"
+    "miss_count": 1
   },
   "2512.21266v1": {
     "hash": "a1b7abc03de8434c1698f6e9e1dfe806c3ea4a1c2386a2f1cc860081a4011683",
@@ -1048,7 +1048,7 @@
       ],
       "primary_category": "math.OC"
     },
-    "deleted": "2025-12-29T01:52:36.777516+00:00"
+    "miss_count": 1
   },
   "2512.21261v1": {
     "hash": "178d08c78ecb54a9f8fe68744f51dc956ae4d582ab0666965b8c8c88439bcd13",
@@ -1061,7 +1061,7 @@
       ],
       "primary_category": "math.PR"
     },
-    "deleted": "2025-12-29T01:52:36.777451+00:00"
+    "miss_count": 1
   },
   "2512.21149v1": {
     "hash": "019f24778afede7983a64a187c25f0e3edeeaf7f83792d6f42c0f68fe5d1bfe0",
@@ -1076,7 +1076,7 @@
       ],
       "primary_category": "q-fin.MF"
     },
-    "deleted": "2025-12-29T01:52:36.777847+00:00"
+    "miss_count": 1
   },
   "2512.21096v1": {
     "hash": "dc343a70d8fcd8e022acdf8f656d2eb7d9a5684401a2bed938c18301af65ce2d",
@@ -1091,7 +1091,7 @@
       ],
       "primary_category": "math.OC"
     },
-    "deleted": "2025-12-29T01:52:36.777567+00:00"
+    "miss_count": 1
   },
   "2512.21051v1": {
     "hash": "be816bb2b5daa509c65631f4c15371cc643baaf2641f15140af24c87013e38e6",
@@ -1104,7 +1104,7 @@
       ],
       "primary_category": "math.OC"
     },
-    "deleted": "2025-12-29T01:52:36.777698+00:00"
+    "miss_count": 1
   },
   "2512.20911v1": {
     "hash": "e91e26bb37217eb6f1a219ae2458d2931b419f10df3f99392410ad48188acbc9",
@@ -1118,7 +1118,7 @@
       ],
       "primary_category": "math.OC"
     },
-    "deleted": "2025-12-29T01:52:36.777406+00:00"
+    "miss_count": 1
   },
   "2512.20826v1": {
     "hash": "33da01f74d10a58c467114173f41be9aa573be4014d2ee6c345b502640bdd06a",
@@ -1130,7 +1130,7 @@
       ],
       "primary_category": "math.FA"
     },
-    "deleted": "2025-12-29T01:52:36.777813+00:00"
+    "miss_count": 1
   },
   "2512.20791v1": {
     "hash": "792ed5364401fe2df7e649b3ca511c911f19642245f36d3037c8e739c615a0a0",
@@ -1145,7 +1145,7 @@
       ],
       "primary_category": "math.OC"
     },
-    "deleted": "2025-12-29T01:52:36.777552+00:00"
+    "miss_count": 1
   },
   "2512.20772v1": {
     "hash": "18c2f413d67158622f33caf3175867f8539d007a359fc9348f02c85c571abc17",
@@ -1159,7 +1159,7 @@
       ],
       "primary_category": "math.OC"
     },
-    "deleted": "2025-12-29T01:52:36.777496+00:00"
+    "miss_count": 1
   },
   "2512.20748v1": {
     "hash": "46a5932164494dd72447da43c6199c41fbfd9b96387d06d850ff9b685b0d3f77",
@@ -1172,7 +1172,7 @@
       ],
       "primary_category": "eess.SY"
     },
-    "deleted": "2025-12-29T01:52:36.777473+00:00"
+    "miss_count": 1
   },
   "2512.20589v1": {
     "hash": "a9b2f0d95e427f3bbbd13e13814ee1974ef0ed1e3c4bedd4c4effa01d0664bc3",
@@ -1186,7 +1186,7 @@
       ],
       "primary_category": "cs.CY"
     },
-    "deleted": "2025-12-29T01:52:36.777455+00:00"
+    "miss_count": 1
   },
   "2512.20582v1": {
     "hash": "671267985ebacdec49adae027c1605375df9f4e776cddb312259ee1e6b9440fb",
@@ -1199,7 +1199,7 @@
       ],
       "primary_category": "cs.LG"
     },
-    "deleted": "2025-12-29T01:52:36.777537+00:00"
+    "miss_count": 1
   },
   "2512.20576v1": {
     "hash": "9c01aaf2fd127d98d131b5b545184cac33e40262099c922412495fb1a6626bfd",
@@ -1214,7 +1214,7 @@
       ],
       "primary_category": "cs.LG"
     },
-    "deleted": "2025-12-29T01:52:36.777824+00:00"
+    "miss_count": 1
   },
   "2512.20566v1": {
     "hash": "6568ad884928815886499a1ed4bcfba13b80bf4b457e312d75717897c81f0a76",
@@ -1229,7 +1229,7 @@
       ],
       "primary_category": "math.OC"
     },
-    "deleted": "2025-12-29T01:52:36.777467+00:00"
+    "miss_count": 1
   },
   "2512.20562v1": {
     "hash": "4b2c524a93e76cdea7529d26b7cb16e9a9cdfd533f37290560022f8e720cf0ff",
@@ -1241,7 +1241,7 @@
       ],
       "primary_category": "stat.ML"
     },
-    "deleted": "2025-12-29T01:52:36.777672+00:00"
+    "miss_count": 1
   },
   "2512.20547v1": {
     "hash": "5ba0c2cf45e74f266fb6078c39480f1134688b09d87d94ba1b5c2f623c37790e",
@@ -1254,7 +1254,7 @@
       ],
       "primary_category": "q-bio.PE"
     },
-    "deleted": "2025-12-29T01:52:36.777866+00:00"
+    "miss_count": 1
   },
   "2512.20505v1": {
     "hash": "4afb592524211300b5fc5a7349d513ad5e52079fa8f2ce59838722b85584f10e",
@@ -1269,7 +1269,7 @@
       ],
       "primary_category": "math.OC"
     },
-    "deleted": "2025-12-29T01:52:36.777785+00:00"
+    "miss_count": 1
   },
   "2512.21329v1": {
     "hash": "b13e47026b1d2e81d28bbd157a5e15a44a3251c924aec5fa0ef434a229dc7478",
@@ -1285,7 +1285,7 @@
       ],
       "primary_category": "cs.CL"
     },
-    "deleted": "2025-12-29T01:52:36.777478+00:00"
+    "miss_count": 1
   },
   "2512.21257v1": {
     "hash": "83fa2449be6f70f72f5cd49683e8e0f50a886174e3125ddbd84b0bac574ed265",
@@ -1301,7 +1301,7 @@
       ],
       "primary_category": "cs.IR"
     },
-    "deleted": "2025-12-29T01:52:36.777810+00:00"
+    "miss_count": 1
   },
   "2512.21120v1": {
     "hash": "a4762c480edd6ab08326c866d71c3bd5d99a2f1d98a3d1a53bf429cf35c30440",
@@ -1317,7 +1317,7 @@
       ],
       "primary_category": "cs.CL"
     },
-    "deleted": "2025-12-29T01:52:36.777641+00:00"
+    "miss_count": 1
   },
   "2512.21110v1": {
     "hash": "afb657e250272cafca40eff5bfeff49ae3950b4ae742931a4981a63c0d236aa5",
@@ -1331,7 +1331,7 @@
       ],
       "primary_category": "cs.AI"
     },
-    "deleted": "2025-12-29T01:52:36.777862+00:00"
+    "miss_count": 1
   },
   "2512.21107v1": {
     "hash": "045db60890a0f3e45d8bb116795f09bdc1aa983761b6cc8b5aa44d947a57c9c7",
@@ -1345,7 +1345,7 @@
       ],
       "primary_category": "cs.CL"
     },
-    "deleted": "2025-12-29T01:52:36.777748+00:00"
+    "miss_count": 1
   },
   "2512.21106v1": {
     "hash": "d8a350308456e0b8de94a85d17a039127be549a22c99ae2724298eef2a273cc2",
@@ -1361,7 +1361,7 @@
       ],
       "primary_category": "cs.CL"
     },
-    "deleted": "2025-12-29T01:52:36.777795+00:00"
+    "miss_count": 1
   },
   "2512.21017v1": {
     "hash": "337ecae1b760be1c41c12f0992ddd0dfc7e6fc3ad09ac180c0014ef4a5fa259a",
@@ -1376,7 +1376,7 @@
       ],
       "primary_category": "cs.CL"
     },
-    "deleted": "2025-12-29T01:52:36.777859+00:00"
+    "miss_count": 1
   },
   "2512.21002v1": {
     "hash": "bb4dadba3da61ef758e9825cc0bf5d05982d8ea921ce1d5db81483751c5df22c",
@@ -1392,7 +1392,7 @@
       ],
       "primary_category": "cs.CL"
     },
-    "deleted": "2025-12-29T01:52:36.777852+00:00"
+    "miss_count": 1
   },
   "2512.20983v1": {
     "hash": "c4e19c00021aa39d8c841e33e955426d1c34ea516a27dd1a3c99203f65d95fb6",
@@ -1407,7 +1407,7 @@
       ],
       "primary_category": "cs.CL"
     },
-    "deleted": "2025-12-29T01:52:36.777773+00:00"
+    "miss_count": 1
   },
   "2512.20954v1": {
     "hash": "8bef35daaead457bdf701b62c3e0ba61315565b85d5ceb3304990ad4723886e8",
@@ -1423,7 +1423,7 @@
       ],
       "primary_category": "cs.CL"
     },
-    "deleted": "2025-12-29T01:52:36.777544+00:00"
+    "miss_count": 1
   },
   "2512.20950v1": {
     "hash": "b83822afbd08c066b354a1afde48064c39ca9af3df1ee8957e3e761e54cd15ad",
@@ -1439,7 +1439,7 @@
       ],
       "primary_category": "cs.CL"
     },
-    "deleted": "2025-12-29T01:52:36.777629+00:00"
+    "miss_count": 1
   },
   "2512.20949v1": {
     "hash": "690dbfb58e21f5a7062bf33a6bcb94d8b691ed1376c6c1838f91c87a97118f4e",
@@ -1452,7 +1452,7 @@
       ],
       "primary_category": "cs.CL"
     },
-    "deleted": "2025-12-29T01:52:36.777763+00:00"
+    "miss_count": 1
   },
   "2512.20948v1": {
     "hash": "50c32c4e09e437b86601eac1384f18efc489da8f4fdf6e4d9eef2d02ca4ea233",
@@ -1468,7 +1468,7 @@
       ],
       "primary_category": "cs.CL"
     },
-    "deleted": "2025-12-29T01:52:36.777595+00:00"
+    "miss_count": 1
   },
   "2512.20934v1": {
     "hash": "0a6157010cad1a0855251c88f9a27b1fe98acdd004f4260314d18b1cf88e9db5",
@@ -1484,7 +1484,7 @@
       ],
       "primary_category": "cs.CV"
     },
-    "deleted": "2025-12-29T01:52:36.777660+00:00"
+    "miss_count": 1
   },
   "2512.21129v1": {
     "hash": "efcd9633cf92cb303eb038257fba37b6faa6edca640b46288f0ab2ac6f14d525",
@@ -1500,7 +1500,7 @@
       ],
       "primary_category": "q-bio.NC"
     },
-    "deleted": "2025-12-29T01:52:36.777563+00:00"
+    "miss_count": 1
   },
   "2512.20415v1": {
     "hash": "2ba01e78e62c591ee7b2fa2093e634bfe0c8634bc3832f54d738146b36bf626a",
@@ -1516,7 +1516,7 @@
       ],
       "primary_category": "physics.optics"
     },
-    "deleted": "2025-12-29T01:52:36.777605+00:00"
+    "miss_count": 1
   },
   "2512.21111v1": {
     "hash": "8d858cbd99f5cbc7ba05d3fca04ba8cbe08af7b4589d30b567fc2c69203efb0c",
@@ -1529,7 +1529,7 @@
       ],
       "primary_category": "math.ST"
     },
-    "deleted": "2025-12-29T01:52:36.777836+00:00"
+    "miss_count": 1
   },
   "2512.21075v1": {
     "hash": "87f4d265199b8bb82385f36818d8e46d2a2e0dd7107afdf2b64641369d0def0a",
@@ -1543,7 +1543,7 @@
       ],
       "primary_category": "cs.LG"
     },
-    "deleted": "2025-12-29T01:52:36.777687+00:00"
+    "miss_count": 1
   },
   "2512.21020v1": {
     "hash": "8cbc6545963daac770d8a6e71aadef31609e8218a4eb370d1f4ea7ef405da8d1",
@@ -1557,7 +1557,7 @@
       ],
       "primary_category": "stat.ML"
     },
-    "deleted": "2025-12-29T01:52:36.777740+00:00"
+    "miss_count": 1
   },
   "2512.21005v1": {
     "hash": "f147f076761bc3644b344b91b09e866b661a2d40f400f32cc4c709313d666fc0",
@@ -1571,7 +1571,7 @@
       ],
       "primary_category": "stat.ML"
     },
-    "deleted": "2025-12-29T01:52:36.777816+00:00"
+    "miss_count": 1
   },
   "2512.20914v1": {
     "hash": "09a09e859efb8df7fcefb4dd9f143201a7326ff2dec920cd89543a8062d6429f",
@@ -1586,7 +1586,7 @@
       ],
       "primary_category": "math.ST"
     },
-    "deleted": "2025-12-29T01:52:36.777669+00:00"
+    "miss_count": 1
   },
   "2512.20811v1": {
     "hash": "2fd35d618360cd4d4a3fc22252ec65870d98643ac2b7c43fe12a67a07b987a87",
@@ -1599,7 +1599,7 @@
       ],
       "primary_category": "stat.ML"
     },
-    "deleted": "2025-12-29T01:52:36.777855+00:00"
+    "miss_count": 1
   },
   "2512.20762v1": {
     "hash": "c7698f185c624d2efbe55f467b34d362088d8194d19a40488a869c2dbedfba27",
@@ -1612,7 +1612,7 @@
       ],
       "primary_category": "cs.LG"
     },
-    "deleted": "2025-12-29T01:52:36.777828+00:00"
+    "miss_count": 1
   },
   "2512.20552v1": {
     "hash": "11b0b350363e4f01047525f1c53b8696c8d0bc3c2fb63b9d6c756125d00b5013",
@@ -1627,7 +1627,7 @@
       ],
       "primary_category": "cs.IT"
     },
-    "deleted": "2025-12-29T01:52:36.777728+00:00"
+    "miss_count": 1
   },
   "2512.20523v1": {
     "hash": "4cd2d6d6df084a7f822680ea0deb4f22b4eeded08afc0e455be55d66b367340e",
@@ -1639,7 +1639,7 @@
       ],
       "primary_category": "econ.EM"
     },
-    "deleted": "2025-12-29T01:52:36.777692+00:00"
+    "miss_count": 1
   },
   "2512.20432v1": {
     "hash": "384df120783de3818eb098cfc716399d9c5e01e5a7eacf8f4a55ed0bde3ff032",
@@ -1654,7 +1654,7 @@
       ],
       "primary_category": "cs.CV"
     },
-    "deleted": "2025-12-29T01:52:36.777433+00:00"
+    "miss_count": 1
   },
   "2512.20368v1": {
     "hash": "d65ea714d8cc8d3b1301fac2eadc1c1fac5f197d8dfc2f5370a5d9b57785a3f1",
@@ -1667,7 +1667,7 @@
       ],
       "primary_category": "stat.ML"
     },
-    "deleted": "2025-12-29T01:52:36.777766+00:00"
+    "miss_count": 1
   },
   "2512.20363v1": {
     "hash": "64e0ea58cb35f36f8eff9a39b4900465991d47ca75c935641f66a925abf7593b",
@@ -1683,7 +1683,7 @@
       ],
       "primary_category": "cs.LG"
     },
-    "deleted": "2025-12-29T01:52:36.777679+00:00"
+    "miss_count": 1
   },
   "2512.20305v1": {
     "hash": "8a8c1c6ff663478770b6f0a0feec1a332ba89cc2b5bd5f444e464fda37699dd6",
@@ -1697,7 +1697,7 @@
       ],
       "primary_category": "stat.ML"
     },
-    "deleted": "2025-12-29T01:52:36.777840+00:00"
+    "miss_count": 1
   },
   "2512.20169v1": {
     "hash": "ab438caf47bbb22a8cda7d3f060142196f94f855baff705dd7de320fa1752897",
@@ -1713,7 +1713,7 @@
       ],
       "primary_category": "cs.LG"
     },
-    "deleted": "2025-12-29T01:52:36.777556+00:00"
+    "miss_count": 1
   },
   "2512.21293v1": {
     "hash": "cd52640fae5a782ccfd411c793d136ad6792bc9c461fccce5a6d73466d133b30",
@@ -1729,7 +1729,7 @@
       ],
       "primary_category": "cs.RO"
     },
-    "deleted": "2025-12-29T01:52:36.777870+00:00"
+    "miss_count": 1
   },
   "2512.21235v1": {
     "hash": "1a8cc3e9524c59a061358cd9ff4cfab9c9df2aa361390b7d7add8ab7e6d55aa6",
@@ -1745,7 +1745,7 @@
       ],
       "primary_category": "cs.RO"
     },
-    "deleted": "2025-12-29T01:52:36.777745+00:00"
+    "miss_count": 1
   },
   "2512.21233v1": {
     "hash": "fc63fee3dc91fe6c2fdd30091c074a5ef6c1e3a49dd2b956cfed6489d78320cd",
@@ -1761,7 +1761,7 @@
       ],
       "primary_category": "cs.RO"
     },
-    "deleted": "2025-12-29T01:52:36.777592+00:00"
+    "miss_count": 1
   },
   "2512.21226v1": {
     "hash": "9899023a0cb254c93bef32ce91a77252c06b866b2e0a724572467957be1c3c6f",
@@ -1774,7 +1774,7 @@
       ],
       "primary_category": "cs.RO"
     },
-    "deleted": "2025-12-29T01:52:36.777777+00:00"
+    "miss_count": 1
   },
   "2512.21219v1": {
     "hash": "83573567fe2e3e309e852684cd7ed1c66498c1cda03ccc83faa2ec16a620ddfb",
@@ -1790,7 +1790,7 @@
       ],
       "primary_category": "cs.RO"
     },
-    "deleted": "2025-12-29T01:52:36.777446+00:00"
+    "miss_count": 1
   },
   "2512.21196v1": {
     "hash": "ba55f219752f5e5b94b05185d1e5c1ae59164df31469d75316d87731948721c8",
@@ -1806,7 +1806,7 @@
       ],
       "primary_category": "cs.RO"
     },
-    "deleted": "2025-12-29T01:52:36.777599+00:00"
+    "miss_count": 1
   },
   "2512.21133v1": {
     "hash": "5a56415823c4523ec9a473810d0438321339d6186ed98fc1bce3a7427a51d597",
@@ -1822,7 +1822,7 @@
       ],
       "primary_category": "cs.RO"
     },
-    "deleted": "2025-12-29T01:52:36.777701+00:00"
+    "miss_count": 1
   },
   "2512.21109v1": {
     "hash": "8fe23b0ab7623e64eddd9e5d81de42679d191adc201dbb5d175072e62e78c605",
@@ -1835,7 +1835,7 @@
       ],
       "primary_category": "cs.RO"
     },
-    "deleted": "2025-12-29T01:52:36.777534+00:00"
+    "miss_count": 1
   },
   "2512.21085v1": {
     "hash": "5ed904093030e8b12651a85fa192f90509ad6679aa407e64e03849d761ebd565",
@@ -1849,7 +1849,7 @@
       ],
       "primary_category": "cs.RO"
     },
-    "deleted": "2025-12-29T01:52:36.777831+00:00"
+    "miss_count": 1
   },
   "2512.21065v1": {
     "hash": "4d610b09d58388372c01fc56495b89de23cebd04f861f0e351fc44b503030987",
@@ -1865,7 +1865,7 @@
       ],
       "primary_category": "cs.RO"
     },
-    "deleted": "2025-12-29T01:52:36.777695+00:00"
+    "miss_count": 1
   },
   "2512.21043v1": {
     "hash": "b249d6bd9b549a9b4c61205d8431c60c87a2dbb83f90860cc484aafe7d368a2d",
@@ -1879,7 +1879,7 @@
       ],
       "primary_category": "cs.RO"
     },
-    "deleted": "2025-12-29T01:52:36.777781+00:00"
+    "miss_count": 1
   },
   "2512.20992v1": {
     "hash": "47b6f2b1947f213d5ee9613fcfedb3ae408da7e31c2519d063440e41597f5a5e",
@@ -1895,7 +1895,7 @@
       ],
       "primary_category": "cs.RO"
     },
-    "deleted": "2025-12-29T01:52:36.777705+00:00"
+    "miss_count": 1
   },
   "2512.20974v1": {
     "hash": "37141799d24ad39d4012552f71fa7d8005fc6e0d95c0809a3f1c2d3c32e5a243",
@@ -1908,7 +1908,7 @@
       ],
       "primary_category": "cs.LG"
     },
-    "deleted": "2025-12-29T01:52:36.777676+00:00"
+    "miss_count": 1
   },
   "2512.20951v1": {
     "hash": "f725987ff0b14c8f8faea13c18b6823502898ca85f38071dcd2c3ba1b71f83dc",
@@ -1922,7 +1922,7 @@
       ],
       "primary_category": "cs.RO"
     },
-    "deleted": "2025-12-29T01:52:36.777843+00:00"
+    "miss_count": 1
   },
   "2512.20940v1": {
     "hash": "503decd0daa20c9c8c374a59eac4957e2a24cca40891c9fd71834651b6488cbb",
@@ -1938,7 +1938,7 @@
       ],
       "primary_category": "cs.RO"
     },
-    "deleted": "2025-12-29T01:52:36.777722+00:00"
+    "miss_count": 1
   },
   "2512.20931v1": {
     "hash": "43c5596bf6c24787b9bb6166efaf994618eb005a88cf3a01dd61f5bb1fb86c94",
@@ -1954,7 +1954,7 @@
       ],
       "primary_category": "cs.RO"
     },
-    "deleted": "2025-12-29T01:52:36.777508+00:00"
+    "miss_count": 1
   },
   "2512.20888v1": {
     "hash": "d9cbe2118958be9850c283052849bcd393bf13bd4e834794d494a24099a30605",
@@ -1970,7 +1970,7 @@
       ],
       "primary_category": "cs.RO"
     },
-    "deleted": "2025-12-29T01:52:36.777481+00:00"
+    "miss_count": 1
   },
   "2512.20981v1": {
     "hash": "8bbea76b801277ffd7f91896ba4d01f1799206abfa9fa53acc33816c00ddff0d",
@@ -1985,7 +1985,7 @@
       ],
       "primary_category": "eess.IV"
     },
-    "deleted": "2025-12-29T01:52:36.777798+00:00"
+    "miss_count": 1
   },
   "2512.20943v1": {
     "hash": "975ffc2cf9ff6f3565acc5c4548530c3970bb3a1682461220f3cf951c20c1f9f",
@@ -1999,7 +1999,7 @@
       ],
       "primary_category": "cs.GR"
     },
-    "deleted": "2025-12-29T01:52:36.777511+00:00"
+    "miss_count": 1
   },
   "2512.20871v1": {
     "hash": "c4422c391e095034102f14eccef0ea4bbe339e87d87e313bff6a682e66e3fb67",
@@ -2014,7 +2014,7 @@
       ],
       "primary_category": "cs.CV"
     },
-    "deleted": "2025-12-29T01:52:36.777759+00:00"
+    "miss_count": 1
   },
   "2512.20830v1": {
     "hash": "58ae071303743d89e3550162f96c87a39ffdb71b60dcb7251e4ec6b18f9c199f",
@@ -2028,7 +2028,7 @@
       ],
       "primary_category": "eess.SP"
     },
-    "deleted": "2025-12-29T01:52:36.777710+00:00"
+    "miss_count": 1
   },
   "2512.20741v1": {
     "hash": "d2514446e12afc661b1f484b670ad07ea7a808245a099380a2624ca89a6996cb",
@@ -2044,7 +2044,7 @@
       ],
       "primary_category": "eess.IV"
     },
-    "deleted": "2025-12-29T01:52:36.777664+00:00"
+    "miss_count": 1
   },
   "2512.20436v1": {
     "hash": "071eb873e94e68fca50dfd8fad8ff283661e6b240778ae59590be5d1f01af07e",
@@ -2060,7 +2060,7 @@
       ],
       "primary_category": "eess.IV"
     },
-    "deleted": "2025-12-29T01:52:36.777585+00:00"
+    "miss_count": 1
   },
   "2512.20374v1": {
     "hash": "79ff7a17fb984852c2c678d068dc18b0d5457ef19181ad536c332550c7c7f459",
@@ -2076,7 +2076,7 @@
       ],
       "primary_category": "eess.IV"
     },
-    "deleted": "2025-12-29T01:52:36.777755+00:00"
+    "miss_count": 1
   },
   "2512.20330v1": {
     "hash": "85f2a4fa1dd04e9b62d43fa917239877b7bfc006d4a13517b93ce684fe0351ea",
@@ -2091,7 +2091,7 @@
       ],
       "primary_category": "eess.IV"
     },
-    "deleted": "2025-12-29T01:52:36.777504+00:00"
+    "miss_count": 1
   },
   "2512.20296v1": {
     "hash": "befc236ee931a148f6db49501c8d21b229a42126e214eb2968dbe05b992a5b0f",
@@ -2107,7 +2107,7 @@
       ],
       "primary_category": "cs.CV"
     },
-    "deleted": "2025-12-29T01:52:36.777609+00:00"
+    "miss_count": 1
   },
   "2512.20251v1": {
     "hash": "975d148b6c294fb421b84a849b5918c8cef421116dd07b310dad06764dadbb29",
@@ -2123,7 +2123,7 @@
       ],
       "primary_category": "cs.CV"
     },
-    "deleted": "2025-12-29T01:52:36.777801+00:00"
+    "miss_count": 1
   },
   "2512.20249v1": {
     "hash": "a0cb60a336d81770ebc42aaf4d787e0f6f8937084e1da8d9e13a770e7408e06e",
@@ -2135,7 +2135,7 @@
       ],
       "primary_category": "cs.LG"
     },
-    "deleted": "2025-12-29T01:52:36.777733+00:00"
+    "miss_count": 1
   },
   "2512.20194v1": {
     "hash": "719e525119f7aef14c7af24783d6a67121c36897b5b9158f673ae5cb56e34811",
@@ -2151,7 +2151,7 @@
       ],
       "primary_category": "cs.CV"
     },
-    "deleted": "2025-12-29T01:52:36.777548+00:00"
+    "miss_count": 1
   },
   "2512.20113v1": {
     "hash": "c2181822c0e39fdd53e74f21765ac5091e1f307281d1b1503d881d07437569b0",
@@ -2164,7 +2164,7 @@
       ],
       "primary_category": "cs.CV"
     },
-    "deleted": "2025-12-29T01:52:36.777559+00:00"
+    "miss_count": 1
   },
   "2512.20093v1": {
     "hash": "b4b19f6baf6a45461a91e789d0d225e1639df596941bcbd49cd7e8306073e459",
@@ -2180,7 +2180,7 @@
       ],
       "primary_category": "eess.IV"
     },
-    "deleted": "2025-12-29T01:52:36.777602+00:00"
+    "miss_count": 1
   },
   "2512.20070v1": {
     "hash": "a63c08c356e0d9b47330ade2060c1e6f427ed89822baa17c4452d37afb3aa527",
@@ -2194,6 +2194,920 @@
       ],
       "primary_category": "cs.CV"
     },
-    "deleted": "2025-12-29T01:52:36.777751+00:00"
+    "miss_count": 1
+  },
+  "2603.04084v1": {
+    "hash": "5c4dff2714d0354a465fe9d06a6fd73eb700b57f961495e671d0dab2447c58bb",
+    "last_seen": "2026-03-05T03:01:10.791998+00:00",
+    "paper_metadata": {
+      "title": "End-to-end event reconstruction for precision physics at future colliders",
+      "authors": [
+        "Dolores Garcia",
+        "Lena Herrmann",
+        "Gregor Krzmanc",
+        "Michele Selvaggi"
+      ],
+      "primary_category": "hep-ex"
+    }
+  },
+  "2603.04071v1": {
+    "hash": "5222175323c1f1d7c4754640a12416590c8198e24c0d220505a46bc3c7c02b17",
+    "last_seen": "2026-03-05T03:01:10.792066+00:00",
+    "paper_metadata": {
+      "title": "SaFeR: Safety-Critical Scenario Generation for Autonomous Driving Test via Feasibility-Constrained Token Resampling",
+      "authors": [
+        "Jinlong Cui",
+        "Fenghua Liang",
+        "Guo Yang",
+        "Chengcheng Tang",
+        "Jianxun Cui"
+      ],
+      "primary_category": "cs.RO"
+    }
+  },
+  "2603.04069v1": {
+    "hash": "943da6aa3505610fb1d53fe2205c0b8e95bb72fca7ee0791df2eb4af172f1fa9",
+    "last_seen": "2026-03-05T03:01:10.792083+00:00",
+    "paper_metadata": {
+      "title": "Monitoring Emergent Reward Hacking During Generation via Internal Activations",
+      "authors": [
+        "Patrick Wilhelm",
+        "Thorsten Wittkopp",
+        "Odej Kao"
+      ],
+      "primary_category": "cs.CL"
+    }
+  },
+  "2603.04057v1": {
+    "hash": "5a83085c99f5766987862eeb7a2a4e5f8d355af458cc29c7cbbd410e6f93a045",
+    "last_seen": "2026-03-05T03:01:10.792110+00:00",
+    "paper_metadata": {
+      "title": "Sim2Sea: Sim-to-Real Policy Transfer for Maritime Vessel Navigation in Congested Waters",
+      "authors": [
+        "Xinyu Cui",
+        "Xuanfa Jin",
+        "Xue Yan",
+        "Yongcheng Zeng",
+        "Luoyang Sun"
+      ],
+      "primary_category": "cs.RO"
+    }
+  },
+  "2603.04045v1": {
+    "hash": "9a10e39c34476b56ed726f39e15c592e2bf887b8510002cb96b4227f555f8a8a",
+    "last_seen": "2026-03-05T03:01:10.792125+00:00",
+    "paper_metadata": {
+      "title": "Inference-Time Toxicity Mitigation in Protein Language Models",
+      "authors": [
+        "Manuel Fern\u00e1ndez Burda",
+        "Santiago Aranguri",
+        "Iv\u00e1n Arcuschin Moreno",
+        "Enzo Ferrante"
+      ],
+      "primary_category": "cs.LG"
+    }
+  },
+  "2603.04037v1": {
+    "hash": "8c546954912416db743f2db0b2526e241fee48def9fc21b83949e4c36a41319b",
+    "last_seen": "2026-03-05T03:01:10.792151+00:00",
+    "paper_metadata": {
+      "title": "DQE-CIR: Distinctive Query Embeddings through Learnable Attribute Weights and Target Relative Negative Sampling in Composed Image Retrieval",
+      "authors": [
+        "Geon Park",
+        "Ji-Hoon Park",
+        "Seong-Whan Lee"
+      ],
+      "primary_category": "cs.CV"
+    }
+  },
+  "2603.04034v1": {
+    "hash": "a7afaf49d781beb7d59625a80e3f43b0f2a186649382da691aa42ac5de1d1c02",
+    "last_seen": "2026-03-05T03:01:10.792166+00:00",
+    "paper_metadata": {
+      "title": "The Empty Quadrant: AI Teammates for Embodied Field Learning",
+      "authors": [
+        "Hyein Kim",
+        "Sung Park"
+      ],
+      "primary_category": "cs.HC"
+    }
+  },
+  "2603.04029v1": {
+    "hash": "b19037a3cff4d609e13c033146316443ed13709162a87d9a74f9accfa6de6285",
+    "last_seen": "2026-03-05T03:01:10.792187+00:00",
+    "paper_metadata": {
+      "title": "Self-adapting Robotic Agents through Online Continual Reinforcement Learning with World Model Feedback",
+      "authors": [
+        "Fabian Domberg",
+        "Georg Schildbach"
+      ],
+      "primary_category": "cs.RO"
+    }
+  },
+  "2603.04028v1": {
+    "hash": "0ea6cacc851c5b0b9590269005f2fd5a4bc1dc2da54369d03a42cf5e88bdbe16",
+    "last_seen": "2026-03-05T03:01:10.792201+00:00",
+    "paper_metadata": {
+      "title": "A Multi-Dimensional Quality Scoring Framework for Decentralized LLM Inference with Proof of Quality",
+      "authors": [
+        "Arther Tian",
+        "Alex Ding",
+        "Frank Chen",
+        "Simon Wu",
+        "Aaron Chan"
+      ],
+      "primary_category": "cs.LG"
+    }
+  },
+  "2603.04024v1": {
+    "hash": "044fa2c561b5ce791ef5854614aa605f88bcd4a0046c52977cff735f428366a7",
+    "last_seen": "2026-03-05T03:01:10.792220+00:00",
+    "paper_metadata": {
+      "title": "Volumetric Directional Diffusion: Anchoring Uncertainty Quantification in Anatomical Consensus for Ambiguous Medical Image Segmentation",
+      "authors": [
+        "Chao Wu",
+        "Kangxian Xie",
+        "Mingchen Gao"
+      ],
+      "primary_category": "cs.CV"
+    }
+  },
+  "2603.04002v1": {
+    "hash": "a772a75a95c729e7c047abf3c684e90d35dcb1e4823269b2d5f9ae42f861d39f",
+    "last_seen": "2026-03-05T03:01:10.792233+00:00",
+    "paper_metadata": {
+      "title": "Discriminative Perception via Anchored Description for Reasoning Segmentation",
+      "authors": [
+        "Tao Yang",
+        "Qing Zhou",
+        "Yanliang Li",
+        "Qi Wang"
+      ],
+      "primary_category": "cs.CV"
+    }
+  },
+  "2603.04001v1": {
+    "hash": "cf0751a29855be72c0375dcf02bc27b67be18e7af4d427fa7f468aa20b04e684",
+    "last_seen": "2026-03-05T03:01:10.792246+00:00",
+    "paper_metadata": {
+      "title": "STEM Faculty Perspectives on Generative AI in Higher Education",
+      "authors": [
+        "Akila de Silva",
+        "Isabel Hyo Jung Song",
+        "Hui Yang",
+        "Shah Rukh Humayoun"
+      ],
+      "primary_category": "cs.CY"
+    }
+  },
+  "2603.03995v1": {
+    "hash": "0fd4f1ac3ea34e322d0792a85f8013fd6e09cd90b7df358a6e13a476f0dd3452",
+    "last_seen": "2026-03-05T03:01:10.792258+00:00",
+    "paper_metadata": {
+      "title": "Spectral Surgery: Training-Free Refinement of LoRA via Gradient-Guided Singular Value Reweighting",
+      "authors": [
+        "Zailong Tian",
+        "Yanzhe Chen",
+        "Zhuoheng Han",
+        "Lizi Liao"
+      ],
+      "primary_category": "cs.LG"
+    }
+  },
+  "2603.03992v1": {
+    "hash": "eeb23d9fae9969f933f6f3820396d9cc59bd3e037c4744677008309bcd4644e3",
+    "last_seen": "2026-03-05T03:01:10.792272+00:00",
+    "paper_metadata": {
+      "title": "Measuring AI R&D Automation",
+      "authors": [
+        "Alan Chan",
+        "Ranay Padarath",
+        "Joe Kwon",
+        "Hilary Greaves",
+        "Markus Anderljung"
+      ],
+      "primary_category": "cs.CY"
+    }
+  },
+  "2603.03989v1": {
+    "hash": "00d515c47503aa68b537092c0ddf0bbb9f6055eb48369d579f9da4bbe140f2b5",
+    "last_seen": "2026-03-05T03:01:10.792285+00:00",
+    "paper_metadata": {
+      "title": "When Visual Evidence is Ambiguous: Pareidolia as a Diagnostic Probe for Vision Models",
+      "authors": [
+        "Qianpu Chen",
+        "Derya Soydaner",
+        "Rob Saunders"
+      ],
+      "primary_category": "cs.CV"
+    }
+  },
+  "2603.03983v1": {
+    "hash": "951ebfe3639b71dd49dba973df245803f83b02b4666f0dc8435855ac8187eb4b",
+    "last_seen": "2026-03-05T03:01:10.792296+00:00",
+    "paper_metadata": {
+      "title": "GeoSeg: Training-Free Reasoning-Driven Segmentation in Remote Sensing Imagery",
+      "authors": [
+        "Lifan Jiang",
+        "Yuhang Pei",
+        "oxi Wu",
+        "Yan Zhao",
+        "Tianrun Wu"
+      ],
+      "primary_category": "cs.CV"
+    }
+  },
+  "2603.03977v1": {
+    "hash": "e32bdad3b432ac6219da9a312f50988a4a857b885a0d281ebf49d09a917e4de7",
+    "last_seen": "2026-03-05T03:01:10.792308+00:00",
+    "paper_metadata": {
+      "title": "Right in Time: Reactive Reasoning in Regulated Traffic Spaces",
+      "authors": [
+        "Simon Kohaut",
+        "Benedict Flade",
+        "Julian Eggert",
+        "Kristian Kersting",
+        "Devendra Singh Dhami"
+      ],
+      "primary_category": "cs.RO"
+    }
+  },
+  "2603.03975v1": {
+    "hash": "ac5047910001bb1b7b81437dfb490b4a149c901e155119649e9d6a83bcbc180d",
+    "last_seen": "2026-03-05T03:01:10.792319+00:00",
+    "paper_metadata": {
+      "title": "Phi-4-reasoning-vision-15B Technical Report",
+      "authors": [
+        "Jyoti Aneja",
+        "Michael Harrison",
+        "Neel Joshi",
+        "Tyler LaBonte",
+        "John Langford"
+      ],
+      "primary_category": "cs.AI"
+    }
+  },
+  "2603.03971v1": {
+    "hash": "b11f1f2106275c0f07fd74b18a8bbce70a9482ce80b2b415f90e2146c9e33f1b",
+    "last_seen": "2026-03-05T03:01:10.792332+00:00",
+    "paper_metadata": {
+      "title": "Upholding Epistemic Agency: A Brouwerian Assertibility Constraint for Responsible AI",
+      "authors": [
+        "Michael J\u00fclich"
+      ],
+      "primary_category": "cs.CY"
+    }
+  },
+  "2603.03970v1": {
+    "hash": "ee374325ab6a0191319890788aea28cb4cbb82b9814303760503c5294a9b3ff4",
+    "last_seen": "2026-03-05T03:01:10.792361+00:00",
+    "paper_metadata": {
+      "title": "Generative AI in Managerial Decision-Making: Redefining Boundaries through Ambiguity Resolution and Sycophancy Analysis",
+      "authors": [
+        "Sule Ozturk Birim",
+        "Fabrizio Marozzo",
+        "Yigit Kazancoglu"
+      ],
+      "primary_category": "cs.AI"
+    }
+  },
+  "2603.04093v1": {
+    "hash": "05cf1f461a4dbd83623e026fbc1b4144d27bce18c5265b65c9e8d6fb12d4e3df",
+    "last_seen": "2026-03-05T03:01:10.792374+00:00",
+    "paper_metadata": {
+      "title": "Reducing hyperparameter sensitivity in measurement-feedback based Ising machines",
+      "authors": [
+        "Toon Sevenants",
+        "Guy Van der Sande",
+        "Guy Verschaffelt"
+      ],
+      "primary_category": "cs.LG"
+    }
+  },
+  "2603.04064v1": {
+    "hash": "f4e29b93dda162da13c82631ea3309ba7fbccc90b2de90c6bb1edf7a33c4a226",
+    "last_seen": "2026-03-05T03:01:10.792386+00:00",
+    "paper_metadata": {
+      "title": "Tuning Just Enough: Lightweight Backdoor Attacks on Multi-Encoder Diffusion Models",
+      "authors": [
+        "Ziyuan Chen",
+        "Yujin Jeong",
+        "Tobias Braun",
+        "Anna Rohrbach"
+      ],
+      "primary_category": "cs.LG"
+    }
+  },
+  "2603.04062v1": {
+    "hash": "8d7b403b778c4de25f341f87d9d4abadfe06c836a56514b203f05a380697e36d",
+    "last_seen": "2026-03-05T03:01:10.792401+00:00",
+    "paper_metadata": {
+      "title": "FedCova: Robust Federated Covariance Learning Against Noisy Labels",
+      "authors": [
+        "Xiangyu Zhong",
+        "Xiaojun Yuan",
+        "Ying-Jun Angela Zhang"
+      ],
+      "primary_category": "cs.LG"
+    }
+  },
+  "2603.04061v1": {
+    "hash": "edea6b80946c5512ec4c18a13fa8eef73ecac1ec18b0f8078bc3bfa4e845c0fb",
+    "last_seen": "2026-03-05T03:01:10.792415+00:00",
+    "paper_metadata": {
+      "title": "Fermi-Dirac thermal measurements: A framework for quantum hypothesis testing and semidefinite optimization",
+      "authors": [
+        "Nana Liu",
+        "Mark M. Wilde"
+      ],
+      "primary_category": "quant-ph"
+    }
+  },
+  "2603.04035v1": {
+    "hash": "c441db9c24df92b6eed60383d5d7472630885a07aa1883ff015f3a75e3f7b361",
+    "last_seen": "2026-03-05T03:01:10.792427+00:00",
+    "paper_metadata": {
+      "title": "mlx-vis: GPU-Accelerated Dimensionality Reduction and Visualization on Apple Silicon",
+      "authors": [
+        "Han Xiao"
+      ],
+      "primary_category": "cs.LG"
+    }
+  },
+  "2603.04032v1": {
+    "hash": "02c1ecd54ee6e697a6849c8d0a8f529bebe1f7e9b49a020512aefff853889fe6",
+    "last_seen": "2026-03-05T03:01:10.792463+00:00",
+    "paper_metadata": {
+      "title": "Multi-Stage Music Source Restoration with BandSplit-RoFormer Separation and HiFi++ GAN",
+      "authors": [
+        "Tobias Morocutti",
+        "Emmanouil Karystinaios",
+        "Jonathan Greif",
+        "Gerhard Widmer"
+      ],
+      "primary_category": "cs.SD"
+    }
+  },
+  "2603.04019v1": {
+    "hash": "329b3db9f987a3b301ad277ab3598b9e1525ae72fedd5ef12902b008f0c39601",
+    "last_seen": "2026-03-05T03:01:10.792478+00:00",
+    "paper_metadata": {
+      "title": "Continuous Modal Logical Neural Networks: Modal Reasoning via Stochastic Accessibility",
+      "authors": [
+        "Antonin Sulc"
+      ],
+      "primary_category": "cs.LO"
+    }
+  },
+  "2603.04007v1": {
+    "hash": "dcda87e68d856d635f27c75bc50b9b184faf52548bc602b5c4175bba8b0b415f",
+    "last_seen": "2026-03-05T03:01:10.792489+00:00",
+    "paper_metadata": {
+      "title": "Fixed-Budget Constrained Best Arm Identification in Grouped Bandits",
+      "authors": [
+        "Raunak Mukherjee",
+        "Sharayu Moharir"
+      ],
+      "primary_category": "cs.LG"
+    }
+  },
+  "2603.04005v1": {
+    "hash": "d30df7ed74df87cabb72d4b26751e5a6c6d3646a16a68c38945601f61835aae9",
+    "last_seen": "2026-03-05T03:01:10.792501+00:00",
+    "paper_metadata": {
+      "title": "Training-Free Rate-Distortion-Perception Traversal With Diffusion",
+      "authors": [
+        "Yuhan Wang",
+        "Suzhi Bi",
+        "Ying-Jun Angela Zhang"
+      ],
+      "primary_category": "cs.IT"
+    }
+  },
+  "2603.04000v1": {
+    "hash": "a8c7146d47f44f44185f028ad06fff3122878500b38d2194717d9d7f8b83ac98",
+    "last_seen": "2026-03-05T03:01:10.792513+00:00",
+    "paper_metadata": {
+      "title": "On the Learnability of Offline Model-Based Optimization: A Ranking Perspective",
+      "authors": [
+        "Shen-Huan Lyu",
+        "Rong-Xi Tan",
+        "Ke Xue",
+        "Yi-Xiao He",
+        "Yu Huang"
+      ],
+      "primary_category": "cs.LG"
+    }
+  },
+  "2603.03993v1": {
+    "hash": "73e6c7bdbb1f06c7fa868173cad9a4b4a57123546dbd8eaee947a9376897d354",
+    "last_seen": "2026-03-05T03:01:10.792524+00:00",
+    "paper_metadata": {
+      "title": "Specialization of softmax attention heads: insights from the high-dimensional single-location model",
+      "authors": [
+        "M. Sagitova",
+        "O. Duranthon",
+        "L. Zdeborov\u00e1"
+      ],
+      "primary_category": "cs.LG"
+    }
+  },
+  "2603.03973v1": {
+    "hash": "97e3c3396a058176be12857e47c1a4a2f11013ef2fa29d49eb37da4fda91de1f",
+    "last_seen": "2026-03-05T03:01:10.792535+00:00",
+    "paper_metadata": {
+      "title": "Dual-Solver: A Generalized ODE Solver for Diffusion Models with Dual Prediction",
+      "authors": [
+        "Soochul Park",
+        "Yeon Ju Lee"
+      ],
+      "primary_category": "cs.LG"
+    }
+  },
+  "2603.03963v1": {
+    "hash": "dc00faeea24ad701833a29f0d0dcf3839b62d504827b13cd9f41f02242286501",
+    "last_seen": "2026-03-05T03:01:10.792545+00:00",
+    "paper_metadata": {
+      "title": "TFWaveFormer: Temporal-Frequency Collaborative Multi-level Wavelet Transformer for Dynamic Link Prediction",
+      "authors": [
+        "Hantong Feng",
+        "Yonggang Wu",
+        "Duxin Chen",
+        "Wenwu Yu"
+      ],
+      "primary_category": "cs.LG"
+    }
+  },
+  "2603.03959v1": {
+    "hash": "b2a5e7adb44f6b0f4a9668c13592edfcb6989d0014977f3ae4d9d4c00f1e8329",
+    "last_seen": "2026-03-05T03:01:10.792569+00:00",
+    "paper_metadata": {
+      "title": "LoRA-MME: Multi-Model Ensemble of LoRA-Tuned Encoders for Code Comment Classification",
+      "authors": [
+        "Md Akib Haider",
+        "Ahsan Bulbul",
+        "Nafis Fuad Shahid",
+        "Aimaan Ahmed",
+        "Mohammad Ishrak Abedin"
+      ],
+      "primary_category": "cs.SE"
+    }
+  },
+  "2603.03955v1": {
+    "hash": "2f491f3d7c950732679123f8652a7c7a8592213da610a7961b3dcb257bd1373e",
+    "last_seen": "2026-03-05T03:01:10.792610+00:00",
+    "paper_metadata": {
+      "title": "GIPO: Gaussian Importance Sampling Policy Optimization",
+      "authors": [
+        "Chengxuan Lu",
+        "Zhenquan Zhang",
+        "Shukuan Wang",
+        "Qunzhi Lin",
+        "Baigui Sun"
+      ],
+      "primary_category": "cs.LG"
+    }
+  },
+  "2603.04091v1": {
+    "hash": "8a4b2707c1a475ffefa212ad8e3777d1e9f45a133490344438b576280e8fc84c",
+    "last_seen": "2026-03-05T03:01:10.792641+00:00",
+    "paper_metadata": {
+      "title": "CLIP-Guided Multi-Task Regression for Multi-View Plant Phenotyping",
+      "authors": [
+        "Simon Warmers",
+        "Muhammad Zawish",
+        "Fayaz Ali Dharejo",
+        "Steven Davy",
+        "Radu Timofte"
+      ],
+      "primary_category": "cs.CV"
+    }
+  },
+  "2603.04090v1": {
+    "hash": "b9e496f7cec09181cca380652334ad125510d5f1909b2f3f20619ca8fad43bc8",
+    "last_seen": "2026-03-05T03:01:10.792656+00:00",
+    "paper_metadata": {
+      "title": "EgoPoseFormer v2: Accurate Egocentric Human Motion Estimation for AR/VR",
+      "authors": [
+        "Zhenyu Li",
+        "Sai Kumar Dwivedi",
+        "Filip Maric",
+        "Carlos Chacon",
+        "Nadine Bertsch"
+      ],
+      "primary_category": "cs.CV"
+    }
+  },
+  "2603.04081v1": {
+    "hash": "84abe087a27977516d15f6dd9245224f2099409ae31f982abf756f625820cb03",
+    "last_seen": "2026-03-05T03:01:10.792717+00:00",
+    "paper_metadata": {
+      "title": "Revisiting the Role of Foundation Models in Cell-Level Histopathological Image Analysis under Small-Patch Constraints -- Effects of Training Data Scale and Blur Perturbations on CNNs and Vision Transformers",
+      "authors": [
+        "Hiroki Kagiyama",
+        "Toru Nagasaka",
+        "Yukari Adachi",
+        "Takaaki Tachibana",
+        "Ryota Ito"
+      ],
+      "primary_category": "cs.CV"
+    }
+  },
+  "2603.04058v1": {
+    "hash": "59ff37aaa222035b101e675a5a88e175c06167dcfdc150f3049b5438b8896dcc",
+    "last_seen": "2026-03-05T03:01:10.792750+00:00",
+    "paper_metadata": {
+      "title": "TumorFlow: Physics-Guided Longitudinal MRI Synthesis of Glioblastoma Growth",
+      "authors": [
+        "Valentin Biller",
+        "Niklas Bubeck",
+        "Lucas Zimmer",
+        "Ayhan Can Erdur",
+        "Sandeep Nagar"
+      ],
+      "primary_category": "cs.CV"
+    }
+  },
+  "2603.04056v1": {
+    "hash": "f582ce2e6e9c2e35b617de258e53c37684d9b697f30dcdbbb358fc08330280fb",
+    "last_seen": "2026-03-05T03:01:10.792767+00:00",
+    "paper_metadata": {
+      "title": "Long-Term Visual Localization in Dynamic Benthic Environments: A Dataset, Footprint-Based Ground Truth, and Visual Place Recognition Benchmark",
+      "authors": [
+        "Martin Kvisvik Larsen",
+        "Oscar Pizarro"
+      ],
+      "primary_category": "cs.CV"
+    }
+  },
+  "2603.04022v1": {
+    "hash": "b6b49edb8577ef65383acbf56b6f0f7d5a1cfc968117a351c502979bdfe405f8",
+    "last_seen": "2026-03-05T03:01:10.792782+00:00",
+    "paper_metadata": {
+      "title": "Rethinking the Efficiency and Effectiveness of Reinforcement Learning for Radiology Report Generation",
+      "authors": [
+        "Zilin Lu",
+        "Ruifeng Yuan",
+        "Weiwei Cao",
+        "Wanxing Chang",
+        "Zhongyu Wei"
+      ],
+      "primary_category": "cs.CV"
+    }
+  },
+  "2603.03991v1": {
+    "hash": "28af0744d0e33e0829a5316a0b2f5a4b73e135c61cffb6db3857c9321db51ced",
+    "last_seen": "2026-03-05T03:01:10.792796+00:00",
+    "paper_metadata": {
+      "title": "Weakly Supervised Patch Annotation for Improved Screening of Diabetic Retinopathy",
+      "authors": [
+        "Shramana Dey",
+        "Abhirup Banerjee",
+        "B. Uma Shankar",
+        "Ramachandran Rajalakshmi",
+        "Sushmita Mitra"
+      ],
+      "primary_category": "cs.CV"
+    }
+  },
+  "2603.03985v1": {
+    "hash": "611713745fb71f82fac63cf68c343bf02fdf320c85847a9ccc2441968fdbb4dc",
+    "last_seen": "2026-03-05T03:01:10.792808+00:00",
+    "paper_metadata": {
+      "title": "RIVER: A Real-Time Interaction Benchmark for Video LLMs",
+      "authors": [
+        "Yansong Shi",
+        "Qingsong Zhao",
+        "Tianxiang Jiang",
+        "Xiangyu Zeng",
+        "Yi Wang"
+      ],
+      "primary_category": "cs.CV"
+    }
+  },
+  "2603.03969v1": {
+    "hash": "431b524565802297792a1a73121a7cc74a3026814dcc328449d963d557c53ff5",
+    "last_seen": "2026-03-05T03:01:10.792820+00:00",
+    "paper_metadata": {
+      "title": "Scaling Dense Event-Stream Pretraining from Visual Foundation Models",
+      "authors": [
+        "Zhiwen Chen",
+        "Junhui Hou",
+        "Zhiyu Zhu",
+        "Jinjian Wu",
+        "Guangming Shi"
+      ],
+      "primary_category": "cs.CV"
+    }
+  },
+  "2603.03967v1": {
+    "hash": "cf80ff772b43f4d2ef444793ad10e3846b93c656a13557e7c1401f216f1eae7a",
+    "last_seen": "2026-03-05T03:01:10.792831+00:00",
+    "paper_metadata": {
+      "title": "UniRain: Unified Image Deraining with RAG-based Dataset Distillation and Multi-objective Reweighted Optimization",
+      "authors": [
+        "Qianfeng Yang",
+        "Qiyuan Guan",
+        "Xiang Chen",
+        "Jiyu Jin",
+        "Guiyue Jin"
+      ],
+      "primary_category": "cs.CV"
+    }
+  },
+  "2603.03964v1": {
+    "hash": "48e03f66e4f0ab1648af9e875447efa17280c43fbd7847f3336483899b3452c3",
+    "last_seen": "2026-03-05T03:01:10.792843+00:00",
+    "paper_metadata": {
+      "title": "BLOCK: An Open-Source Bi-Stage MLLM Character-to-Skin Pipeline for Minecraft",
+      "authors": [
+        "Hengquan Guo"
+      ],
+      "primary_category": "cs.CV"
+    }
+  },
+  "2603.03961v1": {
+    "hash": "39319bc92749b41b81c95a3acc7cd8aabf945d0de24e173a05c89560030d12a3",
+    "last_seen": "2026-03-05T03:01:10.792857+00:00",
+    "paper_metadata": {
+      "title": "ProFound: A moderate-sized vision foundation model for multi-task prostate imaging",
+      "authors": [
+        "Yipei Wang",
+        "Yinsong Xu",
+        "Weixi Yi",
+        "Shaheer Ullah Saeed",
+        "Natasha Thorley"
+      ],
+      "primary_category": "cs.CV"
+    }
+  },
+  "2603.04398v1": {
+    "hash": "ce376b8128aa0981ba056787cc3c167f8c97454b50a42106b254b06f9744f38a",
+    "last_seen": "2026-03-05T03:01:10.792900+00:00",
+    "paper_metadata": {
+      "title": "HyQBench: A Benchmark Suite for Hybrid CV-DV Quantum Computing",
+      "authors": [
+        "Shubdeep Mohapatra",
+        "Yuan Liu",
+        "Eddy Z. Zhang",
+        "Huiyang Zhou"
+      ],
+      "primary_category": "quant-ph"
+    }
+  },
+  "2603.04377v1": {
+    "hash": "b8d6ad1d3fef33e6e855509928fe76d4e4ff5fa3c0bedab49181cc511e8759a8",
+    "last_seen": "2026-03-05T03:01:10.792930+00:00",
+    "paper_metadata": {
+      "title": "Benchmarking Quantum Computers via Protocols, Comparing IBM's Heron vs IBM's Eagle",
+      "authors": [
+        "Nitay Mayo",
+        "Tal Mor",
+        "Yossi Weinstein"
+      ],
+      "primary_category": "quant-ph"
+    }
+  },
+  "2603.04375v1": {
+    "hash": "8ee0506e26a71315e3b197888b9815d82bde775d56a21078712cd7fd1e376094",
+    "last_seen": "2026-03-05T03:01:10.792959+00:00",
+    "paper_metadata": {
+      "title": "Non-Hermitian Quantum Mechanics with Applications to Gravity",
+      "authors": [
+        "Oem Trivedi",
+        "Alfredo Gurrola",
+        "Robert J. Scherrer"
+      ],
+      "primary_category": "gr-qc"
+    }
+  },
+  "2603.04373v1": {
+    "hash": "81066a77d279b939555e3e692b7a621c799f141757e9c0688bad9e73b4982631",
+    "last_seen": "2026-03-05T03:01:10.792971+00:00",
+    "paper_metadata": {
+      "title": "Dynamical Behaviour of Density Correlations Across the Chaotic Phase for Interacting Bosons",
+      "authors": [
+        "\u00d3scar Due\u00f1as",
+        "Alberto Rodr\u00edguez"
+      ],
+      "primary_category": "quant-ph"
+    }
+  },
+  "2603.04357v1": {
+    "hash": "19800a5c81ad4370768c98cffad54d135f227f2bc8e35f393523ebf69ecf0cd4",
+    "last_seen": "2026-03-05T03:01:10.792982+00:00",
+    "paper_metadata": {
+      "title": "On Error Thresholds for Pauli Channels: Some answers with many more questions",
+      "authors": [
+        "Avantika Agarwal",
+        "Alan Bu",
+        "Amolak Ratan Kalra",
+        "Debbie Leung",
+        "Luke Schaeffer"
+      ],
+      "primary_category": "quant-ph"
+    }
+  },
+  "2603.04339v1": {
+    "hash": "38e25141a72d178024fc5b4183fde079d6ffd4b970627d5b07945334099b218e",
+    "last_seen": "2026-03-05T03:01:10.792994+00:00",
+    "paper_metadata": {
+      "title": "Quantum error mitigation by hierarchy-informed sampling: chiral dynamics in the Schwinger model",
+      "authors": [
+        "Theo Saporiti",
+        "Oleg Kaikov",
+        "Vasily Sazonov",
+        "Mohamed Tamaazousti"
+      ],
+      "primary_category": "quant-ph"
+    }
+  },
+  "2603.04336v1": {
+    "hash": "1e8559f52ed9e755fa9bf9b28073389209fd07760ef5b8bc53bf4fbc1636c3c3",
+    "last_seen": "2026-03-05T03:01:10.793005+00:00",
+    "paper_metadata": {
+      "title": "Direct derivation of the modified Langevin noise formalism from the canonical quantization of macroscopic electromagnetism",
+      "authors": [
+        "Alessandro Ciattoni"
+      ],
+      "primary_category": "quant-ph"
+    }
+  },
+  "2603.04332v1": {
+    "hash": "8ed2e4bf07e3b085b603881e29e49539a187dbf0734f060d89e5d6ce29a73e90",
+    "last_seen": "2026-03-05T03:01:10.793015+00:00",
+    "paper_metadata": {
+      "title": "On the operational and algebraic quantum correlations",
+      "authors": [
+        "Shun Umekawa",
+        "Jaeha Lee"
+      ],
+      "primary_category": "quant-ph"
+    }
+  },
+  "2603.04310v1": {
+    "hash": "d4ab1dd0c1ff77ae0c737343577531c30436737f0020c4cb817a53e4a4a47dd8",
+    "last_seen": "2026-03-05T03:01:10.793026+00:00",
+    "paper_metadata": {
+      "title": "Magic state distillation with permutation-invariant codes and a two-qubit example",
+      "authors": [
+        "Heather Leitch",
+        "Yingkai Ouyang"
+      ],
+      "primary_category": "quant-ph"
+    }
+  },
+  "2603.04250v1": {
+    "hash": "0b616bb31d2b1781484e5602613f28cbe9e1bb654094416fd9e4ee9fed1dfc44",
+    "last_seen": "2026-03-05T03:01:10.793038+00:00",
+    "paper_metadata": {
+      "title": "Long-lived metastable states in the 4f$^{13}$5d6s configuration of Yb$^+$",
+      "authors": [
+        "Z. E. D. Ackerman",
+        "A. Cadarso Quevedo",
+        "Ilango Maran",
+        "L. P. H. Gallagher",
+        "R. J. C. Spreeuw"
+      ],
+      "primary_category": "physics.atom-ph"
+    }
+  },
+  "2603.04248v1": {
+    "hash": "be8b76a1b3d8cb41e2d7263d93c11f134ddc51338092a1175bfca27d5924d645",
+    "last_seen": "2026-03-05T03:01:10.793049+00:00",
+    "paper_metadata": {
+      "title": "Progress on artificial flat band systems: classifying, perturbing, applying",
+      "authors": [
+        "Carlo Danieli",
+        "Sergej Flach"
+      ],
+      "primary_category": "cond-mat.mes-hall"
+    }
+  },
+  "2603.04234v1": {
+    "hash": "32a44149416e8a6286f440c9515c7eb63de82d606944c9dd15611c571fe72108",
+    "last_seen": "2026-03-05T03:01:10.793059+00:00",
+    "paper_metadata": {
+      "title": "Minimum Weight Decoding in the Colour Code is NP-hard",
+      "authors": [
+        "Mark Walters",
+        "Mark L. Turner"
+      ],
+      "primary_category": "quant-ph"
+    }
+  },
+  "2603.04210v1": {
+    "hash": "9147e9adad91e3c62ba8ec01fc8a16dbbbcd1e61b1b6cb2d612a3be3b8f1265c",
+    "last_seen": "2026-03-05T03:01:10.793071+00:00",
+    "paper_metadata": {
+      "title": "Constructing Arbitrary Coherent Rearrangements in Optical Lattices",
+      "authors": [
+        "Alexander Roth",
+        "Liyang Qiu",
+        "Timon Hilker",
+        "Titus Franz",
+        "Philipp M. Preiss"
+      ],
+      "primary_category": "quant-ph"
+    }
+  },
+  "2603.04192v1": {
+    "hash": "1b8b12dd735821f4766666a0a79638e3260d01a39dc992a50b3eff0cd327b26d",
+    "last_seen": "2026-03-05T03:01:10.793083+00:00",
+    "paper_metadata": {
+      "title": "OptiQKD: A Machine Learning-Optimized Framework for Real-Time Parameter Tuning in Quantum Key Distribution",
+      "authors": [
+        "Noureldin Mohamed",
+        "Jawaher Kaldari",
+        "Saif Al-Kuwari"
+      ],
+      "primary_category": "quant-ph"
+    }
+  },
+  "2603.04187v1": {
+    "hash": "696dc25dc245d856d125970149091c79f22028d2dcb87b64f1ceba14a80a394a",
+    "last_seen": "2026-03-05T03:01:10.793092+00:00",
+    "paper_metadata": {
+      "title": "Distributed optimization of Lindblad equations for large-scale cavity QED systems",
+      "authors": [
+        "Hui-hui Miao"
+      ],
+      "primary_category": "quant-ph"
+    }
+  },
+  "2603.04156v1": {
+    "hash": "f4b5c92ac973b47420fb9424faafbd358c7d127fcc61c9cc775539d85d05772f",
+    "last_seen": "2026-03-05T03:01:10.793105+00:00",
+    "paper_metadata": {
+      "title": "Achieving Optimal-Distance Atom-Loss Correction via Pauli Envelope",
+      "authors": [
+        "Pengyu Liu",
+        "Shi Jie Samuel Tan",
+        "Eric Huang",
+        "Umut A. Acar",
+        "Hengyun Zhou"
+      ],
+      "primary_category": "quant-ph"
+    }
+  },
+  "2603.04148v1": {
+    "hash": "a98aca70667a9ec688432f95e9d88a177f79d9b6c512206eb8b8646448d03fd6",
+    "last_seen": "2026-03-05T03:01:10.793116+00:00",
+    "paper_metadata": {
+      "title": "Non-local nonstabiliserness in Gluon and Graviton Scattering",
+      "authors": [
+        "John Gargalionis",
+        "Nathan Moynihan",
+        "Michael L. Reichenberg Ashby",
+        "Ewan N. V. Wallace",
+        "Chris D. White"
+      ],
+      "primary_category": "hep-th"
+    }
+  },
+  "2603.04126v1": {
+    "hash": "31b50b3629915e62df044abbc8e06346cbd74ba4034df7590d71d6b23ad3ea1a",
+    "last_seen": "2026-03-05T03:01:10.793128+00:00",
+    "paper_metadata": {
+      "title": "Efficient Time-Aware Partitioning of Quantum Circuits for Distributed Quantum Computing",
+      "authors": [
+        "Raymond P. H. Wu",
+        "Chathu Ranaweera",
+        "Sutharshan Rajasegarar",
+        "Ria Rushin Joseph",
+        "Jinho Choi"
+      ],
+      "primary_category": "quant-ph"
+    }
+  },
+  "2603.04108v1": {
+    "hash": "a5b752f3a6688cac5c95ab4c831a2e4a71708eede577a15e544e977c9e7bfc43",
+    "last_seen": "2026-03-05T03:01:10.793140+00:00",
+    "paper_metadata": {
+      "title": "Entanglement between quantum dots transmitted via Majorana wire: Insights from the fermionic negativity, concurrence and quantum mutual information",
+      "authors": [
+        "C. Jasiukiewicz",
+        "A. Sinner",
+        "I. Weymann",
+        "T. Doma\u0144ski",
+        "L. Chotorlishvili"
+      ],
+      "primary_category": "quant-ph"
+    }
+  },
+  "2603.04097v1": {
+    "hash": "baf1ed6a37228ff0149eeb1f30e7812b631f1b277d17f9b1afeecdfabe1410cc",
+    "last_seen": "2026-03-05T03:01:10.793152+00:00",
+    "paper_metadata": {
+      "title": "Spectral Bath Engineering for Quantum-Enhanced Agrivoltaics: Advancing Efficiency and Environmental Sustainability via Non-Markovian Dynamics",
+      "authors": [
+        "Steve Cabrel Teguia Kouam",
+        "Theodore Goumai Vedekoi",
+        "Jean-Pierre Tchapet Njafa",
+        "Jean-Pierre Nguenang",
+        "Serge Guy Nana Engo"
+      ],
+      "primary_category": "quant-ph"
+    }
   }
 }
