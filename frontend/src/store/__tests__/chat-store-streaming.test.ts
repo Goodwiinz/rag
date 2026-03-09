@@ -69,8 +69,8 @@ describe('Chat Store Streaming State and Actions', () => {
       expect(useChatStore.getState().streamingCitations).toEqual([]);
     });
 
-    it('should have abortController set to null', () => {
-      expect(useChatStore.getState().abortController).toBeNull();
+    it('should not have abortController in state (moved to module level)', () => {
+      expect('abortController' in useChatStore.getState()).toBe(false);
     });
   });
 
@@ -104,8 +104,6 @@ describe('Chat Store Streaming State and Actions', () => {
       );
       expect(useChatStore.getState().streamingMessageId).toBe('msg-123');
       expect(useChatStore.getState().streamingCitations).toHaveLength(1);
-      expect(useChatStore.getState().abortController).not.toBeNull();
-
       // Call stopStreaming
       act(() => {
         useChatStore.getState().stopStreaming();
@@ -116,33 +114,13 @@ describe('Chat Store Streaming State and Actions', () => {
       expect(useChatStore.getState().streamingContent).toBe('');
       expect(useChatStore.getState().streamingMessageId).toBeNull();
       expect(useChatStore.getState().streamingCitations).toEqual([]);
-      expect(useChatStore.getState().abortController).toBeNull();
     });
 
-    it('should call abort on the controller if one exists', () => {
-      const mockController = new AbortController();
-      const abortSpy = jest.spyOn(mockController, 'abort');
-
-      act(() => {
-        useChatStore.setState({
-          isStreaming: true,
-          abortController: mockController,
-        });
-      });
-
-      act(() => {
-        useChatStore.getState().stopStreaming();
-      });
-
-      expect(abortSpy).toHaveBeenCalled();
-    });
-
-    it('should handle stopStreaming when no abort controller exists', () => {
+    it('should handle stopStreaming when not streaming', () => {
       act(() => {
         useChatStore.setState({
           isStreaming: true,
           streamingContent: 'some content',
-          abortController: null,
         });
       });
 

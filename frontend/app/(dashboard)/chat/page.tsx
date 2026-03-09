@@ -528,6 +528,7 @@ function ChatInput({
   enableRAG,
   onRAGToggle,
   isRAGLoading,
+  inputRef,
 }: {
   value: string;
   onChange: (value: string) => void;
@@ -541,10 +542,10 @@ function ChatInput({
   enableRAG: boolean;
   onRAGToggle: (enabled: boolean) => void;
   isRAGLoading?: boolean;
-  inputRef?: React.RefObject<HTMLTextAreaElement | null>;
+  inputRef?: React.RefObject<HTMLTextAreaElement>;
 }) {
   const internalRef = useRef<HTMLTextAreaElement>(null);
-  const textareaRef = inputRef || internalRef;
+  const textareaRef = inputRef ?? internalRef;
   const [isFocused, setIsFocused] = useState(false);
 
   useEffect(() => {
