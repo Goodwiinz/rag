@@ -51,7 +51,7 @@ class ArXivIngestionService:
     - Automatic retry for failed downloads
     """
 
-    ARXIV_API_BASE = "http://export.arxiv.org/api/query"
+    ARXIV_API_BASE = "https://export.arxiv.org/api/query"
     ARXIV_PDF_BASE = "https://arxiv.org/pdf"
     MAX_RETRIES = 3
     BATCH_SIZE = 100
@@ -74,35 +74,56 @@ class ArXivIngestionService:
         self.download_dir = Path(self.config.get("arxiv_download_dir", "data/arxiv"))
         self.download_dir.mkdir(parents=True, exist_ok=True)
 
+    # ArXiv requires >= 3 seconds between API requests.
+    _last_request_time: float = 0.0
+
     async def _make_async_request(self, url: str, params: Dict) -> str:
-        """Make asynchronous request using httpx"""
+        """Make asynchronous request using httpx with rate limiting and 429 retry"""
+        # Enforce minimum 3-second gap between requests (ArXiv policy)
+        import time
+
+        now = time.monotonic()
+        elapsed = now - ArXivIngestionService._last_request_time
+        if elapsed < 3.0:
+            await asyncio.sleep(3.0 - elapsed)
+        ArXivIngestionService._last_request_time = time.monotonic()
+
         logger.info(f"Async request to: {url}")
-        logger.info(f"Params: {params}")
 
-        try:
-            async with httpx.AsyncClient() as client:
-                response = await client.get(url, params=params, timeout=60.0)  # 60 second timeout
-                logger.info(f"Response object: {response}")
-                logger.info(f"Response status: {response.status_code}")
+        max_attempts = 5
+        for attempt in range(max_attempts):
+            try:
+                async with httpx.AsyncClient(follow_redirects=True) as client:
+                    response = await client.get(url, params=params, timeout=60.0)
 
-                response.raise_for_status()
+                    if response.status_code == 429:
+                        wait = 10 * (attempt + 1)  # 10s, 20s, 30s, 40s, 50s
+                        logger.warning(
+                            f"ArXiv rate limited (429), attempt {attempt + 1}/{max_attempts}, "
+                            f"retrying in {wait}s..."
+                        )
+                        await asyncio.sleep(wait)
+                        ArXivIngestionService._last_request_time = time.monotonic()
+                        continue
 
-                if response is None:
-                    logger.error("Response is None!")
-                    raise IngestionError("None response from arXiv API")
+                    response.raise_for_status()
+                    logger.info(f"Response status: {response.status_code}, length: {len(response.text)}")
+                    return response.text
 
-                response_text = response.text
-                logger.info(f"Response text type: {type(response_text)}")
-                logger.info(f"Response length: {len(response_text) if response_text else 0}")
+            except httpx.TimeoutException:
+                logger.error("Request to arXiv API timed out after 60 seconds")
+                if attempt == max_attempts - 1:
+                    raise IngestionError("ArXiv API request timed out")
+                await asyncio.sleep(3)
+            except httpx.HTTPStatusError:
+                raise
+            except Exception as e:
+                logger.error(f"Error in _make_async_request: {e}")
+                if attempt == max_attempts - 1:
+                    raise
+                await asyncio.sleep(3)
 
-                return response_text
-        except httpx.TimeoutException:
-            logger.error("Request to arXiv API timed out after 60 seconds")
-            raise IngestionError("ArXiv API request timed out")
-        except Exception as e:
-            logger.error(f"Error in _make_async_request: {e}")
-            logger.error(f"Exception type: {type(e)}")
-            raise
+        raise IngestionError("ArXiv API request failed after retries")
 
     async def __aenter__(self):
         """Async context manager entry"""

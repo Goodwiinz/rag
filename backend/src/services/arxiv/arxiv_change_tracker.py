@@ -46,10 +46,17 @@ class ArXivChangeTracker:
     Features:
     - Detects new papers
     - Identifies updated papers based on hash comparison
-    - Tracks deleted papers (those no longer found in searches)
+    - Tracks papers missing from search results with consecutive miss counting
+    - Only marks papers as deleted after DELETION_MISS_THRESHOLD consecutive misses
     - Maintains audit trail of all changes
     - Automatically updates database and knowledge graph
     """
+
+    # Papers must be absent from search results for this many consecutive
+    # tracking runs before being marked as deleted. ArXiv search results are
+    # paginated and time-windowed, so a paper falling out of the top results
+    # does not mean it was removed from ArXiv.
+    DELETION_MISS_THRESHOLD = 3
 
     def __init__(self):
         self.state_file = Path("data/arxiv_change_state.json")
@@ -145,12 +152,22 @@ class ArXivChangeTracker:
                     },
                 }
 
-        # Find updated papers
+        # Find updated papers (also resets miss_count since paper is still visible)
         common_ids = current_ids & stored_ids
         for paper in papers:
             if paper["id"] in common_ids:
+                # Paper is still in results — reset miss count
+                self.state[paper["id"]]["miss_count"] = 0
+                if "deleted" in self.state[paper["id"]]:
+                    del self.state[paper["id"]]["deleted"]
+
                 new_hash = self.compute_paper_hash(paper)
                 old_hash = self.state[paper["id"]]["hash"]
+
+                # Always update last_seen
+                self.state[paper["id"]]["last_seen"] = (
+                    datetime.now(timezone.utc).isoformat()
+                )
 
                 if new_hash != old_hash:
                     # Determine what changed
@@ -185,17 +202,24 @@ class ArXivChangeTracker:
 
                     # Update state
                     self.state[paper["id"]]["hash"] = new_hash
-                    self.state[paper["id"]]["last_seen"] = datetime.utcnow().isoformat()
                     self.state[paper["id"]]["paper_metadata"] = {
                         "title": paper.get("title", ""),
                         "authors": paper.get("authors", [])[:5],
                         "primary_category": paper.get("primary_category"),
                     }
 
-        # Find deleted papers (not in current results but in state)
-        deleted_ids = stored_ids - current_ids
-        for paper_id in deleted_ids:
-            if "deleted" not in self.state[paper_id]:  # Only mark as deleted once
+        # Track missing papers — increment miss_count instead of instant deletion.
+        # Only mark as deleted after DELETION_MISS_THRESHOLD consecutive misses.
+        missing_ids = stored_ids - current_ids
+        for paper_id in missing_ids:
+            if "deleted" in self.state[paper_id]:
+                # Already deleted, skip
+                continue
+
+            miss_count = self.state[paper_id].get("miss_count", 0) + 1
+            self.state[paper_id]["miss_count"] = miss_count
+
+            if miss_count >= self.DELETION_MISS_THRESHOLD:
                 change = ChangeRecord(
                     paper_id=paper_id,
                     change_type="deleted",
@@ -208,7 +232,17 @@ class ArXivChangeTracker:
                 changes.append(change)
 
                 # Mark as deleted in state (keep record)
-                self.state[paper_id]["deleted"] = datetime.now(timezone.utc).isoformat()
+                self.state[paper_id]["deleted"] = (
+                    datetime.now(timezone.utc).isoformat()
+                )
+                logger.info(
+                    f"Paper {paper_id} marked deleted after {miss_count} consecutive misses"
+                )
+            else:
+                logger.debug(
+                    f"Paper {paper_id} missing from results "
+                    f"({miss_count}/{self.DELETION_MISS_THRESHOLD} misses)"
+                )
 
         return changes
 
@@ -475,6 +509,7 @@ class ArXivChangeTracker:
                 "current_hash": data["hash"],
                 "last_seen": data["last_seen"],
                 "deleted": data.get("deleted", False),
+                "miss_count": data.get("miss_count", 0),
                 "metadata": data.get("paper_metadata", {}),
             }
             changes.append(record)
