@@ -127,12 +127,32 @@ async def get_all_entities(
     entity_types: Optional[List[EntityType]] = Query(
         None, description="Filter by entity types"
     ),
+    connected_only: bool = Query(
+        default=False, description="Only return entities that have relationships"
+    ),
     current_user: User = Depends(get_current_user),
+    db=Depends(get_db_sync),
 ):
     """Get all entities with pagination and optional filtering"""
     try:
-        entities = knowledge_graph_service.get_all_entities(limit, offset, entity_types)
-        total = knowledge_graph_service.count_entities(entity_types)
+        # Get document IDs belonging to the current user's organization
+        org_doc_ids = [
+            str(doc_id)
+            for (doc_id,) in db.query(Document.id)
+            .filter(Document.organization_id == current_user.organization_id)
+            .all()
+        ]
+
+        entities = knowledge_graph_service.get_all_entities(
+            limit, offset, entity_types,
+            source_document_ids=org_doc_ids,
+            connected_only=connected_only,
+        )
+        total = knowledge_graph_service.count_entities(
+            entity_types,
+            source_document_ids=org_doc_ids,
+            connected_only=connected_only,
+        )
         return PaginatedEntitiesResponse(
             entities=entities,
             total=total,
@@ -243,11 +263,18 @@ async def get_all_relationships(
         None, description="Filter by relationship types"
     ),
     current_user: User = Depends(get_current_user),
+    db=Depends(get_db_sync),
 ):
     """Get all relationships with pagination and optional filtering"""
     try:
+        org_doc_ids = [
+            str(doc_id)
+            for (doc_id,) in db.query(Document.id)
+            .filter(Document.organization_id == current_user.organization_id)
+            .all()
+        ]
         relationships = knowledge_graph_service.get_all_relationships(
-            limit, offset, relationship_types
+            limit, offset, relationship_types, source_document_ids=org_doc_ids
         )
         return relationships
     except Exception as e:
@@ -422,37 +449,37 @@ async def create_merge_job(
             raise HTTPException(status_code=404, detail=f"Entity not found: {entity_id}")
 
         source_document_id = getattr(entity, "source_document_id", None)
-        if not source_document_id:
-            raise HTTPException(
-                status_code=422,
-                detail=f"Entity {entity_id} has no source document and cannot be merged safely",
-            )
-        entity_source_docs[entity_id] = str(source_document_id)
+        if source_document_id:
+            entity_source_docs[entity_id] = str(source_document_id)
 
     source_doc_ids = sorted(set(entity_source_docs.values()))
-    docs = (
-        db.query(Document)
-        .filter(
-            Document.id.in_(source_doc_ids),
-            Document.organization_id == current_user.organization_id,
-            Document.is_deleted == False,
+
+    # Find documents that exist but belong to a DIFFERENT organization.
+    # Entities whose source documents were permanently deleted are treated as
+    # orphans and are safe to merge (they can't belong to another org).
+    if source_doc_ids:
+        cross_org_docs = (
+            db.query(Document.id)
+            .filter(
+                Document.id.in_(source_doc_ids),
+                Document.organization_id != current_user.organization_id,
+            )
+            .all()
         )
-        .all()
-    )
-    found_doc_ids = {str(doc.id) for doc in docs}
-    unauthorized_entities = [
-        entity_id
-        for entity_id, doc_id in entity_source_docs.items()
-        if doc_id not in found_doc_ids
-    ]
-    if unauthorized_entities:
-        raise HTTPException(
-            status_code=403,
-            detail=(
-                "One or more entities are outside your organization: "
-                f"{unauthorized_entities}"
-            ),
-        )
+        cross_org_doc_ids = {str(doc_id) for (doc_id,) in cross_org_docs}
+        unauthorized_entities = [
+            entity_id
+            for entity_id, doc_id in entity_source_docs.items()
+            if doc_id in cross_org_doc_ids
+        ]
+        if unauthorized_entities:
+            raise HTTPException(
+                status_code=403,
+                detail=(
+                    "One or more entities are outside your organization: "
+                    f"{unauthorized_entities}"
+                ),
+            )
 
     job = ProcessingJob(
         job_type=JobType.BATCH_PROCESSING,
