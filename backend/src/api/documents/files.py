@@ -7,7 +7,7 @@ from datetime import datetime
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -289,7 +289,16 @@ async def download_file(
             status_code=status.HTTP_403_FORBIDDEN, detail="Access denied to this file"
         )
 
-    # Check if file exists
+    # Branch on storage backend
+    if document.storage_backend == "supabase" and document.storage_path:
+        from src.core.supabase_client import StorageHelper, parse_storage_key
+
+        bucket, key = parse_storage_key(document.storage_path)
+        helper = StorageHelper()
+        signed_url = helper.create_signed_url(bucket, key, expires_in=3600)
+        return RedirectResponse(url=signed_url, status_code=302)
+
+    # Local file path
     if not os.path.exists(document.file_path):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="File not found on disk"

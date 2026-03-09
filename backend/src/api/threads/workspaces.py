@@ -6,6 +6,7 @@ Provides CRUD operations for Workspaces, Conversations, Threads, Messages, and C
 import logging
 from datetime import datetime
 from typing import List, Optional
+import uuid as uuid_mod
 from uuid import UUID
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
@@ -528,7 +529,9 @@ async def create_thread(
     if not conversation.workspace.can_user_edit(str(current_user.id)):
         raise HTTPException(status_code=403, detail="Insufficient permissions")
 
+    thread_id = uuid_mod.uuid4()
     thread = Thread(
+        id=thread_id,
         conversation_id=conversation_id,
         title=request.title,
         created_by_id=current_user.id,
@@ -538,7 +541,7 @@ async def create_thread(
     # Create initial message if provided
     if request.initial_message:
         message = ChatMessage(
-            thread=thread,
+            thread_id=thread_id,
             user_id=current_user.id,
             role=MessageRole.USER,
             content=request.initial_message,
@@ -1594,7 +1597,9 @@ async def create_thread_standalone(
     if not workspace.can_user_edit(str(current_user.id)):
         raise HTTPException(status_code=403, detail="Insufficient permissions")
 
+    thread_id = uuid_mod.uuid4()
     thread = Thread(
+        id=thread_id,
         conversation_id=request.conversation_id,
         title=request.title,
         created_by_id=current_user.id,
@@ -1604,7 +1609,7 @@ async def create_thread_standalone(
     # Create initial message if provided
     if request.initial_message:
         message = ChatMessage(
-            thread=thread,
+            thread_id=thread_id,
             user_id=current_user.id,
             role=MessageRole.USER,
             content=request.initial_message,
