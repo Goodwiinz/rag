@@ -952,39 +952,13 @@ function ContextPanel({
                 </div>
               </div>
 
-              <div>
-                <label
-                  className="text-[10px] text-[var(--terminal-text-muted)] uppercase tracking-wider"
-                  style={{ fontFamily: "'JetBrains Mono', monospace" }}
-                >
-                  Temperature: 0.7
-                </label>
-                <input
-                  type="range"
-                  min="0"
-                  max="2"
-                  step="0.1"
-                  defaultValue="0.7"
-                  className="w-full mt-2 accent-[var(--phosphor-green)]"
-                />
-              </div>
-
-              <div>
-                <label
-                  className="text-[10px] text-[var(--terminal-text-muted)] uppercase tracking-wider"
-                  style={{ fontFamily: "'JetBrains Mono', monospace" }}
-                >
-                  Max Tokens: 2048
-                </label>
-                <input
-                  type="range"
-                  min="256"
-                  max="4096"
-                  step="256"
-                  defaultValue="2048"
-                  className="w-full mt-2 accent-[var(--phosphor-green)]"
-                />
-              </div>
+              <p
+                className="text-[10px] text-[var(--terminal-text-dim)] mt-2"
+                style={{ fontFamily: "'JetBrains Mono', monospace" }}
+              >
+                Use the model selector in the chat input to change models.
+                Temperature and token limits are configured per-model.
+              </p>
             </div>
           )}
         </div>
