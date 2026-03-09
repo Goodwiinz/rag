@@ -381,11 +381,14 @@ export const workspaceService = {
 
   async listMessages(
     threadId: string,
-    options: { page?: number; limit?: number } = {}
+    options: { page?: number; limit?: number; offset?: number } = {}
   ): Promise<ChatMessageListResponse> {
     const params = new URLSearchParams();
     if (options.page) params.append('page', options.page.toString());
     if (options.limit) params.append('limit', options.limit.toString());
+    if (options.offset !== undefined) {
+      params.append('offset', options.offset.toString());
+    }
 
     const queryString = params.toString();
     const url = `${API_PREFIX}/threads/${threadId}/messages${queryString ? `?${queryString}` : ''}`;

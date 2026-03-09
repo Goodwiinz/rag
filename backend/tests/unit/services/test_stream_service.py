@@ -399,6 +399,57 @@ class TestStreamServiceRAGFlow:
         assert len(rag_event.data["citations"]) == 1
 
     @pytest.mark.asyncio
+    async def test_persists_only_inline_referenced_citations(self) -> None:
+        """Assistant persistence should drop retrieved citations not cited in the response."""
+        thread_id = uuid4()
+        user_id = uuid4()
+        chat_service = _make_mock_chat_service()
+        openai_service = _make_mock_openai_service(["Answer [2] only."])
+
+        mock_contexts = [
+            MagicMock(
+                document_id="doc-1",
+                title="Doc One",
+                content="First context",
+                score=0.91,
+            ),
+            MagicMock(
+                document_id="doc-2",
+                title="Doc Two",
+                content="Second context",
+                score=0.87,
+            ),
+        ]
+        mock_retrieve = _make_mock_retrieve_context(mock_contexts)
+
+        service = StreamService(
+            chat_service=chat_service,
+            openai_service=openai_service,
+            retrieve_context_fn=mock_retrieve,
+        )
+
+        await _collect_events(
+            service.stream_response(
+                thread_id=thread_id,
+                user_id=user_id,
+                content="What is ML?",
+                use_rag=True,
+            )
+        )
+
+        persisted_citations = chat_service.create_assistant_message.call_args[1][
+            "citations"
+        ]
+        assert persisted_citations == [
+            {
+                "document_id": "doc-2",
+                "document_title": "Doc Two",
+                "snippet": "Second context",
+                "score": 0.87,
+            }
+        ]
+
+    @pytest.mark.asyncio
     async def test_rag_retrieve_called_with_query(self) -> None:
         """retrieve_context_fn should be called with the user's message content."""
         thread_id = uuid4()

@@ -168,6 +168,38 @@ export function extractCitationIndices(content: string): number[] {
 }
 
 /**
+ * Select the array items referenced by inline citation markers in the content.
+ *
+ * @param content - Assistant message content containing inline citations
+ * @param items - Source array aligned to citation numbering (1-based in content)
+ * @returns Only the items referenced in the content, in citation order
+ */
+export function getReferencedItemsByCitationIndex<T>(
+  content: string,
+  items: T[]
+): T[] {
+  const indices = extractCitationIndices(content);
+
+  if (indices.length === 0) {
+    return [];
+  }
+
+  return indices
+    .map((index) => items[index - 1])
+    .filter((item): item is T => item !== undefined);
+}
+
+/**
+ * Return only the citations referenced inline in the assistant content.
+ */
+export function getReferencedCitations(
+  content: string,
+  citations: Citation[]
+): Citation[] {
+  return getReferencedItemsByCitationIndex(content, citations);
+}
+
+/**
  * Get citation by index from citations array
  *
  * @param citations - Array of citations from message

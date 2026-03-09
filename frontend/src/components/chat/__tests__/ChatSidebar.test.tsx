@@ -8,6 +8,7 @@ const mockConversations = [
     messages: [{ role: 'user', content: 'Hello world' }],
     threadId: 'thread-1',
     updatedAt: Date.now() - 60000,
+    messageCount: 1,
   },
   {
     id: 'conv-2',
@@ -20,6 +21,7 @@ const mockConversations = [
     ],
     threadId: 'thread-2',
     updatedAt: Date.now() - 3600000,
+    messageCount: 1,
   },
   {
     id: 'conv-3',
@@ -27,6 +29,7 @@ const mockConversations = [
     messages: [],
     threadId: 'thread-3',
     updatedAt: Date.now() - 86400000,
+    messageCount: 0,
   },
 ];
 
@@ -78,6 +81,68 @@ describe('ChatSidebar', () => {
     render(<ChatSidebar {...defaultProps} />);
     const noMsgElements = screen.getAllByText('No messages yet');
     expect(noMsgElements.length).toBeGreaterThan(0);
+  });
+
+  it('shows a message-count fallback for persisted threads without a loaded preview', () => {
+    render(
+      <ChatSidebar
+        {...defaultProps}
+        conversations={[
+          {
+            id: 'conv-4',
+            title: 'Count Only',
+            messages: [],
+            updatedAt: Date.now(),
+            messageCount: 3,
+          },
+        ]}
+      />
+    );
+
+    expect(screen.getByText('3 messages')).toBeInTheDocument();
+  });
+
+  it('shows preview text even when full messages are not loaded yet', () => {
+    render(
+      <ChatSidebar
+        {...defaultProps}
+        conversations={[
+          {
+            id: 'conv-4',
+            title: 'Preview Only',
+            messages: [],
+            previewText: 'Persisted preview from thread list',
+            updatedAt: Date.now(),
+            messageCount: 3,
+          },
+        ]}
+      />
+    );
+
+    expect(
+      screen.getByText(/Persisted preview from thread/)
+    ).toBeInTheDocument();
+  });
+
+  it('shows provided message count for active conversations', () => {
+    render(
+      <ChatSidebar
+        {...defaultProps}
+        activeId="conv-4"
+        conversations={[
+          {
+            id: 'conv-4',
+            title: 'Preview Only',
+            messages: [],
+            previewText: 'Persisted preview from thread list',
+            updatedAt: Date.now(),
+            messageCount: 3,
+          },
+        ]}
+      />
+    );
+
+    expect(screen.getByText('3')).toBeInTheDocument();
   });
 
   it('truncates long preview text with ellipsis', () => {

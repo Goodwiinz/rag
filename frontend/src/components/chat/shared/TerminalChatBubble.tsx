@@ -1,9 +1,12 @@
 'use client';
 
 import { cn } from '@/lib/utils';
-import type { Citation } from '@/utils/citationParser';
+import {
+  getReferencedCitations,
+  type Citation,
+} from '@/utils/citationParser';
 import { Activity, Check, Copy, RefreshCw } from 'lucide-react';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { CitationRenderer } from '../CitationRenderer';
 
 export interface TerminalChatBubbleMessage {
@@ -58,6 +61,11 @@ export function TerminalChatBubble({
       // clipboard access denied or page unfocused
     }
   };
+
+  const visibleCitations = useMemo(
+    () => getReferencedCitations(message.content, message.citations ?? []),
+    [message.content, message.citations]
+  );
 
   return (
     <div
@@ -208,11 +216,8 @@ export function TerminalChatBubble({
                   content={message.content}
                   citations={message.citations as Citation[]}
                   onCitationClick={(citation) => {
-                    if (onCitationClick && message.citations) {
-                      onCitationClick(
-                        message.citations as Citation[],
-                        citation
-                      );
+                    if (onCitationClick) {
+                      onCitationClick(visibleCitations, citation);
                     }
                   }}
                 />
@@ -221,19 +226,16 @@ export function TerminalChatBubble({
           )}
         </div>
 
-        {!isUser && message.citations && message.citations.length > 0 && (
+        {!isUser && visibleCitations.length > 0 && (
           <div className="relative border-t border-[var(--terminal-border)] bg-[var(--terminal-bg)]/30 p-3">
             <div className="flex flex-wrap items-center gap-2">
-              {message.citations.map((citation, idx) => (
+              {visibleCitations.map((citation, idx) => (
                 <button
                   key={idx}
                   type="button"
                   onClick={() => {
-                    if (onCitationClick && message.citations) {
-                      onCitationClick(
-                        message.citations as Citation[],
-                        citation
-                      );
+                    if (onCitationClick) {
+                      onCitationClick(visibleCitations, citation);
                     }
                   }}
                   className="group/citation flex items-center gap-2 rounded border border-[var(--terminal-border)] bg-[var(--terminal-surface)] px-2.5 py-1.5 text-[10px] transition-all hover:border-[var(--phosphor-green)]/40 hover:bg-[var(--terminal-elevated)]"

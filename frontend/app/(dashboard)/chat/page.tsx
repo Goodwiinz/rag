@@ -8,7 +8,17 @@ import {
 } from '@/components/chat';
 import { ChatHeader } from '@/components/chat/ChatHeader';
 import { ChatSidebar } from '@/components/chat/ChatSidebar';
+import {
+  selectDisplayedMessages,
+  syncConversationMessagesWithStore,
+} from '@/components/chat/shared/cloudMessageView';
+import {
+  getNewChatUrl,
+  getSelectedThreadUrl,
+} from '@/components/chat/shared/chatNavigation';
 import { TerminalChatBubble } from '@/components/chat/shared/TerminalChatBubble';
+import { upsertConversationFromThreadDetail } from '@/components/chat/shared/threadConversationState';
+import { buildThreadCreateRequest } from '@/components/chat/shared/threadCreation';
 import { cn } from '@/lib/utils';
 import {
   buildRAGSystemPrompt,
@@ -29,7 +39,10 @@ import {
   Thread,
   Workspace,
 } from '@/types/workspace';
-import { Citation } from '@/utils/citationParser';
+import {
+  Citation,
+  getReferencedItemsByCitationIndex,
+} from '@/utils/citationParser';
 import type { InitProgressReport, MLCEngine } from '@mlc-ai/web-llm';
 import {
   AnimatePresence,
@@ -56,7 +69,7 @@ import {
   Square,
   Zap,
 } from 'lucide-react';
-import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 
 // ============================================
@@ -85,9 +98,6 @@ function generateConversationTitle(message: string): string {
   // Capitalize first letter
   title = title.charAt(0).toUpperCase() + title.slice(1);
 
-  // If the message is a question, keep the question mark
-  const _isQuestion = message.trim().endsWith('?');
-
   // Truncate to reasonable length (40 chars) at word boundary
   if (title.length > 40) {
     const truncated = title.substring(0, 40);
@@ -112,87 +122,11 @@ function generateConversationTitle(message: string): string {
 // TYPES
 // ============================================
 
-import { Citation as DBCitation } from '@/types/workspace';
+import { normalizeCitation } from '@/utils/citationNormalizer';
 
 interface ExtendedModel extends Model {
   isCloud?: boolean;
   provider?: 'openai' | 'local';
-}
-
-// Citation type is imported from '@/utils/citationParser'
-// Database citations use snake_case (document_id, document_title)
-// Parser citations use camelCase (documentId, title)
-
-/**
- * Extract title from snippet content (for legacy citations without document_title)
- * Handles formats like "Title: Some Title Authors: ..." or plain text
- */
-function extractTitleFromSnippet(snippet?: string): string | null {
-  if (!snippet) return null;
-
-  // Try to extract "Title: <title>" pattern (common in arXiv papers)
-  const titleMatch = snippet.match(/^Title:\s*(.+?)(?:\s*Authors:|$)/i);
-  if (titleMatch && titleMatch[1]) {
-    return titleMatch[1].trim();
-  }
-
-  // Fallback: use first line IF it looks like a title (not code, URLs, or log lines)
-  const firstLine = snippet.split('\n')[0].trim();
-  if (firstLine.length > 0 && firstLine.length <= 120) {
-    // Skip lines that look like code, URLs, logs, or raw data
-    const looksLikeNonTitle =
-      /^[{(\[<`]/.test(firstLine) || // Starts with code brackets
-      /[{};=>\[\]`]/.test(firstLine) || // Contains code syntax
-      /https?:\/\//.test(firstLine) || // Contains URLs
-      /\d{4}-\d{2}-\d{2}/.test(firstLine) || // Contains timestamps
-      /duration_ms|count=|debug|error|warn/i.test(firstLine) || // Log lines
-      /^\w+=\d/.test(firstLine); // Key=value patterns
-
-    if (!looksLikeNonTitle) {
-      return firstLine;
-    }
-  }
-
-  // Don't use garbled content as title - return null to trigger "Unknown Document" fallback
-  return null;
-}
-
-/**
- * Normalize a citation from any format (database snake_case or API camelCase)
- * to the citationParser format expected by CitationRenderer and CitationLink.
- *
- * This handles the mismatch between:
- * - Database format: { document_id, external_reference_id, document_title, snippet, score }
- * - Parser format: { documentId, externalReferenceId, title, score, content, source }
- */
-function normalizeCitation(
-  citation: DBCitation | Citation | Record<string, unknown>
-): Citation {
-  const c = citation as Record<string, unknown>;
-  // Handle both snake_case (from DB) and camelCase (from API response)
-  const documentId = (c.documentId as string) || (c.document_id as string);
-  const externalReferenceId =
-    (c.externalReferenceId as string) || (c.external_reference_id as string);
-  const snippet =
-    (c.content as string) ||
-    (c.snippet as string) ||
-    (c.snippet_preview as string);
-
-  return {
-    // Only set documentId if it's a valid non-empty value
-    documentId: documentId || undefined,
-    // Support external references (e.g., arXiv paper IDs)
-    externalReferenceId: externalReferenceId || undefined,
-    // Extract title from snippet if document_title is missing
-    title:
-      (c.title as string) ||
-      (c.document_title as string) ||
-      extractTitleFromSnippet(snippet) ||
-      'Unknown Document',
-    score: (c.score as number) ?? 0,
-    content: snippet,
-    source: (c.source as string) || (c.document_type as string),
-  };
 }
 
 interface Message {
@@ -214,11 +148,16 @@ interface Conversation {
   updatedAt: number;
   threadId: string; // Links to DB Thread
   conversationId: string; // Links to DB Conversation
+  previewText?: string;
+  messageCount?: number;
 }
 
 // ============================================
 // CONSTANTS
 // ============================================
+
+// Wait for Zustand store loadMessages to propagate after streaming completes
+const STORE_PROPAGATION_DELAY_MS = 200;
 
 const AVAILABLE_MODELS: ExtendedModel[] = [
   {
@@ -962,6 +901,8 @@ function ChatPageContent() {
   // Loading states
   const [isLoading, setIsLoading] = useState(false);
   const [isModelLoading, setIsModelLoading] = useState(false);
+  const [modelLoadError, setModelLoadError] = useState<string | null>(null);
+  const [isLoadingMessages, setIsLoadingMessages] = useState(false);
   const [progress, setProgress] = useState('');
   const [progressVal, setProgressVal] = useState(0);
 
@@ -1013,6 +954,27 @@ function ChatPageContent() {
   const _storeStreamingCitations = useChatStore(
     (state) => state.streamingCitations
   );
+  const currentModel = AVAILABLE_MODELS.find((m) => m.id === selectedModel);
+  const activeThreadId = currentThreadIdFromStore || activeConversationId;
+  const displayedMessages = selectDisplayedMessages({
+    localMessages: messages,
+    storeMessages: activeThreadId ? storeMessages[activeThreadId] || [] : [],
+  });
+
+  // Map DB messages to UI messages
+  const mapDbMessageToUiMessage = useCallback(
+    (dbMsg: DBChatMessage): Message => {
+      return {
+        id: dbMsg.id,
+        role: dbMsg.role === MessageRole.USER ? 'user' : 'assistant',
+        content: dbMsg.content,
+        timestamp: new Date(dbMsg.created_at).getTime(),
+        // Use normalizeCitation to handle both DB and API citation formats
+        citations: dbMsg.citations?.map(normalizeCitation),
+      };
+    },
+    []
+  );
 
   // Capture a stable timestamp when streaming begins
   const streamingTimestampRef = useRef(Date.now());
@@ -1029,8 +991,25 @@ function ChatPageContent() {
     }
   }, [storeStreamingContent]);
 
-  // Navigation detection
-  const _pathname = usePathname();
+  useEffect(() => {
+    if (!activeThreadId) {
+      return;
+    }
+
+    const activeStoreMessages = storeMessages[activeThreadId] || [];
+    if (activeStoreMessages.length === 0) {
+      return;
+    }
+
+    setConversations((prev) =>
+      syncConversationMessagesWithStore(
+        prev,
+        activeThreadId,
+        activeStoreMessages
+      )
+    );
+  }, [activeThreadId, storeMessages]);
+
   const searchParams = useSearchParams();
   const router = useRouter();
 
@@ -1083,7 +1062,22 @@ function ChatPageContent() {
 
     // Check URL query param first (most reliable), then sessionStorage
     const threadFromUrl = searchParams.get('thread');
-    const threadFromStorage = sessionStorage.getItem('activeThreadId');
+    let threadFromStorage: string | null = null;
+    try {
+      const raw = sessionStorage.getItem('activeThreadId');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        // Expire entries older than 30 seconds to prevent stale state
+        if (parsed.threadId && Date.now() - parsed.timestamp < 30_000) {
+          threadFromStorage = parsed.threadId;
+        } else {
+          sessionStorage.removeItem('activeThreadId');
+        }
+      }
+    } catch {
+      // Handle legacy plain-string format gracefully
+      threadFromStorage = sessionStorage.getItem('activeThreadId');
+    }
     const targetThreadId = threadFromUrl || threadFromStorage;
 
     if (targetThreadId) {
@@ -1103,21 +1097,55 @@ function ChatPageContent() {
           setCurrentThread(targetConv.id);
           console.log('[Chat] Switched to thread:', targetConv.title);
         }
-      } else {
-        console.log(
-          '[Chat] Thread not found in conversations:',
-          targetThreadId
-        );
+        // Clear sessionStorage (URL param stays for bookmarking/sharing)
+        sessionStorage.removeItem('activeThreadId');
+        return;
       }
 
-      // Clear sessionStorage (URL param stays for bookmarking/sharing)
-      sessionStorage.removeItem('activeThreadId');
+      console.log(
+        '[Chat] Thread not found in conversations, fetching detail:',
+        targetThreadId
+      );
+
+      let cancelled = false;
+
+      (async () => {
+        try {
+          const threadDetail = await workspaceService.getThread(targetThreadId);
+          if (cancelled) return;
+
+          const uiMessages = threadDetail.messages.map(mapDbMessageToUiMessage);
+          setConversations((prev) =>
+            upsertConversationFromThreadDetail(
+              prev,
+              threadDetail,
+              mapDbMessageToUiMessage
+            )
+          );
+          setActiveConversationId(threadDetail.id);
+          setMessages(uiMessages);
+          setCurrentThread(threadDetail.id);
+        } catch (error) {
+          if (!cancelled) {
+            console.error('[Chat] Failed to fetch requested thread:', error);
+          }
+        } finally {
+          if (!cancelled) {
+            sessionStorage.removeItem('activeThreadId');
+          }
+        }
+      })();
+
+      return () => {
+        cancelled = true;
+      };
     }
   }, [
     searchParams,
     conversations,
     isInitializing,
     activeConversationId,
+    mapDbMessageToUiMessage,
     setCurrentThread,
   ]);
 
@@ -1195,21 +1223,6 @@ function ChatPageContent() {
     storeMessages,
   ]);
 
-  // Map DB messages to UI messages
-  const mapDbMessageToUiMessage = useCallback(
-    (dbMsg: DBChatMessage): Message => {
-      return {
-        id: dbMsg.id,
-        role: dbMsg.role === MessageRole.USER ? 'user' : 'assistant',
-        content: dbMsg.content,
-        timestamp: new Date(dbMsg.created_at).getTime(),
-        // Use normalizeCitation to handle both DB and API citation formats
-        citations: dbMsg.citations?.map(normalizeCitation),
-      };
-    },
-    []
-  );
-
   // Load threads and messages from database
   const loadThreadsFromDb = useCallback(
     async (conversationId: string, _isRetry = false): Promise<boolean> => {
@@ -1234,6 +1247,8 @@ function ChatPageContent() {
             updatedAt: new Date(thread.updated_at).getTime(),
             threadId: thread.id,
             conversationId: conversationId,
+            previewText: thread.summary || undefined,
+            messageCount: thread.message_count,
           })
         );
 
@@ -1256,7 +1271,19 @@ function ChatPageContent() {
           }
 
           let selectedConv = uiConversations[0];
-          const savedThreadId = sessionStorage.getItem('activeThreadId');
+          let savedThreadId: string | null = null;
+          try {
+            const raw = sessionStorage.getItem('activeThreadId');
+            if (raw) {
+              const parsed = JSON.parse(raw);
+              if (parsed.threadId && Date.now() - parsed.timestamp < 30_000) {
+                savedThreadId = parsed.threadId;
+              }
+            }
+          } catch {
+            // Handle legacy plain-string format
+            savedThreadId = sessionStorage.getItem('activeThreadId');
+          }
 
           if (savedThreadId) {
             const savedConv = uiConversations.find(
@@ -1269,9 +1296,9 @@ function ChatPageContent() {
                 savedConv.title
               );
             }
-            // Clear the sessionStorage after using it
-            sessionStorage.removeItem('activeThreadId');
           }
+          // Always clear sessionStorage after reading
+          sessionStorage.removeItem('activeThreadId');
 
           hasRestoredThreadRef.current = true;
           setActiveConversationId(selectedConv.id);
@@ -1400,18 +1427,26 @@ function ChatPageContent() {
 
   // Load messages when active conversation changes (lazy-load from API)
   useEffect(() => {
-    if (!activeConversationId) return;
+    if (!activeConversationId) {
+      setIsLoadingMessages(false);
+      return;
+    }
     const conv = conversations.find((c) => c.id === activeConversationId);
-    if (!conv) return;
+    if (!conv) {
+      setIsLoadingMessages(false);
+      return;
+    }
 
-    // If messages already loaded, use them directly
+    // If messages already loaded (cached), use them directly
     if (conv.messages.length > 0) {
       setMessages(conv.messages);
+      setIsLoadingMessages(false);
       return;
     }
 
     // Lazy-load messages for this thread
     let cancelled = false;
+    setIsLoadingMessages(true);
     (async () => {
       try {
         const msgResponse = await workspaceService.listMessages(
@@ -1431,6 +1466,10 @@ function ChatPageContent() {
         if (!cancelled) {
           console.error('[Chat] Failed to load messages:', err);
         }
+      } finally {
+        if (!cancelled) {
+          setIsLoadingMessages(false);
+        }
       }
     })();
     return () => {
@@ -1444,7 +1483,7 @@ function ChatPageContent() {
     if (!showScrollButton) {
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [messages, storeStreamingContent, showScrollButton]);
+  }, [displayedMessages, storeStreamingContent, showScrollButton]);
 
   // Handle scroll to detect if user scrolled up
   const handleScroll = useCallback(() => {
@@ -1453,8 +1492,8 @@ function ChatPageContent() {
 
     const { scrollTop, scrollHeight, clientHeight } = container;
     const isNearBottom = scrollHeight - scrollTop - clientHeight < 100;
-    setShowScrollButton(!isNearBottom && messages.length > 0);
-  }, [messages.length]);
+    setShowScrollButton(!isNearBottom && displayedMessages.length > 0);
+  }, [displayedMessages.length]);
 
   // Scroll to bottom function
   const scrollToBottom = useCallback(() => {
@@ -1479,6 +1518,7 @@ function ChatPageContent() {
     }
 
     setIsModelLoading(true);
+    setModelLoadError(null);
     try {
       if (!engineRef.current) {
         const { CreateMLCEngine } = await import('@mlc-ai/web-llm');
@@ -1490,6 +1530,9 @@ function ChatPageContent() {
       }
     } catch (err) {
       console.error('Failed to load model:', err);
+      setModelLoadError(
+        err instanceof Error ? err.message : 'Failed to load model'
+      );
     } finally {
       setIsModelLoading(false);
     }
@@ -1498,6 +1541,7 @@ function ChatPageContent() {
   // Model change handler
   const handleModelChange = async (modelId: string) => {
     setSelectedModel(modelId);
+    setModelLoadError(null);
     await loadModel(modelId);
   };
 
@@ -1544,11 +1588,12 @@ function ChatPageContent() {
           '[Chat] Creating new thread in database with title:',
           dynamicTitle
         );
-        const newThread = await workspaceService.createThread({
-          conversation_id: dbConversation.id,
-          title: dynamicTitle,
-          initial_message: input.trim(),
-        });
+        const newThread = await workspaceService.createThread(
+          buildThreadCreateRequest({
+            conversationId: dbConversation.id,
+            title: dynamicTitle,
+          })
+        );
 
         currentConversationId = newThread.id;
         currentThreadId = newThread.id;
@@ -1566,7 +1611,9 @@ function ChatPageContent() {
 
         setConversations((prev) => [newConv, ...prev]);
         setActiveConversationId(newConv.id);
+        setCurrentThread(newConv.id);
         setActiveThread(newThread);
+        router.replace(getSelectedThreadUrl(newThread.id));
         console.log('[Chat] Created new thread:', newThread.id);
       } catch (error) {
         console.error('[Chat] Failed to create thread:', error);
@@ -1613,38 +1660,17 @@ function ChatPageContent() {
         );
 
         // After streaming completes, the store has refreshed messages via loadMessages.
-        // Sync the store messages back to local state for display.
+        // Keep local fallback only if store messages failed to arrive.
         if (currentThreadId) {
-          const updatedStoreMessages =
+          let updatedStoreMessages =
             useChatStore.getState().messages[currentThreadId] || [];
-          if (updatedStoreMessages.length > 0) {
-            const refreshedMessages: Message[] = updatedStoreMessages.map(
-              (dbMsg) => ({
-                id: dbMsg.id,
-                role:
-                  dbMsg.role === MessageRole.USER
-                    ? ('user' as const)
-                    : ('assistant' as const),
-                content: dbMsg.content,
-                timestamp: new Date(dbMsg.created_at).getTime(),
-                citations: dbMsg.citations?.map(normalizeCitation),
-              })
-            );
-            setMessages(refreshedMessages);
-
-            // Update conversation
-            setConversations((prev) =>
-              prev.map((conv) =>
-                conv.id === currentConversationId
-                  ? {
-                      ...conv,
-                      messages: refreshedMessages,
-                      updatedAt: Date.now(),
-                    }
-                  : conv
-              )
-            );
-          } else if (lastStreamedContentRef.current) {
+          if (updatedStoreMessages.length === 0) {
+            // Retry after a short delay — loadMessages may still be propagating
+            await new Promise((r) => setTimeout(r, STORE_PROPAGATION_DELAY_MS));
+            updatedStoreMessages =
+              useChatStore.getState().messages[currentThreadId] || [];
+          }
+          if (updatedStoreMessages.length === 0 && lastStreamedContentRef.current) {
             // Fallback: store loadMessages returned empty (e.g. network hiccup).
             // Construct the assistant message from captured streaming content.
             console.warn(
@@ -1750,33 +1776,7 @@ function ChatPageContent() {
           stream: true,
         });
 
-        // Handle streaming response
-        for await (const chunk of response) {
-          const delta = chunk.choices[0]?.delta?.content || '';
-          assistantMessage += delta;
-          setMessages([
-            ...newMessages,
-            {
-              role: 'assistant',
-              content: assistantMessage,
-              timestamp: Date.now(),
-              // Show citations while streaming if RAG was used
-              citations:
-                ragContexts.length > 0
-                  ? ragContexts.map((ctx) => ({
-                      documentId: ctx.documentId,
-                      title: ctx.title,
-                      score: ctx.score,
-                      content: ctx.content,
-                      source: ctx.source || ctx.documentType,
-                    }))
-                  : undefined,
-            },
-          ]);
-        }
-
-        // Convert RAG contexts to citations for database storage
-        const localModelCitations: Citation[] = ragContexts.map((ctx) => ({
+        const allLocalModelCitations: Citation[] = ragContexts.map((ctx) => ({
           documentId: ctx.documentId,
           title: ctx.title,
           score: ctx.score,
@@ -1784,8 +1784,7 @@ function ChatPageContent() {
           source: ctx.source || ctx.documentType,
         }));
 
-        // Create database-formatted citations for persistence
-        const dbCitations: CitationCreate[] = ragContexts
+        const allDbCitations: CitationCreate[] = ragContexts
           .filter((ctx) => ctx.documentId)
           .map((ctx) => ({
             document_id: ctx.documentId,
@@ -1794,6 +1793,38 @@ function ChatPageContent() {
             snippet: ctx.content,
             score: ctx.score,
           }));
+
+        // Handle streaming response
+        for await (const chunk of response) {
+          const delta = chunk.choices[0]?.delta?.content || '';
+          assistantMessage += delta;
+          const referencedStreamingCitations =
+            getReferencedItemsByCitationIndex(
+              assistantMessage,
+              allLocalModelCitations
+            );
+          setMessages([
+            ...newMessages,
+            {
+              role: 'assistant',
+              content: assistantMessage,
+              timestamp: Date.now(),
+              citations:
+                referencedStreamingCitations.length > 0
+                  ? referencedStreamingCitations
+                  : undefined,
+            },
+          ]);
+        }
+
+        const localModelCitations = getReferencedItemsByCitationIndex(
+          assistantMessage,
+          allLocalModelCitations
+        );
+        const dbCitations = getReferencedItemsByCitationIndex(
+          assistantMessage,
+          allDbCitations
+        );
 
         // Save assistant message to database (for local models too)
         if (currentThreadId && isAuthenticated) {
@@ -1892,19 +1923,23 @@ function ChatPageContent() {
     setInput(prompt);
   };
 
-  const currentModel = AVAILABLE_MODELS.find((m) => m.id === selectedModel);
-
   return (
     <div className="flex h-full w-full overflow-hidden bg-[var(--terminal-bg)]">
-      {/* New Chat Sidebar */}
+      {/* Chat Sidebar */}
       <div className="hidden md:block h-full shrink-0">
         <ChatSidebar
           conversations={conversations}
           activeId={activeConversationId}
-          onSelect={setActiveConversationId}
+          onSelect={(id) => {
+            setActiveConversationId(id);
+            setCurrentThread(id);
+            router.push(getSelectedThreadUrl(id));
+          }}
           onNew={() => {
             setActiveConversationId(null);
             setMessages([]);
+            setCurrentThread(null);
+            router.push(getNewChatUrl());
           }}
         />
       </div>
@@ -1922,6 +1957,28 @@ function ChatPageContent() {
             />
           )}
         </AnimatePresence>
+
+        {/* Model Load Error */}
+        {modelLoadError && (
+          <div
+            className="mx-4 mt-2 px-3 py-2 rounded-lg border text-xs flex items-center gap-2"
+            style={{
+              borderColor: 'rgba(239, 68, 68, 0.3)',
+              backgroundColor: 'rgba(239, 68, 68, 0.1)',
+              color: '#ef4444',
+              fontFamily: "'JetBrains Mono', monospace",
+            }}
+          >
+            <span>Model load failed: {modelLoadError}</span>
+            <button
+              onClick={() => setModelLoadError(null)}
+              className="ml-auto opacity-60 hover:opacity-100"
+              aria-label="Dismiss model error"
+            >
+              &times;
+            </button>
+          </div>
+        )}
 
         {/* Messages Area Wrapper */}
         <div className="flex-1 relative min-h-0">
@@ -1995,7 +2052,24 @@ function ChatPageContent() {
                   </button>
                 </motion.div>
               </div>
-            ) : messages.length === 0 && !storeIsStreaming ? (
+            ) : isLoadingMessages ? (
+              /* Loading Messages State */
+              <div className="h-full flex flex-col items-center justify-center p-8">
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="text-center"
+                >
+                  <Loader2 className="w-8 h-8 text-[var(--phosphor-green)] animate-spin mx-auto mb-4" />
+                  <p
+                    className="text-xs text-[var(--terminal-text-muted)] tracking-wider"
+                    style={{ fontFamily: "'JetBrains Mono', monospace" }}
+                  >
+                    LOADING MESSAGES...
+                  </p>
+                </motion.div>
+              </div>
+            ) : displayedMessages.length === 0 && !storeIsStreaming ? (
               <WelcomeState
                 onPromptSelect={handlePromptSelect}
                 selectedModel={selectedModel}
@@ -2003,7 +2077,7 @@ function ChatPageContent() {
             ) : (
               <div className="max-w-4xl mx-auto pt-4 px-4 pb-6">
                 <AnimatePresence>
-                  {messages.map((message, index) => (
+                  {displayedMessages.map((message, index) => (
                     <motion.div
                       key={message.id || `msg-${index}`}
                       initial={{ opacity: 0, y: 20, scale: 0.98 }}
@@ -2024,7 +2098,7 @@ function ChatPageContent() {
                             : undefined
                         }
                         isTyping={
-                          index === messages.length - 1 &&
+                          index === displayedMessages.length - 1 &&
                           isLoading &&
                           !storeIsStreaming &&
                           message.role === 'assistant'
@@ -2057,7 +2131,7 @@ function ChatPageContent() {
                           content: '',
                           timestamp: streamingTimestampRef.current,
                         }}
-                        index={messages.length}
+                        index={displayedMessages.length}
                         modelName={currentModel?.name}
                         isStreaming={true}
                         streamingContent={storeStreamingContent}

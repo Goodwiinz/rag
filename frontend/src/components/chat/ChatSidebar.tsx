@@ -17,8 +17,9 @@ interface SidebarConversation {
   id: string;
   title: string;
   messages: { role: string; content: string }[];
-  threadId: string;
   updatedAt: number;
+  previewText?: string;
+  messageCount?: number;
 }
 
 interface ChatSidebarProps {
@@ -114,17 +115,21 @@ export const ChatSidebar = memo(function ChatSidebar({
 
           <div className="space-y-1">
             {filteredConversations.map((conv) => {
-              const isActive =
-                conv.id === activeId || conv.threadId === activeId;
+              const isActive = conv.id === activeId;
               const timeString = formatDistanceToNow(new Date(conv.updatedAt), {
                 addSuffix: true,
               }).replace('about ', '');
               const lastMessage = conv.messages[conv.messages.length - 1];
-              const previewText = lastMessage
+              const messageCount = conv.messageCount ?? conv.messages.length;
+              const previewText =
+                (lastMessage
                 ? lastMessage.content.length > 30
                   ? lastMessage.content.substring(0, 30) + '...'
                   : lastMessage.content || 'No messages yet'
-                : 'No messages yet';
+                : conv.previewText ||
+                  (messageCount > 0
+                    ? `${messageCount} message${messageCount === 1 ? '' : 's'}`
+                    : 'No messages yet'));
 
               return (
                 <button
@@ -173,7 +178,7 @@ export const ChatSidebar = memo(function ChatSidebar({
                       </span>
                       {isActive && (
                         <span className="text-[9px] text-[var(--terminal-text-dim)] shrink-0 ml-2 font-mono">
-                          {conv.messages.length}
+                          {messageCount}
                         </span>
                       )}
                     </div>
