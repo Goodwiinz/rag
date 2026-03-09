@@ -74,6 +74,13 @@ services:
       - WORKER_CONCURRENCY=${WORKER_CONCURRENCY:-4}
       - ENABLE_CACHING=${ENABLE_CACHING:-true}
       - CACHE_TTL_SECONDS=${CACHE_TTL_SECONDS:-3600}
+
+      # Supabase Configuration
+      - SUPABASE_URL=${SUPABASE_URL:-http://host.docker.internal:54321}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY:-}
+      - SUPABASE_JWT_SECRET=${SUPABASE_JWT_SECRET:-}
+      - SUPABASE_STORAGE_ENABLED=${SUPABASE_STORAGE_ENABLED:-false}
+      - SUPABASE_STORAGE_TEMP_DIR=/tmp/rag_storage
     command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
     volumes:
       - ./backend:/app
@@ -169,20 +176,22 @@ services:
 
   # Neo4j Knowledge Graph
   neo4j:
-    image: neo4j:latest
+    image: neo4j:5.26-community
     environment:
       - NEO4J_AUTH=neo4j/password
-      - NEO4J_ACCEPT_LICENSE_AGREEMENT=yes
-      - NEO4J_dbms_default__database=neo4j
-      - NEO4J_dbms_memory_heap_initial__size=512m
-      - NEO4J_dbms_memory_heap_max__size=1G
-      - NEO4J_dbms_memory_pagecache_size=512m
-      - NEO4J_dbms_security_procedures_unrestricted=gds.*,apoc.*
-      - NEO4J_dbms_security_procedures_allowlist=gds.*,apoc.*
-      - NEO4J_dbms_logs_debug_level=INFO
+      - NEO4J_initial_dbms_default__database=neo4j
+      - NEO4J_server_memory_heap_initial__size=256m
+      - NEO4J_server_memory_heap_max__size=512m
+      - NEO4J_server_memory_pagecache_size=256m
+      - NEO4J_dbms_security_procedures_unrestricted=apoc.*
+      - NEO4J_dbms_security_procedures_allowlist=apoc.*
+    deploy:
+      resources:
+        limits:
+          memory: 1G
     volumes:
-      - a4d0855b278438a535a13759f3f1b65be6373d04ec7ff6e2e4c6ba4ef61745ed:/data
-      - 04f8f69dbb0f8558b9e34bf135c287fb8da7004918669eb028533bd242b24277:/logs
+      - neo4j_dev_data:/data
+      - neo4j_dev_logs:/logs
       - neo4j_dev_import:/var/lib/neo4j/import
       - neo4j_dev_plugins:/plugins
     ports:
@@ -278,6 +287,12 @@ services:
       - MAX_CONCURRENT_JOBS=${MAX_CONCURRENT_JOBS:-5}
       - ENABLE_CACHING=${ENABLE_CACHING:-true}
       - CACHE_TTL_SECONDS=${CACHE_TTL_SECONDS:-3600}
+
+      # Supabase Storage Configuration
+      - SUPABASE_URL=${SUPABASE_URL:-http://host.docker.internal:54321}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY:-}
+      - SUPABASE_STORAGE_ENABLED=${SUPABASE_STORAGE_ENABLED:-false}
+      - SUPABASE_STORAGE_TEMP_DIR=/tmp/rag_storage
     volumes:
       - ./backend:/app
       - ./uploads:/app/uploads
@@ -423,10 +438,8 @@ volumes:
   # postgres_dev_data:  # Commented out — Supabase manages PostgreSQL now
   redis_dev_data:
   serena_dev_data:
-  a4d0855b278438a535a13759f3f1b65be6373d04ec7ff6e2e4c6ba4ef61745ed:
-    external: true
-  04f8f69dbb0f8558b9e34bf135c287fb8da7004918669eb028533bd242b24277:
-    external: true
+  neo4j_dev_data:
+  neo4j_dev_logs:
   neo4j_dev_import:
   neo4j_dev_plugins:
   qdrant_dev_data:
