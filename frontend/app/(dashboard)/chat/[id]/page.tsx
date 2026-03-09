@@ -16,10 +16,10 @@ export default function ChatConversationPage() {
     if (threadId) {
       console.log('[ChatConversationPage] Setting active thread:', threadId);
       // Set sessionStorage synchronously
-      sessionStorage.setItem('activeThreadId', threadId);
-      // Verify it was set
-      const verified = sessionStorage.getItem('activeThreadId');
-      console.log('[ChatConversationPage] Verified sessionStorage:', verified);
+      sessionStorage.setItem(
+        'activeThreadId',
+        JSON.stringify({ threadId, timestamp: Date.now() })
+      );
       // Use router.push with query param as backup
       router.push(`/chat?thread=${threadId}`);
     }
@@ -30,7 +30,10 @@ export default function ChatConversationPage() {
     <div className="flex-1 flex items-center justify-center">
       <div className="text-center">
         <div className="w-8 h-8 border-2 border-[var(--phosphor-green)] border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-        <p className="text-sm text-[var(--terminal-text-muted)]" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
+        <p
+          className="text-sm text-[var(--terminal-text-muted)]"
+          style={{ fontFamily: "'JetBrains Mono', monospace" }}
+        >
           Loading conversation...
         </p>
       </div>
