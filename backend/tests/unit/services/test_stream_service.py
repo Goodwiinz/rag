@@ -323,7 +323,8 @@ class TestStreamServiceRAGFlow:
         thread_id = uuid4()
         user_id = uuid4()
         chat_service = _make_mock_chat_service()
-        openai_service = _make_mock_openai_service(["Answer"])
+        # Mocking an answer that includes an inline citation so it passes _filter_citations_by_content
+        openai_service = _make_mock_openai_service(["Answer ", "with citation ", "[Doc 1]"])
 
         mock_contexts = [
             MagicMock(
@@ -365,7 +366,8 @@ class TestStreamServiceRAGFlow:
         thread_id = uuid4()
         user_id = uuid4()
         chat_service = _make_mock_chat_service()
-        openai_service = _make_mock_openai_service(["Answer"])
+        # Mocking an answer that includes an inline citation so it passes _filter_citations_by_content
+        openai_service = _make_mock_openai_service(["Answer ", "with citation ", "[1]"])
 
         mock_contexts = [
             MagicMock(
@@ -512,7 +514,8 @@ class TestStreamServiceRAGFlow:
         thread_id = uuid4()
         user_id = uuid4()
         chat_service = _make_mock_chat_service()
-        openai_service = _make_mock_openai_service(["Answer"])
+        # Mocking an answer that includes an inline citation so it passes _filter_citations_by_content
+        openai_service = _make_mock_openai_service(["Answer ", "with citation ", "[1]"])
 
         mock_contexts = [
             MagicMock(
