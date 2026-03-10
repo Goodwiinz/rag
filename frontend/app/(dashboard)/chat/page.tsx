@@ -1,10 +1,12 @@
 'use client';
 
 import {
+  AVAILABLE_MODELS,
+  ChatInput,
   ChatSettings,
   CitationPanel,
-  Model,
-  RAGToggle,
+  ModelLoadingProgress,
+  WelcomeState,
 } from '@/components/chat';
 import { ChatHeader } from '@/components/chat/ChatHeader';
 import { ChatSidebar } from '@/components/chat/ChatSidebar';
@@ -19,7 +21,6 @@ import {
 import { TerminalChatBubble } from '@/components/chat/shared/TerminalChatBubble';
 import { upsertConversationFromThreadDetail } from '@/components/chat/shared/threadConversationState';
 import { buildThreadCreateRequest } from '@/components/chat/shared/threadCreation';
-import { cn } from '@/lib/utils';
 import {
   buildRAGSystemPrompt,
   getModelAwareHistory,
@@ -36,39 +37,16 @@ import {
   ChatMessage as DBChatMessage,
   Conversation as DBConversation,
   MessageRole,
-  Thread,
   Workspace,
 } from '@/types/workspace';
 import {
   Citation,
   getReferencedItemsByCitationIndex,
 } from '@/utils/citationParser';
+import { normalizeCitation } from '@/utils/citationNormalizer';
 import type { InitProgressReport, MLCEngine } from '@mlc-ai/web-llm';
-import {
-  AnimatePresence,
-  motion,
-  useMotionValue,
-  useSpring,
-  useTransform,
-} from 'framer-motion';
-import {
-  Activity,
-  ArrowDown,
-  ArrowUp,
-  BookOpen,
-  ChevronDown,
-  Cpu,
-  FileText,
-  Loader2,
-  Mic,
-  Paperclip,
-  Radio,
-  Satellite,
-  Shield,
-  Sparkles,
-  Square,
-  Zap,
-} from 'lucide-react';
+import { AnimatePresence, motion } from 'framer-motion';
+import { Activity, ArrowDown, Loader2 } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 
@@ -122,13 +100,6 @@ function generateConversationTitle(message: string): string {
 // TYPES
 // ============================================
 
-import { normalizeCitation } from '@/utils/citationNormalizer';
-
-interface ExtendedModel extends Model {
-  isCloud?: boolean;
-  provider?: 'openai' | 'local';
-}
-
 interface Message {
   id?: string;
   role: 'user' | 'assistant';
@@ -159,101 +130,6 @@ interface Conversation {
 // Wait for Zustand store loadMessages to propagate after streaming completes
 const STORE_PROPAGATION_DELAY_MS = 200;
 
-const AVAILABLE_MODELS: ExtendedModel[] = [
-  {
-    id: 'gpt-4o',
-    name: 'GPT-4O',
-    description:
-      'OpenAI flagship model with superior reasoning and multimodal capabilities',
-    size: 'Cloud',
-    parameters: 'Cloud API',
-    ram: 'N/A',
-    speed: 'Fast',
-    accuracy: 97,
-    features: [
-      'Advanced Reasoning',
-      'Code Generation',
-      'Multimodal',
-      'Function Calling',
-    ],
-    tags: ['openai', 'cloud', 'flagship'],
-    isRecommended: true,
-    isFeatured: true,
-    isCloud: true,
-    provider: 'openai',
-    benchmarks: { reasoning: 96, coding: 95, math: 94, language: 97 },
-  },
-  {
-    id: 'Llama-3.2-1B-Instruct-q4f32_1-MLC',
-    name: 'LLAMA-3.2-1B',
-    description: 'Ultra-efficient neural core for rapid transmissions',
-    size: '1B',
-    parameters: '1.2B',
-    ram: '~2GB',
-    speed: 'Very Fast',
-    accuracy: 78,
-    features: ['Text Synthesis', 'Query Processing', 'Compression'],
-    tags: ['lightweight', 'fast', 'efficient'],
-    isRecommended: true,
-    benchmarks: { reasoning: 72, coding: 65, math: 70, language: 82 },
-  },
-  {
-    id: 'Llama-3.2-3B-Instruct-q4f32_1-MLC',
-    name: 'LLAMA-3.2-3B',
-    description: 'Balanced neural architecture for complex reasoning',
-    size: '3B',
-    parameters: '3.2B',
-    ram: '~4GB',
-    speed: 'Fast',
-    accuracy: 84,
-    features: ['Deep Reasoning', 'Code Generation', 'Analysis'],
-    tags: ['balanced', 'versatile', 'flagship'],
-    isRecommended: true,
-    isFeatured: true,
-    benchmarks: { reasoning: 81, coding: 78, math: 79, language: 88 },
-  },
-  {
-    id: 'gemma-2-2b-it-q4f16_1-MLC',
-    name: 'GEMMA-2-2B',
-    description: 'Google neural matrix with multilingual protocols',
-    size: '2B',
-    parameters: '2.6B',
-    ram: '~3GB',
-    speed: 'Fast',
-    accuracy: 82,
-    features: ['Multilingual', 'Code Analysis', 'Translation'],
-    tags: ['multilingual', 'google', 'efficient'],
-    benchmarks: { reasoning: 79, coding: 80, math: 76, language: 91 },
-  },
-  {
-    id: 'Phi-3.5-mini-instruct-q4f16_1-MLC',
-    name: 'PHI-3.5-MINI',
-    description: 'Microsoft compact core optimized for instruction parsing',
-    size: '3.8B',
-    parameters: '3.8B',
-    ram: '~4GB',
-    speed: 'Medium',
-    accuracy: 86,
-    features: ['Instruction Parsing', 'Reasoning Engine', 'Code Synthesis'],
-    tags: ['microsoft', 'instruction-tuned', 'reliable'],
-    benchmarks: { reasoning: 85, coding: 83, math: 82, language: 87 },
-  },
-  {
-    id: 'Qwen2-1.5B-Instruct-q4f16_1-MLC',
-    name: 'QWEN2-1.5B',
-    description: 'Alibaba neural core with bilingual transmission',
-    size: '1.5B',
-    parameters: '1.5B',
-    ram: '~2GB',
-    speed: 'Very Fast',
-    accuracy: 80,
-    features: ['Bilingual', 'Fast Processing', 'Query Response'],
-    tags: ['lightweight', 'bilingual', 'alibaba'],
-    isRecommended: true,
-    benchmarks: { reasoning: 76, coding: 71, math: 74, language: 86 },
-  },
-];
-
 const DEFAULT_SETTINGS: ChatSettings = {
   temperature: 0.7,
   maxTokens: 2048,
@@ -278,603 +154,6 @@ const DEFAULT_SETTINGS: ChatSettings = {
   shareAnalytics: false,
 };
 
-// Database-backed storage - no more localStorage for conversations
-
-const _STARTER_PROMPTS = [
-  {
-    icon: BookOpen,
-    title: 'Summarize Research',
-    prompt:
-      'Summarize the key findings from the recent papers on RAG optimization',
-  },
-  {
-    icon: Zap,
-    title: 'Compare Embeddings',
-    prompt: 'Compare BAAI/bge-large vs OpenAI embeddings for semantic search',
-  },
-  {
-    icon: FileText,
-    title: 'Analyze Document',
-    prompt: 'Analyze the methodology section of the uploaded paper',
-  },
-  {
-    icon: Sparkles,
-    title: 'Generate Ideas',
-    prompt: 'Suggest improvements for our current retrieval pipeline',
-  },
-];
-
-// ============================================
-// MODEL SELECTOR
-// ============================================
-
-function ModelSelector({
-  models,
-  selectedModelId,
-  onModelChange,
-  isLoading,
-}: {
-  models: ExtendedModel[];
-  selectedModelId?: string;
-  onModelChange: (id: string) => void;
-  isLoading?: boolean;
-}) {
-  const [isOpen, setIsOpen] = useState(false);
-  const selectedModel = models.find((m) => m.id === selectedModelId);
-
-  return (
-    <div className="relative">
-      <button
-        onClick={() => !isLoading && setIsOpen(!isOpen)}
-        disabled={isLoading}
-        className={cn(
-          'flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-all duration-200',
-          'bg-[var(--terminal-surface)] border-[var(--terminal-border)]',
-          'hover:border-[var(--phosphor-green)]/30',
-          'active:scale-[0.98]',
-          isOpen &&
-            'border-[var(--phosphor-green)]/50 bg-[var(--phosphor-green)]/5',
-          isLoading && 'opacity-50 cursor-not-allowed'
-        )}
-        style={{ fontFamily: "'JetBrains Mono', monospace" }}
-      >
-        <Cpu
-          className={cn(
-            'w-3.5 h-3.5 transition-colors',
-            isOpen
-              ? 'text-[var(--phosphor-green)] animate-pulse'
-              : 'text-[var(--phosphor-green)]'
-          )}
-        />
-        <span className="text-[var(--terminal-text)] text-xs">
-          {selectedModel?.name || 'SELECT MODEL'}
-        </span>
-        {selectedModel?.isCloud && (
-          <span className="px-1 py-0.5 rounded bg-[var(--amber-gold)]/20 text-[var(--amber-gold)] text-[8px] uppercase">
-            Cloud
-          </span>
-        )}
-        <ChevronDown
-          className={cn(
-            'w-3 h-3 text-[var(--terminal-text-muted)] transition-transform',
-            isOpen && 'rotate-180'
-          )}
-        />
-      </button>
-
-      <AnimatePresence>
-        {isOpen && (
-          <>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 z-40"
-              onClick={() => setIsOpen(false)}
-            />
-            <motion.div
-              initial={{ opacity: 0, y: -8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              className="absolute bottom-full left-0 mb-2 w-80 terminal-window z-50"
-            >
-              <div className="p-2 max-h-80 overflow-y-auto terminal-scrollbar">
-                {models.map((model) => (
-                  <button
-                    key={model.id}
-                    onClick={() => {
-                      onModelChange(model.id);
-                      setIsOpen(false);
-                    }}
-                    className={cn(
-                      'w-full flex items-start gap-3 px-3 py-2.5 rounded text-left transition-colors',
-                      model.id === selectedModelId
-                        ? 'bg-[var(--phosphor-green)]/10 border border-[var(--phosphor-green)]/30'
-                        : 'hover:bg-[var(--terminal-elevated)]'
-                    )}
-                  >
-                    <Cpu
-                      className={cn(
-                        'w-4 h-4 mt-0.5',
-                        model.id === selectedModelId
-                          ? 'text-[var(--phosphor-green)]'
-                          : 'text-[var(--terminal-text-muted)]'
-                      )}
-                    />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span
-                          className={cn(
-                            'text-xs font-medium',
-                            model.id === selectedModelId
-                              ? 'text-[var(--phosphor-green)]'
-                              : 'text-[var(--terminal-text)]'
-                          )}
-                          style={{ fontFamily: "'JetBrains Mono', monospace" }}
-                        >
-                          {model.name}
-                        </span>
-                        {model.isCloud && (
-                          <span className="px-1.5 py-0.5 rounded bg-[var(--amber-gold)]/20 text-[var(--amber-gold)] text-[8px] uppercase">
-                            Cloud
-                          </span>
-                        )}
-                        {model.isFeatured && (
-                          <span className="px-1.5 py-0.5 rounded bg-[var(--phosphor-green)]/20 text-[var(--phosphor-green)] text-[8px] uppercase">
-                            Featured
-                          </span>
-                        )}
-                      </div>
-                      <p
-                        className="text-[10px] text-[var(--terminal-text-muted)] mt-0.5"
-                        style={{ fontFamily: "'JetBrains Mono', monospace" }}
-                      >
-                        {model.description}
-                      </p>
-                      <div
-                        className="flex items-center gap-3 mt-1 text-[10px] text-[var(--terminal-text-dim)]"
-                        style={{ fontFamily: "'JetBrains Mono', monospace" }}
-                      >
-                        <span>PARAMS: {model.parameters}</span>
-                        <span>RAM: {model.ram}</span>
-                      </div>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
-    </div>
-  );
-}
-
-// ============================================
-// CHAT INPUT
-// ============================================
-
-function ChatInput({
-  value,
-  onChange,
-  onSubmit,
-  onStop,
-  isLoading,
-  isModelLoading,
-  selectedModel,
-  models,
-  onModelChange,
-  enableRAG,
-  onRAGToggle,
-  isRAGLoading,
-  inputRef,
-}: {
-  value: string;
-  onChange: (value: string) => void;
-  onSubmit: () => void;
-  onStop: () => void;
-  isLoading: boolean;
-  isModelLoading: boolean;
-  selectedModel?: string;
-  models: ExtendedModel[];
-  onModelChange: (id: string) => void;
-  enableRAG: boolean;
-  onRAGToggle: (enabled: boolean) => void;
-  isRAGLoading?: boolean;
-  inputRef?: React.RefObject<HTMLTextAreaElement>;
-}) {
-  const internalRef = useRef<HTMLTextAreaElement>(null);
-  const textareaRef = inputRef ?? internalRef;
-  const [isFocused, setIsFocused] = useState(false);
-
-  useEffect(() => {
-    if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto';
-      textareaRef.current.style.height =
-        Math.min(textareaRef.current.scrollHeight, 200) + 'px';
-    }
-  }, [value]);
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      if (!isLoading && !isModelLoading && value.trim() && selectedModel) {
-        onSubmit();
-      }
-    }
-  };
-
-  const isDisabled = !selectedModel || isModelLoading;
-  const charCount = value.length;
-  const maxChars = 4000;
-  const isNearLimit = charCount > maxChars * 0.8;
-
-  return (
-    <div className="z-40 bg-[var(--terminal-bg)] pt-2 pb-4 px-4 border-t border-[var(--terminal-border)]">
-      <div className="max-w-4xl mx-auto">
-        <motion.div
-          className={cn(
-            'relative rounded-lg overflow-visible transition-all duration-300',
-            'bg-[#0A0A0A] border border-[var(--terminal-border)]',
-            isFocused &&
-              'border-[var(--phosphor-green)]/30 ring-1 ring-[var(--phosphor-green)]/10 shadow-[0_0_15px_-5px_rgba(0,255,159,0.1)]'
-          )}
-        >
-          {/* Top Bar: Model Selector, RAG Toggle & Status */}
-          <div className="flex items-center justify-between px-4 py-1.5 bg-[var(--terminal-elevated)]/50 border-b border-[var(--terminal-border)] rounded-t-xl">
-            <div className="flex items-center gap-3">
-              <ModelSelector
-                models={models}
-                selectedModelId={selectedModel}
-                onModelChange={onModelChange}
-                isLoading={isModelLoading}
-              />
-              {/* RAG Toggle - Show for all models */}
-              {selectedModel && (
-                <RAGToggle
-                  enabled={enableRAG}
-                  onToggle={onRAGToggle}
-                  isLoading={isRAGLoading}
-                  disabled={isLoading}
-                />
-              )}
-            </div>
-            <div className="flex items-center gap-3">
-              {/* RAG loading indicator */}
-              {isRAGLoading && (
-                <span
-                  className="text-[9px] text-[var(--phosphor-green)] animate-pulse"
-                  style={{ fontFamily: "'JetBrains Mono', monospace" }}
-                >
-                  RETRIEVING...
-                </span>
-              )}
-              <span
-                className={cn(
-                  'text-[9px] transition-colors',
-                  isNearLimit
-                    ? 'text-[var(--amber-gold)]'
-                    : 'text-[var(--terminal-text-dim)]'
-                )}
-                style={{ fontFamily: "'JetBrains Mono', monospace" }}
-              >
-                {charCount}/{maxChars}
-              </span>
-            </div>
-          </div>
-
-          <div className="p-3 sm:p-4">
-            <textarea
-              ref={textareaRef}
-              value={value}
-              onChange={(e) => onChange(e.target.value)}
-              onKeyDown={handleKeyDown}
-              onFocus={() => setIsFocused(true)}
-              onBlur={() => setIsFocused(false)}
-              placeholder="Inject query into neural stream..."
-              rows={1}
-              className="w-full bg-transparent text-[var(--terminal-text)] text-sm resize-none outline-none placeholder:text-[var(--terminal-text-dim)]/50 selection:bg-[var(--phosphor-green)]/20 selection:text-[var(--phosphor-green)]"
-              style={{
-                fontFamily: "'JetBrains Mono', monospace",
-                minHeight: '44px',
-                maxHeight: '200px',
-              }}
-              disabled={isDisabled}
-            />
-
-            <div className="flex items-center justify-between mt-2">
-              <div className="flex items-center gap-1">
-                <button
-                  className="p-2 rounded-lg hover:bg-[var(--terminal-elevated)] text-[var(--terminal-text-dim)] hover:text-[var(--terminal-text)] transition-colors group"
-                  title="Attach artifact"
-                >
-                  <Paperclip className="w-4 h-4 group-hover:text-[var(--phosphor-green)] transition-colors" />
-                </button>
-                <button
-                  className="p-2 rounded-lg hover:bg-[var(--terminal-elevated)] text-[var(--terminal-text-dim)] hover:text-[var(--terminal-text)] transition-colors group"
-                  title="Voice input"
-                >
-                  <Mic className="w-4 h-4 group-hover:text-[var(--phosphor-green)] transition-colors" />
-                </button>
-              </div>
-
-              {isLoading ? (
-                <button
-                  onClick={onStop}
-                  className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[var(--error-red)]/10 border border-[var(--error-red)]/50 text-[var(--error-red)] text-[10px] font-bold hover:bg-[var(--error-red)]/20 transition-all shadow-[0_0_10px_rgba(239,68,68,0.05)]"
-                  style={{ fontFamily: "'JetBrains Mono', monospace" }}
-                >
-                  <Square className="w-3 h-3" />
-                  HALT
-                </button>
-              ) : (
-                <button
-                  onClick={onSubmit}
-                  disabled={!value.trim() || isDisabled}
-                  className={cn(
-                    'flex items-center gap-2 px-6 py-2 rounded text-[10px] font-bold tracking-widest transition-all duration-300',
-                    value.trim() && !isDisabled
-                      ? 'bg-[var(--phosphor-green)] text-[#0A0A0A] hover:bg-[var(--phosphor-green)]/90 hover:shadow-[0_0_15px_rgba(0,255,159,0.3)] active:scale-95'
-                      : 'bg-transparent text-[var(--terminal-text-dim)] border border-[var(--terminal-border)] cursor-not-allowed'
-                  )}
-                  style={{ fontFamily: "'JetBrains Mono', monospace" }}
-                >
-                  TRANSMIT
-                  <ArrowUp className="w-3.5 h-3.5" />
-                </button>
-              )}
-            </div>
-          </div>
-        </motion.div>
-
-        {/* Keyboard Hint */}
-        <motion.div
-          initial={{ opacity: 0.5 }}
-          animate={{ opacity: isFocused ? 0.3 : 0.5 }}
-          className="flex items-center justify-center gap-4 mt-2 text-[9px] text-[var(--terminal-text-dim)] uppercase tracking-tighter"
-          style={{ fontFamily: "'JetBrains Mono', monospace" }}
-        >
-          <span>[Enter] Send</span>
-          <span>[Shift+Enter] Line Break</span>
-          <span className="hidden sm:inline">[/] Commands</span>
-        </motion.div>
-      </div>
-    </div>
-  );
-}
-
-// ============================================
-// WELCOME STATE
-// ============================================
-
-function WelcomeState({
-  onPromptSelect: _onPromptSelect,
-  selectedModel,
-}: {
-  onPromptSelect: (prompt: string) => void;
-  selectedModel?: string;
-}) {
-  // Mouse tracking for parallax effect
-  const x = useMotionValue(0);
-  const y = useMotionValue(0);
-
-  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    const centerX = rect.left + rect.width / 2;
-    const centerY = rect.top + rect.height / 2;
-    x.set(e.clientX - centerX);
-    y.set(e.clientY - centerY);
-  };
-
-  const handleMouseLeave = () => {
-    x.set(0);
-    y.set(0);
-  };
-
-  // Smooth spring physics for the tilt
-  const springConfig = { damping: 25, stiffness: 150 };
-  const rotateX = useSpring(
-    useTransform(y, [-100, 100], [10, -10]),
-    springConfig
-  );
-  const rotateY = useSpring(
-    useTransform(x, [-100, 100], [-10, 10]),
-    springConfig
-  );
-
-  return (
-    <div
-      className="flex-1 flex flex-col items-center justify-center p-8 perspective-1000"
-      onMouseMove={handleMouseMove}
-      onMouseLeave={handleMouseLeave}
-    >
-      <motion.div
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ duration: 0.8 }}
-        style={{ rotateX, rotateY, transformStyle: 'preserve-3d' }}
-        className="text-center max-w-2xl relative"
-      >
-        {/* Orbital decoration */}
-        <div className="relative mb-12 flex items-center justify-center h-64 w-64 mx-auto transform-gpu">
-          {/* Outer Ring - Counter Rotate */}
-          <motion.div
-            style={{ translateZ: 20 }}
-            className="absolute inset-0 flex items-center justify-center"
-          >
-            <div className="w-56 h-56 rounded-full border border-[#1a1a28]/50 animate-[spin_30s_linear_infinite_reverse] orbital-ring-reverse" />
-          </motion.div>
-
-          {/* Inner Ring - Rotate */}
-          <motion.div
-            style={{ translateZ: 40 }}
-            className="absolute inset-0 flex items-center justify-center"
-          >
-            <div className="w-32 h-32 rounded-full border border-[#1a1a28] animate-[spin_20s_linear_infinite] orbital-ring" />
-          </motion.div>
-
-          {/* Core Container */}
-          <motion.div
-            style={{ translateZ: 60 }}
-            className="relative w-24 h-24 flex items-center justify-center"
-          >
-            {/* Satellite Icon with Float */}
-            <Satellite className="w-12 h-12 text-[#00ff9f] float-gentle drop-shadow-[0_0_15px_rgba(0,255,159,0.3)]" />
-
-            {/* Scanning Beam Effect */}
-            <motion.div
-              animate={{ top: ['0%', '100%', '0%'], opacity: [0, 1, 0] }}
-              transition={{ duration: 3, repeat: Infinity, ease: 'linear' }}
-              className="absolute left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-[#00ff9f] to-transparent w-full"
-            />
-          </motion.div>
-
-          {/* Radar Pings - Background */}
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-            <div
-              className="w-full h-full rounded-full border border-[#00ff9f]/5 animate-ping"
-              style={{ animationDuration: '3s' }}
-            />
-          </div>
-        </div>
-
-        <motion.div style={{ translateZ: 30 }}>
-          <h2
-            className="text-xl text-[#e0e0e8] tracking-wider mb-2"
-            style={{ fontFamily: "'JetBrains Mono', monospace" }}
-          >
-            {selectedModel
-              ? 'NEURAL LINK ESTABLISHED'
-              : 'AWAITING NEURAL CORE SELECTION'}
-          </h2>
-          <p
-            className="text-sm text-[#3a3a4a] text-center max-w-md mx-auto"
-            style={{ fontFamily: "'JetBrains Mono', monospace" }}
-          >
-            {selectedModel
-              ? 'Ready to receive transmissions. Enter your query below.'
-              : 'Select a neural core from the command bar to initialize the interface.'}
-          </p>
-        </motion.div>
-
-        {selectedModel && (
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
-            style={{ translateZ: 20 }}
-            className="mt-8 grid grid-cols-2 gap-4 max-w-lg mx-auto"
-          >
-            {[
-              {
-                icon: Zap,
-                label: 'RAPID PROCESSING',
-                desc: 'Sub-second response latency',
-              },
-              {
-                icon: Shield,
-                label: 'LOCAL ONLY',
-                desc: 'All data stays on device',
-              },
-              {
-                icon: Cpu,
-                label: 'NEURAL INFERENCE',
-                desc: 'Advanced language model',
-              },
-              {
-                icon: Activity,
-                label: 'REAL-TIME STREAM',
-                desc: 'Live response generation',
-              },
-            ].map((item, idx) => (
-              <div
-                key={idx}
-                className="p-4 rounded-lg border border-[#1a1a28] bg-[#0d0d14]/50 text-left hover:border-[#00ff9f]/20 transition-all group backdrop-blur-sm"
-              >
-                <item.icon className="w-5 h-5 text-[#00ff9f] mb-2 group-hover:scale-110 transition-transform" />
-                <h3
-                  className="text-xs text-[#e0e0e8] mb-1"
-                  style={{ fontFamily: "'JetBrains Mono', monospace" }}
-                >
-                  {item.label}
-                </h3>
-                <p
-                  className="text-[10px] text-[#3a3a4a]"
-                  style={{ fontFamily: "'JetBrains Mono', monospace" }}
-                >
-                  {item.desc}
-                </p>
-              </div>
-            ))}
-          </motion.div>
-        )}
-      </motion.div>
-    </div>
-  );
-}
-
-// ============================================
-// MODEL LOADING PROGRESS
-// ============================================
-
-function ModelLoadingProgress({
-  progress,
-  progressVal,
-}: {
-  progress: string;
-  progressVal: number;
-}) {
-  return (
-    <motion.div
-      initial={{ height: 0, opacity: 0 }}
-      animate={{ height: 'auto', opacity: 1 }}
-      exit={{ height: 0, opacity: 0 }}
-      className="border-b border-[var(--terminal-border)] overflow-hidden bg-[var(--terminal-bg)]"
-    >
-      <div className="px-4 py-3 max-w-4xl mx-auto">
-        <div className="flex items-center gap-4">
-          <div className="relative">
-            <Radio className="w-5 h-5 text-[var(--phosphor-green)] animate-pulse" />
-            <div className="absolute inset-0 flex items-center justify-center">
-              <div className="w-2 h-2 rounded-full bg-[var(--phosphor-green)] animate-ping" />
-            </div>
-          </div>
-          <div className="flex-1">
-            <div className="flex items-center justify-between mb-1">
-              <span
-                className="text-xs text-[var(--phosphor-green)]"
-                style={{ fontFamily: "'JetBrains Mono', monospace" }}
-              >
-                INITIALIZING...
-              </span>
-              <span
-                className="text-xs text-[var(--terminal-text-muted)]"
-                style={{ fontFamily: "'JetBrains Mono', monospace" }}
-              >
-                {Math.round(progressVal * 100)}%
-              </span>
-            </div>
-            <div className="h-1 bg-[var(--terminal-border)] rounded-full overflow-hidden">
-              <motion.div
-                className="h-full bg-gradient-to-r from-[var(--phosphor-green)] to-[var(--phosphor-green-dim)]"
-                initial={{ width: 0 }}
-                animate={{ width: progressVal * 100 + '%' }}
-                transition={{ duration: 0.3 }}
-              />
-            </div>
-            <p
-              className="text-[10px] text-[var(--terminal-text-muted)] mt-1 truncate"
-              style={{ fontFamily: "'JetBrains Mono', monospace" }}
-            >
-              {progress}
-            </p>
-          </div>
-        </div>
-      </div>
-    </motion.div>
-  );
-}
-
 // ============================================
 // MAIN PAGE COMPONENT
 // ============================================
@@ -890,11 +169,10 @@ function ChatPageContent() {
   const [selectedModel, setSelectedModel] = useState<string>('gpt-4o');
 
   // Database state
-  const [_workspace, setWorkspace] = useState<Workspace | null>(null);
+  const [workspace, setWorkspace] = useState<Workspace | null>(null);
   const [dbConversation, setDbConversation] = useState<DBConversation | null>(
     null
   );
-  const [_activeThread, setActiveThread] = useState<Thread | null>(null);
   const [isInitializing, setIsInitializing] = useState(true);
   const [initError, setInitError] = useState<string | null>(null);
 
@@ -909,7 +187,6 @@ function ChatPageContent() {
   // RAG state for local models
   const [enableRAG, setEnableRAG] = useState(true);
   const [isRAGLoading, setIsRAGLoading] = useState(false);
-  const [_lastRAGContexts, setLastRAGContexts] = useState<RAGContextItem[]>([]);
 
   // Settings
   const [settings] = useState<ChatSettings>(DEFAULT_SETTINGS);
@@ -920,7 +197,6 @@ function ChatPageContent() {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const chatInputRef = useRef<HTMLTextAreaElement>(null);
   const isHydratedRef = useRef(false);
-  const hasRestoredThreadRef = useRef(false);
   const lastStreamedContentRef = useRef<string>('');
 
   // Scroll state
@@ -951,9 +227,6 @@ function ChatPageContent() {
   const storeStopStreaming = useChatStore((state) => state.stopStreaming);
   const storeIsStreaming = useChatStore((state) => state.isStreaming);
   const storeStreamingContent = useChatStore((state) => state.streamingContent);
-  const _storeStreamingCitations = useChatStore(
-    (state) => state.streamingCitations
-  );
   const currentModel = AVAILABLE_MODELS.find((m) => m.id === selectedModel);
   const activeThreadId = currentThreadIdFromStore || activeConversationId;
   const displayedMessages = selectDisplayedMessages({
@@ -997,6 +270,7 @@ function ChatPageContent() {
     }
 
     const activeStoreMessages = storeMessages[activeThreadId] || [];
+
     if (activeStoreMessages.length === 0) {
       return;
     }
@@ -1011,12 +285,13 @@ function ChatPageContent() {
   }, [activeThreadId, storeMessages]);
 
   const searchParams = useSearchParams();
+  const searchParamsRef = useRef(searchParams);
+  searchParamsRef.current = searchParams;
   const router = useRouter();
 
   // Reset refs when user changes (logout/login)
   useEffect(() => {
     if (!isAuthenticated) {
-      hasRestoredThreadRef.current = false;
       isHydratedRef.current = false;
     }
   }, [isAuthenticated]);
@@ -1053,41 +328,17 @@ function ChatPageContent() {
     }
   }, [isAuthenticated, isInitializing, router]);
 
-  // Handle thread switching from URL query param or sessionStorage (when navigating from sidebar)
-  // This runs whenever we're on /chat and checks for pending thread switch
+  // Handle thread switching from URL query param (single source of truth)
   useEffect(() => {
     if (conversations.length === 0 || isInitializing) {
       return;
     }
 
-    // Check URL query param first (most reliable), then sessionStorage
     const threadFromUrl = searchParams.get('thread');
-    let threadFromStorage: string | null = null;
-    try {
-      const raw = sessionStorage.getItem('activeThreadId');
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        // Expire entries older than 30 seconds to prevent stale state
-        if (parsed.threadId && Date.now() - parsed.timestamp < 30_000) {
-          threadFromStorage = parsed.threadId;
-        } else {
-          sessionStorage.removeItem('activeThreadId');
-        }
-      }
-    } catch {
-      // Handle legacy plain-string format gracefully
-      threadFromStorage = sessionStorage.getItem('activeThreadId');
-    }
-    const targetThreadId = threadFromUrl || threadFromStorage;
 
-    if (targetThreadId) {
-      console.log(
-        '[Chat] Thread switch requested:',
-        targetThreadId,
-        'source:',
-        threadFromUrl ? 'URL' : 'sessionStorage'
-      );
-      const targetConv = conversations.find((c) => c.id === targetThreadId);
+    if (threadFromUrl) {
+      console.log('[Chat] Thread switch requested:', threadFromUrl);
+      const targetConv = conversations.find((c) => c.id === threadFromUrl);
 
       if (targetConv) {
         if (targetConv.id !== activeConversationId) {
@@ -1097,21 +348,19 @@ function ChatPageContent() {
           setCurrentThread(targetConv.id);
           console.log('[Chat] Switched to thread:', targetConv.title);
         }
-        // Clear sessionStorage (URL param stays for bookmarking/sharing)
-        sessionStorage.removeItem('activeThreadId');
         return;
       }
 
       console.log(
         '[Chat] Thread not found in conversations, fetching detail:',
-        targetThreadId
+        threadFromUrl
       );
 
       let cancelled = false;
 
       (async () => {
         try {
-          const threadDetail = await workspaceService.getThread(targetThreadId);
+          const threadDetail = await workspaceService.getThread(threadFromUrl);
           if (cancelled) return;
 
           const uiMessages = threadDetail.messages.map(mapDbMessageToUiMessage);
@@ -1125,13 +374,9 @@ function ChatPageContent() {
           setActiveConversationId(threadDetail.id);
           setMessages(uiMessages);
           setCurrentThread(threadDetail.id);
-        } catch (error) {
+        } catch (error: unknown) {
           if (!cancelled) {
             console.error('[Chat] Failed to fetch requested thread:', error);
-          }
-        } finally {
-          if (!cancelled) {
-            sessionStorage.removeItem('activeThreadId');
           }
         }
       })();
@@ -1149,80 +394,6 @@ function ChatPageContent() {
     setCurrentThread,
   ]);
 
-  // Sync with Zustand store's currentThreadId (triggered by sidebar clicks via useChatPersistence)
-  // This ensures the chat page updates when sidebar selection changes the store
-  useEffect(() => {
-    if (
-      !currentThreadIdFromStore ||
-      isInitializing ||
-      conversations.length === 0
-    ) {
-      return;
-    }
-
-    // Only update if the store's thread is different from our local state
-    if (currentThreadIdFromStore !== activeConversationId) {
-      console.log(
-        '[Chat] Store thread changed:',
-        currentThreadIdFromStore,
-        '(local:',
-        activeConversationId,
-        ')'
-      );
-
-      // Try to find the thread in local conversations first
-      const targetConv = conversations.find(
-        (c) => c.id === currentThreadIdFromStore
-      );
-
-      if (targetConv) {
-        console.log(
-          '[Chat] Found thread in local state, syncing:',
-          targetConv.title
-        );
-        setActiveConversationId(targetConv.id);
-        setMessages(targetConv.messages);
-      } else {
-        // Thread not in local conversations, try to load from store messages
-        const messagesFromStore = storeMessages[currentThreadIdFromStore];
-        if (messagesFromStore && messagesFromStore.length > 0) {
-          console.log(
-            '[Chat] Loading messages from store for thread:',
-            currentThreadIdFromStore
-          );
-          setActiveConversationId(currentThreadIdFromStore);
-          // Map store messages to UI format using normalizeCitation
-          setMessages(
-            messagesFromStore.map((dbMsg) => ({
-              id: dbMsg.id,
-              role:
-                dbMsg.role === MessageRole.USER
-                  ? ('user' as const)
-                  : ('assistant' as const),
-              content: dbMsg.content,
-              timestamp: new Date(dbMsg.created_at).getTime(),
-              citations: dbMsg.citations?.map(normalizeCitation),
-            }))
-          );
-        } else {
-          // Thread exists but no messages yet - still switch to it
-          console.log(
-            '[Chat] Switching to thread with no messages:',
-            currentThreadIdFromStore
-          );
-          setActiveConversationId(currentThreadIdFromStore);
-          setMessages([]);
-        }
-      }
-    }
-  }, [
-    currentThreadIdFromStore,
-    conversations,
-    isInitializing,
-    activeConversationId,
-    storeMessages,
-  ]);
-
   // Load threads and messages from database
   const loadThreadsFromDb = useCallback(
     async (conversationId: string, _isRetry = false): Promise<boolean> => {
@@ -1236,7 +407,6 @@ function ChatPageContent() {
           { limit: 50 }
         );
 
-        // Map threads to UI conversations
         // Map threads without loading messages (lazy-loaded on selection)
         const uiConversations: Conversation[] = threadResponse.threads.map(
           (thread) => ({
@@ -1259,48 +429,22 @@ function ChatPageContent() {
           'threads from database'
         );
 
-        // Restore active thread - check sessionStorage first, then use first conversation
+        // Restore active thread from URL param or default to first
         if (uiConversations.length > 0) {
-          // Only set state if we haven't already done so
-          // This prevents React Strict Mode double-execution from overwriting correct state
-          if (hasRestoredThreadRef.current) {
-            console.log(
-              '[Chat] Skipping thread restore (already done, preventing Strict Mode duplicate)'
-            );
-            return true;
-          }
-
+          const threadFromUrl = searchParamsRef.current.get('thread');
           let selectedConv = uiConversations[0];
-          let savedThreadId: string | null = null;
-          try {
-            const raw = sessionStorage.getItem('activeThreadId');
-            if (raw) {
-              const parsed = JSON.parse(raw);
-              if (parsed.threadId && Date.now() - parsed.timestamp < 30_000) {
-                savedThreadId = parsed.threadId;
-              }
-            }
-          } catch {
-            // Handle legacy plain-string format
-            savedThreadId = sessionStorage.getItem('activeThreadId');
-          }
 
-          if (savedThreadId) {
-            const savedConv = uiConversations.find(
-              (c) => c.id === savedThreadId
-            );
-            if (savedConv) {
-              selectedConv = savedConv;
+          if (threadFromUrl) {
+            const urlConv = uiConversations.find((c) => c.id === threadFromUrl);
+            if (urlConv) {
+              selectedConv = urlConv;
               console.log(
-                '[Chat] Restored thread from sessionStorage:',
-                savedConv.title
+                '[Chat] Restored thread from URL param:',
+                urlConv.title
               );
             }
           }
-          // Always clear sessionStorage after reading
-          sessionStorage.removeItem('activeThreadId');
 
-          hasRestoredThreadRef.current = true;
           setActiveConversationId(selectedConv.id);
           setMessages(selectedConv.messages);
           // Sync with Zustand store for sidebar highlighting
@@ -1308,11 +452,15 @@ function ChatPageContent() {
           console.log('[Chat] Active thread:', selectedConv.title);
         }
         return true;
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error('[Chat] Failed to load threads from database:', error);
 
         // Handle 404 - conversation not found (stale data)
-        if (error?.response?.status === 404 || error?.status_code === 404) {
+        const err = error as {
+          response?: { status?: number };
+          status_code?: number;
+        };
+        if (err?.response?.status === 404 || err?.status_code === 404) {
           console.warn(
             '[Chat] Conversation not found (404) - clearing stale data'
           );
@@ -1378,11 +526,12 @@ function ChatPageContent() {
 
         isHydratedRef.current = true;
         console.log('[Chat] Database initialization complete');
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error('[Chat] Failed to initialize from database:', error);
 
         // Handle 404 by clearing stale data and retrying once
-        if (error?.response?.status === 404) {
+        const err = error as { response?: { status?: number } };
+        if (err?.response?.status === 404) {
           console.warn('[Chat] Stale data detected, clearing and retrying...');
           if (typeof window !== 'undefined') {
             localStorage.removeItem('default-workspace-id');
@@ -1392,12 +541,12 @@ function ChatPageContent() {
           try {
             const ws = await workspaceService.getOrCreateDefaultWorkspace();
             setWorkspace(ws);
-            const conv = await workspaceService.createConversation({
+            const freshConv = await workspaceService.createConversation({
               workspace_id: ws.id,
               title: 'New Chat',
               description: 'A new conversation',
             });
-            setDbConversation(conv);
+            setDbConversation(freshConv);
             setConversations([]);
             setMessages([]);
             console.log('[Chat] Created fresh workspace and conversation');
@@ -1612,7 +761,6 @@ function ChatPageContent() {
         setConversations((prev) => [newConv, ...prev]);
         setActiveConversationId(newConv.id);
         setCurrentThread(newConv.id);
-        setActiveThread(newThread);
         router.replace(getSelectedThreadUrl(newThread.id));
         console.log('[Chat] Created new thread:', newThread.id);
       } catch (error) {
@@ -1643,11 +791,6 @@ function ChatPageContent() {
 
       if (isCloudModel) {
         // Use SSE streaming for cloud models (GPT-4o via Azure OpenAI)
-        // streamMessage handles the full lifecycle: stream tokens, then loadMessages on completion.
-        // The virtual streaming message is rendered in the message list via storeIsStreaming/storeStreamingContent.
-        // IMPORTANT: streamMessage does NOT clear isStreaming/streamingContent on success —
-        // we clear them here AFTER syncing local state to avoid a flash where the
-        // virtual streaming message disappears before the final messages are displayed.
         console.log(
           '[Chat] Starting SSE stream for cloud model, thread:',
           currentThreadId
@@ -1660,7 +803,6 @@ function ChatPageContent() {
         );
 
         // After streaming completes, the store has refreshed messages via loadMessages.
-        // Keep local fallback only if store messages failed to arrive.
         if (currentThreadId) {
           let updatedStoreMessages =
             useChatStore.getState().messages[currentThreadId] || [];
@@ -1670,9 +812,11 @@ function ChatPageContent() {
             updatedStoreMessages =
               useChatStore.getState().messages[currentThreadId] || [];
           }
-          if (updatedStoreMessages.length === 0 && lastStreamedContentRef.current) {
+          if (
+            updatedStoreMessages.length === 0 &&
+            lastStreamedContentRef.current
+          ) {
             // Fallback: store loadMessages returned empty (e.g. network hiccup).
-            // Construct the assistant message from captured streaming content.
             console.warn(
               '[Chat] Store messages empty after stream, using captured content fallback'
             );
@@ -1699,8 +843,7 @@ function ChatPageContent() {
           }
         }
 
-        // NOW clear streaming state — the virtual message disappears only
-        // after local messages are already set with the final response.
+        // NOW clear streaming state
         storeStopStreaming();
         lastStreamedContentRef.current = '';
       } else {
@@ -1719,22 +862,19 @@ function ChatPageContent() {
           console.log('[RAG] Retrieving context for local model...');
 
           try {
-            // Phase 2: Use model-aware RAG configuration
             const ragResult = await ragService.retrieve(input.trim(), {
               maxDocs: ragConfig.maxDocs,
-              minScore: 0.05, // Low threshold to match cloud model behavior
+              minScore: 0.05,
               maxTokens: ragConfig.maxTokens,
             });
 
             if (ragResult && ragResult.contexts.length > 0) {
               ragContexts = ragResult.contexts;
-              // Phase 2: Pass modelSize for adaptive prompt building
               systemPrompt = buildRAGSystemPrompt(
                 settings.systemPrompt,
                 ragContexts,
                 modelSize
               );
-              setLastRAGContexts(ragContexts);
               console.log(
                 `[RAG] Retrieved ${ragContexts.length} contexts in ${ragResult.retrievalTimeMs.toFixed(0)}ms`
               );
@@ -1902,9 +1042,6 @@ function ChatPageContent() {
     } finally {
       setIsLoading(false);
       // Safety: ensure streaming state is always cleared.
-      // On success, storeStopStreaming() was already called above.
-      // On error, the catch in streamMessage clears it. But if the sync
-      // code in handleSubmit itself throws, we need this safety net.
       if (useChatStore.getState().isStreaming) {
         storeStopStreaming();
       }
@@ -1946,7 +1083,7 @@ function ChatPageContent() {
 
       {/* Main Chat Area */}
       <div className="flex-1 flex flex-col relative h-full min-w-0 overflow-hidden">
-        <ChatHeader currentWorkspace={_workspace} />
+        <ChatHeader currentWorkspace={workspace} />
 
         {/* Model Loading Progress */}
         <AnimatePresence>
