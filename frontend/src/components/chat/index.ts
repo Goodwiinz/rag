@@ -22,6 +22,7 @@ export {
 } from './CitationRenderer';
 export {
   ModelSelector,
+  AVAILABLE_MODELS,
   default as ModelSelectorComponent,
 } from './ModelSelector';
 
@@ -45,7 +46,7 @@ export {
 export type { ChatMetrics } from './ChatAnalytics';
 export type { ChatSettings } from './ChatSettings';
 export type { ModelLoadingProgressProps } from './ModelLoadingProgress';
-export type { Model } from './ModelSelector';
+export type { Model, ExtendedModel } from './ModelSelector';
 export type { WelcomeStateProps } from './WelcomeState';
 export type { RAGToggleProps } from './RAGToggle';
 export type {

@@ -1,50 +1,9 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog';
-import { Label } from '@/components/ui/label';
-import { Slider } from '@/components/ui/slider';
-import { Switch } from '@/components/ui/switch';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import {
-  HoverCard,
-  HoverCardContent,
-  HoverCardTrigger,
-} from '@/components/ui/hover-card';
 import { cn } from '@/lib/utils';
-import { motion, AnimatePresence } from 'framer-motion';
-import {
-  Cpu,
-  Zap,
-  MemoryStick,
-  Clock,
-  CheckCircle2,
-  AlertCircle,
-  TrendingUp,
-  Star,
-  ChevronDown,
-  Info,
-  Loader2,
-  Sparkles,
-  BarChart3,
-  Brain,
-} from 'lucide-react';
+import { AnimatePresence, motion } from 'framer-motion';
+import { ChevronDown, Cpu } from 'lucide-react';
+import { useState } from 'react';
 
 export interface Model {
   id: string;
@@ -67,474 +26,246 @@ export interface Model {
   };
 }
 
-const DEFAULT_MODELS: Model[] = [
+export interface ExtendedModel extends Model {
+  isCloud?: boolean;
+  provider?: 'openai' | 'local';
+}
+
+export const AVAILABLE_MODELS: ExtendedModel[] = [
+  {
+    id: 'gpt-4o',
+    name: 'GPT-4O',
+    description:
+      'OpenAI flagship model with superior reasoning and multimodal capabilities',
+    size: 'Cloud',
+    parameters: 'Cloud API',
+    ram: 'N/A',
+    speed: 'Fast',
+    accuracy: 97,
+    features: [
+      'Advanced Reasoning',
+      'Code Generation',
+      'Multimodal',
+      'Function Calling',
+    ],
+    tags: ['openai', 'cloud', 'flagship'],
+    isRecommended: true,
+    isFeatured: true,
+    isCloud: true,
+    provider: 'openai',
+    benchmarks: { reasoning: 96, coding: 95, math: 94, language: 97 },
+  },
   {
     id: 'Llama-3.2-1B-Instruct-q4f32_1-MLC',
-    name: 'Llama 3.2 1B',
-    description: 'Ultra-lightweight model for quick responses and simple tasks',
+    name: 'LLAMA-3.2-1B',
+    description: 'Ultra-efficient neural core for rapid transmissions',
     size: '1B',
     parameters: '1.2B',
     ram: '~2GB',
     speed: 'Very Fast',
     accuracy: 78,
-    features: ['Text Generation', 'Q&A', 'Summarization'],
+    features: ['Text Synthesis', 'Query Processing', 'Compression'],
     tags: ['lightweight', 'fast', 'efficient'],
     isRecommended: true,
-    benchmarks: { reasoning: 72, coding: 65, math: 70, language: 82 }
+    benchmarks: { reasoning: 72, coding: 65, math: 70, language: 82 },
   },
   {
     id: 'Llama-3.2-3B-Instruct-q4f32_1-MLC',
-    name: 'Llama 3.2 3B',
-    description: 'Balanced model offering quality responses with good speed',
+    name: 'LLAMA-3.2-3B',
+    description: 'Balanced neural architecture for complex reasoning',
     size: '3B',
     parameters: '3.2B',
     ram: '~4GB',
     speed: 'Fast',
     accuracy: 84,
-    features: ['Text Generation', 'Complex Q&A', 'Reasoning', 'Coding'],
-    tags: ['balanced', 'versatile', 'popular'],
+    features: ['Deep Reasoning', 'Code Generation', 'Analysis'],
+    tags: ['balanced', 'versatile', 'flagship'],
     isRecommended: true,
     isFeatured: true,
-    benchmarks: { reasoning: 81, coding: 78, math: 79, language: 88 }
+    benchmarks: { reasoning: 81, coding: 78, math: 79, language: 88 },
   },
   {
     id: 'gemma-2-2b-it-q4f16_1-MLC',
-    name: 'Gemma 2 2B',
-    description: "Google's efficient model with strong multilingual capabilities",
+    name: 'GEMMA-2-2B',
+    description: 'Google neural matrix with multilingual protocols',
     size: '2B',
     parameters: '2.6B',
     ram: '~3GB',
     speed: 'Fast',
     accuracy: 82,
-    features: ['Text Generation', 'Multilingual', 'Coding'],
+    features: ['Multilingual', 'Code Analysis', 'Translation'],
     tags: ['multilingual', 'google', 'efficient'],
-    benchmarks: { reasoning: 79, coding: 80, math: 76, language: 91 }
+    benchmarks: { reasoning: 79, coding: 80, math: 76, language: 91 },
   },
   {
     id: 'Phi-3.5-mini-instruct-q4f16_1-MLC',
-    name: 'Phi 3.5 Mini',
-    description: "Microsoft's compact model optimized for instruction following",
+    name: 'PHI-3.5-MINI',
+    description: 'Microsoft compact core optimized for instruction parsing',
     size: '3.8B',
     parameters: '3.8B',
     ram: '~4GB',
     speed: 'Medium',
     accuracy: 86,
-    features: ['Instruction Following', 'Reasoning', 'Code Generation'],
+    features: ['Instruction Parsing', 'Reasoning Engine', 'Code Synthesis'],
     tags: ['microsoft', 'instruction-tuned', 'reliable'],
-    benchmarks: { reasoning: 85, coding: 83, math: 82, language: 87 }
+    benchmarks: { reasoning: 85, coding: 83, math: 82, language: 87 },
   },
   {
     id: 'Qwen2-1.5B-Instruct-q4f16_1-MLC',
-    name: 'Qwen2 1.5B',
-    description: 'Alibaba\'s lightweight model with strong performance',
+    name: 'QWEN2-1.5B',
+    description: 'Alibaba neural core with bilingual transmission',
     size: '1.5B',
     parameters: '1.5B',
     ram: '~2GB',
     speed: 'Very Fast',
     accuracy: 80,
-    features: ['Text Generation', 'Chinese & English', 'Q&A'],
+    features: ['Bilingual', 'Fast Processing', 'Query Response'],
     tags: ['lightweight', 'bilingual', 'alibaba'],
     isRecommended: true,
-    benchmarks: { reasoning: 76, coding: 71, math: 74, language: 86 }
+    benchmarks: { reasoning: 76, coding: 71, math: 74, language: 86 },
   },
 ];
 
 interface ModelSelectorProps {
-  models?: Model[];
+  models: ExtendedModel[];
   selectedModelId?: string;
-  onModelChange: (modelId: string) => void;
+  onModelChange: (id: string) => void;
   isLoading?: boolean;
-  showComparison?: boolean;
-  showBenchmarks?: boolean;
-  className?: string;
 }
 
 export function ModelSelector({
-  models = DEFAULT_MODELS,
+  models,
   selectedModelId,
   onModelChange,
-  isLoading = false,
-  showComparison = true,
-  showBenchmarks = true,
-  className,
+  isLoading,
 }: ModelSelectorProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const [comparisonOpen, setComparisonOpen] = useState(false);
-  const [selectedModels, setSelectedModels] = useState<string[]>([]);
-
-  const selectedModel = useMemo(
-    () => models.find(m => m.id === selectedModelId),
-    [models, selectedModelId]
-  );
-
-  const featuredModels = useMemo(
-    () => models.filter(m => m.isFeatured),
-    [models]
-  );
-
-  const recommendedModels = useMemo(
-    () => models.filter(m => m.isRecommended),
-    [models]
-  );
-
-  const getSpeedColor = (speed: string) => {
-    switch (speed) {
-      case 'Very Fast': return 'text-green-600';
-      case 'Fast': return 'text-blue-600';
-      case 'Medium': return 'text-yellow-600';
-      case 'Slow': return 'text-red-600';
-      default: return 'text-gray-600';
-    }
-  };
-
-  const getSpeedIcon = (speed: string) => {
-    switch (speed) {
-      case 'Very Fast': return <Zap className="w-4 h-4" />;
-      case 'Fast': return <Zap className="w-4 h-4" />;
-      case 'Medium': return <Clock className="w-4 h-4" />;
-      case 'Slow': return <Clock className="w-4 h-4" />;
-      default: return <Clock className="w-4 h-4" />;
-    }
-  };
-
-  const ModelCard = ({ model, compact = false }: { model: Model; compact?: boolean }) => (
-    <motion.div
-      whileHover={{ scale: 1.02 }}
-      whileTap={{ scale: 0.98 }}
-      className={cn(
-        "relative p-4 rounded-lg border cursor-pointer transition-all",
-        "hover:shadow-md hover:border-[#00ff9f]/30",
-        selectedModelId === model.id && "border-[#00ff9f] bg-[#00ff9f]/5",
-        compact ? "p-3" : "p-4"
-      )}
-      onClick={() => {
-        onModelChange(model.id);
-        setIsOpen(false);
-      }}
-    >
-      {model.isFeatured && (
-        <div className="absolute -top-2 -right-2">
-          <Badge className="bg-gradient-to-r from-[#00ff9f] to-[#00cc7a] text-[#0a0a0f]">
-            <Star className="w-3 h-3 mr-1" />
-            Featured
-          </Badge>
-        </div>
-      )}
-
-      <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <h3 className={cn(
-            "font-semibold text-sm",
-            selectedModelId === model.id && "text-[#00ff9f]"
-          )}>
-            {model.name}
-          </h3>
-          {selectedModelId === model.id && (
-            <CheckCircle2 className="w-4 h-4 text-[#00ff9f]" />
-          )}
-        </div>
-
-        {!compact && (
-          <p className="text-xs text-muted-foreground line-clamp-2">
-            {model.description}
-          </p>
-        )}
-
-        <div className="flex items-center gap-2 flex-wrap">
-          <Badge variant="outline" className="text-xs">
-            {model.parameters}
-          </Badge>
-          <span className={cn("text-xs flex items-center gap-1", getSpeedColor(model.speed))}>
-            {getSpeedIcon(model.speed)}
-            {model.speed}
-          </span>
-          <span className="text-xs text-muted-foreground">
-            {model.ram}
-          </span>
-        </div>
-
-        {showBenchmarks && !compact && model.benchmarks && (
-          <div className="space-y-1">
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-muted-foreground">Overall Accuracy</span>
-              <span className="font-medium">{model.accuracy}%</span>
-            </div>
-            <div className="grid grid-cols-4 gap-1">
-              {Object.entries(model.benchmarks).map(([key, value]) => (
-                <div key={key} className="text-center">
-                  <div className="text-xs font-medium">{value}%</div>
-                  <div className="text-[10px] text-muted-foreground capitalize">{key.slice(0, 1)}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-    </motion.div>
-  );
-
-  const ModelComparison = () => {
-    const comparisonModels = selectedModels.length > 0
-      ? models.filter(m => selectedModels.includes(m.id))
-      : [selectedModel, ...models.slice(0, 2)].filter((m): m is Model => Boolean(m));
-
-    return (
-      <div className="space-y-4">
-        {selectedModels.length === 0 && (
-          <p className="text-sm text-muted-foreground text-center py-4">
-            Select models to compare
-          </p>
-        )}
-
-        <div className="grid gap-4">
-          {comparisonModels.map(model => (
-            <Card key={model.id} className={cn(
-              "transition-all",
-              selectedModelId === model.id && "ring-2 ring-[#00ff9f]"
-            )}>
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-sm">{model.name}</CardTitle>
-                  <Button
-                    size="sm"
-                    variant={selectedModelId === model.id ? "default" : "outline"}
-                    onClick={() => onModelChange(model.id)}
-                  >
-                    {selectedModelId === model.id ? 'Selected' : 'Select'}
-                  </Button>
-                </div>
-                <CardDescription className="text-xs">
-                  {model.description}
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 gap-4 text-xs">
-                  <div>
-                    <Label className="text-muted-foreground">Parameters</Label>
-                    <p className="font-medium">{model.parameters}</p>
-                  </div>
-                  <div>
-                    <Label className="text-muted-foreground">RAM Usage</Label>
-                    <p className="font-medium">{model.ram}</p>
-                  </div>
-                  <div>
-                    <Label className="text-muted-foreground">Speed</Label>
-                    <p className={cn("font-medium flex items-center gap-1", getSpeedColor(model.speed))}>
-                      {getSpeedIcon(model.speed)}
-                      {model.speed}
-                    </p>
-                  </div>
-                  <div>
-                    <Label className="text-muted-foreground">Accuracy</Label>
-                    <p className="font-medium">{model.accuracy}%</p>
-                  </div>
-                </div>
-
-                {model.benchmarks && (
-                  <div className="mt-4">
-                    <Label className="text-xs text-muted-foreground">Benchmarks</Label>
-                    <div className="mt-2 space-y-2">
-                      {Object.entries(model.benchmarks).map(([key, value]) => (
-                        <div key={key} className="flex items-center justify-between">
-                          <span className="text-xs capitalize">{key}</span>
-                          <div className="flex items-center gap-2">
-                            <div className="w-16 h-1.5 bg-muted rounded-full overflow-hidden">
-                              <div
-                                className={cn(
-                                  "h-full transition-all",
-                                  value >= 80 ? "bg-green-500" :
-                                  value >= 60 ? "bg-yellow-500" : "bg-red-500"
-                                )}
-                                style={{ width: `${value}%` }}
-                              />
-                            </div>
-                            <span className="text-xs font-medium w-8 text-right">{value}%</span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      </div>
-    );
-  };
+  const selectedModel = models.find((m) => m.id === selectedModelId);
 
   return (
-    <div className={cn("space-y-2", className)}>
-      <Dialog open={isOpen} onOpenChange={setIsOpen}>
-        <DialogTrigger asChild>
-          <Button
-            variant="outline"
-            className="w-full justify-between"
-            disabled={isLoading}
-          >
-            <div className="flex items-center gap-2">
-              {isLoading ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <Cpu className="w-4 h-4" />
-              )}
-              <span>
-                {selectedModel ? selectedModel.name : 'Select Model'}
-              </span>
-            </div>
-            <ChevronDown className="w-4 h-4" />
-          </Button>
-        </DialogTrigger>
+    <div className="relative">
+      <button
+        onClick={() => !isLoading && setIsOpen(!isOpen)}
+        disabled={isLoading}
+        className={cn(
+          'flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-all duration-200',
+          'bg-[var(--terminal-surface)] border-[var(--terminal-border)]',
+          'hover:border-[var(--phosphor-green)]/30',
+          'active:scale-[0.98]',
+          isOpen &&
+            'border-[var(--phosphor-green)]/50 bg-[var(--phosphor-green)]/5',
+          isLoading && 'opacity-50 cursor-not-allowed'
+        )}
+        style={{ fontFamily: "'JetBrains Mono', monospace" }}
+      >
+        <Cpu
+          className={cn(
+            'w-3.5 h-3.5 transition-colors',
+            isOpen
+              ? 'text-[var(--phosphor-green)] animate-pulse'
+              : 'text-[var(--phosphor-green)]'
+          )}
+        />
+        <span className="text-[var(--terminal-text)] text-xs">
+          {selectedModel?.name || 'SELECT MODEL'}
+        </span>
+        {selectedModel?.isCloud && (
+          <span className="px-1 py-0.5 rounded bg-[var(--amber-gold)]/20 text-[var(--amber-gold)] text-[8px] uppercase">
+            Cloud
+          </span>
+        )}
+        <ChevronDown
+          className={cn(
+            'w-3 h-3 text-[var(--terminal-text-muted)] transition-transform',
+            isOpen && 'rotate-180'
+          )}
+        />
+      </button>
 
-        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Brain className="w-5 h-5" />
-              Choose AI Model
-            </DialogTitle>
-            <DialogDescription>
-              Select the model that best fits your needs. Consider speed, accuracy, and resource requirements.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-6">
-            {/* Quick Stats */}
-            {selectedModel && (
-              <Card className="bg-gradient-to-r from-[#0d0d14] to-[#12121a] border-[#00ff9f]/20">
-                <CardContent className="pt-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#00ff9f] to-[#00cc7a] flex items-center justify-center">
-                        <Cpu className="w-5 h-5 text-[#0a0a0f]" />
+      <AnimatePresence>
+        {isOpen && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-40"
+              onClick={() => setIsOpen(false)}
+            />
+            <motion.div
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              className="absolute bottom-full left-0 mb-2 w-80 terminal-window z-50"
+            >
+              <div className="p-2 max-h-80 overflow-y-auto terminal-scrollbar">
+                {models.map((model) => (
+                  <button
+                    key={model.id}
+                    onClick={() => {
+                      onModelChange(model.id);
+                      setIsOpen(false);
+                    }}
+                    className={cn(
+                      'w-full flex items-start gap-3 px-3 py-2.5 rounded text-left transition-colors',
+                      model.id === selectedModelId
+                        ? 'bg-[var(--phosphor-green)]/10 border border-[var(--phosphor-green)]/30'
+                        : 'hover:bg-[var(--terminal-elevated)]'
+                    )}
+                  >
+                    <Cpu
+                      className={cn(
+                        'w-4 h-4 mt-0.5',
+                        model.id === selectedModelId
+                          ? 'text-[var(--phosphor-green)]'
+                          : 'text-[var(--terminal-text-muted)]'
+                      )}
+                    />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={cn(
+                            'text-xs font-medium',
+                            model.id === selectedModelId
+                              ? 'text-[var(--phosphor-green)]'
+                              : 'text-[var(--terminal-text)]'
+                          )}
+                          style={{ fontFamily: "'JetBrains Mono', monospace" }}
+                        >
+                          {model.name}
+                        </span>
+                        {model.isCloud && (
+                          <span className="px-1.5 py-0.5 rounded bg-[var(--amber-gold)]/20 text-[var(--amber-gold)] text-[8px] uppercase">
+                            Cloud
+                          </span>
+                        )}
+                        {model.isFeatured && (
+                          <span className="px-1.5 py-0.5 rounded bg-[var(--phosphor-green)]/20 text-[var(--phosphor-green)] text-[8px] uppercase">
+                            Featured
+                          </span>
+                        )}
                       </div>
-                      <div>
-                        <h3 className="font-semibold text-[#e0e0e8]">{selectedModel.name}</h3>
-                        <p className="text-sm text-[#a1a1aa]">{selectedModel.description}</p>
+                      <p
+                        className="text-[10px] text-[var(--terminal-text-muted)] mt-0.5"
+                        style={{ fontFamily: "'JetBrains Mono', monospace" }}
+                      >
+                        {model.description}
+                      </p>
+                      <div
+                        className="flex items-center gap-3 mt-1 text-[10px] text-[var(--terminal-text-dim)]"
+                        style={{ fontFamily: "'JetBrains Mono', monospace" }}
+                      >
+                        <span>PARAMS: {model.parameters}</span>
+                        <span>RAM: {model.ram}</span>
                       </div>
                     </div>
-                    <Badge className="bg-[#00ff9f] text-[#0a0a0f]">
-                      Currently Active
-                    </Badge>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Tabs */}
-            <div className="flex gap-2 border-b">
-              <Button
-                variant={showComparison ? "default" : "ghost"}
-                size="sm"
-                onClick={() => setComparisonOpen(false)}
-                className="rounded-b-none"
-              >
-                <Sparkles className="w-4 h-4 mr-1" />
-                All Models
-              </Button>
-              <Button
-                variant={comparisonOpen ? "default" : "ghost"}
-                size="sm"
-                onClick={() => setComparisonOpen(true)}
-                className="rounded-b-none"
-              >
-                <BarChart3 className="w-4 h-4 mr-1" />
-                Compare
-              </Button>
-            </div>
-
-            {/* Content */}
-            <AnimatePresence mode="wait">
-              {!comparisonOpen ? (
-                <motion.div
-                  initial={{ opacity: 0, x: 20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -20 }}
-                  className="space-y-4"
-                >
-                  {/* Featured Models */}
-                  {featuredModels.length > 0 && (
-                    <div>
-                      <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
-                        <Star className="w-4 h-4 text-[#00ff9f]" />
-                        Featured Models
-                      </h3>
-                      <div className="grid md:grid-cols-2 gap-3">
-                        {featuredModels.map(model => (
-                          <ModelCard key={model.id} model={model} />
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Recommended Models */}
-                  {recommendedModels.length > 0 && (
-                    <div>
-                      <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
-                        <Sparkles className="w-4 h-4 text-[#ffb700]" />
-                        Recommended
-                      </h3>
-                      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-3">
-                        {recommendedModels
-                          .filter(m => !m.isFeatured)
-                          .map(model => (
-                            <ModelCard key={model.id} model={model} compact />
-                          ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* All Models */}
-                  <div>
-                    <h3 className="text-sm font-semibold mb-3">All Models</h3>
-                    <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-3">
-                      {models.map(model => (
-                        <ModelCard
-                          key={model.id}
-                          model={model}
-                          compact={!featuredModels.includes(model) && !recommendedModels.includes(model)}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                </motion.div>
-              ) : (
-                <motion.div
-                  initial={{ opacity: 0, x: 20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -20 }}
-                >
-                  <ModelComparison />
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Model Info */}
-      {selectedModel && (
-        <div className="flex items-center justify-between text-xs text-muted-foreground">
-          <div className="flex items-center gap-3">
-            <span className="flex items-center gap-1">
-              <MemoryStick className="w-3 h-3" />
-              {selectedModel.ram}
-            </span>
-            <span className={cn("flex items-center gap-1", getSpeedColor(selectedModel.speed))}>
-              {getSpeedIcon(selectedModel.speed)}
-              {selectedModel.speed}
-            </span>
-            {selectedModel.accuracy && (
-              <span className="flex items-center gap-1">
-                <TrendingUp className="w-3 h-3" />
-                {selectedModel.accuracy}% accuracy
-              </span>
-            )}
-          </div>
-          <Badge variant="secondary" className="text-xs">
-            {selectedModel.parameters}
-          </Badge>
-        </div>
-      )}
+                  </button>
+                ))}
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

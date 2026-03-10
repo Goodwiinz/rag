@@ -1,8 +1,8 @@
 /**
- * Unit tests for ChatInput streaming behavior
+ * Unit tests for ChatInput streaming/loading behavior
  *
  * Tests the stop button, input disabling, and onStop callback
- * when the component is in streaming mode (isStreaming=true).
+ * when the component is in loading mode (isLoading=true).
  */
 
 import React from 'react';
@@ -13,11 +13,18 @@ jest.mock('framer-motion', () => ({
   motion: {
     div: ({ children, ...props }: any) => <div {...props}>{children}</div>,
     span: ({ children, ...props }: any) => <span {...props}>{children}</span>,
+    button: ({ children, ...props }: any) => (
+      <button {...props}>{children}</button>
+    ),
   },
   AnimatePresence: ({ children }: any) => <>{children}</>,
+  useMotionValue: () => ({ set: jest.fn(), get: () => 0 }),
+  useSpring: (v: any) => v,
+  useTransform: () => ({ set: jest.fn(), get: () => 0 }),
 }));
 
 import { ChatInput } from '../ChatInput';
+import { AVAILABLE_MODELS } from '../ModelSelector';
 
 // Default props for all tests
 const defaultProps = {
@@ -25,9 +32,13 @@ const defaultProps = {
   onChange: jest.fn(),
   onSubmit: jest.fn(),
   onStop: jest.fn(),
-  showToolbar: false,
-  allowFileUpload: false,
-  allowVoiceInput: false,
+  isLoading: false,
+  isModelLoading: false,
+  selectedModel: 'gpt-4o',
+  models: AVAILABLE_MODELS,
+  onModelChange: jest.fn(),
+  enableRAG: true,
+  onRAGToggle: jest.fn(),
 };
 
 describe('ChatInput streaming behavior', () => {
@@ -35,74 +46,58 @@ describe('ChatInput streaming behavior', () => {
     jest.clearAllMocks();
   });
 
-  describe('when isStreaming is true', () => {
-    it('shows a stop button with correct aria-label', () => {
-      render(<ChatInput {...defaultProps} isStreaming={true} />);
+  describe('when isLoading is true', () => {
+    it('shows a HALT stop button', () => {
+      render(<ChatInput {...defaultProps} isLoading={true} />);
 
-      const stopButton = screen.getByRole('button', {
-        name: 'Stop generating',
-      });
+      const stopButton = screen.getByText('HALT');
       expect(stopButton).toBeInTheDocument();
     });
 
-    it('calls onStop when stop button is clicked', () => {
+    it('calls onStop when HALT button is clicked', () => {
       const onStop = jest.fn();
 
-      render(
-        <ChatInput {...defaultProps} onStop={onStop} isStreaming={true} />
-      );
+      render(<ChatInput {...defaultProps} onStop={onStop} isLoading={true} />);
 
-      const stopButton = screen.getByRole('button', {
-        name: 'Stop generating',
-      });
+      const stopButton = screen.getByText('HALT');
       fireEvent.click(stopButton);
 
       expect(onStop).toHaveBeenCalledTimes(1);
     });
 
-    it('disables the textarea', () => {
-      render(<ChatInput {...defaultProps} isStreaming={true} />);
+    it('does not show the TRANSMIT button', () => {
+      render(<ChatInput {...defaultProps} isLoading={true} />);
 
-      const textarea = screen.getByRole('textbox');
-      expect(textarea).toBeDisabled();
-    });
-
-    it('does not show the send button', () => {
-      render(<ChatInput {...defaultProps} isStreaming={true} />);
-
-      // The send button should NOT be present; only the stop button
-      const sendButton = screen.queryByRole('button', { name: 'Send message' });
-      expect(sendButton).not.toBeInTheDocument();
+      const transmitButton = screen.queryByText('TRANSMIT');
+      expect(transmitButton).not.toBeInTheDocument();
     });
   });
 
-  describe('when isStreaming is false', () => {
-    it('shows the send button (not the stop button)', () => {
-      render(<ChatInput {...defaultProps} isStreaming={false} value="Hello" />);
+  describe('when isLoading is false', () => {
+    it('shows the TRANSMIT button (not HALT)', () => {
+      render(<ChatInput {...defaultProps} isLoading={false} value="Hello" />);
 
-      const sendButton = screen.getByRole('button', { name: 'Send message' });
-      expect(sendButton).toBeInTheDocument();
+      const transmitButton = screen.getByText('TRANSMIT');
+      expect(transmitButton).toBeInTheDocument();
 
-      const stopButton = screen.queryByRole('button', {
-        name: 'Stop generating',
-      });
-      expect(stopButton).not.toBeInTheDocument();
+      const haltButton = screen.queryByText('HALT');
+      expect(haltButton).not.toBeInTheDocument();
     });
 
-    it('does not disable the textarea', () => {
-      render(<ChatInput {...defaultProps} isStreaming={false} />);
+    it('does not disable the textarea when model is selected', () => {
+      render(<ChatInput {...defaultProps} isLoading={false} />);
 
       const textarea = screen.getByRole('textbox');
       expect(textarea).not.toBeDisabled();
     });
   });
 
-  describe('when isStreaming is not provided', () => {
-    it('defaults to showing the send button', () => {
-      render(<ChatInput {...defaultProps} value="Hello" />);
+  describe('when no model is selected', () => {
+    it('disables the textarea', () => {
+      render(<ChatInput {...defaultProps} selectedModel={undefined} />);
 
-      const sendButton = screen.getByRole('button', { name: 'Send message' });
-      expect(sendButton).toBeInTheDocument();
+      const textarea = screen.getByRole('textbox');
+      expect(textarea).toBeDisabled();
     });
   });
 });
