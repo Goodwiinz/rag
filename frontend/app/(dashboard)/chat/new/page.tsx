@@ -1,17 +1,12 @@
 'use client';
 
-import { redirect } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 
-// This page handles /chat/new route
-// Clears any active conversation and redirects to main chat
-
 export default function NewChatPage() {
+  const router = useRouter();
   useEffect(() => {
-    // Clear any active conversation ID
-    sessionStorage.removeItem('activeConversationId');
-  }, []);
-
-  // Redirect to main chat page for a fresh start
-  redirect('/chat');
+    router.replace('/chat');
+  }, [router]);
+  return null;
 }
