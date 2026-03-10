@@ -60,3 +60,8 @@ Also, testing this endpoint proved difficult because the codebase has side effec
 **Vulnerability:** Rate limiting relied on `request.client.host`, which returns the load balancer's IP in production, causing global rate limiting instead of per-user.
 **Learning:** In containerized environments with reverse proxies (Traefik/Nginx), the real client IP is in `X-Forwarded-For`. The last IP in this list is the only one guaranteed to be the connecting client (added by the trusted proxy).
 **Prevention:** Use a centralized `get_client_ip` utility that parses `X-Forwarded-For` (taking the last entry) before falling back to `request.client.host`.
+
+## 2024-05-18 - [API Key IDOR Vulnerability]
+**Vulnerability:** Insecure Direct Object Reference (IDOR) found in API Key management endpoints (`backend/src/api/auth/api_keys.py`).
+**Learning:** Endpoints restricted by role decorators like `Depends(require_admin)` do not automatically scope database queries to the user's tenant/organization. Relying solely on role checks is insufficient for tenant isolation.
+**Prevention:** In SQLAlchemy queries for tenant-isolated models, always explicitly append `.filter(Model.organization_id == str(current_user.organization_id))` regardless of whether the user holds admin privileges.
