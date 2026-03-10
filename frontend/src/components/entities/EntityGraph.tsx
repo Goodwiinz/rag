@@ -354,6 +354,7 @@ export const EntityGraph: React.FC<EntityGraphProps> = ({
               size="icon"
               onClick={handleZoomIn}
               className="h-7 w-7 text-[var(--terminal-text-dim)] hover:text-[var(--phosphor-green)] hover:bg-[var(--phosphor-green)]/10"
+              aria-label="Zoom in"
             >
               <ZoomIn className="h-4 w-4" />
             </Button>
@@ -362,6 +363,7 @@ export const EntityGraph: React.FC<EntityGraphProps> = ({
               size="icon"
               onClick={handleZoomOut}
               className="h-7 w-7 text-[var(--terminal-text-dim)] hover:text-[var(--phosphor-green)] hover:bg-[var(--phosphor-green)]/10"
+              aria-label="Zoom out"
             >
               <ZoomOut className="h-4 w-4" />
             </Button>
@@ -370,6 +372,7 @@ export const EntityGraph: React.FC<EntityGraphProps> = ({
               size="icon"
               onClick={handleReset}
               className="h-7 w-7 text-[var(--terminal-text-dim)] hover:text-[var(--phosphor-green)] hover:bg-[var(--phosphor-green)]/10"
+              aria-label="Reset view"
             >
               <RefreshCw className="h-4 w-4" />
             </Button>
@@ -443,6 +446,7 @@ export const EntityGraph: React.FC<EntityGraphProps> = ({
                     size="icon"
                     className="h-5 w-5 -mr-2"
                     onClick={() => setSelectedEntity(null)}
+                    aria-label="Close details"
                   >
                     <span className="sr-only">Close</span>
                     <svg
