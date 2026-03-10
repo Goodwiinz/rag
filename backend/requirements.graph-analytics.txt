@@ -33,7 +33,7 @@ httpx==0.25.2
 aiofiles==23.2.1
 
 # Graph algorithms and analytics
-numpy==1.25.2
+numpy==2.4.3
 scipy==1.11.4
 networkx==3.2.1
 pandas==3.0.1

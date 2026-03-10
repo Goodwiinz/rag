@@ -24,7 +24,7 @@ redis==5.0.1
 
 # Vector Database (using compatible versions with pre-built wheels)
 qdrant-client==1.16.2
-numpy<2
+numpy<3
 
 # Knowledge Graph
 neo4j==5.15.0

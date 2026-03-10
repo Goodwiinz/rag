@@ -72,7 +72,7 @@ testcontainers==3.7.1
 
 # Data Testing
 pandas==3.0.1
-numpy==1.26.4
+numpy==2.4.3
 
 # API Testing
 fastapi-testclient==0.0.3
