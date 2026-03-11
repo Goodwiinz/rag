@@ -20,6 +20,8 @@ def get_client():
 
 @pytest.fixture
 def mock_rate_limiter():
+    # Make sure module is imported before patching
+    import src.api.auth.auth
     with patch("src.api.auth.auth.auth_rate_limiter") as mock:
         mock.is_allowed = AsyncMock(return_value=False)
         yield mock
@@ -33,6 +35,9 @@ def test_rate_limiting_refresh_token(mock_rate_limiter):
     mock_rate_limiter.is_allowed.assert_called_once()
 
 def test_rate_limiting_change_password(mock_rate_limiter):
+    # To verify both the IP and email guards are reachable, return True for IP, False for email
+    mock_rate_limiter.is_allowed.side_effect = [True, False]
+
     client, app = get_client()
     from src.models.user import User
     from src.core.dependencies import get_current_user
@@ -46,6 +51,6 @@ def test_rate_limiting_change_password(mock_rate_limiter):
 
     assert response.status_code == 429
     assert "Too many password change attempts" in response.json()["error"]["message"]
-    mock_rate_limiter.is_allowed.assert_called_once()
+    assert mock_rate_limiter.is_allowed.call_count == 2
 
     app.dependency_overrides.clear()
