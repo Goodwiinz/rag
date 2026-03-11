@@ -266,6 +266,26 @@ def verify_token(token: str) -> Optional[TokenData]:
         return None
 
 
+def extract_refresh_token_user_id(token: str) -> Optional[str]:
+    """Extract user_id from refresh token without verifying expiration.
+
+    Signature is still verified. Used for rate-limiting identification
+    before full token validation.
+    """
+    try:
+        payload = jwt.decode(
+            token,
+            settings.JWT_SECRET_KEY,
+            algorithms=[settings.JWT_ALGORITHM],
+            options={"verify_exp": False},
+        )
+        if payload.get("type") != "refresh":
+            return None
+        return payload.get("sub")
+    except JWTError:
+        return None
+
+
 def verify_refresh_token(token: str) -> Optional[TokenData]:
     """Verify and decode refresh token"""
     try:

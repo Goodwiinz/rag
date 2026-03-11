@@ -1,7 +1,7 @@
 import logging
 from abc import ABC, abstractmethod
 from datetime import datetime, timedelta, timezone
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 import redis.asyncio as redis
 from src.core.config import settings
 
@@ -16,6 +16,16 @@ class RateLimiterInterface(ABC):
     @abstractmethod
     async def get_remaining_attempts(self, identifier: str, prefix: str = "") -> int:
         """Get remaining attempts for identifier"""
+        pass
+
+    @abstractmethod
+    async def check_rate_limit(self, identifier: str, prefix: str = "") -> Tuple[bool, int]:
+        """Read-only check: returns (allowed, retry_after_seconds)"""
+        pass
+
+    @abstractmethod
+    async def record_attempt(self, identifier: str, prefix: str = "") -> None:
+        """Write-only: record a failed attempt"""
         pass
 
     @abstractmethod
@@ -55,6 +65,34 @@ class InMemoryRateLimiter(RateLimiterInterface):
         self.attempts[key].append(now)
         return True
 
+    async def check_rate_limit(self, identifier: str, prefix: str = "") -> Tuple[bool, int]:
+        """Read-only check: returns (allowed, retry_after_seconds)"""
+        key = f"{prefix}:{identifier}" if prefix else identifier
+        now = datetime.now(timezone.utc)
+        window_start = now - timedelta(minutes=self.window_minutes)
+
+        if key in self.attempts:
+            self.attempts[key] = [
+                t for t in self.attempts[key] if t > window_start
+            ]
+        else:
+            self.attempts[key] = []
+
+        if len(self.attempts[key]) >= self.max_attempts:
+            oldest = self.attempts[key][0]
+            retry_after = int((oldest + timedelta(minutes=self.window_minutes) - now).total_seconds())
+            return False, max(1, retry_after)
+
+        return True, 0
+
+    async def record_attempt(self, identifier: str, prefix: str = "") -> None:
+        """Write-only: record a failed attempt"""
+        key = f"{prefix}:{identifier}" if prefix else identifier
+        now = datetime.now(timezone.utc)
+        if key not in self.attempts:
+            self.attempts[key] = []
+        self.attempts[key].append(now)
+
     async def get_remaining_attempts(self, identifier: str, prefix: str = "") -> int:
         """Get remaining attempts for identifier"""
         key = f"{prefix}:{identifier}" if prefix else identifier
@@ -92,6 +130,23 @@ class RedisRateLimiter(RateLimiterInterface):
         end
         return current
         """
+        # Lua script for read-only check: returns {count, ttl}
+        self._check_script = """
+        local current = redis.call("GET", KEYS[1])
+        if current == false then
+            return {0, 0}
+        end
+        local ttl = redis.call("TTL", KEYS[1])
+        return {tonumber(current), ttl}
+        """
+        # Lua script for write-only record: INCR + EXPIRE on first
+        self._record_script = """
+        local current = redis.call("INCR", KEYS[1])
+        if current == 1 then
+            redis.call("EXPIRE", KEYS[1], ARGV[1])
+        end
+        return current
+        """
 
     async def _get_redis(self) -> redis.Redis:
         """Get or create Redis connection"""
@@ -120,6 +175,42 @@ class RedisRateLimiter(RateLimiterInterface):
             logger.error(f"Redis rate limit error: {e}")
             # Fail open - allow request if Redis is down
             return True
+
+    async def check_rate_limit(self, identifier: str, prefix: str = "") -> Tuple[bool, int]:
+        """Read-only check: returns (allowed, retry_after_seconds)"""
+        try:
+            client = await self._get_redis()
+            key = f"auth_rate_limit:{prefix}:{identifier}" if prefix else f"auth_rate_limit:{identifier}"
+
+            # Execute Lua check script (GET + TTL, no writes)
+            result = await client.eval(self._check_script, 1, key)
+            count, ttl = int(result[0]), int(result[1])
+
+            if count >= self.max_attempts:
+                return False, max(1, ttl)
+
+            return True, 0
+
+        except Exception as e:
+            logger.error(f"Redis rate limit check error: {e}")
+            return True, 0
+
+    async def record_attempt(self, identifier: str, prefix: str = "") -> None:
+        """Write-only: record a failed attempt"""
+        try:
+            client = await self._get_redis()
+            key = f"auth_rate_limit:{prefix}:{identifier}" if prefix else f"auth_rate_limit:{identifier}"
+
+            # Execute Lua record script (INCR + EXPIRE)
+            await client.eval(
+                self._record_script,
+                1,
+                key,
+                self.window_minutes * 60,
+            )
+
+        except Exception as e:
+            logger.error(f"Redis rate limit record error: {e}")
 
     async def get_remaining_attempts(self, identifier: str, prefix: str = "") -> int:
         """Get remaining attempts for identifier"""
