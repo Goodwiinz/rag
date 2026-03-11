@@ -7,6 +7,7 @@ import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { IconButton, IconButtonSm } from '@/components/ui/icon-button';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -357,9 +358,11 @@ export function MessageBubble({
             {!isUser && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="sm" className="h-7 w-7 p-0" aria-label="More actions">
-                    <MoreVertical className="w-3 h-3" />
-                  </Button>
+                  <IconButtonSm
+                    icon={<MoreVertical className="w-3 h-3" />}
+                    label="More actions"
+                    className="h-7 w-7"
+                  />
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align={isUser ? 'end' : 'start'}>
                   {onBookmark && (
