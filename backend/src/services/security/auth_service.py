@@ -218,7 +218,6 @@ class AuthService:
         first_name: str,
         last_name: str,
         organization_name: str = None,
-        organization_id: str = None,
         role: UserRole = UserRole.USER,
     ) -> User:
         """Register a new user"""
@@ -238,22 +237,7 @@ class AuthService:
             )
 
         # Handle organization
-        if organization_id:
-            # Join existing organization
-            stmt = select(Organization).where(
-                and_(
-                    Organization.id == organization_id,
-                    Organization.is_active == True,
-                    Organization.is_deleted == False,
-                )
-            )
-            result = await self.db.execute(stmt)
-            organization = result.scalar_one_or_none()
-
-            if not organization:
-                raise RegistrationError("Organization not found")
-
-        elif organization_name:
+        if organization_name:
             # Check if organization already exists
             stmt = select(Organization).where(
                 and_(
@@ -265,26 +249,27 @@ class AuthService:
             result = await self.db.execute(stmt)
             organization = result.scalar_one_or_none()
 
-            if not organization:
-                # Create new organization
-                organization = Organization(
-                    name=organization_name,
-                    storage_tier=StorageTier.FREE,
-                    storage_limit_bytes=Organization.get_default_storage_limit(
-                        StorageTier.FREE
-                    ),
-                    is_active=True,
-                )
-                self.db.add(organization)
-                await self.db.flush()  # Get the organization ID
+            if organization:
+                raise RegistrationError("Organization name already taken")
 
-                # First user in organization becomes admin
-                role = UserRole.ADMIN
-            # If organization exists, use default USER role (don't make them admin)
+            # Create new organization
+            organization = Organization(
+                name=organization_name,
+                storage_tier=StorageTier.FREE,
+                storage_limit_bytes=Organization.get_default_storage_limit(
+                    StorageTier.FREE
+                ),
+                is_active=True,
+            )
+            self.db.add(organization)
+            await self.db.flush()  # Get the organization ID
+
+            # First user in organization becomes admin
+            role = UserRole.ADMIN
 
         else:
             raise RegistrationError(
-                "Either organization_name or organization_id must be provided"
+                "organization_name must be provided"
             )
 
         # Create user
