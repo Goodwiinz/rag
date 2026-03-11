@@ -266,6 +266,7 @@ export const EntityList: React.FC<EntityListProps> = ({
                           <Button
                             variant="ghost"
                             size="icon"
+                            aria-label="View entity details"
                             onClick={() => onView(entity)}
                             className="h-8 w-8 text-[var(--terminal-text-dim)] hover:text-[var(--phosphor-green)] hover:bg-[var(--phosphor-green)]/10"
                             title="View entity details"
@@ -277,6 +278,7 @@ export const EntityList: React.FC<EntityListProps> = ({
                           <Button
                             variant="ghost"
                             size="icon"
+                            aria-label={!canEdit ? 'Edit entity (Admin access required)' : 'Edit entity'}
                             onClick={() => onEdit(entity)}
                             disabled={!canEdit}
                             className="h-8 w-8 text-[var(--terminal-text-dim)] hover:text-[var(--cyan)] hover:bg-[var(--cyan)]/10 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent"
@@ -289,6 +291,7 @@ export const EntityList: React.FC<EntityListProps> = ({
                           <Button
                             variant="ghost"
                             size="icon"
+                            aria-label="View source document"
                             onClick={() => window.open(`/documents/${entity.source_document_id}`, '_blank')}
                             className="h-8 w-8 text-[var(--terminal-text-dim)] hover:text-[var(--amber-gold)] hover:bg-[var(--amber-gold)]/10"
                             title="View source document"
@@ -300,6 +303,7 @@ export const EntityList: React.FC<EntityListProps> = ({
                           <Button
                             variant="ghost"
                             size="icon"
+                            aria-label={!canDelete ? 'Delete entity (Admin access required)' : 'Delete entity'}
                             onClick={() => onDelete(entity.id)}
                             disabled={!canDelete}
                             className="h-8 w-8 text-[var(--terminal-text-dim)] hover:text-red-400 hover:bg-red-400/10 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent"
