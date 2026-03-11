@@ -47,6 +47,15 @@ export function ProjectChatWidget({
 
   return (
     <>
+      {/* Mobile backdrop overlay — visible only on small screens when panel is open */}
+      {widget.isOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/50 sm:hidden"
+          aria-hidden="true"
+          onClick={widget.close}
+        />
+      )}
+
       {/* Chat Panel */}
       {widget.isOpen && (
         <div

@@ -5,7 +5,7 @@
  * and ChatPanelInput with header containing Quick Chat title, clear, and close buttons.
  */
 
-import React from 'react';
+import React, { useRef, useEffect } from 'react';
 import { X, Trash2 } from 'lucide-react';
 import { ChatContextBar } from './ChatContextBar';
 import { ChatMessageList } from './ChatMessageList';
@@ -15,6 +15,9 @@ import type {
   ContextChipKind,
   WidgetMessage,
 } from '@/types/chat-widget';
+
+const FOCUSABLE_SELECTOR =
+  'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 interface ChatPanelProps {
   messages: WidgetMessage[];
@@ -39,8 +42,51 @@ export function ChatPanel({
   onClear,
   onClose,
 }: ChatPanelProps) {
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  // Focus trap: keep Tab / Shift+Tab cycling within the panel
+  useEffect(() => {
+    const panel = panelRef.current;
+    if (!panel) return;
+
+    // Focus the first focusable element on mount
+    const focusableElements =
+      panel.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR);
+    if (focusableElements.length > 0) {
+      focusableElements[0].focus();
+    }
+
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key !== 'Tab') return;
+
+      const focusable =
+        panel!.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR);
+      if (focusable.length === 0) return;
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+
+      if (e.shiftKey) {
+        // Shift+Tab: if focus is on first element, wrap to last
+        if (document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        }
+      } else {
+        // Tab: if focus is on last element, wrap to first
+        if (document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+    }
+
+    panel.addEventListener('keydown', handleKeyDown);
+    return () => panel.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
   return (
-    <div className="flex flex-col h-full">
+    <div ref={panelRef} className="flex flex-col h-full">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-border shrink-0">
         <h3 className="text-sm font-medium text-foreground">Quick Chat</h3>
