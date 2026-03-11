@@ -127,8 +127,10 @@ export function ChatMessage({
             icon={copied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
             label={copied ? 'Copied!' : 'Copy message'}
             onClick={handleCopy}
+            size="sm"
+            variant="ghost"
             className={cn(
-              'p-1 h-auto w-auto rounded hover:bg-[var(--terminal-elevated)] transition-all',
+              'h-6 w-6 p-1 rounded hover:bg-[var(--terminal-elevated)] transition-all [&_svg]:size-3',
               copied
                 ? 'text-[var(--phosphor-green)] hover:text-[var(--phosphor-green)] hover:bg-transparent'
                 : 'text-[var(--terminal-text-muted)] hover:text-[var(--terminal-text)]'
@@ -139,7 +141,9 @@ export function ChatMessage({
               icon={<RefreshCw className="w-3 h-3" />}
               label="Retry"
               onClick={onRetry}
-              className="p-1 h-auto w-auto rounded hover:bg-[var(--terminal-elevated)] text-[var(--terminal-text-muted)] hover:text-[var(--terminal-text)] transition-all"
+              size="sm"
+              variant="ghost"
+              className="h-6 w-6 p-1 rounded hover:bg-[var(--terminal-elevated)] text-[var(--terminal-text-muted)] hover:text-[var(--terminal-text)] transition-all [&_svg]:size-3"
             />
           )}
         </div>
