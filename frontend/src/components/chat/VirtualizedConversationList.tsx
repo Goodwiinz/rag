@@ -3,6 +3,7 @@
 import React, { memo, useMemo, useCallback, useRef } from 'react';
 import { VariableSizeList as List } from 'react-window';
 import { Button } from '@/components/ui/button';
+import { IconButtonSm } from '@/components/ui/icon-button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -246,13 +247,11 @@ const ConversationItem = memo<{
       {/* Action Menu */}
       <DropdownMenu>
         <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="absolute right-2 top-2 h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
-          >
-            <MoreVertical className="w-3 h-3" />
-          </Button>
+          <IconButtonSm
+            icon={<MoreVertical className="w-3 h-3" />}
+            label="More conversation actions"
+            className="absolute right-2 top-2 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+          />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
           <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleRename(); }}>

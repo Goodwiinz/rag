@@ -16,6 +16,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { HybridSearchConfig, SearchStageResult } from '@/types/search';
 import { cn } from '@/lib/utils';
+import { IconButton, IconButtonSm } from "@/components/ui/icon-button";
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -98,9 +99,12 @@ const SearchStage: React.FC<SearchStageProps> = ({ stage, isActive, isCompleted,
             </span>
           )}
           {hasError && onRetry && (
-            <Button variant="ghost" size="sm" onClick={onRetry} className="h-6 w-6 p-0">
-              <ArrowPathIcon className="h-3 w-3" />
-            </Button>
+            <IconButtonSm
+              icon={<ArrowPathIcon className="h-3 w-3" />}
+              label="Retry search stage"
+              onClick={onRetry}
+              className="h-6 w-6"
+            />
           )}
         </div>
       </div>
@@ -557,14 +561,12 @@ export const HybridSearchOrchestrator: React.FC<HybridSearchOrchestratorProps> =
             )}
 
             {showDetails && searchResults.length > 0 && (
-              <Button
-                variant="ghost"
-                size="sm"
+              <IconButton
+                icon={<InformationCircleIcon className="h-4 w-4" />}
+                label="Show search details"
                 onClick={() => setShowDetailDialog(true)}
-                className="h-8 w-8 p-0"
-              >
-                <InformationCircleIcon className="h-4 w-4" />
-              </Button>
+                className="h-8 w-8"
+              />
             )}
           </div>
         </div>
