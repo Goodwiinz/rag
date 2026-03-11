@@ -128,7 +128,7 @@ class WebSocketAuthenticator:
         if hasattr(websocket, "headers"):
             forwarded_for = websocket.headers.get("X-Forwarded-For")
             if forwarded_for:
-                client_ip = forwarded_for.split(",")[0].strip()
+                client_ip = forwarded_for.split(",")[-1].strip()
             else:
                 real_ip = websocket.headers.get("X-Real-IP")
                 if real_ip:
