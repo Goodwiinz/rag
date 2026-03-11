@@ -1,6 +1,5 @@
 """Unit tests for knowledge-graph merge job tenant validation."""
 
-from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -38,7 +37,7 @@ def _override_dependencies(test_app, mock_user, mock_sync_db):
 def _set_doc_query_results(db, doc_ids):
     query = MagicMock()
     filtered = MagicMock()
-    filtered.all.return_value = [SimpleNamespace(id=doc_id) for doc_id in doc_ids]
+    filtered.all.return_value = [MagicMock(id=doc_id) for doc_id in doc_ids]
     query.filter.return_value = filtered
     db.query.return_value = query
 
@@ -63,8 +62,8 @@ def test_create_merge_job_rejects_cross_tenant_entities(
         ]
     }
     mock_get_entity.side_effect = [
-        SimpleNamespace(source_document_id="doc-org"),
-        SimpleNamespace(source_document_id="doc-foreign"),
+        MagicMock(source_document_id="doc-org"),
+        MagicMock(source_document_id="doc-foreign"),
     ]
     _set_doc_query_results(mock_sync_db, ["doc-org"])
 
@@ -94,11 +93,11 @@ def test_create_merge_job_accepts_entities_from_same_tenant(
         ]
     }
     mock_get_entity.side_effect = [
-        SimpleNamespace(source_document_id="doc-1"),
-        SimpleNamespace(source_document_id="doc-2"),
+        MagicMock(source_document_id="doc-1"),
+        MagicMock(source_document_id="doc-2"),
     ]
     _set_doc_query_results(mock_sync_db, ["doc-1", "doc-2"])
-    mock_apply_async.return_value = SimpleNamespace(id="task-123")
+    mock_apply_async.return_value = MagicMock(id="task-123")
 
     response = test_client.post("/api/v1/knowledge-graph/merge-jobs", json=payload)
 
