@@ -280,7 +280,7 @@ export const EntityList: React.FC<EntityListProps> = ({
                             size="icon"
                             onClick={() => onEdit(entity)}
                             disabled={!canEdit}
-                            aria-label="Edit entity"
+                            aria-label={!canEdit ? 'Edit entity - Admin access required' : 'Edit entity'}
                             className="h-8 w-8 text-[var(--terminal-text-dim)] hover:text-[var(--cyan)] hover:bg-[var(--cyan)]/10 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent"
                             title={!canEdit ? 'Admin access required' : 'Edit entity'}
                           >
@@ -305,7 +305,7 @@ export const EntityList: React.FC<EntityListProps> = ({
                             size="icon"
                             onClick={() => onDelete(entity.id)}
                             disabled={!canDelete}
-                            aria-label="Delete entity"
+                            aria-label={!canDelete ? 'Delete entity - Admin access required' : 'Delete entity'}
                             className="h-8 w-8 text-[var(--terminal-text-dim)] hover:text-red-400 hover:bg-red-400/10 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent"
                             title={!canDelete ? 'Admin access required' : 'Delete entity'}
                           >

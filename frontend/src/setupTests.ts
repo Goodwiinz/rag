@@ -34,3 +34,6 @@ if (typeof globalWithPolyfills.PerformanceObserver === 'undefined') {
 
 // Helpful jest mocks
 // next/navigation and next/router mocks can be added here if needed
+
+// Add mock for Supabase Anon Key to prevent Supabase Client errors during tests
+process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = 'mock-key-for-tests';
