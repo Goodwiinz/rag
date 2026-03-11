@@ -93,6 +93,116 @@ async def test_redis_rate_limiter_fail_open():
         assert await limiter.is_allowed("test_user") is True
 
 @pytest.mark.asyncio
+async def test_in_memory_check_rate_limit():
+    limiter = InMemoryRateLimiter(max_attempts=2, window_minutes=1)
+
+    # No attempts yet — allowed
+    allowed, retry = await limiter.check_rate_limit("user1", prefix="test")
+    assert allowed is True
+    assert retry == 0
+
+    # Record two failed attempts
+    await limiter.record_attempt("user1", prefix="test")
+    await limiter.record_attempt("user1", prefix="test")
+
+    # Now blocked
+    allowed, retry = await limiter.check_rate_limit("user1", prefix="test")
+    assert allowed is False
+    assert retry > 0
+
+    # Different user still allowed
+    allowed, retry = await limiter.check_rate_limit("user2", prefix="test")
+    assert allowed is True
+
+    await limiter.close()
+
+
+@pytest.mark.asyncio
+async def test_in_memory_record_attempt_does_not_check():
+    """record_attempt is write-only — calling it should not block subsequent check_rate_limit until limit reached."""
+    limiter = InMemoryRateLimiter(max_attempts=3, window_minutes=1)
+
+    await limiter.record_attempt("user1")
+    allowed, _ = await limiter.check_rate_limit("user1")
+    assert allowed is True  # 1 of 3
+
+    await limiter.record_attempt("user1")
+    allowed, _ = await limiter.check_rate_limit("user1")
+    assert allowed is True  # 2 of 3
+
+    await limiter.record_attempt("user1")
+    allowed, _ = await limiter.check_rate_limit("user1")
+    assert allowed is False  # 3 of 3
+
+    await limiter.close()
+
+
+@pytest.mark.asyncio
+async def test_redis_check_rate_limit():
+    mock_redis = MagicMock()
+    mock_redis.eval = AsyncMock()
+
+    with patch("redis.asyncio.from_url", return_value=mock_redis):
+        limiter = RedisRateLimiter(max_attempts=5, window_minutes=1, redis_url="redis://test")
+
+        # Under limit
+        mock_redis.eval.return_value = [2, 45]
+        allowed, retry = await limiter.check_rate_limit("user1", prefix="test")
+        assert allowed is True
+        assert retry == 0
+
+        # At limit
+        mock_redis.eval.return_value = [5, 30]
+        allowed, retry = await limiter.check_rate_limit("user1", prefix="test")
+        assert allowed is False
+        assert retry == 30
+
+
+@pytest.mark.asyncio
+async def test_redis_check_rate_limit_fail_open():
+    mock_redis = MagicMock()
+    mock_redis.eval = AsyncMock(side_effect=Exception("Redis down"))
+
+    with patch("redis.asyncio.from_url", return_value=mock_redis):
+        limiter = RedisRateLimiter(max_attempts=5, window_minutes=1, redis_url="redis://test")
+
+        # Should fail open
+        allowed, retry = await limiter.check_rate_limit("user1")
+        assert allowed is True
+        assert retry == 0
+
+
+@pytest.mark.asyncio
+async def test_redis_record_attempt():
+    mock_redis = MagicMock()
+    mock_redis.eval = AsyncMock(return_value=1)
+
+    with patch("redis.asyncio.from_url", return_value=mock_redis):
+        limiter = RedisRateLimiter(max_attempts=5, window_minutes=1, redis_url="redis://test")
+
+        await limiter.record_attempt("user1", prefix="test")
+
+        mock_redis.eval.assert_called_once_with(
+            limiter._record_script,
+            1,
+            "auth_rate_limit:test:user1",
+            60,
+        )
+
+
+@pytest.mark.asyncio
+async def test_redis_record_attempt_fail_silent():
+    mock_redis = MagicMock()
+    mock_redis.eval = AsyncMock(side_effect=Exception("Redis down"))
+
+    with patch("redis.asyncio.from_url", return_value=mock_redis):
+        limiter = RedisRateLimiter(max_attempts=5, window_minutes=1, redis_url="redis://test")
+
+        # Should not raise
+        await limiter.record_attempt("user1")
+
+
+@pytest.mark.asyncio
 async def test_create_rate_limiter_factory():
     # Test with REDIS_URL set
     with patch.object(settings, "REDIS_URL", "redis://test"):

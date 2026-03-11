@@ -30,7 +30,6 @@ redis==5.0.1
 flower==2.0.1
 
 # AI/ML Libraries
-# Note: openai pinned <1.68.0 because 1.68.0+ requires numpy>=2.0.2, which breaks opencv-python and spacy builds
 openai>=1.13.3,<1.68.0
 anthropic==0.8.1
 tiktoken>=0.7.0
