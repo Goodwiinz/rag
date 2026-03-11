@@ -372,7 +372,7 @@ export const EntityGraph: React.FC<EntityGraphProps> = ({
               size="icon"
               onClick={handleReset}
               className="h-7 w-7 text-[var(--terminal-text-dim)] hover:text-[var(--phosphor-green)] hover:bg-[var(--phosphor-green)]/10"
-              aria-label="Reset view"
+              aria-label="Reset zoom"
             >
               <RefreshCw className="h-4 w-4" />
             </Button>
@@ -446,9 +446,8 @@ export const EntityGraph: React.FC<EntityGraphProps> = ({
                     size="icon"
                     className="h-5 w-5 -mr-2"
                     onClick={() => setSelectedEntity(null)}
-                    aria-label="Close details"
+                    aria-label="Close entity details"
                   >
-                    <span className="sr-only">Close</span>
                     <svg
                       width="10"
                       height="10"

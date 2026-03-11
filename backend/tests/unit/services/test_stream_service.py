@@ -323,7 +323,7 @@ class TestStreamServiceRAGFlow:
         thread_id = uuid4()
         user_id = uuid4()
         chat_service = _make_mock_chat_service()
-        openai_service = _make_mock_openai_service(["Answer [Doc 1]"])
+        openai_service = _make_mock_openai_service(["Answer"])
 
         mock_contexts = [
             MagicMock(
@@ -365,7 +365,7 @@ class TestStreamServiceRAGFlow:
         thread_id = uuid4()
         user_id = uuid4()
         chat_service = _make_mock_chat_service()
-        openai_service = _make_mock_openai_service(["Answer [Doc 1]"])
+        openai_service = _make_mock_openai_service(["Answer"])
 
         mock_contexts = [
             MagicMock(
@@ -512,7 +512,7 @@ class TestStreamServiceRAGFlow:
         thread_id = uuid4()
         user_id = uuid4()
         chat_service = _make_mock_chat_service()
-        openai_service = _make_mock_openai_service(["Answer [Doc 1]"])
+        openai_service = _make_mock_openai_service(["Answer"])
 
         mock_contexts = [
             MagicMock(
