@@ -52,9 +52,10 @@ class EncryptedType(TypeDecorator):
             return decrypt_sensitive_field(
                 value, getattr(self, "_field_name", "unknown")
             )
-        except EncryptionError as e:
-            logger.error(f"Failed to decrypt field: {str(e)}")
-            # Return raw value if decryption fails
+        except (EncryptionError, Exception) as e:
+            # Enhanced fallback: catch any exception during decryption
+            # This handles both key errors and malformed (legacy plaintext) data
+            logger.warning(f"Decryption failed for field {getattr(self, '_field_name', 'unknown')} (returning raw value): {str(e)}")
             return value
 
     def copy(self, **kwargs):
