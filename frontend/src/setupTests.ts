@@ -34,3 +34,6 @@ if (typeof globalWithPolyfills.PerformanceObserver === 'undefined') {
 
 // Helpful jest mocks
 // next/navigation and next/router mocks can be added here if needed
+
+process.env.NEXT_PUBLIC_SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || 'http://localhost:54321';
+process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'mock-key-for-tests';

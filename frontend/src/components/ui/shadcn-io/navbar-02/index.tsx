@@ -182,7 +182,6 @@ export const Navbar02 = React.forwardRef<HTMLElement, Navbar02Props>(
                     className="h-9 w-9 shrink-0 md:hidden"
                     variant="ghost"
                     size="icon"
-                    aria-label="Toggle navigation menu"
                   >
                     <HamburgerIcon />
                     <span className="sr-only">Toggle navigation menu</span>
