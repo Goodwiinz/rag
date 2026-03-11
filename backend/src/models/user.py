@@ -14,6 +14,7 @@ from sqlalchemy import Boolean, Column, DateTime, Enum, ForeignKey, Integer, Str
 from sqlalchemy.orm import relationship
 
 from .base import GUID, BaseModel
+from .encrypted_fields import encrypted_string
 
 
 class UserRole(PyEnum):
@@ -33,8 +34,8 @@ class User(BaseModel):
     # Basic information
     email = Column(String(255), unique=True, index=True, nullable=False)
     password_hash = Column(String(255), nullable=False)
-    first_name = Column(String(100), nullable=False)
-    last_name = Column(String(100), nullable=False)
+    first_name = encrypted_string("first_name", nullable=False)
+    last_name = encrypted_string("last_name", nullable=False)
 
     # Role and permissions
     role = Column(Enum(UserRole), nullable=False, default=UserRole.USER)
