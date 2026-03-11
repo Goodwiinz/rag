@@ -314,6 +314,7 @@ export function ThreadMessageSearch({
               <Button 
                 variant="outline" 
                 size="icon"
+                aria-label="Filter search results"
                 className="bg-black/40 border-gray-700 hover:bg-gray-800"
               >
                 <Filter className="h-4 w-4" />
