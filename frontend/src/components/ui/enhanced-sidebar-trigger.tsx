@@ -124,6 +124,7 @@ export const EnhancedSidebarTrigger = React.forwardRef<
       )}
       onClick={toggleSidebar}
       {...props}
+      aria-label={state === 'expanded' ? 'Collapse sidebar' : 'Expand sidebar'}
     >
       {buttonContent}
 
@@ -220,6 +221,7 @@ export const MobileSidebarTrigger = React.forwardRef<
       className={cn('md:hidden h-9 w-9', className)}
       onClick={toggleSidebar}
       {...props}
+      aria-label="Toggle sidebar"
     >
       <motion.svg
         width="20"
