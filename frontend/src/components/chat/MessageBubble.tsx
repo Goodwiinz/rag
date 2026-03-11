@@ -221,6 +221,7 @@ export function MessageBubble({
                               variant="ghost"
                               className="h-6 px-2 opacity-0 group-hover:opacity-100 transition-opacity"
                               onClick={() => navigator.clipboard.writeText(String(children).replace(/\n$/, ''))}
+                              aria-label="Copy code to clipboard"
                             >
                               <Copy className="w-3 h-3" />
                             </Button>
@@ -357,7 +358,7 @@ export function MessageBubble({
             {!isUser && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="sm" className="h-7 w-7 p-0">
+                  <Button variant="ghost" size="sm" className="h-7 w-7 p-0" aria-label="More options">
                     <MoreVertical className="w-3 h-3" />
                   </Button>
                 </DropdownMenuTrigger>
