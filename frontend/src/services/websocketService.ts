@@ -1,7 +1,7 @@
 /**
  * @deprecated This file is deprecated. Please migrate to the new unified WebSocket client.
  * Import from '@/services/websocket-client' instead.
- * 
+ *
  * Migration guide:
  * - Replace `websocketService` with `WebSocketClient` from websocket-client
  * - Use `initializeWebSocketClient()` for singleton setup
@@ -18,7 +18,11 @@
 import { WebSocketGraphUpdate } from '../types/knowledge-graph';
 
 export type WebSocketMessageHandler = (message: WebSocketGraphUpdate) => void;
-export type WebSocketStatus = 'connecting' | 'connected' | 'disconnected' | 'error';
+export type WebSocketStatus =
+  | 'connecting'
+  | 'connected'
+  | 'disconnected'
+  | 'error';
 
 export interface WebSocketConfig {
   reconnectAttempts: number;
@@ -89,10 +93,15 @@ class WebSocketService {
 
         ws.onclose = (event) => {
           connection.status = 'disconnected';
-          console.log(`WebSocket disconnected: ${connectionId}, code: ${event.code}`);
+          console.log(
+            `WebSocket disconnected: ${connectionId}, code: ${event.code}`
+          );
 
           // Attempt reconnection if not a clean close
-          if (event.code !== 1000 && connection.reconnectCount < connectionConfig.reconnectAttempts) {
+          if (
+            event.code !== 1000 &&
+            connection.reconnectCount < connectionConfig.reconnectAttempts
+          ) {
             this.scheduleReconnect(connectionId, url, connectionConfig);
           }
         };
@@ -102,7 +111,6 @@ class WebSocketService {
           console.error(`WebSocket error: ${connectionId}`, error);
           reject(error);
         };
-
       } catch (error) {
         connection.status = 'error';
         reject(error);
@@ -189,13 +197,16 @@ class WebSocketService {
   /**
    * Handle incoming WebSocket messages
    */
-  private handleMessage(connectionId: string, message: WebSocketGraphUpdate): void {
+  private handleMessage(
+    connectionId: string,
+    message: WebSocketGraphUpdate
+  ): void {
     const connection = this.connections.get(connectionId);
     if (!connection) return;
 
     // Route message to appropriate handlers based on type
     const handlers = connection.handlers.get(message.type) || [];
-    handlers.forEach(handler => {
+    handlers.forEach((handler) => {
       try {
         handler(message);
       } catch (error) {
@@ -205,7 +216,7 @@ class WebSocketService {
 
     // Also send to wildcard handlers
     const wildcardHandlers = connection.handlers.get('*') || [];
-    wildcardHandlers.forEach(handler => {
+    wildcardHandlers.forEach((handler) => {
       try {
         handler(message);
       } catch (error) {
@@ -226,13 +237,16 @@ class WebSocketService {
     if (!connection) return;
 
     connection.reconnectCount++;
-    const delay = config.reconnectInterval * Math.pow(2, connection.reconnectCount - 1);
+    const delay =
+      config.reconnectInterval * Math.pow(2, connection.reconnectCount - 1);
 
-    console.log(`Scheduling reconnect attempt ${connection.reconnectCount} for ${connectionId} in ${delay}ms`);
+    console.log(
+      `Scheduling reconnect attempt ${connection.reconnectCount} for ${connectionId} in ${delay}ms`
+    );
 
     setTimeout(() => {
       if (this.connections.has(connectionId)) {
-        this.connect(connectionId, url, config).catch(error => {
+        this.connect(connectionId, url, config).catch((error) => {
           console.error(`Reconnect failed for ${connectionId}:`, error);
         });
       }
@@ -248,7 +262,10 @@ class WebSocketService {
 
     const heartbeatInterval = setInterval(() => {
       if (connection.ws?.readyState === WebSocket.OPEN) {
-        this.sendMessage(connectionId, { type: 'heartbeat', timestamp: new Date().toISOString() });
+        this.sendMessage(connectionId, {
+          type: 'heartbeat',
+          timestamp: new Date().toISOString(),
+        });
       } else {
         clearInterval(heartbeatInterval);
       }
@@ -258,8 +275,11 @@ class WebSocketService {
   /**
    * Initialize graph updates WebSocket connection with filters
    */
-  async connectToGraphUpdates(filters?: import('../types/knowledge-graph').GraphFilters): Promise<WebSocketConnection> {
-    const baseUrl = process.env.REACT_APP_GRAPH_WS_URL || 'ws://localhost:8010';
+  async connectToGraphUpdates(
+    filters?: import('../types/knowledge-graph').GraphFilters
+  ): Promise<WebSocketConnection> {
+    const baseUrl =
+      process.env.NEXT_PUBLIC_GRAPH_WS_URL || 'ws://localhost:8010';
     const wsUrl = new URL('/ws/graph-updates', baseUrl);
 
     // Add filters as query parameters for initial subscription
@@ -282,7 +302,7 @@ class WebSocketService {
       this.sendMessage('graph-updates', {
         type: 'subscribe',
         filters,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     }
 
@@ -293,7 +313,9 @@ class WebSocketService {
    * Initialize analytics updates WebSocket connection
    */
   async connectToAnalyticsUpdates(): Promise<WebSocketConnection> {
-    const wsUrl = process.env.REACT_APP_ANALYTICS_WS_URL || 'ws://localhost:8009/ws/analytics-updates';
+    const wsUrl =
+      process.env.NEXT_PUBLIC_ANALYTICS_WS_URL ||
+      'ws://localhost:8009/ws/analytics-updates';
     return this.connect('analytics-updates', wsUrl);
   }
 
@@ -309,7 +331,7 @@ class WebSocketService {
     this.sendMessage(connectionId, {
       type: 'subscribe_entities',
       entity_ids: entityIds,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
 
     // Register handler for entity updates
@@ -327,7 +349,7 @@ class WebSocketService {
     this.sendMessage(connectionId, {
       type: 'subscribe_communities',
       community_ids: communityIds,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
 
     return this.subscribe(connectionId, 'community_update', handler);
@@ -346,26 +368,32 @@ class WebSocketService {
   /**
    * Update filters for existing connection
    */
-  updateFilters(connectionId: string, filters: import('../types/knowledge-graph').GraphFilters): void {
+  updateFilters(
+    connectionId: string,
+    filters: import('../types/knowledge-graph').GraphFilters
+  ): void {
     this.sendMessage(connectionId, {
       type: 'update_filters',
       filters,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }
 
   /**
    * Request batch updates
    */
-  requestBatchUpdate(connectionId: string, options: {
-    since?: string;
-    entity_ids?: string[];
-    include_analytics?: boolean;
-  }): void {
+  requestBatchUpdate(
+    connectionId: string,
+    options: {
+      since?: string;
+      entity_ids?: string[];
+      include_analytics?: boolean;
+    }
+  ): void {
     this.sendMessage(connectionId, {
       type: 'request_batch_update',
       ...options,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }
 

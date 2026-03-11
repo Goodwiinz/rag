@@ -8,6 +8,7 @@ the pipeline so the caller (an SSE endpoint) can forward them to the client.
 
 import json
 import logging
+import re
 import time
 from dataclasses import dataclass, field
 from typing import Any, AsyncGenerator, Callable, Coroutine, Dict, List, Optional
@@ -18,6 +19,67 @@ from src.services.infrastructure.azure_openai_service import AzureOpenAIService
 from src.services.threads.chat_service import ChatService
 
 logger = logging.getLogger(__name__)
+
+_BRACKET_GROUP_PATTERN = re.compile(r"\[([^\]]+)\]")
+_CITATION_ITEM_PATTERN = re.compile(
+    r"(?:(Doc|Source|Ref)[\s\xa0\u2002\u2003]*)?(\d+)",
+    re.IGNORECASE,
+)
+_GROUP_DELIMITER_PATTERN = re.compile(r"^[,\s\xa0\u2002\u2003]*$")
+
+
+def _extract_citation_indices(content: str) -> List[int]:
+    """Extract inline citation indices like [1], [Doc 2], or [Source 1, 3]."""
+    indices: List[int] = []
+    seen: set[int] = set()
+
+    for group_match in _BRACKET_GROUP_PATTERN.finditer(content):
+        group_content = group_match.group(1)
+        group_indices: List[int] = []
+        last_index = 0
+        valid_group = True
+
+        for citation_match in _CITATION_ITEM_PATTERN.finditer(group_content):
+            between = group_content[last_index : citation_match.start()]
+            if not _GROUP_DELIMITER_PATTERN.fullmatch(between):
+                valid_group = False
+                break
+
+            group_indices.append(int(citation_match.group(2)))
+            last_index = citation_match.end()
+
+        if not group_indices:
+            continue
+
+        trailing = group_content[last_index:]
+        if not valid_group or not _GROUP_DELIMITER_PATTERN.fullmatch(trailing):
+            continue
+
+        for index in group_indices:
+            if index not in seen:
+                seen.add(index)
+                indices.append(index)
+
+    return indices
+
+
+def _filter_citations_by_content(
+    content: str, citations: Optional[List[Dict[str, Any]]]
+) -> Optional[List[Dict[str, Any]]]:
+    """Keep only citations explicitly referenced in the assistant content."""
+    if not citations:
+        return None
+
+    indices = _extract_citation_indices(content)
+    if not indices:
+        return None
+
+    filtered = [
+        citations[index - 1]
+        for index in indices
+        if 0 < index <= len(citations)
+    ]
+    return filtered or None
 
 
 @dataclass
@@ -260,12 +322,15 @@ class StreamService:
 
             # Persist partial content if we got any tokens
             full_content = "".join(collected_content)
+            filtered_citations = _filter_citations_by_content(
+                full_content, citations
+            )
             if full_content:
                 try:
                     await self.chat_service.create_assistant_message(
                         thread_id=thread_id,
                         content=full_content,
-                        citations=citations,
+                        citations=filtered_citations,
                         latency_ms=int(
                             (time.monotonic() - start_time) * 1000
                         ),
@@ -290,12 +355,13 @@ class StreamService:
         # -----------------------------------------------------------------
         full_content = "".join(collected_content)
         latency_ms = int((time.monotonic() - start_time) * 1000)
+        filtered_citations = _filter_citations_by_content(full_content, citations)
 
         try:
             assistant_message = await self.chat_service.create_assistant_message(
                 thread_id=thread_id,
                 content=full_content,
-                citations=citations,
+                citations=filtered_citations,
                 latency_ms=latency_ms,
             )
 

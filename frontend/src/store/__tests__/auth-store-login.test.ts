@@ -1,6 +1,23 @@
 import { apiClient } from '@/services/apiClient';
 import { useAuthStore } from '@/stores/authStore';
 
+jest.mock('@/lib/supabase', () => ({
+  supabase: {
+    auth: {
+      signInWithPassword: jest.fn().mockResolvedValue({
+        data: null,
+        error: { message: 'Invalid login credentials' },
+      }),
+      signUp: jest.fn(),
+      signOut: jest.fn(),
+      refreshSession: jest.fn(),
+      onAuthStateChange: jest.fn(() => ({
+        data: { subscription: { unsubscribe: jest.fn() } },
+      })),
+    },
+  },
+}));
+
 jest.mock('@/services/apiClient', () => ({
   apiClient: {
     post: jest.fn(),

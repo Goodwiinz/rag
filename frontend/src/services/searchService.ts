@@ -126,7 +126,10 @@ export class SearchService {
   /**
    * Perform a search query
    */
-  async search(request: SearchRequest): Promise<APIResponse<SearchResult>> {
+  async search(
+    request: SearchRequest,
+    signal?: AbortSignal
+  ): Promise<APIResponse<SearchResult>> {
     // Transform request to match backend expectations
     const backendRequest = {
       query: request.query,
@@ -153,7 +156,8 @@ export class SearchService {
     try {
       const response = (await apiClient.post(
         this.searchPrimaryPath,
-        backendRequest
+        backendRequest,
+        signal ? { signal } : undefined
       )) as {
         search_id?: string;
         query?: string;
@@ -175,7 +179,8 @@ export class SearchService {
         try {
           const fallbackResponse = (await apiClient.post(
             this.searchFallbackPath,
-            { ...backendRequest, search_type: 'fulltext' }
+            { ...backendRequest, search_type: 'fulltext' },
+            signal ? { signal } : undefined
           )) as {
             search_id?: string;
             query?: string;

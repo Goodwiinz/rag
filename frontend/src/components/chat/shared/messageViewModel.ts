@@ -10,6 +10,7 @@ export interface ChatMessageViewModel {
   modelName?: string;
   isStreaming?: boolean;
   streamingContent?: string;
+  diagnosticsTraceId?: string;
 }
 
 export interface ChatRouteMessageInput {
@@ -19,6 +20,7 @@ export interface ChatRouteMessageInput {
   timestamp: number;
   citations?: Citation[];
   modelName?: string;
+  diagnosticsTraceId?: string;
 }
 
 export function mapChatMessageToViewModel(
@@ -27,7 +29,10 @@ export function mapChatMessageToViewModel(
   return { ...input };
 }
 
-function normalizeCitationTitle(title: string | undefined, index: number): string {
+function normalizeCitationTitle(
+  title: string | undefined,
+  index: number
+): string {
   const normalized = title?.replace(/\s+/g, ' ').trim() ?? '';
 
   if (!normalized) {
@@ -43,7 +48,9 @@ function normalizeCitationTitle(title: string | undefined, index: number): strin
     return `Source ${index + 1}`;
   }
 
-  return normalized.length > 120 ? `${normalized.slice(0, 117)}...` : normalized;
+  return normalized.length > 120
+    ? `${normalized.slice(0, 117)}...`
+    : normalized;
 }
 
 export function mapSearchResultToChatMessages(
@@ -66,6 +73,7 @@ export function mapSearchResultToChatMessages(
       content: source.snippet,
       source: source.file_type,
     })),
+    diagnosticsTraceId: result.answer.decisionTraceId,
   };
 
   return [userMessage, assistantMessage];

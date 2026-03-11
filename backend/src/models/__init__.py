@@ -55,6 +55,7 @@ from .encrypted_user import (
 from .entity import Entity, EntityType, ExtractionMethod, entity_relationships
 from .extraction_matrix import ExtractionCell, ExtractionMatrix
 from .integrity_score import IntegrityScore
+from .research_pipeline import ResearchPipeline
 from .generated_draft import GeneratedDraft
 from .message_attachment import MessageAttachment
 from .organization import Organization, StorageTier
@@ -216,4 +217,6 @@ __all__ = [
     "ResearchSource",
     "ResearchEvidence",
     "GroundingStatus",
+    # Research Pipeline
+    "ResearchPipeline",
 ]

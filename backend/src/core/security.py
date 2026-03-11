@@ -2,18 +2,25 @@
 Security utilities for authentication and authorization
 """
 
+import logging
 import os
 import secrets
 from datetime import datetime, timedelta
 from typing import Any, Dict, Optional, Union
 
 import bcrypt  # Changed from passlib
+import httpx
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from jose import JWTError, jwt
+from jose import JWTError, jwk, jwt
 from pydantic import BaseModel
 
 from src.core.config import settings
+
+logger = logging.getLogger(__name__)
+
+# Cache for Supabase JWKS keys
+_supabase_jwks_cache: Optional[Dict] = None
 
 # JWT Bearer scheme
 security = HTTPBearer()
@@ -157,14 +164,90 @@ def create_refresh_token(
     return encoded_jwt
 
 
+def _get_supabase_jwks() -> Optional[Dict]:
+    """Fetch and cache JWKS from Supabase for ES256 verification."""
+    global _supabase_jwks_cache
+    if _supabase_jwks_cache is not None:
+        return _supabase_jwks_cache
+    try:
+        url = f"{settings.SUPABASE_URL}/auth/v1/.well-known/jwks.json"
+        resp = httpx.get(url, timeout=5.0)
+        resp.raise_for_status()
+        _supabase_jwks_cache = resp.json()
+        logger.info("Fetched Supabase JWKS successfully")
+        return _supabase_jwks_cache
+    except Exception as e:
+        logger.warning(f"Failed to fetch Supabase JWKS: {e}")
+        return None
+
+
+def _extract_supabase_token_data(payload: dict) -> Optional[TokenData]:
+    """Extract TokenData from a decoded Supabase JWT payload."""
+    user_id = payload.get("sub")
+    email = payload.get("email")
+    app_metadata = payload.get("app_metadata", {})
+    role = app_metadata.get("role", "USER")
+    exp = payload.get("exp")
+    if user_id:
+        return TokenData(
+            user_id=user_id,
+            email=email,
+            organization_id=None,  # Resolved in get_current_user
+            role=role,
+            exp=datetime.utcfromtimestamp(exp) if exp else None,
+        )
+    return None
+
+
 def verify_token(token: str) -> Optional[TokenData]:
-    """Verify and decode JWT token"""
+    """Verify JWT token — supports both Supabase (HS256/ES256) and custom JWTs."""
+    # Try Supabase JWT first — HS256 with shared secret
+    if settings.SUPABASE_JWT_SECRET:
+        try:
+            payload = jwt.decode(
+                token,
+                settings.SUPABASE_JWT_SECRET,
+                algorithms=["HS256"],
+                audience="authenticated",
+            )
+            result = _extract_supabase_token_data(payload)
+            if result:
+                return result
+        except JWTError:
+            pass  # Fall through to JWKS/ES256
+
+    # Try Supabase JWT — ES256 via JWKS
+    try:
+        # Peek at the token header to check algorithm
+        header = jwt.get_unverified_header(token)
+        if header.get("alg") == "ES256":
+            jwks_data = _get_supabase_jwks()
+            if jwks_data and "keys" in jwks_data:
+                kid = header.get("kid")
+                for key_data in jwks_data["keys"]:
+                    if key_data.get("kid") == kid or kid is None:
+                        public_key = jwk.construct(key_data)
+                        payload = jwt.decode(
+                            token,
+                            public_key,
+                            algorithms=["ES256"],
+                            audience="authenticated",
+                        )
+                        result = _extract_supabase_token_data(payload)
+                        if result:
+                            return result
+    except JWTError:
+        pass  # Fall through to custom JWT
+    except Exception as e:
+        logger.debug(f"JWKS verification failed: {e}")
+
+    # Fallback: custom JWT (existing logic)
     try:
         payload = jwt.decode(
             token, settings.JWT_SECRET_KEY, algorithms=[settings.JWT_ALGORITHM]
         )
-        user_id: str = payload.get("sub")  # sub contains the user ID
-        email: str = payload.get("email")  # email is a separate field
+        user_id: str = payload.get("sub")
+        email: str = payload.get("email")
         organization_id: str = payload.get("organization_id")
         role: str = payload.get("role")
         exp: int = payload.get("exp")
@@ -172,15 +255,13 @@ def verify_token(token: str) -> Optional[TokenData]:
         if user_id is None:
             return None
 
-        token_data = TokenData(
+        return TokenData(
             user_id=user_id,
             email=email,
             organization_id=organization_id,
             role=role,
             exp=datetime.utcfromtimestamp(exp) if exp else None,
         )
-        return token_data
-
     except JWTError:
         return None
 

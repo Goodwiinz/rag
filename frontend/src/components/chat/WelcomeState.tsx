@@ -1,154 +1,171 @@
 'use client';
 
-import { motion } from 'framer-motion';
-import { Activity, BookOpen, Cpu, FileText, Shield, Sparkles, Zap } from 'lucide-react';
-
-// ============================================
-// TYPES
-// ============================================
-
-interface StarterPrompt {
-  icon: React.ComponentType<{ className?: string }>;
-  title: string;
-  prompt: string;
-}
+import { motion, useMotionValue, useSpring, useTransform } from 'framer-motion';
+import { Activity, Cpu, Satellite, Shield, Zap } from 'lucide-react';
+import React from 'react';
 
 export interface WelcomeStateProps {
   onPromptSelect: (prompt: string) => void;
   selectedModel?: string;
-  starterPrompts?: StarterPrompt[];
 }
 
-// ============================================
-// DEFAULT PROMPTS
-// ============================================
-
-const DEFAULT_STARTER_PROMPTS: StarterPrompt[] = [
-  {
-    icon: BookOpen,
-    title: 'Summarize Research',
-    prompt: 'Summarize the key findings from the recent papers on RAG optimization',
-  },
-  {
-    icon: Zap,
-    title: 'Compare Embeddings',
-    prompt: 'Compare BAAI/bge-large vs OpenAI embeddings for semantic search',
-  },
-  {
-    icon: FileText,
-    title: 'Analyze Document',
-    prompt: 'Analyze the methodology section of the uploaded paper',
-  },
-  {
-    icon: Sparkles,
-    title: 'Generate Ideas',
-    prompt: 'Suggest improvements for our current retrieval pipeline',
-  },
-];
-
-// ============================================
-// COMPONENT
-// ============================================
-
 export function WelcomeState({
-  onPromptSelect,
+  onPromptSelect: _onPromptSelect,
   selectedModel,
-  starterPrompts = DEFAULT_STARTER_PROMPTS,
 }: WelcomeStateProps) {
+  // Mouse tracking for parallax effect
+  const x = useMotionValue(0);
+  const y = useMotionValue(0);
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const centerX = rect.left + rect.width / 2;
+    const centerY = rect.top + rect.height / 2;
+    x.set(e.clientX - centerX);
+    y.set(e.clientY - centerY);
+  };
+
+  const handleMouseLeave = () => {
+    x.set(0);
+    y.set(0);
+  };
+
+  // Smooth spring physics for the tilt
+  const springConfig = { damping: 25, stiffness: 150 };
+  const rotateX = useSpring(
+    useTransform(y, [-100, 100], [10, -10]),
+    springConfig
+  );
+  const rotateY = useSpring(
+    useTransform(x, [-100, 100], [-10, 10]),
+    springConfig
+  );
+
   return (
-    <div className="flex-1 flex flex-col items-center justify-center p-8">
+    <div
+      className="flex-1 flex flex-col items-center justify-center p-8 perspective-1000"
+      onMouseMove={handleMouseMove}
+      onMouseLeave={handleMouseLeave}
+    >
       <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-        className="text-center max-w-2xl"
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.8 }}
+        style={{ rotateX, rotateY, transformStyle: 'preserve-3d' }}
+        className="text-center max-w-2xl relative"
       >
-        {/* Logo */}
-        <div className="relative w-24 h-24 mx-auto mb-8">
-          <div className="absolute inset-0 rounded-full bg-[var(--phosphor-green)]/10 animate-pulse" />
-          <div className="absolute inset-2 rounded-full border-2 border-[var(--phosphor-green)]/30 flex items-center justify-center">
-            <Sparkles className="w-10 h-10 text-[var(--phosphor-green)]" />
+        {/* Orbital decoration */}
+        <div className="relative mb-12 flex items-center justify-center h-64 w-64 mx-auto transform-gpu">
+          {/* Outer Ring - Counter Rotate */}
+          <motion.div
+            style={{ translateZ: 20 }}
+            className="absolute inset-0 flex items-center justify-center"
+          >
+            <div className="w-56 h-56 rounded-full border border-[#1a1a28]/50 animate-[spin_30s_linear_infinite_reverse] orbital-ring-reverse" />
+          </motion.div>
+
+          {/* Inner Ring - Rotate */}
+          <motion.div
+            style={{ translateZ: 40 }}
+            className="absolute inset-0 flex items-center justify-center"
+          >
+            <div className="w-32 h-32 rounded-full border border-[#1a1a28] animate-[spin_20s_linear_infinite] orbital-ring" />
+          </motion.div>
+
+          {/* Core Container */}
+          <motion.div
+            style={{ translateZ: 60 }}
+            className="relative w-24 h-24 flex items-center justify-center"
+          >
+            {/* Satellite Icon with Float */}
+            <Satellite className="w-12 h-12 text-[#00ff9f] float-gentle drop-shadow-[0_0_15px_rgba(0,255,159,0.3)]" />
+
+            {/* Scanning Beam Effect */}
+            <motion.div
+              animate={{ top: ['0%', '100%', '0%'], opacity: [0, 1, 0] }}
+              transition={{ duration: 3, repeat: Infinity, ease: 'linear' }}
+              className="absolute left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-[#00ff9f] to-transparent w-full"
+            />
+          </motion.div>
+
+          {/* Radar Pings - Background */}
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <div
+              className="w-full h-full rounded-full border border-[#00ff9f]/5 animate-ping"
+              style={{ animationDuration: '3s' }}
+            />
           </div>
         </div>
 
-        {/* Title */}
-        <h1
-          className="text-2xl text-[var(--phosphor-green)] mb-3"
-          style={{ fontFamily: "'JetBrains Mono', monospace" }}
-        >
-          {selectedModel ? 'NEURAL LINK ESTABLISHED' : 'AWAITING MODEL SELECTION'}
-        </h1>
-        <p
-          className="text-sm text-[var(--terminal-text-muted)] mb-8"
-          style={{ fontFamily: "'JetBrains Mono', monospace" }}
-        >
-          {selectedModel
-            ? 'Your GenAI research companion is ready. Ask questions about your documents, explore research papers, and generate insights.'
-            : 'Select a neural core from the input bar below to initialize the interface.'}
-        </p>
+        <motion.div style={{ translateZ: 30 }}>
+          <h2
+            className="text-xl text-[#e0e0e8] tracking-wider mb-2"
+            style={{ fontFamily: "'JetBrains Mono', monospace" }}
+          >
+            {selectedModel
+              ? 'NEURAL LINK ESTABLISHED'
+              : 'AWAITING NEURAL CORE SELECTION'}
+          </h2>
+          <p
+            className="text-sm text-[#3a3a4a] text-center max-w-md mx-auto"
+            style={{ fontFamily: "'JetBrains Mono', monospace" }}
+          >
+            {selectedModel
+              ? 'Ready to receive transmissions. Enter your query below.'
+              : 'Select a neural core from the command bar to initialize the interface.'}
+          </p>
+        </motion.div>
 
-        {/* Starter Prompts */}
         {selectedModel && (
-          <>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {starterPrompts.map((item, idx) => (
-                <motion.button
-                  key={idx}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.2 + idx * 0.1 }}
-                  onClick={() => onPromptSelect(item.prompt)}
-                  className="flex items-start gap-3 p-4 rounded-lg border border-[var(--terminal-border)] bg-[var(--terminal-surface)] hover:border-[var(--phosphor-green)]/30 hover:bg-[var(--terminal-elevated)] text-left transition-all group"
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+            style={{ translateZ: 20 }}
+            className="mt-8 grid grid-cols-2 gap-4 max-w-lg mx-auto"
+          >
+            {[
+              {
+                icon: Zap,
+                label: 'RAPID PROCESSING',
+                desc: 'Sub-second response latency',
+              },
+              {
+                icon: Shield,
+                label: 'LOCAL ONLY',
+                desc: 'All data stays on device',
+              },
+              {
+                icon: Cpu,
+                label: 'NEURAL INFERENCE',
+                desc: 'Advanced language model',
+              },
+              {
+                icon: Activity,
+                label: 'REAL-TIME STREAM',
+                desc: 'Live response generation',
+              },
+            ].map((item, idx) => (
+              <div
+                key={idx}
+                className="p-4 rounded-lg border border-[#1a1a28] bg-[#0d0d14]/50 text-left hover:border-[#00ff9f]/20 transition-all group backdrop-blur-sm"
+              >
+                <item.icon className="w-5 h-5 text-[#00ff9f] mb-2 group-hover:scale-110 transition-transform" />
+                <h3
+                  className="text-xs text-[#e0e0e8] mb-1"
+                  style={{ fontFamily: "'JetBrains Mono', monospace" }}
                 >
-                  <div className="p-2 rounded-lg bg-[var(--phosphor-green)]/10 text-[var(--phosphor-green)] group-hover:bg-[var(--phosphor-green)]/20 transition-colors">
-                    <item.icon className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <h3
-                      className="text-xs text-[var(--terminal-text)] mb-1"
-                      style={{ fontFamily: "'JetBrains Mono', monospace" }}
-                    >
-                      {item.title}
-                    </h3>
-                    <p
-                      className="text-[10px] text-[var(--terminal-text-muted)] line-clamp-2"
-                      style={{ fontFamily: "'JetBrains Mono', monospace" }}
-                    >
-                      {item.prompt}
-                    </p>
-                  </div>
-                </motion.button>
-              ))}
-            </div>
-
-            {/* Features */}
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.6 }}
-              className="mt-8 grid grid-cols-2 sm:grid-cols-4 gap-3"
-            >
-              {[
-                { icon: Zap, label: 'RAPID PROCESSING' },
-                { icon: Shield, label: 'SECURE' },
-                { icon: Cpu, label: 'RAG ENABLED' },
-                { icon: Activity, label: 'REAL-TIME' },
-              ].map((item, idx) => (
-                <div
-                  key={idx}
-                  className="flex items-center gap-2 p-2 rounded border border-[var(--terminal-border)] bg-[var(--terminal-surface)]"
+                  {item.label}
+                </h3>
+                <p
+                  className="text-[10px] text-[#3a3a4a]"
+                  style={{ fontFamily: "'JetBrains Mono', monospace" }}
                 >
-                  <item.icon className="w-3 h-3 text-[var(--phosphor-green)]" />
-                  <span
-                    className="text-[10px] text-[var(--terminal-text-muted)]"
-                    style={{ fontFamily: "'JetBrains Mono', monospace" }}
-                  >
-                    {item.label}
-                  </span>
-                </div>
-              ))}
-            </motion.div>
-          </>
+                  {item.desc}
+                </p>
+              </div>
+            ))}
+          </motion.div>
         )}
       </motion.div>
     </div>

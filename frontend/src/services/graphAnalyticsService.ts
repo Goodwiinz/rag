@@ -81,7 +81,8 @@ export interface AnalyticsDashboard {
 }
 
 class AnalyticsService {
-  private baseUrl = process.env.REACT_APP_GRAPH_ANALYTICS_URL || 'http://localhost:8009';
+  private baseUrl =
+    process.env.NEXT_PUBLIC_GRAPH_ANALYTICS_URL || 'http://localhost:8009';
 
   /**
    * Get complete analytics dashboard - backend aggregates all metrics
@@ -93,7 +94,7 @@ class AnalyticsService {
         filters,
         include_insights: true,
         include_recommendations: true,
-        time_range: '30d'
+        time_range: '30d',
       }
     );
     return response.data;
@@ -104,7 +105,13 @@ class AnalyticsService {
    */
   async getCentralityMetrics(
     nodeIds?: string[],
-    metrics: string[] = ['degree', 'betweenness', 'closeness', 'eigenvector', 'pagerank']
+    metrics: string[] = [
+      'degree',
+      'betweenness',
+      'closeness',
+      'eigenvector',
+      'pagerank',
+    ]
   ): Promise<CentralityMetrics[]> {
     const response = await apiClient.post<{ metrics: CentralityMetrics[] }>(
       `${this.baseUrl}/centrality`,
@@ -112,7 +119,7 @@ class AnalyticsService {
         node_ids: nodeIds,
         metrics,
         normalize: true,
-        include_metadata: true
+        include_metadata: true,
       }
     );
     return response.data.metrics;
@@ -125,15 +132,14 @@ class AnalyticsService {
     algorithm: string = 'louvain',
     resolution: number = 1.0
   ): Promise<CommunityAnalytics[]> {
-    const response = await apiClient.post<{ communities: CommunityAnalytics[] }>(
-      `${this.baseUrl}/communities`,
-      {
-        algorithm,
-        resolution,
-        include_node_details: true,
-        include_analytics: true
-      }
-    );
+    const response = await apiClient.post<{
+      communities: CommunityAnalytics[];
+    }>(`${this.baseUrl}/communities`, {
+      algorithm,
+      resolution,
+      include_node_details: true,
+      include_analytics: true,
+    });
     return response.data.communities;
   }
 
@@ -152,7 +158,7 @@ class AnalyticsService {
         target_id: targetId,
         algorithm,
         include_alternatives: true,
-        max_alternatives: 5
+        max_alternatives: 5,
       }
     );
     return response.data;
@@ -165,15 +171,14 @@ class AnalyticsService {
     timeRange: string = '30d',
     granularity: string = 'daily'
   ): Promise<GraphEvolutionMetrics[]> {
-    const response = await apiClient.get<{ evolution: GraphEvolutionMetrics[] }>(
-      `${this.baseUrl}/evolution`,
-      {
-        params: {
-          time_range: timeRange,
-          granularity
-        }
-      }
-    );
+    const response = await apiClient.get<{
+      evolution: GraphEvolutionMetrics[];
+    }>(`${this.baseUrl}/evolution`, {
+      params: {
+        time_range: timeRange,
+        granularity,
+      },
+    });
     return response.data.evolution;
   }
 
@@ -188,7 +193,7 @@ class AnalyticsService {
       {
         insight_types: insightTypes,
         confidence_threshold: 0.7,
-        max_insights: 20
+        max_insights: 20,
       }
     );
     return response.data.insights;
@@ -200,12 +205,14 @@ class AnalyticsService {
   async getNodeImportanceRanking(
     limit: number = 50,
     criteria: string[] = ['centrality', 'connectivity', 'activity']
-  ): Promise<Array<{
-    nodeId: string;
-    rank: number;
-    score: number;
-    criteria_scores: Record<string, number>;
-  }>> {
+  ): Promise<
+    Array<{
+      nodeId: string;
+      rank: number;
+      score: number;
+      criteria_scores: Record<string, number>;
+    }>
+  > {
     const response = await apiClient.post<{
       rankings: Array<{
         nodeId: string;
@@ -213,14 +220,11 @@ class AnalyticsService {
         score: number;
         criteria_scores: Record<string, number>;
       }>;
-    }>(
-      `${this.baseUrl}/ranking/nodes`,
-      {
-        limit,
-        criteria,
-        weighting: 'balanced'
-      }
-    );
+    }>(`${this.baseUrl}/ranking/nodes`, {
+      limit,
+      criteria,
+      weighting: 'balanced',
+    });
     return response.data.rankings;
   }
 
@@ -237,10 +241,10 @@ class AnalyticsService {
         format,
         analytics_type: analyticsType,
         include_metadata: true,
-        include_timestamps: true
+        include_timestamps: true,
       },
       {
-        responseType: 'blob'
+        responseType: 'blob',
       }
     );
     return response.data;

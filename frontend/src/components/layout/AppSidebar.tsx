@@ -19,6 +19,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarRail,
+  useSidebar,
 } from '@/components/ui/sidebar';
 import { useAuth } from '@/hooks/useAuth';
 import { cn } from '@/lib/utils';
@@ -29,7 +30,6 @@ import {
   BookOpen,
   ChevronsUpDown,
   Files,
-  FlaskConical,
   FolderKanban,
   HelpCircle,
   LayoutDashboard,
@@ -44,7 +44,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef } from 'react';
 
 // Navigation items organized by section
 const mainNavItems = [
@@ -82,30 +82,32 @@ export function AppSidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const { user, isAuthenticated, logout } = useAuth();
+  const { setOpen } = useSidebar();
 
-  // System metrics state (would be fetched from API in production)
-  const [metrics, setMetrics] = useState<SystemMetrics>({
+  // Auto-collapse sidebar when navigating to /chat, but only on route change
+  // so the user can still toggle it open manually
+  const prevPathnameRef = useRef(pathname);
+  useEffect(() => {
+    const prev = prevPathnameRef.current;
+    prevPathnameRef.current = pathname;
+
+    const isChat = pathname === '/chat' || pathname?.startsWith('/chat/');
+    const wasChat = prev === '/chat' || prev?.startsWith('/chat/');
+
+    if (isChat && !wasChat) {
+      setOpen(false);
+    } else if (!isChat && wasChat) {
+      setOpen(true);
+    }
+  }, [pathname, setOpen]);
+
+  // Static metrics (replace with real API call when backend endpoint is available)
+  const metrics: SystemMetrics = {
     uptime: '99.4%',
     cpu: '23%',
     memory: '67%',
     queries: '1,247',
-  });
-
-  // Simulate metrics update (replace with real API call)
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setMetrics((prev) => ({
-        ...prev,
-        cpu: `${Math.floor(Math.random() * 30 + 15)}%`,
-        memory: `${Math.floor(Math.random() * 20 + 55)}%`,
-        queries: (
-          parseInt(prev.queries.replace(',', '')) +
-          Math.floor(Math.random() * 5)
-        ).toLocaleString(),
-      }));
-    }, 5000);
-    return () => clearInterval(interval);
-  }, []);
+  };
 
   const handleLogout = () => {
     logout();
@@ -153,7 +155,9 @@ export function AppSidebar() {
         >
           <Link
             href={item.url}
-            data-testid={item.url === '/analytics' ? 'analytics-nav-link' : undefined}
+            data-testid={
+              item.url === '/analytics' ? 'analytics-nav-link' : undefined
+            }
             className="flex items-center gap-3 w-full px-5 group-data-[collapsible=icon]:px-0 group-data-[collapsible=icon]:justify-center"
           >
             <Icon

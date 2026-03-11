@@ -38,16 +38,23 @@ export function CitationRenderer({
 
   if (!hasInlineCitations) {
     return (
-      <div className={cn('prose prose-sm dark:prose-invert max-w-none', className)}>
+      <div
+        className={cn('prose prose-sm dark:prose-invert max-w-none', className)}
+      >
         <ReactMarkdown>{content}</ReactMarkdown>
       </div>
     );
   }
 
   return (
-    <div className={cn('prose prose-sm dark:prose-invert max-w-none', className)}>
+    <div
+      className={cn('prose prose-sm dark:prose-invert max-w-none', className)}
+    >
       {segments.map((segment, index) => {
-        if (segment.type === 'citation' && segment.citationIndex !== undefined) {
+        if (
+          segment.type === 'citation' &&
+          segment.citationIndex !== undefined
+        ) {
           const citation = getCitationByIndex(citations, segment.citationIndex);
           return (
             <CitationLink
@@ -64,21 +71,44 @@ export function CitationRenderer({
             <ReactMarkdown
               components={{
                 p: ({ children }) => <span>{children}</span>,
-                code({ inline, className, children, ...props }: any) {
+                code({
+                  inline,
+                  className,
+                  children,
+                }: {
+                  inline?: boolean;
+                  className?: string;
+                  children?: React.ReactNode;
+                }) {
                   const match = /language-(\w+)/.exec(className || '');
                   const language = match ? match[1] : '';
                   return !inline && language ? (
-                    <SyntaxHighlighter style={oneDark} language={language} PreTag="div" {...props}>
+                    <SyntaxHighlighter
+                      style={oneDark}
+                      language={language}
+                      PreTag="div"
+                    >
                       {String(children).replace(/\n$/, '')}
                     </SyntaxHighlighter>
                   ) : (
-                    <code className="rounded bg-[#1a1a1a] px-1.5 py-0.5 text-[11px] font-mono text-[#00ff9f]" {...props}>
+                    <code className="rounded bg-[#1a1a1a] px-1.5 py-0.5 text-[11px] font-mono text-[#00ff9f]">
                       {children}
                     </code>
                   );
                 },
-                a: ({ href, children }: any) => (
-                  <a href={href} target="_blank" rel="noopener noreferrer" className="text-[#00d4ff] hover:text-[#00ff9f] underline">
+                a: ({
+                  href,
+                  children,
+                }: {
+                  href?: string;
+                  children?: React.ReactNode;
+                }) => (
+                  <a
+                    href={href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[#00d4ff] hover:text-[#00ff9f] underline"
+                  >
                     {children}
                   </a>
                 ),

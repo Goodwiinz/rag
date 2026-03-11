@@ -49,6 +49,17 @@ class CreateMatrixRequest(BaseModel):
     columns: List[ExtractionColumn] = Field(..., min_length=1, max_length=20)
 
 
+class UpdateMatrixRequest(BaseModel):
+    """Request to update an existing extraction matrix."""
+
+    name: Optional[str] = Field(None, min_length=1, max_length=255)
+    columns: Optional[List[ExtractionColumn]] = Field(None, min_length=1, max_length=20)
+    clear_stale_cells: bool = Field(
+        False,
+        description="Delete cells whose column_name no longer matches any column",
+    )
+
+
 class TriggerExtractionRequest(BaseModel):
     """Request to trigger extraction on selected documents."""
 
@@ -120,3 +131,105 @@ class IntegrityScoreResponse(BaseModel):
     method: str = "roberta-base-openai-detector"
     analyzed_at: Optional[datetime] = None
     segment_scores: List[IntegritySegmentScore] = Field(default_factory=list)
+
+
+# Feature 6: AI Writer
+
+
+class WriterAction(str, Enum):
+    """Available AI writer actions."""
+
+    COMPLETE = "complete"
+    GENERATE_SECTION = "generate_section"
+    GENERATE_OUTLINE = "generate_outline"
+
+
+class SectionType(str, Enum):
+    """Section types for generation."""
+
+    INTRODUCTION = "introduction"
+    METHODOLOGY = "methodology"
+    RESULTS = "results"
+    DISCUSSION = "discussion"
+    CONCLUSION = "conclusion"
+    ABSTRACT = "abstract"
+    CUSTOM = "custom"
+
+
+class StyleOption(str, Enum):
+    """Writing style options."""
+
+    ACADEMIC = "academic"
+    TECHNICAL = "technical"
+    SUMMARY = "summary"
+
+
+class WriteRequest(BaseModel):
+    """Request for AI text generation."""
+
+    action: WriterAction
+    cursor_context: str = Field(
+        ..., min_length=1, max_length=50_000, description="Text around cursor position"
+    )
+    section_type: Optional[SectionType] = None
+    style: StyleOption = StyleOption.ACADEMIC
+    document_ids: Optional[List[UUID]] = Field(
+        None, max_length=50, description="Source documents for context"
+    )
+
+    @field_validator("cursor_context")
+    @classmethod
+    def context_not_empty(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("cursor_context must contain non-whitespace characters")
+        return v
+
+
+class WriteResponse(BaseModel):
+    """Response from the AI writer."""
+
+    generated: str
+    action: WriterAction
+    section_type: Optional[SectionType] = None
+    citations_used: List[str] = Field(default_factory=list)
+    confidence: float = Field(..., ge=0.0, le=1.0)
+
+
+class OutlineSection(BaseModel):
+    """A section in a generated outline."""
+
+    title: str = Field(..., min_length=1, max_length=200)
+    section_type: SectionType
+    description: str = Field(..., max_length=1000)
+    suggested_word_count: int = Field(..., ge=50, le=10_000)
+
+
+class OutlineRequest(BaseModel):
+    """Request for outline generation."""
+
+    research_question: str = Field(
+        ..., min_length=10, max_length=1000, description="Research question to outline"
+    )
+    style: StyleOption = StyleOption.ACADEMIC
+    document_ids: Optional[List[UUID]] = Field(
+        None, max_length=50, description="Source documents for context"
+    )
+    section_types: Optional[List[SectionType]] = Field(
+        None, description="Desired section types to include"
+    )
+
+    @field_validator("research_question")
+    @classmethod
+    def question_not_empty(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("research_question must contain non-whitespace characters")
+        return v
+
+
+class OutlineResponse(BaseModel):
+    """Response from outline generation."""
+
+    research_question: str
+    sections: List[OutlineSection] = Field(default_factory=list)
+    style: StyleOption
+    total_suggested_words: int = Field(..., ge=0)

@@ -50,9 +50,11 @@ from src.api.research import (
     drafts_router,
     export_router,
     extraction_matrix_router,
+    pipeline_router,
     project_chat_router,
     projects_router,
     tone_engine_router,
+    writer_router,
 )
 from src.api.research_engine import (
     research_engine_blueprints_router,
@@ -359,6 +361,8 @@ app.include_router(project_chat_router)  # Project-Chat integration endpoints
 app.include_router(drafts_router)  # Research Assistant drafts endpoints
 app.include_router(tone_engine_router)  # Scholarly Tone Engine endpoints
 app.include_router(extraction_matrix_router)  # Extraction Matrix endpoints
+app.include_router(writer_router)  # AI Writer endpoints
+app.include_router(pipeline_router)  # Research Pipeline wizard endpoints
 app.include_router(integrity_router)  # AI Integrity Detector endpoints
 app.include_router(table_extraction_router)  # Table & math extraction endpoints
 app.include_router(research_engine_projects_router, prefix="/api/v1")  # Research Engine projects

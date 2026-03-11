@@ -80,8 +80,24 @@ class DraftGenerationService:
         DraftGenerationStatus.CANCELLED,
     }
 
+    _STYLE_PROMPTS = {
+        "academic": (
+            "Use a formal academic tone. Passive voice is acceptable. "
+            "Use field-specific terminology and cite sources precisely."
+        ),
+        "technical": (
+            "Focus on technical detail. Include methodology and implementation "
+            "specifics. Use precise technical language."
+        ),
+        "summary": (
+            "Write in a concise executive summary style. Focus on key findings "
+            "and implications. Keep language accessible."
+        ),
+    }
+
     def __init__(self, db: AsyncSession):
         self.db = db
+        self._openai_client = self._init_openai_client()
 
     async def generate_draft(
         self,
@@ -167,13 +183,13 @@ class DraftGenerationService:
             if document_ids:
                 docs_query = select(Document).where(Document.id.in_(document_ids))
             else:
-                # Get all documents in project through project_documents
-                from src.models.project_document import ProjectDocument
+                # Get all documents in project through collection_documents
+                from src.models.collection import CollectionDocument
 
                 docs_query = (
                     select(Document)
-                    .join(ProjectDocument, Document.id == ProjectDocument.document_id)
-                    .where(ProjectDocument.project_id == project_id)
+                    .join(CollectionDocument, Document.id == CollectionDocument.document_id)
+                    .where(CollectionDocument.collection_id == project_id)
                 )
 
             result = await self.db.execute(docs_query)
@@ -244,7 +260,6 @@ class DraftGenerationService:
             # Create the draft
             draft = GeneratedDraft(
                 project_id=project_id,
-                user_id=user_id,
                 version=new_version,
                 title=f"Literature Review - {', '.join(themes[:3])}",
                 content=draft_content,
@@ -324,6 +339,22 @@ class DraftGenerationService:
                 num_documents=document_count,
             )
 
+    @staticmethod
+    def _init_openai_client() -> Optional[Any]:
+        """Initialize OpenAI client if API key is available."""
+        try:
+            from src.core.config import settings
+
+            api_key = getattr(settings, "OPENAI_API_KEY", None)
+            if not api_key:
+                return None
+            import openai
+
+            return openai.AsyncOpenAI(api_key=api_key)
+        except Exception as exc:
+            logger.warning("openai_client_init_failed", error=str(exc))
+            return None
+
     async def _build_draft_content(
         self,
         documents: List[Document],
@@ -332,10 +363,117 @@ class DraftGenerationService:
         max_sections: int,
         include_abstract: bool,
     ) -> str:
-        """Build the draft content from documents and themes"""
+        """Build draft content using LLM, falling back to template on failure."""
+        if self._openai_client is not None:
+            try:
+                return await self._build_draft_with_llm(
+                    documents=documents,
+                    themes=themes,
+                    style=style,
+                    max_sections=max_sections,
+                    include_abstract=include_abstract,
+                )
+            except Exception as exc:
+                logger.warning(
+                    "llm_draft_generation_failed",
+                    error=str(exc),
+                    fallback="template",
+                )
+
+        return self._build_draft_template(
+            documents=documents,
+            themes=themes,
+            style=style,
+            max_sections=max_sections,
+            include_abstract=include_abstract,
+        )
+
+    async def _build_draft_with_llm(
+        self,
+        documents: List[Document],
+        themes: List[str],
+        style: str,
+        max_sections: int,
+        include_abstract: bool,
+    ) -> str:
+        """Generate draft content via OpenAI LLM."""
+        # Gather document context
+        doc_contexts: List[str] = []
+        for idx, doc in enumerate(documents, start=1):
+            snippet = ""
+            if doc.content_summary:
+                snippet = doc.content_summary[:500]
+            elif doc.content_text:
+                snippet = doc.content_text[:500]
+
+            title = doc.title or f"Untitled Document {idx}"
+            doc_contexts.append(f'[Doc {idx}] "{title}" — {snippet}')
+
+        style_instruction = self._STYLE_PROMPTS.get(style, self._STYLE_PROMPTS["academic"])
+        abstract_instruction = (
+            "Include an Abstract section at the beginning."
+            if include_abstract
+            else "Do not include an abstract."
+        )
+
+        system_prompt = (
+            "You are an academic writing assistant generating a literature review.\n"
+            f"Style: {style}\n"
+            "Rules:\n"
+            "- Use [Doc N] citations to reference source documents\n"
+            f"- Write {max_sections} sections maximum\n"
+            f"- {abstract_instruction}\n"
+            "- Use proper markdown with ## headers for sections and ### for subsections\n"
+            "- Synthesize findings across documents, don't just summarize each one individually\n"
+            "- Be specific about findings, methods, and contributions from the documents\n"
+            f"- {style_instruction}\n"
+        )
+
+        user_prompt = (
+            f"Write a literature review covering these themes: {', '.join(themes)}\n\n"
+            "Documents available:\n"
+            + "\n".join(doc_contexts)
+            + "\n\nGenerate the literature review now."
+        )
+
+        response = await asyncio.wait_for(
+            self._openai_client.chat.completions.create(
+                model="gpt-4o",
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+                temperature=0.7,
+                max_tokens=4000,
+            ),
+            timeout=60.0,
+        )
+
+        content = response.choices[0].message.content
+        if not content or not content.strip():
+            raise ValueError("LLM returned empty content")
+
+        logger.info(
+            "llm_draft_generated",
+            document_count=len(documents),
+            theme_count=len(themes),
+            style=style,
+            word_count=len(content.split()),
+        )
+
+        return content.strip()
+
+    @staticmethod
+    def _build_draft_template(
+        documents: List[Document],
+        themes: List[str],
+        style: str,
+        max_sections: int,
+        include_abstract: bool,
+    ) -> str:
+        """Fallback template-based draft generation."""
         sections = []
 
-        # Abstract
         if include_abstract:
             abstract = f"""## Abstract
 
@@ -344,7 +482,6 @@ This literature review synthesizes research from {len(documents)} documents, foc
 """
             sections.append(abstract)
 
-        # Introduction
         intro = f"""## 1. Introduction
 
 The field encompassing {themes[0] if themes else 'this research area'} has seen significant developments in recent years. This literature review examines {len(documents)} key publications to understand the current state of research and identify emerging trends.
@@ -352,12 +489,9 @@ The field encompassing {themes[0] if themes else 'this research area'} has seen 
 """
         sections.append(intro)
 
-        # Theme sections
         for i, theme in enumerate(themes[: max_sections - 2], start=2):
             doc_refs = []
-            for j, doc in enumerate(
-                documents[:3], start=1
-            ):  # Use up to 3 docs per theme
+            for j, doc in enumerate(documents[:3], start=1):
                 doc_refs.append(f"[Doc {j}]")
 
             section = f"""## {i}. {theme.title()}
@@ -369,7 +503,6 @@ Key findings indicate that {theme} plays a significant role in the broader conte
 """
             sections.append(section)
 
-        # Conclusion
         conclusion = f"""## {len(themes) + 2 if len(themes) < max_sections else max_sections}. Conclusion
 
 This review has synthesized findings from {len(documents)} publications across the themes of {', '.join(themes)}. The literature demonstrates significant progress in understanding these interconnected areas, while also highlighting opportunities for future research.

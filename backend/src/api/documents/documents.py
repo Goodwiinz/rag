@@ -470,11 +470,8 @@ async def delete_document(
             )
             await db.execute(job_update_stmt)
 
-        # Delete physical file
-        import os
-
-        if os.path.exists(document.file_path):
-            os.remove(document.file_path)
+        # Delete physical file (local or Supabase)
+        file_service.delete_physical_file(document)
 
         # Soft delete document
         document.soft_delete()
@@ -871,8 +868,6 @@ async def bulk_delete_documents(
     successful = []
     failed = []
 
-    import os
-
     from sqlalchemy import update
 
     for document_id in request.document_ids:
@@ -914,9 +909,8 @@ async def bulk_delete_documents(
                 )
                 await db.execute(job_update_stmt)
 
-            # Delete physical file
-            if os.path.exists(document.file_path):
-                os.remove(document.file_path)
+            # Delete physical file (local or Supabase)
+            file_service.delete_physical_file(document)
 
             # Soft delete document
             document.soft_delete()
@@ -1004,10 +998,12 @@ async def reprocess_document(
         await db.commit()
 
         # Create new processing job
+        from src.models.processing import JobPriority, JobType
+
         processing_job = ProcessingJob(
-            job_type="document_reprocessing",
+            job_type=JobType.DOCUMENT_INGESTION,
             status=JobStatus.PENDING,
-            priority="normal",
+            priority=JobPriority.NORMAL,
             document_id=document.id,
             organization_id=organization.id,
             created_by_user_id=current_user.id,

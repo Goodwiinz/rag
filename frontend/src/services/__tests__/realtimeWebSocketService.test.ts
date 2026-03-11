@@ -92,7 +92,10 @@ describe('RealtimeWebSocketService', () => {
     expect(service.getConnectionState().status).toBe('connected');
 
     const ws = (service as any).ws as MockWebSocket;
-    expect(ws.url).toContain('token=test-token');
+    // Token should be in protocols (Sec-WebSocket-Protocol), NOT in URL
+    expect(ws.url).not.toContain('token=');
+    expect(ws.protocols).toContain('auth');
+    expect(ws.protocols).toContain(testToken);
   });
 
   it('send while disconnected does not throw', () => {
@@ -148,7 +151,9 @@ describe('RealtimeWebSocketService', () => {
 
     jest.advanceTimersByTime(testConfig.reconnectInterval);
 
-    expect(service.getConnectionState().reconnectionAttempts).toBeGreaterThan(0);
+    expect(service.getConnectionState().reconnectionAttempts).toBeGreaterThan(
+      0
+    );
   });
 
   it('does not reconnect on clean close', async () => {

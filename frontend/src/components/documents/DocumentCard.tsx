@@ -17,6 +17,7 @@ import {
 import { Document } from '@/types';
 import { cn } from '@/lib/utils';
 import { ProcessingStatus } from './ProcessingStatus';
+import { IntegrityBadge } from './IntegrityBadge';
 
 interface DocumentCardProps {
   document: Document;
@@ -44,21 +45,21 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
   const [showActions, setShowActions] = useState(false);
 
   const getFileIcon = () => {
-    const iconClass = "h-8 w-8";
+    const iconClass = 'h-8 w-8';
     switch (document.file_type) {
       case 'pdf':
-        return <DocumentTextIcon className={cn(iconClass, "text-red-600")} />;
+        return <DocumentTextIcon className={cn(iconClass, 'text-red-600')} />;
       case 'txt':
-        return <DocumentTextIcon className={cn(iconClass, "text-blue-600")} />;
+        return <DocumentTextIcon className={cn(iconClass, 'text-blue-600')} />;
       case 'jpg':
       case 'png':
-        return <PhotoIcon className={cn(iconClass, "text-green-600")} />;
+        return <PhotoIcon className={cn(iconClass, 'text-green-600')} />;
       case 'mp3':
-        return <MusicalNoteIcon className={cn(iconClass, "text-purple-600")} />;
+        return <MusicalNoteIcon className={cn(iconClass, 'text-purple-600')} />;
       case 'mp4':
-        return <VideoCameraIcon className={cn(iconClass, "text-orange-600")} />;
+        return <VideoCameraIcon className={cn(iconClass, 'text-orange-600')} />;
       default:
-        return <DocumentTextIcon className={cn(iconClass, "text-gray-600")} />;
+        return <DocumentTextIcon className={cn(iconClass, 'text-gray-600')} />;
     }
   };
 
@@ -67,7 +68,9 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
       case 'queued':
         return <ClockIcon className="h-4 w-4 text-yellow-600" />;
       case 'processing':
-        return <div className="h-4 w-4 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />;
+        return (
+          <div className="h-4 w-4 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
+        );
       case 'indexed':
         return <CheckCircleIcon className="h-4 w-4 text-green-600" />;
       case 'failed':
@@ -144,26 +147,30 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
   return (
     <div
       className={cn(
-        "relative bg-card border border-border rounded-lg p-4 transition-all duration-200 hover:shadow-md hover:border-primary/20 group",
-        selected && "ring-1 ring-primary border-primary",
+        'relative bg-card border border-border rounded-lg p-4 transition-all duration-200 hover:shadow-md hover:border-primary/20 group',
+        selected && 'ring-1 ring-primary border-primary',
         className
       )}
     >
       {/* Selection Checkbox */}
-      <div className="absolute top-4 left-4 z-10 opacity-0 group-hover:opacity-100 transition-opacity duration-200 data-[selected=true]:opacity-100" data-selected={selected}>
+      <div
+        className="absolute top-4 left-4 z-10 opacity-0 group-hover:opacity-100 transition-opacity duration-200 data-[selected=true]:opacity-100"
+        data-selected={selected}
+      >
         <button
-          onClick={(e) => { e.stopPropagation(); handleSelect(); }}
+          onClick={(e) => {
+            e.stopPropagation();
+            handleSelect();
+          }}
           className={cn(
-            "h-5 w-5 rounded border transition-colors flex items-center justify-center",
+            'h-5 w-5 rounded border transition-colors flex items-center justify-center',
             selected
-              ? "bg-primary border-primary text-primary-foreground"
-              : "bg-background border-input hover:border-primary"
+              ? 'bg-primary border-primary text-primary-foreground'
+              : 'bg-background border-input hover:border-primary'
           )}
-          aria-label={selected ? "Deselect document" : "Select document"}
+          aria-label={selected ? 'Deselect document' : 'Select document'}
         >
-          {selected && (
-            <CheckIcon className="h-3.5 w-3.5" />
-          )}
+          {selected && <CheckIcon className="h-3.5 w-3.5" />}
         </button>
       </div>
 
@@ -189,7 +196,10 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
         <div className="flex-1 min-w-0">
           <div className="flex items-start justify-between">
             <div className="flex-1 min-w-0 pr-2">
-              <h3 className="text-sm font-medium text-foreground truncate mb-0.5" title={document.title}>
+              <h3
+                className="text-sm font-medium text-foreground truncate mb-0.5"
+                title={document.title}
+              >
                 {document.title}
               </h3>
               <p className="text-xs text-muted-foreground truncate mb-2 font-mono">
@@ -216,9 +226,19 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
                   {getStatusText()}
                 </span>
                 {document.processing_error && (
-                  <span className="text-xs text-destructive truncate max-w-[150px]" title={document.processing_error}>
+                  <span
+                    className="text-xs text-destructive truncate max-w-[150px]"
+                    title={document.processing_error}
+                  >
                     • {document.processing_error}
                   </span>
+                )}
+                {document.processing_status === 'indexed' && (
+                  <IntegrityBadge
+                    documentId={document.id}
+                    compact
+                    onRequestCheck={() => onPreview?.(document)}
+                  />
                 )}
               </div>
             </div>
@@ -226,7 +246,10 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
             {/* Actions Menu */}
             <div className="relative">
               <button
-                onClick={(e) => { e.stopPropagation(); setShowActions(!showActions); }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowActions(!showActions);
+                }}
                 className="p-1 text-muted-foreground hover:text-foreground hover:bg-accent rounded-md transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100"
                 aria-label="More options"
               >
@@ -237,26 +260,41 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
                 <>
                   <div
                     className="fixed inset-0 z-10"
-                    onClick={(e) => { e.stopPropagation(); setShowActions(false); }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowActions(false);
+                    }}
                   />
                   <div className="absolute right-0 top-full mt-1 w-48 bg-popover border border-border rounded-md shadow-lg z-20 animate-in fade-in zoom-in-95 duration-100">
                     <div className="py-1">
                       <button
-                        onClick={(e) => { e.stopPropagation(); handlePreview(); setShowActions(false); }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handlePreview();
+                          setShowActions(false);
+                        }}
                         className="flex items-center w-full px-3 py-2 text-sm text-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
                       >
                         <EyeIcon className="h-4 w-4 mr-2 text-muted-foreground" />
                         Preview
                       </button>
                       <button
-                        onClick={(e) => { e.stopPropagation(); handleDownload(); setShowActions(false); }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDownload();
+                          setShowActions(false);
+                        }}
                         className="flex items-center w-full px-3 py-2 text-sm text-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
                       >
                         <ArrowDownTrayIcon className="h-4 w-4 mr-2 text-muted-foreground" />
                         Download
                       </button>
                       <button
-                        onClick={(e) => { e.stopPropagation(); handleDelete(); setShowActions(false); }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDelete();
+                          setShowActions(false);
+                        }}
                         className="flex items-center w-full px-3 py-2 text-sm text-destructive hover:bg-destructive/10 transition-colors"
                       >
                         <TrashIcon className="h-4 w-4 mr-2" />
@@ -272,15 +310,18 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
       </div>
 
       {/* Processing Status (for processing documents) */}
-      {showProcessingStatus && (document.processing_status === 'processing' || document.processing_status === 'queued' || document.processing_status === 'failed') && (
-        <div className="mt-3 pt-3 border-t border-border">
-          <ProcessingStatus
-            document={document}
-            compact
-            onRetry={onRetry ? () => onRetry(document.id) : undefined}
-          />
-        </div>
-      )}
+      {showProcessingStatus &&
+        (document.processing_status === 'processing' ||
+          document.processing_status === 'queued' ||
+          document.processing_status === 'failed') && (
+          <div className="mt-3 pt-3 border-t border-border">
+            <ProcessingStatus
+              document={document}
+              compact
+              onRetry={onRetry ? () => onRetry(document.id) : undefined}
+            />
+          </div>
+        )}
     </div>
   );
 };

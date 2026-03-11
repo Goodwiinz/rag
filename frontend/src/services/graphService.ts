@@ -24,13 +24,17 @@ import {
   RelatedEntity,
   Community,
   DistributionData,
-  PerformanceMetrics
+  PerformanceMetrics,
 } from '../types/knowledge-graph';
 
 // Enhanced API Request/Response Types
 export interface GraphDataRequest {
   filters?: GraphFilters;
-  layout_algorithm: 'force_directed' | 'circular' | 'hierarchical' | 'geographic';
+  layout_algorithm:
+    | 'force_directed'
+    | 'circular'
+    | 'hierarchical'
+    | 'geographic';
   options: {
     dimensions: { width: number; height: number };
     include_analytics: boolean;
@@ -53,13 +57,21 @@ export interface EntitySearchRequest {
 
 export interface AnalyticsRequest {
   filters?: GraphFilters;
-  metrics: Array<'centrality' | 'community_detection' | 'pathfinding' | 'graph_statistics' | 'temporal_analysis'>;
+  metrics: Array<
+    | 'centrality'
+    | 'community_detection'
+    | 'pathfinding'
+    | 'graph_statistics'
+    | 'temporal_analysis'
+  >;
   options: {
     include_distributions: boolean;
     top_k: number;
     percentile_thresholds: number[];
     algorithms?: {
-      centrality?: Array<'degree' | 'betweenness' | 'closeness' | 'eigenvector' | 'page_rank'>;
+      centrality?: Array<
+        'degree' | 'betweenness' | 'closeness' | 'eigenvector' | 'page_rank'
+      >;
       community_detection?: 'louvain' | 'leiden' | 'walktrap';
       pathfinding?: 'dijkstra' | 'a_star' | 'bfs';
     };
@@ -67,9 +79,12 @@ export interface AnalyticsRequest {
 }
 
 class GraphService {
-  private readonly baseUrl = process.env.REACT_APP_GRAPH_SERVICE_URL || 'http://localhost:8003';
-  private readonly analyticsUrl = process.env.REACT_APP_GRAPH_ANALYTICS_URL || 'http://localhost:8009';
-  private readonly visualizationUrl = process.env.REACT_APP_GRAPH_VISUALIZATION_URL || 'http://localhost:8010';
+  private readonly baseUrl =
+    process.env.NEXT_PUBLIC_GRAPH_SERVICE_URL || 'http://localhost:8003';
+  private readonly analyticsUrl =
+    process.env.NEXT_PUBLIC_GRAPH_ANALYTICS_URL || 'http://localhost:8009';
+  private readonly visualizationUrl =
+    process.env.NEXT_PUBLIC_GRAPH_VISUALIZATION_URL || 'http://localhost:8010';
 
   // Service health checks
   async checkServiceHealth(): Promise<{
@@ -77,16 +92,17 @@ class GraphService {
     analytics_service: boolean;
     visualization_service: boolean;
   }> {
-    const [graphHealth, analyticsHealth, visualizationHealth] = await Promise.allSettled([
-      apiClient.get(`${this.baseUrl}/health`),
-      apiClient.get(`${this.analyticsUrl}/health`),
-      apiClient.get(`${this.visualizationUrl}/health`)
-    ]);
+    const [graphHealth, analyticsHealth, visualizationHealth] =
+      await Promise.allSettled([
+        apiClient.get(`${this.baseUrl}/health`),
+        apiClient.get(`${this.analyticsUrl}/health`),
+        apiClient.get(`${this.visualizationUrl}/health`),
+      ]);
 
     return {
       graph_service: graphHealth.status === 'fulfilled',
       analytics_service: analyticsHealth.status === 'fulfilled',
-      visualization_service: visualizationHealth.status === 'fulfilled'
+      visualization_service: visualizationHealth.status === 'fulfilled',
     };
   }
 
@@ -121,7 +137,7 @@ class GraphService {
       include_related_entities: true,
       max_related_entities: 20,
       relationship_strength_threshold: 0.3,
-      include_mention_contexts: true
+      include_mention_contexts: true,
     }
   ): Promise<EntityDetails> {
     const response = await apiClient.get<EntityDetails>(
@@ -146,10 +162,7 @@ class GraphService {
       total_count: number;
       search_time: number;
       ranking_metadata: Record<string, any>;
-    }>(
-      `${this.baseUrl}/entities/search`,
-      request
-    );
+    }>(`${this.baseUrl}/entities/search`, request);
     return response.data;
   }
 
@@ -157,7 +170,9 @@ class GraphService {
    * Get comprehensive analytics dashboard data
    * BACKEND RESPONSIBILITY: All analytics calculations, distributions, metrics
    */
-  async getAnalyticsDashboard(request: AnalyticsRequest): Promise<GraphAnalyticsDashboard> {
+  async getAnalyticsDashboard(
+    request: AnalyticsRequest
+  ): Promise<GraphAnalyticsDashboard> {
     const response = await apiClient.post<GraphAnalyticsDashboard>(
       `${this.analyticsUrl}/analytics/comprehensive`,
       request
@@ -180,7 +195,7 @@ class GraphService {
       depth: 1,
       max_nodes: 100,
       layout_algorithm: 'circular',
-      include_analytics: true
+      include_analytics: true,
     }
   ): Promise<KnowledgeGraphData> {
     const response = await apiClient.post<KnowledgeGraphData>(
@@ -215,16 +230,13 @@ class GraphService {
         path: string[];
         weight: number;
       }>;
-    }>(
-      `${this.analyticsUrl}/pathfinding/shortest`,
-      {
-        source_id: sourceId,
-        target_id: targetId,
-        algorithm,
-        weight_property: 'weight',
-        include_alternatives: true
-      }
-    );
+    }>(`${this.analyticsUrl}/pathfinding/shortest`, {
+      source_id: sourceId,
+      target_id: targetId,
+      algorithm,
+      weight_property: 'weight',
+      include_alternatives: true,
+    });
     return response.data;
   }
 
@@ -240,7 +252,7 @@ class GraphService {
     } = {
       algorithm: 'louvain',
       resolution: 1.0,
-      include_intermediate_results: false
+      include_intermediate_results: false,
     }
   ): Promise<{
     communities: Community[];
@@ -259,10 +271,7 @@ class GraphService {
         silhouette_score?: number;
         conductance?: number;
       };
-    }>(
-      `${this.analyticsUrl}/communities/detect`,
-      options
-    );
+    }>(`${this.analyticsUrl}/communities/detect`, options);
     return response.data;
   }
 
@@ -279,7 +288,7 @@ class GraphService {
     } = {
       max_entities: 20,
       similarity_threshold: 0.3,
-      include_path_lengths: true
+      include_path_lengths: true,
     }
   ): Promise<RelatedEntity[]> {
     const response = await apiClient.post<RelatedEntity[]>(
@@ -294,11 +303,9 @@ class GraphService {
    * BACKEND RESPONSIBILITY: Data formatting, conversion, export preparation
    */
   async exportGraph(options: GraphExportOptions): Promise<Blob> {
-    const response = await apiClient.post(
-      `${this.baseUrl}/export`,
-      options,
-      { responseType: 'blob' }
-    );
+    const response = await apiClient.post(`${this.baseUrl}/export`, options, {
+      responseType: 'blob',
+    });
     return response.data;
   }
 
@@ -336,14 +343,11 @@ class GraphService {
       errors: Array<{ id: string; error: string }>;
       warnings: Array<{ id: string; warning: string }>;
       operation_id: string;
-    }>(
-      `${this.baseUrl}/entities/batch`,
-      {
-        operation,
-        entity_ids: entityIds,
-        options
-      }
-    );
+    }>(`${this.baseUrl}/entities/batch`, {
+      operation,
+      entity_ids: entityIds,
+      options,
+    });
     return response.data;
   }
 
@@ -374,10 +378,7 @@ class GraphService {
       connected_components: number;
       largest_component_size: number;
       update_timestamp: string;
-    }>(
-      `${this.analyticsUrl}/summary`,
-      { filters }
-    );
+    }>(`${this.analyticsUrl}/summary`, { filters });
     return response.data;
   }
 
@@ -386,22 +387,28 @@ class GraphService {
    * BACKEND RESPONSIBILITY: Real-time data streaming, change notifications
    */
   createWebSocketSubscription(filters?: GraphFilters): WebSocket {
-    const ws = apiClient.createWebSocket(`${this.visualizationUrl}/ws/subscribe`);
+    const ws = apiClient.createWebSocket(
+      `${this.visualizationUrl}/ws/subscribe`
+    );
 
     // Send subscription message
     if (ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({
-        type: 'subscribe',
-        filters,
-        client_timestamp: new Date().toISOString()
-      }));
-    } else {
-      ws.addEventListener('open', () => {
-        ws.send(JSON.stringify({
+      ws.send(
+        JSON.stringify({
           type: 'subscribe',
           filters,
-          client_timestamp: new Date().toISOString()
-        }));
+          client_timestamp: new Date().toISOString(),
+        })
+      );
+    } else {
+      ws.addEventListener('open', () => {
+        ws.send(
+          JSON.stringify({
+            type: 'subscribe',
+            filters,
+            client_timestamp: new Date().toISOString(),
+          })
+        );
       });
     }
 
@@ -431,10 +438,7 @@ class GraphService {
         severity: 'high' | 'medium' | 'low';
       }>;
       validation_time: number;
-    }>(
-      `${this.baseUrl}/validate`,
-      { entity_ids: entityIds }
-    );
+    }>(`${this.baseUrl}/validate`, { entity_ids: entityIds });
     return response.data;
   }
 }

@@ -45,7 +45,7 @@ describe('TerminalChatBubble', () => {
     const onCitationClick = jest.fn();
     const citations = [
       {
-        marker: '[1]',
+        documentId: 'doc-1',
         title: 'A Foundational Paper',
         score: 0.91,
       },
@@ -64,9 +64,35 @@ describe('TerminalChatBubble', () => {
       />
     );
 
-    fireEvent.click(screen.getByRole('button', { name: /a foundational paper/i }));
+    fireEvent.click(
+      screen.getByRole('button', { name: /a foundational paper/i })
+    );
 
     expect(onCitationClick).toHaveBeenCalledTimes(1);
     expect(onCitationClick).toHaveBeenCalledWith(citations, citations[0]);
+  });
+
+  it('does not render citation chips when the assistant text has no inline citations', () => {
+    render(
+      <TerminalChatBubble
+        message={{
+          role: 'assistant',
+          content: 'Hello! How can I assist you today?',
+          timestamp: Date.now(),
+          citations: [
+            {
+              documentId: 'doc-1',
+              title: 'A Foundational Paper',
+              score: 0.91,
+            },
+          ],
+        }}
+        index={0}
+      />
+    );
+
+    expect(
+      screen.queryByRole('button', { name: /a foundational paper/i })
+    ).not.toBeInTheDocument();
   });
 });

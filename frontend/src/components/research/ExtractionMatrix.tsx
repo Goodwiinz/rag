@@ -1,16 +1,20 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
-import { Download, Loader2, Play, Trash2 } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Download, Loader2, Pencil, Play, Trash2, X } from 'lucide-react';
 import type {
   ExtractionColumn,
   ExtractionMatrix as ExtractionMatrixType,
+  ExtractionTaskStatus,
 } from '@/types/scispace';
 import {
   createMatrix,
   deleteMatrix,
+  getExtractionTaskStatus,
   getMatrix,
+  listMatrices,
   triggerExtraction,
+  updateMatrix,
 } from '@/services/scispaceService';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -58,6 +62,20 @@ export function ExtractionMatrix({
   ]);
   const [creating, setCreating] = useState(false);
 
+  // Edit mode state
+  const [editing, setEditing] = useState(false);
+  const [editName, setEditName] = useState('');
+  const [editColumns, setEditColumns] = useState<ExtractionColumn[]>([]);
+  const [saving, setSaving] = useState(false);
+
+  // Auto-extraction progress state
+  const [autoExtractionTaskId, setAutoExtractionTaskId] = useState<
+    string | null
+  >(null);
+  const [autoExtractionStatus, setAutoExtractionStatus] =
+    useState<ExtractionTaskStatus | null>(null);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
   const fetchMatrix = useCallback(async (id: string) => {
     setLoading(true);
     setError(null);
@@ -74,8 +92,59 @@ export function ExtractionMatrix({
   useEffect(() => {
     if (matrixId) {
       fetchMatrix(matrixId);
+    } else {
+      // Fetch existing matrices for this project
+      setLoading(true);
+      listMatrices(projectId)
+        .then((data) => {
+          if (data.matrices.length > 0) {
+            fetchMatrix(data.matrices[0].id);
+          }
+        })
+        .catch(() => {
+          // No existing matrices — show create form
+        })
+        .finally(() => setLoading(false));
     }
-  }, [matrixId, fetchMatrix]);
+  }, [matrixId, projectId, fetchMatrix]);
+
+  // Poll auto-extraction status
+  useEffect(() => {
+    if (!autoExtractionTaskId) return;
+
+    const poll = async () => {
+      try {
+        const status = await getExtractionTaskStatus(autoExtractionTaskId);
+        setAutoExtractionStatus(status);
+
+        if (status.status === 'completed' || status.status === 'failed') {
+          if (pollRef.current) {
+            clearInterval(pollRef.current);
+            pollRef.current = null;
+          }
+          setAutoExtractionTaskId(null);
+
+          // Refetch matrix to show new cells
+          if (status.status === 'completed' && matrix) {
+            await fetchMatrix(matrix.id);
+          }
+        }
+      } catch {
+        // Task may not be registered yet, keep polling
+      }
+    };
+
+    pollRef.current = setInterval(poll, 3000);
+    // Run immediately too
+    poll();
+
+    return () => {
+      if (pollRef.current) {
+        clearInterval(pollRef.current);
+        pollRef.current = null;
+      }
+    };
+  }, [autoExtractionTaskId, matrix, fetchMatrix]);
 
   const handleCreate = async () => {
     const validColumns = createColumns.filter((c) => c.name.trim());
@@ -92,6 +161,11 @@ export function ExtractionMatrix({
         })),
       });
       await fetchMatrix(result.id);
+
+      // Start polling if auto-extraction was triggered
+      if (result.extraction_task_id) {
+        setAutoExtractionTaskId(result.extraction_task_id);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create matrix');
     } finally {
@@ -129,6 +203,58 @@ export function ExtractionMatrix({
       setError(err instanceof Error ? err.message : 'Failed to delete matrix');
     } finally {
       setDeleting(false);
+    }
+  };
+
+  const handleStartEdit = () => {
+    if (!matrix) return;
+    setEditName(matrix.name);
+    setEditColumns(matrix.columns.map((c) => ({ ...c })));
+    setEditing(true);
+  };
+
+  const handleCancelEdit = () => {
+    setEditing(false);
+    setEditName('');
+    setEditColumns([]);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!matrix) return;
+
+    const validColumns = editColumns.filter((c) => c.name.trim());
+    if (!editName.trim() || validColumns.length === 0) return;
+
+    setSaving(true);
+    setError(null);
+    try {
+      const result = await updateMatrix(matrix.id, {
+        name: editName.trim(),
+        columns: validColumns.map((c) => ({
+          name: c.name.trim(),
+          description: c.description?.trim() || undefined,
+        })),
+        clear_stale_cells: true,
+      });
+
+      setEditing(false);
+      await fetchMatrix(matrix.id);
+
+      // If columns changed, auto-trigger extraction for all documents
+      if (result.columns_changed && documents.length > 0) {
+        try {
+          await triggerExtraction(matrix.id, {
+            document_ids: documents.map((d) => d.id),
+          });
+          await fetchMatrix(matrix.id);
+        } catch {
+          // Non-critical — user can manually re-extract
+        }
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update matrix');
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -249,44 +375,118 @@ export function ExtractionMatrix({
 
   return (
     <div className="space-y-4">
+      {/* Auto-extraction progress indicator */}
+      {autoExtractionTaskId && autoExtractionStatus && (
+        <div className="flex items-center gap-2 rounded-md border border-[#00d4ff]/30 bg-[#00d4ff]/5 px-4 py-2">
+          <Loader2 className="h-4 w-4 animate-spin text-[#00d4ff]" />
+          <span className="text-xs font-mono text-[#00d4ff]">
+            Extracting {autoExtractionStatus.completed}/
+            {autoExtractionStatus.total}...
+          </span>
+          {autoExtractionStatus.failed > 0 && (
+            <span className="text-xs font-mono text-red-400">
+              ({autoExtractionStatus.failed} failed)
+            </span>
+          )}
+        </div>
+      )}
+
       <div className="flex items-center justify-between rounded-lg border border-[#1a1a1a] bg-black/30 px-4 py-3">
-        <h3 className="text-sm font-mono font-bold text-[#00d4ff]">
-          {matrix.name}
-        </h3>
+        {editing ? (
+          <div className="flex-1 mr-4">
+            <Input
+              value={editName}
+              onChange={(e) => setEditName(e.target.value)}
+              className="bg-[#1a1a1a] border-[#333] text-sm font-mono text-gray-300 focus:border-[#00d4ff]"
+            />
+          </div>
+        ) : (
+          <h3 className="text-sm font-mono font-bold text-[#00d4ff]">
+            {matrix.name}
+          </h3>
+        )}
         <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            className="border-[#00ff9f]/30 text-[#00ff9f] hover:bg-[#00ff9f]/10 font-mono text-xs"
-            disabled={extracting || documents.length === 0}
-            isLoading={extracting}
-            loadingText="Extracting..."
-            onClick={handleExtract}
-          >
-            <Play className="h-3 w-3 mr-1" />
-            Extract
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            className="border-[#ffb700]/30 text-[#ffb700] hover:bg-[#ffb700]/10 font-mono text-xs"
-            onClick={handleExportCsv}
-            disabled={matrix.cells.length === 0}
-          >
-            <Download className="h-3 w-3 mr-1" />
-            Export CSV
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            className="border-red-500/30 text-red-400 hover:bg-red-500/10 font-mono text-xs"
-            onClick={() => setDeleteOpen(true)}
-          >
-            <Trash2 className="h-3 w-3 mr-1" />
-            Delete
-          </Button>
+          {editing ? (
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                className="border-[#00ff9f]/30 text-[#00ff9f] hover:bg-[#00ff9f]/10 font-mono text-xs"
+                disabled={
+                  saving ||
+                  !editName.trim() ||
+                  editColumns.filter((c) => c.name.trim()).length === 0
+                }
+                isLoading={saving}
+                loadingText="Saving..."
+                onClick={handleSaveEdit}
+              >
+                Save
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="border-[#333] text-gray-400 hover:bg-white/5 font-mono text-xs"
+                onClick={handleCancelEdit}
+                disabled={saving}
+              >
+                <X className="h-3 w-3 mr-1" />
+                Cancel
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                className="border-[#00d4ff]/30 text-[#00d4ff] hover:bg-[#00d4ff]/10 font-mono text-xs"
+                onClick={handleStartEdit}
+              >
+                <Pencil className="h-3 w-3 mr-1" />
+                Edit
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="border-[#00ff9f]/30 text-[#00ff9f] hover:bg-[#00ff9f]/10 font-mono text-xs"
+                disabled={extracting || documents.length === 0}
+                isLoading={extracting}
+                loadingText="Extracting..."
+                onClick={handleExtract}
+              >
+                <Play className="h-3 w-3 mr-1" />
+                Extract
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="border-[#ffb700]/30 text-[#ffb700] hover:bg-[#ffb700]/10 font-mono text-xs"
+                onClick={handleExportCsv}
+                disabled={matrix.cells.length === 0}
+              >
+                <Download className="h-3 w-3 mr-1" />
+                Export CSV
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="border-red-500/30 text-red-400 hover:bg-red-500/10 font-mono text-xs"
+                onClick={() => setDeleteOpen(true)}
+              >
+                <Trash2 className="h-3 w-3 mr-1" />
+                Delete
+              </Button>
+            </>
+          )}
         </div>
       </div>
+
+      {/* Column editor in edit mode */}
+      {editing && (
+        <div className="rounded-lg border border-[#1a1a1a] bg-black/30 p-4">
+          <ColumnEditor columns={editColumns} onChange={setEditColumns} />
+        </div>
+      )}
 
       <div className="rounded-lg border border-[#1a1a1a] bg-black/30 overflow-hidden">
         <Table>

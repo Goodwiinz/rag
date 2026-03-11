@@ -48,7 +48,8 @@ describe('searchService', () => {
       expect.objectContaining({
         query: 'prompt injection',
         search_type: 'hybrid',
-      })
+      }),
+      undefined
     );
   });
 
@@ -88,7 +89,8 @@ describe('searchService', () => {
       expect.objectContaining({
         query: 'prompt injection',
         search_type: 'hybrid',
-      })
+      }),
+      undefined
     );
     expect(mockApiClient.post).toHaveBeenNthCalledWith(
       2,
@@ -96,7 +98,8 @@ describe('searchService', () => {
       expect.objectContaining({
         query: 'prompt injection',
         search_type: 'fulltext',
-      })
+      }),
+      undefined
     );
   });
 

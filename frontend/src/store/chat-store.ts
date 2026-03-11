@@ -163,7 +163,6 @@ interface ChatState {
   streamingMessageId: string | null;
   streamingCitations: Array<Record<string, unknown>>;
   streamingDiagnosticsTraceId: string | null;
-  abortController: AbortController | null;
 }
 
 interface ChatActions {
@@ -377,8 +376,10 @@ const initialState: ChatState = {
   streamingMessageId: null,
   streamingCitations: [],
   streamingDiagnosticsTraceId: null,
-  abortController: null,
 };
+
+// Module-level abort controller (outside Immer state to avoid proxy issues)
+let _activeAbortController: AbortController | null = null;
 
 // ============================================================================
 // Store
@@ -1140,6 +1141,7 @@ export const useChatStore = create<ChatStore>()(
         }
 
         const controller = new AbortController();
+        _activeAbortController = controller;
 
         set((state) => {
           state.isStreaming = true;
@@ -1147,7 +1149,6 @@ export const useChatStore = create<ChatStore>()(
           state.streamingMessageId = null;
           state.streamingCitations = [];
           state.streamingDiagnosticsTraceId = null;
-          state.abortController = controller as any;
           state.error = null;
         });
 
@@ -1218,23 +1219,17 @@ export const useChatStore = create<ChatStore>()(
             state.streamingMessageId = null;
             state.streamingCitations = [];
             state.streamingDiagnosticsTraceId = null;
-            state.abortController = null;
           });
+          _activeAbortController = null;
         } finally {
-          // Only clear abortController here. Streaming display state
-          // (isStreaming, streamingContent, etc.) is cleared either by
-          // the catch block (on error) or by the caller after syncing
-          // local message state (on success).
-          set((state) => {
-            state.abortController = null;
-          });
+          _activeAbortController = null;
         }
       },
 
       stopStreaming: () => {
-        const { abortController } = get();
-        if (abortController) {
-          abortController.abort();
+        if (_activeAbortController) {
+          _activeAbortController.abort();
+          _activeAbortController = null;
         }
         set((state) => {
           state.isStreaming = false;
@@ -1242,7 +1237,6 @@ export const useChatStore = create<ChatStore>()(
           state.streamingMessageId = null;
           state.streamingCitations = [];
           state.streamingDiagnosticsTraceId = null;
-          state.abortController = null;
         });
       },
 
@@ -1321,6 +1315,10 @@ export const useChatStore = create<ChatStore>()(
         currentThreadId: state.currentThreadId,
         sidebarCollapsed: state.sidebarCollapsed,
       }),
+      onRehydrateStorage: () => () => {
+        // Reset streaming state on rehydration to prevent stale UI
+        _activeAbortController = null;
+      },
     }
   )
 );

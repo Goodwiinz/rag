@@ -11,24 +11,32 @@ import {
   TimeRange,
   TimeRangePreset,
   CustomTimeRange,
-  AnalyticsFilters
+  AnalyticsFilters,
 } from '@/types';
 import analyticsService from '@/services/analyticsService';
 
 // Type guard for CustomTimeRange
-const isCustomTimeRange = (timeRange: TimeRange): timeRange is CustomTimeRange => {
-  return typeof timeRange === 'object' && 'start' in timeRange && 'end' in timeRange;
+const isCustomTimeRange = (
+  timeRange: TimeRange
+): timeRange is CustomTimeRange => {
+  return (
+    typeof timeRange === 'object' && 'start' in timeRange && 'end' in timeRange
+  );
 };
 
 // Type guard for preset TimeRange
-const isPresetTimeRange = (timeRange: TimeRange): timeRange is TimeRangePreset => {
+const isPresetTimeRange = (
+  timeRange: TimeRange
+): timeRange is TimeRangePreset => {
   return typeof timeRange === 'string';
 };
 
 // Helper to check if timeRange is valid for queries
 const isValidTimeRange = (timeRange: TimeRange): boolean => {
-  return isPresetTimeRange(timeRange) || 
-         (isCustomTimeRange(timeRange) && !!timeRange.start && !!timeRange.end);
+  return (
+    isPresetTimeRange(timeRange) ||
+    (isCustomTimeRange(timeRange) && !!timeRange.start && !!timeRange.end)
+  );
 };
 
 // RAG Triad Metrics Hook
@@ -48,14 +56,17 @@ export const useRAGTriadMetrics = (timeRange?: TimeRange) => {
 };
 
 // Performance Analytics Hook
-export const usePerformanceAnalytics = (filters?: Partial<AnalyticsFilters>) => {
+export const usePerformanceAnalytics = (
+  filters?: Partial<AnalyticsFilters>
+) => {
   const storeFilters = useAnalyticsFilters();
   const timeRange = useTimeRange();
   const selectedFilters = { ...storeFilters, ...filters };
 
   return useQuery({
     queryKey: ['performance-analytics', selectedFilters, timeRange],
-    queryFn: () => analyticsService.getPerformanceAnalytics(selectedFilters, timeRange),
+    queryFn: () =>
+      analyticsService.getPerformanceAnalytics(selectedFilters, timeRange),
     select: (data) => ({
       ...data,
       chartData: transformDataForCharts(data),
@@ -114,7 +125,9 @@ export const useRealTimeMetrics = () => {
 
   // WebSocket for real-time updates
   React.useEffect(() => {
-    const ws = new WebSocket(`${process.env.REACT_APP_WS_URL}/analytics/metrics`);
+    const ws = new WebSocket(
+      `${process.env.NEXT_PUBLIC_WS_URL}/analytics/metrics`
+    );
 
     ws.onopen = () => {
       setRealTimeConnection(true);
@@ -130,7 +143,9 @@ export const useRealTimeMetrics = () => {
       setRealTimeConnection(false);
       // Attempt to reconnect after 5 seconds
       setTimeout(() => {
-        const newWs = new WebSocket(`${process.env.REACT_APP_WS_URL}/analytics/metrics`);
+        const newWs = new WebSocket(
+          `${process.env.NEXT_PUBLIC_WS_URL}/analytics/metrics`
+        );
         ws.onopen = newWs.onopen;
         ws.onmessage = newWs.onmessage;
         ws.onclose = newWs.onclose;
@@ -180,7 +195,11 @@ export const useExportAnalytics = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ format, filters, timeRange }: {
+    mutationFn: ({
+      format,
+      filters,
+      timeRange,
+    }: {
       format: 'csv' | 'json' | 'pdf';
       filters: AnalyticsFilters;
       timeRange: TimeRange;
@@ -196,19 +215,25 @@ export const useAnalyticsActions = () => {
   const queryClient = useQueryClient();
   const { setTimeRange, setFilters } = useAnalyticsStore();
 
-  const updateTimeRange = React.useCallback((newTimeRange: TimeRange) => {
-    setTimeRange(newTimeRange);
-    // Invalidate relevant queries when time range changes
-    queryClient.invalidateQueries({ queryKey: ['rag-triad-metrics'] });
-    queryClient.invalidateQueries({ queryKey: ['performance-analytics'] });
-    queryClient.invalidateQueries({ queryKey: ['usage-analytics'] });
-  }, [setTimeRange, queryClient]);
+  const updateTimeRange = React.useCallback(
+    (newTimeRange: TimeRange) => {
+      setTimeRange(newTimeRange);
+      // Invalidate relevant queries when time range changes
+      queryClient.invalidateQueries({ queryKey: ['rag-triad-metrics'] });
+      queryClient.invalidateQueries({ queryKey: ['performance-analytics'] });
+      queryClient.invalidateQueries({ queryKey: ['usage-analytics'] });
+    },
+    [setTimeRange, queryClient]
+  );
 
-  const updateFilters = React.useCallback((newFilters: Partial<AnalyticsFilters>) => {
-    setFilters(newFilters);
-    // Invalidate relevant queries when filters change
-    queryClient.invalidateQueries({ queryKey: ['performance-analytics'] });
-  }, [setFilters, queryClient]);
+  const updateFilters = React.useCallback(
+    (newFilters: Partial<AnalyticsFilters>) => {
+      setFilters(newFilters);
+      // Invalidate relevant queries when filters change
+      queryClient.invalidateQueries({ queryKey: ['performance-analytics'] });
+    },
+    [setFilters, queryClient]
+  );
 
   const refreshAllAnalytics = React.useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ['rag-triad-metrics'] });
@@ -253,16 +278,18 @@ const transformDataForCharts = (data: any) => {
     },
     barChartData: {
       labels: data.modalities,
-      datasets: [{
-        label: 'Queries by Modality',
-        data: data.modality_counts,
-        backgroundColor: [
-          'rgba(255, 99, 132, 0.8)',
-          'rgba(54, 162, 235, 0.8)',
-          'rgba(255, 205, 86, 0.8)',
-          'rgba(75, 192, 192, 0.8)',
-        ],
-      }],
+      datasets: [
+        {
+          label: 'Queries by Modality',
+          data: data.modality_counts,
+          backgroundColor: [
+            'rgba(255, 99, 132, 0.8)',
+            'rgba(54, 162, 235, 0.8)',
+            'rgba(255, 205, 86, 0.8)',
+            'rgba(75, 192, 192, 0.8)',
+          ],
+        },
+      ],
     },
   };
 };
@@ -272,11 +299,15 @@ const calculateTrends = (data: any) => {
   return {
     answer_relevancy_trend: calculateTrend(data.answer_relevancy_history),
     faithfulness_trend: calculateTrend(data.faithfulness_history),
-    contextual_relevancy_trend: calculateTrend(data.contextual_relevancy_history),
+    contextual_relevancy_trend: calculateTrend(
+      data.contextual_relevancy_history
+    ),
   };
 };
 
-const calculateTrend = (values: number[]): { direction: 'up' | 'down' | 'stable'; value: number } => {
+const calculateTrend = (
+  values: number[]
+): { direction: 'up' | 'down' | 'stable'; value: number } => {
   if (values.length < 2) return { direction: 'stable', value: 0 };
 
   const recent = values.slice(-7); // Last 7 data points
@@ -300,9 +331,12 @@ const calculateTrend = (values: number[]): { direction: 'up' | 'down' | 'stable'
   return { direction, value: Math.abs(change) };
 };
 
-const analyzeQueryPatterns = (topQueries: Array<{ query: string; frequency: number }>) => {
+const analyzeQueryPatterns = (
+  topQueries: Array<{ query: string; frequency: number }>
+) => {
   // Analyze query patterns for insights
-  const avgQueryLength = topQueries.reduce((sum, q) => sum + q.query.length, 0) / topQueries.length;
+  const avgQueryLength =
+    topQueries.reduce((sum, q) => sum + q.query.length, 0) / topQueries.length;
   const totalFrequency = topQueries.reduce((sum, q) => sum + q.frequency, 0);
 
   return {
@@ -313,27 +347,39 @@ const analyzeQueryPatterns = (topQueries: Array<{ query: string; frequency: numb
   };
 };
 
-const categorizeQueries = (queries: Array<{ query: string; frequency: number }>) => {
+const categorizeQueries = (
+  queries: Array<{ query: string; frequency: number }>
+) => {
   // Simple categorization based on keywords
-  const categories: Record<string, Array<{ query: string; frequency: number }>> = {
+  const categories: Record<
+    string,
+    Array<{ query: string; frequency: number }>
+  > = {
     'General Inquiry': [],
     'Technical Documentation': [],
     'Code Examples': [],
     'Best Practices': [],
-    'Troubleshooting': [],
+    Troubleshooting: [],
   };
 
   queries.forEach(({ query, frequency }) => {
     const lowerQuery = query.toLowerCase();
     if (lowerQuery.includes('how to') || lowerQuery.includes('what is')) {
       categories['General Inquiry']!.push({ query, frequency });
-    } else if (lowerQuery.includes('documentation') || lowerQuery.includes('api')) {
+    } else if (
+      lowerQuery.includes('documentation') ||
+      lowerQuery.includes('api')
+    ) {
       categories['Technical Documentation']!.push({ query, frequency });
     } else if (lowerQuery.includes('code') || lowerQuery.includes('example')) {
       categories['Code Examples']!.push({ query, frequency });
     } else if (lowerQuery.includes('best') || lowerQuery.includes('practice')) {
       categories['Best Practices']!.push({ query, frequency });
-    } else if (lowerQuery.includes('error') || lowerQuery.includes('issue') || lowerQuery.includes('problem')) {
+    } else if (
+      lowerQuery.includes('error') ||
+      lowerQuery.includes('issue') ||
+      lowerQuery.includes('problem')
+    ) {
       categories['Troubleshooting']!.push({ query, frequency });
     }
   });
@@ -347,9 +393,9 @@ const generateUsageHeatmap = (searchPatterns: any) => {
   const heatmapData = [];
 
   for (let hour = 0; hour < 24; hour++) {
-    const intensity = peak_usage_hours.includes(hour) ?
-      Math.random() * 0.5 + 0.5 :
-      Math.random() * 0.3 + 0.1;
+    const intensity = peak_usage_hours.includes(hour)
+      ? Math.random() * 0.5 + 0.5
+      : Math.random() * 0.3 + 0.1;
     heatmapData.push({
       hour,
       intensity,
@@ -363,13 +409,15 @@ const generateUsageHeatmap = (searchPatterns: any) => {
 const formatTrendData = (data: any) => {
   return {
     labels: data.timestamps,
-    datasets: [{
-      label: data.metric_name,
-      data: data.values,
-      borderColor: 'rgb(75, 192, 192)',
-      backgroundColor: 'rgba(75, 192, 192, 0.2)',
-      tension: 0.1,
-    }],
+    datasets: [
+      {
+        label: data.metric_name,
+        data: data.values,
+        borderColor: 'rgb(75, 192, 192)',
+        backgroundColor: 'rgba(75, 192, 192, 0.2)',
+        tension: 0.1,
+      },
+    ],
   };
 };
 
@@ -378,7 +426,8 @@ const calculateTrendSummary = (data: any) => {
   const latest = values[values.length - 1];
   const earliest = values[0];
   const change = ((latest - earliest) / earliest) * 100;
-  const average = values.reduce((a: number, b: number) => a + b, 0) / values.length;
+  const average =
+    values.reduce((a: number, b: number) => a + b, 0) / values.length;
   const max = Math.max(...values);
   const min = Math.min(...values);
 
@@ -393,7 +442,9 @@ const calculateTrendSummary = (data: any) => {
 
 const formatComparisonData = (data: any) => {
   return {
-    labels: data.time_ranges.map((range: any, index: number) => `Period ${index + 1}`),
+    labels: data.time_ranges.map(
+      (range: any, index: number) => `Period ${index + 1}`
+    ),
     datasets: [
       {
         label: 'Answer Relevancy',
@@ -419,11 +470,19 @@ const generateComparisonInsights = (data: any) => {
   const insights = [];
 
   // Compare performance across periods
-  const bestPerforming = data.time_ranges.reduce((best: any, current: any, index: number) => {
-    const currentScore = current.answer_relevancy + current.faithfulness + current.contextual_relevancy;
-    const bestScore = best.score || 0;
-    return currentScore > bestScore ? { ...current, index, score: currentScore } : best;
-  }, {});
+  const bestPerforming = data.time_ranges.reduce(
+    (best: any, current: any, index: number) => {
+      const currentScore =
+        current.answer_relevancy +
+        current.faithfulness +
+        current.contextual_relevancy;
+      const bestScore = best.score || 0;
+      return currentScore > bestScore
+        ? { ...current, index, score: currentScore }
+        : best;
+    },
+    {}
+  );
 
   insights.push({
     type: 'performance',

@@ -126,7 +126,7 @@ class HybridSearchService:
 
             # Apply final filtering and pagination
             final_results = self._apply_final_filtering(
-                fused_results, search_request, organization_id
+                fused_results, search_request, organization_id, db=db
             )
 
             # Create response
@@ -329,7 +329,7 @@ class HybridSearchService:
 
             # Step 5: Final filtering
             final_results = self._apply_final_filtering(
-                fused_results, search_request, organization_id
+                fused_results, search_request, organization_id, db=db
             )
 
             search_time_ms = (time.time() - start_time) * 1000
@@ -598,9 +598,16 @@ class HybridSearchService:
                 result_metadata.setdefault("source_type", "vector")
 
                 # Create SearchResult from VectorSearchResult
+                # Prefer actual document title from metadata over raw chunk text
+                vector_title = (
+                    result_metadata.get("document_title")
+                    or result_metadata.get("title")
+                    or result_metadata.get("filename")
+                    or "Untitled"
+                )
                 search_result = SearchResult(
                     document_id=result.metadata.document_id,
-                    title=result.text[:100],  # Use text as title preview
+                    title=vector_title,
                     document_type=DocumentType.TEXT,  # Default type
                     content_preview=full_text[:300],
                     snippets=[],
@@ -765,6 +772,9 @@ class HybridSearchService:
                         "search_result": result.search_result,
                         "boost_factors": {},
                     }
+                elif result.search_result and source_type == SearchSourceType.FULLTEXT:
+                    # Prefer fulltext search_result (has proper document titles from DB)
+                    all_results[document_id]["search_result"] = result.search_result
 
                 # Add source-specific score
                 weight = self._get_source_weight(
@@ -1011,6 +1021,7 @@ class HybridSearchService:
         fused_results: List[RawSearchResult],
         search_request: SearchQuery,
         organization_id: str,
+        db: Session = None,
     ) -> List[SearchResult]:
         """Apply final filtering and pagination to fused results"""
         selected_document_ids = (
@@ -1055,7 +1066,39 @@ class HybridSearchService:
                 result.search_result.metadata.update(result.metadata)
                 final_results.append(result.search_result)
 
+        # Enrich titles for results that still have placeholder titles
+        if db and final_results:
+            self._enrich_titles_from_db(final_results, db)
+
         return final_results
+
+    def _enrich_titles_from_db(
+        self, results: List[SearchResult], db: Session
+    ) -> None:
+        """Look up actual document titles from DB for results with placeholder titles."""
+        try:
+            ids_needing_titles = [
+                r.document_id
+                for r in results
+                if r.title in ("Untitled", "Untitled Document", "")
+                or len(r.title) > 80
+            ]
+            if not ids_needing_titles:
+                return
+
+            from sqlalchemy import text
+
+            rows = db.execute(
+                text("SELECT id::text, title FROM documents WHERE id = ANY(:ids)"),
+                {"ids": ids_needing_titles},
+            ).fetchall()
+            title_map = {row[0]: row[1] for row in rows if row[1]}
+
+            for result in results:
+                if result.document_id in title_map:
+                    result.title = title_map[result.document_id]
+        except Exception as e:
+            logger.warning(f"Failed to enrich titles from DB: {e}")
 
     def _is_noisy_result(self, result: RawSearchResult) -> bool:
         """Filter out known noisy synthetic verification strings from retrieval results."""

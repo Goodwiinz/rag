@@ -1,9 +1,12 @@
 'use client';
 
 import { cn } from '@/lib/utils';
-import type { Citation } from '@/utils/citationParser';
-import { Check, Copy, RefreshCw } from 'lucide-react';
-import { useState } from 'react';
+import {
+  getReferencedCitations,
+  type Citation,
+} from '@/utils/citationParser';
+import { Activity, Check, Copy, RefreshCw } from 'lucide-react';
+import { useMemo, useState } from 'react';
 import { CitationRenderer } from '../CitationRenderer';
 
 export interface TerminalChatBubbleMessage {
@@ -48,10 +51,21 @@ export function TerminalChatBubble({
     : '--:--';
 
   const handleCopy = async () => {
-    await navigator.clipboard.writeText(message.content);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    try {
+      const textToCopy = streamingContent || message.content;
+      if (!textToCopy) return;
+      await navigator.clipboard.writeText(textToCopy);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // clipboard access denied or page unfocused
+    }
   };
+
+  const visibleCitations = useMemo(
+    () => getReferencedCitations(message.content, message.citations ?? []),
+    [message.content, message.citations]
+  );
 
   return (
     <div
@@ -80,7 +94,11 @@ export function TerminalChatBubble({
           <>
             <div className="rounded border border-[var(--terminal-border)] bg-[var(--terminal-surface)] px-2 py-0.5">
               <span className="text-[10px] font-bold text-[var(--phosphor-green)]">
-                {isTyping || isStreaming ? 'STREAMING' : 'RECEIVED'}
+                {isStreaming
+                  ? 'STREAMING'
+                  : isTyping
+                    ? 'PROCESSING'
+                    : 'RECEIVED'}
               </span>
             </div>
             {modelName && (
@@ -106,6 +124,7 @@ export function TerminalChatBubble({
                 ? 'text-[var(--phosphor-green)]'
                 : 'text-[var(--terminal-text-dim)] hover:text-[var(--terminal-text)]'
             )}
+            aria-label={copied ? 'Copied!' : 'Copy message'}
             title={copied ? 'Copied!' : 'Copy message'}
           >
             {copied ? (
@@ -118,6 +137,7 @@ export function TerminalChatBubble({
             <button
               onClick={onRetry}
               className="rounded border border-transparent p-1 text-[var(--terminal-text-dim)] transition-all hover:border-[var(--terminal-border)] hover:bg-[var(--terminal-elevated)] hover:text-[var(--terminal-text)]"
+              aria-label="Retry"
               title="Retry"
             >
               <RefreshCw className="h-3.5 w-3.5" />
@@ -158,6 +178,29 @@ export function TerminalChatBubble({
                 data-testid="streaming-cursor"
               />
             </div>
+          ) : isTyping && !message.content ? (
+            <div
+              className="flex items-center gap-3 text-sm text-[var(--phosphor-green)]"
+              style={{ fontFamily: "'JetBrains Mono', monospace" }}
+            >
+              <div className="flex items-center gap-1.5">
+                <span
+                  className="h-1 w-1 animate-bounce rounded-full bg-[var(--phosphor-green)]"
+                  style={{ animationDelay: '0ms' }}
+                />
+                <span
+                  className="h-1 w-1 animate-bounce rounded-full bg-[var(--phosphor-green)]"
+                  style={{ animationDelay: '150ms' }}
+                />
+                <span
+                  className="h-1 w-1 animate-bounce rounded-full bg-[var(--phosphor-green)]"
+                  style={{ animationDelay: '300ms' }}
+                />
+              </div>
+              <span className="text-[10px] uppercase tracking-wider opacity-70">
+                Processing...
+              </span>
+            </div>
           ) : (
             <div
               className={cn(
@@ -173,8 +216,8 @@ export function TerminalChatBubble({
                   content={message.content}
                   citations={message.citations as Citation[]}
                   onCitationClick={(citation) => {
-                    if (onCitationClick && message.citations) {
-                      onCitationClick(message.citations as Citation[], citation);
+                    if (onCitationClick) {
+                      onCitationClick(visibleCitations, citation);
                     }
                   }}
                 />
@@ -183,16 +226,16 @@ export function TerminalChatBubble({
           )}
         </div>
 
-        {!isUser && message.citations && message.citations.length > 0 && (
+        {!isUser && visibleCitations.length > 0 && (
           <div className="relative border-t border-[var(--terminal-border)] bg-[var(--terminal-bg)]/30 p-3">
             <div className="flex flex-wrap items-center gap-2">
-              {message.citations.map((citation, idx) => (
+              {visibleCitations.map((citation, idx) => (
                 <button
                   key={idx}
                   type="button"
                   onClick={() => {
-                    if (onCitationClick && message.citations) {
-                      onCitationClick(message.citations as Citation[], citation);
+                    if (onCitationClick) {
+                      onCitationClick(visibleCitations, citation);
                     }
                   }}
                   className="group/citation flex items-center gap-2 rounded border border-[var(--terminal-border)] bg-[var(--terminal-surface)] px-2.5 py-1.5 text-[10px] transition-all hover:border-[var(--phosphor-green)]/40 hover:bg-[var(--terminal-elevated)]"
@@ -207,6 +250,17 @@ export function TerminalChatBubble({
                   </span>
                 </button>
               ))}
+              {message.diagnosticsTraceId && (
+                <a
+                  href={`/diagnostics?trace=${encodeURIComponent(message.diagnosticsTraceId)}`}
+                  className="ml-auto flex items-center gap-1 rounded border border-[var(--terminal-border)] bg-[var(--terminal-surface)] px-2 py-1 text-[9px] text-[var(--cyan-pulse)] transition-all hover:border-[var(--cyan-pulse)]/40 hover:bg-[var(--terminal-elevated)]"
+                  style={{ fontFamily: "'JetBrains Mono', monospace" }}
+                  title="View retrieval diagnostics"
+                >
+                  <Activity className="h-3 w-3" />
+                  <span>DIAG</span>
+                </a>
+              )}
             </div>
           </div>
         )}

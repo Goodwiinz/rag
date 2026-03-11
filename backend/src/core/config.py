@@ -9,7 +9,7 @@ import os
 import secrets
 from typing import Dict, List, Optional
 
-from pydantic import field_validator
+from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings
 
 
@@ -73,6 +73,14 @@ class Settings(BaseSettings):
     DATABASE_URL: str = (
         "postgresql://postgres:postgres@localhost:5432/multimodal_rag_dev"
     )
+
+    # Supabase
+    SUPABASE_URL: str = "http://localhost:54321"
+    SUPABASE_ANON_KEY: str = ""
+    SUPABASE_SERVICE_ROLE_KEY: str = ""
+    SUPABASE_DB_URL: str = ""  # If set, overrides DATABASE_URL for Supabase connection
+    SUPABASE_JWT_SECRET: str = ""  # Supabase JWT secret for verifying auth tokens
+
     REDIS_URL: str = "redis://localhost:6379"
 
     # Neo4j Configuration
@@ -91,6 +99,13 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7  # Default refresh token lifetime
     REMEMBER_ME_REFRESH_TOKEN_DAYS: int = 30  # Extended session for "Remember Me"
+
+    @model_validator(mode="after")
+    def _override_database_url_from_supabase(self):
+        """Override DATABASE_URL when SUPABASE_DB_URL is set."""
+        if self.SUPABASE_DB_URL:
+            self.DATABASE_URL = self.SUPABASE_DB_URL
+        return self
 
     @field_validator("SECRET_KEY", mode="before")
     @classmethod
@@ -165,6 +180,10 @@ class Settings(BaseSettings):
     UPLOAD_DIR: str = "./uploads"
     MAX_FILE_SIZE_MB: int = 10
     FREE_TIER_STORAGE_GB: int = 10
+
+    # Supabase Storage
+    SUPABASE_STORAGE_ENABLED: bool = False
+    SUPABASE_STORAGE_TEMP_DIR: str = "/tmp/rag_storage"
 
     # Security directories
     SECURITY_DIR: str = "./security"  # Directory for encryption keys and security files
