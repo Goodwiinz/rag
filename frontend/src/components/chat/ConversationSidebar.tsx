@@ -2,6 +2,7 @@
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { IconButtonSm } from '@/components/ui/icon-button';
 import { DeleteConfirmDialog } from '@/components/ui/confirm-dialog';
 import {
     Dialog,
@@ -491,14 +492,12 @@ export function ConversationSidebar({
               {newTags.map((tag, idx) => (
                 <Badge key={idx} variant="secondary" className="pr-1">
                   {tag}
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-4 w-4 p-0 ml-1 hover:bg-transparent"
+                  <IconButtonSm
+                    icon={<X className="w-3 h-3" />}
+                    label="Remove tag"
                     onClick={() => setNewTags(newTags.filter(t => t !== tag))}
-                  >
-                    <X className="w-3 h-3" />
-                  </Button>
+                    className="h-4 w-4 ml-1 hover:bg-transparent"
+                  />
                 </Badge>
               ))}
             </div>

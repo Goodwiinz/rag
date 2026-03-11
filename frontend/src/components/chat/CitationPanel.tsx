@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { IconButton } from '@/components/ui/icon-button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { THEME } from '@/theme/constants';
@@ -134,14 +135,12 @@ export function CitationPanel({
                 {citations.length}
               </Badge>
             </div>
-            <Button
-              variant="ghost"
-              size="sm"
+            <IconButton
+              icon={<X className="w-4 h-4" />}
+              label="Close citations panel"
               onClick={onClose}
-              className="h-8 w-8 p-0 text-gray-500 hover:text-white hover:bg-[#1a1a1a]"
-            >
-              <X className="w-4 h-4" />
-            </Button>
+              className="h-8 w-8 text-gray-500 hover:text-white hover:bg-[#1a1a1a]"
+            />
           </div>
 
           {/* Search and Sort */}

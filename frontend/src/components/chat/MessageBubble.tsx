@@ -7,6 +7,7 @@ import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { IconButton, IconButtonSm } from '@/components/ui/icon-button';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -14,7 +15,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card';
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from '@/components/ui/hover-card';
 import { cn } from '@/lib/utils';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
@@ -113,34 +118,34 @@ export function MessageBubble({
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0 }}
       className={cn(
-        "group relative flex gap-3 mb-6",
-        isUser && "flex-row-reverse",
+        'group relative flex gap-3 mb-6',
+        isUser && 'flex-row-reverse',
         className
       )}
     >
       {/* Avatar */}
       <Avatar className="w-8 h-8 shrink-0">
-        <AvatarFallback className={cn(
-          "text-xs font-medium transition-colors",
-          isUser
-            ? "bg-gradient-to-br from-[#ffb700] to-[#cc9200] text-[#0a0a0f]"
-            : "bg-gradient-to-br from-[#00ff9f] to-[#00cc7a] text-[#0a0a0f]"
-        )}>
-          {isUser ? (
-            <User className="w-4 h-4" />
-          ) : (
-            <Bot className="w-4 h-4" />
+        <AvatarFallback
+          className={cn(
+            'text-xs font-medium transition-colors',
+            isUser
+              ? 'bg-gradient-to-br from-[#ffb700] to-[#cc9200] text-[#0a0a0f]'
+              : 'bg-gradient-to-br from-[#00ff9f] to-[#00cc7a] text-[#0a0a0f]'
           )}
+        >
+          {isUser ? <User className="w-4 h-4" /> : <Bot className="w-4 h-4" />}
         </AvatarFallback>
       </Avatar>
 
       {/* Message Content */}
-      <div className={cn("flex-1 space-y-2 min-w-0", isUser && "items-end")}>
+      <div className={cn('flex-1 space-y-2 min-w-0', isUser && 'items-end')}>
         {/* Header */}
-        <div className={cn(
-          "flex items-center gap-2",
-          isUser ? "justify-end" : "justify-start"
-        )}>
+        <div
+          className={cn(
+            'flex items-center gap-2',
+            isUser ? 'justify-end' : 'justify-start'
+          )}
+        >
           <span className="text-xs font-medium text-muted-foreground">
             {isUser ? 'You' : 'Assistant'}
           </span>
@@ -157,7 +162,9 @@ export function MessageBubble({
                 <div className="space-y-2">
                   {modelInfo.responseTime && (
                     <div className="flex items-center justify-between text-xs">
-                      <span className="text-muted-foreground">Response time</span>
+                      <span className="text-muted-foreground">
+                        Response time
+                      </span>
                       <span>{(modelInfo.responseTime / 1000).toFixed(2)}s</span>
                     </div>
                   )}
@@ -181,26 +188,40 @@ export function MessageBubble({
         </div>
 
         {/* Message Bubble */}
-        <div className={cn(
-          "relative rounded-2xl px-4 py-3 shadow-sm transition-all hover:shadow-md",
-          isUser
-            ? "bg-gradient-to-br from-[#ffb700] to-[#cc9200] text-[#0a0a0f] ml-auto max-w-[80%] shadow-[0_0_15px_rgba(255,183,0,0.15)]"
-            : "bg-[#12121a] border border-[#1a1a28] max-w-[90%] hover:border-[#00ff9f]/30"
-        )}>
+        <div
+          className={cn(
+            'relative rounded-2xl px-4 py-3 shadow-sm transition-all hover:shadow-md',
+            isUser
+              ? 'bg-gradient-to-br from-[#ffb700] to-[#cc9200] text-[#0a0a0f] ml-auto max-w-[80%] shadow-[0_0_15px_rgba(255,183,0,0.15)]'
+              : 'bg-[#12121a] border border-[#1a1a28] max-w-[90%] hover:border-[#00ff9f]/30'
+          )}
+        >
           {isTyping ? (
             <div className="flex items-center gap-1">
               <span className="w-2 h-2 bg-current rounded-full animate-bounce opacity-60" />
-              <span className="w-2 h-2 bg-current rounded-full animate-bounce opacity-60" style={{ animationDelay: '0.2s' }} />
-              <span className="w-2 h-2 bg-current rounded-full animate-bounce opacity-60" style={{ animationDelay: '0.4s' }} />
-              <span className="text-xs ml-2 opacity-70">Assistant is typing</span>
+              <span
+                className="w-2 h-2 bg-current rounded-full animate-bounce opacity-60"
+                style={{ animationDelay: '0.2s' }}
+              />
+              <span
+                className="w-2 h-2 bg-current rounded-full animate-bounce opacity-60"
+                style={{ animationDelay: '0.4s' }}
+              />
+              <span className="text-xs ml-2 opacity-70">
+                Assistant is typing
+              </span>
             </div>
           ) : (
-            <div className={cn(
-              "text-sm leading-relaxed",
-              isUser ? "text-white" : "text-foreground"
-            )}>
+            <div
+              className={cn(
+                'text-sm leading-relaxed',
+                isUser ? 'text-white' : 'text-foreground'
+              )}
+            >
               {isUser ? (
-                <p className="whitespace-pre-wrap break-words">{message.content}</p>
+                <p className="whitespace-pre-wrap break-words">
+                  {message.content}
+                </p>
               ) : (
                 <ReactMarkdown
                   components={{
@@ -220,14 +241,20 @@ export function MessageBubble({
                               size="sm"
                               variant="ghost"
                               className="h-6 px-2 opacity-0 group-hover:opacity-100 transition-opacity"
-                              onClick={() => navigator.clipboard.writeText(String(children).replace(/\n$/, ''))}
+                              onClick={() =>
+                                navigator.clipboard.writeText(
+                                  String(children).replace(/\n$/, '')
+                                )
+                              }
                               aria-label="Copy code to clipboard"
                             >
                               <Copy className="w-3 h-3" />
                             </Button>
                           </div>
                           <SyntaxHighlighter
-                            style={oneDark as { [key: string]: React.CSSProperties }}
+                            style={
+                              oneDark as { [key: string]: React.CSSProperties }
+                            }
                             language={language}
                             PreTag="div"
                             className="!mt-0 !rounded-t-none"
@@ -238,8 +265,8 @@ export function MessageBubble({
                       ) : (
                         <code
                           className={cn(
-                            "rounded-md bg-muted px-1.5 py-0.5 text-xs font-mono",
-                            !isInline && "block"
+                            'rounded-md bg-muted px-1.5 py-0.5 text-xs font-mono',
+                            !isInline && 'block'
                           )}
                           {...props}
                         >
@@ -290,11 +317,13 @@ export function MessageBubble({
 
         {/* Action Buttons */}
         {!isTyping && (
-          <div className={cn(
-            "flex items-center gap-1 transition-all",
-            isUser ? "justify-end" : "justify-start",
-            "opacity-0 group-hover:opacity-100"
-          )}>
+          <div
+            className={cn(
+              'flex items-center gap-1 transition-all',
+              isUser ? 'justify-end' : 'justify-start',
+              'opacity-0 group-hover:opacity-100'
+            )}
+          >
             <Button
               variant="ghost"
               size="sm"
@@ -332,8 +361,8 @@ export function MessageBubble({
                   variant={reaction === 'like' ? 'secondary' : 'ghost'}
                   size="sm"
                   className={cn(
-                    "h-7 px-2 text-xs",
-                    reaction === 'like' && "text-[#00ff9f]"
+                    'h-7 px-2 text-xs',
+                    reaction === 'like' && 'text-[#00ff9f]'
                   )}
                   onClick={() => onReaction('like')}
                 >
@@ -344,8 +373,8 @@ export function MessageBubble({
                   variant={reaction === 'dislike' ? 'secondary' : 'ghost'}
                   size="sm"
                   className={cn(
-                    "h-7 px-2 text-xs",
-                    reaction === 'dislike' && "text-red-600"
+                    'h-7 px-2 text-xs',
+                    reaction === 'dislike' && 'text-red-600'
                   )}
                   onClick={() => onReaction('dislike')}
                 >
@@ -358,17 +387,21 @@ export function MessageBubble({
             {!isUser && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="sm" className="h-7 w-7 p-0" aria-label="More options">
-                    <MoreVertical className="w-3 h-3" />
-                  </Button>
+                  <IconButtonSm
+                    icon={<MoreVertical className="w-3 h-3" />}
+                    label="More actions"
+                    className="h-7 w-7"
+                  />
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align={isUser ? 'end' : 'start'}>
                   {onBookmark && (
                     <DropdownMenuItem onClick={onBookmark}>
-                      <Bookmark className={cn(
-                        "w-4 h-4 mr-2",
-                        isBookmarked && "fill-current text-[#ffb700]"
-                      )} />
+                      <Bookmark
+                        className={cn(
+                          'w-4 h-4 mr-2',
+                          isBookmarked && 'fill-current text-[#ffb700]'
+                        )}
+                      />
                       {isBookmarked ? 'Remove bookmark' : 'Bookmark'}
                     </DropdownMenuItem>
                   )}
