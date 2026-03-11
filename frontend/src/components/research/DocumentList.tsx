@@ -211,6 +211,7 @@ export function DocumentList({
             size="sm"
             onClick={() => setSelectedIds(new Set())}
             className="text-muted-foreground hover:text-foreground text-xs"
+            aria-label="Clear selection"
           >
             Clear
           </Button>
@@ -219,6 +220,7 @@ export function DocumentList({
             size="sm"
             onClick={handleBulkRemove}
             className="text-destructive hover:text-destructive hover:bg-destructive/10 text-xs"
+            aria-label={`Remove ${selectedIds.size} selected document${selectedIds.size !== 1 ? 's' : ''}`}
           >
             <Trash2 className="h-3.5 w-3.5 mr-1.5" />
             Remove
