@@ -54,7 +54,17 @@ export function ProjectChatWidget({
           role="dialog"
           aria-label="Project chat panel"
         >
-          <ChatPanel onClose={widget.close} />
+          <ChatPanel
+            messages={widget.messages}
+            contextChips={widget.contextChips}
+            isStreaming={widget.isStreaming}
+            inputValue={widget.inputValue}
+            onInputChange={widget.setInputValue}
+            onSend={() => void widget.sendMessage()}
+            onToggleChip={widget.toggleChip}
+            onClear={widget.clearMessages}
+            onClose={widget.close}
+          />
         </div>
       )}
 
