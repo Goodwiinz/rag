@@ -218,7 +218,6 @@ class AuthService:
         first_name: str,
         last_name: str,
         organization_name: str = None,
-        organization_id: str = None,
         role: UserRole = UserRole.USER,
     ) -> User:
         """Register a new user"""
@@ -238,22 +237,7 @@ class AuthService:
             )
 
         # Handle organization
-        if organization_id:
-            # Join existing organization
-            stmt = select(Organization).where(
-                and_(
-                    Organization.id == organization_id,
-                    Organization.is_active == True,
-                    Organization.is_deleted == False,
-                )
-            )
-            result = await self.db.execute(stmt)
-            organization = result.scalar_one_or_none()
-
-            if not organization:
-                raise RegistrationError("Organization not found")
-
-        elif organization_name:
+        if organization_name:
             # Check if organization already exists
             stmt = select(Organization).where(
                 and_(
@@ -285,7 +269,7 @@ class AuthService:
 
         else:
             raise RegistrationError(
-                "Either organization_name or organization_id must be provided"
+                "organization_name must be provided"
             )
 
         # Create user
