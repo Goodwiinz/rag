@@ -21,8 +21,8 @@ importers:
         specifier: ^17.2.0
         version: 17.2.1
       critters:
-        specifier: ^0.0.25
-        version: 0.0.25
+        specifier: ^0.0.23
+        version: 0.0.23
       nanoid:
         specifier: ^5.1.6
         version: 5.1.6
@@ -752,9 +752,8 @@ packages:
       typescript:
         optional: true
 
-  critters@0.0.25:
-    resolution: {integrity: sha512-ROF/tjJyyRdM8/6W0VqoN5Ql05xAGnkf5b7f3sTEl1bI5jTQQf8O918RD/V9tEb9pRY/TKcvJekDbJtniHyPtQ==}
-    deprecated: Ownership of Critters has moved to the Nuxt team, who will be maintaining the project going forward. If you'd like to keep using Critters, please switch to the actively-maintained fork at https://github.com/danielroe/beasties
+  critters@0.0.23:
+    resolution: {integrity: sha512-/MCsQbuzTPA/ZTOjjyr2Na5o3lRpr8vd0MZE8tMP0OBNg/VrLxWHteVKalQ8KR+fBmUadbJLdoyEz9sT+q84qg==}
 
   cross-spawn@7.0.6:
     resolution: {integrity: sha512-uV2QOWP2nWzsy2aMp8aRibhi9dlzF5Hgh5SHaB9OiTGEyDTiJJyx0uy51QXdyWbtAHNua4XJzUKca3OzKUd3vA==}
@@ -2466,7 +2465,7 @@ snapshots:
       js-yaml: 4.1.1
       parse-json: 5.2.0
 
-  critters@0.0.25:
+  critters@0.0.23:
     dependencies:
       chalk: 4.1.2
       css-select: 5.2.2
