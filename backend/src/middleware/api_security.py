@@ -201,7 +201,7 @@ class APISecurityMiddleware(BaseHTTPMiddleware):
         forwarded_for = request.headers.get("X-Forwarded-For")
         if forwarded_for:
             # Get the original IP (first in the list)
-            return forwarded_for.split(",")[0].strip()
+            return forwarded_for.split(",")[-1].strip()
 
         real_ip = request.headers.get("X-Real-IP")
         if real_ip:
