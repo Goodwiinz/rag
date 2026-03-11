@@ -433,6 +433,7 @@ async def http_exception_handler(request: Request, exc: HTTPException):
                 "type": "http_error",
             }
         },
+        headers=dict(exc.headers) if exc.headers else None,
     )
 
 

@@ -34,3 +34,8 @@ if (typeof globalWithPolyfills.PerformanceObserver === 'undefined') {
 
 // Helpful jest mocks
 // next/navigation and next/router mocks can be added here if needed
+
+// Mock NEXT_PUBLIC_SUPABASE_ANON_KEY to prevent errors during test initialization
+// This ensures that `getSupabaseClient` in production properly errors on empty keys,
+// but the test suite does not fail out-of-the-box.
+process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = 'mock-anon-key-for-tests';

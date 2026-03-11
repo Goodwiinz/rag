@@ -15,7 +15,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.core.config import settings
 from src.core.database import get_db
 from src.core.dependencies import get_current_user, is_self_or_admin, require_admin
-from src.core.security import auth_rate_limiter, get_client_ip
+from src.core.security import (
+    auth_rate_limiter,
+    extract_refresh_token_user_id,
+    get_client_ip,
+    get_current_user_token,
+)
 from src.models.user import User, UserRole
 from src.services.security.auth_service import (
     AuthenticationError,
@@ -176,17 +181,46 @@ async def login(
 @router.post("/refresh", response_model=dict)
 async def refresh_token(
     token_request: RefreshTokenRequest,
+    request: Request,
     auth_service: AuthService = Depends(get_auth_service),
 ):
     """Refresh access token"""
+    client_ip = get_client_ip(request)
+
+    # IP-layer rate check (read-only)
+    ip_allowed, ip_retry = await auth_rate_limiter.check_rate_limit(client_ip, prefix="refresh_ip")
+    if not ip_allowed:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many refresh attempts. Please try again later.",
+            headers={"Retry-After": str(ip_retry)},
+        )
+
+    # User-layer rate check (read-only)
+    user_id = extract_refresh_token_user_id(token_request.refresh_token)
+    if user_id:
+        user_allowed, user_retry = await auth_rate_limiter.check_rate_limit(user_id, prefix="refresh_user")
+        if not user_allowed:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Too many refresh attempts for this account. Please try again later.",
+                headers={"Retry-After": str(user_retry)},
+            )
+
     try:
         token_data = await auth_service.refresh_access_token(
             refresh_token=token_request.refresh_token
         )
 
+        # Success: no recording — legitimate refreshes don't consume quota
         return token_data
 
     except Exception as e:
+        # Failure: record attempts for both layers
+        await auth_rate_limiter.record_attempt(client_ip, prefix="refresh_ip")
+        if user_id:
+            await auth_rate_limiter.record_attempt(user_id, prefix="refresh_user")
+
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=str(e),
@@ -241,10 +275,37 @@ async def update_profile(
 @router.post("/change-password")
 async def change_password(
     password_data: PasswordChange,
-    current_user: User = Depends(get_current_user),
+    request: Request,
+    token_data=Depends(get_current_user_token),
+    db: AsyncSession = Depends(get_db),
     auth_service: AuthService = Depends(get_auth_service),
 ):
     """Change user password"""
+    client_ip = get_client_ip(request)
+
+    # IP-layer rate check first (before auth DB query)
+    ip_allowed, ip_retry = await auth_rate_limiter.check_rate_limit(client_ip, prefix="chpw_ip")
+    if not ip_allowed:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many password change attempts from this IP. Please try again later.",
+            headers={"Retry-After": str(ip_retry)},
+        )
+
+    # Resolve authenticated user manually (after rate check)
+    current_user = await get_current_user(token_data=token_data, db=db)
+
+    # Email-layer rate check
+    email_allowed, email_retry = await auth_rate_limiter.check_rate_limit(
+        current_user.email, prefix="chpw_email"
+    )
+    if not email_allowed:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many password change attempts for this account. Please try again later.",
+            headers={"Retry-After": str(email_retry)},
+        )
+
     try:
         await auth_service.change_password(
             user=current_user,
@@ -252,9 +313,14 @@ async def change_password(
             new_password=password_data.new_password,
         )
 
+        # Success: no recording
         return {"message": "Password changed successfully"}
 
     except Exception as e:
+        # Failure: record attempts for both layers
+        await auth_rate_limiter.record_attempt(client_ip, prefix="chpw_ip")
+        await auth_rate_limiter.record_attempt(current_user.email, prefix="chpw_email")
+
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
