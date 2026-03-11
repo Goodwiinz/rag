@@ -109,6 +109,13 @@ class User(BaseModel):
 
     def has_permission(self, required_role: UserRole) -> bool:
         """Check if user has required or higher permission level"""
+        if isinstance(required_role, str):
+            try:
+                required_role = UserRole(required_role)
+            except ValueError:
+                # Invalid role string, deny permission securely
+                return False
+
         role_hierarchy = {
             UserRole.USER: 0,
             UserRole.ANALYST: 1,
@@ -116,7 +123,9 @@ class User(BaseModel):
             UserRole.ADMIN: 3,
         }
 
-        return role_hierarchy.get(self.role, 0) >= role_hierarchy.get(required_role, 0)
+        # Use 100 as default for unknown required roles to fail securely
+        # (user level will never be >= 100)
+        return role_hierarchy.get(self.role, 0) >= role_hierarchy.get(required_role, 100)
 
     def can_upload_documents(self) -> bool:
         """Check if user can upload documents"""
