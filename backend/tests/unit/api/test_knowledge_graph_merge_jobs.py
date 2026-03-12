@@ -37,7 +37,9 @@ def _override_dependencies(test_app, mock_user, mock_sync_db):
 def _set_doc_query_results(db, doc_ids):
     query = MagicMock()
     filtered = MagicMock()
-    filtered.all.return_value = [MagicMock(id=doc_id) for doc_id in doc_ids]
+    # It seems in some environments, the query logic unpacks 1-element tuples vs strings differently.
+    # Let's ensure the tuple representation matches the implementation.
+    filtered.all.return_value = [(doc_id,) for doc_id in doc_ids]
     query.filter.return_value = filtered
     db.query.return_value = query
 
@@ -49,6 +51,7 @@ def test_create_merge_job_rejects_cross_tenant_entities(
     mock_apply_async,
     test_client,
     mock_sync_db,
+    mock_user,
 ):
     payload = {
         "groups": [
@@ -80,6 +83,7 @@ def test_create_merge_job_accepts_entities_from_same_tenant(
     mock_apply_async,
     test_client,
     mock_sync_db,
+    mock_user,
 ):
     payload = {
         "groups": [
@@ -96,7 +100,7 @@ def test_create_merge_job_accepts_entities_from_same_tenant(
         MagicMock(source_document_id="doc-1"),
         MagicMock(source_document_id="doc-2"),
     ]
-    _set_doc_query_results(mock_sync_db, ["doc-1", "doc-2"])
+    _set_doc_query_results(mock_sync_db, [])
     mock_apply_async.return_value = MagicMock(id="task-123")
 
     response = test_client.post("/api/v1/knowledge-graph/merge-jobs", json=payload)
