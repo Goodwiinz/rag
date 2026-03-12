@@ -18,6 +18,7 @@ import type { ContextChip, ContextChipKind } from '@/types/chat-widget';
 interface ChatContextBarProps {
   chips: ContextChip[];
   onToggleChip: (kind: ContextChipKind) => void;
+  onToggleAll: (enabled: boolean) => void;
 }
 
 const CHIP_ICONS: Record<ContextChip['icon'], React.ElementType> = {
@@ -26,7 +27,13 @@ const CHIP_ICONS: Record<ContextChip['icon'], React.ElementType> = {
   'book-open': BookOpen,
 };
 
-export function ChatContextBar({ chips, onToggleChip }: ChatContextBarProps) {
+export function ChatContextBar({
+  chips,
+  onToggleChip,
+  onToggleAll,
+}: ChatContextBarProps) {
+  const allEnabled = chips.every((c) => c.active);
+
   return (
     <div className="px-3 py-2 border-b border-border">
       <div className="flex items-center gap-2">
@@ -35,6 +42,21 @@ export function ChatContextBar({ chips, onToggleChip }: ChatContextBarProps) {
         </span>
         <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none">
           <TooltipProvider delayDuration={300}>
+            {/* "All" bulk toggle chip */}
+            <button
+              onClick={() => onToggleAll(!allEnabled)}
+              aria-label={
+                allEnabled ? 'Disable all context' : 'Enable all context'
+              }
+              aria-pressed={allEnabled}
+              className={`flex items-center px-2 py-1 rounded-full text-[11px] whitespace-nowrap transition-colors border ${
+                allEnabled
+                  ? 'bg-primary/10 text-primary border-primary/30'
+                  : 'bg-muted/50 text-muted-foreground border-transparent hover:border-border'
+              }`}
+            >
+              All
+            </button>
             {chips.map((chip) => {
               const Icon = CHIP_ICONS[chip.icon];
               return (

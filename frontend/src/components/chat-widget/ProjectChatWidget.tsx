@@ -6,7 +6,7 @@
  */
 
 import React, { useEffect, useCallback } from 'react';
-import { MessageSquare } from 'lucide-react';
+import { MessageSquare, X } from 'lucide-react';
 import { ChatPanel } from './ChatPanel';
 import { useProjectChatWidget } from '@/hooks/useProjectChatWidget';
 
@@ -57,11 +57,13 @@ export function ProjectChatWidget({
       )}
 
       {/* Chat Panel */}
+      {/* TODO: Add close animation (needs AnimatePresence or delayed unmount) */}
       {widget.isOpen && (
         <div
-          className="fixed bottom-20 right-6 z-50 w-[380px] h-[520px] max-sm:w-[calc(100vw-2rem)] max-sm:right-4 max-sm:bottom-20 bg-background border border-border rounded-xl shadow-xl overflow-hidden animate-in slide-in-from-bottom-4 fade-in duration-200"
+          className="fixed bottom-[88px] right-6 z-50 w-[380px] h-[520px] max-sm:w-full max-sm:h-[100dvh] max-sm:bottom-0 max-sm:left-0 max-sm:right-0 max-sm:rounded-b-none max-sm:rounded-t-xl bg-background border border-border rounded-xl shadow-xl overflow-hidden animate-in slide-in-from-bottom-4 fade-in duration-200"
           role="dialog"
           aria-label="Project chat panel"
+          aria-labelledby="chat-panel-title"
         >
           <ChatPanel
             messages={widget.messages}
@@ -71,6 +73,7 @@ export function ProjectChatWidget({
             onInputChange={widget.setInputValue}
             onSend={() => void widget.sendMessage()}
             onToggleChip={widget.toggleChip}
+            onToggleAllChips={widget.toggleAllChips}
             onClear={widget.clearMessages}
             onClose={widget.close}
           />
@@ -80,10 +83,14 @@ export function ProjectChatWidget({
       {/* FAB */}
       <button
         onClick={widget.toggle}
-        aria-label={widget.isOpen ? 'Close chat' : 'Open chat'}
+        aria-label={widget.isOpen ? 'Close project chat' : 'Open project chat'}
         className="fixed bottom-6 right-6 z-50 h-12 w-12 rounded-full bg-primary text-primary-foreground shadow-lg hover:bg-primary/90 transition-all flex items-center justify-center"
       >
-        <MessageSquare className="h-5 w-5" />
+        {widget.isOpen ? (
+          <X className="h-5 w-5" />
+        ) : (
+          <MessageSquare className="h-5 w-5" />
+        )}
         {widget.hasUnread && (
           <span className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-destructive border-2 border-background" />
         )}

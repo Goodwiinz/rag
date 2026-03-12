@@ -27,6 +27,7 @@ interface ChatPanelProps {
   onInputChange: (value: string) => void;
   onSend: () => void;
   onToggleChip: (kind: ContextChipKind) => void;
+  onToggleAllChips: (enabled: boolean) => void;
   onClear: () => void;
   onClose: () => void;
 }
@@ -39,6 +40,7 @@ export function ChatPanel({
   onInputChange,
   onSend,
   onToggleChip,
+  onToggleAllChips,
   onClear,
   onClose,
 }: ChatPanelProps) {
@@ -89,7 +91,12 @@ export function ChatPanel({
     <div ref={panelRef} className="flex flex-col h-full">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-border shrink-0">
-        <h3 className="text-sm font-medium text-foreground">Quick Chat</h3>
+        <h3
+          id="chat-panel-title"
+          className="text-sm font-medium text-foreground"
+        >
+          Quick Chat
+        </h3>
         <div className="flex items-center gap-1">
           <button
             onClick={onClear}
@@ -111,7 +118,11 @@ export function ChatPanel({
 
       {/* Context Bar */}
       <div className="shrink-0">
-        <ChatContextBar chips={contextChips} onToggleChip={onToggleChip} />
+        <ChatContextBar
+          chips={contextChips}
+          onToggleChip={onToggleChip}
+          onToggleAll={onToggleAllChips}
+        />
       </div>
 
       {/* Message List */}

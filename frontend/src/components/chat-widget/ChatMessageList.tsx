@@ -46,7 +46,12 @@ export function ChatMessageList({
 
   return (
     <ScrollArea className="flex-1">
-      <div className="p-3" role="list" aria-label="Chat messages">
+      <div
+        className="p-3"
+        role="log"
+        aria-live="polite"
+        aria-label="Chat messages"
+      >
         {messages.map((msg) => (
           <ChatMessageItem key={msg.id} message={msg} />
         ))}
