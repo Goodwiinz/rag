@@ -125,6 +125,14 @@ export function useProjectChatWidget({
     }));
   }, []);
 
+  const toggleAllChips = useCallback((enabled: boolean) => {
+    setChipStates({
+      documents: enabled,
+      notes: enabled,
+      bibliography: enabled,
+    });
+  }, []);
+
   const clearMessages = useCallback(() => {
     setMessages([]);
     setThreadId(null);
@@ -148,6 +156,8 @@ export function useProjectChatWidget({
     setIsStreaming(true);
 
     try {
+      // TODO: Include `chipStates` as `context_kinds` in the request payload
+      // when the backend StartChatFromProjectRequest supports context_kinds filtering.
       const response = await projectChatService.startChatFromProject(
         projectId,
         {
@@ -215,6 +225,7 @@ export function useProjectChatWidget({
     close,
     toggle,
     toggleChip,
+    toggleAllChips,
     setInputValue,
     sendMessage,
     clearMessages,

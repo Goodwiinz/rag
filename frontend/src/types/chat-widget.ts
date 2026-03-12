@@ -84,6 +84,8 @@ export interface ChatWidgetActions {
   toggle: () => void;
   /** Toggle a context chip on/off */
   toggleChip: (kind: ContextChipKind) => void;
+  /** Toggle all context chips on or off */
+  toggleAllChips: (enabled: boolean) => void;
   /** Set the input value */
   setInputValue: (value: string) => void;
   /** Send the current input as a message */
