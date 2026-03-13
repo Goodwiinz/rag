@@ -1,6 +1,7 @@
 import { render, screen, fireEvent } from '@testing-library/react';
 import { ChatContextBar } from '../ChatContextBar';
 import type { ContextChip } from '@/types/chat-widget';
+import { expectNoA11yViolations } from '@/test/a11y';
 
 // Mock lucide-react icons
 jest.mock('lucide-react', () => ({
@@ -130,5 +131,18 @@ describe('ChatContextBar', () => {
       name: /Enable Bibliography context/i,
     });
     expect(bibButton).toHaveAttribute('aria-pressed', 'false');
+  });
+});
+
+describe('ChatContextBar a11y', () => {
+  it('has no accessibility violations', async () => {
+    const { container } = render(
+      <ChatContextBar
+        chips={mockChips}
+        onToggleChip={jest.fn()}
+        onToggleAll={jest.fn()}
+      />
+    );
+    await expectNoA11yViolations(container);
   });
 });

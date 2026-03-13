@@ -1,5 +1,6 @@
 import { render, screen, fireEvent } from '@testing-library/react';
 import { ChatPanelInput } from '../ChatPanelInput';
+import { expectNoA11yViolations } from '@/test/a11y';
 
 // Mock lucide-react icons
 jest.mock('lucide-react', () => ({
@@ -91,5 +92,19 @@ describe('ChatPanelInput', () => {
     });
     fireEvent.keyDown(textarea, { key: 'Enter', shiftKey: false });
     expect(onSend).not.toHaveBeenCalled();
+  });
+});
+
+describe('ChatPanelInput a11y', () => {
+  it('has no accessibility violations', async () => {
+    const { container } = render(
+      <ChatPanelInput
+        value=""
+        onChange={jest.fn()}
+        onSend={jest.fn()}
+        disabled={false}
+      />
+    );
+    await expectNoA11yViolations(container);
   });
 });
