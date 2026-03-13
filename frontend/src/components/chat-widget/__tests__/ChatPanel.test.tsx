@@ -1,6 +1,7 @@
 import { render, screen, fireEvent } from '@testing-library/react';
 import { ChatPanel } from '../ChatPanel';
 import type { ContextChip, WidgetMessage } from '@/types/chat-widget';
+import { expectNoA11yViolations } from '@/test/a11y';
 
 // Mock sub-components to isolate ChatPanel logic
 jest.mock('../ChatContextBar', () => ({
@@ -160,5 +161,25 @@ describe('ChatPanel', () => {
     const heading = screen.getByText('Quick Chat');
     expect(heading.tagName).toBe('H3');
     expect(heading).toHaveAttribute('id', 'chat-panel-title');
+  });
+});
+
+describe('ChatPanel a11y', () => {
+  it('has no accessibility violations', async () => {
+    const { container } = render(
+      <ChatPanel
+        messages={mockMessages}
+        contextChips={mockChips}
+        isStreaming={false}
+        inputValue=""
+        onInputChange={jest.fn()}
+        onSend={jest.fn()}
+        onToggleChip={jest.fn()}
+        onToggleAllChips={jest.fn()}
+        onClear={jest.fn()}
+        onClose={jest.fn()}
+      />
+    );
+    await expectNoA11yViolations(container);
   });
 });
