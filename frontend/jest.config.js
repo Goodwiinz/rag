@@ -1,3 +1,4 @@
+const path = require('path');
 const nextJest = require('next/jest');
 
 const createJestConfig = nextJest({
@@ -30,6 +31,8 @@ const customJestConfig = {
     '<rootDir>/e2e/',
     '<rootDir>/src/integration/',
     '<rootDir>/src/__tests__/App.routing.test.tsx',
+    '/\\.worktrees/',
+    '/\\.venv/',
   ],
 
   moduleNameMapper: {
@@ -94,13 +97,31 @@ const customJestConfig = {
   ],
   coverageThreshold: {
     global: {
-      statements: 7,
-      branches: 6,
-      functions: 6,
-      lines: 8,
+      statements: 8,
+      branches: 7,
+      functions: 7,
+      lines: 9,
     },
   },
 };
 
 // createJestConfig is exported this way to ensure that next/jest can load the Next.js config
-module.exports = createJestConfig(customJestConfig);
+// We override testPathIgnorePatterns after next/jest processes the config to prevent
+// next/jest from dropping our custom ignore patterns.
+const baseConfig = createJestConfig(customJestConfig);
+module.exports = async () => {
+  const config = await baseConfig();
+  config.testPathIgnorePatterns = [
+    '/node_modules/',
+    '/\\.worktrees/',
+    '/\\.venv/',
+    '/build/',
+    '/dist/',
+    '/coverage/',
+    '/e2e/',
+    '/src/integration/',
+    'App\\.routing\\.test\\.tsx$',
+  ];
+  config.roots = [path.resolve(__dirname, 'src')];
+  return config;
+};

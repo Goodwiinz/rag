@@ -1,4 +1,4 @@
-import { renderHook, act } from '@testing-library/react';
+import { renderHook, act } from '@/test/test-utils';
 import { useProjectStore } from '@/store/projectStore';
 import { projectChatService } from '@/services/projectChatService';
 import { useProjectChatWidget } from '../useProjectChatWidget';
