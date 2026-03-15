@@ -25,6 +25,8 @@ export function ChatMessageItem({ message }: ChatMessageItemProps) {
             : 'bg-muted text-foreground rounded-bl-sm'
         }`}
       >
+        {/* Content rendered as plain text via React escaping (XSS-safe).
+            If markdown rendering is added, sanitize with DOMPurify. */}
         <p className="whitespace-pre-wrap break-words">{message.content}</p>
 
         {/* Citations */}

@@ -43,20 +43,28 @@ export function ChatContextBar({
         <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none">
           <TooltipProvider delayDuration={300}>
             {/* "All" bulk toggle chip */}
-            <button
-              onClick={() => onToggleAll(!allEnabled)}
-              aria-label={
-                allEnabled ? 'Disable all context' : 'Enable all context'
-              }
-              aria-pressed={allEnabled}
-              className={`flex items-center px-2 py-1 rounded-full text-[11px] whitespace-nowrap transition-colors border ${
-                allEnabled
-                  ? 'bg-primary/10 text-primary border-primary/30'
-                  : 'bg-muted/50 text-muted-foreground border-transparent hover:border-border'
-              }`}
-            >
-              All
-            </button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  onClick={() => onToggleAll(!allEnabled)}
+                  aria-label={
+                    allEnabled ? 'Disable all context' : 'Enable all context'
+                  }
+                  aria-pressed={allEnabled}
+                  className={`flex items-center px-2 py-1 rounded-full text-[11px] whitespace-nowrap transition-colors border ${
+                    allEnabled
+                      ? 'bg-primary/10 text-primary border-primary/30'
+                      : 'bg-muted/50 text-muted-foreground border-transparent hover:border-border'
+                  }`}
+                >
+                  All
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">
+                {allEnabled ? 'Click to exclude' : 'Click to include'} all
+                context
+              </TooltipContent>
+            </Tooltip>
             {chips.map((chip) => {
               const Icon = CHIP_ICONS[chip.icon];
               return (
