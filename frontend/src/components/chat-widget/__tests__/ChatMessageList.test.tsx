@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen } from '@/test/test-utils';
 import { ChatMessageList } from '../ChatMessageList';
 import type { WidgetMessage } from '@/types/chat-widget';
 
