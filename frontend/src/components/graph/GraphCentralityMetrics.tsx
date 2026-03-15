@@ -15,7 +15,6 @@ import {
 } from '@heroicons/react/24/outline';
 import { Entity, Relationship } from '@/types/search';
 import { Button } from '@/components/ui/button';
-import { IconButton } from '@/components/ui/icon-button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
@@ -460,12 +459,9 @@ export const GraphCentralityMetrics: React.FC<GraphCentralityMetricsProps> = ({
                     </p>
                   </div>
                 </div>
-                <IconButton
-                  icon={<InformationCircleIcon className="h-5 w-5" />}
-                  label="Metric Information"
-                  variant="ghost"
-                  size="sm"
-                />
+                <Button variant="ghost" size="sm" aria-label="Metric Information">
+                  <InformationCircleIcon className="h-5 w-5" />
+                </Button>
               </div>
             </div>
           )}
@@ -621,12 +617,9 @@ export const GraphCentralityMetrics: React.FC<GraphCentralityMetricsProps> = ({
 
                     {/* Actions */}
                     <div className="flex-shrink-0">
-                      <IconButton
-                        icon={<EyeIcon className="h-4 w-4" />}
-                        label="View Entity Details"
-                        variant="ghost"
-                        size="sm"
-                      />
+                      <Button variant="ghost" size="sm" aria-label="View Entity Details">
+                        <EyeIcon className="h-4 w-4" />
+                      </Button>
                     </div>
                   </div>
                 );
@@ -700,12 +693,9 @@ export const GraphCentralityMetrics: React.FC<GraphCentralityMetricsProps> = ({
                             <span className="text-sm text-gray-500">
                               Contribution: {contribution.toFixed(3)}
                             </span>
-                            <IconButton
-                              icon={<ArrowTopRightOnSquareIcon className="h-4 w-4" />}
-                              label="Open Relationship"
-                              variant="ghost"
-                              size="sm"
-                            />
+                            <Button variant="ghost" size="sm" aria-label="Open Relationship">
+                              <ArrowTopRightOnSquareIcon className="h-4 w-4" />
+                            </Button>
                           </div>
                         </div>
                       );
