@@ -37,7 +37,7 @@ def _override_dependencies(test_app, mock_user, mock_sync_db):
 def _set_doc_query_results(db, doc_ids):
     query = MagicMock()
     filtered = MagicMock()
-    filtered.all.return_value = [(doc_id,) for doc_id in doc_ids]
+    filtered.all.return_value = [MagicMock(id=doc_id) for doc_id in doc_ids]
     query.filter.return_value = filtered
     db.query.return_value = query
 
