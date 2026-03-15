@@ -410,10 +410,11 @@ class PostgreSQLTimeSeriesStore:
         # Add tag filters
         if query.tags:
             tag_conditions = []
-            for key, value in query.tags.items():
+            for i, (key, value) in enumerate(query.tags.items()):
                 if key != "organization_id":
-                    tag_conditions.append("tags::text LIKE :tag_" + key)
-                    params[f"tag_{key}"] = f'%"{key}": "{value}"%'
+                    param_name = f"tag_{i}"
+                    tag_conditions.append(f"tags::text LIKE :{param_name}")
+                    params[param_name] = f'%"{key}": "{value}"%'
 
             if tag_conditions:
                 sql += " AND " + " AND ".join(tag_conditions)
@@ -485,10 +486,11 @@ class PostgreSQLTimeSeriesStore:
         # Add tag filters
         if query.tags:
             tag_conditions = []
-            for key, value in query.tags.items():
+            for i, (key, value) in enumerate(query.tags.items()):
                 if key != "organization_id":
-                    tag_conditions.append("tags::text LIKE :tag_" + key)
-                    params[f"tag_{key}"] = f'%"{key}": "{value}"%'
+                    param_name = f"tag_{i}"
+                    tag_conditions.append(f"tags::text LIKE :{param_name}")
+                    params[param_name] = f'%"{key}": "{value}"%'
 
             if tag_conditions:
                 sql += " AND " + " AND ".join(tag_conditions)
@@ -563,10 +565,11 @@ class PostgreSQLTimeSeriesStore:
         # Add tag filters
         if query.tags:
             tag_conditions = []
-            for key, value in query.tags.items():
+            for i, (key, value) in enumerate(query.tags.items()):
                 if key != "organization_id":
-                    tag_conditions.append("tags::text LIKE :tag_" + key)
-                    params[f"tag_{key}"] = f'%"{key}": "{value}"%'
+                    param_name = f"tag_{i}"
+                    tag_conditions.append(f"tags::text LIKE :{param_name}")
+                    params[param_name] = f'%"{key}": "{value}"%'
 
             if tag_conditions:
                 sql += " AND " + " AND ".join(tag_conditions)
