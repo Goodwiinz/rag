@@ -75,6 +75,15 @@ export interface ChatWidgetState {
   conversationId: string | null;
 }
 
+export type ChatWidgetTabType =
+  | 'documents'
+  | 'notes'
+  | 'bibliography'
+  | 'drafts'
+  | 'chat'
+  | 'matrix'
+  | 'pipeline';
+
 export interface ChatWidgetActions {
   /** Open the chat panel */
   open: () => void;
