@@ -2,6 +2,7 @@
  * Centralized test data factories.
  * Usage: import { createMockDocument, createMockMessage } from '@/test/factories';
  */
+import { v4 as uuidv4 } from 'uuid';
 
 // ── Documents ──
 export function createMockDocument(overrides: Record<string, unknown> = {}) {
@@ -58,7 +59,7 @@ export function createMockWidgetMessage(
   overrides: Record<string, unknown> = {}
 ) {
   return {
-    id: `msg-${Date.now()}`,
+    id: `msg-${uuidv4()}`,
     role: 'user' as const,
     content: 'Test message',
     timestamp: new Date('2025-01-18T10:30:00Z'),
@@ -140,10 +141,17 @@ export function createMockFile(
 // ── Project Chat ──
 export function createMockStartChatResponse(
   overrides: Record<string, unknown> = {}
-) {
+): {
+  thread_id: string;
+  conversation_id: string;
+  project_thread_id: string;
+  document_scope: string[];
+  [key: string]: unknown;
+} {
   return {
     thread_id: 'thread-1',
     conversation_id: 'conv-1',
+    project_thread_id: 'pt-1',
     document_scope: ['doc-1', 'doc-2'],
     ...overrides,
   };

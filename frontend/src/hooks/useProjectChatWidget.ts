@@ -5,7 +5,8 @@
  * Manages panel open/close, messages, context chips, and sending.
  */
 
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
+import { v4 as uuidv4 } from 'uuid';
 import { useProjectStore } from '@/store/projectStore';
 import { projectChatService } from '@/services/projectChatService';
 import type {
@@ -14,20 +15,12 @@ import type {
   ContextChipKind,
   ChatWidgetState,
   ChatWidgetActions,
+  ChatWidgetTabType,
 } from '@/types/chat-widget';
-
-type TabType =
-  | 'documents'
-  | 'notes'
-  | 'bibliography'
-  | 'drafts'
-  | 'chat'
-  | 'matrix'
-  | 'pipeline';
 
 interface UseProjectChatWidgetOptions {
   projectId: string;
-  activeTab: TabType;
+  activeTab: ChatWidgetTabType;
 }
 
 export function useProjectChatWidget({
@@ -42,6 +35,18 @@ export function useProjectChatWidget({
   const [hasUnread, setHasUnread] = useState(false);
   const [threadId, setThreadId] = useState<string | null>(null);
   const [conversationId, setConversationId] = useState<string | null>(null);
+
+  // Refs for safe async state updates
+  const mountedRef = useRef(true);
+  const requestIdRef = useRef(0);
+  const isOpenRef = useRef(false);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   // Chip active states
   const [chipStates, setChipStates] = useState<
@@ -104,17 +109,21 @@ export function useProjectChatWidget({
   // Actions
   const open = useCallback(() => {
     setIsOpen(true);
+    isOpenRef.current = true;
     setHasUnread(false);
   }, []);
 
   const close = useCallback(() => {
     setIsOpen(false);
+    isOpenRef.current = false;
   }, []);
 
   const toggle = useCallback(() => {
     setIsOpen((prev) => {
-      if (!prev) setHasUnread(false);
-      return !prev;
+      const next = !prev;
+      isOpenRef.current = next;
+      if (next) setHasUnread(false);
+      return next;
     });
   }, []);
 
@@ -134,6 +143,7 @@ export function useProjectChatWidget({
   }, []);
 
   const clearMessages = useCallback(() => {
+    requestIdRef.current += 1;
     setMessages([]);
     setThreadId(null);
     setConversationId(null);
@@ -144,9 +154,11 @@ export function useProjectChatWidget({
     const trimmed = inputValue.trim();
     if (!trimmed || isStreaming) return;
 
+    const requestId = ++requestIdRef.current;
+
     // Add user message
     const userMessage: WidgetMessage = {
-      id: `user-${Date.now()}`,
+      id: `user-${uuidv4()}`,
       role: 'user',
       content: trimmed,
       timestamp: new Date(),
@@ -168,38 +180,47 @@ export function useProjectChatWidget({
         }
       );
 
+      if (!mountedRef.current || requestId !== requestIdRef.current) return;
+
       setThreadId(response.thread_id);
       setConversationId(response.conversation_id);
 
       // Add assistant placeholder response
       const assistantMessage: WidgetMessage = {
-        id: `assistant-${Date.now()}`,
+        id: `assistant-${uuidv4()}`,
         role: 'assistant',
         content:
           "I've started analyzing your project documents. You can view the full conversation in the Chat tab.",
         timestamp: new Date(),
-        citations: response.document_scope.map((docId) => ({
-          documentId: docId,
-          documentTitle: docId,
-        })),
+        citations: response.document_scope.map((docId) => {
+          const projDoc = projectDocuments.find(
+            (pd) => pd.document_id === docId
+          );
+          return {
+            documentId: docId,
+            documentTitle:
+              projDoc?.document?.title ?? projDoc?.document?.filename ?? docId,
+          };
+        }),
       };
       setMessages((prev) => [...prev, assistantMessage]);
 
       // Mark unread if panel is closed
-      if (!isOpen) {
+      if (!isOpenRef.current) {
         setHasUnread(true);
       }
     } catch (error) {
       console.error('Failed to send chat message:', error);
+      if (!mountedRef.current || requestId !== requestIdRef.current) return;
       const errorMessage: WidgetMessage = {
-        id: `error-${Date.now()}`,
+        id: `error-${uuidv4()}`,
         role: 'assistant',
         content: 'Sorry, something went wrong. Please try again.',
         timestamp: new Date(),
       };
       setMessages((prev) => [...prev, errorMessage]);
     } finally {
-      setIsStreaming(false);
+      if (mountedRef.current) setIsStreaming(false);
     }
   }, [
     inputValue,
@@ -207,7 +228,7 @@ export function useProjectChatWidget({
     projectId,
     conversationId,
     messages.length,
-    isOpen,
+    projectDocuments,
   ]);
 
   return {
