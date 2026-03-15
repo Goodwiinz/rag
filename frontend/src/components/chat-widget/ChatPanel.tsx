@@ -51,12 +51,19 @@ export function ChatPanel({
     const panel = panelRef.current;
     if (!panel) return;
 
-    // Focus the first focusable element on mount
-    const focusableElements =
-      panel.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR);
-    if (focusableElements.length > 0) {
-      focusableElements[0].focus();
-    }
+    // Focus textarea on mount (deferred to next frame for layout stability)
+    requestAnimationFrame(() => {
+      const textarea = panel.querySelector<HTMLElement>('textarea');
+      if (textarea) {
+        textarea.focus();
+      } else {
+        const focusableElements =
+          panel.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR);
+        if (focusableElements.length > 0) {
+          focusableElements[0].focus();
+        }
+      }
+    });
 
     function handleKeyDown(e: KeyboardEvent) {
       if (e.key !== 'Tab') return;
