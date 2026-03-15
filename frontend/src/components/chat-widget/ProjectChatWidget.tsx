@@ -9,19 +9,11 @@ import React, { useEffect, useCallback } from 'react';
 import { MessageSquare, X } from 'lucide-react';
 import { ChatPanel } from './ChatPanel';
 import { useProjectChatWidget } from '@/hooks/useProjectChatWidget';
-
-type TabType =
-  | 'documents'
-  | 'notes'
-  | 'bibliography'
-  | 'drafts'
-  | 'chat'
-  | 'matrix'
-  | 'pipeline';
+import type { ChatWidgetTabType } from '@/types/chat-widget';
 
 interface ProjectChatWidgetProps {
   projectId: string;
-  activeTab: TabType;
+  activeTab: ChatWidgetTabType;
 }
 
 export function ProjectChatWidget({
@@ -29,15 +21,16 @@ export function ProjectChatWidget({
   activeTab,
 }: ProjectChatWidgetProps) {
   const widget = useProjectChatWidget({ projectId, activeTab });
+  const { isOpen, close } = widget;
 
   // Escape key closes the panel
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && widget.isOpen) {
-        widget.close();
+      if (e.key === 'Escape' && isOpen) {
+        close();
       }
     },
-    [widget]
+    [isOpen, close]
   );
 
   useEffect(() => {
@@ -62,6 +55,7 @@ export function ProjectChatWidget({
         <div
           className="fixed bottom-[88px] right-6 z-50 w-[380px] h-[520px] max-sm:w-full max-sm:h-[100dvh] max-sm:bottom-0 max-sm:left-0 max-sm:right-0 max-sm:rounded-b-none max-sm:rounded-t-xl bg-background border border-border rounded-xl shadow-xl overflow-hidden animate-in slide-in-from-bottom-4 fade-in duration-200"
           role="dialog"
+          aria-modal="true"
           aria-label="Project chat panel"
           aria-labelledby="chat-panel-title"
         >
