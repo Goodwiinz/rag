@@ -1,5 +1,5 @@
 import React from 'react';
-import { render } from '@testing-library/react';
+import { render } from '@/test/test-utils';
 import { MemoryRouter } from 'react-router-dom';
 import { expectNoA11yViolations } from '@/test/a11y';
 import { Sidebar } from '../Sidebar';
@@ -37,8 +37,10 @@ jest.mock('../navigation', () => ({
 }));
 
 // Known a11y issues in Sidebar component (tracked for future fix):
-// - landmark-unique: main nav and bottom nav are both <nav> without distinct aria-labels
-// - link-name: collapsed links rely on Tooltip for labels, which axe cannot detect
+// - landmark-unique: main nav and bottom nav are both <nav> without distinct aria-labels.
+//   TODO: Add unique aria-label to each <nav> (e.g. "Main navigation" / "Utility navigation").
+// - link-name: collapsed links rely on Tooltip for accessible name, which axe cannot detect in jsdom.
+//   TODO: Add aria-label to collapsed nav links so axe passes without disabling the rule.
 const KNOWN_SIDEBAR_RULES_TO_DISABLE = {
   rules: {
     'landmark-unique': { enabled: false },

@@ -1,5 +1,5 @@
 import React from 'react';
-import { render } from '../../__tests__/testUtils';
+import { render } from '@/test/test-utils';
 import { expectNoA11yViolations } from '@/test/a11y';
 import SearchInterface from '../SearchInterface';
 

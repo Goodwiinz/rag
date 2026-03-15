@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent } from '@/test/test-utils';
 import { ChatPanelInput } from '../ChatPanelInput';
 import { expectNoA11yViolations } from '@/test/a11y';
 

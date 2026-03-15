@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent } from '@/test/test-utils';
 import { ProjectChatWidget } from '../ProjectChatWidget';
 
 // Mock ChatPanel sub-component
