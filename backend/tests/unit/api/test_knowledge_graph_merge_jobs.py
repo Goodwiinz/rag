@@ -96,7 +96,7 @@ def test_create_merge_job_accepts_entities_from_same_tenant(
         MagicMock(source_document_id="doc-1"),
         MagicMock(source_document_id="doc-2"),
     ]
-    _set_doc_query_results(mock_sync_db, ["doc-1", "doc-2"])
+    _set_doc_query_results(mock_sync_db, [])
     mock_apply_async.return_value = MagicMock(id="task-123")
 
     response = test_client.post("/api/v1/knowledge-graph/merge-jobs", json=payload)
