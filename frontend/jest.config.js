@@ -1,4 +1,3 @@
-const path = require('path');
 const nextJest = require('next/jest');
 
 const createJestConfig = nextJest({
@@ -122,6 +121,5 @@ module.exports = async () => {
     '/src/integration/',
     'App\\.routing\\.test\\.tsx$',
   ];
-  config.roots = [path.resolve(__dirname, 'src')];
   return config;
 };
