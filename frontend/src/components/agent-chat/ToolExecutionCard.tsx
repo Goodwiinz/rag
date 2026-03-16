@@ -50,7 +50,7 @@ export function ToolExecutionCard({ execution }: ToolExecutionCardProps) {
           <pre className="whitespace-pre-wrap break-words text-[11px]">
             {typeof execution.result === 'string'
               ? execution.result
-              : JSON.stringify(execution.result, null, 2)}
+              : (JSON.stringify(execution.result, null, 2) as string)}
           </pre>
         </div>
       )}

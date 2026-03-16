@@ -71,7 +71,85 @@ export const useAgentChatStore = create<AgentChatStore>()(
 
     // Messages
     sendMessage: async () => {
-      // Implemented in Task 5 (agent service integration)
+      const state = get();
+      const trimmed = state.inputValue.trim();
+      if (!trimmed || state.isStreaming) return;
+
+      const userMessage: AgentMessage = {
+        id: `user-${Date.now()}`,
+        role: 'user',
+        content: trimmed,
+        timestamp: new Date(),
+      };
+
+      set((s) => {
+        s.messages.push(userMessage);
+        s.inputValue = '';
+        s.isStreaming = true;
+      });
+
+      try {
+        const { agentChatService } =
+          await import('@/services/agentChatService');
+
+        const messagesForApi = get()
+          .messages.filter((m) => m.role === 'user' || m.role === 'assistant')
+          .map((m) => ({ role: m.role, content: m.content }));
+
+        const response = await agentChatService.execute({
+          messages: messagesForApi,
+          page_context: {
+            type: get().pageContext.type,
+            project_id: get().pageContext.projectId,
+          },
+          thread_id: get().activeThreadId ?? undefined,
+        });
+
+        const assistantMessage: AgentMessage = {
+          id: `assistant-${Date.now()}`,
+          role: 'assistant',
+          content: response.message.content,
+          timestamp: new Date(),
+          citations: response.retrieved_contexts?.map((ctx) => ({
+            documentId: ctx.document_id || '',
+            documentTitle: ctx.title,
+            snippet: ctx.content.slice(0, 200),
+            score: ctx.score,
+          })),
+          toolExecutions: response.tool_executions?.map((exec) => ({
+            id: exec.id,
+            toolName: exec.tool_name,
+            toolDisplayName: exec.tool_display_name,
+            args: exec.args,
+            status: exec.status as 'running' | 'completed' | 'failed',
+            result: exec.result,
+            error: exec.error,
+            durationMs: exec.duration_ms,
+          })),
+        };
+
+        set((s) => {
+          s.messages.push(assistantMessage);
+          s.isStreaming = false;
+          if (response.thread_id) {
+            s.activeThreadId = response.thread_id;
+          }
+          if (s.uiMode === 'closed') {
+            s.hasUnread = true;
+          }
+        });
+      } catch (error) {
+        console.error('Agent chat error:', error);
+        set((s) => {
+          s.messages.push({
+            id: `error-${Date.now()}`,
+            role: 'assistant',
+            content: 'Sorry, something went wrong. Please try again.',
+            timestamp: new Date(),
+          });
+          s.isStreaming = false;
+        });
+      }
     },
 
     clearMessages: () =>
@@ -95,11 +173,65 @@ export const useAgentChatStore = create<AgentChatStore>()(
       }),
 
     loadThreads: async () => {
-      // Implemented in Task 5
+      set((s) => {
+        s.isLoadingThreads = true;
+      });
+      try {
+        const { agentChatService } =
+          await import('@/services/agentChatService');
+        const response = await agentChatService.listThreads();
+        set((s) => {
+          s.threads = response.threads.map((t) => ({
+            id: t.id,
+            title: t.title || 'Untitled',
+            createdAt: new Date(t.created_at),
+            updatedAt: new Date(t.updated_at),
+            messageCount: t.message_count,
+            lastMessage: undefined,
+            projectId: t.source_project_id || undefined,
+          }));
+          s.isLoadingThreads = false;
+        });
+      } catch (error) {
+        console.error('Failed to load threads:', error);
+        set((s) => {
+          s.isLoadingThreads = false;
+        });
+      }
     },
 
     loadThreadMessages: async (threadId: string) => {
-      // Implemented in Task 5
+      set((s) => {
+        s.isLoadingMessages = true;
+      });
+      try {
+        const { agentChatService } =
+          await import('@/services/agentChatService');
+        const response = await agentChatService.getThreadMessages(threadId);
+        set((s) => {
+          s.messages = response.messages.map((m) => ({
+            id: m.id,
+            role: m.role as 'user' | 'assistant' | 'tool',
+            content: m.content,
+            timestamp: new Date(m.created_at),
+            citations: m.citations?.map((c) => ({
+              documentId: c.document_id,
+              documentTitle: c.document_title,
+              snippet: c.snippet,
+              page: c.page_number,
+              score: c.score,
+            })),
+            backendMessageId: m.id,
+          }));
+          s.activeThreadId = threadId;
+          s.isLoadingMessages = false;
+        });
+      } catch (error) {
+        console.error('Failed to load thread messages:', error);
+        set((s) => {
+          s.isLoadingMessages = false;
+        });
+      }
     },
 
     // Context
