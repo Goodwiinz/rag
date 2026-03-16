@@ -207,7 +207,7 @@ export class APIClient {
           message: 'Response validation failed',
           status_code: 500,
           type: 'validation_error',
-          details: { errors: result.error.errors }
+          details: { errors: result.error.issues }
         });
       }
       return {

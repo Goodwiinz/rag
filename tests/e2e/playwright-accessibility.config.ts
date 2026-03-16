@@ -8,7 +8,7 @@ export default defineConfig({
   retries: process.env.CI ? 2 : 0,
   workers: process.env.CI ? 1 : 2,
   reporter: [
-    ['html', { outputFolder: 'test-results/accessibility-report' }],
+    ['html', { outputFolder: 'playwright-report/accessibility' }],
     ['json', { outputFile: 'test-results/accessibility-results.json' }],
     ['list'],
   ],

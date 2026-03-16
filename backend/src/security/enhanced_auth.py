@@ -6,6 +6,7 @@ Addresses critical authentication vulnerabilities
 import base64
 import hashlib
 import logging
+import os
 import re
 import secrets
 import time
@@ -20,6 +21,7 @@ import redis
 from cryptography.fernet import Fernet
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+from fastapi import Depends
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -609,12 +611,16 @@ class EnhancedAuthService:
 
     def _hash_password(self, password: str) -> str:
         """Hash password using bcrypt"""
+        # bcrypt only uses the first 72 bytes; keep behavior explicit and stable
+        password_bytes = password[:72].encode("utf-8")
         salt = bcrypt.gensalt(rounds=12)
-        return bcrypt.hashpw(password.encode("utf-8"), salt).decode("utf-8")
+        return bcrypt.hashpw(password_bytes, salt).decode("utf-8")
 
     def _verify_password(self, password: str, hashed: str) -> bool:
         """Verify password against hash"""
-        return bcrypt.checkpw(password.encode("utf-8"), hashed.encode("utf-8"))
+        # Match hashing behavior and avoid bcrypt >72-byte input errors
+        password_bytes = password[:72].encode("utf-8")
+        return bcrypt.checkpw(password_bytes, hashed.encode("utf-8"))
 
     def _password_needs_rehash(self, hashed: str) -> bool:
         """Check if password needs rehashing"""

@@ -7,7 +7,7 @@ export default defineConfig({
   retries: 0, // No retries for performance tests
   workers: 1, // Single worker for consistent performance measurements
   reporter: [
-    ['html', { outputFolder: 'test-results/performance-report' }],
+    ['html', { outputFolder: 'playwright-report/performance' }],
     ['json', { outputFile: 'test-results/performance-results.json' }],
     ['line'],
   ],
