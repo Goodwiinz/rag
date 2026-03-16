@@ -6,4 +6,6 @@ export { AgentMessageList } from './AgentMessageList';
 export { AgentInput } from './AgentInput';
 export { AgentPanelHeader } from './AgentPanelHeader';
 export { AgentPanel } from './AgentPanel';
+export { AgentThreadList } from './AgentThreadList';
+export { AgentSidebar } from './AgentSidebar';
 export { GlobalAgentChat } from './GlobalAgentChat';

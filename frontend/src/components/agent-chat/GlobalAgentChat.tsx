@@ -3,6 +3,7 @@
 import React, { useEffect, useCallback } from 'react';
 import { AgentFAB } from './AgentFAB';
 import { AgentPanel } from './AgentPanel';
+import { AgentSidebar } from './AgentSidebar';
 import { useAgentChatStore } from '@/store/agentChatStore';
 import { usePageContext } from '@/hooks/usePageContext';
 
@@ -89,20 +90,8 @@ export function GlobalAgentChat() {
           role="dialog"
           aria-modal="true"
           aria-label="Agent chat sidebar"
-          aria-labelledby="agent-panel-title"
         >
-          <AgentPanel
-            messages={messages}
-            isStreaming={isStreaming}
-            inputValue={inputValue}
-            pageContext={pageContext}
-            onInputChange={setInputValue}
-            onSend={() => void sendMessage()}
-            onClear={clearMessages}
-            onClose={close}
-            onExpand={close}
-            onNewThread={newThread}
-          />
+          <AgentSidebar />
         </div>
       )}
 
