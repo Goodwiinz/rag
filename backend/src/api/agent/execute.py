@@ -5,6 +5,7 @@ Wraps chat completions with tool-calling capabilities and page context injection
 
 import asyncio
 import logging
+import re
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Literal, Optional
 from uuid import UUID
@@ -363,7 +364,8 @@ async def _tool_search_documents(
         return {"error": "Query is required"}
 
     try:
-        pattern = f"%{query}%"
+        escaped = re.sub(r"([%_\\])", r"\\\1", query)
+        pattern = f"%{escaped}%"
         stmt = (
             select(Document)
             .where(
@@ -402,11 +404,16 @@ async def _verify_project_ownership(
     current_user: User,
 ) -> Optional[Collection]:
     """Verify a project (collection) exists and belongs to the current user."""
+    try:
+        project_uuid = UUID(project_id)
+    except (ValueError, AttributeError):
+        return None
+
     stmt = (
         select(Collection)
         .join(Workspace, Collection.workspace_id == Workspace.id)
         .where(
-            Collection.id == UUID(project_id),
+            Collection.id == project_uuid,
             Collection.is_deleted == False,
             Workspace.owner_id == current_user.id,
         )
@@ -433,9 +440,19 @@ async def _tool_add_document_to_project(
         return {"error": "project_id is required"}
 
     try:
+        doc_uuid = UUID(document_id)
+    except (ValueError, AttributeError):
+        return {"error": "Invalid document_id format"}
+
+    try:
+        proj_uuid = UUID(project_id)
+    except (ValueError, AttributeError):
+        return {"error": "Invalid project_id format"}
+
+    try:
         # Verify document exists and belongs to user's org
         doc_stmt = select(Document).where(
-            Document.id == UUID(document_id),
+            Document.id == doc_uuid,
             Document.organization_id == current_user.organization_id,
             Document.is_deleted == False,
         )
@@ -451,8 +468,8 @@ async def _tool_add_document_to_project(
 
         # Check if already linked
         existing_stmt = select(CollectionDocument).where(
-            CollectionDocument.collection_id == UUID(project_id),
-            CollectionDocument.document_id == UUID(document_id),
+            CollectionDocument.collection_id == proj_uuid,
+            CollectionDocument.document_id == doc_uuid,
         )
         existing_result = await db.execute(existing_stmt)
         if existing_result.scalar_one_or_none():
@@ -463,11 +480,11 @@ async def _tool_add_document_to_project(
 
         # Create the link
         link = CollectionDocument(
-            collection_id=UUID(project_id),
-            document_id=UUID(document_id),
+            collection_id=proj_uuid,
+            document_id=doc_uuid,
         )
         db.add(link)
-        await db.flush()
+        await db.commit()
 
         return {
             "status": "success",
@@ -477,6 +494,7 @@ async def _tool_add_document_to_project(
         }
     except Exception as e:
         logger.error("add_document_to_project tool failed", exc_info=e)
+        await db.rollback()
         return {"error": f"Failed to add document to project: {str(e)}"}
 
 
@@ -502,20 +520,25 @@ async def _tool_create_project_note(
         return {"error": "project_id is required"}
 
     try:
+        proj_uuid = UUID(project_id)
+    except (ValueError, AttributeError):
+        return {"error": "Invalid project_id format"}
+
+    try:
         # Verify project ownership
         project = await _verify_project_ownership(project_id, db, current_user)
         if not project:
             return {"error": "Project not found or access denied"}
 
         note = ProjectNote(
-            project_id=UUID(project_id),
+            project_id=proj_uuid,
             user_id=current_user.id,
             title=title,
             content=content,
             tags=tags or [],
         )
         db.add(note)
-        await db.flush()
+        await db.commit()
 
         return {
             "status": "success",
@@ -526,6 +549,7 @@ async def _tool_create_project_note(
         }
     except Exception as e:
         logger.error("create_project_note tool failed", exc_info=e)
+        await db.rollback()
         return {"error": f"Failed to create note: {str(e)}"}
 
 
@@ -543,6 +567,11 @@ async def _tool_list_project_documents(
         return {"error": "project_id is required"}
 
     try:
+        proj_uuid = UUID(project_id)
+    except (ValueError, AttributeError):
+        return {"error": "Invalid project_id format"}
+
+    try:
         # Verify project ownership
         project = await _verify_project_ownership(project_id, db, current_user)
         if not project:
@@ -552,7 +581,7 @@ async def _tool_list_project_documents(
             select(Document)
             .join(CollectionDocument, CollectionDocument.document_id == Document.id)
             .where(
-                CollectionDocument.collection_id == UUID(project_id),
+                CollectionDocument.collection_id == proj_uuid,
                 Document.is_deleted == False,
             )
             .order_by(desc(Document.created_at))
