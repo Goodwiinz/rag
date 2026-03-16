@@ -109,10 +109,14 @@ Be concise and action-oriented."""
 # Endpoints
 # ---------------------------------------------------------------------------
 
+AGENT_THREAD_MARKER = {"source": "agent"}
+
+
 @router.post("/execute", response_model=AgentExecuteResponse)
 async def execute_agent(
     request: AgentExecuteRequest,
     current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     """Execute an agent chat completion with optional RAG and tool calling."""
     logger.info(
@@ -215,10 +219,96 @@ async def execute_agent(
             max_tokens=2048,
         )
 
+        assistant_content = response["content"]
+
+        # --------------------------------------------------------------
+        # Persist thread & messages
+        # --------------------------------------------------------------
+        thread_id = request.thread_id or ""
+        conversation_id = ""
+
+        try:
+            # Resolve or create thread
+            thread: Optional[Thread] = None
+            if request.thread_id:
+                thread = await db.get(Thread, UUID(request.thread_id))
+
+            if thread is None:
+                # Need a workspace + conversation for the thread
+                ws_stmt = select(Workspace).where(
+                    Workspace.owner_id == current_user.id
+                ).limit(1)
+                ws_result = await db.execute(ws_stmt)
+                workspace = ws_result.scalar_one_or_none()
+
+                if workspace:
+                    # Create conversation
+                    conv = Conversation(
+                        workspace_id=workspace.id,
+                        title="Agent Chat",
+                        created_by_id=current_user.id,
+                    )
+                    db.add(conv)
+                    await db.flush()
+
+                    # Derive title from first user message
+                    first_msg = next(
+                        (m.content for m in request.messages if m.role == "user"), ""
+                    )
+                    title = first_msg[:80] if first_msg else "Agent Chat"
+
+                    thread = Thread(
+                        conversation_id=conv.id,
+                        title=title,
+                        status=ThreadStatus.ACTIVE,
+                        created_by_id=current_user.id,
+                        rag_document_scope=AGENT_THREAD_MARKER,
+                        message_count=0,
+                    )
+                    db.add(thread)
+                    await db.flush()
+
+            if thread:
+                thread_id = str(thread.id)
+                conversation_id = str(thread.conversation_id)
+
+                # Save user message (only the latest one)
+                last_user_content = next(
+                    (m.content for m in reversed(request.messages) if m.role == "user"),
+                    None,
+                )
+                if last_user_content:
+                    user_msg = ChatMessage(
+                        thread_id=thread.id,
+                        user_id=current_user.id,
+                        role=MessageRole.USER,
+                        content=last_user_content,
+                    )
+                    db.add(user_msg)
+
+                # Save assistant message
+                asst_msg = ChatMessage(
+                    thread_id=thread.id,
+                    role=MessageRole.ASSISTANT,
+                    content=assistant_content,
+                    model_name=request.model,
+                )
+                db.add(asst_msg)
+
+                # Update thread stats
+                thread.message_count = (thread.message_count or 0) + 2
+                thread.last_message_at = datetime.now(timezone.utc)
+
+                await db.commit()
+
+        except Exception as e:
+            logger.warning("Failed to persist agent thread/messages", exc_info=e)
+            await db.rollback()
+
         return AgentExecuteResponse(
             message=AgentMessage(
                 role="assistant",
-                content=response["content"],
+                content=assistant_content,
             ),
             model=response.get("model", request.model),
             usage=response.get("usage", {}),
@@ -226,8 +316,8 @@ async def execute_agent(
             timestamp=datetime.now(timezone.utc).isoformat(),
             rag_enabled=request.use_rag,
             retrieved_contexts=retrieved_contexts if retrieved_contexts else None,
-            thread_id=request.thread_id or "",
-            conversation_id="",
+            thread_id=thread_id,
+            conversation_id=conversation_id,
         )
 
     except Exception as e:
@@ -295,6 +385,7 @@ async def list_agent_threads(
         .where(
             Workspace.owner_id == current_user.id,
             Thread.is_deleted == False,
+            Thread.rag_document_scope == AGENT_THREAD_MARKER,
         )
         .order_by(desc(Thread.updated_at))
         .limit(50)
@@ -310,6 +401,7 @@ async def list_agent_threads(
         .where(
             Workspace.owner_id == current_user.id,
             Thread.is_deleted == False,
+            Thread.rag_document_scope == AGENT_THREAD_MARKER,
         )
     )
     total_result = await db.execute(count_stmt)
