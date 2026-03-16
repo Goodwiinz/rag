@@ -19,7 +19,10 @@ from src.core.database import get_db
 from src.core.dependencies import get_current_user
 from src.models.chat_message import ChatMessage, MessageRole
 from src.models.citation import Citation
+from src.models.collection import Collection, CollectionDocument
 from src.models.conversation import Conversation
+from src.models.document import Document
+from src.models.project_note import ProjectNote
 from src.models.thread import Thread, ThreadStatus
 from src.models.user import User
 from src.models.workspace import Workspace
@@ -134,15 +137,119 @@ AGENT_TOOLS = [
             },
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "search_documents",
+            "description": "Search the user's indexed documents by title or content.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "Search query to match against document titles and filenames",
+                    },
+                    "max_results": {
+                        "type": "integer",
+                        "description": "Maximum number of results to return",
+                        "default": 10,
+                    },
+                },
+                "required": ["query"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "add_document_to_project",
+            "description": "Add an existing document to a research project.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "document_id": {
+                        "type": "string",
+                        "description": "The UUID of the document to add",
+                    },
+                    "project_id": {
+                        "type": "string",
+                        "description": "The UUID of the project (collection) to add the document to. Optional if the user is on a project page.",
+                    },
+                },
+                "required": ["document_id"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "create_project_note",
+            "description": "Create a markdown note in a research project.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "project_id": {
+                        "type": "string",
+                        "description": "The UUID of the project to create the note in",
+                    },
+                    "title": {
+                        "type": "string",
+                        "description": "Title of the note",
+                    },
+                    "content": {
+                        "type": "string",
+                        "description": "Markdown content of the note",
+                    },
+                    "tags": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Optional tags for the note",
+                    },
+                },
+                "required": ["title", "content"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "list_project_documents",
+            "description": "List all documents in a research project.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "project_id": {
+                        "type": "string",
+                        "description": "The UUID of the project. Optional if the user is on a project page.",
+                    },
+                },
+                "required": [],
+            },
+        },
+    },
 ]
 
 
-async def execute_tool(tool_name: str, args: Dict[str, Any], user_id: str = "") -> Dict[str, Any]:
+async def execute_tool(
+    tool_name: str,
+    args: Dict[str, Any],
+    user_id: str = "",
+    db: Optional[AsyncSession] = None,
+    current_user: Optional[User] = None,
+) -> Dict[str, Any]:
     """Execute an agent tool and return the result."""
     if tool_name == "search_arxiv":
         return await _tool_search_arxiv(args)
     if tool_name == "ingest_arxiv_papers":
         return await _tool_ingest_arxiv(args, user_id)
+    if tool_name == "search_documents":
+        return await _tool_search_documents(args, db, current_user)
+    if tool_name == "add_document_to_project":
+        return await _tool_add_document_to_project(args, db, current_user)
+    if tool_name == "create_project_note":
+        return await _tool_create_project_note(args, db, current_user)
+    if tool_name == "list_project_documents":
+        return await _tool_list_project_documents(args, db, current_user)
     return {"error": f"Unknown tool: {tool_name}"}
 
 
@@ -221,15 +328,254 @@ async def _tool_ingest_arxiv(args: Dict[str, Any], user_id: str) -> Dict[str, An
                 extract_content=True,
             )
 
+            document_ids = []
+            if ingested:
+                for doc in ingested:
+                    doc_id = getattr(doc, "id", None)
+                    if doc_id:
+                        document_ids.append(str(doc_id))
+
             return {
                 "status": "ingestion_complete",
                 "paper_ids": paper_ids,
+                "document_ids": document_ids,
                 "ingested_count": len(ingested) if ingested else len(papers_to_ingest),
                 "message": f"Ingested {len(paper_ids)} paper(s) into the RAG system.",
             }
     except Exception as e:
         logger.error("ArXiv ingest tool failed", exc_info=e)
         return {"error": f"Ingestion failed: {str(e)}", "paper_ids": paper_ids}
+
+
+async def _tool_search_documents(
+    args: Dict[str, Any],
+    db: Optional[AsyncSession],
+    current_user: Optional[User],
+) -> Dict[str, Any]:
+    """Search user's indexed documents by title or filename."""
+    if not db or not current_user:
+        return {"error": "Authentication required"}
+
+    query = args.get("query", "")
+    max_results = min(args.get("max_results", 10), 50)
+
+    if not query:
+        return {"error": "Query is required"}
+
+    try:
+        pattern = f"%{query}%"
+        stmt = (
+            select(Document)
+            .where(
+                Document.organization_id == current_user.organization_id,
+                Document.is_deleted == False,
+                (Document.title.ilike(pattern) | Document.filename.ilike(pattern)),
+            )
+            .order_by(desc(Document.created_at))
+            .limit(max_results)
+        )
+        result = await db.execute(stmt)
+        docs = result.scalars().all()
+
+        return {
+            "documents": [
+                {
+                    "id": str(d.id),
+                    "title": d.title,
+                    "type": d.document_type.value if d.document_type else None,
+                    "status": d.processing_status.value if d.processing_status else None,
+                    "created_at": d.created_at.isoformat() if d.created_at else None,
+                }
+                for d in docs
+            ],
+            "total": len(docs),
+            "query": query,
+        }
+    except Exception as e:
+        logger.error("search_documents tool failed", exc_info=e)
+        return {"error": f"Document search failed: {str(e)}"}
+
+
+async def _verify_project_ownership(
+    project_id: str,
+    db: AsyncSession,
+    current_user: User,
+) -> Optional[Collection]:
+    """Verify a project (collection) exists and belongs to the current user."""
+    stmt = (
+        select(Collection)
+        .join(Workspace, Collection.workspace_id == Workspace.id)
+        .where(
+            Collection.id == UUID(project_id),
+            Collection.is_deleted == False,
+            Workspace.owner_id == current_user.id,
+        )
+    )
+    result = await db.execute(stmt)
+    return result.scalar_one_or_none()
+
+
+async def _tool_add_document_to_project(
+    args: Dict[str, Any],
+    db: Optional[AsyncSession],
+    current_user: Optional[User],
+) -> Dict[str, Any]:
+    """Add an existing document to a research project."""
+    if not db or not current_user:
+        return {"error": "Authentication required"}
+
+    document_id = args.get("document_id", "")
+    project_id = args.get("project_id", "")
+
+    if not document_id:
+        return {"error": "document_id is required"}
+    if not project_id:
+        return {"error": "project_id is required"}
+
+    try:
+        # Verify document exists and belongs to user's org
+        doc_stmt = select(Document).where(
+            Document.id == UUID(document_id),
+            Document.organization_id == current_user.organization_id,
+            Document.is_deleted == False,
+        )
+        doc_result = await db.execute(doc_stmt)
+        doc = doc_result.scalar_one_or_none()
+        if not doc:
+            return {"error": "Document not found or access denied"}
+
+        # Verify project ownership
+        project = await _verify_project_ownership(project_id, db, current_user)
+        if not project:
+            return {"error": "Project not found or access denied"}
+
+        # Check if already linked
+        existing_stmt = select(CollectionDocument).where(
+            CollectionDocument.collection_id == UUID(project_id),
+            CollectionDocument.document_id == UUID(document_id),
+        )
+        existing_result = await db.execute(existing_stmt)
+        if existing_result.scalar_one_or_none():
+            return {
+                "status": "already_linked",
+                "message": f"Document '{doc.title}' is already in project '{project.name}'.",
+            }
+
+        # Create the link
+        link = CollectionDocument(
+            collection_id=UUID(project_id),
+            document_id=UUID(document_id),
+        )
+        db.add(link)
+        await db.flush()
+
+        return {
+            "status": "success",
+            "message": f"Added document '{doc.title}' to project '{project.name}'.",
+            "document_id": str(doc.id),
+            "project_id": str(project.id),
+        }
+    except Exception as e:
+        logger.error("add_document_to_project tool failed", exc_info=e)
+        return {"error": f"Failed to add document to project: {str(e)}"}
+
+
+async def _tool_create_project_note(
+    args: Dict[str, Any],
+    db: Optional[AsyncSession],
+    current_user: Optional[User],
+) -> Dict[str, Any]:
+    """Create a markdown note in a research project."""
+    if not db or not current_user:
+        return {"error": "Authentication required"}
+
+    project_id = args.get("project_id", "")
+    title = args.get("title", "")
+    content = args.get("content", "")
+    tags = args.get("tags", [])
+
+    if not title:
+        return {"error": "title is required"}
+    if not content:
+        return {"error": "content is required"}
+    if not project_id:
+        return {"error": "project_id is required"}
+
+    try:
+        # Verify project ownership
+        project = await _verify_project_ownership(project_id, db, current_user)
+        if not project:
+            return {"error": "Project not found or access denied"}
+
+        note = ProjectNote(
+            project_id=UUID(project_id),
+            user_id=current_user.id,
+            title=title,
+            content=content,
+            tags=tags or [],
+        )
+        db.add(note)
+        await db.flush()
+
+        return {
+            "status": "success",
+            "note_id": str(note.id),
+            "title": note.title,
+            "project_name": project.name,
+            "message": f"Created note '{title}' in project '{project.name}'.",
+        }
+    except Exception as e:
+        logger.error("create_project_note tool failed", exc_info=e)
+        return {"error": f"Failed to create note: {str(e)}"}
+
+
+async def _tool_list_project_documents(
+    args: Dict[str, Any],
+    db: Optional[AsyncSession],
+    current_user: Optional[User],
+) -> Dict[str, Any]:
+    """List all documents in a research project."""
+    if not db or not current_user:
+        return {"error": "Authentication required"}
+
+    project_id = args.get("project_id", "")
+    if not project_id:
+        return {"error": "project_id is required"}
+
+    try:
+        # Verify project ownership
+        project = await _verify_project_ownership(project_id, db, current_user)
+        if not project:
+            return {"error": "Project not found or access denied"}
+
+        stmt = (
+            select(Document)
+            .join(CollectionDocument, CollectionDocument.document_id == Document.id)
+            .where(
+                CollectionDocument.collection_id == UUID(project_id),
+                Document.is_deleted == False,
+            )
+            .order_by(desc(Document.created_at))
+        )
+        result = await db.execute(stmt)
+        docs = result.scalars().all()
+
+        return {
+            "project_name": project.name,
+            "documents": [
+                {
+                    "id": str(d.id),
+                    "title": d.title,
+                    "type": d.document_type.value if d.document_type else None,
+                    "status": d.processing_status.value if d.processing_status else None,
+                }
+                for d in docs
+            ],
+            "total": len(docs),
+        }
+    except Exception as e:
+        logger.error("list_project_documents tool failed", exc_info=e)
+        return {"error": f"Failed to list project documents: {str(e)}"}
 
 
 # ---------------------------------------------------------------------------
@@ -246,9 +592,16 @@ def build_agent_system_prompt(page_context: PageContextRequest) -> str:
     return f"""You are an AI research agent for a RAG-powered academic research system.
 You help users search documents, manage research projects, find ArXiv papers, create notes, and analyze research.
 
-You have access to tools. When the user asks to find or search for papers, use the search_arxiv tool.
+You have access to the following tools:
+- **search_arxiv**: Search arXiv for academic papers. Use when the user asks to find research papers or scientific articles.
+- **ingest_arxiv_papers**: Ingest arXiv papers into the RAG system. Use when the user wants to add/import specific arXiv papers by ID.
+- **search_documents**: Search the user's indexed documents by title or content. Use when the user wants to find documents they have already uploaded.
+- **add_document_to_project**: Add an existing document to a research project. Use when the user wants to organize a document into a project.
+- **create_project_note**: Create a markdown note in a research project. Use when the user wants to write or save notes, observations, or summaries.
+- **list_project_documents**: List all documents in a research project. Use when the user wants to see what documents are in a project.
 
 {context_line}
+When the user is on a project page, the project_id is available from the page context and does not need to be asked for.
 
 When answering questions, use retrieved document context when available.
 Cite sources using [Doc N] format inline.
@@ -385,7 +738,7 @@ async def execute_agent(
 
                 import time
                 t0 = time.monotonic()
-                tool_result = await execute_tool(tool_name, tool_args, user_id=str(current_user.id))
+                tool_result = await execute_tool(tool_name, tool_args, user_id=str(current_user.id), db=db, current_user=current_user)
                 duration_ms = int((time.monotonic() - t0) * 1000)
 
                 tool_executions_out.append(ToolExecutionResponse(
@@ -484,12 +837,28 @@ async def execute_agent(
                     )
                     db.add(user_msg)
 
-                # Save assistant message
+                # Save assistant message with tool executions
+                tool_exec_data = None
+                if tool_executions_out:
+                    tool_exec_data = [
+                        {
+                            "id": te.id,
+                            "tool_name": te.tool_name,
+                            "tool_display_name": te.tool_display_name,
+                            "args": te.args,
+                            "status": te.status,
+                            "result": te.result,
+                            "error": te.error,
+                            "duration_ms": te.duration_ms,
+                        }
+                        for te in tool_executions_out
+                    ]
                 asst_msg = ChatMessage(
                     thread_id=thread.id,
                     role=MessageRole.ASSISTANT,
                     content=assistant_content,
                     model_name=request.model,
+                    tool_executions=tool_exec_data,
                 )
                 db.add(asst_msg)
 
@@ -559,6 +928,7 @@ class MessageResponse(BaseModel):
     tool_name: Optional[str] = None
     tool_call_id: Optional[str] = None
     citations: Optional[List[Dict[str, Any]]] = None
+    tool_executions: Optional[List[Dict[str, Any]]] = None
 
 
 class ThreadMessagesResponse(BaseModel):
@@ -675,6 +1045,7 @@ async def get_thread_messages(
                 tool_name=msg.tool_name,
                 tool_call_id=msg.tool_call_id,
                 citations=citations_data,
+                tool_executions=msg.tool_executions,
             )
         )
 
