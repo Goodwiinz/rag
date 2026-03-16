@@ -765,6 +765,14 @@ async def execute_agent(
                 tool_args = _json.loads(fn.get("arguments", "{}"))
                 tool_call_id = tc.get("id", "")
 
+                # Auto-fill project_id from page context if not provided by LLM
+                if (
+                    "project_id" not in tool_args
+                    and request.page_context.type == "project"
+                    and request.page_context.project_id
+                ):
+                    tool_args["project_id"] = request.page_context.project_id
+
                 import time
                 t0 = time.monotonic()
                 tool_result = await execute_tool(tool_name, tool_args, user_id=str(current_user.id), db=db, current_user=current_user)
