@@ -45,12 +45,14 @@ export function ToolExecutionCard({ execution }: ToolExecutionCardProps) {
           </span>
         )}
       </button>
-      {isExpanded && execution.result && (
+      {isExpanded && execution.result != null && (
         <div className="px-3 pb-2 text-muted-foreground border-t border-border pt-2">
           <pre className="whitespace-pre-wrap break-words text-[11px]">
-            {typeof execution.result === 'string'
-              ? execution.result
-              : (JSON.stringify(execution.result, null, 2) as string)}
+            {String(
+              typeof execution.result === 'string'
+                ? execution.result
+                : JSON.stringify(execution.result, null, 2)
+            )}
           </pre>
         </div>
       )}
