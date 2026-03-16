@@ -149,12 +149,14 @@ async def execute_agent(
 
                 # hybrid_search_service.search is synchronous; run in thread pool
                 loop = asyncio.get_running_loop()
+                org_id = str(current_user.organization_id) if current_user.organization_id else None
+                uid = str(current_user.id)
                 search_response = await loop.run_in_executor(
                     None,
                     lambda: hybrid_search_service.search(
                         search_request=search_request,
-                        user_id=None,
-                        organization_id=None,
+                        user_id=uid,
+                        organization_id=org_id,
                     ),
                 )
 
