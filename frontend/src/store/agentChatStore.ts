@@ -103,10 +103,20 @@ export const useAgentChatStore = create<AgentChatStore>()(
     },
 
     // Context
-    setPageContext: (context: PageContext) =>
+    setPageContext: (context: PageContext) => {
+      const current = get().pageContext;
+      if (
+        current.type === context.type &&
+        current.label === context.label &&
+        current.projectId === context.projectId &&
+        current.projectName === context.projectName
+      ) {
+        return;
+      }
       set((state) => {
         state.pageContext = context;
-      }),
+      });
+    },
 
     // Reset
     reset: () => set(() => ({ ...initialState })),
