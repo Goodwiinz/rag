@@ -785,14 +785,11 @@ const DetailedAnalyticsReports: React.FC<DetailedAnalyticsReportsProps> = ({
                         data={analyticsData.usage.modalityDistribution}
                         cx="50%"
                         cy="50%"
+                        nameKey="modality"
                         labelLine={false}
-                        label={({ payload, percent }) => {
-                          const modality = (payload as { modality?: string } | undefined)?.modality || 'Unknown';
-                          const percentage =
-                            (payload as { percentage?: number } | undefined)?.percentage ??
-                            (percent ?? 0) * 100;
-                          return `${modality}: ${percentage.toFixed(1)}%`;
-                        }}
+                        label={({ name, percent }) =>
+                          `${String(name ?? '')}: ${((percent ?? 0) * 100).toFixed(1)}%`
+                        }
                         outerRadius={80}
                         fill="#8884d8"
                         dataKey="count"

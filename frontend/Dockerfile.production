@@ -13,7 +13,7 @@
 # =============================================================================
 # Stage 1: Dependencies Builder
 # =============================================================================
-FROM node:18-alpine AS deps
+FROM node:25-alpine AS deps
 
 # Check for https://github.com/nodejs/docker-node/issues/1234
 RUN apk add --no-cache libc6-compat
@@ -34,7 +34,7 @@ RUN \
 # =============================================================================
 # Stage 2: Application Builder
 # =============================================================================
-FROM node:18-alpine AS builder
+FROM node:25-alpine AS builder
 
 # Set working directory
 WORKDIR /app
