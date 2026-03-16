@@ -121,6 +121,7 @@ export const Pagination: React.FC<PaginationProps> = ({
         <Button
           variant="ghost"
           size="icon"
+          aria-label="First page"
           onClick={() => onPageChange(1)}
           disabled={!canGoPrevious}
           className="h-8 w-8 text-[var(--terminal-text-dim)] hover:text-[var(--phosphor-green)] hover:bg-[var(--phosphor-green)]/10 disabled:opacity-30"
@@ -133,6 +134,7 @@ export const Pagination: React.FC<PaginationProps> = ({
         <Button
           variant="ghost"
           size="icon"
+          aria-label="Previous page"
           onClick={() => onPageChange(currentPage - 1)}
           disabled={!canGoPrevious}
           className="h-8 w-8 text-[var(--terminal-text-dim)] hover:text-[var(--phosphor-green)] hover:bg-[var(--phosphor-green)]/10 disabled:opacity-30"
@@ -174,6 +176,7 @@ export const Pagination: React.FC<PaginationProps> = ({
         <Button
           variant="ghost"
           size="icon"
+          aria-label="Next page"
           onClick={() => onPageChange(currentPage + 1)}
           disabled={!canGoNext}
           className="h-8 w-8 text-[var(--terminal-text-dim)] hover:text-[var(--phosphor-green)] hover:bg-[var(--phosphor-green)]/10 disabled:opacity-30"
@@ -186,6 +189,7 @@ export const Pagination: React.FC<PaginationProps> = ({
         <Button
           variant="ghost"
           size="icon"
+          aria-label="Last page"
           onClick={() => onPageChange(totalPages)}
           disabled={!canGoNext}
           className="h-8 w-8 text-[var(--terminal-text-dim)] hover:text-[var(--phosphor-green)] hover:bg-[var(--phosphor-green)]/10 disabled:opacity-30"
