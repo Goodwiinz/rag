@@ -116,13 +116,33 @@ AGENT_TOOLS = [
             },
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "ingest_arxiv_papers",
+            "description": "Ingest arXiv papers into the RAG system for indexing and search. Use when the user wants to add, import, download, or ingest specific arXiv papers. Requires paper IDs (e.g., '2401.12345').",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "paper_ids": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "List of arXiv paper IDs to ingest (e.g., ['2401.12345', '2312.67890'])",
+                    },
+                },
+                "required": ["paper_ids"],
+            },
+        },
+    },
 ]
 
 
-async def execute_tool(tool_name: str, args: Dict[str, Any]) -> Dict[str, Any]:
+async def execute_tool(tool_name: str, args: Dict[str, Any], user_id: str = "") -> Dict[str, Any]:
     """Execute an agent tool and return the result."""
     if tool_name == "search_arxiv":
         return await _tool_search_arxiv(args)
+    if tool_name == "ingest_arxiv_papers":
+        return await _tool_ingest_arxiv(args, user_id)
     return {"error": f"Unknown tool: {tool_name}"}
 
 
@@ -158,6 +178,33 @@ async def _tool_search_arxiv(args: Dict[str, Any]) -> Dict[str, Any]:
     except Exception as e:
         logger.error("ArXiv search tool failed", exc_info=e)
         return {"error": f"ArXiv search failed: {str(e)}", "query": query}
+
+
+async def _tool_ingest_arxiv(args: Dict[str, Any], user_id: str) -> Dict[str, Any]:
+    """Ingest arXiv papers into the RAG system."""
+    from src.services.arxiv.arxiv_service import ArXivIngestionService
+
+    paper_ids = args.get("paper_ids", [])
+    if not paper_ids:
+        return {"error": "No paper IDs provided"}
+    if len(paper_ids) > 10:
+        return {"error": "Maximum 10 papers per ingest request"}
+
+    try:
+        async with ArXivIngestionService() as service:
+            results = await service.ingest_papers(
+                paper_ids=paper_ids,
+                user_id=user_id,
+            )
+            return {
+                "status": "ingestion_started",
+                "paper_ids": paper_ids,
+                "count": len(paper_ids),
+                "message": f"Started ingesting {len(paper_ids)} paper(s). They will be available for search shortly.",
+            }
+    except Exception as e:
+        logger.error("ArXiv ingest tool failed", exc_info=e)
+        return {"error": f"Ingestion failed: {str(e)}", "paper_ids": paper_ids}
 
 
 # ---------------------------------------------------------------------------
@@ -313,7 +360,7 @@ async def execute_agent(
 
                 import time
                 t0 = time.monotonic()
-                tool_result = await execute_tool(tool_name, tool_args)
+                tool_result = await execute_tool(tool_name, tool_args, user_id=str(current_user.id))
                 duration_ms = int((time.monotonic() - t0) * 1000)
 
                 tool_executions_out.append(ToolExecutionResponse(
