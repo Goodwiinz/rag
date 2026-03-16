@@ -1,0 +1,132 @@
+/**
+ * Types for the Global Agent Chat system.
+ * Extends chat-widget types with agent-specific capabilities.
+ */
+
+// ============================================================================
+// Page Context Types
+// ============================================================================
+
+export type PageContextType =
+  | 'project'
+  | 'chat'
+  | 'documents'
+  | 'arxiv'
+  | 'research'
+  | 'analytics'
+  | 'overview'
+  | 'settings'
+  | 'upload'
+  | 'entities'
+  | 'diagnostics'
+  | 'unknown';
+
+export interface PageContext {
+  type: PageContextType;
+  label: string;
+  /** Project ID if on a project page */
+  projectId?: string;
+  /** Project name for display */
+  projectName?: string;
+  /** Additional context metadata */
+  metadata?: Record<string, unknown>;
+}
+
+// ============================================================================
+// Agent Message Types
+// ============================================================================
+
+export interface AgentCitation {
+  documentId: string;
+  documentTitle: string;
+  snippet?: string;
+  page?: number;
+  score?: number;
+}
+
+export interface ToolExecution {
+  id: string;
+  toolName: string;
+  toolDisplayName: string;
+  args: Record<string, unknown>;
+  status: 'running' | 'completed' | 'failed';
+  result?: unknown;
+  error?: string;
+  durationMs?: number;
+}
+
+export interface AgentMessage {
+  id: string;
+  role: 'user' | 'assistant' | 'tool';
+  content: string;
+  timestamp: Date;
+  citations?: AgentCitation[];
+  toolExecutions?: ToolExecution[];
+  isStreaming?: boolean;
+  /** Backend thread message ID for persistence */
+  backendMessageId?: string;
+}
+
+// ============================================================================
+// Thread Types
+// ============================================================================
+
+export interface AgentThread {
+  id: string;
+  title: string;
+  createdAt: Date;
+  updatedAt: Date;
+  messageCount: number;
+  lastMessage?: string;
+  pageContext?: PageContext;
+  /** Linked project ID if started from project page */
+  projectId?: string;
+}
+
+// ============================================================================
+// UI State Types
+// ============================================================================
+
+export type AgentUIMode = 'closed' | 'panel' | 'sidebar';
+
+export interface AgentChatState {
+  /** Current UI mode */
+  uiMode: AgentUIMode;
+  /** Active thread ID */
+  activeThreadId: string | null;
+  /** Thread list */
+  threads: AgentThread[];
+  /** Messages for active thread */
+  messages: AgentMessage[];
+  /** Whether assistant is streaming */
+  isStreaming: boolean;
+  /** Current input value */
+  inputValue: string;
+  /** Unread indicator */
+  hasUnread: boolean;
+  /** Current page context */
+  pageContext: PageContext;
+  /** Loading states */
+  isLoadingThreads: boolean;
+  isLoadingMessages: boolean;
+}
+
+export interface AgentChatActions {
+  // UI
+  openPanel: () => void;
+  openSidebar: () => void;
+  close: () => void;
+  toggle: () => void;
+  // Input
+  setInputValue: (value: string) => void;
+  // Messages
+  sendMessage: () => Promise<void>;
+  clearMessages: () => void;
+  // Threads
+  newThread: () => void;
+  selectThread: (threadId: string) => void;
+  loadThreads: () => Promise<void>;
+  loadThreadMessages: (threadId: string) => Promise<void>;
+  // Context
+  setPageContext: (context: PageContext) => void;
+}

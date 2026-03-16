@@ -196,6 +196,8 @@ class AnalyticsConfig(BaseSettings):
     redis_analytics_url: Optional[str] = None
     elasticsearch_url: Optional[str] = None
     time_series_db_url: Optional[str] = None
+    time_series_db_token: Optional[str] = None
+    time_series_db_org: Optional[str] = None
 
     # Security settings
     enable_access_logging: bool = True
