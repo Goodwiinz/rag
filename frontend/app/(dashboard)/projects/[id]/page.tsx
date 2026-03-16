@@ -27,7 +27,6 @@ import { DraftViewer } from '@/components/research/DraftViewer';
 import { DraftGenerationProgress } from '@/components/research/DraftGenerationProgress';
 import { DraftComparison } from '@/components/research/DraftComparison';
 import { DraftExportModal } from '@/components/research/DraftExportModal';
-import { ProjectChatWidget } from '@/components/chat-widget/ProjectChatWidget';
 import { ProjectChatTab } from '@/components/research/ProjectChatTab';
 import { ExtractionMatrix } from '@/components/research/ExtractionMatrix';
 import { ResearchPipeline } from '@/components/research/ResearchPipeline';
@@ -839,8 +838,6 @@ export default function ProjectDetailPage() {
           }}
         />
       )}
-
-      <ProjectChatWidget projectId={projectId} activeTab={activeTab} />
     </div>
   );
 }
