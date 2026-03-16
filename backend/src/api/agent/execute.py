@@ -85,6 +85,82 @@ class AgentExecuteResponse(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Agent Tools
+# ---------------------------------------------------------------------------
+
+AGENT_TOOLS = [
+    {
+        "type": "function",
+        "function": {
+            "name": "search_arxiv",
+            "description": "Search arXiv for academic papers. Use when the user asks to find, search, or look up research papers, academic publications, or scientific articles.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "Search query for arXiv papers (e.g., 'transformer attention mechanisms')",
+                    },
+                    "max_results": {
+                        "type": "integer",
+                        "description": "Maximum number of results (1-20)",
+                        "default": 5,
+                    },
+                    "categories": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "ArXiv categories to filter (e.g., ['cs.AI', 'cs.LG']). Optional.",
+                    },
+                },
+                "required": ["query"],
+            },
+        },
+    },
+]
+
+
+async def execute_tool(tool_name: str, args: Dict[str, Any]) -> Dict[str, Any]:
+    """Execute an agent tool and return the result."""
+    if tool_name == "search_arxiv":
+        return await _tool_search_arxiv(args)
+    return {"error": f"Unknown tool: {tool_name}"}
+
+
+async def _tool_search_arxiv(args: Dict[str, Any]) -> Dict[str, Any]:
+    """Search arXiv for papers."""
+    from src.services.arxiv.arxiv_service import ArXivIngestionService
+
+    query = args.get("query", "")
+    max_results = min(args.get("max_results", 5), 20)
+    categories = args.get("categories")
+
+    try:
+        async with ArXivIngestionService() as service:
+            papers = await service.search_papers(
+                query=query,
+                max_results=max_results,
+                categories=categories,
+                sort_by="relevance",
+                sort_order="descending",
+            )
+            results = []
+            for p in papers[:max_results]:
+                results.append({
+                    "id": p.get("id", ""),
+                    "title": p.get("title", ""),
+                    "authors": p.get("authors", [])[:5],
+                    "abstract": (p.get("abstract", "") or "")[:500],
+                    "published": str(p.get("published", "")),
+                    "categories": p.get("categories", []),
+                    "pdf_url": p.get("pdf_url", ""),
+                })
+            return {"papers": results, "total": len(results), "query": query}
+    except Exception as e:
+        logger.error("ArXiv search tool failed", exc_info=e)
+        return {"error": f"ArXiv search failed: {str(e)}", "query": query}
+
+
+# ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
@@ -97,6 +173,8 @@ def build_agent_system_prompt(page_context: PageContextRequest) -> str:
 
     return f"""You are an AI research agent for a RAG-powered academic research system.
 You help users search documents, manage research projects, find ArXiv papers, create notes, and analyze research.
+
+You have access to tools. When the user asks to find or search for papers, use the search_arxiv tool.
 
 {context_line}
 
@@ -208,16 +286,64 @@ async def execute_agent(
             llm_messages.append({"role": msg.role, "content": msg.content})
 
     # ------------------------------------------------------------------
-    # Call LLM via Azure OpenAI service
+    # Call LLM via Azure OpenAI service (with tool calling)
     # ------------------------------------------------------------------
     try:
         from src.services.infrastructure.azure_openai_service import azure_openai_service
+        import json as _json
 
         response = await azure_openai_service.chat_completion(
             messages=llm_messages,
             temperature=0.7,
             max_tokens=2048,
+            tools=AGENT_TOOLS,
         )
+
+        # Handle tool calls if the LLM requested them
+        tool_executions_out: List[ToolExecutionResponse] = []
+
+        tool_calls = response.get("tool_calls")
+        if tool_calls:
+            # Execute each tool call
+            for tc in tool_calls:
+                fn = tc.get("function", {})
+                tool_name = fn.get("name", "")
+                tool_args = _json.loads(fn.get("arguments", "{}"))
+                tool_call_id = tc.get("id", "")
+
+                import time
+                t0 = time.monotonic()
+                tool_result = await execute_tool(tool_name, tool_args)
+                duration_ms = int((time.monotonic() - t0) * 1000)
+
+                tool_executions_out.append(ToolExecutionResponse(
+                    id=tool_call_id,
+                    tool_name=tool_name,
+                    tool_display_name=tool_name.replace("_", " ").title(),
+                    args=tool_args,
+                    status="completed" if "error" not in tool_result else "failed",
+                    result=tool_result,
+                    duration_ms=duration_ms,
+                ))
+
+                # Feed tool result back to LLM for synthesis
+                llm_messages.append({
+                    "role": "assistant",
+                    "content": None,
+                    "tool_calls": [tc],
+                })
+                llm_messages.append({
+                    "role": "tool",
+                    "tool_call_id": tool_call_id,
+                    "content": _json.dumps(tool_result),
+                })
+
+            # Second LLM call to synthesize tool results
+            response = await azure_openai_service.chat_completion(
+                messages=llm_messages,
+                temperature=0.7,
+                max_tokens=2048,
+            )
 
         assistant_content = response["content"]
 
@@ -316,6 +442,7 @@ async def execute_agent(
             timestamp=datetime.now(timezone.utc).isoformat(),
             rag_enabled=request.use_rag,
             retrieved_contexts=retrieved_contexts if retrieved_contexts else None,
+            tool_executions=tool_executions_out if tool_executions_out else None,
             thread_id=thread_id,
             conversation_id=conversation_id,
         )

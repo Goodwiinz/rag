@@ -173,6 +173,7 @@ class AzureOpenAIService:
         temperature: float = 0.7,
         max_tokens: Optional[int] = None,
         stream: bool = False,
+        tools: Optional[List[Dict[str, Any]]] = None,
     ) -> Dict[str, Any]:
         """
         Get chat completion from Azure OpenAI
@@ -208,27 +209,45 @@ class AzureOpenAIService:
                 )
             else:
                 # Older models use max_tokens
-                response = chat_client.chat.completions.create(
+                kwargs = dict(
                     model=deployment_name,
                     messages=messages,
                     temperature=temperature,
                     max_tokens=max_tokens,
                     stream=stream,
                 )
+                if tools:
+                    kwargs["tools"] = tools
+                response = chat_client.chat.completions.create(**kwargs)
 
             if stream:
                 return response  # Return streaming response
             else:
-                return {
-                    "content": response.choices[0].message.content,
+                choice = response.choices[0]
+                result = {
+                    "content": choice.message.content,
                     "usage": {
                         "prompt_tokens": response.usage.prompt_tokens,
                         "completion_tokens": response.usage.completion_tokens,
                         "total_tokens": response.usage.total_tokens,
                     },
                     "model": deployment_name,
-                    "finish_reason": response.choices[0].finish_reason,
+                    "finish_reason": choice.finish_reason,
                 }
+                # Include tool calls if present
+                if choice.message.tool_calls:
+                    result["tool_calls"] = [
+                        {
+                            "id": tc.id,
+                            "type": "function",
+                            "function": {
+                                "name": tc.function.name,
+                                "arguments": tc.function.arguments,
+                            },
+                        }
+                        for tc in choice.message.tool_calls
+                    ]
+                return result
 
         except Exception as e:
             logger.error(f"Error getting chat completion from Azure OpenAI: {str(e)}")
