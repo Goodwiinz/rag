@@ -1,9 +1,4 @@
 import { apiClient } from '@/services/apiClient';
-import type {
-  AgentMessage,
-  AgentThread,
-  PageContext,
-} from '@/types/agent-chat';
 
 export interface AgentExecuteRequest {
   messages: Array<{ role: string; content: string }>;
