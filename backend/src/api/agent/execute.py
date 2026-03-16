@@ -6,7 +6,7 @@ Wraps chat completions with tool-calling capabilities and page context injection
 import asyncio
 import logging
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -34,8 +34,8 @@ router = APIRouter(prefix="/api/v1/agent", tags=["agent"])
 # ---------------------------------------------------------------------------
 
 class AgentMessage(BaseModel):
-    role: str = Field(..., description="Message role: user, assistant, system, tool")
-    content: str = Field(..., description="Message content")
+    role: Literal["user", "assistant"] = Field(..., description="Message role: user or assistant")
+    content: str = Field(..., max_length=32000, description="Message content")
 
 
 class PageContextRequest(BaseModel):
@@ -45,9 +45,9 @@ class PageContextRequest(BaseModel):
 
 
 class AgentExecuteRequest(BaseModel):
-    messages: List[AgentMessage] = Field(..., description="Conversation messages")
+    messages: List[AgentMessage] = Field(..., max_length=50, description="Conversation messages")
     page_context: PageContextRequest = Field(default_factory=PageContextRequest)
-    model: str = Field(default="gpt-4o")
+    model: Literal["gpt-4o", "gpt-4o-mini"] = Field(default="gpt-4o")
     use_rag: bool = Field(default=True)
     max_context_docs: int = Field(default=5, ge=1, le=10)
     thread_id: Optional[str] = None
@@ -148,7 +148,7 @@ async def execute_agent(
                 )
 
                 # hybrid_search_service.search is synchronous; run in thread pool
-                loop = asyncio.get_event_loop()
+                loop = asyncio.get_running_loop()
                 search_response = await loop.run_in_executor(
                     None,
                     lambda: hybrid_search_service.search(
@@ -198,7 +198,8 @@ async def execute_agent(
     # ------------------------------------------------------------------
     llm_messages = [{"role": "system", "content": system_prompt}]
     for msg in request.messages:
-        llm_messages.append({"role": msg.role, "content": msg.content})
+        if msg.role in ("user", "assistant"):
+            llm_messages.append({"role": msg.role, "content": msg.content})
 
     # ------------------------------------------------------------------
     # Call LLM via Azure OpenAI service
