@@ -49,6 +49,9 @@
       ],
       "@/styles/*": [
         "./src/styles/*"
+      ],
+      "@test/*": [
+        "./src/test/*"
       ]
     }
   },
@@ -137,7 +140,6 @@
     "app/components/realtime/RealtimeStatusDashboard.tsx",
     "app/components/AppNavbar.tsx",
     "src/stores/graphStore.ts",
-    "src/stores/monitoringStore.ts",
-    "src/test/**/*"
+    "src/stores/monitoringStore.ts"
   ]
 }
