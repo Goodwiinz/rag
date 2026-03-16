@@ -223,10 +223,20 @@ async def tool_node(state: AgentState, config: RunnableConfig) -> dict:
     tool_messages: List[ToolMessage] = []
     tool_executions: List[dict] = list(state.get("tool_executions", []))
 
+    page_context = state.get("page_context", {})
+
     for tc in last_message.tool_calls:
         tool_name = tc["name"]
-        tool_args = tc["args"]
+        tool_args = dict(tc["args"])  # copy so we can mutate
         tool_call_id = tc["id"]
+
+        # Auto-fill project_id from page context if not provided by LLM
+        if (
+            "project_id" not in tool_args
+            and page_context.get("type") == "project"
+            and page_context.get("project_id")
+        ):
+            tool_args["project_id"] = page_context["project_id"]
 
         t0 = time.monotonic()
         try:
