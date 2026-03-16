@@ -6,11 +6,14 @@ Wraps chat completions with tool-calling capabilities and page context injection
 import asyncio
 import logging
 import re
+import uuid as _uuid
+from collections import OrderedDict
 from datetime import datetime, timezone
+from threading import Lock
 from typing import Any, Dict, List, Literal, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy import select, desc, func
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -31,6 +34,32 @@ from src.models.workspace import Workspace
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/agent", tags=["agent"])
+
+
+# ---------------------------------------------------------------------------
+# In-memory job storage (async job system)
+# ---------------------------------------------------------------------------
+
+_jobs: OrderedDict[str, dict] = OrderedDict()
+_jobs_lock = Lock()
+MAX_JOBS = 500
+
+
+def _cleanup_jobs():
+    with _jobs_lock:
+        while len(_jobs) > MAX_JOBS:
+            _jobs.popitem(last=False)
+
+
+def _set_job(job_id: str, data: dict):
+    with _jobs_lock:
+        _jobs[job_id] = data
+    _cleanup_jobs()
+
+
+def _get_job(job_id: str) -> dict | None:
+    with _jobs_lock:
+        return _jobs.get(job_id)
 
 
 # ---------------------------------------------------------------------------
@@ -86,6 +115,17 @@ class AgentExecuteResponse(BaseModel):
     tool_executions: Optional[List[ToolExecutionResponse]] = None
     thread_id: str = ""
     conversation_id: str = ""
+
+
+class JobStartResponse(BaseModel):
+    job_id: str
+
+
+class JobStatusResponse(BaseModel):
+    status: str
+    result: Optional[dict] = None
+    tool_executions: Optional[List[dict]] = None
+    error: Optional[str] = None
 
 
 # ---------------------------------------------------------------------------
@@ -242,7 +282,7 @@ async def execute_tool(
     if tool_name == "search_arxiv":
         return await _tool_search_arxiv(args)
     if tool_name == "ingest_arxiv_papers":
-        return await _tool_ingest_arxiv(args, user_id)
+        return await _tool_ingest_arxiv(args, user_id, db, current_user)
     if tool_name == "search_documents":
         return await _tool_search_documents(args, db, current_user)
     if tool_name == "add_document_to_project":
@@ -288,8 +328,14 @@ async def _tool_search_arxiv(args: Dict[str, Any]) -> Dict[str, Any]:
         return {"error": f"ArXiv search failed: {str(e)}", "query": query}
 
 
-async def _tool_ingest_arxiv(args: Dict[str, Any], user_id: str) -> Dict[str, Any]:
+async def _tool_ingest_arxiv(
+    args: Dict[str, Any],
+    user_id: str,
+    db: Optional[AsyncSession] = None,
+    current_user: Optional[User] = None,
+) -> Dict[str, Any]:
     """Ingest arXiv papers into the RAG system by searching for them first, then ingesting."""
+    from src.models.document import DocumentType, ProcessingStatus
     from src.services.arxiv.arxiv_service import ArXivIngestionService
 
     paper_ids = args.get("paper_ids", [])
@@ -330,7 +376,33 @@ async def _tool_ingest_arxiv(args: Dict[str, Any], user_id: str) -> Dict[str, An
             )
 
             document_ids = []
-            if ingested:
+            if ingested and db and current_user:
+                # Persist documents to the database so they get real UUIDs
+                for doc in ingested:
+                    document = Document(
+                        title=getattr(doc, "title", "Untitled"),
+                        filename=getattr(doc, "filename", ""),
+                        file_path=getattr(
+                            doc, "file_path",
+                            getattr(doc, "filename", ""),
+                        ),
+                        file_size_bytes=getattr(doc, "file_size_bytes", 0),
+                        mime_type=getattr(doc, "mime_type", "application/pdf"),
+                        document_type=DocumentType.PDF,
+                        content_text=getattr(doc, "content_text", None),
+                        content_summary=getattr(doc, "content_summary", None),
+                        document_metadata=getattr(doc, "document_metadata", {}),
+                        processing_status=ProcessingStatus.COMPLETED,
+                        uploaded_by_user_id=current_user.id,
+                        organization_id=current_user.organization_id,
+                        is_public=False,
+                    )
+                    db.add(document)
+                    await db.flush()  # Generate UUID
+                    document_ids.append(str(document.id))
+                await db.commit()
+            elif ingested:
+                # Fallback: no db session, return paper_ids only
                 for doc in ingested:
                     doc_id = getattr(doc, "id", None)
                     if doc_id:
@@ -345,6 +417,8 @@ async def _tool_ingest_arxiv(args: Dict[str, Any], user_id: str) -> Dict[str, An
             }
     except Exception as e:
         logger.error("ArXiv ingest tool failed", exc_info=e)
+        if db:
+            await db.rollback()
         return {"error": f"Ingestion failed: {str(e)}", "paper_ids": paper_ids}
 
 
@@ -644,13 +718,237 @@ Be concise and action-oriented."""
 AGENT_THREAD_MARKER = {"source": "agent"}
 
 
-@router.post("/execute", response_model=AgentExecuteResponse)
+async def _persist_thread_messages(
+    db: AsyncSession,
+    current_user: User,
+    request: AgentExecuteRequest,
+    assistant_content: str,
+    tool_executions_out: Optional[List[ToolExecutionResponse]] = None,
+) -> tuple[str, str]:
+    """Persist thread & messages to the database.
+
+    Returns ``(thread_id, conversation_id)`` as strings.
+    """
+    thread_id = request.thread_id or ""
+    conversation_id = ""
+
+    # Resolve or create thread
+    thread: Optional[Thread] = None
+    if request.thread_id:
+        thread = await db.get(Thread, UUID(request.thread_id))
+
+    if thread is None:
+        # Need a workspace + conversation for the thread
+        ws_stmt = select(Workspace).where(
+            Workspace.owner_id == current_user.id
+        ).limit(1)
+        ws_result = await db.execute(ws_stmt)
+        workspace = ws_result.scalar_one_or_none()
+
+        if workspace:
+            # Create conversation
+            conv = Conversation(
+                workspace_id=workspace.id,
+                title="Agent Chat",
+                created_by_id=current_user.id,
+            )
+            db.add(conv)
+            await db.flush()
+
+            # Derive title from first user message
+            first_msg = next(
+                (m.content for m in request.messages if m.role == "user"), ""
+            )
+            title = first_msg[:80] if first_msg else "Agent Chat"
+
+            thread = Thread(
+                conversation_id=conv.id,
+                title=title,
+                status=ThreadStatus.ACTIVE,
+                created_by_id=current_user.id,
+                rag_document_scope=AGENT_THREAD_MARKER,
+                message_count=0,
+            )
+            db.add(thread)
+            await db.flush()
+
+    if thread:
+        thread_id = str(thread.id)
+        conversation_id = str(thread.conversation_id)
+
+        # Save user message (only the latest one)
+        last_user_content = next(
+            (m.content for m in reversed(request.messages) if m.role == "user"),
+            None,
+        )
+        if last_user_content:
+            user_msg = ChatMessage(
+                thread_id=thread.id,
+                user_id=current_user.id,
+                role=MessageRole.USER,
+                content=last_user_content,
+            )
+            db.add(user_msg)
+
+        # Save assistant message with tool executions
+        tool_exec_data = None
+        if tool_executions_out:
+            tool_exec_data = [
+                {
+                    "id": te.id,
+                    "tool_name": te.tool_name,
+                    "tool_display_name": te.tool_display_name,
+                    "args": te.args,
+                    "status": te.status,
+                    "result": te.result,
+                    "error": te.error,
+                    "duration_ms": te.duration_ms,
+                }
+                for te in tool_executions_out
+            ]
+        asst_msg = ChatMessage(
+            thread_id=thread.id,
+            role=MessageRole.ASSISTANT,
+            content=assistant_content,
+            model_name=request.model,
+            tool_executions=tool_exec_data,
+        )
+        db.add(asst_msg)
+
+        # Update thread stats
+        thread.message_count = (thread.message_count or 0) + 2
+        thread.last_message_at = datetime.now(timezone.utc)
+
+        await db.commit()
+
+    return thread_id, conversation_id
+
+
+# ---------------------------------------------------------------------------
+# Background graph runner
+# ---------------------------------------------------------------------------
+
+
+async def _run_agent_graph(
+    job_id: str,
+    request: AgentExecuteRequest,
+    current_user: User,
+    db: AsyncSession,
+):
+    """Run the LangGraph agent graph in the background and update job status."""
+    from langchain_core.messages import HumanMessage
+
+    from src.services.agent.checkpointer import get_checkpointer
+    from src.services.agent.graph import compile_agent_graph
+
+    try:
+        checkpointer = await get_checkpointer()
+        graph = compile_agent_graph(checkpointer=checkpointer)
+
+        messages = [
+            HumanMessage(content=m.content)
+            for m in request.messages
+            if m.role == "user"
+        ]
+
+        initial_state = {
+            "messages": messages,
+            "page_context": {
+                "type": request.page_context.type,
+                "project_id": request.page_context.project_id,
+            },
+            "retrieved_contexts": [],
+            "tool_executions": [],
+            "thread_id": request.thread_id or "",
+            "tool_loop_count": 0,
+        }
+
+        config = {
+            "configurable": {
+                "thread_id": request.thread_id or job_id,
+                "db": db,
+                "current_user": current_user,
+                "page_context": {
+                    "type": request.page_context.type,
+                    "project_id": request.page_context.project_id,
+                },
+            }
+        }
+
+        final_state = await graph.ainvoke(initial_state, config=config)
+
+        # Extract assistant content from the last AI message
+        assistant_content = ""
+        for msg in reversed(final_state["messages"]):
+            if hasattr(msg, "type") and msg.type == "ai" and msg.content:
+                assistant_content = msg.content
+                break
+
+        # Persist thread & messages
+        thread_id, conversation_id = "", ""
+        try:
+            tool_executions_out = [
+                ToolExecutionResponse(**te)
+                for te in final_state.get("tool_executions", [])
+            ] or None
+            thread_id, conversation_id = await _persist_thread_messages(
+                db, current_user, request, assistant_content, tool_executions_out,
+            )
+        except Exception as e:
+            logger.warning("Failed to persist thread", exc_info=e)
+            try:
+                await db.rollback()
+            except Exception:
+                pass
+
+        # Build response
+        result = AgentExecuteResponse(
+            message=AgentMessage(role="assistant", content=assistant_content),
+            model="gpt-4o",
+            usage={},
+            finish_reason="stop",
+            timestamp=datetime.now(timezone.utc).isoformat(),
+            rag_enabled=request.use_rag,
+            retrieved_contexts=[
+                RetrievedContextResponse(**rc)
+                for rc in final_state.get("retrieved_contexts", [])
+            ] or None,
+            tool_executions=[
+                ToolExecutionResponse(**te)
+                for te in final_state.get("tool_executions", [])
+            ] or None,
+            thread_id=thread_id,
+            conversation_id=conversation_id,
+        )
+
+        _set_job(job_id, {
+            "status": "completed",
+            "result": result.model_dump(),
+            "tool_executions": [
+                te for te in final_state.get("tool_executions", [])
+            ],
+        })
+    except Exception as e:
+        logger.error("Agent graph execution failed", exc_info=e)
+        _set_job(job_id, {"status": "failed", "error": str(e)})
+
+
+# ---------------------------------------------------------------------------
+# Endpoints
+# ---------------------------------------------------------------------------
+
+
+@router.post("/execute", response_model=JobStartResponse)
 async def execute_agent(
     request: AgentExecuteRequest,
+    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Execute an agent chat completion with optional RAG and tool calling."""
+    """Execute an agent chat completion via LangGraph.
+
+    Returns a job ID immediately.  Poll ``GET /jobs/{job_id}`` for the result.
+    """
     logger.info(
         "Agent execute request",
         extra={
@@ -661,273 +959,22 @@ async def execute_agent(
         },
     )
 
-    system_prompt = build_agent_system_prompt(request.page_context)
-    retrieved_contexts: List[RetrievedContextResponse] = []
+    job_id = str(_uuid.uuid4())
+    _set_job(job_id, {"status": "running", "tool_executions": []})
 
-    # ------------------------------------------------------------------
-    # RAG retrieval
-    # ------------------------------------------------------------------
-    if request.use_rag and request.messages:
-        last_user_msg = next(
-            (m.content for m in reversed(request.messages) if m.role == "user"),
-            None,
-        )
-        if last_user_msg:
-            try:
-                from src.models.search_schemas import SearchQuery
-                from src.services.search.hybrid_search_service import hybrid_search_service
+    background_tasks.add_task(
+        _run_agent_graph, job_id, request, current_user, db,
+    )
+    return JobStartResponse(job_id=job_id)
 
-                search_request = SearchQuery(
-                    query=last_user_msg,
-                    limit=request.max_context_docs,
-                    search_type="hybrid",
-                )
 
-                # hybrid_search_service.search is synchronous; run in thread pool
-                loop = asyncio.get_running_loop()
-                org_id = str(current_user.organization_id) if current_user.organization_id else None
-                uid = str(current_user.id)
-                search_response = await loop.run_in_executor(
-                    None,
-                    lambda: hybrid_search_service.search(
-                        search_request=search_request,
-                        user_id=uid,
-                        organization_id=org_id,
-                    ),
-                )
-
-                for i, result in enumerate(search_response.results[: request.max_context_docs]):
-                    doc_id = getattr(result, "document_id", None)
-                    title = getattr(result, "title", "Untitled") or f"Document {i + 1}"
-
-                    metadata = getattr(result, "metadata", {}) or {}
-                    content = metadata.get("full_text") or metadata.get("text", "")
-                    if not content:
-                        content = getattr(result, "content_preview", None)
-                    if not content:
-                        content = getattr(result, "content", "")
-                    if content is None:
-                        content = ""
-
-                    doc_content = content[:3000]
-                    score = getattr(result, "relevance_score", 0.0)
-
-                    retrieved_contexts.append(
-                        RetrievedContextResponse(
-                            document_id=str(doc_id) if doc_id else None,
-                            title=title,
-                            content=doc_content,
-                            score=float(score),
-                        )
-                    )
-
-                if retrieved_contexts:
-                    context_text = "\n\n".join(
-                        f"[Doc {i + 1}] {ctx.title}:\n{ctx.content}"
-                        for i, ctx in enumerate(retrieved_contexts)
-                    )
-                    system_prompt += f"\n\nRetrieved context:\n{context_text}"
-
-            except Exception as e:
-                logger.warning("RAG retrieval failed, proceeding without context", exc_info=e)
-
-    # ------------------------------------------------------------------
-    # Build messages for LLM
-    # ------------------------------------------------------------------
-    llm_messages = [{"role": "system", "content": system_prompt}]
-    for msg in request.messages:
-        if msg.role in ("user", "assistant"):
-            llm_messages.append({"role": msg.role, "content": msg.content})
-
-    # ------------------------------------------------------------------
-    # Call LLM via Azure OpenAI service (with tool calling)
-    # ------------------------------------------------------------------
-    try:
-        from src.services.infrastructure.azure_openai_service import azure_openai_service
-        import json as _json
-
-        response = await azure_openai_service.chat_completion(
-            messages=llm_messages,
-            temperature=0.7,
-            max_tokens=2048,
-            tools=AGENT_TOOLS,
-        )
-
-        # Handle tool calls if the LLM requested them
-        tool_executions_out: List[ToolExecutionResponse] = []
-
-        tool_calls = response.get("tool_calls")
-        if tool_calls:
-            # Execute each tool call
-            for tc in tool_calls:
-                fn = tc.get("function", {})
-                tool_name = fn.get("name", "")
-                tool_args = _json.loads(fn.get("arguments", "{}"))
-                tool_call_id = tc.get("id", "")
-
-                # Auto-fill project_id from page context if not provided by LLM
-                if (
-                    "project_id" not in tool_args
-                    and request.page_context.type == "project"
-                    and request.page_context.project_id
-                ):
-                    tool_args["project_id"] = request.page_context.project_id
-
-                import time
-                t0 = time.monotonic()
-                tool_result = await execute_tool(tool_name, tool_args, user_id=str(current_user.id), db=db, current_user=current_user)
-                duration_ms = int((time.monotonic() - t0) * 1000)
-
-                tool_executions_out.append(ToolExecutionResponse(
-                    id=tool_call_id,
-                    tool_name=tool_name,
-                    tool_display_name=tool_name.replace("_", " ").title(),
-                    args=tool_args,
-                    status="completed" if "error" not in tool_result else "failed",
-                    result=tool_result,
-                    duration_ms=duration_ms,
-                ))
-
-                # Feed tool result back to LLM for synthesis
-                llm_messages.append({
-                    "role": "assistant",
-                    "content": None,
-                    "tool_calls": [tc],
-                })
-                llm_messages.append({
-                    "role": "tool",
-                    "tool_call_id": tool_call_id,
-                    "content": _json.dumps(tool_result),
-                })
-
-            # Second LLM call to synthesize tool results
-            response = await azure_openai_service.chat_completion(
-                messages=llm_messages,
-                temperature=0.7,
-                max_tokens=2048,
-            )
-
-        assistant_content = response["content"]
-
-        # --------------------------------------------------------------
-        # Persist thread & messages
-        # --------------------------------------------------------------
-        thread_id = request.thread_id or ""
-        conversation_id = ""
-
-        try:
-            # Resolve or create thread
-            thread: Optional[Thread] = None
-            if request.thread_id:
-                thread = await db.get(Thread, UUID(request.thread_id))
-
-            if thread is None:
-                # Need a workspace + conversation for the thread
-                ws_stmt = select(Workspace).where(
-                    Workspace.owner_id == current_user.id
-                ).limit(1)
-                ws_result = await db.execute(ws_stmt)
-                workspace = ws_result.scalar_one_or_none()
-
-                if workspace:
-                    # Create conversation
-                    conv = Conversation(
-                        workspace_id=workspace.id,
-                        title="Agent Chat",
-                        created_by_id=current_user.id,
-                    )
-                    db.add(conv)
-                    await db.flush()
-
-                    # Derive title from first user message
-                    first_msg = next(
-                        (m.content for m in request.messages if m.role == "user"), ""
-                    )
-                    title = first_msg[:80] if first_msg else "Agent Chat"
-
-                    thread = Thread(
-                        conversation_id=conv.id,
-                        title=title,
-                        status=ThreadStatus.ACTIVE,
-                        created_by_id=current_user.id,
-                        rag_document_scope=AGENT_THREAD_MARKER,
-                        message_count=0,
-                    )
-                    db.add(thread)
-                    await db.flush()
-
-            if thread:
-                thread_id = str(thread.id)
-                conversation_id = str(thread.conversation_id)
-
-                # Save user message (only the latest one)
-                last_user_content = next(
-                    (m.content for m in reversed(request.messages) if m.role == "user"),
-                    None,
-                )
-                if last_user_content:
-                    user_msg = ChatMessage(
-                        thread_id=thread.id,
-                        user_id=current_user.id,
-                        role=MessageRole.USER,
-                        content=last_user_content,
-                    )
-                    db.add(user_msg)
-
-                # Save assistant message with tool executions
-                tool_exec_data = None
-                if tool_executions_out:
-                    tool_exec_data = [
-                        {
-                            "id": te.id,
-                            "tool_name": te.tool_name,
-                            "tool_display_name": te.tool_display_name,
-                            "args": te.args,
-                            "status": te.status,
-                            "result": te.result,
-                            "error": te.error,
-                            "duration_ms": te.duration_ms,
-                        }
-                        for te in tool_executions_out
-                    ]
-                asst_msg = ChatMessage(
-                    thread_id=thread.id,
-                    role=MessageRole.ASSISTANT,
-                    content=assistant_content,
-                    model_name=request.model,
-                    tool_executions=tool_exec_data,
-                )
-                db.add(asst_msg)
-
-                # Update thread stats
-                thread.message_count = (thread.message_count or 0) + 2
-                thread.last_message_at = datetime.now(timezone.utc)
-
-                await db.commit()
-
-        except Exception as e:
-            logger.warning("Failed to persist agent thread/messages", exc_info=e)
-            await db.rollback()
-
-        return AgentExecuteResponse(
-            message=AgentMessage(
-                role="assistant",
-                content=assistant_content,
-            ),
-            model=response.get("model", request.model),
-            usage=response.get("usage", {}),
-            finish_reason=response.get("finish_reason", "stop"),
-            timestamp=datetime.now(timezone.utc).isoformat(),
-            rag_enabled=request.use_rag,
-            retrieved_contexts=retrieved_contexts if retrieved_contexts else None,
-            tool_executions=tool_executions_out if tool_executions_out else None,
-            thread_id=thread_id,
-            conversation_id=conversation_id,
-        )
-
-    except Exception as e:
-        logger.error("Agent LLM call failed", exc_info=e)
-        raise HTTPException(status_code=500, detail="Agent execution failed")
+@router.get("/jobs/{job_id}", response_model=JobStatusResponse)
+async def get_job_status(job_id: str):
+    """Poll for agent job status."""
+    job = _get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    return JobStatusResponse(**job)
 
 
 @router.get("/health")
