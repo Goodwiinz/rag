@@ -7,12 +7,22 @@ import asyncio
 import logging
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
+from sqlalchemy import select, desc, func
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
+from src.core.database import get_db
 from src.core.dependencies import get_current_user
+from src.models.chat_message import ChatMessage, MessageRole
+from src.models.citation import Citation
+from src.models.conversation import Conversation
+from src.models.thread import Thread, ThreadStatus
 from src.models.user import User
+from src.models.workspace import Workspace
 
 logger = logging.getLogger(__name__)
 
@@ -226,3 +236,152 @@ async def execute_agent(
 async def agent_health():
     """Health check for agent service."""
     return {"status": "ok", "service": "agent"}
+
+
+# ---------------------------------------------------------------------------
+# Thread listing & message retrieval schemas
+# ---------------------------------------------------------------------------
+
+class ThreadSummary(BaseModel):
+    id: str
+    title: Optional[str] = None
+    created_at: str
+    updated_at: str
+    message_count: int
+    last_message_at: Optional[str] = None
+    source_project_id: Optional[str] = None
+    status: str = "active"
+    conversation_id: str = ""
+
+
+class ThreadListResponse(BaseModel):
+    threads: List[ThreadSummary]
+    total: int
+
+
+class MessageResponse(BaseModel):
+    id: str
+    role: str
+    content: str
+    created_at: str
+    tool_name: Optional[str] = None
+    tool_call_id: Optional[str] = None
+    citations: Optional[List[Dict[str, Any]]] = None
+
+
+class ThreadMessagesResponse(BaseModel):
+    messages: List[MessageResponse]
+    total: int
+
+
+# ---------------------------------------------------------------------------
+# Thread listing & message retrieval endpoints
+# ---------------------------------------------------------------------------
+
+@router.get("/threads", response_model=ThreadListResponse)
+async def list_agent_threads(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """List threads for the current user, ordered by most recently updated."""
+    # Build query: Thread -> Conversation -> Workspace, filter by owner
+    stmt = (
+        select(Thread)
+        .join(Conversation, Thread.conversation_id == Conversation.id)
+        .join(Workspace, Conversation.workspace_id == Workspace.id)
+        .where(
+            Workspace.owner_id == current_user.id,
+            Thread.is_deleted == False,
+        )
+        .order_by(desc(Thread.updated_at))
+        .limit(50)
+    )
+    result = await db.execute(stmt)
+    threads = result.scalars().all()
+
+    # Count total (without limit)
+    count_stmt = (
+        select(func.count(Thread.id))
+        .join(Conversation, Thread.conversation_id == Conversation.id)
+        .join(Workspace, Conversation.workspace_id == Workspace.id)
+        .where(
+            Workspace.owner_id == current_user.id,
+            Thread.is_deleted == False,
+        )
+    )
+    total_result = await db.execute(count_stmt)
+    total = total_result.scalar() or 0
+
+    thread_summaries = []
+    for t in threads:
+        thread_summaries.append(
+            ThreadSummary(
+                id=str(t.id),
+                title=t.title,
+                created_at=t.created_at.isoformat() if t.created_at else "",
+                updated_at=t.updated_at.isoformat() if t.updated_at else "",
+                message_count=t.message_count or 0,
+                last_message_at=t.last_message_at.isoformat() if t.last_message_at else None,
+                source_project_id=str(t.source_project_id) if t.source_project_id else None,
+                status=t.status.value if t.status else "active",
+                conversation_id=str(t.conversation_id) if t.conversation_id else "",
+            )
+        )
+
+    return ThreadListResponse(threads=thread_summaries, total=total)
+
+
+@router.get("/threads/{thread_id}/messages", response_model=ThreadMessagesResponse)
+async def get_thread_messages(
+    thread_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get messages for a specific agent thread, verifying user ownership."""
+    # Verify thread exists and belongs to the current user via ownership chain
+    ownership_stmt = (
+        select(Thread)
+        .join(Conversation, Thread.conversation_id == Conversation.id)
+        .join(Workspace, Conversation.workspace_id == Workspace.id)
+        .where(
+            Thread.id == thread_id,
+            Workspace.owner_id == current_user.id,
+            Thread.is_deleted == False,
+        )
+    )
+    ownership_result = await db.execute(ownership_stmt)
+    thread = ownership_result.scalar_one_or_none()
+
+    if not thread:
+        raise HTTPException(status_code=404, detail="Thread not found")
+
+    # Fetch messages with citations eagerly loaded
+    messages_stmt = (
+        select(ChatMessage)
+        .where(ChatMessage.thread_id == thread_id)
+        .options(selectinload(ChatMessage.citations))
+        .order_by(ChatMessage.created_at.asc())
+    )
+    messages_result = await db.execute(messages_stmt)
+    messages = messages_result.scalars().all()
+
+    message_responses = []
+    for msg in messages:
+        # Build citations list from the relationship
+        citations_data = None
+        if msg.citations:
+            citations_data = [c.to_frontend_format() for c in msg.citations]
+
+        message_responses.append(
+            MessageResponse(
+                id=str(msg.id),
+                role=msg.role.value if msg.role else "user",
+                content=msg.content or "",
+                created_at=msg.created_at.isoformat() if msg.created_at else "",
+                tool_name=msg.tool_name,
+                tool_call_id=msg.tool_call_id,
+                citations=citations_data,
+            )
+        )
+
+    return ThreadMessagesResponse(messages=message_responses, total=len(message_responses))
