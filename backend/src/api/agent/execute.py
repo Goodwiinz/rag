@@ -181,7 +181,7 @@ async def _tool_search_arxiv(args: Dict[str, Any]) -> Dict[str, Any]:
 
 
 async def _tool_ingest_arxiv(args: Dict[str, Any], user_id: str) -> Dict[str, Any]:
-    """Ingest arXiv papers into the RAG system."""
+    """Ingest arXiv papers into the RAG system by searching for them first, then ingesting."""
     from src.services.arxiv.arxiv_service import ArXivIngestionService
 
     paper_ids = args.get("paper_ids", [])
@@ -192,15 +192,40 @@ async def _tool_ingest_arxiv(args: Dict[str, Any], user_id: str) -> Dict[str, An
 
     try:
         async with ArXivIngestionService() as service:
-            results = await service.ingest_papers(
-                paper_ids=paper_ids,
-                user_id=user_id,
+            # Fetch paper metadata for each ID, then ingest
+            papers_to_ingest = []
+            for pid in paper_ids:
+                # Search by ID to get full paper dict
+                results = await service.search_papers(
+                    query=f"id:{pid}",
+                    max_results=1,
+                )
+                if results:
+                    papers_to_ingest.append(results[0])
+                else:
+                    # Build minimal paper dict from ID
+                    papers_to_ingest.append({
+                        "id": pid,
+                        "title": f"arXiv:{pid}",
+                        "authors": [],
+                        "abstract": "",
+                        "published": "",
+                        "updated": "",
+                        "categories": [],
+                        "links": {"pdf": f"https://arxiv.org/pdf/{pid}"},
+                    })
+
+            ingested = await service.ingest_papers(
+                papers=papers_to_ingest,
+                download_pdfs=True,
+                extract_content=True,
             )
+
             return {
-                "status": "ingestion_started",
+                "status": "ingestion_complete",
                 "paper_ids": paper_ids,
-                "count": len(paper_ids),
-                "message": f"Started ingesting {len(paper_ids)} paper(s). They will be available for search shortly.",
+                "ingested_count": len(ingested) if ingested else len(papers_to_ingest),
+                "message": f"Ingested {len(paper_ids)} paper(s) into the RAG system.",
             }
     except Exception as e:
         logger.error("ArXiv ingest tool failed", exc_info=e)
