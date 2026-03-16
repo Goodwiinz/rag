@@ -7,6 +7,7 @@ import type { ExtendedModel } from './ModelSelector';
 import { motion } from 'framer-motion';
 import { ArrowUp, Mic, Paperclip, Square } from 'lucide-react';
 import React, { useEffect, useRef, useState } from 'react';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface ChatInputProps {
   value: string;
@@ -140,20 +141,30 @@ export function ChatInput({
 
             <div className="flex items-center justify-between mt-2">
               <div className="flex items-center gap-1">
-                <button
-                  className="p-2 rounded-lg hover:bg-[var(--terminal-elevated)] text-[var(--terminal-text-dim)] hover:text-[var(--terminal-text)] transition-colors group"
-                  title="Attach artifact"
-                  aria-label="Attach artifact"
-                >
-                  <Paperclip className="w-4 h-4 group-hover:text-[var(--phosphor-green)] transition-colors" />
-                </button>
-                <button
-                  className="p-2 rounded-lg hover:bg-[var(--terminal-elevated)] text-[var(--terminal-text-dim)] hover:text-[var(--terminal-text)] transition-colors group"
-                  title="Voice input"
-                  aria-label="Voice input"
-                >
-                  <Mic className="w-4 h-4 group-hover:text-[var(--phosphor-green)] transition-colors" />
-                </button>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        className="p-2 rounded-lg hover:bg-[var(--terminal-elevated)] text-[var(--terminal-text-dim)] hover:text-[var(--terminal-text)] transition-colors group"
+                        aria-label="Attach artifact"
+                      >
+                        <Paperclip className="w-4 h-4 group-hover:text-[var(--phosphor-green)] transition-colors" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent>Attach artifact</TooltipContent>
+                  </Tooltip>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        className="p-2 rounded-lg hover:bg-[var(--terminal-elevated)] text-[var(--terminal-text-dim)] hover:text-[var(--terminal-text)] transition-colors group"
+                        aria-label="Voice input"
+                      >
+                        <Mic className="w-4 h-4 group-hover:text-[var(--phosphor-green)] transition-colors" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent>Voice input</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               </div>
 
               {isLoading ? (
