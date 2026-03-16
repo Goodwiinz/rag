@@ -57,7 +57,7 @@
     "framer-motion": "^12.23.26",
     "harden-react-markdown": "^1.1.5",
     "highlight.js": "^11.11.1",
-    "immer": "^10.2.0",
+    "immer": "^11.1.4",
     "json-stringify-pretty-compact": "^4.0.0",
     "katex": "^0.16.25",
     "lodash-es": "^4.17.21",
