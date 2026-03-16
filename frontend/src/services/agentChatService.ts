@@ -77,19 +77,16 @@ export interface ThreadMessagesResponse {
 
 class AgentChatService {
   async execute(request: AgentExecuteRequest): Promise<AgentExecuteResponse> {
-    return apiClient.post<AgentExecuteResponse>(
-      '/api/v1/agent/execute',
-      request
-    );
+    return apiClient.post<AgentExecuteResponse>('/agent/execute', request);
   }
 
   async listThreads(): Promise<ThreadListResponse> {
-    return apiClient.get<ThreadListResponse>('/api/v1/agent/threads');
+    return apiClient.get<ThreadListResponse>('/agent/threads');
   }
 
   async getThreadMessages(threadId: string): Promise<ThreadMessagesResponse> {
     return apiClient.get<ThreadMessagesResponse>(
-      `/api/v1/agent/threads/${threadId}/messages`
+      `/agent/threads/${encodeURIComponent(threadId)}/messages`
     );
   }
 }
