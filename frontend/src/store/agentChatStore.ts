@@ -98,7 +98,8 @@ export const useAgentChatStore = create<AgentChatStore>()(
           .messages.filter((m) => m.role === 'user' || m.role === 'assistant')
           .map((m) => ({ role: m.role, content: m.content }));
 
-        const response = await agentChatService.execute({
+        // Step 1: Start the async job
+        const { job_id } = await agentChatService.startJob({
           messages: apiMessages,
           page_context: {
             type: pageContext.type,
@@ -107,42 +108,133 @@ export const useAgentChatStore = create<AgentChatStore>()(
           thread_id: activeThreadId ?? undefined,
         });
 
-        // Create assistant message from response
-        const assistantMessage: AgentMessage = {
-          id: `msg-${Date.now()}-assistant`,
-          role: 'assistant',
-          content: response.message.content,
-          timestamp: new Date(response.timestamp),
-          citations: response.retrieved_contexts?.map((ctx) => ({
-            documentId: ctx.document_id ?? '',
-            documentTitle: ctx.title,
-            snippet: ctx.content,
-            score: ctx.score,
-          })),
-          toolExecutions: response.tool_executions?.map((te) => ({
-            id: te.id,
-            toolName: te.tool_name,
-            toolDisplayName: te.tool_display_name,
-            args: te.args,
-            status: te.status as 'running' | 'completed' | 'failed',
-            result: te.result,
-            error: te.error,
-            durationMs: te.duration_ms,
-          })),
-        };
-
+        // Step 2: Add a streaming placeholder message
+        const placeholderId = `msg-${Date.now()}-assistant`;
         set((state) => {
-          state.messages.push(assistantMessage);
-          state.isStreaming = false;
-          state.activeThreadId = response.thread_id || state.activeThreadId;
+          state.messages.push({
+            id: placeholderId,
+            role: 'assistant',
+            content: '',
+            timestamp: new Date(),
+            isStreaming: true,
+          });
         });
 
-        // Mark unread if chat is closed
-        if (uiMode === 'closed') {
-          set((state) => {
-            state.hasUnread = true;
-          });
+        // Step 3: Poll until completed or failed (max 120 polls = 3 min)
+        const MAX_POLLS = 120;
+        const POLL_INTERVAL_MS = 1500;
+
+        for (let i = 0; i < MAX_POLLS; i++) {
+          await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
+
+          const job = await agentChatService.pollJob(job_id);
+
+          // Update placeholder with intermediate tool executions
+          if (job.tool_executions && job.tool_executions.length > 0) {
+            set((state) => {
+              const idx = state.messages.findIndex(
+                (m) => m.id === placeholderId
+              );
+              if (idx !== -1) {
+                state.messages[idx].toolExecutions = job.tool_executions!.map(
+                  (te) => ({
+                    id: te.id,
+                    toolName: te.tool_name,
+                    toolDisplayName: te.tool_display_name,
+                    args: te.args,
+                    status: te.status as 'running' | 'completed' | 'failed',
+                    result: te.result,
+                    error: te.error,
+                    durationMs: te.duration_ms,
+                  })
+                );
+              }
+            });
+          }
+
+          if (job.status === 'completed' && job.result) {
+            const response = job.result;
+
+            // Replace placeholder with final assistant message
+            set((state) => {
+              const idx = state.messages.findIndex(
+                (m) => m.id === placeholderId
+              );
+              if (idx !== -1) {
+                state.messages[idx] = {
+                  id: placeholderId,
+                  role: 'assistant',
+                  content: response.message.content,
+                  timestamp: new Date(response.timestamp),
+                  isStreaming: false,
+                  citations: response.retrieved_contexts?.map((ctx) => ({
+                    documentId: ctx.document_id ?? '',
+                    documentTitle: ctx.title,
+                    snippet: ctx.content,
+                    score: ctx.score,
+                  })),
+                  toolExecutions: response.tool_executions?.map((te) => ({
+                    id: te.id,
+                    toolName: te.tool_name,
+                    toolDisplayName: te.tool_display_name,
+                    args: te.args,
+                    status: te.status as 'running' | 'completed' | 'failed',
+                    result: te.result,
+                    error: te.error,
+                    durationMs: te.duration_ms,
+                  })),
+                };
+              }
+              state.isStreaming = false;
+              state.activeThreadId = response.thread_id || state.activeThreadId;
+            });
+
+            // Mark unread if chat is closed
+            if (uiMode === 'closed') {
+              set((state) => {
+                state.hasUnread = true;
+              });
+            }
+            return;
+          }
+
+          if (job.status === 'failed') {
+            set((state) => {
+              const idx = state.messages.findIndex(
+                (m) => m.id === placeholderId
+              );
+              if (idx !== -1) {
+                state.messages[idx] = {
+                  id: placeholderId,
+                  role: 'assistant',
+                  content:
+                    job.error ||
+                    'Sorry, something went wrong. Please try again.',
+                  timestamp: new Date(),
+                  isStreaming: false,
+                };
+              }
+              state.isStreaming = false;
+            });
+            return;
+          }
         }
+
+        // Timeout: max polls exhausted
+        set((state) => {
+          const idx = state.messages.findIndex((m) => m.id === placeholderId);
+          if (idx !== -1) {
+            state.messages[idx] = {
+              id: placeholderId,
+              role: 'assistant',
+              content:
+                'The request timed out. The agent may still be processing — please try again shortly.',
+              timestamp: new Date(),
+              isStreaming: false,
+            };
+          }
+          state.isStreaming = false;
+        });
       } catch (error) {
         const errorMessage: AgentMessage = {
           id: `msg-${Date.now()}-error`,
@@ -230,6 +322,16 @@ export const useAgentChatStore = create<AgentChatStore>()(
             snippet: c.snippet,
             page: c.page_number,
             score: c.score,
+          })),
+          toolExecutions: m.tool_executions?.map((te) => ({
+            id: te.id,
+            toolName: te.tool_name,
+            toolDisplayName: te.tool_display_name,
+            args: te.args,
+            status: te.status as 'running' | 'completed' | 'failed',
+            result: te.result,
+            error: te.error,
+            durationMs: te.duration_ms,
           })),
           backendMessageId: m.id,
         }));
