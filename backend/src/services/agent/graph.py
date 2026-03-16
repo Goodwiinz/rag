@@ -240,16 +240,20 @@ async def tool_node(state: AgentState, config: RunnableConfig) -> dict:
 
         t0 = time.monotonic()
         try:
-            tool_fn = tools_by_name.get(tool_name)
-            if not tool_fn:
-                result_content = json.dumps({"error": f"Unknown tool: {tool_name}"})
-                status = "failed"
-            else:
-                result = await tool_fn.ainvoke(tool_args, config=config)
-                result_content = (
-                    json.dumps(result) if isinstance(result, dict) else str(result)
-                )
-                status = "failed" if isinstance(result, dict) and "error" in result else "completed"
+            # Call existing execute_tool directly — bypasses @tool schema
+            # validation which may strip auto-filled args like project_id
+            from src.api.agent.execute import execute_tool
+
+            configurable = config.get("configurable", {})
+            result = await execute_tool(
+                tool_name=tool_name,
+                args=tool_args,
+                user_id=str(configurable.get("current_user").id) if configurable.get("current_user") else "",
+                db=configurable.get("db"),
+                current_user=configurable.get("current_user"),
+            )
+            result_content = json.dumps(result) if isinstance(result, dict) else str(result)
+            status = "failed" if isinstance(result, dict) and "error" in result else "completed"
         except Exception as e:
             logger.error("Tool %s failed: %s", tool_name, e, exc_info=True)
             result_content = json.dumps({"error": str(e)})
