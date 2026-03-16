@@ -294,6 +294,26 @@ async def execute_tool(
     return {"error": f"Unknown tool: {tool_name}"}
 
 
+def _sanitize_metadata(metadata: Any) -> dict:
+    """Convert datetime objects in metadata dict to ISO strings for JSON serialization."""
+    if not isinstance(metadata, dict):
+        return {}
+    sanitized = {}
+    for k, v in metadata.items():
+        if isinstance(v, datetime):
+            sanitized[k] = v.isoformat()
+        elif isinstance(v, dict):
+            sanitized[k] = _sanitize_metadata(v)
+        elif isinstance(v, list):
+            sanitized[k] = [
+                item.isoformat() if isinstance(item, datetime) else item
+                for item in v
+            ]
+        else:
+            sanitized[k] = v
+    return sanitized
+
+
 async def _tool_search_arxiv(args: Dict[str, Any]) -> Dict[str, Any]:
     """Search arXiv for papers."""
     from src.services.arxiv.arxiv_service import ArXivIngestionService
@@ -391,7 +411,7 @@ async def _tool_ingest_arxiv(
                         document_type=DocumentType.PDF,
                         content_text=getattr(doc, "content_text", None),
                         content_summary=getattr(doc, "content_summary", None),
-                        document_metadata=getattr(doc, "document_metadata", {}),
+                        document_metadata=_sanitize_metadata(getattr(doc, "document_metadata", {})),
                         processing_status=ProcessingStatus.COMPLETED,
                         uploaded_by_user_id=current_user.id,
                         organization_id=current_user.organization_id,
