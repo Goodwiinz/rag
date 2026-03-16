@@ -71,13 +71,41 @@ export interface ThreadMessagesResponse {
       page_number?: number;
       score?: number;
     }>;
+    tool_executions?: Array<{
+      id: string;
+      tool_name: string;
+      tool_display_name: string;
+      args: Record<string, unknown>;
+      status: string;
+      result?: unknown;
+      error?: string;
+      duration_ms?: number;
+    }>;
   }>;
   total: number;
 }
 
 class AgentChatService {
-  async execute(request: AgentExecuteRequest): Promise<AgentExecuteResponse> {
-    return apiClient.post<AgentExecuteResponse>('/agent/execute', request);
+  async startJob(request: AgentExecuteRequest): Promise<{ job_id: string }> {
+    return apiClient.post<{ job_id: string }>('/agent/execute', request);
+  }
+
+  async pollJob(jobId: string): Promise<{
+    status: 'running' | 'completed' | 'failed';
+    result?: AgentExecuteResponse;
+    tool_executions?: Array<{
+      id: string;
+      tool_name: string;
+      tool_display_name: string;
+      args: Record<string, unknown>;
+      status: string;
+      result?: unknown;
+      error?: string;
+      duration_ms?: number;
+    }>;
+    error?: string;
+  }> {
+    return apiClient.get(`/agent/jobs/${encodeURIComponent(jobId)}`);
   }
 
   async listThreads(): Promise<ThreadListResponse> {
