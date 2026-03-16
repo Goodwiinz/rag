@@ -21,7 +21,7 @@ supabase>=2.28.0
 python-jose[cryptography]==3.4.0
 passlib[bcrypt]==1.7.4
 python-multipart>=0.0.22
-bcrypt==4.1.1
+bcrypt==5.0.0
 defusedxml==0.7.1
 
 # Background Tasks
@@ -45,7 +45,7 @@ huggingface_hub>=0.20.0
 qdrant-client==1.16.2
 
 # Graph Database
-neo4j==5.15.0
+neo4j==6.1.0
 
 # Multimodal Processing
 pypdf>=6.6.2
