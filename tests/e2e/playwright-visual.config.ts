@@ -8,7 +8,7 @@ export default defineConfig({
   retries: process.env.CI ? 1 : 0,
   workers: 1, // Visual tests should run with single worker for consistency
   reporter: [
-    ['html', { outputFolder: 'test-results/visual-report' }],
+    ['html', { outputFolder: 'playwright-report/visual' }],
     ['json', { outputFile: 'test-results/visual-results.json' }],
   ],
 

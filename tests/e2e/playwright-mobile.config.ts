@@ -7,7 +7,7 @@ export default defineConfig({
   retries: process.env.CI ? 2 : 0,
   workers: process.env.CI ? 1 : 3,
   reporter: [
-    ['html', { outputFolder: 'test-results/mobile-report' }],
+    ['html', { outputFolder: 'playwright-report/mobile' }],
     ['json', { outputFile: 'test-results/mobile-results.json' }],
     ['line'],
   ],

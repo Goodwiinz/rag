@@ -1,6 +1,6 @@
 # Multi-stage production-ready Dockerfile for the Multimodal RAG System Backend
 # Stage 1: Python base with system dependencies
-FROM python:3.11-slim AS base
+FROM python:3.14-slim AS base
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \

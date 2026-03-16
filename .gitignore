@@ -232,3 +232,4 @@ backend/browser-test-cache/
 
 # Local git worktrees
 .worktrees/
+.Jules/

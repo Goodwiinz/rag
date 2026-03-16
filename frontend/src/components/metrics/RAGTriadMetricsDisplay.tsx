@@ -163,13 +163,9 @@ export const RAGTriadMetricsDisplay: React.FC<RAGTriadMetricsDisplayProps> = ({
                       cx="50%"
                       cy="50%"
                       outerRadius={40}
-                      label={({ payload, percent }) => {
-                        const range = (payload as { range?: string } | undefined)?.range || 'N/A';
-                        const percentage =
-                          (payload as { percentage?: number } | undefined)?.percentage ??
-                          ((percent ?? 0) * 100).toFixed(0);
-                        return `${range}: ${percentage}%`;
-                      }}
+                      label={({ name, percent }) =>
+                        `${String(name ?? '')}: ${((percent ?? 0) * 100).toFixed(0)}%`
+                      }
                     >
                       {metrics.answerRelevancy.distribution.map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
@@ -217,13 +213,9 @@ export const RAGTriadMetricsDisplay: React.FC<RAGTriadMetricsDisplayProps> = ({
                       cx="50%"
                       cy="50%"
                       outerRadius={40}
-                      label={({ payload, percent }) => {
-                        const range = (payload as { range?: string } | undefined)?.range || 'N/A';
-                        const percentage =
-                          (payload as { percentage?: number } | undefined)?.percentage ??
-                          ((percent ?? 0) * 100).toFixed(0);
-                        return `${range}: ${percentage}%`;
-                      }}
+                      label={({ name, percent }) =>
+                        `${String(name ?? '')}: ${((percent ?? 0) * 100).toFixed(0)}%`
+                      }
                     >
                       {metrics.faithfulness.distribution.map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
@@ -271,13 +263,9 @@ export const RAGTriadMetricsDisplay: React.FC<RAGTriadMetricsDisplayProps> = ({
                       cx="50%"
                       cy="50%"
                       outerRadius={40}
-                      label={({ payload, percent }) => {
-                        const range = (payload as { range?: string } | undefined)?.range || 'N/A';
-                        const percentage =
-                          (payload as { percentage?: number } | undefined)?.percentage ??
-                          ((percent ?? 0) * 100).toFixed(0);
-                        return `${range}: ${percentage}%`;
-                      }}
+                      label={({ name, percent }) =>
+                        `${String(name ?? '')}: ${((percent ?? 0) * 100).toFixed(0)}%`
+                      }
                     >
                       {metrics.contextualRelevancy.distribution.map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />

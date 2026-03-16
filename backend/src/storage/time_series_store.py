@@ -714,11 +714,25 @@ class InfluxDBTimeSeriesStore:
                 "Set TIME_SERIES_DB_URL in configuration",
             )
 
+        if not self.config.time_series_db_token:
+            raise AnalyticsServiceException(
+                "influxdb",
+                "InfluxDB token not configured",
+                "Set TIME_SERIES_DB_TOKEN in configuration",
+            )
+
+        if not self.config.time_series_db_org:
+            raise AnalyticsServiceException(
+                "influxdb",
+                "InfluxDB organization not configured",
+                "Set TIME_SERIES_DB_ORG in configuration",
+            )
+
         try:
             self.client = InfluxDBClient(
                 url=self.config.time_series_db_url,
-                token="your-token",  # Should be configured
-                org="your-org",  # Should be configured
+                token=self.config.time_series_db_token,
+                org=self.config.time_series_db_org,
             )
 
             # Test connection

@@ -1,6 +1,6 @@
 # Multi-stage production-ready Dockerfile for the React Frontend
 # Stage 1: Node.js base
-FROM node:18-alpine AS base
+FROM node:25-alpine AS base
 
 # Install system dependencies
 RUN apk add --no-cache libc6-compat
@@ -39,7 +39,7 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
 CMD ["npm", "run", "dev"]
 
 # Stage 4: Production build
-FROM node:18-alpine AS builder
+FROM node:25-alpine AS builder
 
 WORKDIR /app
 
