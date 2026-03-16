@@ -459,7 +459,7 @@ export const GraphCentralityMetrics: React.FC<GraphCentralityMetricsProps> = ({
                     </p>
                   </div>
                 </div>
-                <Button variant="ghost" size="sm">
+                <Button variant="ghost" size="sm" aria-label="Metric Information">
                   <InformationCircleIcon className="h-5 w-5" />
                 </Button>
               </div>
@@ -617,7 +617,7 @@ export const GraphCentralityMetrics: React.FC<GraphCentralityMetricsProps> = ({
 
                     {/* Actions */}
                     <div className="flex-shrink-0">
-                      <Button variant="ghost" size="sm">
+                      <Button variant="ghost" size="sm" aria-label="View Entity Details">
                         <EyeIcon className="h-4 w-4" />
                       </Button>
                     </div>
@@ -693,7 +693,7 @@ export const GraphCentralityMetrics: React.FC<GraphCentralityMetricsProps> = ({
                             <span className="text-sm text-gray-500">
                               Contribution: {contribution.toFixed(3)}
                             </span>
-                            <Button variant="ghost" size="sm">
+                            <Button variant="ghost" size="sm" aria-label="Open Relationship">
                               <ArrowTopRightOnSquareIcon className="h-4 w-4" />
                             </Button>
                           </div>
