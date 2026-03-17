@@ -12,3 +12,9 @@ class AgentState(TypedDict):
     tool_executions: list
     thread_id: str
     tool_loop_count: int
+    error_count: int
+    last_error: str
+    pending_confirmation: dict
+    user_confirmed: bool
+    intent: str
+    user_memories: list

@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   User,
   Bot,
@@ -8,12 +8,17 @@ import {
   XCircle,
   ChevronDown,
   ChevronRight,
+  Copy,
+  Check,
+  RefreshCw,
 } from 'lucide-react';
 import { ToolExecutionCard } from './ToolExecutionCard';
+import { AgentMarkdownRenderer } from './AgentMarkdownRenderer';
 import type { AgentMessage, ToolExecution } from '@/types/agent-chat';
 
 interface AgentMessageItemProps {
   message: AgentMessage;
+  onRetry?: () => void;
 }
 
 /**
@@ -35,20 +40,34 @@ function groupToolExecutions(
   return groups;
 }
 
-export function AgentMessageItem({ message }: AgentMessageItemProps) {
+export function AgentMessageItem({ message, onRetry }: AgentMessageItemProps) {
   const isUser = message.role === 'user';
+  const isError = message.isError;
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = useCallback(() => {
+    void navigator.clipboard.writeText(message.content);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }, [message.content]);
 
   const toolGroups = message.toolExecutions
     ? groupToolExecutions(message.toolExecutions)
     : [];
 
   return (
-    <div className={`flex gap-3 px-4 py-3 ${isUser ? '' : 'bg-muted/20'}`}>
+    <div
+      className={`group flex gap-3 px-4 py-3 ${isUser ? '' : 'bg-muted/20'} ${
+        isError ? 'border-l-2 border-destructive/30' : ''
+      }`}
+    >
       <div
         className={`shrink-0 h-6 w-6 rounded-full flex items-center justify-center mt-0.5 ${
           isUser
             ? 'bg-primary/10 text-primary'
-            : 'bg-muted text-muted-foreground'
+            : isError
+              ? 'bg-destructive/10 text-destructive'
+              : 'bg-muted text-muted-foreground'
         }`}
       >
         {isUser ? (
@@ -60,12 +79,23 @@ export function AgentMessageItem({ message }: AgentMessageItemProps) {
       <div className="flex-1 min-w-0">
         {/* Message content */}
         {message.content && (
-          <div className="text-sm text-foreground whitespace-pre-wrap break-words leading-relaxed">
-            {message.content}
-            {message.isStreaming && (
-              <span className="inline-block w-1.5 h-4 bg-primary animate-pulse ml-0.5 align-text-bottom" />
+          <>
+            {isUser ? (
+              <div className="text-sm text-foreground whitespace-pre-wrap break-words leading-relaxed">
+                {message.content}
+              </div>
+            ) : (
+              <div className="relative">
+                <AgentMarkdownRenderer
+                  content={message.content}
+                  citations={message.citations}
+                />
+                {message.isStreaming && (
+                  <span className="inline-block w-1.5 h-4 bg-primary animate-pulse ml-0.5 align-text-bottom" />
+                )}
+              </div>
             )}
-          </div>
+          </>
         )}
 
         {/* Tool executions — grouped */}
@@ -84,18 +114,33 @@ export function AgentMessageItem({ message }: AgentMessageItemProps) {
           </div>
         )}
 
-        {/* Citations */}
-        {message.citations && message.citations.length > 0 && (
-          <div className="mt-2 flex flex-wrap gap-1">
-            {message.citations.map((cite, i) => (
-              <span
-                key={`${cite.documentId}-${i}`}
-                className="inline-flex items-center text-[10px] bg-primary/10 text-primary rounded-md px-2 py-0.5"
-                title={cite.snippet}
+        {/* Action buttons for assistant messages */}
+        {!isUser && message.content && !message.isStreaming && (
+          <div className="flex items-center gap-1 mt-2">
+            {/* Copy button */}
+            <button
+              onClick={handleCopy}
+              aria-label={copied ? 'Copied' : 'Copy message'}
+              className="p-1 rounded-md text-muted-foreground/50 hover:text-muted-foreground hover:bg-muted transition-colors opacity-0 group-hover:opacity-100"
+            >
+              {copied ? (
+                <Check className="h-3.5 w-3.5" />
+              ) : (
+                <Copy className="h-3.5 w-3.5" />
+              )}
+            </button>
+
+            {/* Retry button for error messages */}
+            {isError && onRetry && (
+              <button
+                onClick={onRetry}
+                aria-label="Retry message"
+                className="flex items-center gap-1 px-2 py-1 rounded-md text-xs text-destructive hover:bg-destructive/10 transition-colors"
               >
-                {cite.documentTitle}
-              </span>
-            ))}
+                <RefreshCw className="h-3 w-3" />
+                Retry
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -116,8 +161,6 @@ function ToolExecutionGroupCard({
   const allCompleted = executions.every((e) => e.status === 'completed');
   const anyFailed = executions.some((e) => e.status === 'failed');
   const totalMs = executions.reduce((sum, e) => sum + (e.durationMs ?? 0), 0);
-
-  // Icons imported at top of file
 
   return (
     <div className="border border-border/50 rounded-lg bg-muted/20 text-xs my-2 overflow-hidden">
