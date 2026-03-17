@@ -438,7 +438,32 @@ async def llm_node(state: AgentState, config: RunnableConfig) -> dict:
         system_text += f"\n\nRetrieved context:\n{context_text}"
 
     # Build messages list: system + conversation messages
-    messages = [SystemMessage(content=system_text)] + list(state["messages"])
+    # Sanitize: ensure every AIMessage with tool_calls has matching ToolMessages
+    raw_messages = list(state["messages"])
+    sanitized: list = []
+    for msg in raw_messages:
+        sanitized.append(msg)
+        if isinstance(msg, AIMessage) and getattr(msg, "tool_calls", None):
+            # Collect tool_call IDs from this message
+            expected_ids = {tc["id"] for tc in msg.tool_calls}
+            # Look ahead for matching ToolMessages already in the list
+            answered_ids: set = set()
+            for future_msg in raw_messages[raw_messages.index(msg) + 1:]:
+                if isinstance(future_msg, ToolMessage):
+                    answered_ids.add(future_msg.tool_call_id)
+                elif isinstance(future_msg, (AIMessage, HumanMessage)):
+                    break
+            # Add placeholder ToolMessages for any unanswered tool_calls
+            for tc in msg.tool_calls:
+                if tc["id"] not in answered_ids:
+                    sanitized.append(
+                        ToolMessage(
+                            content='{"status": "skipped"}',
+                            tool_call_id=tc["id"],
+                        )
+                    )
+
+    messages = [SystemMessage(content=system_text)] + sanitized
 
     # Bind intent-specific tool subset
     intent_tools = _get_tools_for_intent(intent)
