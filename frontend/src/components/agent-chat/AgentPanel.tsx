@@ -17,6 +17,7 @@ interface AgentPanelProps {
   pageContext: PageContext;
   onInputChange: (value: string) => void;
   onSend: () => void;
+  onStop?: () => void;
   onClear: () => void;
   onClose: () => void;
   onExpand: () => void;
@@ -30,6 +31,7 @@ export function AgentPanel({
   pageContext,
   onInputChange,
   onSend,
+  onStop,
   onClear,
   onClose,
   onExpand,
@@ -86,6 +88,8 @@ export function AgentPanel({
         value={inputValue}
         onChange={onInputChange}
         onSend={onSend}
+        onStop={onStop}
+        isStreaming={isStreaming}
         disabled={isStreaming}
       />
     </div>

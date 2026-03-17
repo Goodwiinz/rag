@@ -63,6 +63,8 @@ export interface AgentMessage {
   citations?: AgentCitation[];
   toolExecutions?: ToolExecution[];
   isStreaming?: boolean;
+  /** Whether this message represents an error */
+  isError?: boolean;
   /** Backend thread message ID for persistence */
   backendMessageId?: string;
 }
@@ -89,6 +91,12 @@ export interface AgentThread {
 
 export type AgentUIMode = 'closed' | 'panel' | 'sidebar';
 
+export interface PendingConfirmation {
+  jobId: string;
+  tools: Array<{ name: string; args: Record<string, unknown> }>;
+  message: string;
+}
+
 export interface AgentChatState {
   /** Current UI mode */
   uiMode: AgentUIMode;
@@ -109,6 +117,8 @@ export interface AgentChatState {
   /** Loading states */
   isLoadingThreads: boolean;
   isLoadingMessages: boolean;
+  /** Pending human-in-the-loop confirmation */
+  pendingConfirmation: PendingConfirmation | null;
 }
 
 export interface AgentChatActions {
@@ -122,6 +132,8 @@ export interface AgentChatActions {
   // Messages
   sendMessage: () => Promise<void>;
   clearMessages: () => void;
+  stopGeneration: () => void;
+  retryLastMessage: () => void;
   // Threads
   newThread: () => void;
   selectThread: (threadId: string) => void;
@@ -129,4 +141,6 @@ export interface AgentChatActions {
   loadThreadMessages: (threadId: string) => Promise<void>;
   // Context
   setPageContext: (context: PageContext) => void;
+  // Human-in-the-loop
+  confirmAction: (confirmed: boolean) => Promise<void>;
 }

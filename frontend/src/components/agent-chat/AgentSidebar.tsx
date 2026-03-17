@@ -8,7 +8,11 @@ import { AgentInput } from './AgentInput';
 import { AgentThreadList } from './AgentThreadList';
 import { useAgentChatStore } from '@/store/agentChatStore';
 
-export function AgentSidebar() {
+interface AgentSidebarProps {
+  onCollapse?: () => void;
+}
+
+export function AgentSidebar({ onCollapse }: AgentSidebarProps) {
   const messages = useAgentChatStore((s) => s.messages);
   const isStreaming = useAgentChatStore((s) => s.isStreaming);
   const inputValue = useAgentChatStore((s) => s.inputValue);
@@ -20,10 +24,13 @@ export function AgentSidebar() {
   const openPanel = useAgentChatStore((s) => s.openPanel);
   const setInputValue = useAgentChatStore((s) => s.setInputValue);
   const sendMessage = useAgentChatStore((s) => s.sendMessage);
+  const stopGeneration = useAgentChatStore((s) => s.stopGeneration);
   const newThread = useAgentChatStore((s) => s.newThread);
   const selectThread = useAgentChatStore((s) => s.selectThread);
   const loadThreads = useAgentChatStore((s) => s.loadThreads);
   const loadThreadMessages = useAgentChatStore((s) => s.loadThreadMessages);
+
+  const handleCollapse = onCollapse ?? openPanel;
 
   useEffect(() => {
     void loadThreads();
@@ -68,7 +75,7 @@ export function AgentSidebar() {
           </h3>
           <div className="flex items-center gap-1">
             <button
-              onClick={openPanel}
+              onClick={handleCollapse}
               aria-label="Collapse to panel"
               className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
             >
@@ -89,6 +96,8 @@ export function AgentSidebar() {
           value={inputValue}
           onChange={setInputValue}
           onSend={() => void sendMessage()}
+          onStop={stopGeneration}
+          isStreaming={isStreaming}
           disabled={isStreaming}
         />
       </div>

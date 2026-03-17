@@ -13,7 +13,8 @@ from threading import Lock
 from typing import Any, Dict, List, Literal, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import select, desc, func
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -74,6 +75,8 @@ class AgentMessage(BaseModel):
 class PageContextRequest(BaseModel):
     type: str = Field(default="unknown", description="Page context type")
     project_id: Optional[str] = Field(default=None, description="Project ID if on project page")
+    project_name: Optional[str] = Field(default=None, description="Project name for display")
+    label: Optional[str] = Field(default=None, description="Current page label (e.g., 'Documents', 'Notes')")
     metadata: Optional[Dict[str, Any]] = None
 
 
@@ -126,6 +129,7 @@ class JobStatusResponse(BaseModel):
     result: Optional[dict] = None
     tool_executions: Optional[List[dict]] = None
     error: Optional[str] = None
+    confirmation: Optional[dict] = None
 
 
 # ---------------------------------------------------------------------------
@@ -268,6 +272,135 @@ AGENT_TOOLS = [
             },
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "summarize_document",
+            "description": "Summarize a document's content. Use when the user asks for a summary or overview of a specific document.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "document_id": {
+                        "type": "string",
+                        "description": "The UUID of the document to summarize",
+                    },
+                },
+                "required": ["document_id"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "compare_documents",
+            "description": "Compare multiple documents to find similarities, differences, and shared themes.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "document_ids": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "List of document UUIDs to compare (2-5 documents)",
+                    },
+                    "type": {
+                        "type": "string",
+                        "description": "Comparison type: 'general', 'methodology', 'findings', 'themes'",
+                        "default": "general",
+                    },
+                },
+                "required": ["document_ids"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "extract_entities",
+            "description": "Extract named entities (people, organizations, concepts, etc.) from a document.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "document_id": {
+                        "type": "string",
+                        "description": "The UUID of the document to extract entities from",
+                    },
+                },
+                "required": ["document_id"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "search_knowledge_graph",
+            "description": "Search the knowledge graph for entities and their relationships. Use when the user asks about concepts, people, or organizations in the research corpus.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "Search query for knowledge graph entities",
+                    },
+                    "entity_types": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Filter by entity types (e.g., ['PERSON', 'ORGANIZATION', 'CONCEPT']). Optional.",
+                    },
+                },
+                "required": ["query"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "create_draft",
+            "description": "Generate a literature review draft for a project based on themes. Use when the user wants to create a draft, write a review, or synthesize research.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "project_id": {
+                        "type": "string",
+                        "description": "The UUID of the project. Optional if on a project page.",
+                    },
+                    "themes": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "List of themes or topics to focus the draft on",
+                    },
+                    "style": {
+                        "type": "string",
+                        "description": "Writing style: 'academic', 'technical', or 'summary'",
+                        "default": "academic",
+                    },
+                },
+                "required": ["themes"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "export_bibliography",
+            "description": "Export bibliography/references for documents in a specific citation format.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "document_ids": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "List of document UUIDs to include in the bibliography",
+                    },
+                    "format": {
+                        "type": "string",
+                        "description": "Citation format: 'bibtex', 'apa', 'ieee', or 'mla'",
+                        "default": "bibtex",
+                    },
+                },
+                "required": ["document_ids"],
+            },
+        },
+    },
 ]
 
 
@@ -291,6 +424,18 @@ async def execute_tool(
         return await _tool_create_project_note(args, db, current_user)
     if tool_name == "list_project_documents":
         return await _tool_list_project_documents(args, db, current_user)
+    if tool_name == "summarize_document":
+        return await _tool_summarize_document(args, db, current_user)
+    if tool_name == "compare_documents":
+        return await _tool_compare_documents(args, db, current_user)
+    if tool_name == "extract_entities":
+        return await _tool_extract_entities(args, db, current_user)
+    if tool_name == "search_knowledge_graph":
+        return await _tool_search_knowledge_graph(args)
+    if tool_name == "create_draft":
+        return await _tool_create_draft(args, db, current_user)
+    if tool_name == "export_bibliography":
+        return await _tool_export_bibliography(args, db, current_user)
     return {"error": f"Unknown tool: {tool_name}"}
 
 
@@ -492,22 +637,106 @@ async def _tool_search_documents(
         return {"error": f"Document search failed: {str(e)}"}
 
 
+async def _resolve_document_id(
+    document_id: str,
+    db: AsyncSession,
+    current_user: User,
+) -> Optional[Document]:
+    """Resolve a document_id string (UUID or title) to a Document.
+
+    Accepts either a UUID string or a document title. Returns None if not found.
+    """
+    # Try as UUID first
+    try:
+        doc_uuid = UUID(document_id)
+        stmt = select(Document).where(
+            Document.id == doc_uuid,
+            Document.organization_id == current_user.organization_id,
+            Document.is_deleted == False,
+        )
+        result = await db.execute(stmt)
+        doc = result.scalar_one_or_none()
+        if doc:
+            return doc
+    except (ValueError, AttributeError):
+        pass
+
+    # Try by title (case-insensitive)
+    if document_id:
+        try:
+            stmt = (
+                select(Document)
+                .where(
+                    Document.title.ilike(document_id),
+                    Document.organization_id == current_user.organization_id,
+                    Document.is_deleted == False,
+                )
+                .order_by(desc(Document.created_at))
+                .limit(1)
+            )
+            result = await db.execute(stmt)
+            doc = result.scalar_one_or_none()
+            if doc:
+                return doc
+        except Exception:
+            pass
+
+    return None
+
+
+async def _resolve_project_id(
+    project_id: str,
+    db: AsyncSession,
+    current_user: User,
+) -> Optional[UUID]:
+    """Resolve a project_id string to a UUID.
+
+    Accepts either a UUID string or a project name. Returns None if not found.
+    """
+    # Try as UUID first
+    try:
+        return UUID(project_id)
+    except (ValueError, AttributeError):
+        pass
+
+    # Try by name (case-insensitive)
+    if project_id and db and current_user:
+        try:
+            stmt = (
+                select(Collection.id)
+                .join(Workspace, Collection.workspace_id == Workspace.id)
+                .where(
+                    Collection.name.ilike(project_id),
+                    Collection.is_deleted == False,
+                    Workspace.owner_id == current_user.id,
+                )
+                .limit(1)
+            )
+            result = await db.execute(stmt)
+            row = result.scalar_one_or_none()
+            if row:
+                return row
+        except Exception:
+            pass
+
+    return None
+
+
 async def _verify_project_ownership(
     project_id: str,
     db: AsyncSession,
     current_user: User,
 ) -> Optional[Collection]:
     """Verify a project (collection) exists and belongs to the current user."""
-    try:
-        project_uuid = UUID(project_id)
-    except (ValueError, AttributeError):
+    proj_uuid = await _resolve_project_id(project_id, db, current_user)
+    if not proj_uuid:
         return None
 
     stmt = (
         select(Collection)
         .join(Workspace, Collection.workspace_id == Workspace.id)
         .where(
-            Collection.id == project_uuid,
+            Collection.id == proj_uuid,
             Collection.is_deleted == False,
             Workspace.owner_id == current_user.id,
         )
@@ -534,35 +763,20 @@ async def _tool_add_document_to_project(
         return {"error": "project_id is required"}
 
     try:
-        doc_uuid = UUID(document_id)
-    except (ValueError, AttributeError):
-        return {"error": "Invalid document_id format"}
-
-    try:
-        proj_uuid = UUID(project_id)
-    except (ValueError, AttributeError):
-        return {"error": "Invalid project_id format"}
-
-    try:
-        # Verify document exists and belongs to user's org
-        doc_stmt = select(Document).where(
-            Document.id == doc_uuid,
-            Document.organization_id == current_user.organization_id,
-            Document.is_deleted == False,
-        )
-        doc_result = await db.execute(doc_stmt)
-        doc = doc_result.scalar_one_or_none()
+        # Resolve document (UUID or title)
+        doc = await _resolve_document_id(document_id, db, current_user)
         if not doc:
             return {"error": "Document not found or access denied"}
+        doc_uuid = doc.id
 
-        # Verify project ownership
+        # Verify project ownership (resolves UUID or name)
         project = await _verify_project_ownership(project_id, db, current_user)
         if not project:
             return {"error": "Project not found or access denied"}
 
         # Check if already linked
         existing_stmt = select(CollectionDocument).where(
-            CollectionDocument.collection_id == proj_uuid,
+            CollectionDocument.collection_id == project.id,
             CollectionDocument.document_id == doc_uuid,
         )
         existing_result = await db.execute(existing_stmt)
@@ -572,12 +786,13 @@ async def _tool_add_document_to_project(
                 "message": f"Document '{doc.title}' is already in project '{project.name}'.",
             }
 
-        # Create the link
-        link = CollectionDocument(
-            collection_id=proj_uuid,
-            document_id=doc_uuid,
-        )
-        db.add(link)
+        # Create the link — use savepoint so commit survives later rollbacks
+        async with db.begin_nested():
+            link = CollectionDocument(
+                collection_id=project.id,
+                document_id=doc_uuid,
+            )
+            db.add(link)
         await db.commit()
 
         return {
@@ -588,7 +803,10 @@ async def _tool_add_document_to_project(
         }
     except Exception as e:
         logger.error("add_document_to_project tool failed", exc_info=e)
-        await db.rollback()
+        try:
+            await db.rollback()
+        except Exception:
+            pass
         return {"error": f"Failed to add document to project: {str(e)}"}
 
 
@@ -614,24 +832,21 @@ async def _tool_create_project_note(
         return {"error": "project_id is required"}
 
     try:
-        proj_uuid = UUID(project_id)
-    except (ValueError, AttributeError):
-        return {"error": "Invalid project_id format"}
-
-    try:
-        # Verify project ownership
+        # Verify project ownership (resolves UUID or name)
         project = await _verify_project_ownership(project_id, db, current_user)
         if not project:
             return {"error": "Project not found or access denied"}
 
-        note = ProjectNote(
-            project_id=proj_uuid,
-            user_id=current_user.id,
-            title=title,
-            content=content,
-            tags=tags or [],
-        )
-        db.add(note)
+        # Use savepoint so this commit survives later rollbacks
+        async with db.begin_nested():
+            note = ProjectNote(
+                project_id=project.id,
+                user_id=current_user.id,
+                title=title,
+                content=content,
+                tags=tags or [],
+            )
+            db.add(note)
         await db.commit()
 
         return {
@@ -643,7 +858,10 @@ async def _tool_create_project_note(
         }
     except Exception as e:
         logger.error("create_project_note tool failed", exc_info=e)
-        await db.rollback()
+        try:
+            await db.rollback()
+        except Exception:
+            pass
         return {"error": f"Failed to create note: {str(e)}"}
 
 
@@ -661,12 +879,7 @@ async def _tool_list_project_documents(
         return {"error": "project_id is required"}
 
     try:
-        proj_uuid = UUID(project_id)
-    except (ValueError, AttributeError):
-        return {"error": "Invalid project_id format"}
-
-    try:
-        # Verify project ownership
+        # Verify project ownership (resolves UUID or name)
         project = await _verify_project_ownership(project_id, db, current_user)
         if not project:
             return {"error": "Project not found or access denied"}
@@ -675,7 +888,7 @@ async def _tool_list_project_documents(
             select(Document)
             .join(CollectionDocument, CollectionDocument.document_id == Document.id)
             .where(
-                CollectionDocument.collection_id == proj_uuid,
+                CollectionDocument.collection_id == project.id,
                 Document.is_deleted == False,
             )
             .order_by(desc(Document.created_at))
@@ -701,6 +914,338 @@ async def _tool_list_project_documents(
         return {"error": f"Failed to list project documents: {str(e)}"}
 
 
+async def _tool_summarize_document(
+    args: Dict[str, Any],
+    db: Optional[AsyncSession],
+    current_user: Optional[User],
+) -> Dict[str, Any]:
+    """Summarize a document using text extraction + LLM."""
+    if not db or not current_user:
+        return {"error": "Authentication required"}
+
+    document_id = args.get("document_id", "")
+    if not document_id:
+        return {"error": "document_id is required"}
+
+    try:
+        doc = await _resolve_document_id(document_id, db, current_user)
+        if not doc:
+            return {"error": "Document not found or access denied"}
+
+        # Use existing content_text if available, else extract
+        text = doc.content_text or ""
+        if not text:
+            from src.services.documents.file_service import FileService
+
+            file_service = FileService(db)
+            text = file_service.extract_text_content(doc)
+
+        if not text or text.startswith("Error"):
+            return {"error": "Could not extract text from document"}
+
+        # Truncate for LLM context
+        text_for_summary = text[:8000]
+        word_count = len(text.split())
+
+        # Use LLM to summarize
+        try:
+            from src.services.agent.graph import _build_llm
+
+            llm = _build_llm()
+            from langchain_core.messages import HumanMessage, SystemMessage
+
+            response = await llm.ainvoke([
+                SystemMessage(content="You are a research assistant. Provide a concise summary of the following document in 3-5 paragraphs. Focus on key findings, methodology, and conclusions."),
+                HumanMessage(content=text_for_summary),
+            ])
+            summary = response.content
+        except Exception:
+            # Fallback: first 500 words
+            words = text.split()
+            summary = " ".join(words[:500]) + ("..." if len(words) > 500 else "")
+
+        return {
+            "summary": summary,
+            "word_count": word_count,
+            "title": doc.title or "Untitled",
+            "document_id": str(doc.id),
+        }
+    except Exception as e:
+        logger.error("summarize_document tool failed", exc_info=e)
+        return {"error": f"Summarization failed: {str(e)}"}
+
+
+async def _tool_compare_documents(
+    args: Dict[str, Any],
+    db: Optional[AsyncSession],
+    current_user: Optional[User],
+) -> Dict[str, Any]:
+    """Compare multiple documents using text extraction + LLM."""
+    if not db or not current_user:
+        return {"error": "Authentication required"}
+
+    document_ids = args.get("document_ids", [])
+    comparison_type = args.get("type", "general")
+    if not document_ids or len(document_ids) < 2:
+        return {"error": "At least 2 document_ids are required"}
+    if len(document_ids) > 5:
+        return {"error": "Maximum 5 documents can be compared at once"}
+
+    try:
+        from src.services.documents.file_service import FileService
+
+        file_service = FileService(db)
+        doc_texts = []
+
+        for did in document_ids:
+            doc = await _resolve_document_id(did, db, current_user)
+            if not doc:
+                return {"error": f"Document not found: {did}"}
+
+            text = doc.content_text or ""
+            if not text:
+                text = file_service.extract_text_content(doc)
+
+            doc_texts.append({
+                "id": str(doc.id),
+                "title": doc.title or "Untitled",
+                "text": text[:4000],
+            })
+
+        # Use LLM to compare
+        try:
+            from src.services.agent.graph import _build_llm
+
+            llm = _build_llm()
+            from langchain_core.messages import HumanMessage, SystemMessage
+
+            docs_content = "\n\n---\n\n".join(
+                f"Document: {d['title']}\n{d['text']}" for d in doc_texts
+            )
+            response = await llm.ainvoke([
+                SystemMessage(content=f"You are a research assistant. Compare the following documents ({comparison_type} comparison). Identify similarities, differences, and key themes across them. Be structured and concise."),
+                HumanMessage(content=docs_content),
+            ])
+            comparison = response.content
+        except Exception:
+            comparison = "Comparison could not be generated. Documents were retrieved successfully."
+
+        return {
+            "comparison": comparison,
+            "count": len(doc_texts),
+            "documents": [{"id": d["id"], "title": d["title"]} for d in doc_texts],
+            "type": comparison_type,
+        }
+    except Exception as e:
+        logger.error("compare_documents tool failed", exc_info=e)
+        return {"error": f"Comparison failed: {str(e)}"}
+
+
+async def _tool_extract_entities(
+    args: Dict[str, Any],
+    db: Optional[AsyncSession],
+    current_user: Optional[User],
+) -> Dict[str, Any]:
+    """Extract named entities from a document."""
+    if not db or not current_user:
+        return {"error": "Authentication required"}
+
+    document_id = args.get("document_id", "")
+    if not document_id:
+        return {"error": "document_id is required"}
+
+    try:
+        doc = await _resolve_document_id(document_id, db, current_user)
+        if not doc:
+            return {"error": "Document not found or access denied"}
+
+        text = doc.content_text or ""
+        if not text:
+            from src.services.documents.file_service import FileService
+
+            file_service = FileService(db)
+            text = file_service.extract_text_content(doc)
+
+        if not text or text.startswith("Error"):
+            return {"error": "Could not extract text from document"}
+
+        # Truncate for entity extraction
+        text_for_extraction = text[:10000]
+
+        from src.services.documents.enhanced_document_processing_service import EntityExtractor
+
+        extractor = EntityExtractor()
+        result = await extractor.extract_entities(text_for_extraction, str(doc.id))
+
+        if result.success and result.data:
+            entities = result.data.get("entities", [])
+            return {
+                "entities": [
+                    {
+                        "text": e.get("text", ""),
+                        "type": e.get("label", "UNKNOWN"),
+                        "confidence": e.get("confidence", 0.0),
+                    }
+                    for e in entities[:50]
+                ],
+                "total": len(entities),
+                "document_id": document_id,
+                "title": doc.title or "Untitled",
+            }
+        return {"entities": [], "total": 0, "document_id": document_id}
+    except Exception as e:
+        logger.error("extract_entities tool failed", exc_info=e)
+        return {"error": f"Entity extraction failed: {str(e)}"}
+
+
+async def _tool_search_knowledge_graph(args: Dict[str, Any]) -> Dict[str, Any]:
+    """Search the knowledge graph for entities."""
+    query = args.get("query", "")
+    entity_types = args.get("entity_types")
+    limit = min(args.get("limit", 20), 50)
+
+    if not query:
+        return {"error": "query is required"}
+
+    try:
+        from src.services.knowledge_graph.knowledge_graph_service import KnowledgeGraphService
+        from src.models.graph import EntityType
+
+        kg_service = KnowledgeGraphService()
+
+        type_filters = None
+        if entity_types:
+            type_filters = []
+            for et in entity_types:
+                try:
+                    type_filters.append(EntityType(et.upper()))
+                except ValueError:
+                    pass
+
+        entities = kg_service.search_entities(
+            query=query,
+            entity_types=type_filters,
+            limit=limit,
+        )
+
+        return {
+            "entities": [
+                {
+                    "id": e.id,
+                    "name": e.name,
+                    "type": e.entity_type.value if e.entity_type else "UNKNOWN",
+                    "confidence": e.confidence_score,
+                }
+                for e in entities
+            ],
+            "total": len(entities),
+            "query": query,
+        }
+    except Exception as e:
+        logger.error("search_knowledge_graph tool failed", exc_info=e)
+        return {"error": f"Knowledge graph search failed: {str(e)}"}
+
+
+async def _tool_create_draft(
+    args: Dict[str, Any],
+    db: Optional[AsyncSession],
+    current_user: Optional[User],
+) -> Dict[str, Any]:
+    """Create a literature review draft for a project."""
+    if not db or not current_user:
+        return {"error": "Authentication required"}
+
+    project_id = args.get("project_id", "")
+    themes = args.get("themes", [])
+    style = args.get("style", "academic")
+
+    if not project_id:
+        return {"error": "project_id is required"}
+    if not themes:
+        return {"error": "At least one theme is required"}
+
+    try:
+        project = await _verify_project_ownership(project_id, db, current_user)
+        if not project:
+            return {"error": "Project not found or access denied"}
+
+        from src.services.research.draft_generation_service import DraftGenerationService
+
+        draft_service = DraftGenerationService(db)
+        result = await draft_service.generate_draft(
+            project_id=project.id,
+            user_id=current_user.id,
+            themes=themes,
+            style=style,
+        )
+
+        return {
+            "task_id": result.get("task_id", ""),
+            "status": str(result.get("status", "pending")),
+            "message": result.get("message", "Draft generation started"),
+            "project_id": project_id,
+        }
+    except Exception as e:
+        logger.error("create_draft tool failed", exc_info=e)
+        return {"error": f"Draft creation failed: {str(e)}"}
+
+
+async def _tool_export_bibliography(
+    args: Dict[str, Any],
+    db: Optional[AsyncSession],
+    current_user: Optional[User],
+) -> Dict[str, Any]:
+    """Export bibliography for given documents."""
+    if not db or not current_user:
+        return {"error": "Authentication required"}
+
+    document_ids = args.get("document_ids", [])
+    bib_format = args.get("format", "bibtex").lower()
+
+    if not document_ids:
+        return {"error": "At least one document_id is required"}
+    if bib_format not in ("bibtex", "apa", "ieee", "mla"):
+        return {"error": f"Unsupported format: {bib_format}. Use bibtex, apa, ieee, or mla."}
+
+    try:
+        # Fetch citations for the given documents
+        citations = []
+        for did in document_ids:
+            try:
+                doc_uuid = UUID(did)
+            except (ValueError, AttributeError):
+                continue
+
+            stmt = (
+                select(Citation)
+                .where(Citation.document_id == doc_uuid)
+            )
+            result = await db.execute(stmt)
+            doc_citations = result.scalars().all()
+            citations.extend(doc_citations)
+
+        if not citations:
+            return {
+                "bibliography": "",
+                "format": bib_format,
+                "count": 0,
+                "message": "No citations found for the given documents.",
+            }
+
+        from src.services.research.bibliography_service import BibliographyService
+
+        bibliography = BibliographyService.format_bibliography(citations, bib_format)
+
+        return {
+            "bibliography": bibliography,
+            "format": bib_format,
+            "count": len(citations),
+        }
+    except Exception as e:
+        logger.error("export_bibliography tool failed", exc_info=e)
+        return {"error": f"Bibliography export failed: {str(e)}"}
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -722,6 +1267,12 @@ You have access to the following tools:
 - **add_document_to_project**: Add an existing document to a research project. Use when the user wants to organize a document into a project.
 - **create_project_note**: Create a markdown note in a research project. Use when the user wants to write or save notes, observations, or summaries.
 - **list_project_documents**: List all documents in a research project. Use when the user wants to see what documents are in a project.
+- **summarize_document**: Summarize a document's content. Use for overviews or summaries of specific documents.
+- **compare_documents**: Compare 2-5 documents for similarities, differences, and themes.
+- **extract_entities**: Extract named entities (people, organizations, concepts) from a document.
+- **search_knowledge_graph**: Search the knowledge graph for entities and their relationships.
+- **create_draft**: Generate a literature review draft from project documents around specific themes.
+- **export_bibliography**: Export bibliography for documents in bibtex, apa, ieee, or mla format.
 
 {context_line}
 When the user is on a project page, the project_id is available from the page context and does not need to be asked for.
@@ -862,6 +1413,14 @@ async def _run_agent_graph(
     from src.services.agent.graph import compile_agent_graph
 
     try:
+        # Configure LangSmith tracing if available
+        try:
+            from src.services.agent.observability import configure_langsmith
+
+            configure_langsmith()
+        except Exception:
+            pass
+
         checkpointer = await get_checkpointer()
         graph = compile_agent_graph(checkpointer=checkpointer)
 
@@ -876,11 +1435,20 @@ async def _run_agent_graph(
             "page_context": {
                 "type": request.page_context.type,
                 "project_id": request.page_context.project_id,
+                "project_name": request.page_context.project_name,
+                "label": request.page_context.label,
+                "metadata": request.page_context.metadata,
             },
             "retrieved_contexts": [],
             "tool_executions": [],
             "thread_id": request.thread_id or "",
             "tool_loop_count": 0,
+            "error_count": 0,
+            "last_error": "",
+            "pending_confirmation": {},
+            "user_confirmed": False,
+            "intent": "",
+            "user_memories": [],
         }
 
         config = {
@@ -891,11 +1459,29 @@ async def _run_agent_graph(
                 "page_context": {
                     "type": request.page_context.type,
                     "project_id": request.page_context.project_id,
+                    "project_name": request.page_context.project_name,
+                    "label": request.page_context.label,
+                    "metadata": request.page_context.metadata,
                 },
             }
         }
 
-        final_state = await graph.ainvoke(initial_state, config=config)
+        try:
+            final_state = await graph.ainvoke(initial_state, config=config)
+        except Exception as exc:
+            # Check if this is a GraphInterrupt (human-in-the-loop pause)
+            if type(exc).__name__ == "GraphInterrupt":
+                interrupts = getattr(exc, "interrupts", [])
+                confirmation_details = {}
+                if interrupts:
+                    confirmation_details = getattr(interrupts[0], "value", {})
+                _set_job(job_id, {
+                    "status": "awaiting_confirmation",
+                    "confirmation": confirmation_details,
+                    "tool_executions": [],
+                })
+                return
+            raise
 
         # Extract assistant content from the last AI message
         assistant_content = ""
@@ -916,8 +1502,15 @@ async def _run_agent_graph(
             )
         except Exception as e:
             logger.warning("Failed to persist thread", exc_info=e)
+            # Only rollback the thread persistence, not tool side-effects
+            # The session may already be in an invalid state, so be cautious
             try:
                 await db.rollback()
+            except Exception:
+                pass
+            # Start a fresh transaction for any subsequent operations
+            try:
+                await db.begin()
             except Exception:
                 pass
 
@@ -995,6 +1588,223 @@ async def get_job_status(job_id: str):
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
     return JobStatusResponse(**job)
+
+
+class ConfirmationRequest(BaseModel):
+    confirmed: bool = Field(..., description="Whether the user confirms the action")
+
+
+@router.post("/confirm/{job_id}")
+async def confirm_agent_action(
+    job_id: str,
+    request: ConfirmationRequest,
+    background_tasks: BackgroundTasks,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Confirm or deny a pending agent action (human-in-the-loop)."""
+    job = _get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    if job.get("status") != "awaiting_confirmation":
+        raise HTTPException(status_code=400, detail="Job is not awaiting confirmation")
+
+    # Resume the graph with the user's decision
+    background_tasks.add_task(
+        _resume_agent_graph, job_id, request.confirmed, current_user, db,
+    )
+    _set_job(job_id, {**job, "status": "running"})
+    return {"status": "running", "job_id": job_id}
+
+
+async def _resume_agent_graph(
+    job_id: str,
+    confirmed: bool,
+    current_user: User,
+    db: AsyncSession,
+):
+    """Resume the agent graph after human confirmation."""
+    from langgraph.types import Command
+
+    from src.services.agent.checkpointer import get_checkpointer
+    from src.services.agent.graph import compile_agent_graph
+
+    try:
+        checkpointer = await get_checkpointer()
+        graph = compile_agent_graph(checkpointer=checkpointer)
+
+        config = {
+            "configurable": {
+                "thread_id": job_id,
+                "db": db,
+                "current_user": current_user,
+            }
+        }
+
+        final_state = await graph.ainvoke(
+            Command(resume={"confirmed": confirmed}),
+            config=config,
+        )
+
+        # Extract assistant content
+        assistant_content = ""
+        for msg in reversed(final_state["messages"]):
+            if hasattr(msg, "type") and msg.type == "ai" and msg.content:
+                assistant_content = msg.content
+                break
+
+        result = AgentExecuteResponse(
+            message=AgentMessage(role="assistant", content=assistant_content),
+            model="gpt-4o",
+            usage={},
+            finish_reason="stop",
+            timestamp=datetime.now(timezone.utc).isoformat(),
+            tool_executions=[
+                ToolExecutionResponse(**te)
+                for te in final_state.get("tool_executions", [])
+            ] or None,
+        )
+
+        _set_job(job_id, {
+            "status": "completed",
+            "result": result.model_dump(),
+            "tool_executions": final_state.get("tool_executions", []),
+        })
+    except Exception as e:
+        logger.error("Agent graph resume failed", exc_info=e)
+        _set_job(job_id, {"status": "failed", "error": str(e)})
+
+
+_SSE_HEADERS = {
+    "Cache-Control": "no-cache",
+    "Connection": "keep-alive",
+    "X-Accel-Buffering": "no",
+}
+
+
+@router.post("/stream")
+async def stream_agent(
+    request_body: AgentExecuteRequest,
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Stream agent responses via Server-Sent Events.
+
+    SSE event types: token, tool_start, tool_end, rag_context, done, error
+    """
+    from langchain_core.messages import HumanMessage
+
+    from src.services.agent.checkpointer import get_checkpointer
+    from src.services.agent.graph import compile_agent_graph
+
+    async def event_generator():
+        import json as _json
+
+        try:
+            checkpointer = await get_checkpointer()
+            graph = compile_agent_graph(checkpointer=checkpointer)
+
+            messages = [
+                HumanMessage(content=m.content)
+                for m in request_body.messages
+                if m.role == "user"
+            ]
+
+            initial_state = {
+                "messages": messages,
+                "page_context": {
+                    "type": request_body.page_context.type,
+                    "project_id": request_body.page_context.project_id,
+                },
+                "retrieved_contexts": [],
+                "tool_executions": [],
+                "thread_id": request_body.thread_id or "",
+                "tool_loop_count": 0,
+                "error_count": 0,
+                "last_error": "",
+                "pending_confirmation": {},
+                "user_confirmed": False,
+                "intent": "",
+                "user_memories": [],
+            }
+
+            config = {
+                "configurable": {
+                    "thread_id": request_body.thread_id or str(_uuid.uuid4()),
+                    "db": db,
+                    "current_user": current_user,
+                    "page_context": {
+                        "type": request_body.page_context.type,
+                        "project_id": request_body.page_context.project_id,
+                    },
+                }
+            }
+
+            async for event in graph.astream_events(
+                initial_state, config=config, version="v2"
+            ):
+                if await request.is_disconnected():
+                    break
+
+                kind = event.get("event", "")
+                name = event.get("name", "")
+
+                if kind == "on_chat_model_stream":
+                    chunk = event.get("data", {}).get("chunk")
+                    if chunk and hasattr(chunk, "content") and chunk.content:
+                        yield f"event: token\ndata: {_json.dumps({'content': chunk.content})}\n\n"
+
+                elif kind == "on_tool_start":
+                    yield f"event: tool_start\ndata: {_json.dumps({'tool': name})}\n\n"
+
+                elif kind == "on_tool_end":
+                    output = event.get("data", {}).get("output", "")
+                    yield f"event: tool_end\ndata: {_json.dumps({'tool': name, 'result': str(output)[:500]})}\n\n"
+
+                elif kind == "on_chain_end" and name == "rag_node":
+                    output = event.get("data", {}).get("output", {})
+                    if isinstance(output, dict):
+                        contexts = output.get("retrieved_contexts", [])
+                        if contexts:
+                            yield f"event: rag_context\ndata: {_json.dumps({'contexts': contexts[:3]})}\n\n"
+
+            yield f"event: done\ndata: {_json.dumps({'status': 'complete'})}\n\n"
+
+        except Exception as e:
+            logger.error("SSE stream error", exc_info=e)
+            yield f"event: error\ndata: {_json.dumps({'error': str(e)})}\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers=_SSE_HEADERS,
+    )
+
+
+@router.get("/graph/mermaid")
+async def get_graph_mermaid(
+    current_user: User = Depends(get_current_user),
+):
+    """Get the agent graph structure as a Mermaid diagram. Admin-only."""
+    from src.services.agent.visualization import get_graph_mermaid
+
+    diagram = get_graph_mermaid()
+    return {"mermaid": diagram}
+
+
+@router.get("/graph/trace/{thread_id}")
+async def get_graph_trace(
+    thread_id: str,
+    current_user: User = Depends(get_current_user),
+):
+    """Get an execution trace for a thread as a Mermaid sequence diagram."""
+    from src.services.agent.visualization import get_execution_trace_mermaid
+
+    diagram = await get_execution_trace_mermaid(thread_id)
+    if diagram is None:
+        raise HTTPException(status_code=404, detail="Trace not found")
+    return {"mermaid": diagram, "thread_id": thread_id}
 
 
 @router.get("/health")

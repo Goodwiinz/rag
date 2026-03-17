@@ -176,6 +176,14 @@ async def lifespan(app: FastAPI):
         logger.error(f"Failed to initialize WebSocket services: {e}")
         # Continue startup even if WebSocket services fail
 
+    # Configure LangSmith tracing for agent observability
+    try:
+        from src.services.agent.observability import configure_langsmith
+
+        configure_langsmith()
+    except Exception as e:
+        logger.debug(f"LangSmith configuration skipped: {e}")
+
     logger.info("Application startup complete")
 
     yield

@@ -32,14 +32,27 @@ export function usePageContext(): PageContext {
     }
 
     // Project pages: /projects/:id or /projects/:id/...
-    const projectMatch = pathname.match(/^\/projects\/([^/]+)/);
+    const projectMatch = pathname.match(/^\/projects\/([^/]+)(?:\/(.+))?/);
     if (projectMatch) {
       const projectId = projectMatch[1];
+      const subPath = projectMatch[2] || '';
+
+      // Detect active tab from URL or DOM
+      let activeTab = 'documents'; // default tab
+      if (subPath) {
+        activeTab = subPath.split('/')[0];
+      }
+
       return {
         type: 'project' as PageContextType,
         label: currentProject?.name || 'Project',
         projectId,
         projectName: currentProject?.name,
+        metadata: {
+          activeTab,
+          documentCount: currentProject?.document_count,
+          description: currentProject?.description,
+        },
       };
     }
 

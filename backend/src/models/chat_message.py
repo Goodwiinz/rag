@@ -6,6 +6,7 @@ from datetime import datetime
 from enum import Enum as PyEnum
 
 from sqlalchemy import Column, DateTime, Enum, Float, ForeignKey, Integer, String, Text
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 
 from .base import GUID, BaseModel
@@ -58,6 +59,7 @@ class ChatMessage(BaseModel):
     # Tool/Function call tracking
     tool_name = Column(String(100), nullable=True)  # If this is a tool message
     tool_call_id = Column(String(255), nullable=True)  # Tool call identifier
+    tool_executions = Column(JSONB, nullable=True)  # Agent tool execution details
 
     # Feedback
     feedback_rating = Column(Integer, nullable=True)  # 1-5 rating

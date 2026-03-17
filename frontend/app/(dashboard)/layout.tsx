@@ -37,9 +37,9 @@ export default function DashboardLayout({
     <SidebarLayout
       showBreadcrumb={shouldShowBreadcrumb}
       showHeader={shouldShowHeader}
+      rightPanel={<GlobalAgentChat />}
     >
       {children}
-      <GlobalAgentChat />
     </SidebarLayout>
   );
 }

@@ -91,7 +91,7 @@ class AgentChatService {
   }
 
   async pollJob(jobId: string): Promise<{
-    status: 'running' | 'completed' | 'failed';
+    status: 'running' | 'completed' | 'failed' | 'awaiting_confirmation';
     result?: AgentExecuteResponse;
     tool_executions?: Array<{
       id: string;
@@ -104,8 +104,112 @@ class AgentChatService {
       duration_ms?: number;
     }>;
     error?: string;
+    confirmation?: {
+      tools?: Array<{ name: string; args: Record<string, unknown> }>;
+      message?: string;
+    };
   }> {
     return apiClient.get(`/agent/jobs/${encodeURIComponent(jobId)}`);
+  }
+
+  async confirmAction(
+    jobId: string,
+    confirmed: boolean
+  ): Promise<{ status: string; job_id: string }> {
+    return apiClient.post(`/agent/confirm/${encodeURIComponent(jobId)}`, {
+      confirmed,
+    });
+  }
+
+  async streamMessage(
+    request: AgentExecuteRequest,
+    callbacks: {
+      onToken?: (content: string) => void;
+      onToolStart?: (tool: string, args: Record<string, unknown>) => void;
+      onToolEnd?: (tool: string, result: string) => void;
+      onRagContext?: (contexts: Array<Record<string, unknown>>) => void;
+      onDone?: () => void;
+      onError?: (error: string) => void;
+    }
+  ): Promise<void> {
+    // Get auth token from Zustand persistence (same as apiClient)
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    try {
+      const storageItem = localStorage.getItem('auth-storage');
+      if (storageItem) {
+        const parsed = JSON.parse(storageItem);
+        const token = parsed?.state?.token;
+        const orgId = parsed?.state?.organization?.id;
+        if (token) headers['Authorization'] = `Bearer ${token}`;
+        if (orgId) headers['X-Organization-ID'] = orgId;
+      }
+    } catch {
+      // Fall through without auth headers
+    }
+
+    const response = await fetch('/api/v1/agent/stream', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(request),
+    });
+
+    if (!response.ok || !response.body) {
+      callbacks.onError?.(`Stream failed: ${response.status}`);
+      return;
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        let eventType = '';
+        for (const line of lines) {
+          if (line.startsWith('event: ')) {
+            eventType = line.slice(7).trim();
+          } else if (line.startsWith('data: ') && eventType) {
+            try {
+              const data = JSON.parse(line.slice(6));
+              switch (eventType) {
+                case 'token':
+                  callbacks.onToken?.(data.content);
+                  break;
+                case 'tool_start':
+                  callbacks.onToolStart?.(data.tool, data.args);
+                  break;
+                case 'tool_end':
+                  callbacks.onToolEnd?.(data.tool, data.result);
+                  break;
+                case 'rag_context':
+                  callbacks.onRagContext?.(data.contexts);
+                  break;
+                case 'done':
+                  callbacks.onDone?.();
+                  break;
+                case 'error':
+                  callbacks.onError?.(data.error);
+                  break;
+              }
+            } catch {
+              // Skip malformed JSON
+            }
+            eventType = '';
+          }
+        }
+      }
+    } finally {
+      reader.releaseLock();
+    }
   }
 
   async listThreads(): Promise<ThreadListResponse> {

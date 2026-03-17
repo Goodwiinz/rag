@@ -41,6 +41,7 @@ const AppSidebar = dynamic(
 
 interface SidebarLayoutProps {
   children: React.ReactNode;
+  rightPanel?: React.ReactNode;
   showBreadcrumb?: boolean;
   showHeader?: boolean;
 }
@@ -72,6 +73,7 @@ const pathNameMap: Record<string, string> = {
 
 export function SidebarLayout({
   children,
+  rightPanel,
   showBreadcrumb = true,
   showHeader = true,
 }: SidebarLayoutProps) {
@@ -102,73 +104,83 @@ export function SidebarLayout({
       : 'Dashboard';
 
   return (
-    <SidebarProvider defaultOpen={true}>
+    <SidebarProvider defaultOpen={true} className="h-svh overflow-hidden">
       <AppSidebar />
-      <SidebarInset className="!bg-background">
-        {/* Top Header Bar */}
-        {showHeader && (
-          <header className="flex h-14 shrink-0 items-center gap-3 border-b border-border bg-background/95 backdrop-blur px-4">
-            <SidebarTrigger className="h-7 w-7 text-muted-foreground hover:text-primary hover:bg-muted border border-border transition-all duration-200 rounded-md" />
-            <Separator orientation="vertical" className="h-4 bg-border" />
+      <SidebarInset className="!bg-background overflow-hidden">
+        <div className="flex flex-1 min-h-0 overflow-hidden">
+          {/* Main content column */}
+          <div className="flex-1 flex flex-col min-w-0 min-h-0">
+            {/* Top Header Bar */}
+            {showHeader && (
+              <header className="flex h-14 shrink-0 items-center gap-3 border-b border-border bg-background/95 backdrop-blur px-4">
+                <SidebarTrigger className="h-7 w-7 text-muted-foreground hover:text-primary hover:bg-muted border border-border transition-all duration-200 rounded-md" />
+                <Separator orientation="vertical" className="h-4 bg-border" />
 
-            {showBreadcrumb && (
-              <Breadcrumb>
-                <BreadcrumbList className="text-xs">
-                  {/* Show Dashboard as root, but highlight if we're on dashboard page */}
-                  <BreadcrumbItem>
-                    {pathname === '/dashboard' ? (
-                      <BreadcrumbPage className="text-primary">
-                        Dashboard
-                      </BreadcrumbPage>
-                    ) : (
-                      <BreadcrumbLink
-                        href="/dashboard"
-                        className="text-muted-foreground hover:text-foreground transition-colors"
-                      >
-                        Dashboard
-                      </BreadcrumbLink>
-                    )}
-                  </BreadcrumbItem>
-                  {/* Filter out dashboard from breadcrumb items to avoid Dashboard / Dashboard */}
-                  {breadcrumbItems
-                    .filter((item) => item.path !== '/dashboard')
-                    .map((item) => (
-                      <React.Fragment key={item.path}>
-                        <BreadcrumbSeparator className="text-muted-foreground/50">
-                          /
-                        </BreadcrumbSeparator>
-                        <BreadcrumbItem>
-                          {item.isLast ? (
-                            <BreadcrumbPage className="text-primary">
-                              {item.name}
-                            </BreadcrumbPage>
-                          ) : (
-                            <BreadcrumbLink
-                              href={item.path}
-                              className="text-muted-foreground hover:text-foreground transition-colors"
-                            >
-                              {item.name}
-                            </BreadcrumbLink>
-                          )}
-                        </BreadcrumbItem>
-                      </React.Fragment>
-                    ))}
-                </BreadcrumbList>
-              </Breadcrumb>
+                {showBreadcrumb && (
+                  <Breadcrumb>
+                    <BreadcrumbList className="text-xs">
+                      {/* Show Dashboard as root, but highlight if we're on dashboard page */}
+                      <BreadcrumbItem>
+                        {pathname === '/dashboard' ? (
+                          <BreadcrumbPage className="text-primary">
+                            Dashboard
+                          </BreadcrumbPage>
+                        ) : (
+                          <BreadcrumbLink
+                            href="/dashboard"
+                            className="text-muted-foreground hover:text-foreground transition-colors"
+                          >
+                            Dashboard
+                          </BreadcrumbLink>
+                        )}
+                      </BreadcrumbItem>
+                      {/* Filter out dashboard from breadcrumb items to avoid Dashboard / Dashboard */}
+                      {breadcrumbItems
+                        .filter((item) => item.path !== '/dashboard')
+                        .map((item) => (
+                          <React.Fragment key={item.path}>
+                            <BreadcrumbSeparator className="text-muted-foreground/50">
+                              /
+                            </BreadcrumbSeparator>
+                            <BreadcrumbItem>
+                              {item.isLast ? (
+                                <BreadcrumbPage className="text-primary">
+                                  {item.name}
+                                </BreadcrumbPage>
+                              ) : (
+                                <BreadcrumbLink
+                                  href={item.path}
+                                  className="text-muted-foreground hover:text-foreground transition-colors"
+                                >
+                                  {item.name}
+                                </BreadcrumbLink>
+                              )}
+                            </BreadcrumbItem>
+                          </React.Fragment>
+                        ))}
+                    </BreadcrumbList>
+                  </Breadcrumb>
+                )}
+
+                {/* Page Title (mobile) */}
+                <div className="ml-auto flex items-center gap-2">
+                  <GlobalJobCenter />
+                  <div className="md:hidden">
+                    <span className="text-sm text-foreground">
+                      {currentPage}
+                    </span>
+                  </div>
+                </div>
+              </header>
             )}
 
-            {/* Page Title (mobile) */}
-            <div className="ml-auto flex items-center gap-2">
-              <GlobalJobCenter />
-              <div className="md:hidden">
-                <span className="text-sm text-foreground">{currentPage}</span>
-              </div>
-            </div>
-          </header>
-        )}
+            {/* Main Content */}
+            <div className="flex-1 overflow-auto">{children}</div>
+          </div>
 
-        {/* Main Content */}
-        <div className="flex-1 overflow-auto">{children}</div>
+          {/* Right panel (agent chat sidebar) */}
+          {rightPanel}
+        </div>
       </SidebarInset>
     </SidebarProvider>
   );

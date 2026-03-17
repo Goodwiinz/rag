@@ -173,6 +173,121 @@ async def list_project_documents(
     )
 
 
+@tool
+async def summarize_document(
+    document_id: str,
+    config: RunnableConfig = {},  # noqa: B006
+) -> Dict[str, Any]:
+    """Summarize a document's content.
+
+    Use when the user asks for a summary or overview of a specific document.
+    """
+    from src.api.agent.execute import _tool_summarize_document
+
+    db, current_user, _page_ctx = _get_context(config)
+    return await _tool_summarize_document(
+        {"document_id": document_id}, db, current_user
+    )
+
+
+@tool
+async def compare_documents(
+    document_ids: List[str],
+    type: str = "general",
+    config: RunnableConfig = {},  # noqa: B006
+) -> Dict[str, Any]:
+    """Compare multiple documents to find similarities, differences, and shared themes.
+
+    Use when the user wants to compare, contrast, or analyze differences
+    between two or more documents.
+    """
+    from src.api.agent.execute import _tool_compare_documents
+
+    db, current_user, _page_ctx = _get_context(config)
+    return await _tool_compare_documents(
+        {"document_ids": document_ids, "type": type}, db, current_user
+    )
+
+
+@tool
+async def extract_entities(
+    document_id: str,
+    config: RunnableConfig = {},  # noqa: B006
+) -> Dict[str, Any]:
+    """Extract named entities (people, organizations, concepts, etc.) from a document.
+
+    Use when the user wants to identify key entities, people, organizations,
+    or concepts mentioned in a document.
+    """
+    from src.api.agent.execute import _tool_extract_entities
+
+    db, current_user, _page_ctx = _get_context(config)
+    return await _tool_extract_entities(
+        {"document_id": document_id}, db, current_user
+    )
+
+
+@tool
+async def search_knowledge_graph(
+    query: str,
+    entity_types: Optional[List[str]] = None,
+    config: RunnableConfig = {},  # noqa: B006
+) -> Dict[str, Any]:
+    """Search the knowledge graph for entities and their relationships.
+
+    Use when the user asks about concepts, people, or organizations
+    in the research corpus, or wants to explore entity relationships.
+    """
+    from src.api.agent.execute import _tool_search_knowledge_graph
+
+    args: Dict[str, Any] = {"query": query}
+    if entity_types:
+        args["entity_types"] = entity_types
+    return await _tool_search_knowledge_graph(args)
+
+
+@tool
+async def create_draft(
+    themes: List[str],
+    project_id: Optional[str] = None,
+    style: str = "academic",
+    config: RunnableConfig = {},  # noqa: B006
+) -> Dict[str, Any]:
+    """Generate a literature review draft for a project based on themes.
+
+    Use when the user wants to create a draft, write a review, or synthesize
+    research around specific themes.
+    """
+    from src.api.agent.execute import _tool_create_draft
+
+    db, current_user, page_ctx = _get_context(config)
+    resolved_pid = _resolve_project_id(project_id, page_ctx)
+    return await _tool_create_draft(
+        {"project_id": resolved_pid or "", "themes": themes, "style": style},
+        db,
+        current_user,
+    )
+
+
+@tool
+async def export_bibliography(
+    document_ids: List[str],
+    format: str = "bibtex",
+    config: RunnableConfig = {},  # noqa: B006
+) -> Dict[str, Any]:
+    """Export bibliography/references for documents in a specific citation format.
+
+    Use when the user wants to export citations, references, or a bibliography
+    for one or more documents. Supports bibtex, apa, ieee, and mla formats.
+    """
+    from src.api.agent.execute import _tool_export_bibliography
+
+    db, current_user, _page_ctx = _get_context(config)
+    return await _tool_export_bibliography(
+        {"document_ids": document_ids, "format": format}, db, current_user
+    )
+
+
 # ---------------------------------------------------------------------------
 # Exported list
 # ---------------------------------------------------------------------------
@@ -184,4 +299,10 @@ ALL_TOOLS = [
     add_document_to_project,
     create_project_note,
     list_project_documents,
+    summarize_document,
+    compare_documents,
+    extract_entities,
+    search_knowledge_graph,
+    create_draft,
+    export_bibliography,
 ]
