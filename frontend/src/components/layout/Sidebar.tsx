@@ -134,7 +134,7 @@ export const Sidebar = ({ isOpen, setIsOpen, className }: SidebarProps) => {
 
         {/* Main Navigation */}
         <ScrollArea className="flex-1 py-3">
-          <nav className="grid gap-1 px-2">
+          <nav aria-label="Main navigation" className="grid gap-1 px-2">
             {mainNavigation.map((item) => (
               <NavItem
                 key={item.name}
@@ -148,7 +148,7 @@ export const Sidebar = ({ isOpen, setIsOpen, className }: SidebarProps) => {
 
         {/* Bottom Navigation */}
         <div className="border-t py-3">
-          <nav className="grid gap-1 px-2">
+          <nav aria-label="Utility navigation" className="grid gap-1 px-2">
             {bottomNavigation.map((item) => (
               <NavItem
                 key={item.name}
@@ -193,7 +193,7 @@ export const MobileNav = () => {
           </div>
         </SheetHeader>
         <ScrollArea className="flex-1 py-3">
-          <nav className="grid gap-1 px-2">
+          <nav aria-label="Main navigation" className="grid gap-1 px-2">
             {mainNavigation.map((item) => (
               <NavItem
                 key={item.name}
@@ -206,7 +206,7 @@ export const MobileNav = () => {
           </nav>
         </ScrollArea>
         <div className="border-t py-3">
-          <nav className="grid gap-1 px-2">
+          <nav aria-label="Utility navigation" className="grid gap-1 px-2">
             {bottomNavigation.map((item) => (
               <NavItem
                 key={item.name}
