@@ -1169,9 +1169,13 @@ async def _tool_create_draft(
         if not project:
             return {"error": "Project not found or access denied"}
 
+        from src.core.database import AsyncSessionLocal
         from src.services.research.draft_generation_service import DraftGenerationService
 
-        draft_service = DraftGenerationService(db)
+        # Use a fresh independent session for draft generation — the agent's
+        # session may be rolled back before the async background task completes.
+        draft_db = AsyncSessionLocal()
+        draft_service = DraftGenerationService(draft_db)
         result = await draft_service.generate_draft(
             project_id=project.id,
             user_id=current_user.id,
@@ -1182,8 +1186,9 @@ async def _tool_create_draft(
         return {
             "task_id": result.get("task_id", ""),
             "status": str(result.get("status", "pending")),
-            "message": result.get("message", "Draft generation started"),
-            "project_id": project_id,
+            "message": f"Draft generation started for project '{project.name}'. It will appear in the Drafts tab once complete.",
+            "project_id": str(project.id),
+            "project_name": project.name,
         }
     except Exception as e:
         logger.error("create_draft tool failed", exc_info=e)
