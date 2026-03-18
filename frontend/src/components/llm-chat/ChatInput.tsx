@@ -2,6 +2,7 @@
 
 import { useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
+import { IconButton } from '@/components/ui/icon-button';
 import { Textarea } from '@/components/ui/textarea';
 import { Send, Square, Zap } from 'lucide-react';
 
@@ -61,30 +62,24 @@ export function ChatInput({
           />
           <div className="absolute right-3 bottom-3 flex items-center gap-2">
             {isLoading ? (
-              <Button
+              <IconButton
                 onClick={onStop}
-                size="icon"
-                aria-label="Stop generating"
+                icon={<Square className="w-4 h-4" />}
+                label="Stop generating"
                 className="h-10 w-10 rounded-xl bg-red-500/10 text-red-500 hover:bg-red-500/20 border border-red-500/20 shadow-lg"
-                aria-label="Stop generating"
-              >
-                <Square className="w-4 h-4" />
-              </Button>
+              />
             ) : (
-              <Button
+              <IconButton
                 onClick={onSubmit}
                 disabled={!value.trim() || !selectedModel}
-                size="icon"
-                aria-label="Send message"
+                icon={<Send className="w-4 h-4" />}
+                label="Send message"
                 className={`h-10 w-10 rounded-xl transition-all shadow-lg \${
                   value.trim() && selectedModel
                     ? 'bg-gradient-to-br from-purple-600 to-purple-700 hover:from-purple-500 hover:to-purple-600 text-white shadow-purple-600/30 hover:shadow-purple-600/50'
                     : 'bg-[#1A1A1A] text-gray-600 hover:bg-[#252525] shadow-black/20'
                 }`}
-                aria-label="Send message"
-              >
-                <Send className="w-4 h-4" />
-              </Button>
+              />
             )}
           </div>
         </div>
