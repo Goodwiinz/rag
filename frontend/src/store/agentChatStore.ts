@@ -31,6 +31,7 @@ const initialState: AgentChatState = {
   isLoadingThreads: false,
   isLoadingMessages: false,
   pendingConfirmation: null,
+  isConfirming: false,
 };
 
 export const useAgentChatStore = create<AgentChatStore>()(
@@ -200,6 +201,7 @@ export const useAgentChatStore = create<AgentChatStore>()(
                     state.messages[idx].isStreaming = false;
                   }
                   state.isStreaming = false;
+                  (state as unknown as AgentChatStore)._abortController = null;
                 });
                 if (uiMode === 'closed') {
                   set((state) => {
@@ -427,7 +429,7 @@ export const useAgentChatStore = create<AgentChatStore>()(
       const jobId = pendingConfirmation.jobId;
 
       set((state) => {
-        state.pendingConfirmation = null;
+        state.isConfirming = true;
         state.isStreaming = true;
       });
 
@@ -470,6 +472,8 @@ export const useAgentChatStore = create<AgentChatStore>()(
                 }
               }
               state.isStreaming = false;
+              state.pendingConfirmation = null;
+              state.isConfirming = false;
             });
             return;
           }
@@ -488,6 +492,8 @@ export const useAgentChatStore = create<AgentChatStore>()(
                 }
               }
               state.isStreaming = false;
+              state.pendingConfirmation = null;
+              state.isConfirming = false;
             });
             return;
           }
@@ -495,6 +501,8 @@ export const useAgentChatStore = create<AgentChatStore>()(
       } catch {
         set((state) => {
           state.isStreaming = false;
+          state.isConfirming = false;
+          state.pendingConfirmation = null;
         });
       }
     },

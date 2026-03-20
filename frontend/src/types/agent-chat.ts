@@ -119,6 +119,8 @@ export interface AgentChatState {
   isLoadingMessages: boolean;
   /** Pending human-in-the-loop confirmation */
   pendingConfirmation: PendingConfirmation | null;
+  /** Whether a confirmation action is in progress */
+  isConfirming: boolean;
 }
 
 export interface AgentChatActions {
