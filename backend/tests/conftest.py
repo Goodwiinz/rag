@@ -52,6 +52,9 @@ def pytest_configure(config):
     config.addinivalue_line("markers", "scalability: Scalability tests (caching, pooling)")
     config.addinivalue_line("markers", "regression: Regression tests for previously fixed bugs")
     config.addinivalue_line("markers", "smoke: Quick smoke tests for basic validation")
+    config.addinivalue_line("markers", "deepeval: DeepEval LLM-judge evaluation tests")
+    config.addinivalue_line("markers", "langsmith: LangSmith evaluation tests - require LANGCHAIN_API_KEY")
+    config.addinivalue_line("markers", "eval: Slow evaluation benchmarks that run agent against dataset")
 
     # Feature/domain markers
     config.addinivalue_line("markers", "ai: AI-specific tests (mocked or real)")
