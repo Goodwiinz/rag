@@ -233,3 +233,12 @@ backend/browser-test-cache/
 # Local git worktrees
 .worktrees/
 .Jules/
+
+# DeepEval cache
+backend/.deepeval/
+
+# LangGraph API local state
+backend/.langgraph_api/
+
+# Arxiv downloaded PDFs
+backend/data/arxiv/
