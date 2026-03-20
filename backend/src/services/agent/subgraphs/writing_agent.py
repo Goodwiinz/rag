@@ -55,12 +55,13 @@ async def writing_llm_node(state: AgentState, config: RunnableConfig) -> dict:
 
     return {
         "messages": [response],
-        "tool_loop_count": state.get("tool_loop_count", 0) + 1,
     }
 
 
 def writing_should_continue(state: AgentState) -> str:
     """Decide whether to continue tool execution in writing sub-graph."""
+    if state.get("error_count", 0) >= 3:
+        return END
     last = state["messages"][-1] if state["messages"] else None
     if (
         isinstance(last, AIMessage)
@@ -73,11 +74,14 @@ def writing_should_continue(state: AgentState) -> str:
 
 def build_writing_subgraph() -> StateGraph:
     """Build the writing agent sub-graph."""
-    from src.services.agent.graph import tool_node
+    from src.services.agent.graph import make_filtered_tool_node
+
+    WRITING_TOOL_NAMES = {t.name for t in WRITING_TOOLS}
+    filtered_tool = make_filtered_tool_node(WRITING_TOOL_NAMES)
 
     graph = StateGraph(AgentState)
     graph.add_node("writing_llm_node", writing_llm_node)
-    graph.add_node("writing_tool_node", tool_node)
+    graph.add_node("writing_tool_node", filtered_tool)
 
     graph.set_entry_point("writing_llm_node")
     graph.add_conditional_edges(

@@ -52,12 +52,13 @@ async def data_llm_node(state: AgentState, config: RunnableConfig) -> dict:
 
     return {
         "messages": [response],
-        "tool_loop_count": state.get("tool_loop_count", 0) + 1,
     }
 
 
 def data_should_continue(state: AgentState) -> str:
     """Decide whether to continue tool execution in data sub-graph."""
+    if state.get("error_count", 0) >= 3:
+        return END
     last = state["messages"][-1] if state["messages"] else None
     if (
         isinstance(last, AIMessage)
@@ -70,11 +71,14 @@ def data_should_continue(state: AgentState) -> str:
 
 def build_data_subgraph() -> StateGraph:
     """Build the data agent sub-graph."""
-    from src.services.agent.graph import tool_node
+    from src.services.agent.graph import make_filtered_tool_node
+
+    DATA_TOOL_NAMES = {t.name for t in DATA_TOOLS}
+    filtered_tool = make_filtered_tool_node(DATA_TOOL_NAMES)
 
     graph = StateGraph(AgentState)
     graph.add_node("data_llm_node", data_llm_node)
-    graph.add_node("data_tool_node", tool_node)
+    graph.add_node("data_tool_node", filtered_tool)
 
     graph.set_entry_point("data_llm_node")
     graph.add_conditional_edges(

@@ -5,6 +5,7 @@ fallback to an in-memory ``MemorySaver`` when the Postgres connection is
 unavailable (e.g. during tests or local dev without a running database).
 """
 
+import asyncio
 import logging
 from typing import Optional
 
@@ -14,6 +15,7 @@ logger = logging.getLogger(__name__)
 
 # Module-level singleton
 _checkpointer = None
+_checkpointer_lock = asyncio.Lock()
 
 
 def get_db_uri() -> str:
@@ -46,21 +48,25 @@ async def get_checkpointer():
     if _checkpointer is not None:
         return _checkpointer
 
-    try:
-        from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
+    async with _checkpointer_lock:
+        if _checkpointer is not None:
+            return _checkpointer
 
-        uri = get_db_uri()
-        _checkpointer = AsyncPostgresSaver.from_conn_string(uri)
-        # Create the checkpoint tables if they don't exist yet
-        await _checkpointer.setup()
-        logger.info("LangGraph checkpointer initialised (PostgreSQL)")
-    except Exception as e:
-        logger.warning(
-            "Failed to initialise Postgres checkpointer, falling back to MemorySaver: %s",
-            e,
-        )
-        from langgraph.checkpoint.memory import MemorySaver
+        try:
+            from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 
-        _checkpointer = MemorySaver()
+            uri = get_db_uri()
+            _checkpointer = AsyncPostgresSaver.from_conn_string(uri)
+            # Create the checkpoint tables if they don't exist yet
+            await _checkpointer.setup()
+            logger.info("LangGraph checkpointer initialised (PostgreSQL)")
+        except Exception as e:
+            logger.warning(
+                "Failed to initialise Postgres checkpointer, falling back to MemorySaver: %s",
+                e,
+            )
+            from langgraph.checkpoint.memory import MemorySaver
+
+            _checkpointer = MemorySaver()
 
     return _checkpointer
