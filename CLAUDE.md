@@ -1,39 +1,54 @@
-# Multimodal RAG System
+# NOUS — Multimodal Intelligence Platform
 
-Multimodal RAG system: Next.js 15 + FastAPI + PostgreSQL/Qdrant/Neo4j/Redis.
+Next.js 15 + FastAPI + PostgreSQL/Qdrant/Neo4j/Redis.
 
 ## Development Workflow
 
 ```sh
-# 1. Start services
+# Start services
 docker-compose -f docker-compose.development.yml up -d
 
-# 2. Frontend
+# Frontend
 cd frontend && npm run dev
 
-# 3. Backend (if not using Docker)
+# Backend (if not using Docker)
 cd backend && uvicorn src.main:app --reload --port 8000
 
-# 4. Type-check
+# Type-check / Test / Lint / Validate
 cd frontend && npm run type-check
-
-# 5. Test
 cd frontend && npm run test          # Frontend
 pytest tests/ --cov=src              # Backend
-
-# 6. Lint
 cd frontend && npm run lint
-
-# 7. Validate before PR
 cd frontend && npm run validate      # lint + type-check + test
 ```
+
+## Agent System (LangGraph)
+
+LangGraph StateGraph with intent-based routing to specialized subgraphs.
+
+**Flow:** `rag_node → intent_classifier → memory_retrieval → [route by intent] → tool_node → memory_save → END`
+
+**Subgraphs:**
+- **Research**: arXiv search/ingest, document search, project management (max 8 tool loops)
+- **Writing**: drafts, notes, bibliography, summarization, document comparison
+- **Data**: entity extraction, knowledge graph queries
+- **General**: full tool set with LLM routing
+
+**Endpoints** (`/api/v1/agent/`):
+- `POST /execute` — Async job-based (returns job_id, poll via `GET /jobs/{job_id}`)
+- `POST /stream` — SSE streaming (token, tool_start, tool_end, rag_context, done)
+- `POST /confirm/{job_id}` — Resume human-in-the-loop interrupts
+- `GET /threads` / `GET /threads/{id}/messages` — Thread management
+- `GET /graph/mermaid` / `GET /graph/trace/{thread_id}` — Visualization
+
+**Config:** `backend/langgraph.json` defines graph entry point (`compile_agent_graph`)
 
 ## Code Style
 
 - **Python**: Black (88), isort, mypy strict, snake_case, structlog
 - **TypeScript**: Prettier, ESLint, strict mode, camelCase/PascalCase
 - **Imports**: `@/*` aliases for src/app paths
-- **Theme**: Vercel Aesthetic / shadcn/ui neutral - Primary: `hsl(var(--primary))`, Background: `hsl(var(--background))`. Clean, minimalist styling. No brutalist effects or scanlines.
+- **Theme**: NOUS brand — Ink `#0A0A0E`, Surface `#F7F7F5`, Accent `#6366F1`. Inter headings, Source Serif 4 body. Clean, minimalist. shadcn/ui components.
 
 ## Gotchas
 
@@ -46,15 +61,22 @@ cd frontend && npm run validate      # lint + type-check + test
 - Don't name query params same as imported modules (e.g. `status` shadows `fastapi.status`)
 - IconButton requires `aria-label`
 - ArXiv API endpoints need `postWithLongTimeout` (5 min), not standard timeout
+- Agent: after arXiv ingest, use `document_ids` (UUIDs) from response, NOT arXiv paper IDs
+- Agent: checkpoint URL must be `postgresql://` (psycopg v3), not `postgresql+asyncpg://`
+- Agent: every AIMessage with tool_calls must have matching ToolMessages (sanitizer adds placeholders)
+- Agent: DraftGenerationService uses fresh `AsyncSessionLocal()` to avoid rollback conflicts
+- Agent: destructive tools (ingest, create_note, create_draft) trigger `interrupt()` for human confirmation
 
 ## Connections
 
-- PostgreSQL: `localhost:5432` (postgres/postgres)
-- Neo4j: `bolt://localhost:7687`
-- Qdrant: `http://localhost:6333`
-- Redis: `redis://localhost:6379`
-- Backend: `http://localhost:8000`
-- Frontend: `http://localhost:3000`
+| Service    | Port | URL                        |
+| ---------- | ---- | -------------------------- |
+| PostgreSQL | 5432 | postgres:postgres@localhost |
+| Neo4j      | 7687 | bolt://localhost:7687      |
+| Qdrant     | 6333 | http://localhost:6333      |
+| Redis      | 6379 | redis://localhost:6379     |
+| Backend    | 8000 | http://localhost:8000      |
+| Frontend   | 3000 | http://localhost:3000      |
 
 ## Branch Strategy
 
