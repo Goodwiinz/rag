@@ -25,6 +25,14 @@ logger = logging.getLogger(__name__)
 MAX_TOOL_LOOPS = 10
 
 
+def _safe_json_loads(s: str) -> Any:
+    """Parse JSON, returning a fallback dict if parsing fails."""
+    try:
+        return json.loads(s)
+    except (json.JSONDecodeError, TypeError):
+        return {"raw": s}
+
+
 # ---------------------------------------------------------------------------
 # LLM construction
 # ---------------------------------------------------------------------------
@@ -202,55 +210,63 @@ async def rag_node(state: AgentState, config: RunnableConfig) -> dict:
         return {"retrieved_contexts": []}
 
     try:
-        from src.models.search_schemas import SearchQuery
-        from src.services.search.hybrid_search_service import hybrid_search_service
+        # Allow injecting a search function for testing
+        search_fn = configurable.get("search_fn")
 
-        search_request = SearchQuery(
-            query=last_user_msg,
-            limit=5,
-            search_type="hybrid",
-        )
+        if search_fn:
+            # Use injected search function (for testing)
+            contexts = await search_fn(last_user_msg, str(current_user.id))
+        else:
+            # Default: use hybrid search service
+            from src.models.search_schemas import SearchQuery
+            from src.services.search.hybrid_search_service import hybrid_search_service
 
-        loop = asyncio.get_running_loop()
-        org_id = (
-            str(current_user.organization_id)
-            if current_user.organization_id
-            else None
-        )
-        uid = str(current_user.id)
-
-        search_response = await loop.run_in_executor(
-            None,
-            lambda: hybrid_search_service.search(
-                search_request=search_request,
-                user_id=uid,
-                organization_id=org_id,
-            ),
-        )
-
-        contexts: List[dict] = []
-        for i, result in enumerate(search_response.results[:5]):
-            doc_id = getattr(result, "document_id", None)
-            title = getattr(result, "title", "Untitled") or f"Document {i + 1}"
-
-            metadata = getattr(result, "metadata", {}) or {}
-            content = metadata.get("full_text") or metadata.get("text", "")
-            if not content:
-                content = getattr(result, "content_preview", None)
-            if not content:
-                content = getattr(result, "content", "")
-            if content is None:
-                content = ""
-
-            score = getattr(result, "relevance_score", 0.0)
-            contexts.append(
-                {
-                    "document_id": str(doc_id) if doc_id else None,
-                    "title": title,
-                    "content": content[:3000],
-                    "score": float(score),
-                }
+            search_request = SearchQuery(
+                query=last_user_msg,
+                limit=5,
+                search_type="hybrid",
             )
+
+            loop = asyncio.get_running_loop()
+            org_id = (
+                str(current_user.organization_id)
+                if current_user.organization_id
+                else None
+            )
+            uid = str(current_user.id)
+
+            search_response = await loop.run_in_executor(
+                None,
+                lambda: hybrid_search_service.search(
+                    search_request=search_request,
+                    user_id=uid,
+                    organization_id=org_id,
+                ),
+            )
+
+            contexts: List[dict] = []
+            for i, result in enumerate(search_response.results[:5]):
+                doc_id = getattr(result, "document_id", None)
+                title = getattr(result, "title", "Untitled") or f"Document {i + 1}"
+
+                metadata = getattr(result, "metadata", {}) or {}
+                content = metadata.get("full_text") or metadata.get("text", "")
+                if not content:
+                    content = getattr(result, "content_preview", None)
+                if not content:
+                    content = getattr(result, "content", "")
+                if content is None:
+                    content = ""
+
+                score = getattr(result, "relevance_score", 0.0)
+                contexts.append(
+                    {
+                        "document_id": str(doc_id) if doc_id else None,
+                        "title": title,
+                        "content": content[:3000],
+                        "score": float(score),
+                    }
+                )
 
         return {"retrieved_contexts": contexts}
 
@@ -263,11 +279,29 @@ async def rag_node(state: AgentState, config: RunnableConfig) -> dict:
 # Intent classification
 # ---------------------------------------------------------------------------
 
+# Weighted keywords: (keyword, weight)
+# Action verbs get higher weight; ambiguous nouns get lower weight
 INTENT_KEYWORDS = {
-    "research": {"search", "find", "arxiv", "paper", "papers", "look up", "discover", "ingest", "import"},
-    "writing": {"write", "draft", "note", "summarize", "summary", "create note", "literature review", "export", "bibliography", "cite"},
-    "knowledge_graph": {"entity", "entities", "knowledge graph", "relationship", "graph", "extract entities", "concept", "ontology"},
+    "research": [
+        ("search", 2), ("find", 2), ("look up", 2), ("discover", 2),
+        ("ingest", 2), ("import", 2),
+        ("arxiv", 2), ("paper", 1), ("papers", 1),
+    ],
+    "writing": [
+        ("write", 2), ("draft", 2), ("summarize", 2), ("summary", 2),
+        ("create note", 2), ("literature review", 2),
+        ("export", 2), ("bibliography", 2), ("cite", 2),
+        ("note", 1),
+    ],
+    "knowledge_graph": [
+        ("extract entities", 2), ("knowledge graph", 2),
+        ("entity", 2), ("entities", 2), ("relationship", 2),
+        ("ontology", 2), ("concept", 1), ("graph", 1),
+    ],
 }
+
+# Priority order for tie-breaking (higher priority first)
+INTENT_PRIORITY = ["writing", "knowledge_graph", "research"]
 
 
 @track_node_execution("intent_classifier_node")
@@ -282,16 +316,24 @@ async def intent_classifier_node(state: AgentState, config: RunnableConfig) -> d
     if not last_user_msg:
         return {"intent": "general"}
 
-    # Simple keyword-based classification
+    # Weighted keyword-based classification
     scores = {intent: 0 for intent in INTENT_KEYWORDS}
-    for intent, keywords in INTENT_KEYWORDS.items():
-        for kw in keywords:
+    for intent, keyword_weights in INTENT_KEYWORDS.items():
+        for kw, weight in keyword_weights:
             if kw in last_user_msg:
-                scores[intent] += 1
+                scores[intent] += weight
 
-    best_intent = max(scores, key=lambda k: scores[k])
-    if scores[best_intent] == 0:
+    best_score = max(scores.values())
+    if best_score == 0:
         best_intent = "general"
+    else:
+        # Among intents with the best score, pick by priority
+        candidates = [i for i, s in scores.items() if s == best_score]
+        best_intent = candidates[0]
+        for preferred in INTENT_PRIORITY:
+            if preferred in candidates:
+                best_intent = preferred
+                break
 
     logger.debug("Classified intent: %s (scores: %s)", best_intent, scores)
     return {"intent": best_intent}
@@ -441,14 +483,14 @@ async def llm_node(state: AgentState, config: RunnableConfig) -> dict:
     # Sanitize: ensure every AIMessage with tool_calls has matching ToolMessages
     raw_messages = list(state["messages"])
     sanitized: list = []
-    for msg in raw_messages:
+    for i, msg in enumerate(raw_messages):
         sanitized.append(msg)
         if isinstance(msg, AIMessage) and getattr(msg, "tool_calls", None):
             # Collect tool_call IDs from this message
             expected_ids = {tc["id"] for tc in msg.tool_calls}
             # Look ahead for matching ToolMessages already in the list
             answered_ids: set = set()
-            for future_msg in raw_messages[raw_messages.index(msg) + 1:]:
+            for future_msg in raw_messages[i + 1:]:
                 if isinstance(future_msg, ToolMessage):
                     answered_ids.add(future_msg.tool_call_id)
                 elif isinstance(future_msg, (AIMessage, HumanMessage)):
@@ -474,7 +516,6 @@ async def llm_node(state: AgentState, config: RunnableConfig) -> dict:
 
     return {
         "messages": [response],
-        "tool_loop_count": state.get("tool_loop_count", 0) + 1,
     }
 
 
@@ -603,7 +644,7 @@ async def _execute_single_tool(
             "tool_display_name": tool_name.replace("_", " ").title(),
             "args": tool_args,
             "status": status,
-            "result": json.loads(result_content),
+            "result": _safe_json_loads(result_content),
             "duration_ms": duration_ms,
         },
         "error_increment": error_increment,
@@ -631,11 +672,17 @@ async def tool_node(state: AgentState, config: RunnableConfig) -> dict:
     results = await asyncio.gather(*tasks, return_exceptions=True)
 
     tool_messages: List[ToolMessage] = []
-    for r in results:
+    for i, r in enumerate(results):
         if isinstance(r, Exception):
             logger.error("Parallel tool execution error: %s", r)
             error_count += 1
             last_error = str(r)
+            # Still add an error ToolMessage so LLM gets a response for every tool_call
+            tc = last_message.tool_calls[i]
+            tool_messages.append(ToolMessage(
+                content=json.dumps({"error": str(r)}),
+                tool_call_id=tc["id"],
+            ))
             continue
         tool_messages.append(r["message"])
         tool_executions.append(r["execution"])
@@ -648,7 +695,95 @@ async def tool_node(state: AgentState, config: RunnableConfig) -> dict:
         "tool_executions": tool_executions,
         "error_count": error_count,
         "last_error": last_error,
+        "tool_loop_count": state.get("tool_loop_count", 0) + 1,
     }
+
+
+def make_filtered_tool_node(allowed_tool_names: set[str]):
+    """Create a tool_node wrapper that only executes tools in the allowed set.
+
+    Tool calls not in the allowed set are skipped with a warning ToolMessage.
+    """
+
+    @track_node_execution("filtered_tool_node")
+    async def filtered_tool_node(state: AgentState, config: RunnableConfig) -> dict:
+        last_message = state["messages"][-1]
+        if not isinstance(last_message, AIMessage) or not last_message.tool_calls:
+            return {"messages": [], "tool_executions": []}
+
+        # Filter tool calls
+        allowed_calls = []
+        skipped_messages = []
+        for tc in last_message.tool_calls:
+            if tc["name"] in allowed_tool_names:
+                allowed_calls.append(tc)
+            else:
+                logger.warning(
+                    "Subgraph skipping out-of-scope tool call: %s (allowed: %s)",
+                    tc["name"],
+                    allowed_tool_names,
+                )
+                skipped_messages.append(
+                    ToolMessage(
+                        content=json.dumps(
+                            {
+                                "error": f"Tool '{tc['name']}' is not available in this context. "
+                                f"Available tools: {', '.join(sorted(allowed_tool_names))}"
+                            }
+                        ),
+                        tool_call_id=tc["id"],
+                    )
+                )
+
+        if not allowed_calls:
+            return {
+                "messages": skipped_messages,
+                "tool_executions": list(state.get("tool_executions", [])),
+                "error_count": state.get("error_count", 0),
+                "last_error": state.get("last_error", ""),
+                "tool_loop_count": state.get("tool_loop_count", 0) + 1,
+            }
+
+        # Execute allowed tools using existing tool_node logic
+        tool_executions = list(state.get("tool_executions", []))
+        error_count = state.get("error_count", 0)
+        last_error = state.get("last_error", "")
+        page_context = state.get("page_context", {})
+
+        tasks = [
+            _execute_single_tool(tc, config, page_context) for tc in allowed_calls
+        ]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        tool_messages = list(skipped_messages)
+        for i, r in enumerate(results):
+            if isinstance(r, Exception):
+                logger.error("Parallel tool execution error: %s", r)
+                error_count += 1
+                last_error = str(r)
+                tc = allowed_calls[i]
+                tool_messages.append(
+                    ToolMessage(
+                        content=json.dumps({"error": str(r)}),
+                        tool_call_id=tc["id"],
+                    )
+                )
+                continue
+            tool_messages.append(r["message"])
+            tool_executions.append(r["execution"])
+            error_count += r["error_increment"]
+            if r["error_text"]:
+                last_error = r["error_text"]
+
+        return {
+            "messages": tool_messages,
+            "tool_executions": tool_executions,
+            "error_count": error_count,
+            "last_error": last_error,
+            "tool_loop_count": state.get("tool_loop_count", 0) + 1,
+        }
+
+    return filtered_tool_node
 
 
 # ---------------------------------------------------------------------------
@@ -771,7 +906,17 @@ def build_agent_graph() -> StateGraph:
     return graph
 
 
-def compile_agent_graph(checkpointer=None):
-    """Compile the agent graph, optionally with a checkpointer."""
+def compile_agent_graph(checkpointer=None, **kwargs):
+    """Compile the agent graph, optionally with a checkpointer.
+
+    The ``**kwargs`` absorb extra arguments passed by ``langgraph dev``
+    (e.g. runtime config dicts) so the function works as both a
+    programmatic API and a LangGraph CLI entry point.
+    """
     graph = build_agent_graph()
-    return graph.compile(checkpointer=checkpointer)
+    # langgraph dev may pass checkpointer=True to use its built-in saver
+    from langgraph.checkpoint.base import BaseCheckpointSaver
+
+    if isinstance(checkpointer, BaseCheckpointSaver) or checkpointer is True:
+        return graph.compile(checkpointer=checkpointer)
+    return graph.compile()

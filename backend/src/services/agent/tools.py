@@ -56,13 +56,14 @@ async def search_arxiv(
     query: str,
     max_results: int = 5,
     categories: Optional[List[str]] = None,
-    config: RunnableConfig = {},  # noqa: B006
+    config: RunnableConfig | None = None,
 ) -> Dict[str, Any]:
     """Search arXiv for academic papers.
 
     Use when the user asks to find, search, or look up research papers,
     academic publications, or scientific articles.
     """
+    config = config or {}
     from src.api.agent.execute import _tool_search_arxiv
 
     args: Dict[str, Any] = {"query": query, "max_results": max_results}
@@ -74,13 +75,14 @@ async def search_arxiv(
 @tool
 async def ingest_arxiv_papers(
     paper_ids: List[str],
-    config: RunnableConfig = {},  # noqa: B006
+    config: RunnableConfig | None = None,
 ) -> Dict[str, Any]:
     """Ingest arXiv papers into the RAG system for indexing and search.
 
     Use when the user wants to add, import, download, or ingest specific arXiv
     papers. Requires paper IDs (e.g., '2401.12345').
     """
+    config = config or {}
     from src.api.agent.execute import _tool_ingest_arxiv
 
     db, current_user, _page_ctx = _get_context(config)
@@ -94,9 +96,10 @@ async def ingest_arxiv_papers(
 async def search_documents(
     query: str,
     max_results: int = 10,
-    config: RunnableConfig = {},  # noqa: B006
+    config: RunnableConfig | None = None,
 ) -> Dict[str, Any]:
     """Search the user's indexed documents by title or content."""
+    config = config or {}
     from src.api.agent.execute import _tool_search_documents
 
     db, current_user, _page_ctx = _get_context(config)
@@ -109,13 +112,14 @@ async def search_documents(
 async def add_document_to_project(
     document_id: str,
     project_id: Optional[str] = None,
-    config: RunnableConfig = {},  # noqa: B006
+    config: RunnableConfig | None = None,
 ) -> Dict[str, Any]:
     """Add an existing document to a research project.
 
     If *project_id* is omitted and the user is on a project page, the
     project is inferred from the page context.
     """
+    config = config or {}
     from src.api.agent.execute import _tool_add_document_to_project
 
     db, current_user, page_ctx = _get_context(config)
@@ -133,13 +137,14 @@ async def create_project_note(
     content: str,
     project_id: Optional[str] = None,
     tags: Optional[List[str]] = None,
-    config: RunnableConfig = {},  # noqa: B006
+    config: RunnableConfig | None = None,
 ) -> Dict[str, Any]:
     """Create a markdown note in a research project.
 
     If *project_id* is omitted and the user is on a project page, the
     project is inferred from the page context.
     """
+    config = config or {}
     from src.api.agent.execute import _tool_create_project_note
 
     db, current_user, page_ctx = _get_context(config)
@@ -157,13 +162,14 @@ async def create_project_note(
 @tool
 async def list_project_documents(
     project_id: Optional[str] = None,
-    config: RunnableConfig = {},  # noqa: B006
+    config: RunnableConfig | None = None,
 ) -> Dict[str, Any]:
     """List all documents in a research project.
 
     If *project_id* is omitted and the user is on a project page, the
     project is inferred from the page context.
     """
+    config = config or {}
     from src.api.agent.execute import _tool_list_project_documents
 
     db, current_user, page_ctx = _get_context(config)
@@ -176,12 +182,13 @@ async def list_project_documents(
 @tool
 async def summarize_document(
     document_id: str,
-    config: RunnableConfig = {},  # noqa: B006
+    config: RunnableConfig | None = None,
 ) -> Dict[str, Any]:
     """Summarize a document's content.
 
     Use when the user asks for a summary or overview of a specific document.
     """
+    config = config or {}
     from src.api.agent.execute import _tool_summarize_document
 
     db, current_user, _page_ctx = _get_context(config)
@@ -194,13 +201,14 @@ async def summarize_document(
 async def compare_documents(
     document_ids: List[str],
     type: str = "general",
-    config: RunnableConfig = {},  # noqa: B006
+    config: RunnableConfig | None = None,
 ) -> Dict[str, Any]:
     """Compare multiple documents to find similarities, differences, and shared themes.
 
     Use when the user wants to compare, contrast, or analyze differences
     between two or more documents.
     """
+    config = config or {}
     from src.api.agent.execute import _tool_compare_documents
 
     db, current_user, _page_ctx = _get_context(config)
@@ -212,13 +220,14 @@ async def compare_documents(
 @tool
 async def extract_entities(
     document_id: str,
-    config: RunnableConfig = {},  # noqa: B006
+    config: RunnableConfig | None = None,
 ) -> Dict[str, Any]:
     """Extract named entities (people, organizations, concepts, etc.) from a document.
 
     Use when the user wants to identify key entities, people, organizations,
     or concepts mentioned in a document.
     """
+    config = config or {}
     from src.api.agent.execute import _tool_extract_entities
 
     db, current_user, _page_ctx = _get_context(config)
@@ -231,13 +240,14 @@ async def extract_entities(
 async def search_knowledge_graph(
     query: str,
     entity_types: Optional[List[str]] = None,
-    config: RunnableConfig = {},  # noqa: B006
+    config: RunnableConfig | None = None,
 ) -> Dict[str, Any]:
     """Search the knowledge graph for entities and their relationships.
 
     Use when the user asks about concepts, people, or organizations
     in the research corpus, or wants to explore entity relationships.
     """
+    config = config or {}
     from src.api.agent.execute import _tool_search_knowledge_graph
 
     args: Dict[str, Any] = {"query": query}
@@ -251,13 +261,14 @@ async def create_draft(
     themes: List[str],
     project_id: Optional[str] = None,
     style: str = "academic",
-    config: RunnableConfig = {},  # noqa: B006
+    config: RunnableConfig | None = None,
 ) -> Dict[str, Any]:
     """Generate a literature review draft for a project based on themes.
 
     Use when the user wants to create a draft, write a review, or synthesize
     research around specific themes.
     """
+    config = config or {}
     from src.api.agent.execute import _tool_create_draft
 
     db, current_user, page_ctx = _get_context(config)
@@ -273,13 +284,14 @@ async def create_draft(
 async def export_bibliography(
     document_ids: List[str],
     format: str = "bibtex",
-    config: RunnableConfig = {},  # noqa: B006
+    config: RunnableConfig | None = None,
 ) -> Dict[str, Any]:
     """Export bibliography/references for documents in a specific citation format.
 
     Use when the user wants to export citations, references, or a bibliography
     for one or more documents. Supports bibtex, apa, ieee, and mla formats.
     """
+    config = config or {}
     from src.api.agent.execute import _tool_export_bibliography
 
     db, current_user, _page_ctx = _get_context(config)

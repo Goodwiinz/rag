@@ -15,6 +15,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
+from langgraph.errors import GraphInterrupt
 from pydantic import BaseModel, Field
 from sqlalchemy import select, desc, func
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -1255,12 +1256,16 @@ async def _tool_export_bibliography(
 # Helpers
 # ---------------------------------------------------------------------------
 
+VALID_PAGE_TYPES = {"project", "documents", "dashboard", "chat", "unknown"}
+
+
 def build_agent_system_prompt(page_context: PageContextRequest) -> str:
+    ctx_type = page_context.type if page_context.type in VALID_PAGE_TYPES else "unknown"
     context_line = ""
-    if page_context.type == "project" and page_context.project_id:
+    if ctx_type == "project" and page_context.project_id:
         context_line = f"The user is viewing a project (ID: {page_context.project_id})."
-    elif page_context.type != "unknown":
-        context_line = f"The user is on the {page_context.type} page."
+    elif ctx_type != "unknown":
+        context_line = f"The user is on the {ctx_type} page."
 
     return f"""You are an AI research agent for a RAG-powered academic research system.
 You help users search documents, manage research projects, find ArXiv papers, create notes, and analyze research.
@@ -1473,20 +1478,19 @@ async def _run_agent_graph(
 
         try:
             final_state = await graph.ainvoke(initial_state, config=config)
-        except Exception as exc:
-            # Check if this is a GraphInterrupt (human-in-the-loop pause)
-            if type(exc).__name__ == "GraphInterrupt":
-                interrupts = getattr(exc, "interrupts", [])
-                confirmation_details = {}
-                if interrupts:
-                    confirmation_details = getattr(interrupts[0], "value", {})
-                _set_job(job_id, {
-                    "status": "awaiting_confirmation",
-                    "confirmation": confirmation_details,
-                    "tool_executions": [],
-                })
-                return
-            raise
+        except GraphInterrupt as exc:
+            interrupts = getattr(exc, "interrupts", [])
+            confirmation_details = {}
+            if interrupts:
+                confirmation_details = getattr(interrupts[0], "value", {})
+            _set_job(job_id, {
+                "status": "awaiting_confirmation",
+                "confirmation": confirmation_details,
+                "tool_executions": [],
+                "user_id": str(current_user.id),
+                "request": request.model_dump(),
+            })
+            return
 
         # Extract assistant content from the last AI message
         assistant_content = ""
@@ -1578,7 +1582,7 @@ async def execute_agent(
     )
 
     job_id = str(_uuid.uuid4())
-    _set_job(job_id, {"status": "running", "tool_executions": []})
+    _set_job(job_id, {"status": "running", "tool_executions": [], "user_id": str(current_user.id), "request": request.model_dump()})
 
     background_tasks.add_task(
         _run_agent_graph, job_id, request, current_user, db,
@@ -1587,10 +1591,12 @@ async def execute_agent(
 
 
 @router.get("/jobs/{job_id}", response_model=JobStatusResponse)
-async def get_job_status(job_id: str):
+async def get_job_status(job_id: str, current_user: User = Depends(get_current_user)):
     """Poll for agent job status."""
     job = _get_job(job_id)
     if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    if job.get("user_id") and job["user_id"] != str(current_user.id):
         raise HTTPException(status_code=404, detail="Job not found")
     return JobStatusResponse(**job)
 
@@ -1610,6 +1616,8 @@ async def confirm_agent_action(
     """Confirm or deny a pending agent action (human-in-the-loop)."""
     job = _get_job(job_id)
     if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    if job.get("user_id") and job["user_id"] != str(current_user.id):
         raise HTTPException(status_code=404, detail="Job not found")
     if job.get("status") != "awaiting_confirmation":
         raise HTTPException(status_code=400, detail="Job is not awaiting confirmation")
@@ -1657,6 +1665,21 @@ async def _resume_agent_graph(
             if hasattr(msg, "type") and msg.type == "ai" and msg.content:
                 assistant_content = msg.content
                 break
+
+        # Persist thread messages
+        try:
+            job = _get_job(job_id)
+            if job and job.get("request"):
+                original_request = AgentExecuteRequest(**job["request"])
+                tool_executions_out = [
+                    ToolExecutionResponse(**te)
+                    for te in final_state.get("tool_executions", [])
+                ] or None
+                await _persist_thread_messages(
+                    db, current_user, original_request, assistant_content, tool_executions_out,
+                )
+        except Exception as e:
+            logger.warning("Failed to persist confirmation thread messages", exc_info=e)
 
         result = AgentExecuteResponse(
             message=AgentMessage(role="assistant", content=assistant_content),
@@ -1746,33 +1769,56 @@ async def stream_agent(
                 }
             }
 
-            async for event in graph.astream_events(
-                initial_state, config=config, version="v2"
-            ):
-                if await request.is_disconnected():
-                    break
+            async with asyncio.timeout(300):  # 5 minutes
+                async for event in graph.astream_events(
+                    initial_state, config=config, version="v2"
+                ):
+                    if await request.is_disconnected():
+                        break
 
-                kind = event.get("event", "")
-                name = event.get("name", "")
+                    kind = event.get("event", "")
+                    name = event.get("name", "")
 
-                if kind == "on_chat_model_stream":
-                    chunk = event.get("data", {}).get("chunk")
-                    if chunk and hasattr(chunk, "content") and chunk.content:
-                        yield f"event: token\ndata: {_json.dumps({'content': chunk.content})}\n\n"
+                    if kind == "on_chat_model_stream":
+                        chunk = event.get("data", {}).get("chunk")
+                        if chunk and hasattr(chunk, "content") and chunk.content:
+                            yield f"event: token\ndata: {_json.dumps({'content': chunk.content})}\n\n"
 
-                elif kind == "on_tool_start":
-                    yield f"event: tool_start\ndata: {_json.dumps({'tool': name})}\n\n"
+                    elif kind == "on_tool_start":
+                        yield f"event: tool_start\ndata: {_json.dumps({'tool': name})}\n\n"
 
-                elif kind == "on_tool_end":
-                    output = event.get("data", {}).get("output", "")
-                    yield f"event: tool_end\ndata: {_json.dumps({'tool': name, 'result': str(output)[:500]})}\n\n"
+                    elif kind == "on_tool_end":
+                        output = event.get("data", {}).get("output", "")
+                        yield f"event: tool_end\ndata: {_json.dumps({'tool': name, 'result': str(output)[:500]})}\n\n"
 
-                elif kind == "on_chain_end" and name == "rag_node":
-                    output = event.get("data", {}).get("output", {})
-                    if isinstance(output, dict):
-                        contexts = output.get("retrieved_contexts", [])
-                        if contexts:
-                            yield f"event: rag_context\ndata: {_json.dumps({'contexts': contexts[:3]})}\n\n"
+                    elif kind == "on_chain_end" and name == "rag_node":
+                        output = event.get("data", {}).get("output", {})
+                        if isinstance(output, dict):
+                            contexts = output.get("retrieved_contexts", [])
+                            if contexts:
+                                yield f"event: rag_context\ndata: {_json.dumps({'contexts': contexts[:3]})}\n\n"
+
+            # Persist messages after streaming completes
+            try:
+                final_snapshot = await graph.aget_state(config)
+                final_values = final_snapshot.values if final_snapshot else {}
+
+                assistant_content = ""
+                for msg in reversed(final_values.get("messages", [])):
+                    if hasattr(msg, "type") and msg.type == "ai" and msg.content:
+                        assistant_content = msg.content
+                        break
+
+                tool_executions_out = [
+                    ToolExecutionResponse(**te)
+                    for te in final_values.get("tool_executions", [])
+                ] or None
+
+                await _persist_thread_messages(
+                    db, current_user, request_body, assistant_content, tool_executions_out,
+                )
+            except Exception as e:
+                logger.warning("Failed to persist SSE thread messages", exc_info=e)
 
             yield f"event: done\ndata: {_json.dumps({'status': 'complete'})}\n\n"
 

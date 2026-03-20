@@ -6,7 +6,6 @@ Tools: search_arxiv, ingest_arxiv_papers, search_documents,
 """
 
 import logging
-from typing import List
 
 from langchain_core.messages import AIMessage, SystemMessage
 from langchain_core.runnables import RunnableConfig
@@ -58,12 +57,13 @@ async def research_llm_node(state: AgentState, config: RunnableConfig) -> dict:
 
     return {
         "messages": [response],
-        "tool_loop_count": state.get("tool_loop_count", 0) + 1,
     }
 
 
 def research_should_continue(state: AgentState) -> str:
     """Decide whether to continue tool execution in research sub-graph."""
+    if state.get("error_count", 0) >= 3:
+        return END
     last = state["messages"][-1] if state["messages"] else None
     if (
         isinstance(last, AIMessage)
@@ -76,11 +76,14 @@ def research_should_continue(state: AgentState) -> str:
 
 def build_research_subgraph() -> StateGraph:
     """Build the research agent sub-graph."""
-    from src.services.agent.graph import tool_node
+    from src.services.agent.graph import make_filtered_tool_node
+
+    RESEARCH_TOOL_NAMES = {t.name for t in RESEARCH_TOOLS}
+    filtered_tool = make_filtered_tool_node(RESEARCH_TOOL_NAMES)
 
     graph = StateGraph(AgentState)
     graph.add_node("research_llm_node", research_llm_node)
-    graph.add_node("research_tool_node", tool_node)
+    graph.add_node("research_tool_node", filtered_tool)
 
     graph.set_entry_point("research_llm_node")
     graph.add_conditional_edges(
