@@ -1,6 +1,7 @@
 # Comprehensive API Documentation - Multimodal Enterprise RAG System
 
 ## 📋 Table of Contents
+
 1. [API Overview](#api-overview)
 2. [Authentication](#authentication)
 3. [Document Management](#document-management)
@@ -9,31 +10,36 @@
 6. [Analytics & Monitoring](#analytics--monitoring)
 7. [User Management](#user-management)
 8. [Processing & Workflows](#processing--workflows)
-9. [Error Handling](#error-handling)
-10. [Rate Limiting](#rate-limiting)
-11. [API Versioning](#api-versioning)
-12. [SDKs & Libraries](#sdks--libraries)
+9. [Agent Chat (LangGraph)](#agent-chat-langgraph)
+10. [Error Handling](#error-handling)
+11. [Rate Limiting](#rate-limiting)
+12. [API Versioning](#api-versioning)
+13. [SDKs & Libraries](#sdks--libraries)
 
 ---
 
 ## API Overview
 
 ### Base URLs
+
 - **Production**: `https://api.rag.yourdomain.com/api/v1`
 - **Staging**: `https://staging-api.rag.yourdomain.com/api/v1`
 - **Development**: `http://localhost:8000/api/v1`
 
 ### Supported Formats
+
 - **Request Format**: JSON
 - **Response Format**: JSON
 - **File Upload**: Multipart/form-data
 
 ### Authentication
+
 - **Method**: JWT Bearer Token
 - **Header**: `Authorization: Bearer <token>`
 - **Token Expiry**: 24 hours (refreshable)
 
 ### Rate Limiting
+
 - **Standard**: 100 requests/minute
 - **Premium**: 1000 requests/minute
 - **Enterprise**: Unlimited
@@ -43,6 +49,7 @@
 ## Authentication
 
 ### Register User
+
 ```http
 POST /api/v1/auth/register
 Content-Type: application/json
@@ -57,6 +64,7 @@ Content-Type: application/json
 ```
 
 **Response (201)**:
+
 ```json
 {
   "success": true,
@@ -83,6 +91,7 @@ Content-Type: application/json
 ```
 
 ### Login User
+
 ```http
 POST /api/v1/auth/login
 Content-Type: application/json
@@ -94,6 +103,7 @@ Content-Type: application/json
 ```
 
 **Response (200)**:
+
 ```json
 {
   "success": true,
@@ -119,12 +129,14 @@ Content-Type: application/json
 ```
 
 ### Refresh Token
+
 ```http
 POST /api/v1/auth/refresh
 Authorization: Bearer <refresh_token>
 ```
 
 **Response (200)**:
+
 ```json
 {
   "success": true,
@@ -136,12 +148,14 @@ Authorization: Bearer <refresh_token>
 ```
 
 ### Logout User
+
 ```http
 POST /api/v1/auth/logout
 Authorization: Bearer <access_token>
 ```
 
 **Response (200)**:
+
 ```json
 {
   "success": true,
@@ -154,6 +168,7 @@ Authorization: Bearer <access_token>
 ## Document Management
 
 ### Upload Document
+
 ```http
 POST /api/v1/documents/upload
 Authorization: Bearer <access_token>
@@ -170,6 +185,7 @@ metadata: {
 ```
 
 **Response (201)**:
+
 ```json
 {
   "success": true,
@@ -202,12 +218,14 @@ metadata: {
 ```
 
 ### Get Documents
+
 ```http
 GET /api/v1/documents?page=1&limit=20&search=keyword&file_type=pdf&tag=tag1
 Authorization: Bearer <access_token>
 ```
 
 **Response (200)**:
+
 ```json
 {
   "success": true,
@@ -251,12 +269,14 @@ Authorization: Bearer <access_token>
 ```
 
 ### Get Document Details
+
 ```http
 GET /api/v1/documents/{document_id}
 Authorization: Bearer <access_token>
 ```
 
 **Response (200)**:
+
 ```json
 {
   "success": true,
@@ -310,6 +330,7 @@ Authorization: Bearer <access_token>
 ```
 
 ### Update Document
+
 ```http
 PUT /api/v1/documents/{document_id}
 Authorization: Bearer <access_token>
@@ -327,6 +348,7 @@ Content-Type: application/json
 ```
 
 **Response (200)**:
+
 ```json
 {
   "success": true,
@@ -347,12 +369,14 @@ Content-Type: application/json
 ```
 
 ### Delete Document
+
 ```http
 DELETE /api/v1/documents/{document_id}
 Authorization: Bearer <access_token>
 ```
 
 **Response (200)**:
+
 ```json
 {
   "success": true,
@@ -361,12 +385,14 @@ Authorization: Bearer <access_token>
 ```
 
 ### Get Processing Status
+
 ```http
 GET /api/v1/documents/{document_id}/processing-status
 Authorization: Bearer <access_token>
 ```
 
 **Response (200)**:
+
 ```json
 {
   "success": true,
@@ -414,6 +440,7 @@ Authorization: Bearer <access_token>
 ## Search Endpoints
 
 ### Hybrid Search
+
 ```http
 POST /api/v1/search/hybrid
 Authorization: Bearer <access_token>
@@ -441,6 +468,7 @@ Content-Type: application/json
 ```
 
 **Response (200)**:
+
 ```json
 {
   "success": true,
@@ -509,6 +537,7 @@ Content-Type: application/json
 ```
 
 ### Vector Search
+
 ```http
 POST /api/v1/search/vector
 Authorization: Bearer <access_token>
@@ -528,6 +557,7 @@ Content-Type: application/json
 ```
 
 **Response (200)**:
+
 ```json
 {
   "success": true,
@@ -553,6 +583,7 @@ Content-Type: application/json
 ```
 
 ### Graph Search
+
 ```http
 POST /api/v1/search/graph
 Authorization: Bearer <access_token>
@@ -570,6 +601,7 @@ Content-Type: application/json
 ```
 
 **Response (200)**:
+
 ```json
 {
   "success": true,
@@ -614,6 +646,7 @@ Content-Type: application/json
 ```
 
 ### Keyword Search
+
 ```http
 POST /api/v1/search/keyword
 Authorization: Bearer <access_token>
@@ -630,6 +663,7 @@ Content-Type: application/json
 ```
 
 **Response (200)**:
+
 ```json
 {
   "success": true,
@@ -640,9 +674,7 @@ Content-Type: application/json
         "document_id": "uuid",
         "content": "Machine learning algorithms are...",
         "score": 0.88,
-        "highlights": [
-          "<em>Machine learning</em> <em>algorithms</em> are"
-        ],
+        "highlights": ["<em>Machine learning</em> <em>algorithms</em> are"],
         "metadata": {
           "file_type": "pdf",
           "page_number": 5
@@ -658,12 +690,14 @@ Content-Type: application/json
 ```
 
 ### Search Suggestions
+
 ```http
 GET /api/v1/search/suggestions?q=machine&limit=5
 Authorization: Bearer <access_token>
 ```
 
 **Response (200)**:
+
 ```json
 {
   "success": true,
@@ -694,12 +728,14 @@ Authorization: Bearer <access_token>
 ## Knowledge Graph
 
 ### Get Entities
+
 ```http
 GET /api/v1/graph/entities?type=PERSON&limit=20&offset=0
 Authorization: Bearer <access_token>
 ```
 
 **Response (200)**:
+
 ```json
 {
   "success": true,
@@ -731,12 +767,14 @@ Authorization: Bearer <access_token>
 ```
 
 ### Get Entity Details
+
 ```http
 GET /api/v1/graph/entities/{entity_id}?include_relationships=true&include_documents=true
 Authorization: Bearer <access_token>
 ```
 
 **Response (200)**:
+
 ```json
 {
   "success": true,
@@ -795,12 +833,14 @@ Authorization: Bearer <access_token>
 ```
 
 ### Get Relationships
+
 ```http
 GET /api/v1/graph/relationships?source_type=PERSON&target_type=PROJECT&relationship_type=WORKS_ON
 Authorization: Bearer <access_token>
 ```
 
 **Response (200)**:
+
 ```json
 {
   "success": true,
@@ -839,6 +879,7 @@ Authorization: Bearer <access_token>
 ```
 
 ### Graph Traversal
+
 ```http
 POST /api/v1/graph/traverse
 Authorization: Bearer <access_token>
@@ -857,6 +898,7 @@ Content-Type: application/json
 ```
 
 **Response (200)**:
+
 ```json
 {
   "success": true,
@@ -907,12 +949,14 @@ Content-Type: application/json
 ```
 
 ### Graph Analytics
+
 ```http
 GET /api/v1/graph/analytics?metric=centrality&entity_type=PERSON&limit=10
 Authorization: Bearer <access_token>
 ```
 
 **Response (200)**:
+
 ```json
 {
   "success": true,
@@ -949,12 +993,14 @@ Authorization: Bearer <access_token>
 ## Analytics & Monitoring
 
 ### Get System Metrics
+
 ```http
 GET /api/v1/analytics/metrics?start_time=2024-01-01&end_time=2024-01-02&granularity=hour
 Authorization: Bearer <access_token>
 ```
 
 **Response (200)**:
+
 ```json
 {
   "success": true,
@@ -998,12 +1044,14 @@ Authorization: Bearer <access_token>
 ```
 
 ### Get Quality Metrics
+
 ```http
 GET /api/v1/analytics/quality?metric=rag_triad&start_time=2024-01-01&end_time=2024-01-02
 Authorization: Bearer <access_token>
 ```
 
 **Response (200)**:
+
 ```json
 {
   "success": true,
@@ -1011,28 +1059,28 @@ Authorization: Bearer <access_token>
     "rag_triad_metrics": {
       "answer_relevancy": {
         "average": 0.85,
-        "threshold": 0.70,
+        "threshold": 0.7,
         "distribution": [
-          {"range": "0.8-1.0", "count": 120},
-          {"range": "0.6-0.8", "count": 25},
-          {"range": "0.4-0.6", "count": 5}
+          { "range": "0.8-1.0", "count": 120 },
+          { "range": "0.6-0.8", "count": 25 },
+          { "range": "0.4-0.6", "count": 5 }
         ]
       },
       "faithfulness": {
         "average": 0.92,
-        "threshold": 0.90,
+        "threshold": 0.9,
         "distribution": [
-          {"range": "0.9-1.0", "count": 135},
-          {"range": "0.7-0.9", "count": 15}
+          { "range": "0.9-1.0", "count": 135 },
+          { "range": "0.7-0.9", "count": 15 }
         ]
       },
       "contextual_relevancy": {
         "average": 0.78,
-        "threshold": 0.70,
+        "threshold": 0.7,
         "distribution": [
-          {"range": "0.8-1.0", "count": 110},
-          {"range": "0.6-0.8", "count": 35},
-          {"range": "0.4-0.6", "count": 5}
+          { "range": "0.8-1.0", "count": 110 },
+          { "range": "0.6-0.8", "count": 35 },
+          { "range": "0.4-0.6", "count": 5 }
         ]
       }
     },
@@ -1047,12 +1095,14 @@ Authorization: Bearer <access_token>
 ```
 
 ### Get Usage Analytics
+
 ```http
 GET /api/v1/analytics/usage?dimension=users&start_time=2024-01-01&end_time=2024-01-02
 Authorization: Bearer <access_token>
 ```
 
 **Response (200)**:
+
 ```json
 {
   "success": true,
@@ -1097,12 +1147,14 @@ Authorization: Bearer <access_token>
 ## User Management
 
 ### Get Current User Profile
+
 ```http
 GET /api/v1/users/profile
 Authorization: Bearer <access_token>
 ```
 
 **Response (200)**:
+
 ```json
 {
   "success": true,
@@ -1138,6 +1190,7 @@ Authorization: Bearer <access_token>
 ```
 
 ### Update User Profile
+
 ```http
 PUT /api/v1/users/profile
 Authorization: Bearer <access_token>
@@ -1158,6 +1211,7 @@ Content-Type: application/json
 ```
 
 **Response (200)**:
+
 ```json
 {
   "success": true,
@@ -1181,6 +1235,7 @@ Content-Type: application/json
 ```
 
 ### Change Password
+
 ```http
 POST /api/v1/users/change-password
 Authorization: Bearer <access_token>
@@ -1193,6 +1248,7 @@ Content-Type: application/json
 ```
 
 **Response (200)**:
+
 ```json
 {
   "success": true,
@@ -1205,12 +1261,14 @@ Content-Type: application/json
 ## Processing & Workflows
 
 ### Get Processing Jobs
+
 ```http
 GET /api/v1/processing/jobs?status=processing&page=1&limit=20
 Authorization: Bearer <access_token>
 ```
 
 **Response (200)**:
+
 ```json
 {
   "success": true,
@@ -1254,12 +1312,14 @@ Authorization: Bearer <access_token>
 ```
 
 ### Retry Processing Job
+
 ```http
 POST /api/v1/processing/jobs/{job_id}/retry
 Authorization: Bearer <access_token>
 ```
 
 **Response (200)**:
+
 ```json
 {
   "success": true,
@@ -1279,6 +1339,7 @@ Authorization: Bearer <access_token>
 ## Error Handling
 
 ### Error Response Format
+
 ```json
 {
   "success": false,
@@ -1299,25 +1360,26 @@ Authorization: Bearer <access_token>
 
 ### Common Error Codes
 
-| Code | HTTP Status | Description |
-|------|-------------|-------------|
-| `VALIDATION_ERROR` | 400 | Invalid input data |
-| `UNAUTHORIZED` | 401 | Authentication required |
-| `FORBIDDEN` | 403 | Insufficient permissions |
-| `NOT_FOUND` | 404 | Resource not found |
-| `CONFLICT` | 409 | Resource conflict |
-| `RATE_LIMITED` | 429 | Too many requests |
-| `INTERNAL_ERROR` | 500 | Internal server error |
-| `SERVICE_UNAVAILABLE` | 503 | Service temporarily unavailable |
-| `PROCESSING_ERROR` | 422 | Document processing failed |
-| `SEARCH_ERROR` | 422 | Search operation failed |
-| `STORAGE_ERROR` | 507 | Insufficient storage |
+| Code                  | HTTP Status | Description                     |
+| --------------------- | ----------- | ------------------------------- |
+| `VALIDATION_ERROR`    | 400         | Invalid input data              |
+| `UNAUTHORIZED`        | 401         | Authentication required         |
+| `FORBIDDEN`           | 403         | Insufficient permissions        |
+| `NOT_FOUND`           | 404         | Resource not found              |
+| `CONFLICT`            | 409         | Resource conflict               |
+| `RATE_LIMITED`        | 429         | Too many requests               |
+| `INTERNAL_ERROR`      | 500         | Internal server error           |
+| `SERVICE_UNAVAILABLE` | 503         | Service temporarily unavailable |
+| `PROCESSING_ERROR`    | 422         | Document processing failed      |
+| `SEARCH_ERROR`        | 422         | Search operation failed         |
+| `STORAGE_ERROR`       | 507         | Insufficient storage            |
 
 ---
 
 ## Rate Limiting
 
 ### Rate Limit Headers
+
 ```http
 X-RateLimit-Limit: 100
 X-RateLimit-Remaining: 95
@@ -1326,6 +1388,7 @@ X-RateLimit-Retry-After: 60
 ```
 
 ### Rate Limit Response
+
 ```json
 {
   "success": false,
@@ -1346,12 +1409,14 @@ X-RateLimit-Retry-After: 60
 ## API Versioning
 
 ### Version Strategy
+
 - **URL Versioning**: `/api/v1/`, `/api/v2/`
 - **Backward Compatibility**: Maintained for at least 2 versions
 - **Deprecation Notice**: 6 months before removal
 - **Version Headers**: `API-Version: v1`
 
 ### Version Response Headers
+
 ```http
 API-Version: v1
 API-Version-Supported: v1,v2
@@ -1364,32 +1429,34 @@ API-Version-Sunset: 2024-06-01T00:00:00Z
 ## SDKs & Libraries
 
 ### JavaScript/TypeScript SDK
+
 ```bash
 npm install @multimodal-rag/sdk
 ```
 
 ```typescript
-import { MultimodalRAGClient } from '@multimodal-rag/sdk';
+import { MultimodalRAGClient } from "@multimodal-rag/sdk";
 
 const client = new MultimodalRAGClient({
-  baseURL: 'https://api.rag.yourdomain.com/api/v1',
-  apiKey: 'your-api-key'
+  baseURL: "https://api.rag.yourdomain.com/api/v1",
+  apiKey: "your-api-key",
 });
 
 // Search documents
 const results = await client.search.hybrid({
-  query: 'What are the latest developments in AI?',
-  options: { topK: 10 }
+  query: "What are the latest developments in AI?",
+  options: { topK: 10 },
 });
 
 // Upload document
 const document = await client.documents.upload(file, {
-  title: 'Document Title',
-  tags: ['technology', 'ai']
+  title: "Document Title",
+  tags: ["technology", "ai"],
 });
 ```
 
 ### Python SDK
+
 ```bash
 pip install multimodal-rag-sdk
 ```
@@ -1417,6 +1484,7 @@ document = client.documents.upload(
 ```
 
 ### cURL Examples
+
 ```bash
 # Search documents
 curl -X POST https://api.rag.yourdomain.com/api/v1/search/hybrid \
@@ -1440,6 +1508,7 @@ curl -X POST https://api.rag.yourdomain.com/api/v1/documents/upload \
 ## Webhooks
 
 ### Configure Webhook
+
 ```http
 POST /api/v1/webhooks
 Authorization: Bearer <access_token>
@@ -1454,6 +1523,7 @@ Content-Type: application/json
 ```
 
 ### Webhook Event Payload
+
 ```json
 {
   "event": "document.processed",
@@ -1472,20 +1542,220 @@ Content-Type: application/json
 ## Support & Documentation
 
 ### API Documentation
+
 - **Interactive Docs**: https://api.rag.yourdomain.com/docs
 - **OpenAPI Spec**: https://api.rag.yourdomain.com/openapi.json
 - **Postman Collection**: Available for download
 
 ### Support Channels
+
 - **API Support**: api-support@yourcompany.com
 - **Developer Discord**: https://discord.gg/multimodal-rag
 - **GitHub Issues**: https://github.com/yourorg/multimodal-rag/issues
 
 ### Additional Resources
+
 - **SDK Documentation**: Link to SDK docs
 - **Tutorials**: Link to tutorials
 - **Best Practices**: Link to best practices guide
 - **Change Log**: Link to API changelog
+
+---
+
+## Agent Chat (LangGraph)
+
+The Agent Chat API provides an AI research assistant powered by a LangGraph StateGraph with intent-based routing to specialized subgraphs (research, writing, data analysis). All endpoints require authentication.
+
+### Execute Agent (Async Job)
+
+```http
+POST /api/v1/agent/execute
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+  "messages": [
+    { "role": "user", "content": "Find papers about transformer attention mechanisms" }
+  ],
+  "page_context": {
+    "type": "project",
+    "project_id": "uuid",
+    "project_name": "My Research"
+  },
+  "model": "gpt-4o",
+  "use_rag": true,
+  "max_context_docs": 5,
+  "thread_id": "optional-uuid"
+}
+```
+
+**Constraints:**
+
+- `role`: `"user"` or `"assistant"` only
+- `model`: `"gpt-4o"` or `"gpt-4o-mini"`
+- `content`: max 32,000 characters
+- `messages`: max 50
+
+**Response (202):**
+
+```json
+{
+  "job_id": "uuid",
+  "status": "running"
+}
+```
+
+### Poll Job Status
+
+```http
+GET /api/v1/agent/jobs/{job_id}
+Authorization: Bearer <token>
+```
+
+**Response (200):**
+
+```json
+{
+  "status": "completed",
+  "result": {
+    "message": { "role": "assistant", "content": "Based on your documents..." },
+    "model": "gpt-4o",
+    "usage": {},
+    "finish_reason": "stop",
+    "timestamp": "2026-03-16T20:00:00Z",
+    "rag_enabled": true,
+    "retrieved_contexts": [
+      {
+        "document_id": "uuid",
+        "title": "Document Title",
+        "content": "Excerpt...",
+        "score": 0.87
+      }
+    ],
+    "tool_executions": [
+      {
+        "id": "uuid",
+        "tool_name": "search_arxiv",
+        "status": "completed",
+        "args": { "query": "transformers" },
+        "result": "Found 5 papers...",
+        "duration_ms": 1200
+      }
+    ],
+    "thread_id": "uuid",
+    "conversation_id": "uuid"
+  },
+  "confirmation": null
+}
+```
+
+Statuses: `running`, `awaiting_confirmation`, `completed`, `failed`
+
+When `awaiting_confirmation`, the `confirmation` field contains:
+
+```json
+{
+  "tools": ["ingest_arxiv_papers"],
+  "message": "The agent wants to ingest 3 arXiv papers. Proceed?"
+}
+```
+
+### Confirm Agent Action (Human-in-the-Loop)
+
+```http
+POST /api/v1/agent/confirm/{job_id}
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+  "confirmed": true
+}
+```
+
+**Response (202):**
+
+```json
+{
+  "status": "running"
+}
+```
+
+### Stream Agent Response (SSE)
+
+```http
+POST /api/v1/agent/stream
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+  "messages": [{ "role": "user", "content": "Summarize this project's documents" }],
+  "page_context": { "type": "project", "project_id": "uuid" },
+  "model": "gpt-4o",
+  "use_rag": true
+}
+```
+
+**Response:** Server-Sent Events stream (5-minute timeout)
+
+Event types: `token`, `tool_start`, `tool_end`, `rag_context`, `done`, `error`
+
+### List Agent Threads
+
+```http
+GET /api/v1/agent/threads
+Authorization: Bearer <token>
+```
+
+**Response (200):**
+
+```json
+{
+  "threads": [
+    {
+      "id": "uuid",
+      "title": "Find papers about transformers",
+      "created_at": "2026-03-16T20:00:00Z",
+      "updated_at": "2026-03-16T20:05:00Z",
+      "message_count": 4
+    }
+  ],
+  "total": 1
+}
+```
+
+### Get Thread Messages
+
+```http
+GET /api/v1/agent/threads/{thread_id}/messages
+Authorization: Bearer <token>
+```
+
+**Response (200):**
+
+```json
+{
+  "messages": [
+    { "id": "uuid", "role": "user", "content": "...", "created_at": "..." },
+    { "id": "uuid", "role": "assistant", "content": "...", "created_at": "...", "citations": [...], "tool_executions": [...] }
+  ],
+  "total": 2
+}
+```
+
+### Graph Visualization
+
+```http
+GET /api/v1/agent/graph/mermaid
+GET /api/v1/agent/graph/trace/{thread_id}
+```
+
+Returns Mermaid diagram strings for graph structure and execution traces.
+
+### Agent Health Check
+
+```http
+GET /api/v1/agent/health
+```
 
 ---
 
