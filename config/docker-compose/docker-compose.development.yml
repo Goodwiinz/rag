@@ -65,6 +65,11 @@ services:
       - COHERE_RERANK_API_KEY=${COHERE_RERANK_API_KEY:-}
       - COHERE_RERANK_MODEL=${COHERE_RERANK_MODEL:-}
 
+      # LangSmith / LangGraph Tracing
+      - LANGCHAIN_API_KEY=${LANGCHAIN_API_KEY:-}
+      - LANGCHAIN_TRACING_V2=${LANGCHAIN_TRACING_V2:-true}
+      - LANGCHAIN_PROJECT=${LANGCHAIN_PROJECT:-rag-agent}
+
       # Embedding Configuration
       - EMBEDDING_PROVIDER=${EMBEDDING_PROVIDER:-sentence_transformers}
       - EMBEDDING_MODEL=${EMBEDDING_MODEL:-sentence-transformers/all-MiniLM-L6-v2}
