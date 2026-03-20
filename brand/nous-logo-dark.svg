@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 120" width="400" height="120">
+  <defs>
+    <linearGradient id="orbGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#818CF8"/>
+      <stop offset="100%" style="stop-color:#A78BFA"/>
+    </linearGradient>
+    <linearGradient id="ringGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#A78BFA;stop-opacity:0.1"/>
+      <stop offset="50%" style="stop-color:#A78BFA;stop-opacity:0.6"/>
+      <stop offset="100%" style="stop-color:#818CF8;stop-opacity:0.1"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Logo Mark: Abstract orbital/mind symbol -->
+  <g transform="translate(60, 60)">
+    <ellipse cx="0" cy="0" rx="38" ry="14" fill="none" stroke="url(#ringGrad)" stroke-width="2" transform="rotate(-25)"/>
+    <ellipse cx="0" cy="0" rx="38" ry="14" fill="none" stroke="url(#ringGrad)" stroke-width="2" transform="rotate(25)"/>
+    <circle cx="0" cy="0" r="18" fill="url(#orbGrad)"/>
+    <circle cx="-5" cy="-6" r="6" fill="#fff" opacity="0.15"/>
+    <circle cx="30" cy="-18" r="3.5" fill="#A78BFA"/>
+  </g>
+
+  <!-- Wordmark -->
+  <text x="115" y="72" font-family="'Inter', 'Helvetica Neue', Arial, sans-serif" font-size="52" font-weight="600" letter-spacing="6" fill="#F1F0FB">NOUS</text>
+
+  <!-- Tagline -->
+  <text x="117" y="95" font-family="'Inter', 'Helvetica Neue', Arial, sans-serif" font-size="11.5" font-weight="400" letter-spacing="4.5" fill="#9CA3AF">MULTIMODAL INTELLIGENCE</text>
+</svg>
