@@ -381,9 +381,13 @@ async def get_search_suggestions(
                 AND w.is_deleted = false
                 AND t.title IS NOT NULL
                 AND LOWER(t.title) LIKE LOWER(:query_pattern)
+                AND (w.organization_id = :organization_id OR w.organization_id IS NULL)
         """
 
-        params = {"query_pattern": f"%{query}%"}
+        params = {
+            "query_pattern": f"%{query}%",
+            "organization_id": str(current_user.organization_id),
+        }
 
         if workspace_id:
             suggestion_sql += " AND w.id = :workspace_id"
