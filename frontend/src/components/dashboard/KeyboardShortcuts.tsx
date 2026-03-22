@@ -3,6 +3,7 @@
 import React from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Command, Search, Upload, FileText, Home } from "lucide-react";
+import { IconButton } from "@/components/ui/icon-button";
 
 interface KeyboardShortcutsProps {
   isOpen: boolean;
@@ -91,12 +92,14 @@ export const KeyboardShortcuts: React.FC<KeyboardShortcutsProps> = ({
                       Keyboard Shortcuts
                     </h2>
                   </div>
-                  <button
+                  <IconButton
                     onClick={onClose}
-                    className="p-1 hover:bg-gray-100/80 rounded-lg transition-colors"
+                    className="p-1 hover:bg-gray-100/80 rounded-lg transition-colors h-auto w-auto"
+                    variant="ghost"
+                    label="Close shortcuts"
                   >
                     <X className="h-4 w-4 text-gray-500" />
-                  </button>
+                  </IconButton>
                 </div>
 
                 <div className="space-y-3">
