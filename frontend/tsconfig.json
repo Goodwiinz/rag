@@ -68,6 +68,7 @@
     "e2e/**/*",
     "examples/**/*",
     "src/components/__tests__/**/*",
+    "src/test/**/*",
     "**/*.test.ts",
     "**/*.test.tsx",
     "**/*.spec.ts",
