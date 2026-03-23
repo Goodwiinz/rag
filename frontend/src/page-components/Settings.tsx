@@ -66,7 +66,12 @@ export const Settings: React.FC = () => {
                   <h4 className="text-sm font-medium text-gray-900">Dark Mode</h4>
                   <p className="text-sm text-gray-500">Toggle dark mode theme</p>
                 </div>
-                <button className="relative inline-flex flex-shrink-0 h-6 w-11 border-2 border-gray-300 rounded-full cursor-pointer bg-gray-200 transition-colors ease-in-out duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                <button
+                  role="switch"
+                  aria-checked={false}
+                  aria-label="Toggle dark mode theme"
+                  className="relative inline-flex flex-shrink-0 h-6 w-11 border-2 border-gray-300 rounded-full cursor-pointer bg-gray-200 transition-colors ease-in-out duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                >
                   <span className="translate-x-0 inline-block h-5 w-5 rounded-full bg-white shadow transform ring-0 transition ease-in-out duration-200"></span>
                 </button>
               </div>
@@ -76,7 +81,12 @@ export const Settings: React.FC = () => {
                   <h4 className="text-sm font-medium text-gray-900">Email Notifications</h4>
                   <p className="text-sm text-gray-500">Receive email notifications</p>
                 </div>
-                <button className="relative inline-flex flex-shrink-0 h-6 w-11 border-2 border-gray-300 rounded-full cursor-pointer bg-blue-600 transition-colors ease-in-out duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                <button
+                  role="switch"
+                  aria-checked={true}
+                  aria-label="Receive email notifications"
+                  className="relative inline-flex flex-shrink-0 h-6 w-11 border-2 border-gray-300 rounded-full cursor-pointer bg-blue-600 transition-colors ease-in-out duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                >
                   <span className="translate-x-5 inline-block h-5 w-5 rounded-full bg-white shadow transform ring-0 transition ease-in-out duration-200"></span>
                 </button>
               </div>
