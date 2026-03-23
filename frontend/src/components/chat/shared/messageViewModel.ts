@@ -35,7 +35,7 @@ export interface SearchResultChatMessageInput {
       document_title: string;
       snippet: string;
       confidence: number;
-      file_type: string;
+      file_type?: string;
     }>;
     claims?: string[];
     confidence?: number;
