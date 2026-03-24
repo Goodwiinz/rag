@@ -907,16 +907,15 @@ def build_agent_graph() -> StateGraph:
 
 
 def compile_agent_graph(checkpointer=None, **kwargs):
-    """Compile the agent graph, optionally with a checkpointer.
-
-    The ``**kwargs`` absorb extra arguments passed by ``langgraph dev``
-    (e.g. runtime config dicts) so the function works as both a
-    programmatic API and a LangGraph CLI entry point.
-    """
+    """Compile the agent graph, optionally with a checkpointer."""
     graph = build_agent_graph()
-    # langgraph dev may pass checkpointer=True to use its built-in saver
     from langgraph.checkpoint.base import BaseCheckpointSaver
 
     if isinstance(checkpointer, BaseCheckpointSaver) or checkpointer is True:
         return graph.compile(checkpointer=checkpointer)
     return graph.compile()
+
+
+def create_graph():
+    """No-arg entry point for langgraph dev (langgraph.json)."""
+    return compile_agent_graph()

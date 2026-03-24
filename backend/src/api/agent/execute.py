@@ -751,8 +751,12 @@ async def _tool_add_document_to_project(
     db: Optional[AsyncSession],
     current_user: Optional[User],
 ) -> Dict[str, Any]:
-    """Add an existing document to a research project."""
-    if not db or not current_user:
+    """Add an existing document to a research project.
+
+    Uses a fresh DB session to avoid concurrency issues when the agent
+    fires multiple add_document_to_project calls in parallel.
+    """
+    if not current_user:
         return {"error": "Authentication required"}
 
     document_id = args.get("document_id", "")
@@ -763,51 +767,48 @@ async def _tool_add_document_to_project(
     if not project_id:
         return {"error": "project_id is required"}
 
+    from src.core.database import AsyncSessionLocal
+
     try:
-        # Resolve document (UUID or title)
-        doc = await _resolve_document_id(document_id, db, current_user)
-        if not doc:
-            return {"error": "Document not found or access denied"}
-        doc_uuid = doc.id
+        async with AsyncSessionLocal() as fresh_db:
+            # Resolve document (UUID or title)
+            doc = await _resolve_document_id(document_id, fresh_db, current_user)
+            if not doc:
+                return {"error": "Document not found or access denied"}
+            doc_uuid = doc.id
 
-        # Verify project ownership (resolves UUID or name)
-        project = await _verify_project_ownership(project_id, db, current_user)
-        if not project:
-            return {"error": "Project not found or access denied"}
+            # Verify project ownership (resolves UUID or name)
+            project = await _verify_project_ownership(project_id, fresh_db, current_user)
+            if not project:
+                return {"error": "Project not found or access denied"}
 
-        # Check if already linked
-        existing_stmt = select(CollectionDocument).where(
-            CollectionDocument.collection_id == project.id,
-            CollectionDocument.document_id == doc_uuid,
-        )
-        existing_result = await db.execute(existing_stmt)
-        if existing_result.scalar_one_or_none():
-            return {
-                "status": "already_linked",
-                "message": f"Document '{doc.title}' is already in project '{project.name}'.",
-            }
+            # Check if already linked
+            existing_stmt = select(CollectionDocument).where(
+                CollectionDocument.collection_id == project.id,
+                CollectionDocument.document_id == doc_uuid,
+            )
+            existing_result = await fresh_db.execute(existing_stmt)
+            if existing_result.scalar_one_or_none():
+                return {
+                    "status": "already_linked",
+                    "message": f"Document '{doc.title}' is already in project '{project.name}'.",
+                }
 
-        # Create the link — use savepoint so commit survives later rollbacks
-        async with db.begin_nested():
             link = CollectionDocument(
                 collection_id=project.id,
                 document_id=doc_uuid,
             )
-            db.add(link)
-        await db.commit()
+            fresh_db.add(link)
+            await fresh_db.commit()
 
-        return {
-            "status": "success",
-            "message": f"Added document '{doc.title}' to project '{project.name}'.",
-            "document_id": str(doc.id),
-            "project_id": str(project.id),
-        }
+            return {
+                "status": "success",
+                "message": f"Added document '{doc.title}' to project '{project.name}'.",
+                "document_id": str(doc.id),
+                "project_id": str(project.id),
+            }
     except Exception as e:
         logger.error("add_document_to_project tool failed", exc_info=e)
-        try:
-            await db.rollback()
-        except Exception:
-            pass
         return {"error": f"Failed to add document to project: {str(e)}"}
 
 
