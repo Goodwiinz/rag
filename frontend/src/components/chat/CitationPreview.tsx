@@ -167,6 +167,8 @@ export function CitationPreview({
                 onClose();
               }}
               className="p-1 rounded hover:bg-[#1a1a1a] transition-colors"
+              aria-label="Close citation preview"
+              title="Close citation preview"
             >
               <X className="w-4 h-4 text-gray-500 hover:text-gray-300" />
             </button>
@@ -197,6 +199,7 @@ export function CitationPreview({
                     onClick={handleCopy}
                     className="p-1 rounded hover:bg-[#1a1a1a] transition-colors"
                     title="Copy content"
+                    aria-label="Copy content"
                   >
                     {copied ? (
                       <Check className="w-3 h-3" style={{ color: THEME.colors.primary }} />

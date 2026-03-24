@@ -240,6 +240,7 @@ export function TerminalChatBubble({
                   }}
                   className="group/citation flex items-center gap-2 rounded border border-[var(--terminal-border)] bg-[var(--terminal-surface)] px-2.5 py-1.5 text-[10px] transition-all hover:border-[var(--phosphor-green)]/40 hover:bg-[var(--terminal-elevated)]"
                   style={{ fontFamily: "'JetBrains Mono', monospace" }}
+                  aria-label={`View citation details for ${citation.title}`}
                 >
                   <div className="h-1 w-1 rounded-full bg-[var(--phosphor-green)]/30 transition-colors group-hover/citation:bg-[var(--phosphor-green)]" />
                   <span className="max-w-[180px] truncate text-[var(--terminal-text)]">
@@ -256,6 +257,7 @@ export function TerminalChatBubble({
                   className="ml-auto flex items-center gap-1 rounded border border-[var(--terminal-border)] bg-[var(--terminal-surface)] px-2 py-1 text-[9px] text-[var(--cyan-pulse)] transition-all hover:border-[var(--cyan-pulse)]/40 hover:bg-[var(--terminal-elevated)]"
                   style={{ fontFamily: "'JetBrains Mono', monospace" }}
                   title="View retrieval diagnostics"
+                  aria-label="View retrieval diagnostics"
                 >
                   <Activity className="h-3 w-3" />
                   <span>DIAG</span>

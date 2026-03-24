@@ -74,6 +74,7 @@ export function RAGToggle({
       )}
       style={{ fontFamily: "'JetBrains Mono', monospace" }}
       title={disabled ? disabledReason : enabled ? 'Disable RAG context' : 'Enable RAG context'}
+      aria-label={disabled ? disabledReason : enabled ? 'Disable RAG context' : 'Enable RAG context'}
       whileHover={!disabled ? { scale: 1.02 } : undefined}
       whileTap={!disabled ? { scale: 0.98 } : undefined}
     >
