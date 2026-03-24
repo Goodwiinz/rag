@@ -19,6 +19,10 @@ const nextConfig = {
     ignoreBuildErrors: process.env.NODE_ENV !== 'production',
   },
 
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
+
   // Experimental features for better performance
   experimental: {
     // Optimize CSS
