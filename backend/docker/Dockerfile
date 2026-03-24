@@ -38,10 +38,12 @@ WORKDIR /app
 # Copy requirements files
 COPY backend/requirements.txt backend/requirements-minimal.txt backend/requirements.dev.txt ./
 
-# Install Python dependencies
-RUN pip install --upgrade pip setuptools wheel && \
+# Install Python dependencies while preserving pkg_resources for pybtex.
+RUN pip install --upgrade pip wheel "setuptools<72" && \
     pip install -r requirements.txt && \
-    pip install -r requirements-minimal.txt
+    pip install -r requirements-minimal.txt && \
+    pip install "setuptools<72" && \
+    python -c "import pkg_resources"
 
 # Stage 3: Development
 FROM base AS development

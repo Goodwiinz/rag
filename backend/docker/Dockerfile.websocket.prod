@@ -64,8 +64,8 @@ FROM base as dependencies
 # Copy requirements files for dependency installation
 COPY requirements.txt requirements-dev.txt ./
 
-# Upgrade pip and install build tools
-RUN pip install --no-cache-dir --upgrade pip setuptools wheel
+# Upgrade pip and keep setuptools on a pybtex-compatible version.
+RUN pip install --no-cache-dir --upgrade pip wheel "setuptools<72"
 
 # Install WebSocket-specific dependencies
 RUN pip install --no-cache-dir \
@@ -104,7 +104,9 @@ RUN pip install --no-cache-dir --prefer-binary \
     pip install --no-cache-dir qdrant-client
 
 # Install remaining Python packages
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt && \
+    pip install --no-cache-dir "setuptools<72" && \
+    python -c "import pkg_resources"
 
 # Download spaCy model
 RUN python -m spacy download en_core_web_sm
