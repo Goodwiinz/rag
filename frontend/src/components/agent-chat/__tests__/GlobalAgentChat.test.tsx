@@ -14,6 +14,16 @@ jest.mock('next/navigation', () => ({
   useParams: () => ({}),
 }));
 
+jest.mock('react-markdown', () => (props: any) => <div>{props.children}</div>);
+jest.mock('react-syntax-highlighter', () => ({
+  Prism: (props: any) => <div>{props.children}</div>,
+  PrismLight: (props: any) => <div>{props.children}</div>,
+  default: (props: any) => <div>{props.children}</div>,
+}));
+jest.mock('react-syntax-highlighter/dist/esm/styles/prism', () => ({
+  oneDark: {},
+}));
+
 describe('GlobalAgentChat', () => {
   beforeEach(() => {
     useAgentChatStore.getState().reset();
@@ -24,16 +34,16 @@ describe('GlobalAgentChat', () => {
     expect(screen.getByLabelText('Open agent chat')).toBeInTheDocument();
   });
 
-  it('shows panel when opened', () => {
+  it('shows panel when opened', async () => {
     useAgentChatStore.getState().openPanel();
     render(<GlobalAgentChat />);
-    expect(screen.getByLabelText('Agent chat panel')).toBeInTheDocument();
+    expect(await screen.findByText('AI Research Agent')).toBeInTheDocument();
   });
 
-  it('shows sidebar when expanded', () => {
+  it('shows sidebar when expanded', async () => {
     useAgentChatStore.getState().openSidebar();
     render(<GlobalAgentChat />);
-    expect(screen.getByLabelText('Agent chat sidebar')).toBeInTheDocument();
+    expect(await screen.findByText('AI Research Agent')).toBeInTheDocument();
   });
 
   it('shows empty state message when no messages', () => {

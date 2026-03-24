@@ -30,14 +30,18 @@ Object.defineProperty(window, 'navigator', {
   writable: true,
 });
 
-Object.defineProperty(window, 'location', {
-  value: {
-    href: 'http://localhost:3000',
-  },
-  writable: true,
-});
+const originalLocation = window.location;
 
 describe('ErrorTracker', () => {
+  beforeAll(() => {
+    delete (window as any).location;
+    window.location = { href: 'http://localhost:3000' } as any;
+  });
+
+  afterAll(() => {
+    window.location = originalLocation;
+  });
+
   beforeEach(() => {
     jest.clearAllMocks();
     errorTracker.setEnabled(true);
