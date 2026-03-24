@@ -261,8 +261,7 @@ describe('searchService deterministic routing', () => {
         filters: expect.objectContaining({
           document_ids: ['doc-a', 'doc-b'],
         }),
-      }),
-      undefined
+      })
     );
   });
 
@@ -284,8 +283,7 @@ describe('searchService deterministic routing', () => {
         filters: expect.objectContaining({
           document_ids: ['doc-x', 'doc-y'],
         }),
-      }),
-      undefined
+      })
     );
   });
 });
