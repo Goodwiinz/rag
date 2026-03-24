@@ -35,6 +35,8 @@ const customJestConfig = {
   ],
 
   moduleNameMapper: {
+    'react-markdown': '<rootDir>/src/test/__mocks__/react-markdown.tsx',
+    'react-syntax-highlighter': '<rootDir>/src/test/__mocks__/react-syntax-highlighter.tsx',
     '^@test/(.*)$': '<rootDir>/src/test/$1',
     '^@/(.*)$': '<rootDir>/src/$1',
     '\\.(css|less|scss|sass)$': 'identity-obj-proxy',

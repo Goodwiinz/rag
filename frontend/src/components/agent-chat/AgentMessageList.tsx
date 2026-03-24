@@ -35,7 +35,7 @@ export function AgentMessageList({
         <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center mb-3">
           <Bot className="h-5 w-5 text-muted-foreground" />
         </div>
-        <p className="text-sm font-medium text-foreground">AI Research Agent</p>
+        <p id="agent-panel-title" className="text-sm font-medium text-foreground">AI Research Agent</p>
         <p className="text-xs text-muted-foreground mt-1 max-w-[260px]">
           Ask questions, search papers, manage projects, and more. I can see
           your current page context.

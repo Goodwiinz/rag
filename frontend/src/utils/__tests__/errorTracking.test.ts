@@ -30,12 +30,10 @@ Object.defineProperty(window, 'navigator', {
   writable: true,
 });
 
-Object.defineProperty(window, 'location', {
-  value: {
-    href: 'http://localhost:3000',
-  },
-  writable: true,
-});
+delete (window as any).location;
+(window as any).location = {
+  href: 'http://localhost:3000',
+};
 
 describe('ErrorTracker', () => {
   beforeEach(() => {

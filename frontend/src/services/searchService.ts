@@ -242,6 +242,7 @@ export class SearchService {
       offset: request.offset || 0,
       filters: request.filters
         ? {
+            ...request.filters,
             document_ids:
               selectedDocumentIds.length > 0 ? selectedDocumentIds : undefined,
             document_types: request.filters.modalities,
