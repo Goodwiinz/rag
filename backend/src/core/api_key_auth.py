@@ -241,20 +241,15 @@ async def get_api_key_data(
         # key_prefix stores the first 8 chars of the raw key (rag_ + 4 chars)
         key_prefix = raw_key[:8]
         
-        # Find potential API keys by prefix
-        # This avoids looking up by hash directly in DB (timing attack mitigation)
+        # Query database using exact SHA-256 hash of API key to prevent memory exhaustion DoS
+        target_hash = hashlib.sha256(raw_key.encode()).hexdigest()
+
         stmt = select(APIKey).where(
-            APIKey.key_prefix == key_prefix,
+            APIKey.key_hash == target_hash,
             APIKey.is_active == True
         )
         result = await db.execute(stmt)
-        candidate_keys = result.scalars().all()
-
-        api_key_record = None
-        for key in candidate_keys:
-             if verify_api_key(raw_key, key.key_hash):
-                 api_key_record = key
-                 break
+        api_key_record = result.scalars().first()
         
         if not api_key_record:
             logger.warning(f"API key not found or invalid from {request.client.host}")
@@ -274,7 +269,8 @@ async def get_api_key_data(
             logger.warning(f"Rate limit exceeded for API key {api_key_record.key_prefix}*** (usage: {current_usage}/{api_key_record.rate_limit_per_hour})")
             raise HTTPException(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                detail=f"Rate limit exceeded. Limit: {api_key_record.rate_limit_per_hour} requests per hour"
+                detail=f"Rate limit exceeded. Limit: {api_key_record.rate_limit_per_hour} requests per hour",
+                headers={"Retry-After": "3600"}
             )
         
         # Track usage
