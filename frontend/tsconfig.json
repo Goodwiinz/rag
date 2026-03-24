@@ -140,6 +140,8 @@
     "app/components/realtime/RealtimeStatusDashboard.tsx",
     "app/components/AppNavbar.tsx",
     "src/stores/graphStore.ts",
-    "src/stores/monitoringStore.ts"
+    "src/stores/monitoringStore.ts",
+    "src/test/setup.ts",
+    "src/test/a11y.ts"
   ]
 }
