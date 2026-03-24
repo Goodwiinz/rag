@@ -60,7 +60,7 @@ COPY backend/requirements.txt backend/requirements-minimal.txt ./
 # requirements.txt and install CPU-only variants separately. This prevents
 # pip from pulling ~5GB of NVIDIA CUDA packages that exhaust CI disk space.
 RUN \
-    pip install --upgrade pip setuptools wheel && \
+    pip install --upgrade pip wheel "setuptools<72" && \
     if [ "$TORCH_CPU_ONLY" = "true" ]; then \
         grep -viE '^(torch|torchvision|torchaudio)' requirements.txt > requirements-no-torch.txt && \
         pip install torch --index-url https://download.pytorch.org/whl/cpu && \
@@ -73,7 +73,9 @@ RUN \
             triton cuda-bindings cuda-pathfinder 2>/dev/null || true; \
     else \
         pip install -r requirements.txt; \
-    fi
+    fi && \
+    pip install "setuptools<72" && \
+    python -c "import pkg_resources"
 
 # Stage 3: Build with minimal dependencies
 FROM base AS production
