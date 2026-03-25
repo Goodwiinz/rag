@@ -358,6 +358,7 @@ def route_by_intent(state: AgentState) -> str:
 RESEARCH_TOOLS_NAMES = {
     "search_arxiv", "ingest_arxiv_papers", "search_documents",
     "add_document_to_project", "list_project_documents",
+    "execute_code",
 }
 WRITING_TOOLS_NAMES = {
     "create_draft", "create_project_note", "export_bibliography",
@@ -365,6 +366,7 @@ WRITING_TOOLS_NAMES = {
 }
 KG_TOOLS_NAMES = {
     "extract_entities", "search_knowledge_graph", "search_documents",
+    "execute_code",
 }
 
 INTENT_PROMPTS = {
@@ -524,6 +526,7 @@ DESTRUCTIVE_TOOLS = {
     "add_document_to_project",
     "create_project_note",
     "create_draft",
+    "execute_code",
 }
 
 
