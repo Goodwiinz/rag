@@ -301,6 +301,49 @@ async def export_bibliography(
 
 
 # ---------------------------------------------------------------------------
+# Code Execution
+# ---------------------------------------------------------------------------
+
+
+@tool
+async def execute_code(
+    code: str,
+    description: str,
+    language: str = "python",
+    packages: Optional[List[str]] = None,
+    config: RunnableConfig | None = None,
+) -> Dict[str, Any]:
+    """Execute Python code in a sandboxed E2B environment.
+
+    Use this tool when the user asks you to run code, perform data analysis,
+    create visualizations, train models, or do any computation that requires
+    executing Python. The sandbox has numpy, pandas, matplotlib, scipy,
+    scikit-learn, and seaborn pre-installed. You can install additional
+    packages via the ``packages`` parameter.
+
+    The sandbox is stateful within a conversation — variables and files
+    persist between executions, so you can build on previous results.
+    """
+    config = config or {}
+    from src.api.agent.execute import _tool_execute_code
+
+    configurable = config.get("configurable", {})
+    thread_id = configurable.get("thread_id", "default")
+    current_user = configurable.get("current_user")
+
+    return await _tool_execute_code(
+        {
+            "code": code,
+            "description": description,
+            "language": language,
+            "packages": packages,
+        },
+        thread_id=thread_id,
+        current_user=current_user,
+    )
+
+
+# ---------------------------------------------------------------------------
 # Exported list
 # ---------------------------------------------------------------------------
 
@@ -317,4 +360,5 @@ ALL_TOOLS = [
     search_knowledge_graph,
     create_draft,
     export_bibliography,
+    execute_code,
 ]

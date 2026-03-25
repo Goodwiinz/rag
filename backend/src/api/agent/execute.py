@@ -437,6 +437,8 @@ async def execute_tool(
         return await _tool_create_draft(args, db, current_user)
     if tool_name == "export_bibliography":
         return await _tool_export_bibliography(args, db, current_user)
+    if tool_name == "execute_code":
+        return await _tool_execute_code(args, thread_id="", current_user=current_user)
     return {"error": f"Unknown tool: {tool_name}"}
 
 
@@ -2016,3 +2018,64 @@ async def get_thread_messages(
         )
 
     return ThreadMessagesResponse(messages=message_responses, total=len(message_responses))
+
+
+# ---------------------------------------------------------------------------
+# Code Execution Tool
+# ---------------------------------------------------------------------------
+
+
+async def _tool_execute_code(
+    args: Dict[str, Any],
+    thread_id: str = "",
+    current_user: Optional[User] = None,
+) -> Dict[str, Any]:
+    """Execute code in an E2B sandbox."""
+    if not current_user:
+        return {"error": "Authentication required"}
+
+    code = args.get("code", "")
+    description = args.get("description", "")
+    language = args.get("language", "python")
+    packages = args.get("packages")
+
+    if not code:
+        return {"error": "No code provided"}
+
+    from src.services.sandbox.e2b_sandbox_manager import get_sandbox_manager
+
+    manager = get_sandbox_manager()
+
+    if not manager.is_available:
+        return {
+            "error": "Code execution is not available. E2B_API_KEY not configured."
+        }
+
+    # Install extra packages if requested
+    if packages:
+        install_result = await manager.install_packages(thread_id, packages)
+        if install_result.error:
+            logger.warning(f"Package install warning: {install_result.stderr}")
+
+    result = await manager.execute(
+        thread_id=thread_id,
+        code=code,
+        language=language,
+    )
+
+    response: Dict[str, Any] = {
+        "status": "success" if result.exit_code == 0 else "error",
+        "stdout": result.stdout,
+        "stderr": result.stderr,
+        "exit_code": result.exit_code,
+        "execution_time_ms": result.execution_time_ms,
+        "description": description,
+    }
+
+    if result.error:
+        response["error"] = result.error
+
+    if result.results:
+        response["outputs"] = result.results
+
+    return response
