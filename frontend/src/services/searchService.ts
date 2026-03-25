@@ -227,6 +227,13 @@ export class SearchService {
     request: SearchRequest,
     signal?: AbortSignal
   ): Promise<APIResponse<SearchResult>> {
+    // Resolve document_ids: explicit filter > env var > none
+    const researchDocumentIds = getResearchDocumentIds();
+    const selectedDocumentIds =
+      request.filters?.document_ids && request.filters.document_ids.length > 0
+        ? request.filters.document_ids
+        : researchDocumentIds;
+
     // Transform request to match backend expectations
     const backendRequest = {
       query: request.query,
@@ -235,9 +242,9 @@ export class SearchService {
       offset: request.offset || 0,
       filters: request.filters
         ? {
-            // Transform filters if needed
+            document_ids:
+              selectedDocumentIds.length > 0 ? selectedDocumentIds : undefined,
             document_types: request.filters.modalities,
-            // tags: not in SearchRequest filters type
             file_size_min: undefined,
             file_size_max: undefined,
             date_from: request.filters.date_range?.start,
@@ -245,7 +252,9 @@ export class SearchService {
             is_public: undefined,
             uploaded_by_user_id: undefined,
           }
-        : undefined,
+        : selectedDocumentIds.length > 0
+          ? { document_ids: selectedDocumentIds }
+          : undefined,
       include_snippets: true,
       synthesize_answer: true,
     };
