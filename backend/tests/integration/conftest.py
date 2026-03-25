@@ -38,6 +38,14 @@ os.environ["ANTHROPIC_API_KEY"] = "test-anthropic-key"
 import pytest
 from unittest.mock import Mock, AsyncMock, patch
 
+# Initialize encryption with a test key so encrypted model fields work
+os.environ.setdefault("ENCRYPTION_MASTER_KEY", "X4sdpslBL6ba/LP/VfytwCFexoQXpCx5ojS6ml2NOPQ=")
+try:
+    from src.core.encryption import initialize_encryption
+    initialize_encryption()
+except Exception:
+    pass  # Encryption module may not be available in all test envs
+
 
 @pytest.fixture(autouse=True)
 def mock_external_services(request):
