@@ -16,9 +16,30 @@ from langgraph.graph import END, StateGraph
 from langgraph.types import RetryPolicy, interrupt, Command
 
 from src.core.config import get_settings
+from src.services.agent.compactor import make_compactor_node
+from src.services.agent.error_recovery import (
+    ToolError,
+    classify_error,
+    classify_error_from_payload,
+    retry_transient,
+)
 from src.services.agent.observability import track_node_execution
+from src.services.agent.planner import make_planner_node
+from src.services.agent.reflection import make_reflection_gate
 from src.services.agent.state import AgentState
 from src.services.agent.tools import ALL_TOOLS
+
+# Lazy reference for execute_tool (avoids circular import, enables patching)
+execute_tool = None  # type: ignore[assignment]
+
+
+def _get_execute_tool():
+    """Lazily import execute_tool to avoid circular imports."""
+    global execute_tool  # noqa: PLW0603
+    if execute_tool is None:
+        from src.api.agent.execute import execute_tool as _et
+        execute_tool = _et
+    return execute_tool
 
 logger = logging.getLogger(__name__)
 
@@ -306,37 +327,47 @@ INTENT_PRIORITY = ["writing", "knowledge_graph", "research"]
 
 @track_node_execution("intent_classifier_node")
 async def intent_classifier_node(state: AgentState, config: RunnableConfig) -> dict:
-    """Classify user intent to route to specialized LLM prompts."""
+    """Classify user intent using LLM with keyword fallback."""
+    from src.services.agent.classifier import classify_intent_with_fallback
+
+    # Extract the last user message
     last_user_msg = ""
     for msg in reversed(state["messages"]):
         if isinstance(msg, HumanMessage):
-            last_user_msg = msg.content.lower()
+            last_user_msg = msg.content
             break
 
     if not last_user_msg:
-        return {"intent": "general"}
+        return {"intent": "general", "intent_confidence": 0.0}
 
-    # Weighted keyword-based classification
-    scores = {intent: 0 for intent in INTENT_KEYWORDS}
-    for intent, keyword_weights in INTENT_KEYWORDS.items():
-        for kw, weight in keyword_weights:
-            if kw in last_user_msg:
-                scores[intent] += weight
-
-    best_score = max(scores.values())
-    if best_score == 0:
-        best_intent = "general"
-    else:
-        # Among intents with the best score, pick by priority
-        candidates = [i for i, s in scores.items() if s == best_score]
-        best_intent = candidates[0]
-        for preferred in INTENT_PRIORITY:
-            if preferred in candidates:
-                best_intent = preferred
+    # Extract previous assistant turn for conversational context
+    previous_turn = ""
+    found_user = False
+    for msg in reversed(state["messages"]):
+        if isinstance(msg, HumanMessage):
+            if found_user:
                 break
+            found_user = True
+            continue
+        if found_user and isinstance(msg, AIMessage) and msg.content:
+            previous_turn = msg.content
+            break
 
-    logger.debug("Classified intent: %s (scores: %s)", best_intent, scores)
-    return {"intent": best_intent}
+    page_context = config.get("configurable", {}).get("page_context", {})
+
+    result = await classify_intent_with_fallback(
+        query=last_user_msg,
+        page_context=page_context,
+        previous_turn=previous_turn,
+    )
+
+    logger.debug(
+        "Classified intent: %s (confidence=%.2f, source=%s)",
+        result.intent,
+        result.confidence,
+        result.source,
+    )
+    return {"intent": result.intent, "intent_confidence": result.confidence}
 
 
 def route_by_intent(state: AgentState) -> str:
@@ -440,8 +471,8 @@ async def llm_node(state: AgentState, config: RunnableConfig) -> dict:
         "- **search_arxiv**: Search arXiv for academic papers.\n"
         "- **ingest_arxiv_papers**: Ingest arXiv papers into the RAG system.\n"
         "- **search_documents**: Search the user's indexed documents.\n"
-        "- **add_document_to_project**: Add an existing document to a project. "
-        "IMPORTANT: document_id must be a UUID from `document_ids` in the ingest response, NOT an arXiv paper ID.\n"
+        "- **add_document_to_project**: Add an ALREADY-INGESTED document to a project. "
+        "The document MUST already exist in the system. document_id MUST be a UUID.\n"
         "- **create_project_note**: Create a markdown note in a project.\n"
         "- **list_project_documents**: List all documents in a project.\n"
         "- **summarize_document**: Summarize a document's content (requires document UUID).\n"
@@ -453,8 +484,14 @@ async def llm_node(state: AgentState, config: RunnableConfig) -> dict:
         f"{context_line}\n"
         "When the user is on a project page, the project_id is available from the "
         "page context and does not need to be asked for.\n\n"
-        "CRITICAL: After ingesting papers, use the `document_ids` (UUIDs) from the ingest response "
-        "when calling add_document_to_project — NOT the arXiv paper IDs.\n\n"
+        "## MANDATORY WORKFLOW for adding papers to a project:\n"
+        "You CANNOT add a document that has not been ingested yet. Follow this order:\n"
+        "1. **search_arxiv** — find papers matching the user's query\n"
+        "2. **ingest_arxiv_papers** — ingest the papers (this creates documents in the system)\n"
+        "3. **add_document_to_project** — use the `document_ids` (UUIDs) from the ingest response\n\n"
+        "NEVER skip step 2. NEVER pass arXiv IDs to add_document_to_project.\n"
+        "NEVER fabricate UUIDs. Only use UUIDs returned by ingest_arxiv_papers or search_documents.\n"
+        "If a tool returns an error, report the error honestly to the user — do NOT claim success.\n\n"
         "When answering questions, use retrieved document context when available.\n"
         "Cite sources using [Doc N] format inline.\n"
         "Be concise and action-oriented."
@@ -568,6 +605,8 @@ async def interrupt_node(state: AgentState, config: RunnableConfig) -> dict:
 
 
 TOOL_TIMEOUT_SECONDS = 30
+_SLOW_TOOL_TIMEOUT_SECONDS = 120  # ingest, draft generation, etc.
+_SLOW_TOOLS = {"ingest_arxiv_papers", "create_draft", "compare_documents"}
 _TOOL_SEMAPHORE = asyncio.Semaphore(3)
 
 
@@ -586,8 +625,8 @@ async def _execute_single_tool(
     config: RunnableConfig,
     page_context: dict,
 ) -> dict:
-    """Execute a single tool call with timeout and error handling."""
-    from src.api.agent.execute import execute_tool
+    """Execute a single tool call with timeout, retry, and structured error recovery."""
+    _get_execute_tool()
 
     tool_name = tc["name"]
     tool_args = dict(tc["args"])
@@ -604,37 +643,50 @@ async def _execute_single_tool(
     t0 = time.monotonic()
     error_increment = 0
     error_text = ""
+    error_info: dict = {}
+
+    timeout = _SLOW_TOOL_TIMEOUT_SECONDS if tool_name in _SLOW_TOOLS else TOOL_TIMEOUT_SECONDS
 
     async with _TOOL_SEMAPHORE:
         try:
             configurable = config.get("configurable", {})
-            result = await asyncio.wait_for(
-                execute_tool(
-                    tool_name=tool_name,
-                    args=tool_args,
-                    user_id=str(configurable.get("current_user").id) if configurable.get("current_user") else "",
-                    db=configurable.get("db"),
-                    current_user=configurable.get("current_user"),
-                ),
-                timeout=TOOL_TIMEOUT_SECONDS,
-            )
+
+            async def _call_tool():
+                return await asyncio.wait_for(
+                    execute_tool(
+                        tool_name=tool_name,
+                        args=tool_args,
+                        user_id=str(configurable.get("current_user").id) if configurable.get("current_user") else "",
+                        db=configurable.get("db"),
+                        current_user=configurable.get("current_user"),
+                    ),
+                    timeout=timeout,
+                )
+
+            # retry_transient handles TimeoutError/ConnectionError with backoff
+            result = await retry_transient(_call_tool, max_attempts=3, base_delay=1.0)
+
             result_content = json.dumps(result) if isinstance(result, dict) else str(result)
-            status = "failed" if isinstance(result, dict) and "error" in result else "completed"
-            if status == "failed":
-                error_increment = 1
-                error_text = result.get("error", "") if isinstance(result, dict) else ""
-        except asyncio.TimeoutError:
-            logger.warning("Tool %s timed out after %ds", tool_name, TOOL_TIMEOUT_SECONDS)
-            result_content = json.dumps({"error": f"Tool {tool_name} timed out after {TOOL_TIMEOUT_SECONDS}s"})
-            status = "failed"
-            error_increment = 1
-            error_text = f"Tool {tool_name} timed out"
+            status = "completed"
+
+            # Check if the result payload itself indicates an error
+            if isinstance(result, dict) and "error" in result:
+                tool_error = classify_error_from_payload(tool_name, result)
+                if tool_error.category != "transient":
+                    status = "failed"
+                    error_increment = 1
+                    error_text = tool_error.message
+                    error_info = tool_error.to_state_info()
+                    result_content = tool_error.to_tool_message_content()
+                # Transient payload errors: already retried by retry_transient above
         except Exception as e:
-            logger.error("Tool %s failed: %s", tool_name, e, exc_info=True)
-            result_content = json.dumps({"error": str(e)})
+            tool_error = classify_error(tool_name, e)
+            logger.error("Tool %s failed (%s): %s", tool_name, tool_error.category, e, exc_info=True)
             status = "failed"
-            error_increment = 1
-            error_text = str(e)
+            error_increment = 1 if tool_error.category != "transient" else 0
+            error_text = tool_error.message
+            error_info = tool_error.to_state_info()
+            result_content = tool_error.to_tool_message_content()
 
     duration_ms = int((time.monotonic() - t0) * 1000)
     _record_tool_metrics(tool_name, status)
@@ -652,6 +704,7 @@ async def _execute_single_tool(
         },
         "error_increment": error_increment,
         "error_text": error_text,
+        "error_info": error_info,
     }
 
 
@@ -665,6 +718,7 @@ async def tool_node(state: AgentState, config: RunnableConfig) -> dict:
     tool_executions: List[dict] = list(state.get("tool_executions", []))
     error_count = state.get("error_count", 0)
     last_error = state.get("last_error", "")
+    last_error_info = state.get("last_error_info", {})
     page_context = state.get("page_context", {})
 
     # Execute all tool calls concurrently with semaphore limiting
@@ -675,12 +729,12 @@ async def tool_node(state: AgentState, config: RunnableConfig) -> dict:
     results = await asyncio.gather(*tasks, return_exceptions=True)
 
     tool_messages: List[ToolMessage] = []
+    any_success = False
     for i, r in enumerate(results):
         if isinstance(r, Exception):
             logger.error("Parallel tool execution error: %s", r)
             error_count += 1
             last_error = str(r)
-            # Still add an error ToolMessage so LLM gets a response for every tool_call
             tc = last_message.tool_calls[i]
             tool_messages.append(ToolMessage(
                 content=json.dumps({"error": str(r)}),
@@ -692,12 +746,22 @@ async def tool_node(state: AgentState, config: RunnableConfig) -> dict:
         error_count += r["error_increment"]
         if r["error_text"]:
             last_error = r["error_text"]
+        if r.get("error_info"):
+            last_error_info = r["error_info"]
+        if r["error_increment"] == 0:
+            any_success = True
+
+    # Consecutive error counter: reset to 0 after any successful tool call
+    if any_success:
+        error_count = 0
+        last_error = ""
 
     return {
         "messages": tool_messages,
         "tool_executions": tool_executions,
         "error_count": error_count,
         "last_error": last_error,
+        "last_error_info": last_error_info,
         "tool_loop_count": state.get("tool_loop_count", 0) + 1,
     }
 
@@ -798,7 +862,7 @@ MAX_ERRORS = 3
 
 
 def should_continue(state: AgentState) -> str:
-    """Decide whether to route to tool_node, interrupt_node, or memory_save_node (then END)."""
+    """Decide whether to route to tool_node, interrupt_node, or reflection_gate (then END)."""
     # Bail out if too many errors have accumulated
     if state.get("error_count", 0) >= MAX_ERRORS:
         logger.warning(
@@ -806,7 +870,7 @@ def should_continue(state: AgentState) -> str:
             MAX_ERRORS,
             state.get("last_error", ""),
         )
-        return "memory_save_node"
+        return "reflection_gate"
 
     last = state["messages"][-1] if state["messages"] else None
     if (
@@ -821,7 +885,7 @@ def should_continue(state: AgentState) -> str:
         if has_destructive:
             return "interrupt_node"
         return "tool_node"
-    return "memory_save_node"
+    return "reflection_gate"
 
 
 # ---------------------------------------------------------------------------
@@ -830,10 +894,10 @@ def should_continue(state: AgentState) -> str:
 
 
 def after_interrupt(state: AgentState) -> str:
-    """Route after interrupt: proceed to tool_node if confirmed, else save memory and end."""
+    """Route after interrupt: proceed to tool_node if confirmed, else reflection gate and end."""
     if state.get("user_confirmed", False):
         return "tool_node"
-    return "memory_save_node"
+    return "reflection_gate"
 
 
 _RETRY_POLICY = RetryPolicy(max_attempts=3)
@@ -843,26 +907,42 @@ def build_agent_graph() -> StateGraph:
     """Build the uncompiled agent state graph.
 
     Flow:
-      START → rag_node → intent_classifier_node → memory_retrieval_node
-        → [route_by_intent] → research_subgraph | writing_subgraph | data_subgraph | llm_node
-      llm_node → [should_continue] → tool_node | interrupt_node | memory_save_node
-      Sub-graphs handle their own tool loops internally, then → memory_save_node → END
+      START -> rag_node -> intent_classifier_node -> memory_retrieval_node
+        -> [route_by_intent]
+        -> research_subgraph | writing_subgraph | data_subgraph | general path
+
+      General path:
+        planner_node -> llm_node -> [should_continue]
+          -> tool_node -> compactor_node -> llm_node (loop)
+          -> interrupt_node -> [after_interrupt] -> tool_node | reflection_gate
+          -> reflection_gate -> [reflection_route] -> memory_save_node | llm_node (revise)
+
+      Sub-graphs (internal planner + compactor + reflection) -> memory_save_node -> END
     """
     from src.services.agent.subgraphs.data_agent import build_data_subgraph
     from src.services.agent.subgraphs.research_agent import build_research_subgraph
     from src.services.agent.subgraphs.writing_agent import build_writing_subgraph
+
+    # General-path v2 nodes
+    tool_names = [t.name for t in ALL_TOOLS]
+    planner_node_fn = make_planner_node(tool_names)
+    compactor_node_fn = make_compactor_node()
+    reflection_node_fn, reflection_route_fn = make_reflection_gate()
 
     graph = StateGraph(AgentState)
 
     graph.add_node("rag_node", rag_node, retry=_RETRY_POLICY)
     graph.add_node("intent_classifier_node", intent_classifier_node)
     graph.add_node("memory_retrieval_node", memory_retrieval_node)
+    graph.add_node("planner_node", planner_node_fn)
     graph.add_node("llm_node", llm_node, retry=_RETRY_POLICY)
     graph.add_node("tool_node", tool_node)
+    graph.add_node("compactor_node", compactor_node_fn)
     graph.add_node("interrupt_node", interrupt_node)
+    graph.add_node("reflection_gate", reflection_node_fn)
     graph.add_node("memory_save_node", memory_save_node)
 
-    # Sub-graphs compiled as nodes
+    # Sub-graphs compiled as nodes (they have internal planner/compactor/reflection)
     graph.add_node("research_subgraph", build_research_subgraph().compile())
     graph.add_node("writing_subgraph", build_writing_subgraph().compile())
     graph.add_node("data_subgraph", build_data_subgraph().compile())
@@ -879,31 +959,44 @@ def build_agent_graph() -> StateGraph:
             "research_subgraph": "research_subgraph",
             "writing_subgraph": "writing_subgraph",
             "data_subgraph": "data_subgraph",
-            "llm_node": "llm_node",
+            "llm_node": "planner_node",
         },
     )
 
-    # Sub-graphs complete → save memory → END
+    # Sub-graphs (with internal reflection) -> memory_save_node -> END
     graph.add_edge("research_subgraph", "memory_save_node")
     graph.add_edge("writing_subgraph", "memory_save_node")
     graph.add_edge("data_subgraph", "memory_save_node")
 
-    # General path: llm_node → conditional
+    # General path: planner -> llm
+    graph.add_edge("planner_node", "llm_node")
+
+    # General path: llm_node -> conditional
     graph.add_conditional_edges(
         "llm_node",
         should_continue,
         {
             "tool_node": "tool_node",
             "interrupt_node": "interrupt_node",
-            "memory_save_node": "memory_save_node",
+            "reflection_gate": "reflection_gate",
         },
     )
     graph.add_conditional_edges(
         "interrupt_node",
         after_interrupt,
-        {"tool_node": "tool_node", "memory_save_node": "memory_save_node"},
+        {"tool_node": "tool_node", "reflection_gate": "reflection_gate"},
     )
-    graph.add_edge("tool_node", "llm_node")
+
+    # General path: tool_node -> compactor_node -> llm_node (loop)
+    graph.add_edge("tool_node", "compactor_node")
+    graph.add_edge("compactor_node", "llm_node")
+
+    # Reflection gate routes: proceed -> memory_save, revise -> llm_node
+    graph.add_conditional_edges(
+        "reflection_gate",
+        reflection_route_fn,
+        {"proceed": "memory_save_node", "revise": "llm_node"},
+    )
     graph.add_edge("memory_save_node", END)
 
     return graph
