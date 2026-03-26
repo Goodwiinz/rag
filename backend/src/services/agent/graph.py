@@ -31,14 +31,32 @@ from src.services.agent.tools import ALL_TOOLS
 
 # Lazy reference for execute_tool (avoids circular import, enables patching)
 execute_tool = None  # type: ignore[assignment]
+_default_execute_tool = None  # type: ignore[assignment]
 
 
 def _get_execute_tool():
-    """Lazily import execute_tool to avoid circular imports."""
-    global execute_tool  # noqa: PLW0603
+    """Lazily import execute_tool and keep it patch-friendly.
+
+    The agent tests patch both ``src.services.agent.graph.execute_tool`` and
+    the backward-compatible re-export at ``src.api.agent.execute.execute_tool``.
+    After the API split, caching the first imported callable caused later
+    re-export patches to be ignored. We only refresh the cached callable when
+    graph.py is still pointing at the last default import.
+    """
+    global execute_tool, _default_execute_tool  # noqa: PLW0603
+
     if execute_tool is None:
         from src.api.agent.execute import execute_tool as _et
         execute_tool = _et
+        _default_execute_tool = _et
+        return execute_tool
+
+    from src.api.agent.execute import execute_tool as _et
+
+    if execute_tool is _default_execute_tool:
+        execute_tool = _et
+        _default_execute_tool = _et
+
     return execute_tool
 
 logger = logging.getLogger(__name__)
@@ -626,7 +644,7 @@ async def _execute_single_tool(
     page_context: dict,
 ) -> dict:
     """Execute a single tool call with timeout, retry, and structured error recovery."""
-    _get_execute_tool()
+    tool_executor = _get_execute_tool()
 
     tool_name = tc["name"]
     tool_args = dict(tc["args"])
@@ -653,7 +671,7 @@ async def _execute_single_tool(
 
             async def _call_tool():
                 return await asyncio.wait_for(
-                    execute_tool(
+                    tool_executor(
                         tool_name=tool_name,
                         args=tool_args,
                         user_id=str(configurable.get("current_user").id) if configurable.get("current_user") else "",
