@@ -242,3 +242,23 @@ backend/.langgraph_api/
 
 # Arxiv downloaded PDFs
 backend/data/arxiv/
+
+# Backend build/test artifacts
+backend/MagicMock
+backend/celerybeat/
+backend/coverage_html/
+backend/evaluation_results/
+backend/evaluation_results.json
+backend/test_env/
+*.disabled
+
+# Duplicate lock files (using npm)
+pnpm-lock.yaml
+
+# Security keys
+**/master.key
+*.key.bak
+
+# Backend data artifacts (state files, logs)
+backend/data/*.json
+backend/data/*.log
