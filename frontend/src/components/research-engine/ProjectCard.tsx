@@ -29,7 +29,7 @@ export function ProjectCard({ project }: ProjectCardProps) {
       onClick={() =>
         router.push(`/research-engine/projects/${project.id}/blueprint`)
       }
-      className="group bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg p-4 cursor-pointer hover:border-[#D4A039]/50 transition-colors"
+      className="group bg-card border border-border rounded-lg p-4 cursor-pointer hover:border-primary/50 transition-colors"
     >
       <div className="flex items-start justify-between gap-3 mb-3">
         <div className="min-w-0">

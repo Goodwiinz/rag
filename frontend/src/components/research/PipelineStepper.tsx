@@ -81,7 +81,7 @@ export const PipelineStepper: React.FC<PipelineStepperProps> = ({
                     status === 'completed'
                       ? 'bg-[#D4A039]/20 border-2 border-[#D4A039] text-[#D4A039] cursor-pointer hover:bg-[#D4A039]/30'
                       : status === 'active'
-                        ? 'bg-[#00d4ff]/10 border-2 border-[#00d4ff] text-white animate-pulse'
+                        ? 'bg-secondary/10 border-2 border-secondary text-white animate-pulse'
                         : status === 'skipped'
                           ? 'bg-gray-800/50 border-2 border-gray-600 border-dashed text-gray-500 cursor-pointer hover:border-gray-400'
                           : status === 'invalidated'

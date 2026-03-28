@@ -85,13 +85,13 @@ export function StepCard({
   };
 
   return (
-    <div className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg overflow-hidden">
+    <div className="bg-card border border-border rounded-lg overflow-hidden">
       {/* Header */}
       <div
-        className="flex items-center gap-3 p-3 cursor-pointer hover:bg-[#111] transition-colors"
+        className="flex items-center gap-3 p-3 cursor-pointer hover:bg-muted/50 transition-colors"
         onClick={() => setExpanded(!expanded)}
       >
-        <span className="flex items-center justify-center w-7 h-7 rounded bg-[#1a1a1a] text-xs font-mono text-gray-400 shrink-0">
+        <span className="flex items-center justify-center w-7 h-7 rounded bg-muted text-xs font-mono text-muted-foreground shrink-0">
           {index + 1}
         </span>
 
@@ -101,7 +101,7 @@ export function StepCard({
           {step.type}
         </span>
 
-        <span className="font-mono text-sm text-gray-300 truncate flex-1">
+        <span className="font-mono text-sm text-foreground truncate flex-1">
           {step.name || 'Untitled Step'}
         </span>
 
@@ -120,7 +120,7 @@ export function StepCard({
 
       {/* Expanded body */}
       {expanded && (
-        <div className="border-t border-[#1a1a1a] p-4 space-y-4">
+        <div className="border-t border-border p-4 space-y-4">
           {/* Name */}
           <div>
             <label className="block text-xs text-gray-500 font-mono uppercase tracking-wide mb-1">
@@ -130,7 +130,7 @@ export function StepCard({
               type="text"
               value={step.name}
               onChange={(e) => onChange({ ...step, name: e.target.value })}
-              className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#333] rounded text-sm font-mono text-gray-300 focus:outline-none focus:border-[#D4A039]"
+              className="w-full px-3 py-2 bg-muted border border-border rounded text-sm font-mono text-foreground focus:outline-none focus:border-primary"
             />
           </div>
 
@@ -142,7 +142,7 @@ export function StepCard({
             <select
               value={step.type}
               onChange={(e) => onChange({ ...step, type: e.target.value })}
-              className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#333] rounded text-sm font-mono text-gray-300 focus:outline-none focus:border-[#D4A039]"
+              className="w-full px-3 py-2 bg-muted border border-border rounded text-sm font-mono text-foreground focus:outline-none focus:border-primary"
             >
               <option value="search">Search</option>
               <option value="extract">Extract</option>
@@ -163,7 +163,7 @@ export function StepCard({
                 onChange({ ...step, description: e.target.value || undefined })
               }
               rows={2}
-              className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#333] rounded text-sm font-mono text-gray-300 placeholder-gray-600 focus:outline-none focus:border-[#D4A039] resize-none"
+              className="w-full px-3 py-2 bg-muted border border-border rounded text-sm font-mono text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary resize-none"
               placeholder="What this step does..."
             />
           </div>
@@ -177,10 +177,10 @@ export function StepCard({
               value={paramsText}
               onChange={(e) => handleParamsChange(e.target.value)}
               rows={4}
-              className={`w-full px-3 py-2 bg-[#1a1a1a] border rounded text-sm font-mono text-gray-300 focus:outline-none resize-none ${
+              className={`w-full px-3 py-2 bg-muted border rounded text-sm font-mono text-foreground focus:outline-none resize-none ${
                 paramsError
                   ? 'border-red-500/50 focus:border-red-500'
-                  : 'border-[#333] focus:border-[#D4A039]'
+                  : 'border-border focus:border-primary'
               }`}
             />
             {paramsError && (
@@ -200,7 +200,7 @@ export function StepCard({
               onChange={(e) =>
                 onChange({ ...step, model_id: e.target.value || undefined })
               }
-              className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#333] rounded text-sm font-mono text-gray-300 focus:outline-none focus:border-[#D4A039]"
+              className="w-full px-3 py-2 bg-muted border border-border rounded text-sm font-mono text-foreground focus:outline-none focus:border-primary"
             >
               <option value="">Default</option>
               {MODEL_OPTIONS.map((m) => (
@@ -245,7 +245,7 @@ export function StepCard({
                 disabled={step.mode === 'deterministic'}
                 className="flex-1 accent-[#ffb700] disabled:opacity-30"
               />
-              <span className="text-xs font-mono text-gray-400 w-8 text-right">
+              <span className="text-xs font-mono text-muted-foreground w-8 text-right">
                 {(step.temperature ?? 0.7).toFixed(1)}
               </span>
             </div>
@@ -268,16 +268,16 @@ export function StepCard({
                 })
               }
               placeholder="Optional seed for reproducibility"
-              className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#333] rounded text-sm font-mono text-gray-300 placeholder-gray-600 focus:outline-none focus:border-[#D4A039]"
+              className="w-full px-3 py-2 bg-muted border border-border rounded text-sm font-mono text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary"
             />
           </div>
 
           {/* Action buttons */}
-          <div className="flex items-center gap-2 pt-2 border-t border-[#1a1a1a]">
+          <div className="flex items-center gap-2 pt-2 border-t border-border">
             <button
               onClick={onMoveUp}
               disabled={index === 0}
-              className="p-1.5 text-gray-500 hover:text-[#D4A039] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              className="p-1.5 text-gray-500 hover:text-primary disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
               aria-label="Move step up"
             >
               <ArrowUp className="h-4 w-4" />
@@ -285,7 +285,7 @@ export function StepCard({
             <button
               onClick={onMoveDown}
               disabled={index === totalSteps - 1}
-              className="p-1.5 text-gray-500 hover:text-[#D4A039] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              className="p-1.5 text-gray-500 hover:text-primary disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
               aria-label="Move step down"
             >
               <ArrowDown className="h-4 w-4" />

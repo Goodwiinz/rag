@@ -104,11 +104,11 @@ export const ExtractedTablePreview: React.FC<ExtractedTablePreviewProps> = ({
   }, [rows, documentId, pageNumber]);
 
   return (
-    <div className="rounded-lg border border-[#1a1a1a] bg-black/30 p-4">
+    <div className="rounded-lg border border-border bg-black/30 p-4">
       <div className="mb-3 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Table2 className="h-4 w-4 text-[#00d4ff]" />
-          <span className="text-sm font-medium text-gray-300">
+          <span className="text-sm font-medium text-muted-foreground">
             Table from page {pageNumber ?? '?'}
           </span>
           {regionResult && (
@@ -130,7 +130,7 @@ export const ExtractedTablePreview: React.FC<ExtractedTablePreviewProps> = ({
           variant="ghost"
           size="icon"
           onClick={onClose}
-          className="h-7 w-7 text-gray-300 hover:text-white"
+          className="h-7 w-7 text-muted-foreground hover:text-white"
           aria-label="Close table preview"
         >
           <X className="h-4 w-4" />
@@ -138,15 +138,15 @@ export const ExtractedTablePreview: React.FC<ExtractedTablePreviewProps> = ({
       </div>
 
       {isLatex ? (
-        <div className="my-3 rounded-lg border border-[#1a1a1a] bg-black/50 p-4">
+        <div className="my-3 rounded-lg border border-border bg-black/50 p-4">
           <MathDisplay content={regionResult!.content} format="latex" block />
         </div>
       ) : (
-        <div className="overflow-auto rounded-lg border border-[#1a1a1a]">
+        <div className="overflow-auto rounded-lg border border-border">
           <Table>
             <TableHeader>
               {rows.length > 0 && (
-                <TableRow className="border-[#1a1a1a] hover:bg-transparent">
+                <TableRow className="border-border hover:bg-transparent">
                   {rows[0].map((cell, i) => (
                     <TableHead
                       key={i}
@@ -160,12 +160,12 @@ export const ExtractedTablePreview: React.FC<ExtractedTablePreviewProps> = ({
             </TableHeader>
             <TableBody>
               {rows.slice(1).map((row, ri) => (
-                <TableRow
-                  key={ri}
-                  className="border-[#1a1a1a] hover:bg-white/5"
-                >
+                <TableRow key={ri} className="border-border hover:bg-white/5">
                   {row.map((cell, ci) => (
-                    <TableCell key={ci} className="text-xs text-gray-300">
+                    <TableCell
+                      key={ci}
+                      className="text-xs text-muted-foreground"
+                    >
                       {cell}
                     </TableCell>
                   ))}
@@ -184,7 +184,7 @@ export const ExtractedTablePreview: React.FC<ExtractedTablePreviewProps> = ({
                 variant="outline"
                 size="sm"
                 onClick={handleCopyCsv}
-                className="h-7 gap-1.5 border-[#1a1a1a] bg-transparent px-2.5 text-xs text-gray-300 hover:border-[#00d4ff]/30 hover:text-white"
+                className="h-7 gap-1.5 border-border bg-transparent px-2.5 text-xs text-muted-foreground hover:border-[#00d4ff]/30 hover:text-white"
               >
                 <Copy className="h-3 w-3" />
                 Copy CSV
@@ -193,7 +193,7 @@ export const ExtractedTablePreview: React.FC<ExtractedTablePreviewProps> = ({
                 variant="outline"
                 size="sm"
                 onClick={handleCopyMarkdown}
-                className="h-7 gap-1.5 border-[#1a1a1a] bg-transparent px-2.5 text-xs text-gray-300 hover:border-[#00d4ff]/30 hover:text-white"
+                className="h-7 gap-1.5 border-border bg-transparent px-2.5 text-xs text-muted-foreground hover:border-[#00d4ff]/30 hover:text-white"
               >
                 <Copy className="h-3 w-3" />
                 Copy Markdown
@@ -202,7 +202,7 @@ export const ExtractedTablePreview: React.FC<ExtractedTablePreviewProps> = ({
                 variant="outline"
                 size="sm"
                 onClick={handleDownloadCsv}
-                className="h-7 gap-1.5 border-[#1a1a1a] bg-transparent px-2.5 text-xs text-gray-300 hover:border-[#00d4ff]/30 hover:text-white"
+                className="h-7 gap-1.5 border-border bg-transparent px-2.5 text-xs text-muted-foreground hover:border-[#00d4ff]/30 hover:text-white"
               >
                 <Download className="h-3 w-3" />
                 Download CSV
@@ -212,7 +212,7 @@ export const ExtractedTablePreview: React.FC<ExtractedTablePreviewProps> = ({
         </div>
         {method && (
           <Badge
-            className="border-[#1a1a1a] bg-black/50 text-xs text-gray-300"
+            className="border-border bg-black/50 text-xs text-muted-foreground"
             variant="outline"
           >
             {method}
