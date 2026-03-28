@@ -8,7 +8,15 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Entity, GraphEdge } from '@/types/entity';
 import { cn } from '@/lib/utils';
-import { Download, RefreshCw, ZoomIn, ZoomOut, Network } from 'lucide-react';
+import {
+  Activity,
+  Download,
+  RefreshCw,
+  ZoomIn,
+  ZoomOut,
+  Network,
+} from 'lucide-react';
+import { EmptyState } from '@/components/ui/EmptyState';
 import React, { useEffect, useRef, useState } from 'react';
 
 interface EntityGraphProps {
@@ -388,12 +396,14 @@ export const EntityGraph: React.FC<EntityGraphProps> = ({
           </div>
         </div>
       </CardHeader>
-      <CardContent className="p-0 bg-[#0a0a0f]">
+      <CardContent className="p-0 bg-background">
         {entities.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-[600px] text-[var(--terminal-text-dim)] bg-[var(--terminal-bg)]">
-            <Network className="w-12 h-12 mb-4 opacity-20" />
-            <p className="font-mono text-sm">NO_DATA_STREAM</p>
-          </div>
+          <EmptyState
+            icon={Activity}
+            title="NO_DATA_STREAM"
+            description="No entity graph data available. Extract entities from documents to populate the knowledge graph."
+            className="py-12"
+          />
         ) : (
           <div className="relative">
             {/* Legend Overlay */}

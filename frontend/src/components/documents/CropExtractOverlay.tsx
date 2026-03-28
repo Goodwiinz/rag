@@ -189,7 +189,7 @@ export const CropExtractOverlay: React.FC<CropExtractOverlayProps> = ({
             e.stopPropagation();
             onCancel();
           }}
-          className="h-7 gap-1.5 border-[#1a1a1a] bg-black/80 px-2.5 text-xs text-gray-300 hover:border-red-500/30 hover:text-white"
+          className="h-7 gap-1.5 border-border bg-black/80 px-2.5 text-xs text-muted-foreground hover:border-red-500/30 hover:text-white"
           aria-label="Cancel crop selection"
         >
           <X className="h-3 w-3" />

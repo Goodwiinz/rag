@@ -55,7 +55,7 @@ export function CreateProjectModal({
 
   return (
     <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
-      <div className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg w-full max-w-xl p-6">
+      <div className="bg-card border border-border rounded-lg w-full max-w-xl p-6">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-mono font-bold text-[#D4A039]">
             New Research Project
@@ -85,7 +85,7 @@ export function CreateProjectModal({
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="e.g., Transformer Architecture Survey"
-              className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#333] rounded text-sm font-mono text-gray-300 placeholder-gray-600 focus:outline-none focus:border-[#D4A039]"
+              className="w-full px-3 py-2 bg-muted border border-border rounded text-sm font-mono text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary"
               autoFocus
             />
           </div>
@@ -99,7 +99,7 @@ export function CreateProjectModal({
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Brief description of the research project"
               rows={3}
-              className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#333] rounded text-sm font-mono text-gray-300 placeholder-gray-600 focus:outline-none focus:border-[#D4A039] resize-none"
+              className="w-full px-3 py-2 bg-muted border border-border rounded text-sm font-mono text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary resize-none"
             />
           </div>
         </div>
