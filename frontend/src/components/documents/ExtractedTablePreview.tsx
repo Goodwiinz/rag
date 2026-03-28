@@ -116,7 +116,7 @@ export const ExtractedTablePreview: React.FC<ExtractedTablePreviewProps> = ({
               className={cn(
                 'border-transparent text-xs',
                 regionResult.confidence >= 0.8
-                  ? 'bg-[#00ff9f]/10 text-[#00ff9f]'
+                  ? 'bg-[#D4A039]/10 text-[#D4A039]'
                   : regionResult.confidence >= 0.5
                     ? 'bg-[#ffb700]/10 text-[#ffb700]'
                     : 'bg-red-500/10 text-red-400'

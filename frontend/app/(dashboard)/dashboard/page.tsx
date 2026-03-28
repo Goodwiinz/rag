@@ -255,7 +255,7 @@ export default function DashboardPage() {
                 whileHover={{ y: -4 }}
                 className={cn(
                   'group p-4 rounded-xl border border-[var(--terminal-border)] bg-[var(--terminal-surface)] shadow-lg',
-                  'hover:border-[var(--phosphor-green)]/30 hover:shadow-[0_0_15px_rgba(0,255,159,0.06)] transition-all duration-300 cursor-pointer'
+                  'hover:border-[var(--phosphor-green)]/30 hover:shadow-[0_0_15px_rgba(212,160,57,0.06)] transition-all duration-300 cursor-pointer'
                 )}
               >
                 <div className="flex items-center gap-3">

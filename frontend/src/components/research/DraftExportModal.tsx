@@ -58,7 +58,7 @@ export const DraftExportModal: React.FC<DraftExportModalProps> = ({
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-[#1a1a1a]">
           <div className="flex items-center gap-2">
-            <Download className="h-5 w-5 text-[#00ff9f]" />
+            <Download className="h-5 w-5 text-[#D4A039]" />
             <h2 className="font-mono font-bold text-gray-200">Export Draft</h2>
           </div>
           <button
@@ -85,7 +85,7 @@ export const DraftExportModal: React.FC<DraftExportModalProps> = ({
                 onClick={() => setFormat('markdown')}
                 className={`flex flex-col items-center gap-2 p-4 rounded border transition-colors ${
                   format === 'markdown'
-                    ? 'bg-[#00ff9f]/10 border-[#00ff9f]/50 text-[#00ff9f]'
+                    ? 'bg-[#D4A039]/10 border-[#D4A039]/50 text-[#D4A039]'
                     : 'bg-[#1a1a1a] border-[#333] text-gray-400 hover:border-[#555]'
                 }`}
               >
@@ -97,7 +97,7 @@ export const DraftExportModal: React.FC<DraftExportModalProps> = ({
                 onClick={() => setFormat('latex')}
                 className={`flex flex-col items-center gap-2 p-4 rounded border transition-colors ${
                   format === 'latex'
-                    ? 'bg-[#00ff9f]/10 border-[#00ff9f]/50 text-[#00ff9f]'
+                    ? 'bg-[#D4A039]/10 border-[#D4A039]/50 text-[#D4A039]'
                     : 'bg-[#1a1a1a] border-[#333] text-gray-400 hover:border-[#555]'
                 }`}
               >
@@ -122,14 +122,14 @@ export const DraftExportModal: React.FC<DraftExportModalProps> = ({
               onClick={() => setIncludeBibliography(!includeBibliography)}
               className={`relative w-12 h-6 rounded-full transition-colors ${
                 includeBibliography
-                  ? 'bg-[#00ff9f]/30 border-[#00ff9f]'
+                  ? 'bg-[#D4A039]/30 border-[#D4A039]'
                   : 'bg-[#333] border-[#555]'
               } border`}
             >
               <span
                 className={`absolute top-0.5 w-5 h-5 rounded-full transition-transform ${
                   includeBibliography
-                    ? 'translate-x-6 bg-[#00ff9f]'
+                    ? 'translate-x-6 bg-[#D4A039]'
                     : 'translate-x-0.5 bg-gray-500'
                 }`}
               />
@@ -147,7 +147,7 @@ export const DraftExportModal: React.FC<DraftExportModalProps> = ({
                 onChange={(e) =>
                   setBibliographyFormat(e.target.value as 'bibtex' | 'biblatex')
                 }
-                className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#333] rounded text-sm font-mono text-gray-300 focus:outline-none focus:border-[#00ff9f]"
+                className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#333] rounded text-sm font-mono text-gray-300 focus:outline-none focus:border-[#D4A039]"
               >
                 <option value="bibtex">BibTeX</option>
                 <option value="biblatex">BibLaTeX</option>
@@ -174,7 +174,7 @@ export const DraftExportModal: React.FC<DraftExportModalProps> = ({
           <button
             onClick={handleExport}
             disabled={exporting}
-            className="flex items-center gap-2 px-4 py-2 bg-[#00ff9f]/10 text-[#00ff9f] border border-[#00ff9f]/30 rounded font-mono text-sm hover:bg-[#00ff9f]/20 transition-colors disabled:opacity-50"
+            className="flex items-center gap-2 px-4 py-2 bg-[#D4A039]/10 text-[#D4A039] border border-[#D4A039]/30 rounded font-mono text-sm hover:bg-[#D4A039]/20 transition-colors disabled:opacity-50"
           >
             {exporting ? (
               <>

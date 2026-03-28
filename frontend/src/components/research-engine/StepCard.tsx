@@ -60,7 +60,7 @@ export function StepCard({
 
   const modeColor =
     step.mode === 'deterministic'
-      ? 'bg-[#00ff9f]/10 text-[#00ff9f] border-[#00ff9f]/30'
+      ? 'bg-[#D4A039]/10 text-[#D4A039] border-[#D4A039]/30'
       : 'bg-[#ffb700]/10 text-[#ffb700] border-[#ffb700]/30';
 
   const handleParamsChange = (value: string) => {
@@ -130,7 +130,7 @@ export function StepCard({
               type="text"
               value={step.name}
               onChange={(e) => onChange({ ...step, name: e.target.value })}
-              className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#333] rounded text-sm font-mono text-gray-300 focus:outline-none focus:border-[#00ff9f]"
+              className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#333] rounded text-sm font-mono text-gray-300 focus:outline-none focus:border-[#D4A039]"
             />
           </div>
 
@@ -142,7 +142,7 @@ export function StepCard({
             <select
               value={step.type}
               onChange={(e) => onChange({ ...step, type: e.target.value })}
-              className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#333] rounded text-sm font-mono text-gray-300 focus:outline-none focus:border-[#00ff9f]"
+              className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#333] rounded text-sm font-mono text-gray-300 focus:outline-none focus:border-[#D4A039]"
             >
               <option value="search">Search</option>
               <option value="extract">Extract</option>
@@ -163,7 +163,7 @@ export function StepCard({
                 onChange({ ...step, description: e.target.value || undefined })
               }
               rows={2}
-              className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#333] rounded text-sm font-mono text-gray-300 placeholder-gray-600 focus:outline-none focus:border-[#00ff9f] resize-none"
+              className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#333] rounded text-sm font-mono text-gray-300 placeholder-gray-600 focus:outline-none focus:border-[#D4A039] resize-none"
               placeholder="What this step does..."
             />
           </div>
@@ -180,7 +180,7 @@ export function StepCard({
               className={`w-full px-3 py-2 bg-[#1a1a1a] border rounded text-sm font-mono text-gray-300 focus:outline-none resize-none ${
                 paramsError
                   ? 'border-red-500/50 focus:border-red-500'
-                  : 'border-[#333] focus:border-[#00ff9f]'
+                  : 'border-[#333] focus:border-[#D4A039]'
               }`}
             />
             {paramsError && (
@@ -200,7 +200,7 @@ export function StepCard({
               onChange={(e) =>
                 onChange({ ...step, model_id: e.target.value || undefined })
               }
-              className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#333] rounded text-sm font-mono text-gray-300 focus:outline-none focus:border-[#00ff9f]"
+              className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#333] rounded text-sm font-mono text-gray-300 focus:outline-none focus:border-[#D4A039]"
             >
               <option value="">Default</option>
               {MODEL_OPTIONS.map((m) => (
@@ -268,7 +268,7 @@ export function StepCard({
                 })
               }
               placeholder="Optional seed for reproducibility"
-              className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#333] rounded text-sm font-mono text-gray-300 placeholder-gray-600 focus:outline-none focus:border-[#00ff9f]"
+              className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#333] rounded text-sm font-mono text-gray-300 placeholder-gray-600 focus:outline-none focus:border-[#D4A039]"
             />
           </div>
 
@@ -277,7 +277,7 @@ export function StepCard({
             <button
               onClick={onMoveUp}
               disabled={index === 0}
-              className="p-1.5 text-gray-500 hover:text-[#00ff9f] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              className="p-1.5 text-gray-500 hover:text-[#D4A039] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
               aria-label="Move step up"
             >
               <ArrowUp className="h-4 w-4" />
@@ -285,7 +285,7 @@ export function StepCard({
             <button
               onClick={onMoveDown}
               disabled={index === totalSteps - 1}
-              className="p-1.5 text-gray-500 hover:text-[#00ff9f] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              className="p-1.5 text-gray-500 hover:text-[#D4A039] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
               aria-label="Move step down"
             >
               <ArrowDown className="h-4 w-4" />

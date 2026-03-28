@@ -1,7 +1,14 @@
-"use client";
+'use client';
 
 import { useMemo, useState } from 'react';
-import { CircleUserRound, ChevronRight, Link2, Plug, WalletCards, X } from 'lucide-react';
+import {
+  CircleUserRound,
+  ChevronRight,
+  Link2,
+  Plug,
+  WalletCards,
+  X,
+} from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { cn } from '@/lib/utils';
@@ -14,9 +21,9 @@ const sectionItems: Array<{
   label: string;
   icon: React.ComponentType<{ className?: string }>;
 }> = [
-  { id: 'account', label: 'My Account', icon: CircleUserRound },
-  { id: 'usage', label: 'Agent Usage', icon: WalletCards },
-  { id: 'apps', label: 'Connected Apps', icon: Link2 },
+  { id: 'account', label: 'OPERATOR_PROFILE', icon: CircleUserRound },
+  { id: 'usage', label: 'COMPUTE_USAGE', icon: WalletCards },
+  { id: 'apps', label: 'LINKED_SYSTEMS', icon: Link2 },
 ];
 
 function SectionNavButton({
@@ -50,10 +57,14 @@ function SectionNavButton({
 export default function SettingsPage() {
   const { user } = useAuth();
   const router = useRouter();
-  const [activeSection, setActiveSection] = useState<SettingsSection>('account');
+  const [activeSection, setActiveSection] =
+    useState<SettingsSection>('account');
   const [historyView, setHistoryView] = useState<UsageHistoryView>('usage');
 
-  const primaryEmail = useMemo(() => user?.email ?? 'Not provided', [user?.email]);
+  const primaryEmail = useMemo(
+    () => user?.email ?? 'Not provided',
+    [user?.email]
+  );
 
   return (
     <div
@@ -75,7 +86,9 @@ export default function SettingsPage() {
         <div className="grid grid-cols-1 md:grid-cols-[240px_1fr]">
           <aside className="border-b border-[var(--terminal-border)] bg-[var(--terminal-bg)] p-4 md:border-b-0 md:border-r md:p-5">
             <div className="mb-4 pr-10">
-              <h1 className="text-2xl font-semibold text-[var(--terminal-text)]">Settings</h1>
+              <h1 className="text-lg font-mono font-semibold text-[var(--terminal-text)] tracking-wider uppercase">
+                SYSTEM_CONFIG
+              </h1>
             </div>
             <nav className="space-y-1" aria-label="Settings sections">
               {sectionItems.map((section) => (
@@ -94,17 +107,24 @@ export default function SettingsPage() {
             {activeSection === 'account' && (
               <section aria-labelledby="my-account-title" className="space-y-6">
                 <div>
-                  <h2 id="my-account-title" className="text-3xl font-semibold text-[var(--terminal-text)]">
-                    Primary email
+                  <h2
+                    id="my-account-title"
+                    className="text-sm font-mono font-semibold text-[var(--phosphor-green)] tracking-wider uppercase"
+                  >
+                    PRIMARY_IDENTITY
                   </h2>
-                  <p className="mt-2 text-xl text-[var(--terminal-text-dim)]">{primaryEmail}</p>
+                  <p className="mt-2 text-xl text-[var(--terminal-text-dim)]">
+                    {primaryEmail}
+                  </p>
                 </div>
 
                 <hr className="border-[var(--terminal-border)]" />
 
                 <div>
                   <div className="mb-3 flex items-center justify-between gap-3">
-                    <h3 className="text-3xl font-semibold text-[var(--terminal-text)]">Subscription</h3>
+                    <h3 className="text-sm font-mono font-semibold text-[var(--phosphor-green)] tracking-wider uppercase">
+                      ACCESS_TIER
+                    </h3>
                     <button
                       type="button"
                       className="inline-flex items-center gap-2 rounded-md border border-[var(--terminal-border-glow)] px-4 py-2 text-base font-medium text-[var(--terminal-text)] hover:bg-[var(--terminal-surface)]"
@@ -113,9 +133,10 @@ export default function SettingsPage() {
                       <ChevronRight className="h-4 w-4" />
                     </button>
                   </div>
-                  <p className="max-w-2xl text-lg text-[var(--terminal-text-dim)]">
-                    You are currently a Basic User with limited access. Upgrade to premium or higher to
-                    enjoy unlimited benefits.
+                  <p className="max-w-2xl text-sm font-mono text-[var(--terminal-text-dim)]">
+                    Current tier: BASIC_OPERATOR. Upgrade to unlock unlimited
+                    neural queries, priority compute, and advanced research
+                    workflows.
                   </p>
                 </div>
 
@@ -131,7 +152,10 @@ export default function SettingsPage() {
             )}
 
             {activeSection === 'usage' && (
-              <section aria-labelledby="agent-usage-title" className="space-y-7">
+              <section
+                aria-labelledby="agent-usage-title"
+                className="space-y-7"
+              >
                 <div className="rounded-xl border border-[var(--terminal-border)] bg-[var(--terminal-bg)]">
                   <div className="rounded-t-xl bg-[var(--terminal-surface)] p-4">
                     <div className="mb-1 flex items-center justify-between gap-3 text-[var(--terminal-text-dim)]">
@@ -143,12 +167,16 @@ export default function SettingsPage() {
                         Upgrade Plan
                       </button>
                     </div>
-                    <p className="text-3xl font-semibold text-[var(--terminal-text)]">Basic</p>
+                    <p className="text-3xl font-semibold text-[var(--terminal-text)]">
+                      Basic
+                    </p>
                   </div>
 
                   <div className="space-y-3 border-t border-[var(--terminal-border)] p-4">
                     <div className="flex items-center justify-between gap-2 text-[var(--terminal-text)]">
-                      <span className="text-3xl font-semibold">Monthly Credits</span>
+                      <span className="text-3xl font-semibold">
+                        Monthly Credits
+                      </span>
                       <span className="text-3xl font-semibold">100 left</span>
                     </div>
                     <div className="flex items-center justify-between gap-2 text-lg text-[var(--terminal-text-dim)]">
@@ -159,7 +187,10 @@ export default function SettingsPage() {
                 </div>
 
                 <div>
-                  <h2 id="agent-usage-title" className="mb-4 text-3xl font-semibold text-[var(--terminal-text)]">
+                  <h2
+                    id="agent-usage-title"
+                    className="mb-4 text-3xl font-semibold text-[var(--terminal-text)]"
+                  >
                     History
                   </h2>
 
@@ -196,30 +227,42 @@ export default function SettingsPage() {
                       <span className="text-center">Date</span>
                       <span className="text-right">Credits</span>
                     </div>
-                    <div className="px-4 py-8 text-center text-lg text-[var(--terminal-text-dim)]">No usage history found</div>
+                    <div className="px-4 py-8 text-center text-sm font-mono text-[var(--terminal-text-dim)]">
+                      NO_COMPUTE_HISTORY
+                    </div>
                   </div>
                 </div>
               </section>
             )}
 
             {activeSection === 'apps' && (
-              <section aria-labelledby="connected-apps-title" className="space-y-5">
+              <section
+                aria-labelledby="connected-apps-title"
+                className="space-y-5"
+              >
                 <div>
-                  <h2 id="connected-apps-title" className="text-3xl font-semibold text-[var(--terminal-text)]">
-                    Connected Apps
+                  <h2
+                    id="connected-apps-title"
+                    className="text-3xl font-semibold text-[var(--terminal-text)]"
+                  >
+                    LINKED_SYSTEMS
                   </h2>
-                  <p className="mt-2 text-lg text-[var(--terminal-text-dim)]">
-                    Connect external apps to streamline your research and workflow.
+                  <p className="mt-2 text-sm font-mono text-[var(--terminal-text-dim)]">
+                    Connect external data sources and integrations to extend
+                    your neural pipeline.
                   </p>
                 </div>
 
                 <div className="rounded-xl border border-[var(--terminal-border)] bg-[var(--terminal-bg)] p-6">
                   <div className="mb-4 flex items-center gap-2 text-[var(--terminal-text)]">
                     <Plug className="h-5 w-5" />
-                    <span className="text-lg font-medium">No connected apps yet</span>
+                    <span className="text-sm font-mono font-medium">
+                      NO_LINKED_SYSTEMS
+                    </span>
                   </div>
                   <p className="mb-4 text-lg text-[var(--terminal-text-dim)]">
-                    You can connect apps like Google Drive, Notion, and Slack from here.
+                    You can connect apps like Google Drive, Notion, and Slack
+                    from here.
                   </p>
                   <button
                     type="button"

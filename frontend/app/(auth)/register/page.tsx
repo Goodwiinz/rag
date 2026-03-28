@@ -33,7 +33,7 @@ interface RegisterFormData {
 }
 
 // Terminal Observatory Theme Constants
-const _PHOSPHOR_GREEN = '#00ff9f';
+const _PHOSPHOR_GREEN = '#D4A039';
 const _AMBER = '#ffb700';
 
 export default function RegisterPage() {

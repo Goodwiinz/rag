@@ -71,7 +71,7 @@ export const SaveToNoteModal: React.FC<SaveToNoteModalProps> = ({
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-[#1a1a1a]">
           <div className="flex items-center gap-2">
-            <FileText className="h-5 w-5 text-[#00ff9f]" />
+            <FileText className="h-5 w-5 text-[#D4A039]" />
             <h2 className="font-mono font-bold text-gray-200">Save Thread to Note</h2>
           </div>
           <button
@@ -96,7 +96,7 @@ export const SaveToNoteModal: React.FC<SaveToNoteModalProps> = ({
               onChange={(e) => setNoteTitle(e.target.value)}
               placeholder="e.g., Research Discussion Summary"
               disabled={isSubmitting}
-              className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#333] rounded text-gray-200 font-mono text-sm placeholder:text-gray-600 focus:outline-none focus:border-[#00ff9f]/50 focus:ring-1 focus:ring-[#00ff9f]/30 disabled:opacity-50"
+              className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#333] rounded text-gray-200 font-mono text-sm placeholder:text-gray-600 focus:outline-none focus:border-[#D4A039]/50 focus:ring-1 focus:ring-[#D4A039]/30 disabled:opacity-50"
               required
             />
             <p className="text-xs text-gray-600 font-mono mt-1">
@@ -120,14 +120,14 @@ export const SaveToNoteModal: React.FC<SaveToNoteModalProps> = ({
               disabled={isSubmitting}
               className={`relative w-12 h-6 rounded-full transition-colors disabled:opacity-50 ${
                 includeCitations
-                  ? 'bg-[#00ff9f]/30 border-[#00ff9f]'
+                  ? 'bg-[#D4A039]/30 border-[#D4A039]'
                   : 'bg-[#333] border-[#555]'
               } border`}
             >
               <span
                 className={`absolute top-0.5 w-5 h-5 rounded-full transition-transform ${
                   includeCitations
-                    ? 'translate-x-6 bg-[#00ff9f]'
+                    ? 'translate-x-6 bg-[#D4A039]'
                     : 'translate-x-0.5 bg-gray-500'
                 }`}
               />
@@ -160,7 +160,7 @@ export const SaveToNoteModal: React.FC<SaveToNoteModalProps> = ({
             <button
               type="submit"
               disabled={isSubmitting || !noteTitle.trim()}
-              className="flex items-center gap-2 px-4 py-2 bg-[#00ff9f]/10 text-[#00ff9f] border border-[#00ff9f]/30 rounded font-mono text-sm hover:bg-[#00ff9f]/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex items-center gap-2 px-4 py-2 bg-[#D4A039]/10 text-[#D4A039] border border-[#D4A039]/30 rounded font-mono text-sm hover:bg-[#D4A039]/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isSubmitting ? (
                 <>

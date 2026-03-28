@@ -24,7 +24,7 @@ export interface CitationListProps {
 const getSourceBadgeColor = (source?: string) => {
   switch (source) {
     case 'arxiv':
-      return 'bg-[#00ff9f]/10 text-[#00ff9f] border-[#00ff9f]/20';
+      return 'bg-[#D4A039]/10 text-[#D4A039] border-[#D4A039]/20';
     case 'semantic_scholar':
       return 'bg-cyan-500/10 text-cyan-500 border-cyan-500/20';
     case 'crossref':

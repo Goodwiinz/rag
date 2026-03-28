@@ -74,7 +74,7 @@ export const ExtractStep: React.FC<ExtractStepProps> = ({
           </button>
           <button
             onClick={onContinue}
-            className="flex items-center gap-2 px-5 py-2.5 bg-[#00ff9f]/10 text-[#00ff9f] border border-[#00ff9f]/30 rounded font-mono text-sm hover:bg-[#00ff9f]/20 transition-colors"
+            className="flex items-center gap-2 px-5 py-2.5 bg-[#D4A039]/10 text-[#D4A039] border border-[#D4A039]/30 rounded font-mono text-sm hover:bg-[#D4A039]/20 transition-colors"
           >
             Continue
             <ArrowRight className="h-4 w-4" />

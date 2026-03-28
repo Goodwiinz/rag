@@ -106,7 +106,7 @@ export function IngestTab({
                   onKeyDown={(e) => e.key === 'Enter' && onSearchPapers()}
                   placeholder="transformer interpretability…"
                   autoComplete="off"
-                  className="w-full rounded-lg border border-[#1A1A1A] bg-[#111111] py-2.5 pl-10 pr-3 font-mono text-xs text-[#E5E7EB] placeholder:text-[#6B7280] focus:border-[#00FF9F]/50 focus:outline-none"
+                  className="w-full rounded-lg border border-[#1A1A1A] bg-[#111111] py-2.5 pl-10 pr-3 font-mono text-xs text-[#E5E7EB] placeholder:text-[#6B7280] focus:border-[#D4A039]/50 focus:outline-none"
                 />
               </div>
             </div>
@@ -174,7 +174,7 @@ export function IngestTab({
               <span className="text-[10px] font-mono uppercase tracking-widest text-[#9CA3AF]">
                 Selected Papers
               </span>
-              <span className="text-xs font-mono font-bold text-[#00FF9F]">
+              <span className="text-xs font-mono font-bold text-[#D4A039]">
                 {selectedPaperIds.length}
               </span>
             </div>
@@ -185,7 +185,7 @@ export function IngestTab({
               disabled={isAnyOperationRunning || selectedPaperIds.length === 0}
               className={cn(
                 'inline-flex w-full items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-[11px] font-mono font-bold uppercase transition-colors',
-                'bg-[#00FF9F] text-[#0A0A0A] hover:bg-[#00CC7F] disabled:cursor-not-allowed disabled:opacity-45'
+                'bg-[#D4A039] text-[#0A0A0A] hover:bg-[#B8882F] disabled:cursor-not-allowed disabled:opacity-45'
               )}
             >
               {isIngesting ? (
@@ -207,7 +207,7 @@ export function IngestTab({
             </button>
 
             {ingestionResult && (
-              <div className="rounded-lg border border-[#00FF9F]/25 bg-[#00FF9F]/5 p-3 text-[10px] font-mono leading-relaxed text-[#9CA3AF]">
+              <div className="rounded-lg border border-[#D4A039]/25 bg-[#D4A039]/5 p-3 text-[10px] font-mono leading-relaxed text-[#9CA3AF]">
                 {ingestionResult.message} ({ingestionResult.paper_count} papers)
               </div>
             )}
@@ -261,9 +261,9 @@ export function IngestTab({
                         onClick={() => onTogglePaperSelection(paper.id)}
                         className={cn(
                           'w-full rounded-xl border p-4 text-left transition-colors touch-manipulation',
-                          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00FF9F]/60 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0A0A0A]',
+                          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D4A039]/60 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0A0A0A]',
                           isSelected
-                            ? 'border-[#00FF9F]/45 bg-[#00FF9F]/10'
+                            ? 'border-[#D4A039]/45 bg-[#D4A039]/10'
                             : 'border-[#1A1A1A] bg-[#0A0A0A] hover:border-[#333333]'
                         )}
                       >
@@ -272,7 +272,7 @@ export function IngestTab({
                             className={cn(
                               'mt-0.5 rounded border p-1.5',
                               isSelected
-                                ? 'border-[#00FF9F]/45 text-[#00FF9F]'
+                                ? 'border-[#D4A039]/45 text-[#D4A039]'
                                 : 'border-[#1A1A1A] text-[#6B7280]'
                             )}
                             aria-hidden="true"

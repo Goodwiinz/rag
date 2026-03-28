@@ -362,15 +362,15 @@ export default function ArxivManagement() {
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div className="flex items-start gap-4">
           <div className="rounded-lg border border-[#1A1A1A] bg-[#0A0A0A] p-2.5">
-            <Activity className="h-6 w-6 text-[#00FF9F]" />
+            <Activity className="h-6 w-6 text-[#D4A039]" />
           </div>
           <div>
-            <h1 className="text-2xl font-mono font-bold text-[#00FF9F]">
+            <h1 className="text-2xl font-mono font-bold text-[#D4A039]">
               ArXiv Research Hub
             </h1>
             <div className="mt-1 flex items-center gap-2">
               <span
-                className="h-1.5 w-1.5 rounded-full bg-[#00FF9F]"
+                className="h-1.5 w-1.5 rounded-full bg-[#D4A039]"
                 aria-hidden="true"
               />
               <span className="text-sm text-gray-500">
@@ -382,7 +382,7 @@ export default function ArxivManagement() {
 
         {isStatsLoading && !stats && (
           <div className="inline-flex items-center gap-2 rounded-lg border border-[#1A1A1A] bg-[#111111] px-3 py-2 text-[10px] font-mono text-[#9CA3AF]">
-            <Loader2 className="h-3.5 w-3.5 animate-spin text-[#00FF9F]" />
+            <Loader2 className="h-3.5 w-3.5 animate-spin text-[#D4A039]" />
             Loading metrics…
           </div>
         )}
@@ -399,7 +399,7 @@ export default function ArxivManagement() {
               {
                 label: 'Tracked',
                 value: stats.statistics.total_papers_tracked,
-                color: 'text-[#00FF9F]',
+                color: 'text-[#D4A039]',
               },
               {
                 label: 'Active',
@@ -456,9 +456,9 @@ export default function ArxivManagement() {
                     onClick={() => setActiveTab(tab.id)}
                     className={cn(
                       'relative flex items-center gap-2 border-b-2 px-4 py-2 text-sm font-mono transition-colors touch-manipulation',
-                      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00FF9F]/60 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0A0A0A]',
+                      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D4A039]/60 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0A0A0A]',
                       isActive
-                        ? 'border-[#00FF9F] text-[#00FF9F]'
+                        ? 'border-[#D4A039] text-[#D4A039]'
                         : 'border-transparent text-gray-500 hover:text-gray-300'
                     )}
                   >

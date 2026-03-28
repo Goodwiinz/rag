@@ -272,12 +272,12 @@ export function ArxivStreamingExtraction() {
             )}
 
             {progress.status === 'completed' && (
-              <div className="p-3 bg-green-50 border border-green-200 rounded-md">
-                <div className="flex items-center gap-2 text-green-700">
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-md">
+                <div className="flex items-center gap-2 text-amber-700">
                   <CheckCircle className="h-4 w-4" />
                   <span className="text-sm font-medium">Success!</span>
                 </div>
-                <p className="text-sm mt-1 text-green-600">
+                <p className="text-sm mt-1 text-amber-600">
                   Successfully processed {progress.processed} PDF files
                 </p>
               </div>

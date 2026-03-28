@@ -43,7 +43,7 @@ export function TemplateSelector({ onSelect }: TemplateSelectorProps) {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-16">
-        <Loader2 className="h-6 w-6 animate-spin text-[#00ff9f]" />
+        <Loader2 className="h-6 w-6 animate-spin text-[#D4A039]" />
         <span className="ml-2 font-mono text-sm text-gray-500">
           Loading templates...
         </span>
@@ -61,7 +61,7 @@ export function TemplateSelector({ onSelect }: TemplateSelectorProps) {
 
   return (
     <div>
-      <h2 className="text-lg font-mono font-bold text-[#00ff9f] mb-2">
+      <h2 className="text-lg font-mono font-bold text-[#D4A039] mb-2">
         Choose a Blueprint Template
       </h2>
       <p className="text-sm text-gray-500 font-mono mb-6">
@@ -72,11 +72,11 @@ export function TemplateSelector({ onSelect }: TemplateSelectorProps) {
         {/* Blank blueprint option */}
         <button
           onClick={() => onSelect(null)}
-          className="group bg-[#0a0a0a] border border-dashed border-[#333] rounded-lg p-5 text-left hover:border-[#00ff9f]/50 transition-colors"
+          className="group bg-[#0a0a0a] border border-dashed border-[#333] rounded-lg p-5 text-left hover:border-[#D4A039]/50 transition-colors"
         >
           <div className="flex items-center gap-2 mb-3">
-            <FileText className="h-5 w-5 text-gray-500 group-hover:text-[#00ff9f] transition-colors" />
-            <span className="font-mono font-medium text-gray-300 group-hover:text-[#00ff9f] transition-colors">
+            <FileText className="h-5 w-5 text-gray-500 group-hover:text-[#D4A039] transition-colors" />
+            <span className="font-mono font-medium text-gray-300 group-hover:text-[#D4A039] transition-colors">
               Blank Blueprint
             </span>
           </div>

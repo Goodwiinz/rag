@@ -63,7 +63,7 @@ export function StatsTab({
               {
                 label: 'Active Papers',
                 value: stats.statistics.active_papers,
-                color: 'text-[#00FF9F]',
+                color: 'text-[#D4A039]',
                 icon: Activity,
               },
               {
@@ -100,7 +100,7 @@ export function StatsTab({
           <div className="grid grid-cols-1 gap-5 xl:grid-cols-12">
             <div className="rounded-xl border border-[#1A1A1A] bg-[#0A0A0A]/50 p-5 xl:col-span-8">
               <div className="mb-5 flex items-center gap-2">
-                <Cpu className="h-4 w-4 text-[#00FF9F]" aria-hidden="true" />
+                <Cpu className="h-4 w-4 text-[#D4A039]" aria-hidden="true" />
                 <h4 className="text-xs font-mono font-bold uppercase tracking-widest text-[#E5E7EB]">
                   Category Distribution
                 </h4>
@@ -111,11 +111,11 @@ export function StatsTab({
                   <div key={category} className="space-y-1.5">
                     <div className="flex items-center justify-between text-[10px] font-mono uppercase">
                       <span className="text-[#9CA3AF]">{category}</span>
-                      <span className="font-bold text-[#00FF9F]">{count}</span>
+                      <span className="font-bold text-[#D4A039]">{count}</span>
                     </div>
                     <div className="h-1.5 w-full overflow-hidden rounded-full bg-[#1A1A1A]">
                       <div
-                        className="h-full rounded-full bg-[#00FF9F]/40"
+                        className="h-full rounded-full bg-[#D4A039]/40"
                         style={{
                           width: `${(count / Math.max(stats.statistics.total_papers_tracked, 1)) * 100}%`,
                         }}

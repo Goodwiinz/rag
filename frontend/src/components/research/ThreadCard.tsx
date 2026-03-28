@@ -22,7 +22,7 @@ import { formatDistanceToNow } from 'date-fns';
 // ============================================================================
 
 const COLORS = {
-  phosphorGreen: '#00ff9f',
+  phosphorGreen: '#D4A039',
   amber: '#ffb700',
   cyan: '#00d4ff',
   terminalBg: '#0a0a0a',
@@ -36,9 +36,9 @@ const COLORS = {
 // Link type badge colors
 const LINK_TYPE_COLORS: Record<ProjectThreadLinkType, { bg: string; text: string; border: string }> = {
   [ProjectThreadLinkType.AUTO]: {
-    bg: 'rgba(0, 255, 159, 0.1)',
+    bg: 'rgba(212, 160, 57, 0.1)',
     text: COLORS.phosphorGreen,
-    border: 'rgba(0, 255, 159, 0.3)',
+    border: 'rgba(212, 160, 57, 0.3)',
   },
   [ProjectThreadLinkType.MANUAL]: {
     bg: 'rgba(0, 212, 255, 0.1)',
@@ -129,7 +129,7 @@ export const ThreadCard: React.FC<ThreadCardProps> = ({
       className="hover:shadow-lg"
       onMouseEnter={(e) => {
         e.currentTarget.style.borderColor = COLORS.phosphorGreen;
-        e.currentTarget.style.boxShadow = `0 0 20px rgba(0, 255, 159, 0.15)`;
+        e.currentTarget.style.boxShadow = `0 0 20px rgba(212, 160, 57, 0.15)`;
       }}
       onMouseLeave={(e) => {
         e.currentTarget.style.borderColor = COLORS.terminalBorder;
@@ -260,18 +260,18 @@ export const ThreadCard: React.FC<ThreadCardProps> = ({
             fontWeight: 600,
             fontFamily: 'monospace',
             color: COLORS.phosphorGreen,
-            backgroundColor: 'rgba(0, 255, 159, 0.1)',
+            backgroundColor: 'rgba(212, 160, 57, 0.1)',
             border: `1px solid ${COLORS.phosphorGreen}`,
             borderRadius: '4px',
             cursor: 'pointer',
             transition: 'all 0.2s ease',
           }}
           onMouseEnter={(e) => {
-            e.currentTarget.style.backgroundColor = 'rgba(0, 255, 159, 0.2)';
-            e.currentTarget.style.boxShadow = `0 0 10px rgba(0, 255, 159, 0.3)`;
+            e.currentTarget.style.backgroundColor = 'rgba(212, 160, 57, 0.2)';
+            e.currentTarget.style.boxShadow = `0 0 10px rgba(212, 160, 57, 0.3)`;
           }}
           onMouseLeave={(e) => {
-            e.currentTarget.style.backgroundColor = 'rgba(0, 255, 159, 0.1)';
+            e.currentTarget.style.backgroundColor = 'rgba(212, 160, 57, 0.1)';
             e.currentTarget.style.boxShadow = 'none';
           }}
         >

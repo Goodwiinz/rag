@@ -33,8 +33,8 @@ const sectionLabels: Record<
   },
   results: {
     label: 'Results',
-    color: 'text-[#00ff9f]',
-    bg: 'bg-[#00ff9f]/10 border-[#00ff9f]/30',
+    color: 'text-[#D4A039]',
+    bg: 'bg-[#D4A039]/10 border-[#D4A039]/30',
   },
   discussion: {
     label: 'Discussion',
@@ -59,7 +59,7 @@ const sectionLabels: Record<
 };
 
 function getConfidenceColor(confidence: number): string {
-  if (confidence >= 0.8) return 'text-[#00ff9f]';
+  if (confidence >= 0.8) return 'text-[#D4A039]';
   if (confidence >= 0.6) return 'text-[#ffb700]';
   return 'text-red-400';
 }
@@ -142,7 +142,7 @@ export const InsertPreview: React.FC<InsertPreviewProps> = ({
         </Button>
         <Button
           size="sm"
-          className="gap-1.5 bg-[#00ff9f]/10 text-[#00ff9f] hover:bg-[#00ff9f]/20"
+          className="gap-1.5 bg-[#D4A039]/10 text-[#D4A039] hover:bg-[#D4A039]/20"
           onClick={() => onAccept(generated)}
           aria-label="Accept and insert"
         >

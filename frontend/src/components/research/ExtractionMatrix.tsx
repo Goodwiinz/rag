@@ -411,7 +411,7 @@ export function ExtractionMatrix({
               <Button
                 variant="outline"
                 size="sm"
-                className="border-[#00ff9f]/30 text-[#00ff9f] hover:bg-[#00ff9f]/10 font-mono text-xs"
+                className="border-[#D4A039]/30 text-[#D4A039] hover:bg-[#D4A039]/10 font-mono text-xs"
                 disabled={
                   saving ||
                   !editName.trim() ||
@@ -448,7 +448,7 @@ export function ExtractionMatrix({
               <Button
                 variant="outline"
                 size="sm"
-                className="border-[#00ff9f]/30 text-[#00ff9f] hover:bg-[#00ff9f]/10 font-mono text-xs"
+                className="border-[#D4A039]/30 text-[#D4A039] hover:bg-[#D4A039]/10 font-mono text-xs"
                 disabled={extracting || documents.length === 0}
                 isLoading={extracting}
                 loadingText="Extracting..."

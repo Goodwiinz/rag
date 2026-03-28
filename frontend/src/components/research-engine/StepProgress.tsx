@@ -54,7 +54,7 @@ export function StepProgress({ step }: StepProgressProps) {
       case 'running':
         return <Loader2 className="h-4 w-4 animate-spin text-[#00d4ff]" />;
       case 'complete':
-        return <Check className="h-4 w-4 text-[#00ff9f]" />;
+        return <Check className="h-4 w-4 text-[#D4A039]" />;
       case 'error':
         return <AlertCircle className="h-4 w-4 text-red-400" />;
     }
@@ -67,7 +67,7 @@ export function StepProgress({ step }: StepProgressProps) {
       case 'running':
         return 'border-[#00d4ff]/50';
       case 'complete':
-        return 'border-[#00ff9f]/50';
+        return 'border-[#D4A039]/50';
       case 'error':
         return 'border-red-500/50';
     }
@@ -105,7 +105,7 @@ export function StepProgress({ step }: StepProgressProps) {
           <span
             className={`flex items-center gap-1 px-2 py-0.5 text-xs font-mono rounded border ${
               step.mode === 'deterministic'
-                ? 'bg-[#00ff9f]/10 text-[#00ff9f] border-[#00ff9f]/20'
+                ? 'bg-[#D4A039]/10 text-[#D4A039] border-[#D4A039]/20'
                 : 'bg-[#ffb700]/10 text-[#ffb700] border-[#ffb700]/20'
             }`}
           >
@@ -127,7 +127,7 @@ export function StepProgress({ step }: StepProgressProps) {
                 title={`${mark.check_type}: ${mark.passed ? 'passed' : 'failed'}${mark.details ? ` - ${mark.details}` : ''}`}
               >
                 {mark.passed ? (
-                  <Check className="h-3.5 w-3.5 text-[#00ff9f]" />
+                  <Check className="h-3.5 w-3.5 text-[#D4A039]" />
                 ) : (
                   <X className="h-3.5 w-3.5 text-red-400" />
                 )}
@@ -207,7 +207,7 @@ export function StepProgress({ step }: StepProgressProps) {
                     className="flex items-center gap-2 text-xs font-mono"
                   >
                     {mark.passed ? (
-                      <Check className="h-3 w-3 text-[#00ff9f]" />
+                      <Check className="h-3 w-3 text-[#D4A039]" />
                     ) : (
                       <X className="h-3 w-3 text-red-400" />
                     )}

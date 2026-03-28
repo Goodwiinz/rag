@@ -61,7 +61,7 @@ export function WelcomeState({
             style={{ translateZ: 20 }}
             className="absolute inset-0 flex items-center justify-center"
           >
-            <div className="w-56 h-56 rounded-full border border-[#1a1a28]/50 animate-[spin_30s_linear_infinite_reverse] orbital-ring-reverse" />
+            <div className="w-56 h-56 rounded-full border border-[var(--terminal-border)]/50 animate-[spin_30s_linear_infinite_reverse] orbital-ring-reverse" />
           </motion.div>
 
           {/* Inner Ring - Rotate */}
@@ -69,7 +69,7 @@ export function WelcomeState({
             style={{ translateZ: 40 }}
             className="absolute inset-0 flex items-center justify-center"
           >
-            <div className="w-32 h-32 rounded-full border border-[#1a1a28] animate-[spin_20s_linear_infinite] orbital-ring" />
+            <div className="w-32 h-32 rounded-full border border-[var(--terminal-border)] animate-[spin_20s_linear_infinite] orbital-ring" />
           </motion.div>
 
           {/* Core Container */}
@@ -78,20 +78,20 @@ export function WelcomeState({
             className="relative w-24 h-24 flex items-center justify-center"
           >
             {/* Satellite Icon with Float */}
-            <Satellite className="w-12 h-12 text-[#00ff9f] float-gentle drop-shadow-[0_0_15px_rgba(0,255,159,0.3)]" />
+            <Satellite className="w-12 h-12 text-[var(--phosphor-green)] float-gentle drop-shadow-[0_0_15px_rgba(212,160,57,0.3)]" />
 
             {/* Scanning Beam Effect */}
             <motion.div
               animate={{ top: ['0%', '100%', '0%'], opacity: [0, 1, 0] }}
               transition={{ duration: 3, repeat: Infinity, ease: 'linear' }}
-              className="absolute left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-[#00ff9f] to-transparent w-full"
+              className="absolute left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-[#D4A039] to-transparent w-full"
             />
           </motion.div>
 
           {/* Radar Pings - Background */}
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
             <div
-              className="w-full h-full rounded-full border border-[#00ff9f]/5 animate-ping"
+              className="w-full h-full rounded-full border border-[#D4A039]/5 animate-ping"
               style={{ animationDuration: '3s' }}
             />
           </div>
@@ -99,7 +99,7 @@ export function WelcomeState({
 
         <motion.div style={{ translateZ: 30 }}>
           <h2
-            className="text-xl text-[#e0e0e8] tracking-wider mb-2"
+            className="text-xl text-[var(--terminal-text)] tracking-wider mb-2"
             style={{ fontFamily: "'JetBrains Mono', monospace" }}
           >
             {selectedModel
@@ -107,7 +107,7 @@ export function WelcomeState({
               : 'AWAITING NEURAL CORE SELECTION'}
           </h2>
           <p
-            className="text-sm text-[#3a3a4a] text-center max-w-md mx-auto"
+            className="text-sm text-[var(--terminal-text-muted)] text-center max-w-md mx-auto"
             style={{ fontFamily: "'JetBrains Mono', monospace" }}
           >
             {selectedModel
@@ -148,17 +148,17 @@ export function WelcomeState({
             ].map((item, idx) => (
               <div
                 key={idx}
-                className="p-4 rounded-lg border border-[#1a1a28] bg-[#0d0d14]/50 text-left hover:border-[#00ff9f]/20 transition-all group backdrop-blur-sm"
+                className="p-4 rounded-lg border border-[var(--terminal-border)] bg-[var(--terminal-surface)]/50 text-left hover:border-[var(--phosphor-green)]/20 transition-all group backdrop-blur-sm"
               >
-                <item.icon className="w-5 h-5 text-[#00ff9f] mb-2 group-hover:scale-110 transition-transform" />
+                <item.icon className="w-5 h-5 text-[var(--phosphor-green)] mb-2 group-hover:scale-110 transition-transform" />
                 <h3
-                  className="text-xs text-[#e0e0e8] mb-1"
+                  className="text-xs text-[var(--terminal-text)] mb-1"
                   style={{ fontFamily: "'JetBrains Mono', monospace" }}
                 >
                   {item.label}
                 </h3>
                 <p
-                  className="text-[10px] text-[#3a3a4a]"
+                  className="text-[10px] text-[var(--terminal-text-muted)]"
                   style={{ fontFamily: "'JetBrains Mono', monospace" }}
                 >
                   {item.desc}

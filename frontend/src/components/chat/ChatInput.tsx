@@ -7,7 +7,12 @@ import type { ExtendedModel } from './ModelSelector';
 import { motion } from 'framer-motion';
 import { ArrowUp, Mic, Paperclip, Square } from 'lucide-react';
 import React, { useEffect, useRef, useState } from 'react';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 
 interface ChatInputProps {
   value: string;
@@ -72,9 +77,9 @@ export function ChatInput({
         <motion.div
           className={cn(
             'relative rounded-lg overflow-visible transition-all duration-300',
-            'bg-[#0A0A0A] border border-[var(--terminal-border)]',
+            'bg-[var(--terminal-surface)] border border-[var(--terminal-border)]',
             isFocused &&
-              'border-[var(--phosphor-green)]/30 ring-1 ring-[var(--phosphor-green)]/10 shadow-[0_0_15px_-5px_rgba(0,255,159,0.1)]'
+              'border-[var(--phosphor-green)]/30 ring-1 ring-[var(--phosphor-green)]/10 shadow-[0_0_15px_-5px_rgba(212,160,57,0.1)]'
           )}
         >
           {/* Top Bar: Model Selector, RAG Toggle & Status */}
@@ -180,10 +185,11 @@ export function ChatInput({
                 <button
                   onClick={onSubmit}
                   disabled={!value.trim() || isDisabled}
+                  title="Send message (Enter)"
                   className={cn(
                     'flex items-center gap-2 px-6 py-2 rounded text-[10px] font-bold tracking-widest transition-all duration-300',
                     value.trim() && !isDisabled
-                      ? 'bg-[var(--phosphor-green)] text-[#0A0A0A] hover:bg-[var(--phosphor-green)]/90 hover:shadow-[0_0_15px_rgba(0,255,159,0.3)] active:scale-95'
+                      ? 'bg-[var(--phosphor-green)] text-[#0A0A0A] hover:bg-[var(--phosphor-green)]/90 hover:shadow-[0_0_15px_rgba(212,160,57,0.3)] active:scale-95'
                       : 'bg-transparent text-[var(--terminal-text-dim)] border border-[var(--terminal-border)] cursor-not-allowed'
                   )}
                   style={{ fontFamily: "'JetBrains Mono', monospace" }}

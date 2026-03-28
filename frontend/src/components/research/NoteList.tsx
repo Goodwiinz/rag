@@ -53,7 +53,7 @@ export function NoteList({
           <select
             value={selectedTag || ''}
             onChange={(e) => onTagChange(e.target.value)}
-            className="px-3 py-1.5 bg-[#1a1a1a] border border-[#333] rounded text-xs font-mono text-gray-300 focus:outline-none focus:border-[#00ff9f]"
+            className="px-3 py-1.5 bg-[#1a1a1a] border border-[#333] rounded text-xs font-mono text-gray-300 focus:outline-none focus:border-[#D4A039]"
           >
             <option value="">All</option>
             {availableTags.map((tag) => (
@@ -88,7 +88,7 @@ export function NoteList({
                 </button>
                 <button
                   onClick={() => onEdit(note)}
-                  className="p-1.5 text-gray-500 hover:text-[#00ff9f] transition-colors"
+                  className="p-1.5 text-gray-500 hover:text-[#D4A039] transition-colors"
                   title="Edit note"
                 >
                   <Edit2 className="h-4 w-4" />

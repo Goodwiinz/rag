@@ -313,7 +313,7 @@ function CommandPalette({
 // ============================================
 
 // Terminal Observatory theme colors
-const PHOSPHOR_GREEN = '#00ff9f';
+const PHOSPHOR_GREEN = '#D4A039';
 const AMBER = '#ffb700';
 
 interface CitationItem {

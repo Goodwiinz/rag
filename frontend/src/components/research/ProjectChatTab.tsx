@@ -139,7 +139,7 @@ export const ProjectChatTab: React.FC<ProjectChatTabProps> = ({ projectId }) => 
     return (
       <div className="flex items-center justify-center py-12">
         <div className="flex flex-col items-center gap-3">
-          <Loader2 className="h-8 w-8 animate-spin text-[#00ff9f]" />
+          <Loader2 className="h-8 w-8 animate-spin text-[#D4A039]" />
           <p className="text-sm text-gray-400 font-mono">Loading threads...</p>
         </div>
       </div>
@@ -161,7 +161,7 @@ export const ProjectChatTab: React.FC<ProjectChatTabProps> = ({ projectId }) => 
             <p className="text-sm text-gray-400 font-mono mb-4">{error}</p>
             <button
               onClick={handleRetry}
-              className="flex items-center gap-2 px-4 py-2 bg-[#00ff9f]/10 text-[#00ff9f] border border-[#00ff9f]/30 rounded font-mono text-sm hover:bg-[#00ff9f]/20 transition-colors mx-auto"
+              className="flex items-center gap-2 px-4 py-2 bg-[#D4A039]/10 text-[#D4A039] border border-[#D4A039]/30 rounded font-mono text-sm hover:bg-[#D4A039]/20 transition-colors mx-auto"
             >
               <RefreshCw className="h-4 w-4" />
               Retry
@@ -192,7 +192,7 @@ export const ProjectChatTab: React.FC<ProjectChatTabProps> = ({ projectId }) => 
               <div className="flex items-center gap-3 justify-center">
                 <button
                   onClick={() => setIsStartChatModalOpen(true)}
-                  className="flex items-center gap-2 px-4 py-2 bg-[#00ff9f]/10 text-[#00ff9f] border border-[#00ff9f]/30 rounded font-mono text-sm hover:bg-[#00ff9f]/20 transition-colors"
+                  className="flex items-center gap-2 px-4 py-2 bg-[#D4A039]/10 text-[#D4A039] border border-[#D4A039]/30 rounded font-mono text-sm hover:bg-[#D4A039]/20 transition-colors"
                 >
                   <Plus className="h-4 w-4" />
                   Start Chat
@@ -234,7 +234,7 @@ export const ProjectChatTab: React.FC<ProjectChatTabProps> = ({ projectId }) => 
       {/* Header with action button */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <MessageSquare className="h-5 w-5 text-[#00ff9f]" />
+          <MessageSquare className="h-5 w-5 text-[#D4A039]" />
           <h3 className="text-lg font-mono font-bold text-gray-200">
             Linked Threads ({threads.length})
           </h3>
@@ -249,7 +249,7 @@ export const ProjectChatTab: React.FC<ProjectChatTabProps> = ({ projectId }) => 
           </button>
           <button
             onClick={() => setIsStartChatModalOpen(true)}
-            className="flex items-center gap-2 px-3 py-1.5 bg-[#00ff9f]/10 text-[#00ff9f] border border-[#00ff9f]/30 rounded font-mono text-sm hover:bg-[#00ff9f]/20 transition-colors"
+            className="flex items-center gap-2 px-3 py-1.5 bg-[#D4A039]/10 text-[#D4A039] border border-[#D4A039]/30 rounded font-mono text-sm hover:bg-[#D4A039]/20 transition-colors"
           >
             <Plus className="h-4 w-4" />
             Start Chat
