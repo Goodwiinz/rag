@@ -15,7 +15,7 @@ import { cn } from '@/lib/utils';
 export default function DocumentsPage() {
   const { isAuthenticated } = useAuthStore();
   const [mounted, setMounted] = useState(false);
-  
+
   const {
     documents: rawDocuments,
     loading,
@@ -32,7 +32,7 @@ export default function DocumentsPage() {
     selectedDocuments,
     retryDocument,
     updatePage,
-    updatePageSize
+    updatePageSize,
   } = useDocuments({ autoFetch: true, initialPageSize: 10 });
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -45,11 +45,12 @@ export default function DocumentsPage() {
 
   // Update backend filters when local state changes
   useEffect(() => {
-    const backendStatus = statusFilter === 'all' ? undefined : [statusFilter as any];
+    const backendStatus =
+      statusFilter === 'all' ? undefined : [statusFilter as any];
     const timeoutId = setTimeout(() => {
-      updateFilters({ 
+      updateFilters({
         search_term: searchQuery || undefined,
-        status: backendStatus
+        status: backendStatus,
       });
     }, 300); // Debounce search
     return () => clearTimeout(timeoutId);
@@ -58,9 +59,15 @@ export default function DocumentsPage() {
   const stats = useMemo(() => {
     return {
       total: pagination.total,
-      visible_indexed: rawDocuments.filter(d => d.processing_status === 'indexed').length,
-      visible_processing: rawDocuments.filter(d => d.processing_status === 'processing').length,
-      visible_failed: rawDocuments.filter(d => d.processing_status === 'failed').length,
+      visible_indexed: rawDocuments.filter(
+        (d) => d.processing_status === 'indexed'
+      ).length,
+      visible_processing: rawDocuments.filter(
+        (d) => d.processing_status === 'processing'
+      ).length,
+      visible_failed: rawDocuments.filter(
+        (d) => d.processing_status === 'failed'
+      ).length,
     };
   }, [pagination.total, rawDocuments]);
 
@@ -77,7 +84,11 @@ export default function DocumentsPage() {
   };
 
   const handleBulkDelete = async () => {
-    if (confirm(`Are you sure you want to delete ${selectedDocuments.size} documents?`)) {
+    if (
+      confirm(
+        `Are you sure you want to delete ${selectedDocuments.size} documents?`
+      )
+    ) {
       setIsBulkDeleting(true);
       try {
         await deleteSelectedDocuments();
@@ -112,7 +123,7 @@ export default function DocumentsPage() {
               <Folder className="w-6 h-6 text-[var(--phosphor-green)] relative z-10" />
             </div>
             <div>
-              <h1 className="text-xl font-mono font-bold text-[var(--terminal-text)] tracking-wider flex items-center gap-2">
+              <h1 className="text-2xl font-mono font-bold text-[var(--terminal-text)] tracking-wider flex items-center gap-2">
                 DOCUMENT_REPOSITORY
                 <span className="text-xs px-2 py-0.5 rounded-full bg-[var(--terminal-elevated)] text-[var(--terminal-text-dim)] border border-[var(--terminal-border)]">
                   v2.0
@@ -132,12 +143,10 @@ export default function DocumentsPage() {
               className="border-[var(--terminal-border)] bg-[var(--terminal-surface)] text-[var(--terminal-text-dim)] hover:text-[var(--phosphor-green)] hover:border-[var(--phosphor-green)]/30"
               title="Refresh Documents"
             >
-              <RefreshCw className={cn("w-4 h-4", loading && "animate-spin")} />
+              <RefreshCw className={cn('w-4 h-4', loading && 'animate-spin')} />
             </Button>
             <Link href="/documents/upload">
-              <Button
-                className="gap-2 bg-[var(--phosphor-green)] text-[var(--terminal-bg)] font-mono text-xs font-bold hover:shadow-[0_0_20px_var(--phosphor-green-glow)] hover:bg-[var(--phosphor-green)]/90"
-              >
+              <Button className="gap-2 bg-[var(--phosphor-green)] text-[var(--terminal-bg)] font-mono text-xs font-bold hover:shadow-[0_0_20px_var(--phosphor-green-glow)] hover:bg-[var(--phosphor-green)]/90">
                 <Upload className="w-3.5 h-3.5" />
                 UPLOAD_FILES
               </Button>
@@ -162,12 +171,12 @@ export default function DocumentsPage() {
 
         {/* Document List */}
         <DocumentList
-          documents={rawDocuments.map(doc => ({
+          documents={rawDocuments.map((doc) => ({
             ...doc,
             file_type: doc.file_type || '',
             file_size: doc.file_size || 0,
             upload_timestamp: doc.upload_timestamp || '',
-            processing_status: doc.processing_status
+            processing_status: doc.processing_status,
           }))}
           loading={loading}
           selectedDocuments={selectedDocuments}

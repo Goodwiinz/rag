@@ -9,8 +9,8 @@ import { Input } from '@/components/ui/input';
 import { Slider } from '@/components/ui/slider';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
-import { Search, Activity } from 'lucide-react';
-import Link from 'next/link';
+import { Activity } from 'lucide-react';
+import { EmptyState } from '@/components/ui/EmptyState';
 import {
   AggregateStats,
   BottleneckReport,
@@ -107,25 +107,12 @@ function QueryExplorer() {
         </CardHeader>
         <CardContent className="max-h-[600px] space-y-1 overflow-y-auto">
           {traces.length === 0 && (
-            <div className="flex flex-col items-center justify-center py-12">
-              <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center mb-3">
-                <Activity className="w-6 h-6 text-primary" />
-              </div>
-              <h3 className="font-mono font-bold text-foreground text-sm mb-1">
-                NO_TRACES_CAPTURED
-              </h3>
-              <p className="text-muted-foreground font-mono text-xs max-w-xs text-center mb-4">
-                Send a RAG query to start recording pipeline diagnostics and
-                performance traces.
-              </p>
-              <Link
-                href="/search"
-                className="flex items-center gap-2 px-3 py-1.5 bg-primary/10 text-primary border border-primary/30 rounded font-mono text-xs hover:bg-primary/20 transition-colors"
-              >
-                <Search className="h-3 w-3" />
-                OPEN_SEARCH
-              </Link>
-            </div>
+            <EmptyState
+              icon={Activity}
+              title="NO_TRACES_CAPTURED"
+              description="Send a RAG query to start recording pipeline diagnostics and performance traces."
+              action={{ label: 'OPEN_SEARCH', href: '/search' }}
+            />
           )}
           {traces.map((t) => (
             <button
@@ -883,8 +870,10 @@ export function RetrievalDiagnosticsDashboard({
   return (
     <div className={cn('space-y-6', className)}>
       <div>
-        <h2 className="text-lg font-semibold">Retrieval Diagnostics</h2>
-        <p className="text-muted-foreground text-sm">
+        <h1 className="text-2xl font-mono font-bold text-[var(--terminal-text)] tracking-wider">
+          RETRIEVAL_DIAGNOSTICS
+        </h1>
+        <p className="text-xs font-mono text-muted-foreground mt-0.5 uppercase tracking-widest">
           Inspect the RAG retrieval pipeline, identify bottlenecks, and tune
           search weights.
         </p>

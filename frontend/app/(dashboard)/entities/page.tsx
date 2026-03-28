@@ -590,8 +590,8 @@ function EntityManagementContent() {
                 <Network className="w-6 h-6 text-[var(--phosphor-green)]" />
               </div>
               <div>
-                <h1 className="text-xl font-mono font-bold text-[var(--terminal-text)] tracking-wider">
-                  Neural Entity Registry
+                <h1 className="text-2xl font-mono font-bold text-[var(--terminal-text)] tracking-wider">
+                  NEURAL_ENTITY_REGISTRY
                 </h1>
                 <p className="text-xs font-mono text-[var(--terminal-text-dim)] mt-0.5 uppercase tracking-widest">
                   Knowledge Graph Nodes Management
