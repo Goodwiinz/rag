@@ -36,12 +36,12 @@ body {
     /* Sidebar Variables - Force dark theme for Terminal Observatory */
     --sidebar-background: 240 20% 5%; /* #0a0a0f */
     --sidebar-foreground: 0 0% 100%;
-    --sidebar-primary: 157 100% 50%; /* Phosphor green */
+    --sidebar-primary: 43 66% 53%; /* Phosphor green */
     --sidebar-primary-foreground: 240 20% 5%;
-    --sidebar-accent: 157 100% 50% / 0.1;
-    --sidebar-accent-foreground: 157 100% 50%;
-    --sidebar-border: 157 100% 50% / 0.1;
-    --sidebar-ring: 157 100% 50%;
+    --sidebar-accent: 43 66% 53% / 0.1;
+    --sidebar-accent-foreground: 43 66% 53%;
+    --sidebar-border: 43 66% 53% / 0.1;
+    --sidebar-ring: 43 66% 53%;
 
     /* Tambo Specific Variables needed for tambo components */
     --radius: 0.5rem;
@@ -61,7 +61,7 @@ body {
     --card-foreground: 0 0% 100%;
     --popover: 240 16% 6%;
     --popover-foreground: 0 0% 100%;
-    --primary: 157 100% 50%; /* #00ff9f */
+    --primary: 43 66% 53%; /* #D4A039 */
     --primary-foreground: 240 20% 5%;
     --secondary: 190 100% 50%; /* #00d4ff */
     --secondary-foreground: 240 20% 5%;
@@ -72,8 +72,8 @@ body {
     --destructive: 0 84% 60%; /* #ef4444 */
     --border: 240 3.7% 15.9%;
     --input: 240 3.7% 15.9%;
-    --ring: 157 100% 50%;
-    --chart-1: 157 100% 50%;
+    --ring: 43 66% 53%;
+    --chart-1: 43 66% 53%;
     --chart-2: 190 100% 50%;
     --chart-3: 43 100% 50%;
     --chart-4: 280 65% 60%;
@@ -86,10 +86,10 @@ body {
        ================================================================= */
 
     /* Primary Brand Colors */
-    --phosphor-green: #00ff9f;
-    --phosphor-green-dim: #00ff9f80;
-    --phosphor-green-muted: #00ff9f33;
-    --phosphor-green-glow: rgba(0, 255, 159, 0.15);
+    --phosphor-green: #D4A039;
+    --phosphor-green-dim: #D4A03980;
+    --phosphor-green-muted: #D4A03933;
+    --phosphor-green-glow: rgba(212, 160, 57, 0.15);
 
     --amber-gold: #ffb700;
     --amber-gold-dim: #ffb70080;
@@ -118,12 +118,12 @@ body {
     /* Sidebar Variables - Terminal Observatory Theme */
     --sidebar-background: 240 20% 5%; /* Same as background - #0a0a0f */
     --sidebar-foreground: 0 0% 100%;
-    --sidebar-primary: 157 100% 50%; /* Phosphor green */
+    --sidebar-primary: 43 66% 53%; /* Phosphor green */
     --sidebar-primary-foreground: 240 20% 5%;
-    --sidebar-accent: 157 100% 50% / 0.1; /* Phosphor green 10% */
-    --sidebar-accent-foreground: 157 100% 50%;
-    --sidebar-border: 157 100% 50% / 0.1; /* Phosphor green 10% */
-    --sidebar-ring: 157 100% 50%;
+    --sidebar-accent: 43 66% 53% / 0.1; /* Phosphor green 10% */
+    --sidebar-accent-foreground: 43 66% 53%;
+    --sidebar-border: 43 66% 53% / 0.1; /* Phosphor green 10% */
+    --sidebar-ring: 43 66% 53%;
 
     /* Tambo Specific Variables needed for tambo components */
     --radius: 0.5rem;

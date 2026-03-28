@@ -25,6 +25,13 @@ import {
   BarChart3,
   PieChart,
   Loader2,
+  List,
+  Route,
+  Search,
+  Layers,
+  FileSearch,
+  GitMerge,
+  HeartPulse,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -664,68 +671,102 @@ function EntityManagementContent() {
 
         {/* Workspace Area */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="bg-[var(--terminal-bg)] border border-[var(--terminal-border)] p-1 rounded-xl mb-4 flex-wrap">
-            <TabsTrigger
-              value="list"
-              className="rounded-lg data-[state=active]:bg-[var(--terminal-elevated)] data-[state=active]:text-[var(--phosphor-green)] font-mono text-xs font-bold"
-            >
-              LIST_LOG
-            </TabsTrigger>
-            <TabsTrigger
-              value="graph"
-              className="rounded-lg data-[state=active]:bg-[var(--terminal-elevated)] data-[state=active]:text-[var(--phosphor-green)] font-mono text-xs font-bold"
-            >
-              GRAPH_VIZ
-            </TabsTrigger>
-            <TabsTrigger
-              value="statistics"
-              className="rounded-lg data-[state=active]:bg-[var(--terminal-elevated)] data-[state=active]:text-[var(--phosphor-green)] font-mono text-xs font-bold"
-            >
-              METRICS
-            </TabsTrigger>
-            <TabsTrigger
-              value="pathfinder"
-              className="rounded-lg data-[state=active]:bg-[var(--terminal-elevated)] data-[state=active]:text-[var(--phosphor-green)] font-mono text-xs font-bold"
-            >
-              PATH_FINDER
-            </TabsTrigger>
-            <TabsTrigger
-              value="search"
-              className="rounded-lg data-[state=active]:bg-[var(--terminal-elevated)] data-[state=active]:text-[var(--phosphor-green)] font-mono text-xs font-bold"
-            >
-              SEARCH
-            </TabsTrigger>
-            <TabsTrigger
-              value="analytics"
-              className="rounded-lg data-[state=active]:bg-[var(--terminal-elevated)] data-[state=active]:text-[var(--phosphor-green)] font-mono text-xs font-bold"
-            >
-              ANALYTICS
-            </TabsTrigger>
-            <TabsTrigger
-              value="bulk"
-              className="rounded-lg data-[state=active]:bg-[var(--terminal-elevated)] data-[state=active]:text-[var(--phosphor-green)] font-mono text-xs font-bold"
-            >
-              BULK_OPS
-            </TabsTrigger>
-            <TabsTrigger
-              value="extractor"
-              className="rounded-lg data-[state=active]:bg-[var(--terminal-elevated)] data-[state=active]:text-[var(--phosphor-green)] font-mono text-xs font-bold"
-            >
-              EXTRACTOR
-            </TabsTrigger>
-            <TabsTrigger
-              value="merge"
-              className="rounded-lg data-[state=active]:bg-[var(--terminal-elevated)] data-[state=active]:text-[var(--phosphor-green)] font-mono text-xs font-bold"
-            >
-              MERGE
-            </TabsTrigger>
-            <TabsTrigger
-              value="health"
-              className="rounded-lg data-[state=active]:bg-[var(--terminal-elevated)] data-[state=active]:text-[var(--phosphor-green)] font-mono text-xs font-bold"
-            >
-              HEALTH
-            </TabsTrigger>
-          </TabsList>
+          <div className="mb-4 space-y-2">
+            {/* View group */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="font-mono text-[9px] text-primary uppercase tracking-wider w-14 shrink-0">
+                // View
+              </span>
+              <TabsList className="bg-[var(--terminal-bg)] border border-[var(--terminal-border)] p-1 rounded-lg">
+                <TabsTrigger
+                  value="list"
+                  className="rounded-md data-[state=active]:bg-primary/15 data-[state=active]:text-primary font-mono text-xs gap-1.5"
+                >
+                  <List className="h-3.5 w-3.5" />
+                  List
+                </TabsTrigger>
+                <TabsTrigger
+                  value="graph"
+                  className="rounded-md data-[state=active]:bg-primary/15 data-[state=active]:text-primary font-mono text-xs gap-1.5"
+                >
+                  <Network className="h-3.5 w-3.5" />
+                  Graph
+                </TabsTrigger>
+                <TabsTrigger
+                  value="pathfinder"
+                  className="rounded-md data-[state=active]:bg-primary/15 data-[state=active]:text-primary font-mono text-xs gap-1.5"
+                >
+                  <Route className="h-3.5 w-3.5" />
+                  Path Finder
+                </TabsTrigger>
+                <TabsTrigger
+                  value="search"
+                  className="rounded-md data-[state=active]:bg-primary/15 data-[state=active]:text-primary font-mono text-xs gap-1.5"
+                >
+                  <Search className="h-3.5 w-3.5" />
+                  Search
+                </TabsTrigger>
+              </TabsList>
+
+              {/* Actions group */}
+              <span className="font-mono text-[9px] text-primary uppercase tracking-wider w-14 shrink-0 ml-2">
+                // Actions
+              </span>
+              <TabsList className="bg-[var(--terminal-bg)] border border-[var(--terminal-border)] p-1 rounded-lg">
+                <TabsTrigger
+                  value="bulk"
+                  className="rounded-md data-[state=active]:bg-primary/15 data-[state=active]:text-primary font-mono text-xs gap-1.5"
+                >
+                  <Layers className="h-3.5 w-3.5" />
+                  Bulk Ops
+                </TabsTrigger>
+                <TabsTrigger
+                  value="extractor"
+                  className="rounded-md data-[state=active]:bg-primary/15 data-[state=active]:text-primary font-mono text-xs gap-1.5"
+                >
+                  <FileSearch className="h-3.5 w-3.5" />
+                  Extract
+                </TabsTrigger>
+                <TabsTrigger
+                  value="merge"
+                  className="rounded-md data-[state=active]:bg-primary/15 data-[state=active]:text-primary font-mono text-xs gap-1.5"
+                >
+                  <GitMerge className="h-3.5 w-3.5" />
+                  Merge
+                </TabsTrigger>
+              </TabsList>
+            </div>
+
+            {/* Monitor group */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="font-mono text-[9px] text-primary uppercase tracking-wider w-14 shrink-0">
+                // Monitor
+              </span>
+              <TabsList className="bg-[var(--terminal-bg)] border border-[var(--terminal-border)] p-1 rounded-lg">
+                <TabsTrigger
+                  value="statistics"
+                  className="rounded-md data-[state=active]:bg-primary/15 data-[state=active]:text-primary font-mono text-xs gap-1.5"
+                >
+                  <TrendingUp className="h-3.5 w-3.5" />
+                  Metrics
+                </TabsTrigger>
+                <TabsTrigger
+                  value="analytics"
+                  className="rounded-md data-[state=active]:bg-primary/15 data-[state=active]:text-primary font-mono text-xs gap-1.5"
+                >
+                  <BarChart3 className="h-3.5 w-3.5" />
+                  Analytics
+                </TabsTrigger>
+                <TabsTrigger
+                  value="health"
+                  className="rounded-md data-[state=active]:bg-primary/15 data-[state=active]:text-primary font-mono text-xs gap-1.5"
+                >
+                  <HeartPulse className="h-3.5 w-3.5" />
+                  Health
+                </TabsTrigger>
+              </TabsList>
+            </div>
+          </div>
 
           <TabsContent value="list" className="mt-0 outline-none">
             <div className="rounded-xl border border-[var(--terminal-border)] bg-[var(--terminal-surface)] overflow-hidden shadow-xl">

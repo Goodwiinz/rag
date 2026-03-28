@@ -75,8 +75,8 @@ const toneConfig: Record<
   },
   concise: {
     label: 'Concise',
-    color: 'text-[#00ff9f]',
-    bg: 'bg-[#00ff9f]/10 border-[#00ff9f]/30',
+    color: 'text-[#D4A039]',
+    bg: 'bg-[#D4A039]/10 border-[#D4A039]/30',
   },
   expanded: {
     label: 'Expanded',
@@ -171,7 +171,7 @@ export const RewriteDiffView: React.FC<RewriteDiffViewProps> = ({
                   key={idx}
                   className={cn(
                     entry.type === 'added' &&
-                      'rounded-sm bg-[#00ff9f]/20 px-0.5 text-[#8ef9d0]'
+                      'rounded-sm bg-[#D4A039]/20 px-0.5 text-[#8ef9d0]'
                   )}
                 >
                   {entry.word}{' '}
@@ -195,7 +195,7 @@ export const RewriteDiffView: React.FC<RewriteDiffViewProps> = ({
         </Button>
         <Button
           size="sm"
-          className="gap-1.5 bg-[#00ff9f]/10 text-[#00ff9f] hover:bg-[#00ff9f]/20"
+          className="gap-1.5 bg-[#D4A039]/10 text-[#D4A039] hover:bg-[#D4A039]/20"
           onClick={() => onAccept(rewritten)}
           aria-label="Accept rewrite"
         >

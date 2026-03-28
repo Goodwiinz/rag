@@ -64,7 +64,7 @@ export function TrackingTab({
                 <button
                   type="button"
                   onClick={() => onApplyCategoryPreset('core')}
-                  className="rounded-md border border-[#00FF9F]/25 px-2 py-1 text-[9px] font-mono uppercase tracking-wide text-[#00FF9F] hover:bg-[#00FF9F]/10"
+                  className="rounded-md border border-[#D4A039]/25 px-2 py-1 text-[9px] font-mono uppercase tracking-wide text-[#D4A039] hover:bg-[#D4A039]/10"
                 >
                   Core AI
                 </button>
@@ -105,7 +105,7 @@ export function TrackingTab({
                   selectedCategories.map((category) => (
                     <span
                       key={category}
-                      className="rounded-md border border-[#00FF9F]/20 bg-[#00FF9F]/10 px-2 py-0.5 text-[9px] font-mono uppercase tracking-wide text-[#00FF9F]"
+                      className="rounded-md border border-[#D4A039]/20 bg-[#D4A039]/10 px-2 py-0.5 text-[9px] font-mono uppercase tracking-wide text-[#D4A039]"
                     >
                       {category}
                     </span>
@@ -145,8 +145,8 @@ export function TrackingTab({
               }
               className={cn(
                 'inline-flex items-center gap-2 rounded-lg px-5 py-2.5 text-[11px] font-mono font-bold uppercase transition-colors touch-manipulation',
-                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00FF9F]/60 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0A0A0A]',
-                'bg-[#00FF9F] text-[#0A0A0A] hover:bg-[#00CC7F] disabled:cursor-not-allowed disabled:opacity-45'
+                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D4A039]/60 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0A0A0A]',
+                'bg-[#D4A039] text-[#0A0A0A] hover:bg-[#B8882F] disabled:cursor-not-allowed disabled:opacity-45'
               )}
             >
               {isTracking ? (
@@ -174,9 +174,9 @@ export function TrackingTab({
               <span className="text-[9px] font-mono font-bold uppercase tracking-widest text-[#9CA3AF]">
                 Activity Feed
               </span>
-              <span className="inline-flex items-center gap-1.5 text-[9px] font-mono text-[#00FF9F]">
+              <span className="inline-flex items-center gap-1.5 text-[9px] font-mono text-[#D4A039]">
                 <span
-                  className="h-1.5 w-1.5 rounded-full bg-[#00FF9F]"
+                  className="h-1.5 w-1.5 rounded-full bg-[#D4A039]"
                   aria-hidden="true"
                 />
                 Live
@@ -190,7 +190,7 @@ export function TrackingTab({
                     {
                       label: 'New',
                       value: trackingResult.result.summary.new,
-                      color: 'text-[#00FF9F]',
+                      color: 'text-[#D4A039]',
                     },
                     {
                       label: 'Updated',
@@ -254,7 +254,7 @@ export function TrackingTab({
                 </div>
 
                 {trackingResult.result.applied && (
-                  <div className="rounded-lg border border-[#00FF9F]/25 bg-[#00FF9F]/5 p-3 text-[10px] font-mono text-[#E5E7EB]">
+                  <div className="rounded-lg border border-[#D4A039]/25 bg-[#D4A039]/5 p-3 text-[10px] font-mono text-[#E5E7EB]">
                     Knowledge graph synchronization has been queued for detected
                     updates.
                   </div>

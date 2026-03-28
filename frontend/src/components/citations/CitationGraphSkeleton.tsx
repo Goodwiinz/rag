@@ -28,7 +28,7 @@ export const CitationGraphSkeleton: React.FC<CitationGraphSkeletonProps> = ({
       <div className="absolute inset-0 p-8">
         {/* Central node */}
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
-          <div className="w-16 h-16 rounded-full bg-[#00ff9f]/10 border-2 border-[#00ff9f]/30 animate-pulse" />
+          <div className="w-16 h-16 rounded-full bg-[#D4A039]/10 border-2 border-[#D4A039]/30 animate-pulse" />
         </div>
 
         {/* Surrounding nodes */}
@@ -69,7 +69,7 @@ export const CitationGraphSkeleton: React.FC<CitationGraphSkeletonProps> = ({
 
       {/* Loading text */}
       <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2">
-        <div className="w-4 h-4 border-2 border-[#00ff9f]/30 border-t-[#00ff9f] rounded-full animate-spin" />
+        <div className="w-4 h-4 border-2 border-[#D4A039]/30 border-t-[#D4A039] rounded-full animate-spin" />
         <span className="text-sm text-gray-500 font-mono">Loading citation graph...</span>
       </div>
 

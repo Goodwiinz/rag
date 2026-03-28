@@ -9,6 +9,8 @@ import { Input } from '@/components/ui/input';
 import { Slider } from '@/components/ui/slider';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
+import { Search, Activity } from 'lucide-react';
+import Link from 'next/link';
 import {
   AggregateStats,
   BottleneckReport,
@@ -41,9 +43,9 @@ function HealthBadge({ health }: { health: string }) {
 function StageHealth({ stage, health }: { stage: string; health: string }) {
   const color =
     health === 'green'
-      ? 'bg-[#00ff9f]'
+      ? 'bg-primary'
       : health === 'yellow'
-        ? 'bg-[#ffb700]'
+        ? 'bg-[var(--amber-gold)]'
         : 'bg-red-500';
   return (
     <div className="flex items-center gap-2">
@@ -105,9 +107,25 @@ function QueryExplorer() {
         </CardHeader>
         <CardContent className="max-h-[600px] space-y-1 overflow-y-auto">
           {traces.length === 0 && (
-            <p className="text-muted-foreground text-sm">
-              No traces yet. Send a RAG query to start capturing diagnostics.
-            </p>
+            <div className="flex flex-col items-center justify-center py-12">
+              <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center mb-3">
+                <Activity className="w-6 h-6 text-primary" />
+              </div>
+              <h3 className="font-mono font-bold text-foreground text-sm mb-1">
+                NO_TRACES_CAPTURED
+              </h3>
+              <p className="text-muted-foreground font-mono text-xs max-w-xs text-center mb-4">
+                Send a RAG query to start recording pipeline diagnostics and
+                performance traces.
+              </p>
+              <Link
+                href="/search"
+                className="flex items-center gap-2 px-3 py-1.5 bg-primary/10 text-primary border border-primary/30 rounded font-mono text-xs hover:bg-primary/20 transition-colors"
+              >
+                <Search className="h-3 w-3" />
+                OPEN_SEARCH
+              </Link>
+            </div>
           )}
           {traces.map((t) => (
             <button
@@ -115,7 +133,7 @@ function QueryExplorer() {
               className={cn(
                 'w-full rounded-md border p-2 text-left text-sm transition-colors',
                 selectedTrace?.trace_id === t.trace_id
-                  ? 'border-[#00ff9f]/50 bg-[#00ff9f]/10'
+                  ? 'border-primary/50 bg-primary/10'
                   : 'hover:bg-muted/50'
               )}
               onClick={() => selectTrace(t.trace_id)}
@@ -271,7 +289,7 @@ function QueryExplorer() {
                                     className={cn(
                                       'text-right',
                                       d.delta > 0
-                                        ? 'text-[#00ff9f]'
+                                        ? 'text-primary'
                                         : 'text-red-400'
                                     )}
                                   >
@@ -351,7 +369,7 @@ function FindingCard({ finding }: { finding: Finding }) {
     finding.severity === 'high'
       ? 'border-red-500/50'
       : finding.severity === 'medium'
-        ? 'border-[#ffb700]/50'
+        ? 'border-[var(--amber-gold)]/50'
         : 'border-border';
 
   return (

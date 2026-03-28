@@ -82,7 +82,7 @@ export function ExtractTab({
                 onChange={(e) => onExtractPaperIdsChange(e.target.value)}
                 placeholder={'2501.12345\n2501.67890…'}
                 rows={7}
-                className="w-full rounded-lg border border-[#1A1A1A] bg-[#111111] p-3 font-mono text-xs text-[#E5E7EB] placeholder:text-[#6B7280] focus:border-[#00FF9F]/50 focus:outline-none"
+                className="w-full rounded-lg border border-[#1A1A1A] bg-[#111111] p-3 font-mono text-xs text-[#E5E7EB] placeholder:text-[#6B7280] focus:border-[#D4A039]/50 focus:outline-none"
               />
             </div>
 
@@ -216,7 +216,7 @@ export function ExtractTab({
                     <div className="text-[8px] font-mono uppercase tracking-widest text-[#6B7280]">
                       Status
                     </div>
-                    <div className="mt-1 text-sm font-mono font-bold text-[#00FF9F]">
+                    <div className="mt-1 text-sm font-mono font-bold text-[#D4A039]">
                       {extractionResult.status}
                     </div>
                   </div>
@@ -275,7 +275,7 @@ export function ExtractTab({
                               'rounded border px-2 py-0.5 text-[9px] font-mono uppercase tracking-wide',
                               hasFailed
                                 ? 'border-[#A83A3A] text-[#FFAEAE]'
-                                : 'border-[#00FF9F]/25 text-[#00FF9F]'
+                                : 'border-[#D4A039]/25 text-[#D4A039]'
                             )}
                           >
                             {result.extraction_status}

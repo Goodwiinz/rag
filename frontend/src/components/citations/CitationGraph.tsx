@@ -207,14 +207,14 @@ function buildClusters(nodes: GraphNode[], clusterLabels: Map<string, string>): 
 
 // Theme colors matching Terminal Observatory
 const THEME = {
-  phosphorGreen: '#00ff9f',
+  phosphorGreen: '#D4A039',
   amber: '#ffb700',
   cyan: '#00d4ff',
   background: '#0a0a0a',
   nodeBorder: '#1a1a1a',
   edgeColor: '#333333',
   textColor: '#e0e0e0',
-  uploadedNode: '#00ff9f',
+  uploadedNode: '#D4A039',
   externalNode: '#ffb700',
   selectedBorder: '#00d4ff',
 };
@@ -675,7 +675,7 @@ export const CitationGraph: React.FC<CitationGraphProps> = ({
         style={{ height }}
       >
         <div className="flex flex-col items-center gap-2">
-          <Loader2 className="h-8 w-8 animate-spin text-[#00ff9f]" />
+          <Loader2 className="h-8 w-8 animate-spin text-[#D4A039]" />
           <span className="text-sm text-gray-400 font-mono">Loading citation graph...</span>
         </div>
       </div>
@@ -711,7 +711,7 @@ export const CitationGraph: React.FC<CitationGraphProps> = ({
       <div className="absolute top-4 right-4 flex flex-col gap-2">
         <button
           onClick={zoomIn}
-          className="p-2 bg-[#1a1a1a] border border-[#333] rounded hover:bg-[#252525] text-[#00ff9f] font-mono text-sm"
+          className="p-2 bg-[#1a1a1a] border border-[#333] rounded hover:bg-[#252525] text-[#D4A039] font-mono text-sm"
           title="Zoom In"
           aria-label="Zoom In"
         >
@@ -719,7 +719,7 @@ export const CitationGraph: React.FC<CitationGraphProps> = ({
         </button>
         <button
           onClick={zoomOut}
-          className="p-2 bg-[#1a1a1a] border border-[#333] rounded hover:bg-[#252525] text-[#00ff9f] font-mono text-sm"
+          className="p-2 bg-[#1a1a1a] border border-[#333] rounded hover:bg-[#252525] text-[#D4A039] font-mono text-sm"
           title="Zoom Out"
           aria-label="Zoom Out"
         >
@@ -727,7 +727,7 @@ export const CitationGraph: React.FC<CitationGraphProps> = ({
         </button>
         <button
           onClick={fitGraph}
-          className="p-2 bg-[#1a1a1a] border border-[#333] rounded hover:bg-[#252525] text-[#00ff9f] font-mono text-sm"
+          className="p-2 bg-[#1a1a1a] border border-[#333] rounded hover:bg-[#252525] text-[#D4A039] font-mono text-sm"
           title="Fit to View"
           aria-label="Fit to View"
         >
@@ -735,7 +735,7 @@ export const CitationGraph: React.FC<CitationGraphProps> = ({
         </button>
         <button
           onClick={resetView}
-          className="p-2 bg-[#1a1a1a] border border-[#333] rounded hover:bg-[#252525] text-[#00ff9f] font-mono text-sm"
+          className="p-2 bg-[#1a1a1a] border border-[#333] rounded hover:bg-[#252525] text-[#D4A039] font-mono text-sm"
           title="Reset View"
           aria-label="Reset View"
         >
@@ -770,7 +770,7 @@ export const CitationGraph: React.FC<CitationGraphProps> = ({
       <div className="absolute bottom-4 left-4 bg-[#1a1a1a]/90 border border-[#333] rounded p-3">
         <div className="flex items-center gap-4 text-xs font-mono">
           <div className="flex items-center gap-1.5">
-            <div className="w-3 h-3 rounded-full bg-[#00ff9f]" />
+            <div className="w-3 h-3 rounded-full bg-[#D4A039]" />
             <span className="text-gray-400">Uploaded</span>
           </div>
           <div className="flex items-center gap-1.5">
@@ -794,11 +794,11 @@ export const CitationGraph: React.FC<CitationGraphProps> = ({
       {data.metadata && (
         <div className="absolute top-4 left-4 bg-[#1a1a1a]/90 border border-[#333] rounded px-3 py-2">
           <div className="text-xs font-mono text-gray-400">
-            <span className="text-[#00ff9f]">{data.metadata.total_nodes.toLocaleString()}</span> nodes
+            <span className="text-[#D4A039]">{data.metadata.total_nodes.toLocaleString()}</span> nodes
             <span className="mx-2">|</span>
-            <span className="text-[#00ff9f]">{data.metadata.total_edges.toLocaleString()}</span> edges
+            <span className="text-[#D4A039]">{data.metadata.total_edges.toLocaleString()}</span> edges
             <span className="mx-2">|</span>
-            depth: <span className="text-[#00ff9f]">{data.metadata.depth}</span>
+            depth: <span className="text-[#D4A039]">{data.metadata.depth}</span>
             {isClusteredView && (
               <>
                 <span className="mx-2">|</span>

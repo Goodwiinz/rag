@@ -1122,7 +1122,7 @@ function ChatPageContent() {
           <div
             ref={scrollContainerRef}
             onScroll={handleScroll}
-            className="h-full overflow-y-auto terminal-scrollbar"
+            className="h-full overflow-y-auto overflow-x-hidden terminal-scrollbar"
           >
             {/* Authentication Required State */}
             {!isAuthenticated ? (

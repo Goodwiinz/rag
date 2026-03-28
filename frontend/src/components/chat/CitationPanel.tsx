@@ -111,7 +111,7 @@ export function CitationPanel({
             className
           )}
           style={{
-            boxShadow: `-20px 0 60px rgba(0, 255, 159, 0.03)`
+            boxShadow: `-20px 0 60px rgba(212, 160, 57, 0.03)`
           }}
         >
           {/* Header */}

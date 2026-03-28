@@ -26,7 +26,7 @@ interface IntegrityDetailProps {
 }
 
 const levelColors: Record<IntegrityLevel, string> = {
-  human: '#00ff9f',
+  human: '#D4A039',
   mixed: '#ffb700',
   ai: '#ef4444',
 };

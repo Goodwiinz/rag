@@ -45,9 +45,9 @@ const STATUS_BADGE: Record<
     label: 'Paused',
   },
   completed: {
-    bg: 'bg-[#00ff9f]/10',
-    text: 'text-[#00ff9f]',
-    border: 'border-[#00ff9f]/30',
+    bg: 'bg-[#D4A039]/10',
+    text: 'text-[#D4A039]',
+    border: 'border-[#D4A039]/30',
     label: 'Completed',
   },
   failed: {
@@ -241,7 +241,7 @@ export function RunView({ runId }: RunViewProps) {
   if (isLoading && !activeRun) {
     return (
       <div className="flex items-center justify-center py-20">
-        <Loader2 className="h-6 w-6 animate-spin text-[#00ff9f]" />
+        <Loader2 className="h-6 w-6 animate-spin text-[#D4A039]" />
         <span className="ml-2 font-mono text-sm text-gray-500">
           Loading run...
         </span>
@@ -313,7 +313,7 @@ export function RunView({ runId }: RunViewProps) {
           <button
             onClick={handleResume}
             disabled={actionLoading}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono bg-[#00ff9f]/10 text-[#00ff9f] border border-[#00ff9f]/30 rounded hover:bg-[#00ff9f]/20 transition-colors disabled:opacity-50"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono bg-[#D4A039]/10 text-[#D4A039] border border-[#D4A039]/30 rounded hover:bg-[#D4A039]/20 transition-colors disabled:opacity-50"
           >
             {actionLoading ? (
               <Loader2 className="h-3.5 w-3.5 animate-spin" />

@@ -49,7 +49,7 @@ export const DraftComparison: React.FC<DraftComparisonProps> = ({
   }, [draftA, draftB]);
 
   const getTrendIcon = (diff: number) => {
-    if (diff > 0) return <TrendingUp className="h-4 w-4 text-[#00ff9f]" />;
+    if (diff > 0) return <TrendingUp className="h-4 w-4 text-[#D4A039]" />;
     if (diff < 0) return <TrendingDown className="h-4 w-4 text-red-400" />;
     return <Minus className="h-4 w-4 text-gray-500" />;
   };
@@ -61,13 +61,13 @@ export const DraftComparison: React.FC<DraftComparisonProps> = ({
 
   const similarityColor =
     comparison.similarity_score > 0.8
-      ? 'text-[#00ff9f]'
+      ? 'text-[#D4A039]'
       : comparison.similarity_score > 0.5
       ? 'text-[#ffb700]'
       : 'text-red-400';
 
   const lineClass = (type: 'added' | 'removed' | 'unchanged') => {
-    if (type === 'added') return 'bg-[#00ff9f]/10 text-[#8ef9d0]';
+    if (type === 'added') return 'bg-[#D4A039]/10 text-[#8ef9d0]';
     if (type === 'removed') return 'bg-red-500/10 text-red-300';
     return 'text-gray-400';
   };

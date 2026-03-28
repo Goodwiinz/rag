@@ -109,7 +109,7 @@ export const OutlineDialog: React.FC<OutlineDialogProps> = ({
         <div className="flex items-center justify-between border-b border-[#1a1a1a] p-4">
           <div className="flex items-center gap-2">
             <ListTree className="h-5 w-5 text-[#00d4ff]" />
-            <h2 className="font-mono text-lg font-bold text-[#00ff9f]">
+            <h2 className="font-mono text-lg font-bold text-[#D4A039]">
               Generate Outline
             </h2>
           </div>
@@ -132,7 +132,7 @@ export const OutlineDialog: React.FC<OutlineDialogProps> = ({
               onChange={(e) => setQuestion(e.target.value)}
               placeholder="What is your research question? (min 10 characters)"
               rows={3}
-              className="w-full resize-none rounded border border-[#333] bg-[#1a1a1a] px-3 py-2 font-mono text-sm text-gray-300 placeholder-gray-600 focus:border-[#00ff9f] focus:outline-none"
+              className="w-full resize-none rounded border border-[#333] bg-[#1a1a1a] px-3 py-2 font-mono text-sm text-gray-300 placeholder-gray-600 focus:border-[#D4A039] focus:outline-none"
             />
           </div>
 
@@ -149,8 +149,8 @@ export const OutlineDialog: React.FC<OutlineDialogProps> = ({
                   className={cn(
                     'rounded border px-3 py-1.5 font-mono text-xs transition-colors',
                     style === opt.value
-                      ? 'border-[#00ff9f]/50 bg-[#00ff9f]/10 text-[#00ff9f]'
-                      : 'border-[#333] text-gray-400 hover:border-[#00ff9f]/30'
+                      ? 'border-[#D4A039]/50 bg-[#D4A039]/10 text-[#D4A039]'
+                      : 'border-[#333] text-gray-400 hover:border-[#D4A039]/30'
                   )}
                 >
                   {opt.label}
@@ -174,7 +174,7 @@ export const OutlineDialog: React.FC<OutlineDialogProps> = ({
                     type="checkbox"
                     checked={selectedSections.includes(opt.value)}
                     onChange={() => toggleSectionType(opt.value)}
-                    className="accent-[#00ff9f]"
+                    className="accent-[#D4A039]"
                   />
                   <span className="font-mono text-xs text-gray-300">
                     {opt.label}
@@ -200,7 +200,7 @@ export const OutlineDialog: React.FC<OutlineDialogProps> = ({
                       type="checkbox"
                       checked={selectedDocIds.includes(doc.id)}
                       onChange={() => toggleDocId(doc.id)}
-                      className="accent-[#00ff9f]"
+                      className="accent-[#D4A039]"
                     />
                     <span className="truncate font-mono text-xs">
                       {doc.title}
@@ -216,7 +216,7 @@ export const OutlineDialog: React.FC<OutlineDialogProps> = ({
             <Button
               onClick={handleGenerate}
               disabled={loading || question.trim().length < 10}
-              className="w-full gap-2 bg-[#00ff9f]/10 text-[#00ff9f] hover:bg-[#00ff9f]/20 disabled:opacity-50"
+              className="w-full gap-2 bg-[#D4A039]/10 text-[#D4A039] hover:bg-[#D4A039]/20 disabled:opacity-50"
               aria-label="Generate outline"
             >
               {loading ? (
@@ -283,7 +283,7 @@ export const OutlineDialog: React.FC<OutlineDialogProps> = ({
               </Button>
               <Button
                 size="sm"
-                className="gap-1.5 bg-[#00ff9f]/10 text-[#00ff9f] hover:bg-[#00ff9f]/20"
+                className="gap-1.5 bg-[#D4A039]/10 text-[#D4A039] hover:bg-[#D4A039]/20"
                 onClick={() => {
                   onInsertOutline(result.sections);
                   handleClose();

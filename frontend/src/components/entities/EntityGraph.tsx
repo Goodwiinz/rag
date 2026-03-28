@@ -24,7 +24,7 @@ const TERMINAL_COLORS = {
   textDim: '#8b949e',
   background: '#0d1117',
   border: '#30363d',
-  primary: '#00ff9f', // Phosphor Green
+  primary: '#D4A039', // Phosphor Green
   secondary: '#00d4ff', // Cyan
   accent: '#ffb700', // Amber
   error: '#ff4757',

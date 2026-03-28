@@ -81,7 +81,7 @@ export function CitationLink({
         // Terminal Observatory theme colors
         citation
           ? isActive
-            ? 'bg-primary/30 text-primary border-primary/50 shadow-[0_0_8px_rgba(0,255,159,0.3)]'
+            ? 'bg-primary/30 text-primary border-primary/50 shadow-[0_0_8px_rgba(212,160,57,0.3)]'
             : canNavigate
               ? 'bg-primary/15 text-primary hover:bg-primary/25 hover:border-primary/30 cursor-pointer'
               : 'bg-accent/15 text-accent hover:bg-accent/25 hover:border-accent/30 cursor-default'
@@ -132,11 +132,11 @@ export function CitationLink({
             <div className={cn(
               'flex items-center justify-center w-7 h-7 rounded shrink-0 mt-0.5',
               canNavigate
-                ? 'bg-[#00ff9f]/10 border border-[#00ff9f]/20'
+                ? 'bg-[#D4A039]/10 border border-[#D4A039]/20'
                 : 'bg-[#ffb700]/10 border border-[#ffb700]/20'
             )}>
               {canNavigate ? (
-                <FileText className="w-3.5 h-3.5 text-[#00ff9f]" />
+                <FileText className="w-3.5 h-3.5 text-[#D4A039]" />
               ) : (
                 <Archive className="w-3.5 h-3.5 text-[#ffb700]" />
               )}
@@ -146,7 +146,7 @@ export function CitationLink({
             <div className="flex-1 min-w-0">
               <h4
                 className="text-[13px] font-medium leading-snug line-clamp-2"
-                style={{ color: canNavigate ? '#00ff9f' : '#ffb700' }}
+                style={{ color: canNavigate ? '#D4A039' : '#ffb700' }}
               >
                 {citation.title}
               </h4>
@@ -191,8 +191,8 @@ export function CitationLink({
         {previewContent && previewContent.length > 10 && (
           <div className="px-3 py-2.5 border-b border-[#1a1a1a]">
             <div className="flex items-center gap-1.5 mb-1.5">
-              <BookOpen className="w-3 h-3 text-[#00ff9f]/50" />
-              <span className="text-[9px] font-mono uppercase tracking-wider text-[#00ff9f]/50">
+              <BookOpen className="w-3 h-3 text-[#D4A039]/50" />
+              <span className="text-[9px] font-mono uppercase tracking-wider text-[#D4A039]/50">
                 Preview
               </span>
             </div>
@@ -207,7 +207,7 @@ export function CitationLink({
           {canNavigate ? (
             <button
               onClick={handleClick}
-              className="flex items-center gap-1.5 text-[10px] font-mono text-[#00ff9f] hover:text-[#00ff9f]/80 transition-colors"
+              className="flex items-center gap-1.5 text-[10px] font-mono text-[#D4A039] hover:text-[#D4A039]/80 transition-colors"
             >
               View Document
               <ExternalLink className="w-3 h-3" />

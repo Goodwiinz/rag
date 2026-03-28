@@ -71,7 +71,7 @@ export const StartChatModal: React.FC<StartChatModalProps> = ({
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-[#1a1a1a]">
           <div className="flex items-center gap-2">
-            <MessageSquare className="h-5 w-5 text-[#00ff9f]" />
+            <MessageSquare className="h-5 w-5 text-[#D4A039]" />
             <h2 className="font-mono font-bold text-gray-200">Start New Chat</h2>
           </div>
           <button
@@ -95,7 +95,7 @@ export const StartChatModal: React.FC<StartChatModalProps> = ({
               onChange={(e) => setInitialMessage(e.target.value)}
               placeholder="Enter your first message to start the conversation..."
               disabled={isSubmitting}
-              className="w-full h-32 px-3 py-2 bg-[#1a1a1a] border border-[#333] rounded text-gray-200 font-mono text-sm placeholder:text-gray-600 focus:outline-none focus:border-[#00ff9f]/50 focus:ring-1 focus:ring-[#00ff9f]/30 disabled:opacity-50 resize-none"
+              className="w-full h-32 px-3 py-2 bg-[#1a1a1a] border border-[#333] rounded text-gray-200 font-mono text-sm placeholder:text-gray-600 focus:outline-none focus:border-[#D4A039]/50 focus:ring-1 focus:ring-[#D4A039]/30 disabled:opacity-50 resize-none"
               required
             />
             <p className="text-xs text-gray-600 font-mono mt-1">
@@ -114,7 +114,7 @@ export const StartChatModal: React.FC<StartChatModalProps> = ({
               onChange={(e) => setThreadTitle(e.target.value)}
               placeholder="e.g., Research Discussion - Methods Analysis"
               disabled={isSubmitting}
-              className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#333] rounded text-gray-200 font-mono text-sm placeholder:text-gray-600 focus:outline-none focus:border-[#00ff9f]/50 focus:ring-1 focus:ring-[#00ff9f]/30 disabled:opacity-50"
+              className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#333] rounded text-gray-200 font-mono text-sm placeholder:text-gray-600 focus:outline-none focus:border-[#D4A039]/50 focus:ring-1 focus:ring-[#D4A039]/30 disabled:opacity-50"
             />
             <p className="text-xs text-gray-600 font-mono mt-1">
               If not provided, a title will be generated automatically
@@ -129,7 +129,7 @@ export const StartChatModal: React.FC<StartChatModalProps> = ({
           )}
 
           {/* Info Box */}
-          <div className="p-3 bg-[#00ff9f]/10 border border-[#00ff9f]/30 rounded text-xs font-mono text-[#00ff9f]">
+          <div className="p-3 bg-[#D4A039]/10 border border-[#D4A039]/30 rounded text-xs font-mono text-[#D4A039]">
             This chat will use all documents in this project as RAG context. You can ask questions
             and have natural conversations about your research materials.
           </div>
@@ -147,7 +147,7 @@ export const StartChatModal: React.FC<StartChatModalProps> = ({
             <button
               type="submit"
               disabled={isSubmitting || !initialMessage.trim()}
-              className="flex items-center gap-2 px-4 py-2 bg-[#00ff9f]/10 text-[#00ff9f] border border-[#00ff9f]/30 rounded font-mono text-sm hover:bg-[#00ff9f]/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex items-center gap-2 px-4 py-2 bg-[#D4A039]/10 text-[#D4A039] border border-[#D4A039]/30 rounded font-mono text-sm hover:bg-[#D4A039]/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isSubmitting ? (
                 <>

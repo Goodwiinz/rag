@@ -14,7 +14,7 @@ Enterprise-grade multimodal RAG system that retrieves, reasons, and generates ac
 - **Frontend**: Next.js 15.1.3, React 18, TypeScript, shadcn/ui, Zustand, TanStack Query
 - **Backend**: FastAPI, Python 3.11, Celery, structlog
 - **Databases**: PostgreSQL, Neo4j 5.26, Qdrant v1.7.0, Redis 7, MinIO
-- **Agent**: LangGraph StateGraph, 12 tools, 4 subgraphs, AsyncPostgresSaver
+- **Agent**: LangGraph StateGraph, 13 tools (incl. E2B execute_code), 4 subgraphs, AsyncPostgresSaver
 - **AI**: OpenAI, Anthropic, Azure OpenAI, sentence-transformers, Cohere reranking
 
 ## Key Features
@@ -48,6 +48,11 @@ Enterprise-grade multimodal RAG system that retrieves, reasons, and generates ac
 - Gap analysis vs K-Dense completed March 2026 — 11 issues created in Linear
 - Docs reorganized: 51 loose files sorted into 19 categorized subdirectories
 - Daily sync scheduled (weekdays 9am) for GitHub + Linear + Obsidian memory
+- GOO-187 (E2B sandbox) implementation started 2026-03-24 on `feature/sandboxed-code-execution`; pre-installs numpy, pandas, matplotlib, scipy, scikit-learn, seaborn; HITL confirmation required. **Moved to In Review 2026-03-27** — first gap analysis issue nearing completion. PR to develop still needed.
+- PR #243 merged 2026-03-24: deterministic hybrid search, IDOR hardening, CI stabilization (GOO-198)
+- Agent v2 implementation started 2026-03-26 on `feature/agent-v2`: 6/10 phases done (error recovery, LLM classifier, compactor, planner, reflection, persistent memory). 118 tests passing. Design doc at `docs/plans/2026-03-25-agent-v2-plan.md`.
+- Critical API key auth DoS vulnerability auto-fixed by Jules bot (`fb672af`) on `feature/agent-v2` 2026-03-26
+- Agent v2 repo housekeeping 2026-03-27: eval task suites, lazy import fix, backend test/config reorganization, root cleanup. Jules bot fixed EntityList IconButton a11y.
 
 ## Connections
 

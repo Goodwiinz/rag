@@ -51,7 +51,7 @@ export const CitationNodeDetails: React.FC<CitationNodeDetailsProps> = ({
       {/* Header */}
       <div className="flex items-start justify-between p-4 border-b border-[#1a1a1a]">
         <div className="flex-1 min-w-0">
-          <h3 className="font-mono text-[#00ff9f] text-sm font-medium truncate">
+          <h3 className="font-mono text-[#D4A039] text-sm font-medium truncate">
             {node.title || 'Untitled'}
           </h3>
           {node.year && (
@@ -96,7 +96,7 @@ export const CitationNodeDetails: React.FC<CitationNodeDetailsProps> = ({
         {/* Citation Stats */}
         <div className="grid grid-cols-2 gap-4">
           <div className="bg-[#1a1a1a] rounded p-3">
-            <div className="text-2xl font-mono text-[#00ff9f]">
+            <div className="text-2xl font-mono text-[#D4A039]">
               {node.citation_count || 0}
             </div>
             <div className="text-xs text-gray-500 font-mono">Citations</div>
@@ -169,7 +169,7 @@ export const CitationNodeDetails: React.FC<CitationNodeDetailsProps> = ({
           <span
             className={`px-2 py-1 rounded text-xs font-mono ${
               node.is_uploaded !== false
-                ? 'bg-[#00ff9f]/10 text-[#00ff9f] border border-[#00ff9f]/30'
+                ? 'bg-[#D4A039]/10 text-[#D4A039] border border-[#D4A039]/30'
                 : 'bg-[#ffb700]/10 text-[#ffb700] border border-[#ffb700]/30'
             }`}
           >
@@ -183,7 +183,7 @@ export const CitationNodeDetails: React.FC<CitationNodeDetailsProps> = ({
         {node.document_id && onViewDocument && (
           <button
             onClick={() => onViewDocument(node.document_id!)}
-            className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-[#00ff9f]/10 text-[#00ff9f] border border-[#00ff9f]/30 rounded font-mono text-sm hover:bg-[#00ff9f]/20 transition-colors"
+            className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-[#D4A039]/10 text-[#D4A039] border border-[#D4A039]/30 rounded font-mono text-sm hover:bg-[#D4A039]/20 transition-colors"
           >
             <FileText className="h-4 w-4" />
             View Document

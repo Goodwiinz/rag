@@ -14,7 +14,7 @@ interface CellCitationProps {
 }
 
 function getConfidenceColor(confidence: number): string {
-  if (confidence > 0.8) return 'bg-[#00ff9f]';
+  if (confidence > 0.8) return 'bg-[#D4A039]';
   if (confidence > 0.5) return 'bg-[#ffb700]';
   return 'bg-red-500';
 }
@@ -61,7 +61,7 @@ export function CellCitation({
                 className={cn(
                   'text-[10px] font-mono',
                   conf > 0.8
-                    ? 'text-[#00ff9f]'
+                    ? 'text-[#D4A039]'
                     : conf > 0.5
                       ? 'text-[#ffb700]'
                       : 'text-red-400'

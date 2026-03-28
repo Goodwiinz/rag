@@ -79,7 +79,7 @@ export const PipelineStepper: React.FC<PipelineStepperProps> = ({
                   transition-all duration-300 font-mono text-xs
                   ${
                     status === 'completed'
-                      ? 'bg-[#00ff9f]/20 border-2 border-[#00ff9f] text-[#00ff9f] cursor-pointer hover:bg-[#00ff9f]/30'
+                      ? 'bg-[#D4A039]/20 border-2 border-[#D4A039] text-[#D4A039] cursor-pointer hover:bg-[#D4A039]/30'
                       : status === 'active'
                         ? 'bg-[#00d4ff]/10 border-2 border-[#00d4ff] text-white animate-pulse'
                         : status === 'skipped'
@@ -104,7 +104,7 @@ export const PipelineStepper: React.FC<PipelineStepperProps> = ({
               <span
                 className={`mt-2 text-[11px] font-mono tracking-wide ${
                   status === 'completed'
-                    ? 'text-[#00ff9f]'
+                    ? 'text-[#D4A039]'
                     : status === 'active'
                       ? 'text-white'
                       : status === 'skipped'
@@ -128,7 +128,7 @@ export const PipelineStepper: React.FC<PipelineStepperProps> = ({
               <div
                 className={`flex-1 h-0.5 mx-2 mt-[-20px] ${
                   status === 'completed'
-                    ? 'bg-[#00ff9f]/40'
+                    ? 'bg-[#D4A039]/40'
                     : status === 'skipped'
                       ? 'border-t-2 border-dashed border-gray-700 bg-transparent'
                       : status === 'invalidated'

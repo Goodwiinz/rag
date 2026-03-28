@@ -19,6 +19,13 @@ const nextConfig = {
     ignoreBuildErrors: process.env.NODE_ENV !== 'production',
   },
 
+  // Next.js build lint integration still passes legacy CLI options that do not
+  // work with the flat ESLint config used by this app. Keep linting in the
+  // dedicated npm script instead.
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
+
   // Experimental features for better performance
   experimental: {
     // Optimize CSS

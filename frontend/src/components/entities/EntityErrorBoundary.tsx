@@ -170,7 +170,7 @@ export class EntityErrorBoundary extends React.Component<
                   letterSpacing: '0.1em',
                   textTransform: 'uppercase',
                   color: '#0a0f0a',
-                  backgroundColor: '#00ff9f',
+                  backgroundColor: '#D4A039',
                   border: 'none',
                   borderRadius: '0.375rem',
                   cursor: 'pointer',

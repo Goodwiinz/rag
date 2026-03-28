@@ -36,7 +36,7 @@ export function ProjectDetail({
     <div>
       <div className="mb-6 flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-mono font-bold text-[#00ff9f]">{project.name}</h1>
+          <h1 className="text-2xl font-mono font-bold text-[#D4A039]">{project.name}</h1>
           {project.description && <p className="text-gray-400 mt-2">{project.description}</p>}
         </div>
         {actions}
@@ -52,7 +52,7 @@ export function ProjectDetail({
               onClick={() => onTabChange(tab.id)}
               className={`flex items-center gap-2 px-4 py-2 font-mono text-sm border-b-2 transition-colors ${
                 selected
-                  ? 'text-[#00ff9f] border-[#00ff9f]'
+                  ? 'text-[#D4A039] border-[#D4A039]'
                   : 'text-gray-500 border-transparent hover:text-gray-300'
               }`}
             >

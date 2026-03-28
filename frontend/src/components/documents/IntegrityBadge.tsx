@@ -19,9 +19,9 @@ const levelColors: Record<
   { bg: string; text: string; border: string }
 > = {
   human: {
-    bg: 'bg-[#00ff9f]/10',
-    text: 'text-[#00ff9f]',
-    border: 'border-[#00ff9f]/30',
+    bg: 'bg-[#D4A039]/10',
+    text: 'text-[#D4A039]',
+    border: 'border-[#D4A039]/30',
   },
   mixed: {
     bg: 'bg-[#ffb700]/10',

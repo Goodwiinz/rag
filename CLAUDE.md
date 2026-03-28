@@ -48,7 +48,7 @@ LangGraph StateGraph with intent-based routing to specialized subgraphs.
 - **Python**: Black (88), isort, mypy strict, snake_case, structlog
 - **TypeScript**: Prettier, ESLint, strict mode, camelCase/PascalCase
 - **Imports**: `@/*` aliases for src/app paths
-- **Theme**: NOUS brand — Ink `#0A0A0E`, Surface `#F7F7F5`, Accent `#6366F1`. Inter headings, Source Serif 4 body. Clean, minimalist. shadcn/ui components.
+- **Theme**: NOUS brand — Erebus `#0A0A0E`, Selene `#F7F7F5`, Sol `#D4A039` (accent). Inter headings, Source Serif 4 body. Clean, minimalist. shadcn/ui components.
 
 ## Gotchas
 

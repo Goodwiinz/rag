@@ -263,7 +263,7 @@ export default function LoginPage(): React.JSX.Element | null {
           <div className="flex items-center gap-4 mb-16">
             <div className="relative group">
               <div className="absolute inset-0 bg-[var(--phosphor-green)]/20 blur-xl rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-              <div className="relative flex items-center justify-center w-16 h-16 rounded-2xl border border-[var(--phosphor-green)]/30 bg-[var(--terminal-elevated)] shadow-[0_0_30px_rgba(0,255,159,0.1)] overflow-hidden">
+              <div className="relative flex items-center justify-center w-16 h-16 rounded-2xl border border-[var(--phosphor-green)]/30 bg-[var(--terminal-elevated)] shadow-[0_0_30px_rgba(212,160,57,0.1)] overflow-hidden">
                 <div className="absolute inset-0 bg-gradient-to-br from-[var(--phosphor-green)]/10 to-transparent" />
                 <Terminal className="w-8 h-8 text-[var(--phosphor-green)] relative z-10" />
               </div>
@@ -287,7 +287,7 @@ export default function LoginPage(): React.JSX.Element | null {
           <h2 className="text-6xl font-mono font-bold text-[var(--terminal-text)] leading-[0.9] mb-8 tracking-tight">
             NEURAL DATA
             <br />
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-[var(--phosphor-green)] via-[var(--cyan)] to-[var(--phosphor-green)] bg-[length:200%_auto] animate-gradient">
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-[var(--phosphor-green)] via-[var(--amber-gold)] to-[var(--phosphor-green)] bg-[length:200%_auto]">
               SYNTHESIS
             </span>
           </h2>
@@ -305,7 +305,7 @@ export default function LoginPage(): React.JSX.Element | null {
                 transition={{ delay: 0.4 + i * 0.1 }}
                 className="flex items-center gap-3 group p-3 rounded-lg border border-transparent hover:border-[var(--terminal-border)] hover:bg-[var(--terminal-surface)] transition-all duration-300"
               >
-                <div className="flex items-center justify-center w-8 h-8 rounded-md bg-[var(--terminal-elevated)] border border-[var(--terminal-border)] group-hover:border-[var(--phosphor-green)]/50 group-hover:shadow-[0_0_15px_rgba(0,255,159,0.15)] transition-all">
+                <div className="flex items-center justify-center w-8 h-8 rounded-md bg-[var(--terminal-elevated)] border border-[var(--terminal-border)] group-hover:border-[var(--phosphor-green)]/50 group-hover:shadow-[0_0_15px_rgba(212,160,57,0.15)] transition-all">
                   <feature.icon className="w-4 h-4 text-[var(--phosphor-green)] group-hover:scale-110 transition-transform" />
                 </div>
                 <span className="text-[10px] font-mono font-bold text-[var(--terminal-text-dim)] uppercase tracking-widest group-hover:text-[var(--terminal-text)] transition-colors">
