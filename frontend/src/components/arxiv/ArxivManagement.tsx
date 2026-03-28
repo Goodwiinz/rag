@@ -365,17 +365,17 @@ export default function ArxivManagement() {
             <Activity className="h-6 w-6 text-[#D4A039]" />
           </div>
           <div>
-            <h1 className="text-2xl font-mono font-bold text-[#D4A039]">
-              ArXiv Research Hub
+            <h1 className="text-2xl font-mono font-bold text-[var(--terminal-text)] tracking-wider">
+              ARXIV_RESEARCH_HUB
             </h1>
             <div className="mt-1 flex items-center gap-2">
               <span
-                className="h-1.5 w-1.5 rounded-full bg-[#D4A039]"
+                className="h-1.5 w-1.5 rounded-full bg-primary"
                 aria-hidden="true"
               />
-              <span className="text-sm text-gray-500">
+              <p className="text-xs font-mono text-muted-foreground uppercase tracking-widest">
                 Track, ingest, and extract insights from ArXiv papers
-              </span>
+              </p>
             </div>
           </div>
         </div>
