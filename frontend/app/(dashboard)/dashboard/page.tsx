@@ -153,10 +153,26 @@ export default function DashboardPage() {
 
   // Recent activity
   const recentActivity = [
-    { type: 'process', text: 'Document parsed: attention_is_all_you_need.pdf', time: '2 mins ago' },
-    { type: 'upload', text: 'System scaling: +2 node instances', time: '14 mins ago' },
-    { type: 'search', text: 'Query resolved: 48ms latency', time: '1 hour ago' },
-    { type: 'process', text: 'Vector embeddings generation completed', time: '2 hours ago' },
+    {
+      type: 'process',
+      text: 'Document parsed: attention_is_all_you_need.pdf',
+      time: '2 mins ago',
+    },
+    {
+      type: 'upload',
+      text: 'System scaling: +2 node instances',
+      time: '14 mins ago',
+    },
+    {
+      type: 'search',
+      text: 'Query resolved: 48ms latency',
+      time: '1 hour ago',
+    },
+    {
+      type: 'process',
+      text: 'Vector embeddings generation completed',
+      time: '2 hours ago',
+    },
     { type: 'chat', text: 'Daily backup to cold storage', time: '5 hours ago' },
   ];
 
@@ -451,7 +467,8 @@ export default function DashboardPage() {
                         item.type === 'upload' && 'bg-[var(--phosphor-green)]',
                         item.type === 'search' && 'bg-[var(--cyan)]',
                         item.type === 'chat' && 'bg-[var(--amber-gold)]',
-                        item.type === 'process' && 'bg-purple-500'
+                        item.type === 'process' && 'bg-purple-500',
+                        idx === 0 && 'animate-pulse-live'
                       )}
                     />
                     <div className="flex-1 min-w-0">
