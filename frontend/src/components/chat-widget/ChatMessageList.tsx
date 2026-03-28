@@ -7,6 +7,7 @@
 
 import React, { useRef, useEffect } from 'react';
 import { MessageSquare } from 'lucide-react';
+import { EmptyState } from '@/components/ui/EmptyState';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { ChatMessageItem } from './ChatMessageItem';
 import type { WidgetMessage } from '@/types/chat-widget';
@@ -30,16 +31,12 @@ export function ChatMessageList({
   // Empty state
   if (messages.length === 0 && !isStreaming) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center p-6 text-center">
-        <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center mb-3">
-          <MessageSquare className="h-5 w-5 text-muted-foreground" />
-        </div>
-        <p className="text-sm font-medium text-foreground mb-1">
-          Start a conversation
-        </p>
-        <p className="text-xs text-muted-foreground max-w-[240px]">
-          Ask questions about your project documents, notes, and bibliography.
-        </p>
+      <div className="flex-1 flex items-center justify-center">
+        <EmptyState
+          icon={MessageSquare}
+          title="AWAITING_INPUT"
+          description="Start a conversation to begin your research session."
+        />
       </div>
     );
   }
