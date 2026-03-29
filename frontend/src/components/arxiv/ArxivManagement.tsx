@@ -361,8 +361,8 @@ export default function ArxivManagement() {
     <div className="mx-auto max-w-7xl space-y-6 p-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div className="flex items-start gap-4">
-          <div className="rounded-lg border border-[#1A1A1A] bg-[#0A0A0A] p-2.5">
-            <Activity className="h-6 w-6 text-[#D4A039]" />
+          <div className="rounded-lg border border-[var(--terminal-border)] bg-[var(--terminal-bg)] p-2.5">
+            <Activity className="h-6 w-6 text-primary" />
           </div>
           <div>
             <h1 className="text-2xl font-mono font-bold text-[var(--terminal-text)] tracking-wider">
@@ -381,14 +381,14 @@ export default function ArxivManagement() {
         </div>
 
         {isStatsLoading && !stats && (
-          <div className="inline-flex items-center gap-2 rounded-lg border border-[#1A1A1A] bg-[#111111] px-3 py-2 text-[10px] font-mono text-[#9CA3AF]">
-            <Loader2 className="h-3.5 w-3.5 animate-spin text-[#D4A039]" />
+          <div className="inline-flex items-center gap-2 rounded-lg border border-[var(--terminal-border)] bg-[var(--terminal-surface)] px-3 py-2 text-[10px] font-mono text-muted-foreground">
+            <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
             Loading metrics…
           </div>
         )}
 
         {!isStatsLoading && !stats && statsError && (
-          <div className="max-w-md rounded-lg border border-[#6B2A2A] bg-[#2B1111]/70 px-3 py-2 text-[10px] font-mono text-[#FFAEAE]">
+          <div className="max-w-md rounded-lg border border-red-900 bg-red-950/70 px-3 py-2 text-[10px] font-mono text-red-300">
             Unable to load stats: {statsError}
           </div>
         )}
@@ -399,27 +399,27 @@ export default function ArxivManagement() {
               {
                 label: 'Tracked',
                 value: stats.statistics.total_papers_tracked,
-                color: 'text-[#D4A039]',
+                color: 'text-primary',
               },
               {
                 label: 'Active',
                 value: stats.statistics.active_papers,
-                color: 'text-[#00D4FF]',
+                color: 'text-[var(--cyan)]',
               },
               {
                 label: 'Categories',
                 value: stats.statistics.categories_tracked,
-                color: 'text-[#E5E7EB]',
+                color: 'text-foreground',
               },
               {
                 label: 'Deleted',
                 value: stats.statistics.deleted_papers,
-                color: 'text-[#FFB700]',
+                color: 'text-[var(--amber-gold)]',
               },
             ].map((item) => (
               <div
                 key={item.label}
-                className="min-w-[110px] rounded-lg border border-[#1A1A1A] bg-[#111111] px-3 py-2"
+                className="min-w-[110px] rounded-lg border border-[var(--terminal-border)] bg-[var(--terminal-surface)] px-3 py-2"
               >
                 <div className="text-[10px] font-mono uppercase tracking-wide text-gray-500">
                   {item.label}
@@ -433,8 +433,8 @@ export default function ArxivManagement() {
         )}
       </div>
 
-      <div className="rounded-lg border border-[#1A1A1A] bg-[#0A0A0A]">
-        <div className="border-b border-[#1A1A1A] bg-[#0A0A0A] px-3 py-2 sm:px-4">
+      <div className="rounded-lg border border-[var(--terminal-border)] bg-[var(--terminal-bg)]">
+        <div className="border-b border-[var(--terminal-border)] bg-[var(--terminal-bg)] px-3 py-2 sm:px-4">
           <div className="overflow-x-auto">
             <div
               className="flex min-w-max items-center gap-1"
@@ -456,9 +456,9 @@ export default function ArxivManagement() {
                     onClick={() => setActiveTab(tab.id)}
                     className={cn(
                       'relative flex items-center gap-2 border-b-2 px-4 py-2 text-sm font-mono transition-colors touch-manipulation',
-                      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D4A039]/60 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0A0A0A]',
+                      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background',
                       isActive
-                        ? 'border-[#D4A039] text-[#D4A039]'
+                        ? 'border-primary text-primary'
                         : 'border-transparent text-gray-500 hover:text-gray-300'
                     )}
                   >
@@ -475,7 +475,7 @@ export default function ArxivManagement() {
             isIngesting ||
             isExtracting ||
             message) && (
-            <div className="mt-3 space-y-2 rounded-lg border border-[#1A1A1A] bg-[#0A0A0A]/60 p-3">
+            <div className="mt-3 space-y-2 rounded-lg border border-[var(--terminal-border)] bg-[var(--terminal-bg)]/60 p-3">
               {(isTracking || isSearching || isIngesting || isExtracting) && (
                 <ProgressBar
                   value={progress}
@@ -495,8 +495,8 @@ export default function ArxivManagement() {
                   className={cn(
                     'rounded-md border px-3 py-2 text-[11px] font-mono leading-relaxed',
                     hasMessageError
-                      ? 'border-[#6B2A2A] bg-[#2B1111] text-[#FFAEAE]'
-                      : 'border-[#1A1A1A] bg-[#151515] text-[#9CA3AF]'
+                      ? 'border-red-900 bg-red-950 text-red-300'
+                      : 'border-[var(--terminal-border)] bg-[var(--terminal-surface)] text-muted-foreground'
                   )}
                 >
                   {message}

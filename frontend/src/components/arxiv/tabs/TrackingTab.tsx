@@ -41,44 +41,44 @@ export function TrackingTab({
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center gap-2">
-        <span className="inline-flex items-center gap-1 rounded-md border border-[#1A1A1A] bg-[#0A0A0A]/50 px-2 py-1 text-[9px] font-mono uppercase tracking-wider text-[#9CA3AF]">
-          <Sparkles className="h-3 w-3 text-[#FFB700]" />
+        <span className="inline-flex items-center gap-1 rounded-md border border-[var(--terminal-border)] bg-[var(--terminal-bg)]/50 px-2 py-1 text-[9px] font-mono uppercase tracking-wider text-muted-foreground">
+          <Sparkles className="h-3 w-3 text-[var(--amber-gold)]" />
           Track New and Updated Papers
         </span>
-        <span className="inline-flex items-center rounded-md border border-[#1A1A1A] bg-[#0A0A0A]/50 px-2 py-1 text-[9px] font-mono uppercase tracking-wider text-[#9CA3AF]">
+        <span className="inline-flex items-center rounded-md border border-[var(--terminal-border)] bg-[var(--terminal-bg)]/50 px-2 py-1 text-[9px] font-mono uppercase tracking-wider text-muted-foreground">
           {selectedCategories.length} categories selected
         </span>
-        <span className="inline-flex items-center rounded-md border border-[#1A1A1A] bg-[#0A0A0A]/50 px-2 py-1 text-[9px] font-mono uppercase tracking-wider text-[#9CA3AF]">
+        <span className="inline-flex items-center rounded-md border border-[var(--terminal-border)] bg-[var(--terminal-bg)]/50 px-2 py-1 text-[9px] font-mono uppercase tracking-wider text-muted-foreground">
           {daysBack} day depth
         </span>
       </div>
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-12">
         <div className="space-y-5 xl:col-span-5">
-          <div className="space-y-4 rounded-xl border border-[#1A1A1A] bg-[#0A0A0A]/50 p-4">
+          <div className="space-y-4 rounded-xl border border-[var(--terminal-border)] bg-[var(--terminal-bg)]/50 p-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <h3 className="text-[10px] font-mono font-bold uppercase tracking-widest text-[#9CA3AF]">
+              <h3 className="text-[10px] font-mono font-bold uppercase tracking-widest text-muted-foreground">
                 Category Filter
               </h3>
               <div className="flex flex-wrap gap-2">
                 <button
                   type="button"
                   onClick={() => onApplyCategoryPreset('core')}
-                  className="rounded-md border border-[#D4A039]/25 px-2 py-1 text-[9px] font-mono uppercase tracking-wide text-[#D4A039] hover:bg-[#D4A039]/10"
+                  className="rounded-md border border-primary/25 px-2 py-1 text-[9px] font-mono uppercase tracking-wide text-primary hover:bg-primary/10"
                 >
                   Core AI
                 </button>
                 <button
                   type="button"
                   onClick={() => onApplyCategoryPreset('all')}
-                  className="rounded-md border border-[#1A1A1A] px-2 py-1 text-[9px] font-mono uppercase tracking-wide text-[#6B7280] hover:bg-[#151515]"
+                  className="rounded-md border border-[var(--terminal-border)] px-2 py-1 text-[9px] font-mono uppercase tracking-wide text-muted-foreground hover:bg-[var(--terminal-surface)]"
                 >
                   Select All
                 </button>
                 <button
                   type="button"
                   onClick={() => onApplyCategoryPreset('clear')}
-                  className="rounded-md border border-[#1A1A1A] px-2 py-1 text-[9px] font-mono uppercase tracking-wide text-[#6B7280] hover:bg-[#151515]"
+                  className="rounded-md border border-[var(--terminal-border)] px-2 py-1 text-[9px] font-mono uppercase tracking-wide text-muted-foreground hover:bg-[var(--terminal-surface)]"
                 >
                   Clear
                 </button>
@@ -97,7 +97,7 @@ export function TrackingTab({
             </div>
 
             <div className="space-y-1">
-              <div className="text-[9px] font-mono uppercase tracking-wider text-[#6B7280]">
+              <div className="text-[9px] font-mono uppercase tracking-wider text-muted-foreground">
                 Selected
               </div>
               <div className="flex flex-wrap gap-1.5">
@@ -105,13 +105,13 @@ export function TrackingTab({
                   selectedCategories.map((category) => (
                     <span
                       key={category}
-                      className="rounded-md border border-[#D4A039]/20 bg-[#D4A039]/10 px-2 py-0.5 text-[9px] font-mono uppercase tracking-wide text-[#D4A039]"
+                      className="rounded-md border border-primary/20 bg-primary/10 px-2 py-0.5 text-[9px] font-mono uppercase tracking-wide text-primary"
                     >
                       {category}
                     </span>
                   ))
                 ) : (
-                  <span className="text-[10px] font-mono text-[#6B7280]">
+                  <span className="text-[10px] font-mono text-muted-foreground">
                     No categories selected.
                   </span>
                 )}
@@ -119,7 +119,7 @@ export function TrackingTab({
             </div>
           </div>
 
-          <div className="space-y-5 rounded-xl border border-[#1A1A1A] bg-[#0A0A0A]/50 p-4">
+          <div className="space-y-5 rounded-xl border border-[var(--terminal-border)] bg-[var(--terminal-bg)]/50 p-4">
             <CustomSlider
               label="Lookback Window (Days)"
               value={daysBack}
@@ -145,8 +145,8 @@ export function TrackingTab({
               }
               className={cn(
                 'inline-flex items-center gap-2 rounded-lg px-5 py-2.5 text-[11px] font-mono font-bold uppercase transition-colors touch-manipulation',
-                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D4A039]/60 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0A0A0A]',
-                'bg-[#D4A039] text-[#0A0A0A] hover:bg-[#B8882F] disabled:cursor-not-allowed disabled:opacity-45'
+                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background',
+                'bg-primary text-background hover:bg-primary/80 disabled:cursor-not-allowed disabled:opacity-45'
               )}
             >
               {isTracking ? (
@@ -161,7 +161,7 @@ export function TrackingTab({
               type="button"
               onClick={onRefreshMetrics}
               disabled={isAnyOperationRunning || isStatsLoading}
-              className="rounded-lg border border-[#1A1A1A] px-5 py-2.5 text-[11px] font-mono font-bold uppercase text-[#6B7280] transition-colors hover:bg-[#151515] disabled:cursor-not-allowed disabled:opacity-45"
+              className="rounded-lg border border-[var(--terminal-border)] px-5 py-2.5 text-[11px] font-mono font-bold uppercase text-muted-foreground transition-colors hover:bg-[var(--terminal-surface)] disabled:cursor-not-allowed disabled:opacity-45"
             >
               Refresh Metrics
             </button>
@@ -169,14 +169,14 @@ export function TrackingTab({
         </div>
 
         <div className="space-y-5 xl:col-span-7">
-          <div className="flex min-h-[320px] flex-col rounded-xl border border-[#1A1A1A] bg-[#0A0A0A] p-5">
-            <div className="mb-4 flex items-center justify-between border-b border-[#1A1A1A] pb-3">
-              <span className="text-[9px] font-mono font-bold uppercase tracking-widest text-[#9CA3AF]">
+          <div className="flex min-h-[320px] flex-col rounded-xl border border-[var(--terminal-border)] bg-[var(--terminal-bg)] p-5">
+            <div className="mb-4 flex items-center justify-between border-b border-[var(--terminal-border)] pb-3">
+              <span className="text-[9px] font-mono font-bold uppercase tracking-widest text-muted-foreground">
                 Activity Feed
               </span>
-              <span className="inline-flex items-center gap-1.5 text-[9px] font-mono text-[#D4A039]">
+              <span className="inline-flex items-center gap-1.5 text-[9px] font-mono text-primary">
                 <span
-                  className="h-1.5 w-1.5 rounded-full bg-[#D4A039]"
+                  className="h-1.5 w-1.5 rounded-full bg-primary"
                   aria-hidden="true"
                 />
                 Live
@@ -190,27 +190,27 @@ export function TrackingTab({
                     {
                       label: 'New',
                       value: trackingResult.result.summary.new,
-                      color: 'text-[#D4A039]',
+                      color: 'text-primary',
                     },
                     {
                       label: 'Updated',
                       value: trackingResult.result.summary.updated,
-                      color: 'text-[#00D4FF]',
+                      color: 'text-[var(--cyan)]',
                     },
                     {
                       label: 'Deleted',
                       value: trackingResult.result.summary.deleted,
-                      color: 'text-[#FFB700]',
+                      color: 'text-[var(--amber-gold)]',
                     },
                     {
                       label: 'Errors',
                       value: trackingResult.result.summary.errors,
-                      color: 'text-[#FFAEAE]',
+                      color: 'text-red-300',
                     },
                   ].map((item) => (
                     <div
                       key={item.label}
-                      className="rounded-lg border border-[#1A1A1A] bg-[#111111] p-3"
+                      className="rounded-lg border border-[var(--terminal-border)] bg-[var(--terminal-surface)] p-3"
                     >
                       <div
                         className={cn(
@@ -220,33 +220,37 @@ export function TrackingTab({
                       >
                         {item.value}
                       </div>
-                      <div className="mt-0.5 text-[9px] font-mono uppercase tracking-wide text-[#6B7280]">
+                      <div className="mt-0.5 text-[9px] font-mono uppercase tracking-wide text-muted-foreground">
                         {item.label}
                       </div>
                     </div>
                   ))}
                 </div>
 
-                <div className="rounded-lg border border-[#1A1A1A] bg-[#111111] p-3 text-[10px] font-mono text-[#9CA3AF]">
-                  <div className="mb-2 text-[9px] uppercase tracking-wider text-[#6B7280]">
+                <div className="rounded-lg border border-[var(--terminal-border)] bg-[var(--terminal-surface)] p-3 text-[10px] font-mono text-muted-foreground">
+                  <div className="mb-2 text-[9px] uppercase tracking-wider text-muted-foreground">
                     Sync Summary
                   </div>
                   <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
                     <div>
-                      <span className="text-[#6B7280]">Papers scanned:</span>{' '}
-                      <span className="text-[#E5E7EB]">
+                      <span className="text-muted-foreground">
+                        Papers scanned:
+                      </span>{' '}
+                      <span className="text-foreground">
                         {trackingResult.result.papers_found}
                       </span>
                     </div>
                     <div>
-                      <span className="text-[#6B7280]">Changes detected:</span>{' '}
-                      <span className="text-[#E5E7EB]">
+                      <span className="text-muted-foreground">
+                        Changes detected:
+                      </span>{' '}
+                      <span className="text-foreground">
                         {trackingResult.result.changes_detected}
                       </span>
                     </div>
                     <div>
-                      <span className="text-[#6B7280]">DB write:</span>{' '}
-                      <span className="text-[#E5E7EB]">
+                      <span className="text-muted-foreground">DB write:</span>{' '}
+                      <span className="text-foreground">
                         {trackingResult.result.applied ? 'Enabled' : 'Dry Run'}
                       </span>
                     </div>
@@ -254,7 +258,7 @@ export function TrackingTab({
                 </div>
 
                 {trackingResult.result.applied && (
-                  <div className="rounded-lg border border-[#D4A039]/25 bg-[#D4A039]/5 p-3 text-[10px] font-mono text-[#E5E7EB]">
+                  <div className="rounded-lg border border-primary/25 bg-primary/5 p-3 text-[10px] font-mono text-foreground">
                     Knowledge graph synchronization has been queued for detected
                     updates.
                   </div>
@@ -263,10 +267,10 @@ export function TrackingTab({
             ) : (
               <div className="flex flex-1 flex-col items-center justify-center text-center opacity-50">
                 <Terminal
-                  className="mb-3 h-8 w-8 text-[#6B7280]"
+                  className="mb-3 h-8 w-8 text-muted-foreground"
                   aria-hidden="true"
                 />
-                <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-[#6B7280]">
+                <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
                   Run a scan to view updates and actions
                 </p>
               </div>
