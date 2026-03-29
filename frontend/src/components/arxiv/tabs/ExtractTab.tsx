@@ -55,11 +55,14 @@ export function ExtractTab({
   return (
     <div className="space-y-6">
       <div className="space-y-1">
-        <h3 className="flex items-center gap-2 text-sm font-mono font-bold uppercase tracking-tight text-[#E5E7EB]">
-          <Brain className="h-4 w-4 text-[#FFB700]" aria-hidden="true" />
+        <h3 className="flex items-center gap-2 text-sm font-mono font-bold uppercase tracking-tight text-foreground">
+          <Brain
+            className="h-4 w-4 text-[var(--amber-gold)]"
+            aria-hidden="true"
+          />
           Extract Research Signals
         </h3>
-        <p className="text-[11px] font-mono leading-relaxed text-[#6B7280]">
+        <p className="text-[11px] font-mono leading-relaxed text-muted-foreground">
           Extract entities, topics, keyphrases, citations, and summaries for
           specific papers, then optionally sync to the knowledge graph.
         </p>
@@ -67,11 +70,11 @@ export function ExtractTab({
 
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-12">
         <div className="space-y-4 xl:col-span-5">
-          <div className="space-y-4 rounded-xl border border-[#1A1A1A] bg-[#0A0A0A]/50 p-4">
+          <div className="space-y-4 rounded-xl border border-[var(--terminal-border)] bg-[var(--terminal-bg)]/50 p-4">
             <div className="space-y-2">
               <label
                 htmlFor="extract-paper-ids"
-                className="text-[10px] font-mono font-bold uppercase tracking-widest text-[#9CA3AF]"
+                className="text-[10px] font-mono font-bold uppercase tracking-widest text-muted-foreground"
               >
                 Paper IDs (one per line or comma-separated)
               </label>
@@ -82,7 +85,7 @@ export function ExtractTab({
                 onChange={(e) => onExtractPaperIdsChange(e.target.value)}
                 placeholder={'2501.12345\n2501.67890…'}
                 rows={7}
-                className="w-full rounded-lg border border-[#1A1A1A] bg-[#111111] p-3 font-mono text-xs text-[#E5E7EB] placeholder:text-[#6B7280] focus:border-[#D4A039]/50 focus:outline-none"
+                className="w-full rounded-lg border border-[var(--terminal-border)] bg-[var(--terminal-surface)] p-3 font-mono text-xs text-foreground placeholder:text-muted-foreground focus:border-primary/50 focus:outline-none"
               />
             </div>
 
@@ -130,7 +133,7 @@ export function ExtractTab({
                 }
                 className={cn(
                   'inline-flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-[11px] font-mono font-bold uppercase transition-colors',
-                  'bg-[#FFB700]/20 text-[#FFB700] hover:bg-[#FFB700]/30 disabled:cursor-not-allowed disabled:opacity-45'
+                  'bg-[var(--amber-gold)]/20 text-[var(--amber-gold)] hover:bg-[var(--amber-gold)]/30 disabled:cursor-not-allowed disabled:opacity-45'
                 )}
               >
                 {isExtracting ? (
@@ -148,15 +151,15 @@ export function ExtractTab({
                 type="button"
                 onClick={onClearExtract}
                 disabled={isAnyOperationRunning}
-                className="rounded-lg border border-[#1A1A1A] px-4 py-2.5 text-[11px] font-mono font-bold uppercase text-[#6B7280] hover:bg-[#151515] disabled:cursor-not-allowed disabled:opacity-45"
+                className="rounded-lg border border-[var(--terminal-border)] px-4 py-2.5 text-[11px] font-mono font-bold uppercase text-muted-foreground hover:bg-[var(--terminal-surface)] disabled:cursor-not-allowed disabled:opacity-45"
               >
                 Clear
               </button>
             </div>
           </div>
 
-          <div className="rounded-xl border border-[#1A1A1A] bg-[#0A0A0A]/50 p-4">
-            <div className="text-[9px] font-mono uppercase tracking-widest text-[#6B7280]">
+          <div className="rounded-xl border border-[var(--terminal-border)] bg-[var(--terminal-bg)]/50 p-4">
+            <div className="text-[9px] font-mono uppercase tracking-widest text-muted-foreground">
               Valid Paper IDs
             </div>
             <div className="mt-2 flex flex-wrap gap-1.5">
@@ -164,28 +167,28 @@ export function ExtractTab({
                 parsedExtractIds.slice(0, 20).map((paperId) => (
                   <span
                     key={paperId}
-                    className="rounded border border-[#1A1A1A] bg-[#111111] px-2 py-0.5 text-[9px] font-mono text-[#9CA3AF]"
+                    className="rounded border border-[var(--terminal-border)] bg-[var(--terminal-surface)] px-2 py-0.5 text-[9px] font-mono text-muted-foreground"
                   >
                     {paperId}
                   </span>
                 ))
               ) : (
-                <span className="text-[10px] font-mono text-[#6B7280]">
+                <span className="text-[10px] font-mono text-muted-foreground">
                   No paper IDs entered yet.
                 </span>
               )}
             </div>
 
             {invalidExtractIds.length > 0 && (
-              <div className="mt-3 rounded-lg border border-[#6B2A2A] bg-[#2B1111]/70 p-2.5">
-                <div className="text-[9px] font-mono uppercase tracking-widest text-[#FFAEAE]">
+              <div className="mt-3 rounded-lg border border-red-900 bg-red-950/70 p-2.5">
+                <div className="text-[9px] font-mono uppercase tracking-widest text-red-300">
                   Invalid IDs ({invalidExtractIds.length})
                 </div>
                 <div className="mt-1 flex flex-wrap gap-1.5">
                   {invalidExtractIds.slice(0, 12).map((paperId) => (
                     <span
                       key={paperId}
-                      className="rounded border border-[#A83A3A] bg-[#3A1717] px-2 py-0.5 text-[9px] font-mono text-[#FFAEAE]"
+                      className="rounded border border-red-800 bg-red-950 px-2 py-0.5 text-[9px] font-mono text-red-300"
                     >
                       {paperId}
                     </span>
@@ -197,12 +200,12 @@ export function ExtractTab({
         </div>
 
         <div className="space-y-4 xl:col-span-7">
-          <div className="rounded-xl border border-[#1A1A1A] bg-[#0A0A0A] p-5">
-            <div className="mb-4 flex items-center justify-between border-b border-[#1A1A1A] pb-3">
-              <span className="text-[9px] font-mono font-bold uppercase tracking-widest text-[#9CA3AF]">
+          <div className="rounded-xl border border-[var(--terminal-border)] bg-[var(--terminal-bg)] p-5">
+            <div className="mb-4 flex items-center justify-between border-b border-[var(--terminal-border)] pb-3">
+              <span className="text-[9px] font-mono font-bold uppercase tracking-widest text-muted-foreground">
                 Extraction Results
               </span>
-              <span className="text-[10px] font-mono text-[#6B7280]">
+              <span className="text-[10px] font-mono text-muted-foreground">
                 {extractionResult
                   ? `${extractionResult.processed_count} processed`
                   : 'Awaiting run'}
@@ -212,27 +215,27 @@ export function ExtractTab({
             {extractionResult ? (
               <div className="space-y-4">
                 <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-                  <div className="rounded-lg border border-[#1A1A1A] bg-[#111111] p-3">
-                    <div className="text-[8px] font-mono uppercase tracking-widest text-[#6B7280]">
+                  <div className="rounded-lg border border-[var(--terminal-border)] bg-[var(--terminal-surface)] p-3">
+                    <div className="text-[8px] font-mono uppercase tracking-widest text-muted-foreground">
                       Status
                     </div>
-                    <div className="mt-1 text-sm font-mono font-bold text-[#D4A039]">
+                    <div className="mt-1 text-sm font-mono font-bold text-primary">
                       {extractionResult.status}
                     </div>
                   </div>
-                  <div className="rounded-lg border border-[#1A1A1A] bg-[#111111] p-3">
-                    <div className="text-[8px] font-mono uppercase tracking-widest text-[#6B7280]">
+                  <div className="rounded-lg border border-[var(--terminal-border)] bg-[var(--terminal-surface)] p-3">
+                    <div className="text-[8px] font-mono uppercase tracking-widest text-muted-foreground">
                       Papers
                     </div>
-                    <div className="mt-1 text-sm font-mono font-bold text-[#E5E7EB]">
+                    <div className="mt-1 text-sm font-mono font-bold text-foreground">
                       {extractionResult.processed_count}
                     </div>
                   </div>
-                  <div className="rounded-lg border border-[#1A1A1A] bg-[#111111] p-3">
-                    <div className="text-[8px] font-mono uppercase tracking-widest text-[#6B7280]">
+                  <div className="rounded-lg border border-[var(--terminal-border)] bg-[var(--terminal-surface)] p-3">
+                    <div className="text-[8px] font-mono uppercase tracking-widest text-muted-foreground">
                       Enabled Features
                     </div>
-                    <div className="mt-1 text-sm font-mono font-bold text-[#FFB700]">
+                    <div className="mt-1 text-sm font-mono font-bold text-[var(--amber-gold)]">
                       {[
                         extractEntities && 'E',
                         extractTopics && 'T',
@@ -257,16 +260,16 @@ export function ExtractTab({
                         className={cn(
                           'rounded-lg border p-3',
                           hasFailed
-                            ? 'border-[#6B2A2A] bg-[#2B1111]/70'
-                            : 'border-[#1A1A1A] bg-[#111111]'
+                            ? 'border-red-900 bg-red-950/70'
+                            : 'border-[var(--terminal-border)] bg-[var(--terminal-surface)]'
                         )}
                       >
                         <div className="flex flex-wrap items-start justify-between gap-2">
                           <div className="min-w-0">
-                            <div className="truncate text-xs font-mono font-bold text-[#E5E7EB]">
+                            <div className="truncate text-xs font-mono font-bold text-foreground">
                               {result.title || result.paper_id}
                             </div>
-                            <div className="mt-1 text-[10px] font-mono text-[#6B7280]">
+                            <div className="mt-1 text-[10px] font-mono text-muted-foreground">
                               {result.paper_id}
                             </div>
                           </div>
@@ -274,8 +277,8 @@ export function ExtractTab({
                             className={cn(
                               'rounded border px-2 py-0.5 text-[9px] font-mono uppercase tracking-wide',
                               hasFailed
-                                ? 'border-[#A83A3A] text-[#FFAEAE]'
-                                : 'border-[#D4A039]/25 text-[#D4A039]'
+                                ? 'border-red-800 text-red-300'
+                                : 'border-primary/25 text-primary'
                             )}
                           >
                             {result.extraction_status}
@@ -287,7 +290,7 @@ export function ExtractTab({
                             {featureKeys.map((key) => (
                               <span
                                 key={key}
-                                className="rounded border border-[#1A1A1A] bg-[#0A0A0A] px-2 py-0.5 text-[9px] font-mono uppercase text-[#9CA3AF]"
+                                className="rounded border border-[var(--terminal-border)] bg-[var(--terminal-bg)] px-2 py-0.5 text-[9px] font-mono uppercase text-muted-foreground"
                               >
                                 {key}
                               </span>
@@ -296,7 +299,7 @@ export function ExtractTab({
                         )}
 
                         {result.error && (
-                          <div className="mt-2 text-[10px] font-mono text-[#FFAEAE]">
+                          <div className="mt-2 text-[10px] font-mono text-red-300">
                             {result.error}
                           </div>
                         )}
@@ -308,10 +311,10 @@ export function ExtractTab({
             ) : (
               <div className="flex min-h-[280px] flex-col items-center justify-center text-center opacity-50">
                 <Brain
-                  className="mb-3 h-8 w-8 text-[#6B7280]"
+                  className="mb-3 h-8 w-8 text-muted-foreground"
                   aria-hidden="true"
                 />
-                <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-[#6B7280]">
+                <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
                   Extraction results will appear here
                 </p>
               </div>
