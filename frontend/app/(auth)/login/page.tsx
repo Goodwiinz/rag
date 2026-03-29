@@ -2,6 +2,7 @@
 
 import { useAuth } from '@/hooks/useAuth';
 import { cn } from '@/lib/utils';
+import { downloadStoredNousCliAuth } from '@/services/nousCliAuth';
 import {
   AnimatePresence,
   motion,
@@ -12,7 +13,7 @@ import {
 import { Lock, Mail, Terminal } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import React, { useEffect, useState } from 'react';
 
 const Activity = dynamic(
@@ -54,6 +55,7 @@ const Zap = dynamic(() => import('lucide-react').then((mod) => mod.Zap), {
 interface LoginFormData {
   email: string;
   password: string;
+  downloadCliAuth: boolean;
 }
 
 const SYSTEM_LOGS = [
@@ -67,12 +69,27 @@ const SYSTEM_LOGS = [
   'Scanning for unauthorized nodes...',
 ];
 
-export default function LoginPage(): React.JSX.Element | null {
+function resolvePostLoginPath(rawNextPath: string | null): string {
+  if (!rawNextPath || !rawNextPath.startsWith('/')) {
+    return '/dashboard';
+  }
+
+  if (rawNextPath.startsWith('//')) {
+    return '/dashboard';
+  }
+
+  return rawNextPath;
+}
+
+function LoginPageContent(): React.JSX.Element | null {
   const { login, isAuthenticated, isLoading } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const nextPath = resolvePostLoginPath(searchParams.get('next'));
   const [formData, setFormData] = useState<LoginFormData>({
     email: '',
     password: '',
+    downloadCliAuth: false,
   });
   const [error, setError] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -127,9 +144,9 @@ export default function LoginPage(): React.JSX.Element | null {
 
   useEffect(() => {
     if (isAuthenticated && !isLoading) {
-      router.push('/dashboard');
+      router.push(nextPath);
     }
-  }, [isAuthenticated, isLoading, router]);
+  }, [isAuthenticated, isLoading, nextPath, router]);
 
   const handleSubmit = async (e: React.FormEvent): Promise<void> => {
     e.preventDefault();
@@ -138,7 +155,14 @@ export default function LoginPage(): React.JSX.Element | null {
 
     try {
       await login(formData.email, formData.password);
-      router.push('/dashboard');
+      if (formData.downloadCliAuth) {
+        try {
+          downloadStoredNousCliAuth();
+        } catch (downloadError) {
+          console.error('Failed to export NOUS CLI auth:', downloadError);
+        }
+      }
+      router.push(nextPath);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Authentication failed');
     } finally {
@@ -149,7 +173,8 @@ export default function LoginPage(): React.JSX.Element | null {
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>): void => {
     setFormData((prev) => ({
       ...prev,
-      [e.target.name]: e.target.value,
+      [e.target.name]:
+        e.target.type === 'checkbox' ? e.target.checked : e.target.value,
     }));
   };
 
@@ -512,6 +537,28 @@ export default function LoginPage(): React.JSX.Element | null {
                   </div>
                 </div>
 
+                <div className="flex items-center justify-between rounded-lg border border-[var(--terminal-border)] bg-[var(--terminal-bg)]/60 px-3.5 py-3">
+                  <label
+                    htmlFor="downloadCliAuth"
+                    className="flex items-center gap-3 cursor-pointer"
+                  >
+                    <input
+                      id="downloadCliAuth"
+                      name="downloadCliAuth"
+                      type="checkbox"
+                      checked={formData.downloadCliAuth}
+                      onChange={handleChange}
+                      className="h-4 w-4 rounded border border-[var(--terminal-border)] bg-[var(--terminal-bg)] text-[var(--phosphor-green)] focus:ring-[var(--phosphor-green)]/30"
+                    />
+                    <span className="text-[10px] font-mono text-[var(--terminal-text-dim)] uppercase tracking-[0.18em]">
+                      Download NOUS CLI auth after sign in
+                    </span>
+                  </label>
+                  <span className="text-[8px] font-mono text-[var(--terminal-text-muted)] uppercase tracking-[0.2em]">
+                    Optional
+                  </span>
+                </div>
+
                 {/* Submit Button */}
                 <div className="pt-2">
                   <button
@@ -563,5 +610,13 @@ export default function LoginPage(): React.JSX.Element | null {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage(): React.JSX.Element {
+  return (
+    <React.Suspense fallback={null}>
+      <LoginPageContent />
+    </React.Suspense>
   );
 }
