@@ -141,7 +141,7 @@ class EntityService {
    * Get all relationships
    */
   async getAllRelationships(
-    limit: number = 500,
+    limit: number = 200,
     offset: number = 0
   ): Promise<GraphEdge[]> {
     try {
