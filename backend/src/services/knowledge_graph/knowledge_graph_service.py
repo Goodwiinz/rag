@@ -56,9 +56,30 @@ def _parse_metadata(metadata_str: str) -> Dict[str, Any]:
 
 def _convert_datetime(dt) -> datetime:
     """Convert Neo4j datetime to Python datetime"""
+    if dt is None:
+        return datetime.utcnow()
+    if isinstance(dt, datetime):
+        return dt
+    if isinstance(dt, str):
+        # Handle ISO format strings from Neo4j
+        return datetime.fromisoformat(dt.replace("Z", "+00:00"))
     if hasattr(dt, "to_native"):
         return dt.to_native()
-    return datetime(dt.year, dt.month, dt.day, dt.hour, dt.minute, dt.second)
+    try:
+        return datetime(dt.year, dt.month, dt.day, dt.hour, dt.minute, dt.second)
+    except (AttributeError, TypeError):
+        return datetime.utcnow()
+
+
+def _safe_relationship_type(value: Optional[str]) -> RelationshipType:
+    """Safely convert string to RelationshipType, falling back to RELATED_TO"""
+    if not value:
+        return RelationshipType.RELATED_TO
+    try:
+        return RelationshipType(value)
+    except ValueError:
+        logger.debug(f"Unknown RelationshipType '{value}', using RELATED_TO")
+        return RelationshipType.RELATED_TO
 
 
 def _safe_entity_type(value: Optional[str]) -> EntityType:
@@ -678,7 +699,7 @@ class KnowledgeGraphService:
                             id=r.get("id", str(uuid.uuid4())),
                             source_entity_id=source_id,
                             target_entity_id=target_id,
-                            relationship_type=RelationshipType(
+                            relationship_type=_safe_relationship_type(
                                 r.get("type", "RELATED_TO")
                             ),
                             strength=r.get("strength", 0.5),
@@ -688,7 +709,7 @@ class KnowledgeGraphService:
                             metadata=_parse_metadata(r.get("metadata", "{}")),
                             source_document_id=r.get("source_document_id"),
                             created_at=_convert_datetime(
-                                r.get("created_at", datetime.utcnow())
+                                r.get("created_at")
                             ),
                             updated_at=_convert_datetime(r["updated_at"])
                             if r.get("updated_at")
@@ -698,7 +719,7 @@ class KnowledgeGraphService:
 
                 return relationships
         except Exception as e:
-            logger.error(f"Error getting all relationships: {e}")
+            logger.error(f"Error getting all relationships: {e}", exc_info=True)
             return []
 
     # Relationship Management
