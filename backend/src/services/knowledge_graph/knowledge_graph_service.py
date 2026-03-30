@@ -1395,29 +1395,32 @@ class KnowledgeGraphService:
                 else:
                     avg_degree = 0.0
 
-                # Get connected components
-                components_result = session.run(
-                    """
-                CALL gds.graph.project('tempGraph', 'Entity', 'RELATED_TO')
-                YIELD graphName
-                CALL gds.connectedComponents.stream('tempGraph')
-                YIELD nodeId, componentId
-                WITH componentId, count(*) as size
-                RETURN count(DISTINCT componentId) as components, max(size) as largest_size
-                """
-                ).single()
-
-                connected_components = (
-                    components_result["components"] if components_result else 0
-                )
-                largest_component_size = (
-                    components_result["largest_size"] if components_result else 0
-                )
-
-                # Calculate global clustering coefficient using GDS
+                connected_components = 0
+                largest_component_size = 0
                 clustering_coefficient = 0.0
+                projected_temp_graph = False
+
+                # GDS procedures can be unavailable in some deployments. Keep base analytics usable.
                 try:
-                    # Use the existing tempGraph from connected components calculation
+                    components_result = session.run(
+                        """
+                        CALL gds.graph.project('tempGraph', 'Entity', 'RELATED_TO')
+                        YIELD graphName
+                        CALL gds.connectedComponents.stream('tempGraph')
+                        YIELD nodeId, componentId
+                        WITH componentId, count(*) as size
+                        RETURN count(DISTINCT componentId) as components, max(size) as largest_size
+                        """
+                    ).single()
+                    projected_temp_graph = True
+
+                    connected_components = (
+                        components_result["components"] if components_result else 0
+                    )
+                    largest_component_size = (
+                        components_result["largest_size"] if components_result else 0
+                    )
+
                     clustering_result = session.run(
                         """
                         CALL gds.localClusteringCoefficient.stream('tempGraph')
@@ -1429,14 +1432,16 @@ class KnowledgeGraphService:
                     ).single()
                     if clustering_result and clustering_result["avgClustering"] is not None:
                         clustering_coefficient = float(clustering_result["avgClustering"])
-                except Exception as cc_error:
-                    logger.warning(f"Could not calculate clustering coefficient: {cc_error}")
+                except Exception as gds_error:
+                    logger.warning(
+                        f"GDS analytics unavailable; returning base graph analytics only: {gds_error}"
+                    )
                 finally:
-                    # Clean up the temporary graph projection
-                    try:
-                        session.run("CALL gds.graph.drop('tempGraph', false)")
-                    except Exception:
-                        pass
+                    if projected_temp_graph:
+                        try:
+                            session.run("CALL gds.graph.drop('tempGraph', false)")
+                        except Exception:
+                            pass
 
                 return GraphAnalytics(
                     total_entities=total_entities,
