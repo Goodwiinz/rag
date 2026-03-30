@@ -40,7 +40,10 @@ from src.models.graph import (
 from src.models.user import User, UserRole
 from src.models.processing import JobPriority, JobStatus, JobType, ProcessingJob
 from src.services.knowledge_graph.knowledge_graph_service import knowledge_graph_service
-from src.services.processing.entity_extraction_service import EntityExtractionService
+from src.services.processing.entity_extraction_service import (
+    EntityExtractionService,
+    EntityType as ProcessingEntityType,
+)
 from src.tasks.processing_tasks import kg_extract_entities_job, kg_merge_entities_job
 
 logger = logging.getLogger(__name__)
@@ -71,6 +74,37 @@ class CreateMergeJobRequest(BaseModel):
 
 class CreateExtractionJobRequest(BaseModel):
     document_ids: List[str] = Field(default_factory=list)
+
+
+def _map_processing_entity_type_to_graph(entity_type: ProcessingEntityType) -> EntityType:
+    mapping = {
+        "person": EntityType.PERSON,
+        "organization": EntityType.ORGANIZATION,
+        "location": EntityType.LOCATION,
+        "product": EntityType.PRODUCT,
+        "concept": EntityType.CONCEPT,
+        "date": EntityType.DATE,
+        "number": EntityType.OTHER,
+        "email": EntityType.EMAIL,
+        "phone": EntityType.PHONE,
+        "url": EntityType.URL,
+        "custom": EntityType.OTHER,
+    }
+    return mapping.get(entity_type.value, EntityType.OTHER)
+
+
+def _safe_graph_relationship_type(raw_type: str) -> RelationshipType:
+    if not raw_type:
+        return RelationshipType.RELATED_TO
+
+    normalized = str(raw_type).strip().upper().replace("-", "_").replace(" ", "_")
+    if normalized == "LEADS":
+        normalized = "MANAGES"
+
+    try:
+        return RelationshipType(normalized)
+    except ValueError:
+        return RelationshipType.RELATED_TO
 
 
 # Entity Management Endpoints
@@ -574,41 +608,131 @@ async def extract_entities_from_document(
         if not document:
             raise HTTPException(status_code=404, detail="Document not found")
 
-        # Extract entities using entity extraction service
-        entity_extractor = EntityExtractionService()
-        entities_data = entity_extractor.extract_entities(document.content)
+        content = (
+            getattr(document, "content_text", "")
+            or getattr(document, "content", "")
+            or ""
+        )
+        if not content.strip():
+            raise HTTPException(
+                status_code=400,
+                detail="Document has no text content available for entity extraction",
+            )
 
-        # Convert extracted entities to CreateEntityRequest objects
+        # Extract entities + relationships using entity extraction service
+        entity_extractor = EntityExtractionService()
+        entities_data, relationships_data = entity_extractor.extract_entities_and_relationships_from_text(
+            document, content
+        )
+
+        # Convert extracted entities to CreateEntityRequest objects.
         create_requests = []
         for entity_data in entities_data:
+            position = None
+            if entity_data.properties:
+                start = entity_data.properties.get("start_char")
+                end = entity_data.properties.get("end_char")
+                if isinstance(start, int) and isinstance(end, int):
+                    position = [start, end]
+
             create_requests.append(
                 CreateEntityRequest(
-                    name=entity_data["name"],
-                    entity_type=EntityType(entity_data["entity_type"]),
-                    confidence_score=entity_data["confidence_score"],
-                    extraction_method=ExtractionMethod(
-                        entity_data["extraction_method"]
-                    ),
-                    position=entity_data.get("position"),
-                    context=entity_data.get("context"),
-                    metadata=entity_data.get("metadata", {}),
+                    name=entity_data.name,
+                    entity_type=_map_processing_entity_type_to_graph(entity_data.entity_type),
+                    confidence_score=min(1.0, max(0.0, entity_data.confidence or 0.8)),
+                    extraction_method=ExtractionMethod.MANUAL,
+                    position=position,
+                    context=entity_data.properties.get("context_window")
+                    if entity_data.properties
+                    else None,
+                    metadata={
+                        "source": "document_extract_endpoint",
+                        "document_id": document_id,
+                    },
                     source_document_id=document_id,
                 )
             )
 
-        # Create entities in batch
-        batch_request = BatchEntityRequest(
+        # Create entities first.
+        entity_batch_request = BatchEntityRequest(
             entities=create_requests, upsert=True, document_id=document_id
         )
+        entity_result = knowledge_graph_service.create_entities_batch(entity_batch_request)
 
-        result = knowledge_graph_service.create_entities_batch(batch_request)
+        # Build lookup for relationship endpoint resolution.
+        created_entity_id_by_key = {}
+        for created in entity_result.created_entities:
+            created_key = (
+                created.entity_type.value,
+                created.name.strip().lower(),
+            )
+            created_entity_id_by_key[created_key] = created.id
+
+        relationship_requests = []
+        for relationship in relationships_data:
+            source_entity = relationship.get("source_entity")
+            target_entity = relationship.get("target_entity")
+            if not source_entity or not target_entity:
+                continue
+
+            source_key = (
+                _map_processing_entity_type_to_graph(source_entity.entity_type).value,
+                source_entity.name.strip().lower(),
+            )
+            target_key = (
+                _map_processing_entity_type_to_graph(target_entity.entity_type).value,
+                target_entity.name.strip().lower(),
+            )
+            source_entity_id = created_entity_id_by_key.get(source_key)
+            target_entity_id = created_entity_id_by_key.get(target_key)
+            if not source_entity_id or not target_entity_id:
+                continue
+
+            confidence = float(relationship.get("confidence", 0.7))
+            confidence = min(1.0, max(0.0, confidence))
+            evidence = relationship.get("evidence")
+            relationship_requests.append(
+                CreateRelationshipRequest(
+                    source_entity_id=source_entity_id,
+                    target_entity_id=target_entity_id,
+                    relationship_type=_safe_graph_relationship_type(
+                        relationship.get("relationship_type", "")
+                    ),
+                    strength=confidence,
+                    confidence_score=confidence,
+                    context=evidence,
+                    evidence=[evidence] if evidence else [],
+                    metadata={
+                        "source": "document_extract_endpoint",
+                        "document_id": document_id,
+                        "pattern_matched": relationship.get("pattern_matched"),
+                    },
+                    source_document_id=document_id,
+                )
+            )
+
+        relationship_result_count = 0
+        relationship_error_count = 0
+        if relationship_requests:
+            relationship_result = knowledge_graph_service.create_entities_batch(
+                BatchEntityRequest(
+                    entities=[],
+                    relationships=relationship_requests,
+                    upsert=True,
+                    document_id=document_id,
+                )
+            )
+            relationship_result_count = len(relationship_result.created_relationships)
+            relationship_error_count = len(relationship_result.errors)
 
         return {
             "document_id": document_id,
             "entities_found": len(entities_data),
-            "entities_created": len(result.created_entities),
-            "errors": len(result.errors),
-            "processing_time": result.processing_time,
+            "entities_created": len(entity_result.created_entities),
+            "relationships_found": len(relationships_data),
+            "relationships_created": relationship_result_count,
+            "errors": len(entity_result.errors) + relationship_error_count,
+            "processing_time": entity_result.processing_time,
         }
     except HTTPException:
         raise
