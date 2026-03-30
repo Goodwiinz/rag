@@ -529,15 +529,6 @@ body {
   opacity: 0.6;
 }
 
-@layer base {
-  * {
-    @apply border-border;
-  }
-  body {
-    @apply bg-background text-foreground;
-  }
-}
-
 /* ============================================
    TERMINAL OBSERVATORY THEME
    A cosmic terminal aesthetic for LLM Chat
