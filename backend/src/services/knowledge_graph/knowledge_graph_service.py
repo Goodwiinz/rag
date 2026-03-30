@@ -649,6 +649,8 @@ class KnowledgeGraphService:
         source_document_ids: Optional[List[str]] = None,
     ) -> List[RelationshipResponse]:
         """Get all relationships with pagination"""
+        # Cap limit to prevent OOM on large graphs
+        limit = min(limit, 200)
         try:
             with self.get_session() as session:
                 conditions = []
@@ -660,11 +662,10 @@ class KnowledgeGraphService:
                     params["relationship_types"] = type_values
 
                 if source_document_ids is not None:
+                    # Use relationship-level source_document_id for filtering
+                    # (more reliable than entity node property for scoping)
                     conditions.append(
-                        "(source.source_document_id IN $source_document_ids OR source.source_document_id IS NULL)"
-                    )
-                    conditions.append(
-                        "(target.source_document_id IN $source_document_ids OR target.source_document_id IS NULL)"
+                        "r.source_document_id IN $source_document_ids"
                     )
                     params["source_document_ids"] = source_document_ids
 
@@ -673,7 +674,14 @@ class KnowledgeGraphService:
                 query = f"""
                 MATCH (source:Entity)-[r:RELATED_TO]->(target:Entity)
                 {where_clause}
-                RETURN r, source.id as source_id, target.id as target_id
+                RETURN r.id AS rid,
+                       source.id AS source_id,
+                       target.id AS target_id,
+                       r.type AS rel_type,
+                       r.strength AS strength,
+                       r.confidence_score AS confidence,
+                       r.source_document_id AS doc_id,
+                       r.created_at AS created_at
                 ORDER BY r.created_at DESC
                 SKIP $offset
                 LIMIT $limit
@@ -683,37 +691,28 @@ class KnowledgeGraphService:
                 relationships = []
 
                 for record in result:
-                    r = record["r"]
                     source_id = record["source_id"]
                     target_id = record["target_id"]
 
-                    # Skip relationships with missing entity IDs
                     if not source_id or not target_id:
-                        logger.warning(
-                            f"Skipping relationship with missing entity ID: source={source_id}, target={target_id}"
-                        )
                         continue
 
                     relationships.append(
                         RelationshipResponse(
-                            id=r.get("id", str(uuid.uuid4())),
+                            id=record["rid"] or str(uuid.uuid4()),
                             source_entity_id=source_id,
                             target_entity_id=target_id,
                             relationship_type=_safe_relationship_type(
-                                r.get("type", "RELATED_TO")
+                                record["rel_type"] or "RELATED_TO"
                             ),
-                            strength=r.get("strength", 0.5),
-                            confidence_score=r.get("confidence_score", 0.8),
-                            context=r.get("context"),
-                            evidence=r.get("evidence", []),
-                            metadata=_parse_metadata(r.get("metadata", "{}")),
-                            source_document_id=r.get("source_document_id"),
-                            created_at=_convert_datetime(
-                                r.get("created_at")
-                            ),
-                            updated_at=_convert_datetime(r["updated_at"])
-                            if r.get("updated_at")
-                            else None,
+                            strength=record["strength"] or 0.5,
+                            confidence_score=record["confidence"] or 0.8,
+                            context=None,
+                            evidence=[],
+                            metadata={},
+                            source_document_id=record["doc_id"],
+                            created_at=_convert_datetime(record["created_at"]),
+                            updated_at=None,
                         )
                     )
 
