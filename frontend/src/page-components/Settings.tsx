@@ -81,8 +81,9 @@ export const Settings: React.FC = () => {
                   </p>
                 </div>
                 <button
+                  type="button"
                   role="switch"
-                  aria-checked={isDarkMode}
+                  aria-checked={isDarkMode ? 'true' : 'false'}
                   aria-label="Toggle dark mode"
                   onClick={() => setIsDarkMode(!isDarkMode)}
                   className={`relative inline-flex flex-shrink-0 h-6 w-11 border-2 border-gray-300 rounded-full cursor-pointer transition-colors ease-in-out duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 ${isDarkMode ? 'bg-blue-600' : 'bg-gray-200'}`}
@@ -103,8 +104,9 @@ export const Settings: React.FC = () => {
                   </p>
                 </div>
                 <button
+                  type="button"
                   role="switch"
-                  aria-checked={emailNotifications}
+                  aria-checked={emailNotifications ? 'true' : 'false'}
                   aria-label="Toggle email notifications"
                   onClick={() => setEmailNotifications(!emailNotifications)}
                   className={`relative inline-flex flex-shrink-0 h-6 w-11 border-2 border-gray-300 rounded-full cursor-pointer transition-colors ease-in-out duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 ${emailNotifications ? 'bg-blue-600' : 'bg-gray-200'}`}
