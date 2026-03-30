@@ -317,7 +317,9 @@ export const EntityGraph: React.FC<EntityGraphProps> = ({
       downloadLink.click();
     };
 
-    img.src = 'data:image/svg+xml;base64,' + btoa(svgData);
+    img.src =
+      'data:image/svg+xml;base64,' +
+      btoa(unescape(encodeURIComponent(svgData)));
   };
 
   useEffect(() => {
