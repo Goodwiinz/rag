@@ -245,8 +245,8 @@ function EntityManagementContent() {
     try {
       setRelationshipsLoading(true);
       const [rels, connectedResponse] = await Promise.all([
-        entityService.getAllRelationships(500),
-        entityService.getEntities(500, 0, undefined, true),
+        entityService.getAllRelationships(200),
+        entityService.getEntities(200, 0, undefined, true),
       ]);
       setRelationships(rels);
 

@@ -1415,53 +1415,26 @@ class KnowledgeGraphService:
                 else:
                     avg_degree = 0.0
 
+                # Approximate connected components with a lightweight Cypher query
+                # (GDS procedures are skipped — they OOM in constrained containers)
                 connected_components = 0
                 largest_component_size = 0
                 clustering_coefficient = 0.0
-                projected_temp_graph = False
 
-                # GDS procedures can be unavailable in some deployments. Keep base analytics usable.
                 try:
-                    components_result = session.run(
+                    # Count isolated vs connected entities as a lightweight proxy
+                    iso_result = session.run(
                         """
-                        CALL gds.graph.project('tempGraph', 'Entity', 'RELATED_TO')
-                        YIELD graphName
-                        CALL gds.connectedComponents.stream('tempGraph')
-                        YIELD nodeId, componentId
-                        WITH componentId, count(*) as size
-                        RETURN count(DISTINCT componentId) as components, max(size) as largest_size
+                        MATCH (e:Entity)
+                        WHERE NOT (e)-[:RELATED_TO]-()
+                        RETURN count(e) AS isolated
                         """
                     ).single()
-                    projected_temp_graph = True
-
-                    connected_components = (
-                        components_result["components"] if components_result else 0
-                    )
-                    largest_component_size = (
-                        components_result["largest_size"] if components_result else 0
-                    )
-
-                    clustering_result = session.run(
-                        """
-                        CALL gds.localClusteringCoefficient.stream('tempGraph')
-                        YIELD nodeId, localClusteringCoefficient
-                        WITH localClusteringCoefficient
-                        WHERE localClusteringCoefficient IS NOT NULL
-                        RETURN avg(localClusteringCoefficient) as avgClustering
-                        """
-                    ).single()
-                    if clustering_result and clustering_result["avgClustering"] is not None:
-                        clustering_coefficient = float(clustering_result["avgClustering"])
-                except Exception as gds_error:
-                    logger.warning(
-                        f"GDS analytics unavailable; returning base graph analytics only: {gds_error}"
-                    )
-                finally:
-                    if projected_temp_graph:
-                        try:
-                            session.run("CALL gds.graph.drop('tempGraph', false)")
-                        except Exception:
-                            pass
+                    isolated = iso_result["isolated"] if iso_result else 0
+                    connected_components = max(1, total_entities - isolated)
+                    largest_component_size = total_entities - isolated
+                except Exception:
+                    pass
 
                 return GraphAnalytics(
                     total_entities=total_entities,
