@@ -39,12 +39,20 @@ import pytest
 from unittest.mock import Mock, AsyncMock, patch
 
 # Initialize encryption with a test key so encrypted model fields work
-os.environ.setdefault("ENCRYPTION_MASTER_KEY", "X4sdpslBL6ba/LP/VfytwCFexoQXpCx5ojS6ml2NOPQ=")
+os.environ.setdefault(
+    "ENCRYPTION_MASTER_KEY",
+    # 32 zero-bytes base64 — obviously a test fixture, never valid for production
+    "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+)
 try:
-    from src.core.encryption import initialize_encryption
+    from src.core.encryption import EncryptionKeyType, get_key_manager, initialize_encryption
+
     initialize_encryption()
-except Exception:
-    pass  # Encryption module may not be available in all test envs
+    key_manager = get_key_manager()
+    if key_manager.get_active_key(EncryptionKeyType.DATA) is None:
+        key_manager.generate_key(EncryptionKeyType.DATA)
+except ImportError:
+    pass  # Encryption module not installed in this environment
 
 
 @pytest.fixture(autouse=True)
