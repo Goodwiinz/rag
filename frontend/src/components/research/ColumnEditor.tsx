@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { ArrowDown, ArrowUp, Plus, X } from 'lucide-react';
 import type { ExtractionColumn } from '@/types/scispace';
 import { Button } from '@/components/ui/button';
+import { IconButton } from '@/components/ui/icon-button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -91,26 +92,22 @@ export function ColumnEditor({
             className="flex items-start gap-2 rounded-md border border-[#1a1a1a] bg-black/30 p-3"
           >
             <div className="flex flex-col gap-1">
-              <Button
+              <IconButton
+                icon={<ArrowUp className="h-3 w-3" />}
+                label="Move column up"
                 variant="ghost"
-                size="icon"
                 className="h-6 w-6 text-gray-500 hover:text-[#00d4ff]"
                 disabled={index === 0}
                 onClick={() => moveColumn(index, -1)}
-                aria-label="Move column up"
-              >
-                <ArrowUp className="h-3 w-3" />
-              </Button>
-              <Button
+              />
+              <IconButton
+                icon={<ArrowDown className="h-3 w-3" />}
+                label="Move column down"
                 variant="ghost"
-                size="icon"
                 className="h-6 w-6 text-gray-500 hover:text-[#00d4ff]"
                 disabled={index === columns.length - 1}
                 onClick={() => moveColumn(index, 1)}
-                aria-label="Move column down"
-              >
-                <ArrowDown className="h-3 w-3" />
-              </Button>
+              />
             </div>
 
             <div className="flex-1 space-y-1.5">
@@ -130,16 +127,14 @@ export function ColumnEditor({
               />
             </div>
 
-            <Button
+            <IconButton
+              icon={<X className="h-3 w-3" />}
+              label="Remove column"
               variant="ghost"
-              size="icon"
               className="h-6 w-6 text-gray-500 hover:text-red-400"
               disabled={columns.length <= 1}
               onClick={() => removeColumn(index)}
-              aria-label="Remove column"
-            >
-              <X className="h-3 w-3" />
-            </Button>
+            />
           </div>
         ))}
       </div>
