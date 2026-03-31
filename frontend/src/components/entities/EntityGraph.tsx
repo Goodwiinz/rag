@@ -6,6 +6,7 @@
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { IconButton } from '@/components/ui/icon-button';
 import { Entity, GraphEdge } from '@/types/entity';
 import { cn } from '@/lib/utils';
 import { Download, RefreshCw, ZoomIn, ZoomOut, Network } from 'lucide-react';
@@ -349,33 +350,27 @@ export const EntityGraph: React.FC<EntityGraphProps> = ({
             Entity_Graph_Viz
           </CardTitle>
           <div className="flex items-center space-x-2">
-            <Button
+            <IconButton
               variant="ghost"
-              size="icon"
-              aria-label="Zoom in"
+              label="Zoom in"
               onClick={handleZoomIn}
               className="h-7 w-7 text-[var(--terminal-text-dim)] hover:text-[var(--phosphor-green)] hover:bg-[var(--phosphor-green)]/10"
-            >
-              <ZoomIn className="h-4 w-4" />
-            </Button>
-            <Button
+              icon={<ZoomIn className="h-4 w-4" />}
+            />
+            <IconButton
               variant="ghost"
-              size="icon"
-              aria-label="Zoom out"
+              label="Zoom out"
               onClick={handleZoomOut}
               className="h-7 w-7 text-[var(--terminal-text-dim)] hover:text-[var(--phosphor-green)] hover:bg-[var(--phosphor-green)]/10"
-            >
-              <ZoomOut className="h-4 w-4" />
-            </Button>
-            <Button
+              icon={<ZoomOut className="h-4 w-4" />}
+            />
+            <IconButton
               variant="ghost"
-              size="icon"
-              aria-label="Reset zoom"
+              label="Reset zoom"
               onClick={handleReset}
               className="h-7 w-7 text-[var(--terminal-text-dim)] hover:text-[var(--phosphor-green)] hover:bg-[var(--phosphor-green)]/10"
-            >
-              <RefreshCw className="h-4 w-4" />
-            </Button>
+              icon={<RefreshCw className="h-4 w-4" />}
+            />
             <Button
               variant="ghost"
               size="sm"
@@ -441,29 +436,28 @@ export const EntityGraph: React.FC<EntityGraphProps> = ({
                   <h3 className="font-mono text-xs font-bold text-[var(--terminal-text)] uppercase tracking-wide">
                     Node_Inspector
                   </h3>
-                  <Button
+                  <IconButton
                     variant="ghost"
-                    size="icon"
-                    aria-label="Close entity details"
+                    label="Close entity details"
                     className="h-5 w-5 -mr-2"
                     onClick={() => setSelectedEntity(null)}
-                  >
-                    <span className="sr-only">Close</span>
-                    <svg
-                      width="10"
-                      height="10"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      className="text-[var(--terminal-text-dim)]"
-                    >
-                      <line x1="18" y1="6" x2="6" y2="18"></line>
-                      <line x1="6" y1="6" x2="18" y2="18"></line>
-                    </svg>
-                  </Button>
+                    icon={
+                      <svg
+                        width="10"
+                        height="10"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        className="text-[var(--terminal-text-dim)]"
+                      >
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                      </svg>
+                    }
+                  />
                 </div>
                 <div className="space-y-2 font-mono text-xs">
                   <div className="grid grid-cols-3 gap-1">
