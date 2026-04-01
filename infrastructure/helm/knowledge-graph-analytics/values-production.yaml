@@ -1,0 +1,252 @@
+# Production values for NOUS Platform on DigitalOcean Kubernetes
+# Cluster: do-nyc3-rag-system-cluster
+# Domain: gen-text.app
+
+global:
+  imageRegistry: "registry.digitalocean.com/ragsystemregistry"
+  imagePullSecrets:
+    - name: do-registry
+  storageClass: "do-block-storage"
+  dnsZone: "gen-text.app"
+  environment: "production"
+
+# Disable Go template expressions in commonLabels (must be static YAML)
+commonLabels:
+  app.kubernetes.io/name: knowledge-graph-analytics
+  app.kubernetes.io/part-of: nous-platform
+
+commonAnnotations: {}
+
+# ──────────────────────────────────────────────
+# Frontend
+# ──────────────────────────────────────────────
+frontend:
+  enabled: true
+  replicaCount: 2
+
+  image:
+    repository: registry.digitalocean.com/ragsystemregistry/frontend
+    tag: "latest"
+    pullPolicy: Always
+
+  service:
+    type: ClusterIP
+    port: 80
+    targetPort: 3000
+
+  ingress:
+    enabled: true
+    className: "nginx"
+    annotations:
+      nginx.ingress.kubernetes.io/ssl-redirect: "true"
+      cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    hosts:
+      - host: app.gen-text.app
+        paths:
+          - path: /
+            pathType: Prefix
+    tls:
+      - secretName: rag-app-tls
+        hosts:
+          - app.gen-text.app
+
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 256Mi
+
+  autoscaling:
+    enabled: false
+
+  env:
+    - name: NODE_ENV
+      value: "production"
+
+  healthCheck:
+    enabled: true
+    path: /
+    initialDelaySeconds: 15
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+# ──────────────────────────────────────────────
+# Backend
+# ──────────────────────────────────────────────
+backend:
+  enabled: true
+  replicaCount: 2
+
+  image:
+    repository: registry.digitalocean.com/ragsystemregistry/backend
+    tag: "latest"
+    pullPolicy: Always
+
+  service:
+    type: ClusterIP
+    port: 80
+    targetPort: 8000
+
+  ingress:
+    enabled: true
+    className: "nginx"
+    annotations:
+      nginx.ingress.kubernetes.io/ssl-redirect: "true"
+      cert-manager.io/cluster-issuer: "letsencrypt-prod"
+      nginx.ingress.kubernetes.io/proxy-body-size: "100m"
+      nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+      nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
+      nginx.ingress.kubernetes.io/proxy-connect-timeout: "60"
+      # WebSocket support via standard nginx annotations
+      nginx.ingress.kubernetes.io/proxy-http-version: "1.1"
+      nginx.ingress.kubernetes.io/upstream-hash-by: "$request_uri"
+    hosts:
+      - host: api.gen-text.app
+        paths:
+          - path: /
+            pathType: Prefix
+    tls:
+      - secretName: rag-api-tls
+        hosts:
+          - api.gen-text.app
+
+  resources:
+    limits:
+      cpu: "1"
+      memory: 2Gi
+    requests:
+      cpu: 500m
+      memory: 1Gi
+
+  autoscaling:
+    enabled: false
+
+  # Environment variables from existing DO secrets
+  envFrom:
+    - secretRef:
+        name: database-credentials
+    - secretRef:
+        name: app-secrets
+    - secretRef:
+        name: spaces-credentials
+
+  # Additional env vars (static config)
+  env:
+    - name: ENVIRONMENT
+      value: "production"
+    - name: PYTHONPATH
+      value: "/app"
+    - name: LOG_LEVEL
+      value: "INFO"
+    - name: WORKERS
+      value: "2"
+    - name: TIMEOUT
+      value: "300"
+    - name: CORS_ORIGINS
+      value: "https://app.gen-text.app,https://gen-text.app"
+    - name: QDRANT_URL
+      value: "http://localhost:6333"
+
+  healthCheck:
+    enabled: true
+    path: /health
+    # Startup probe gives the container time to load ML models
+    startupProbe:
+      initialDelaySeconds: 10
+      periodSeconds: 10
+      timeoutSeconds: 5
+      failureThreshold: 18
+    # Liveness: is the process alive?
+    initialDelaySeconds: 10
+    periodSeconds: 15
+    timeoutSeconds: 5
+    failureThreshold: 3
+    # Readiness: can it serve traffic?
+    readinessInitialDelaySeconds: 5
+    readinessPeriodSeconds: 10
+    readinessTimeoutSeconds: 3
+    readinessFailureThreshold: 2
+
+  # Init container only waits for PostgreSQL (managed DO DB)
+  initContainers:
+    waitForPostgres: true
+    waitForRedis: false
+    waitForNeo4j: false
+    waitForQdrant: false
+
+# ──────────────────────────────────────────────
+# All databases are external (DO Managed)
+# ──────────────────────────────────────────────
+postgresql:
+  enabled: false
+
+redis:
+  enabled: false
+
+neo4j:
+  enabled: false
+
+qdrant:
+  enabled: false
+
+# ──────────────────────────────────────────────
+# Celery (disabled for initial deploy)
+# ──────────────────────────────────────────────
+celeryWorker:
+  enabled: false
+
+celeryBeat:
+  enabled: false
+
+# ──────────────────────────────────────────────
+# Monitoring (already deployed in monitoring ns)
+# ──────────────────────────────────────────────
+prometheus:
+  enabled: false
+
+grafana:
+  enabled: false
+
+nginx-ingress-controller:
+  enabled: false
+
+monitoring:
+  enabled: false
+
+# ──────────────────────────────────────────────
+# Security
+# ──────────────────────────────────────────────
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 1001
+  runAsGroup: 1001
+  fsGroup: 1001
+
+podSecurityPolicy:
+  enabled: false
+
+networkPolicy:
+  enabled: false
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+affinity: {}
+tolerations: []
+nodeSelector: {}
+podAnnotations: {}
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+rbac:
+  create: false
+
+backup:
+  enabled: false

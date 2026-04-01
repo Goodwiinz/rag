@@ -11,12 +11,8 @@ global:
 # Common labels and annotations
 commonLabels:
   app.kubernetes.io/name: knowledge-graph-analytics
-  app.kubernetes.io/instance: {{ .Release.Name }}
-  app.kubernetes.io/managed-by: {{ .Release.Service }}
 
-commonAnnotations:
-  helm.sh/hook-weight: "0"
-  helm.sh/hook: "pre-install,pre-upgrade"
+commonAnnotations: {}
 
 # Frontend Configuration
 frontend:
