@@ -14,8 +14,8 @@ interface CellCitationProps {
 }
 
 function getConfidenceColor(confidence: number): string {
-  if (confidence > 0.8) return 'bg-[#D4A039]';
-  if (confidence > 0.5) return 'bg-[#ffb700]';
+  if (confidence > 0.8) return 'bg-sol';
+  if (confidence > 0.5) return 'bg-helios';
   return 'bg-red-500';
 }
 
@@ -37,7 +37,7 @@ export function CellCitation({
     <Popover>
       <PopoverTrigger asChild>
         <button
-          className="inline-flex items-center justify-center h-5 w-5 rounded text-gray-500 hover:text-[#00d4ff] hover:bg-[#00d4ff]/10 transition-colors"
+          className="inline-flex items-center justify-center h-5 w-5 rounded text-gray-500 hover:text-brand-cyan hover:bg-brand-cyan/10 transition-colors"
           aria-label="View citation"
         >
           <Quote className="h-3 w-3" />
@@ -61,9 +61,9 @@ export function CellCitation({
                 className={cn(
                   'text-[10px] font-mono',
                   conf > 0.8
-                    ? 'text-[#D4A039]'
+                    ? 'text-sol'
                     : conf > 0.5
-                      ? 'text-[#ffb700]'
+                      ? 'text-helios'
                       : 'text-red-400'
                 )}
               >

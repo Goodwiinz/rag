@@ -377,7 +377,7 @@ function FindingCard({ finding }: { finding: Finding }) {
         <span className="text-sm font-medium">{finding.title}</span>
       </div>
       <p className="text-muted-foreground mt-1 text-xs">{finding.detail}</p>
-      <p className="mt-1 text-xs text-[#00d4ff]">{finding.recommendation}</p>
+      <p className="mt-1 text-xs text-brand-cyan">{finding.recommendation}</p>
     </div>
   );
 }
@@ -846,7 +846,7 @@ function BottleneckAnalysis() {
                 <p className="text-muted-foreground text-xs">
                   {finding.detail}
                 </p>
-                <p className="mt-1 text-xs text-[#00d4ff]">
+                <p className="mt-1 text-xs text-brand-cyan">
                   {finding.recommendation}
                 </p>
               </div>

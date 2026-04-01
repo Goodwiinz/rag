@@ -199,8 +199,8 @@ export const CropExtractOverlay: React.FC<CropExtractOverlayProps> = ({
 
       {!selectionFinalized && !displayRect && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <div className="rounded-lg border border-[#00d4ff]/30 bg-black/80 px-4 py-2">
-            <span className="text-sm text-[#00d4ff]">
+          <div className="rounded-lg border border-brand-cyan/30 bg-black/80 px-4 py-2">
+            <span className="text-sm text-brand-cyan">
               Click and drag to select a region
             </span>
           </div>
@@ -210,7 +210,7 @@ export const CropExtractOverlay: React.FC<CropExtractOverlayProps> = ({
       {displayRect && displayRect.width > 0 && displayRect.height > 0 && (
         <>
           <div
-            className="absolute border-2 border-dashed border-[#00d4ff] bg-[#00d4ff]/10"
+            className="absolute border-2 border-dashed border-brand-cyan bg-brand-cyan/10"
             style={{
               left: displayRect.x,
               top: displayRect.y,
@@ -218,10 +218,10 @@ export const CropExtractOverlay: React.FC<CropExtractOverlayProps> = ({
               height: displayRect.height,
             }}
           >
-            <span className="absolute -top-5 left-0 rounded bg-black/80 px-1.5 py-0.5 text-[10px] font-mono text-[#00d4ff]">
+            <span className="absolute -top-5 left-0 rounded bg-black/80 px-1.5 py-0.5 text-[10px] font-mono text-brand-cyan">
               ({Math.round(displayRect.x)}, {Math.round(displayRect.y)})
             </span>
-            <span className="absolute -bottom-5 right-0 rounded bg-black/80 px-1.5 py-0.5 text-[10px] font-mono text-[#00d4ff]">
+            <span className="absolute -bottom-5 right-0 rounded bg-black/80 px-1.5 py-0.5 text-[10px] font-mono text-brand-cyan">
               ({Math.round(displayRect.x + displayRect.width)},{' '}
               {Math.round(displayRect.y + displayRect.height)})
             </span>
@@ -244,8 +244,8 @@ export const CropExtractOverlay: React.FC<CropExtractOverlayProps> = ({
                 disabled={isExtracting}
                 className={cn(
                   'h-8 gap-1.5 px-3 text-xs font-medium',
-                  'bg-[#00d4ff] text-black hover:bg-[#00d4ff]/80',
-                  'shadow-lg shadow-[#00d4ff]/20'
+                  'bg-brand-cyan text-black hover:bg-brand-cyan/80',
+                  'shadow-lg shadow-brand-cyan/20'
                 )}
                 aria-label="Extract selected region"
               >

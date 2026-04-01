@@ -67,7 +67,7 @@ export const CitationGraphControls: React.FC<CitationGraphControlsProps> = ({
   return (
     <div className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg p-4">
       <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2 text-[#D4A039]">
+        <div className="flex items-center gap-2 text-sol">
           <Filter className="h-4 w-4" />
           <span className="font-mono text-sm font-medium">Graph Filters</span>
         </div>
@@ -75,7 +75,7 @@ export const CitationGraphControls: React.FC<CitationGraphControlsProps> = ({
           <button
             onClick={onRefresh}
             disabled={loading}
-            className="p-2 text-gray-500 hover:text-[#D4A039] transition-colors disabled:opacity-50"
+            className="p-2 text-gray-500 hover:text-sol transition-colors disabled:opacity-50"
             title="Refresh Graph"
             aria-label="Refresh citation graph"
           >
@@ -97,7 +97,7 @@ export const CitationGraphControls: React.FC<CitationGraphControlsProps> = ({
               onChange={handleYearMinChange}
               min={minYear}
               max={filters.yearRange[1]}
-              className="w-20 px-2 py-1.5 bg-[#1a1a1a] border border-[#333] rounded text-sm font-mono text-gray-300 focus:outline-none focus:border-[#D4A039]"
+              className="w-20 px-2 py-1.5 bg-[#1a1a1a] border border-[#333] rounded text-sm font-mono text-gray-300 focus:outline-none focus:border-sol"
             />
             <span className="text-gray-500">—</span>
             <input
@@ -106,7 +106,7 @@ export const CitationGraphControls: React.FC<CitationGraphControlsProps> = ({
               onChange={handleYearMaxChange}
               min={filters.yearRange[0]}
               max={maxYear}
-              className="w-20 px-2 py-1.5 bg-[#1a1a1a] border border-[#333] rounded text-sm font-mono text-gray-300 focus:outline-none focus:border-[#D4A039]"
+              className="w-20 px-2 py-1.5 bg-[#1a1a1a] border border-[#333] rounded text-sm font-mono text-gray-300 focus:outline-none focus:border-sol"
             />
           </div>
           <div className="mt-2">
@@ -116,7 +116,7 @@ export const CitationGraphControls: React.FC<CitationGraphControlsProps> = ({
               max={maxYear}
               value={filters.yearRange[0]}
               onChange={handleYearMinChange}
-              className="w-full h-1 bg-[#333] rounded-lg appearance-none cursor-pointer accent-[#D4A039]"
+              className="w-full h-1 bg-[#333] rounded-lg appearance-none cursor-pointer accent-sol"
             />
           </div>
         </div>
@@ -124,7 +124,7 @@ export const CitationGraphControls: React.FC<CitationGraphControlsProps> = ({
         {/* Depth Selector */}
         <div>
           <label className="text-xs text-gray-500 font-mono uppercase tracking-wide block mb-2">
-            Traversal Depth: <span className="text-[#D4A039]">{filters.depth}</span>
+            Traversal Depth: <span className="text-sol">{filters.depth}</span>
           </label>
           <input
             type="range"
@@ -132,7 +132,7 @@ export const CitationGraphControls: React.FC<CitationGraphControlsProps> = ({
             max={5}
             value={filters.depth}
             onChange={handleDepthChange}
-            className="w-full h-1 bg-[#333] rounded-lg appearance-none cursor-pointer accent-[#D4A039]"
+            className="w-full h-1 bg-[#333] rounded-lg appearance-none cursor-pointer accent-sol"
           />
           <div className="flex justify-between text-xs text-gray-500 font-mono mt-1">
             <span>1</span>
@@ -145,7 +145,10 @@ export const CitationGraphControls: React.FC<CitationGraphControlsProps> = ({
 
         {/* Include External Toggle */}
         <div className="flex items-center justify-between">
-          <label id="external-papers-label" className="text-xs text-gray-500 font-mono uppercase tracking-wide">
+          <label
+            id="external-papers-label"
+            className="text-xs text-gray-500 font-mono uppercase tracking-wide"
+          >
             Include External Papers
           </label>
           <button
@@ -155,7 +158,7 @@ export const CitationGraphControls: React.FC<CitationGraphControlsProps> = ({
             aria-labelledby="external-papers-label"
             className={`relative w-12 h-6 rounded-full transition-colors ${
               filters.includeExternal
-                ? 'bg-[#D4A039]/30 border-[#D4A039]'
+                ? 'bg-sol/30 border-sol'
                 : 'bg-[#333] border-[#555]'
             } border`}
           >
@@ -163,7 +166,7 @@ export const CitationGraphControls: React.FC<CitationGraphControlsProps> = ({
               aria-hidden="true"
               className={`absolute top-0.5 w-5 h-5 rounded-full transition-transform ${
                 filters.includeExternal
-                  ? 'translate-x-6 bg-[#D4A039]'
+                  ? 'translate-x-6 bg-sol'
                   : 'translate-x-0.5 bg-gray-500'
               }`}
             />
@@ -183,7 +186,7 @@ export const CitationGraphControls: React.FC<CitationGraphControlsProps> = ({
                   yearRange: [maxYear - 5, maxYear],
                 })
               }
-              className="px-2 py-1 text-xs font-mono bg-[#1a1a1a] border border-[#333] rounded hover:border-[#D4A039] hover:text-[#D4A039] transition-colors"
+              className="px-2 py-1 text-xs font-mono bg-[#1a1a1a] border border-[#333] rounded hover:border-sol hover:text-sol transition-colors"
             >
               Last 5 years
             </button>
@@ -194,7 +197,7 @@ export const CitationGraphControls: React.FC<CitationGraphControlsProps> = ({
                   yearRange: [maxYear - 10, maxYear],
                 })
               }
-              className="px-2 py-1 text-xs font-mono bg-[#1a1a1a] border border-[#333] rounded hover:border-[#D4A039] hover:text-[#D4A039] transition-colors"
+              className="px-2 py-1 text-xs font-mono bg-[#1a1a1a] border border-[#333] rounded hover:border-sol hover:text-sol transition-colors"
             >
               Last 10 years
             </button>
@@ -207,7 +210,7 @@ export const CitationGraphControls: React.FC<CitationGraphControlsProps> = ({
                   includeExternal: true,
                 })
               }
-              className="px-2 py-1 text-xs font-mono bg-[#1a1a1a] border border-[#333] rounded hover:border-[#D4A039] hover:text-[#D4A039] transition-colors"
+              className="px-2 py-1 text-xs font-mono bg-[#1a1a1a] border border-[#333] rounded hover:border-sol hover:text-sol transition-colors"
             >
               Reset All
             </button>

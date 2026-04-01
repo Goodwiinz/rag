@@ -57,7 +57,7 @@ export function CreateProjectModal({
     <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
       <div className="bg-card border border-border rounded-lg w-full max-w-xl p-6">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-mono font-bold text-[#D4A039]">
+          <h2 className="text-lg font-mono font-bold text-sol">
             New Research Project
           </h2>
           <button
@@ -114,7 +114,7 @@ export function CreateProjectModal({
           <button
             onClick={handleSubmit}
             disabled={!name.trim() || submitting}
-            className="flex items-center gap-2 px-4 py-2 bg-[#D4A039]/10 text-[#D4A039] border border-[#D4A039]/30 rounded font-mono text-sm hover:bg-[#D4A039]/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex items-center gap-2 px-4 py-2 bg-sol/10 text-sol border border-sol/30 rounded font-mono text-sm hover:bg-sol/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
             Create Project

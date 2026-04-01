@@ -230,7 +230,7 @@ export function BlueprintEditor({ projectId }: BlueprintEditorProps) {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <Loader2 className="h-6 w-6 animate-spin text-[#D4A039]" />
+        <Loader2 className="h-6 w-6 animate-spin text-sol" />
         <span className="ml-2 font-mono text-sm text-gray-500">
           Loading project...
         </span>
@@ -244,7 +244,7 @@ export function BlueprintEditor({ projectId }: BlueprintEditorProps) {
       <div>
         <button
           onClick={() => router.push('/research-engine')}
-          className="flex items-center gap-1 text-sm text-gray-500 hover:text-[#D4A039] font-mono mb-6 transition-colors"
+          className="flex items-center gap-1 text-sm text-gray-500 hover:text-sol font-mono mb-6 transition-colors"
         >
           <ArrowLeft className="h-4 w-4" />
           Back to Projects
@@ -265,7 +265,7 @@ export function BlueprintEditor({ projectId }: BlueprintEditorProps) {
       {/* Navigation */}
       <button
         onClick={() => router.push('/research-engine')}
-        className="flex items-center gap-1 text-sm text-gray-500 hover:text-[#D4A039] font-mono mb-6 transition-colors"
+        className="flex items-center gap-1 text-sm text-gray-500 hover:text-sol font-mono mb-6 transition-colors"
       >
         <ArrowLeft className="h-4 w-4" />
         Back to Projects
@@ -278,7 +278,7 @@ export function BlueprintEditor({ projectId }: BlueprintEditorProps) {
             type="text"
             value={blueprintName}
             onChange={(e) => setBlueprintName(e.target.value)}
-            className="text-xl font-mono font-bold bg-transparent text-gray-200 border-none outline-none w-full focus:text-[#D4A039] transition-colors placeholder-gray-600"
+            className="text-xl font-mono font-bold bg-transparent text-gray-200 border-none outline-none w-full focus:text-sol transition-colors placeholder-gray-600"
             placeholder="Blueprint name..."
           />
           {project && (
@@ -292,7 +292,7 @@ export function BlueprintEditor({ projectId }: BlueprintEditorProps) {
           <button
             onClick={handleSave}
             disabled={saving || !blueprintName.trim() || !!globalParamsError}
-            className="flex items-center gap-2 px-4 py-2 bg-[#D4A039]/10 text-[#D4A039] border border-[#D4A039]/30 rounded font-mono text-sm hover:bg-[#D4A039]/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex items-center gap-2 px-4 py-2 bg-sol/10 text-sol border border-sol/30 rounded font-mono text-sm hover:bg-sol/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {saving ? (
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -306,7 +306,7 @@ export function BlueprintEditor({ projectId }: BlueprintEditorProps) {
             <button
               onClick={handleStartRun}
               disabled={starting || steps.length === 0}
-              className="flex items-center gap-2 px-4 py-2 bg-[#ffb700]/10 text-[#ffb700] border border-[#ffb700]/30 rounded font-mono text-sm hover:bg-[#ffb700]/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex items-center gap-2 px-4 py-2 bg-helios/10 text-helios border border-helios/30 rounded font-mono text-sm hover:bg-helios/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {starting ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -336,7 +336,7 @@ export function BlueprintEditor({ projectId }: BlueprintEditorProps) {
             </h2>
             <button
               onClick={handleAddStep}
-              className="flex items-center gap-1 px-3 py-1.5 text-xs font-mono text-[#D4A039] border border-[#D4A039]/30 rounded hover:bg-[#D4A039]/10 transition-colors"
+              className="flex items-center gap-1 px-3 py-1.5 text-xs font-mono text-sol border border-sol/30 rounded hover:bg-sol/10 transition-colors"
             >
               <Plus className="h-3 w-3" />
               Add Step
@@ -350,7 +350,7 @@ export function BlueprintEditor({ projectId }: BlueprintEditorProps) {
               </p>
               <button
                 onClick={handleAddStep}
-                className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-mono text-[#D4A039] border border-[#D4A039]/30 rounded hover:bg-[#D4A039]/10 transition-colors"
+                className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-mono text-sol border border-sol/30 rounded hover:bg-sol/10 transition-colors"
               >
                 <Plus className="h-3 w-3" />
                 Add your first step
@@ -400,7 +400,7 @@ export function BlueprintEditor({ projectId }: BlueprintEditorProps) {
                     })
                   }
                   placeholder="Research topic..."
-                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#333] rounded text-sm font-mono text-gray-300 placeholder-gray-600 focus:outline-none focus:border-[#D4A039]"
+                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#333] rounded text-sm font-mono text-gray-300 placeholder-gray-600 focus:outline-none focus:border-sol"
                 />
               </div>
 
@@ -422,7 +422,7 @@ export function BlueprintEditor({ projectId }: BlueprintEditorProps) {
                       return next;
                     })
                   }
-                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#333] rounded text-sm font-mono text-gray-300 focus:outline-none focus:border-[#D4A039]"
+                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#333] rounded text-sm font-mono text-gray-300 focus:outline-none focus:border-sol"
                 />
               </div>
 
@@ -444,7 +444,7 @@ export function BlueprintEditor({ projectId }: BlueprintEditorProps) {
                       return next;
                     })
                   }
-                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#333] rounded text-sm font-mono text-gray-300 focus:outline-none focus:border-[#D4A039]"
+                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#333] rounded text-sm font-mono text-gray-300 focus:outline-none focus:border-sol"
                 />
               </div>
 
@@ -486,7 +486,7 @@ export function BlueprintEditor({ projectId }: BlueprintEditorProps) {
                 className={`w-full px-3 py-2 bg-[#1a1a1a] border rounded text-xs font-mono text-gray-300 focus:outline-none resize-none ${
                   globalParamsError
                     ? 'border-red-500/50 focus:border-red-500'
-                    : 'border-[#333] focus:border-[#D4A039]'
+                    : 'border-[#333] focus:border-sol'
                 }`}
               />
               {globalParamsError && (
@@ -510,7 +510,7 @@ export function BlueprintEditor({ projectId }: BlueprintEditorProps) {
                 {blueprint.template_source && (
                   <p>
                     Template:{' '}
-                    <span className="text-[#00d4ff]">
+                    <span className="text-brand-cyan">
                       {blueprint.template_source}
                     </span>
                   </p>

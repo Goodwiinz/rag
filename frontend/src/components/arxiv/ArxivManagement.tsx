@@ -2,22 +2,29 @@
 
 import { cn } from '@/lib/utils';
 import { apiClient } from '@/services/apiClient';
+import { useAuthStore } from '@/stores/authStore';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   Activity,
+  ArrowRight,
   BarChart3,
   Brain,
   Loader2,
+  LogIn,
+  Search,
+  ShieldCheck,
   TrendingUp,
   Upload,
 } from 'lucide-react';
-import React, { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 
 import { ProgressBar } from './arxivControls';
 import {
   CORE_AI_CATEGORIES,
   ExtractionResult,
   getErrorMessage,
+  getArxivTrackingErrorMessage,
   IngestionResult,
   POPULAR_CATEGORIES,
   splitValidAndInvalidPaperIds,
@@ -33,6 +40,8 @@ import { TrackingTab } from './tabs/TrackingTab';
 type TabId = 'tracking' | 'ingest' | 'extract' | 'stats';
 
 export default function ArxivManagement() {
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const isAuthLoading = useAuthStore((state) => state.isLoading);
   const [isTracking, setIsTracking] = useState(false);
   const [isIngesting, setIsIngesting] = useState(false);
   const [isExtracting, setIsExtracting] = useState(false);
@@ -47,6 +56,7 @@ export default function ArxivManagement() {
   const [progress, setProgress] = useState(0);
   const [message, setMessage] = useState('');
   const [activeTab, setActiveTab] = useState<TabId>('tracking');
+  const hasAppliedGuestDefault = useRef(false);
 
   const [selectedCategories, setSelectedCategories] = useState<string[]>([
     'cs.AI',
@@ -96,6 +106,7 @@ export default function ArxivManagement() {
     searchResults && selectedPaperIds.length < searchResults.length
   );
   const hasMessageError = message.startsWith('ERROR:');
+  const isGuest = !isAuthenticated && !isAuthLoading;
   const hasExtractionFeaturesEnabled =
     extractEntities ||
     extractTopics ||
@@ -137,6 +148,13 @@ export default function ArxivManagement() {
   useEffect(() => {
     fetchStats();
   }, []);
+
+  useEffect(() => {
+    if (isGuest && !hasAppliedGuestDefault.current) {
+      setActiveTab('ingest');
+      hasAppliedGuestDefault.current = true;
+    }
+  }, [isGuest]);
 
   const toggleCategory = (category: string) => {
     setSelectedCategories((prev) =>
@@ -201,7 +219,7 @@ export default function ArxivManagement() {
     } catch (error: any) {
       console.error('Tracking failed:', error);
       setProgress(0);
-      setMessage(`ERROR: ${getErrorMessage(error)}`);
+      setMessage(`ERROR: ${getArxivTrackingErrorMessage(error)}`);
     } finally {
       setIsTracking(false);
     }
@@ -359,78 +377,221 @@ export default function ArxivManagement() {
 
   return (
     <div className="mx-auto max-w-7xl space-y-6 p-6">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-        <div className="flex items-start gap-4">
-          <div className="rounded-lg border border-[var(--terminal-border)] bg-[var(--terminal-bg)] p-2.5">
-            <Activity className="h-6 w-6 text-primary" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-mono font-bold text-[var(--terminal-text)] tracking-wider">
-              ARXIV_RESEARCH_HUB
-            </h1>
-            <div className="mt-1 flex items-center gap-2">
-              <span
-                className="h-1.5 w-1.5 rounded-full bg-primary"
-                aria-hidden="true"
-              />
-              <p className="text-xs font-mono text-muted-foreground uppercase tracking-widest">
-                Track, ingest, and extract insights from ArXiv papers
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {isStatsLoading && !stats && (
-          <div className="inline-flex items-center gap-2 rounded-lg border border-[var(--terminal-border)] bg-[var(--terminal-surface)] px-3 py-2 text-[10px] font-mono text-muted-foreground">
-            <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
-            Loading metrics…
-          </div>
-        )}
-
-        {!isStatsLoading && !stats && statsError && (
-          <div className="max-w-md rounded-lg border border-red-900 bg-red-950/70 px-3 py-2 text-[10px] font-mono text-red-300">
-            Unable to load stats: {statsError}
-          </div>
-        )}
-
-        {stats && (
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-            {[
-              {
-                label: 'Tracked',
-                value: stats.statistics.total_papers_tracked,
-                color: 'text-primary',
-              },
-              {
-                label: 'Active',
-                value: stats.statistics.active_papers,
-                color: 'text-[var(--cyan)]',
-              },
-              {
-                label: 'Categories',
-                value: stats.statistics.categories_tracked,
-                color: 'text-foreground',
-              },
-              {
-                label: 'Deleted',
-                value: stats.statistics.deleted_papers,
-                color: 'text-[var(--amber-gold)]',
-              },
-            ].map((item) => (
-              <div
-                key={item.label}
-                className="min-w-[110px] rounded-lg border border-[var(--terminal-border)] bg-[var(--terminal-surface)] px-3 py-2"
-              >
-                <div className="text-[10px] font-mono uppercase tracking-wide text-gray-500">
-                  {item.label}
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.4fr)_minmax(320px,0.9fr)]">
+        <section className="overflow-hidden rounded-2xl border border-[var(--terminal-border)] bg-[linear-gradient(135deg,rgba(212,160,57,0.08),rgba(17,24,39,0.18)_45%,rgba(10,10,10,0.92)_100%)] p-5 sm:p-6">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div className="space-y-4">
+              <div className="flex items-start gap-4">
+                <div className="rounded-xl border border-[var(--terminal-border)] bg-[var(--terminal-bg)]/80 p-3">
+                  <Activity className="h-6 w-6 text-primary" />
                 </div>
-                <div className={cn('text-lg font-mono font-bold', item.color)}>
-                  {item.value}
+                <div className="space-y-3">
+                  <div>
+                    <h1 className="text-2xl font-mono font-bold tracking-[0.16em] text-[var(--terminal-text)] sm:text-3xl">
+                      ARXIV_RESEARCH_HUB
+                    </h1>
+                    <p className="mt-2 max-w-2xl text-sm font-mono leading-relaxed text-muted-foreground">
+                      Search the public arXiv corpus, track category changes,
+                      and push selected papers into your workspace ingestion and
+                      extraction pipeline.
+                    </p>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    <span className="inline-flex items-center gap-2 rounded-full border border-[var(--terminal-border)] bg-[var(--terminal-bg)]/60 px-3 py-1 text-[10px] font-mono font-bold uppercase tracking-[0.18em] text-foreground">
+                      <Search className="h-3.5 w-3.5 text-[var(--cyan)]" />
+                      Public Search
+                    </span>
+                    <span className="inline-flex items-center gap-2 rounded-full border border-[var(--terminal-border)] bg-[var(--terminal-bg)]/60 px-3 py-1 text-[10px] font-mono font-bold uppercase tracking-[0.18em] text-foreground">
+                      <BarChart3 className="h-3.5 w-3.5 text-primary" />
+                      Live Stats
+                    </span>
+                    <span className="inline-flex items-center gap-2 rounded-full border border-[var(--terminal-border)] bg-[var(--terminal-bg)]/60 px-3 py-1 text-[10px] font-mono font-bold uppercase tracking-[0.18em] text-foreground">
+                      <ShieldCheck className="h-3.5 w-3.5 text-[var(--amber-gold)]" />
+                      {isGuest ? 'Workspace Actions Locked' : 'Workspace Actions Ready'}
+                    </span>
+                  </div>
                 </div>
               </div>
-            ))}
+
+              <div className="grid gap-3 md:grid-cols-3">
+                {[
+                  {
+                    key: 'search',
+                    icon: Search,
+                    title: 'Search',
+                    description:
+                      'Explore papers, compare abstracts, and build a shortlist.',
+                    state: 'Ready',
+                    stateTone: 'text-[var(--cyan)]',
+                  },
+                  {
+                    key: 'ingest',
+                    icon: Upload,
+                    title: 'Queue',
+                    description:
+                      'Push selected papers into background ingestion jobs.',
+                    state: isGuest ? 'Sign in' : 'Ready',
+                    stateTone: isGuest
+                      ? 'text-[var(--amber-gold)]'
+                      : 'text-primary',
+                  },
+                  {
+                    key: 'extract',
+                    icon: Brain,
+                    title: 'Extract',
+                    description:
+                      'Generate entities, topics, keyphrases, citations, and summaries.',
+                    state: isGuest ? 'Sign in' : 'Ready',
+                    stateTone: isGuest
+                      ? 'text-[var(--amber-gold)]'
+                      : 'text-primary',
+                  },
+                ].map((step) => {
+                  const StepIcon = step.icon;
+
+                  return (
+                    <div
+                      key={step.key}
+                      className="rounded-xl border border-[var(--terminal-border)] bg-[var(--terminal-bg)]/65 p-4"
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="rounded-lg border border-[var(--terminal-border)] bg-[var(--terminal-surface)] p-2">
+                          <StepIcon
+                            className="h-4 w-4 text-foreground"
+                            aria-hidden="true"
+                          />
+                        </div>
+                        <span
+                          className={cn(
+                            'text-[10px] font-mono font-bold uppercase tracking-[0.18em]',
+                            step.stateTone
+                          )}
+                        >
+                          {step.state}
+                        </span>
+                      </div>
+                      <div className="mt-4 space-y-2">
+                        <p className="text-sm font-mono font-bold uppercase tracking-[0.14em] text-foreground">
+                          {step.title}
+                        </p>
+                        <p className="text-[11px] font-mono leading-relaxed text-muted-foreground">
+                          {step.description}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
           </div>
-        )}
+        </section>
+
+        <aside className="space-y-4">
+          <div className="rounded-2xl border border-[var(--terminal-border)] bg-[var(--terminal-bg)]/75 p-5">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-[10px] font-mono font-bold uppercase tracking-[0.22em] text-muted-foreground">
+                  Current Mode
+                </p>
+                <p className="mt-2 text-xl font-mono font-bold uppercase tracking-[0.16em] text-foreground">
+                  {isGuest ? 'Discovery Mode' : 'Workspace Mode'}
+                </p>
+              </div>
+              <div className="rounded-full border border-[var(--terminal-border)] bg-[var(--terminal-surface)] px-3 py-1 text-[10px] font-mono font-bold uppercase tracking-[0.18em] text-primary">
+                {isGuest ? 'Guest' : 'Authenticated'}
+              </div>
+            </div>
+
+            <p className="mt-4 text-[11px] font-mono leading-relaxed text-muted-foreground">
+              {isGuest
+                ? 'Public search and live stats stay available without signing in. Queueing ingestion, extraction, and category scans remain tied to an authenticated workspace.'
+                : 'All tracking, ingestion, and extraction actions are available in this workspace session.'}
+            </p>
+
+            <div className="mt-4 flex flex-wrap gap-2">
+              {isGuest ? (
+                <Link
+                  href="/login"
+                  className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-[11px] font-mono font-bold uppercase tracking-[0.14em] text-background transition-colors hover:bg-primary/85"
+                >
+                  <LogIn className="h-4 w-4" aria-hidden="true" />
+                  Sign In To Unlock Workspace
+                </Link>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('tracking')}
+                    className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-[11px] font-mono font-bold uppercase tracking-[0.14em] text-background transition-colors hover:bg-primary/85"
+                  >
+                    Run Tracking Workflow
+                    <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('ingest')}
+                    className="inline-flex items-center gap-2 rounded-lg border border-[var(--terminal-border)] px-4 py-2.5 text-[11px] font-mono font-bold uppercase tracking-[0.14em] text-muted-foreground transition-colors hover:bg-[var(--terminal-surface)]"
+                  >
+                    Review Search Results
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+
+          {isStatsLoading && !stats && (
+            <div className="inline-flex items-center gap-2 rounded-2xl border border-[var(--terminal-border)] bg-[var(--terminal-bg)]/75 px-4 py-3 text-[11px] font-mono text-muted-foreground">
+              <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+              Loading metrics…
+            </div>
+          )}
+
+          {!isStatsLoading && !stats && statsError && (
+            <div className="rounded-2xl border border-red-900 bg-red-950/70 px-4 py-3 text-[10px] font-mono text-red-300">
+              Unable to load stats: {statsError}
+            </div>
+          )}
+
+          {stats && (
+            <div className="grid grid-cols-2 gap-3">
+              {[
+                {
+                  label: 'Tracked',
+                  value: stats.statistics.total_papers_tracked,
+                  color: 'text-primary',
+                },
+                {
+                  label: 'Active',
+                  value: stats.statistics.active_papers,
+                  color: 'text-[var(--cyan)]',
+                },
+                {
+                  label: 'Categories',
+                  value: stats.statistics.categories_tracked,
+                  color: 'text-foreground',
+                },
+                {
+                  label: 'Deleted',
+                  value: stats.statistics.deleted_papers,
+                  color: 'text-[var(--amber-gold)]',
+                },
+              ].map((item) => (
+                <div
+                  key={item.label}
+                  className="min-w-[110px] rounded-2xl border border-[var(--terminal-border)] bg-[var(--terminal-bg)]/75 px-4 py-3"
+                >
+                  <div className="text-[10px] font-mono uppercase tracking-[0.18em] text-gray-500">
+                    {item.label}
+                  </div>
+                  <div className={cn('mt-1 text-2xl font-mono font-bold', item.color)}>
+                    {item.value}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </aside>
       </div>
 
       <div className="rounded-lg border border-[var(--terminal-border)] bg-[var(--terminal-bg)]">
@@ -525,6 +686,7 @@ export default function ArxivManagement() {
             >
               {activeTab === 'tracking' && (
                 <TrackingTab
+                  isAuthenticated={isAuthenticated}
                   selectedCategories={selectedCategories}
                   daysBack={daysBack}
                   updateDatabase={updateDatabase}
@@ -544,6 +706,7 @@ export default function ArxivManagement() {
 
               {activeTab === 'ingest' && (
                 <IngestTab
+                  isAuthenticated={isAuthenticated}
                   searchQuery={searchQuery}
                   maxResults={maxResults}
                   useCategoryFilterForSearch={useCategoryFilterForSearch}
@@ -583,6 +746,7 @@ export default function ArxivManagement() {
 
               {activeTab === 'extract' && (
                 <ExtractTab
+                  isAuthenticated={isAuthenticated}
                   extractPaperIds={extractPaperIds}
                   parsedExtractIds={parsedExtractIds}
                   invalidExtractIds={invalidExtractIds}

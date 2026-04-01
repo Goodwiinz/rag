@@ -67,7 +67,7 @@ export const CiteStep: React.FC<CiteStepProps> = ({
               const format = e.target.value as typeof bibFormat;
               setBibFormat(format);
             }}
-            className="px-3 py-1.5 bg-[#1a1a1a] border border-[#333] rounded text-sm font-mono text-gray-300 focus:outline-none focus:border-[#D4A039]"
+            className="px-3 py-1.5 bg-[#1a1a1a] border border-[#333] rounded text-sm font-mono text-gray-300 focus:outline-none focus:border-sol"
           >
             <option value="bibtex">BibTeX</option>
             <option value="ieee">IEEE</option>
@@ -80,7 +80,7 @@ export const CiteStep: React.FC<CiteStepProps> = ({
             void downloadBibliography(projectId, bibFormat);
           }}
           disabled={!hasCitations}
-          className="flex items-center gap-2 px-4 py-2 bg-[#D4A039]/10 text-[#D4A039] border border-[#D4A039]/30 rounded font-mono text-sm hover:bg-[#D4A039]/20 transition-colors disabled:opacity-50"
+          className="flex items-center gap-2 px-4 py-2 bg-sol/10 text-sol border border-sol/30 rounded font-mono text-sm hover:bg-sol/20 transition-colors disabled:opacity-50"
         >
           <Download className="h-4 w-4" />
           Download
@@ -90,7 +90,7 @@ export const CiteStep: React.FC<CiteStepProps> = ({
       {/* Bibliography content */}
       {loading ? (
         <div className="flex items-center justify-center py-12">
-          <Loader2 className="h-6 w-6 animate-spin text-[#D4A039]" />
+          <Loader2 className="h-6 w-6 animate-spin text-sol" />
         </div>
       ) : bibliography ? (
         <div className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg p-4">
@@ -128,7 +128,7 @@ export const CiteStep: React.FC<CiteStepProps> = ({
         <button
           onClick={onContinue}
           disabled={!hasCitations}
-          className="flex items-center gap-2 px-5 py-2.5 bg-[#D4A039]/10 text-[#D4A039] border border-[#D4A039]/30 rounded font-mono text-sm hover:bg-[#D4A039]/20 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+          className="flex items-center gap-2 px-5 py-2.5 bg-sol/10 text-sol border border-sol/30 rounded font-mono text-sm hover:bg-sol/20 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
         >
           Continue
           <ArrowRight className="h-4 w-4" />

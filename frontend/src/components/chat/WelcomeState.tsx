@@ -84,14 +84,14 @@ export function WelcomeState({
             <motion.div
               animate={{ top: ['0%', '100%', '0%'], opacity: [0, 1, 0] }}
               transition={{ duration: 3, repeat: Infinity, ease: 'linear' }}
-              className="absolute left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-[#D4A039] to-transparent w-full"
+              className="absolute left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-sol to-transparent w-full"
             />
           </motion.div>
 
           {/* Radar Pings - Background */}
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
             <div
-              className="w-full h-full rounded-full border border-[#D4A039]/5 animate-ping"
+              className="w-full h-full rounded-full border border-sol/5 animate-ping"
               style={{ animationDuration: '3s' }}
             />
           </div>

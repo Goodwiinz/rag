@@ -3,7 +3,9 @@ import {
   Brain,
   CheckSquare,
   Database,
+  Lock,
   Loader2,
+  LogIn,
   Search,
   Square,
   Terminal,
@@ -15,6 +17,7 @@ import { CustomSlider, ToggleSwitch } from '../arxivControls';
 import { ArXivPaper, IngestionResult } from '../arxivTypes';
 
 interface IngestTabProps {
+  isAuthenticated: boolean;
   searchQuery: string;
   maxResults: number;
   useCategoryFilterForSearch: boolean;
@@ -43,6 +46,7 @@ interface IngestTabProps {
 }
 
 export function IngestTab({
+  isAuthenticated,
   searchQuery,
   maxResults,
   useCategoryFilterForSearch,
@@ -81,6 +85,36 @@ export function IngestTab({
           flow.
         </p>
       </div>
+
+      {!isAuthenticated && (
+        <div className="rounded-xl border border-[var(--cyan)]/20 bg-[var(--cyan)]/5 p-4">
+          <div className="flex items-start gap-3">
+            <div className="rounded-lg border border-[var(--cyan)]/20 bg-[var(--terminal-bg)]/70 p-2">
+              <Lock
+                className="h-4 w-4 text-[var(--cyan)]"
+                aria-hidden="true"
+              />
+            </div>
+            <div className="space-y-2">
+              <p className="text-xs font-mono font-bold uppercase tracking-wider text-foreground">
+                Public search stays open
+              </p>
+              <p className="text-[11px] font-mono leading-relaxed text-muted-foreground">
+                Search papers and review results without signing in. Sign in to
+                queue ingestion, send IDs to extraction, and save work to your
+                workspace.
+              </p>
+              <a
+                href="/login"
+                className="inline-flex items-center gap-2 rounded-md border border-[var(--cyan)]/20 bg-[var(--terminal-bg)]/70 px-3 py-2 text-[10px] font-mono font-bold uppercase tracking-wider text-[var(--cyan)] transition-colors hover:bg-[var(--cyan)]/10"
+              >
+                <LogIn className="h-3.5 w-3.5" aria-hidden="true" />
+                Sign In To Queue Ingestion
+              </a>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-12">
         <div className="space-y-4 xl:col-span-5">
@@ -182,7 +216,11 @@ export function IngestTab({
             <button
               type="button"
               onClick={onIngestSelected}
-              disabled={isAnyOperationRunning || selectedPaperIds.length === 0}
+              disabled={
+                !isAuthenticated ||
+                isAnyOperationRunning ||
+                selectedPaperIds.length === 0
+              }
               className={cn(
                 'inline-flex w-full items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-[11px] font-mono font-bold uppercase transition-colors',
                 'bg-primary text-background hover:bg-primary/80 disabled:cursor-not-allowed disabled:opacity-45'
@@ -199,12 +237,22 @@ export function IngestTab({
             <button
               type="button"
               onClick={onSendIdsToExtract}
-              disabled={isAnyOperationRunning || selectedPaperIds.length === 0}
+              disabled={
+                !isAuthenticated ||
+                isAnyOperationRunning ||
+                selectedPaperIds.length === 0
+              }
               className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-[var(--terminal-border)] px-4 py-2.5 text-[11px] font-mono font-bold uppercase text-muted-foreground hover:bg-[var(--terminal-surface)] disabled:cursor-not-allowed disabled:opacity-45"
             >
               <Brain className="h-4 w-4" aria-hidden="true" />
               Send IDs to Extract
             </button>
+
+            {!isAuthenticated && (
+              <div className="rounded-lg border border-[var(--terminal-border)] bg-[var(--terminal-bg)]/40 p-3 text-[10px] font-mono leading-relaxed text-muted-foreground">
+                Sign in to queue ingestion and extraction.
+              </div>
+            )}
 
             {ingestionResult && (
               <div className="rounded-lg border border-primary/25 bg-primary/5 p-3 text-[10px] font-mono leading-relaxed text-muted-foreground">

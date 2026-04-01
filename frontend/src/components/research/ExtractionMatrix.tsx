@@ -304,7 +304,7 @@ export function ExtractionMatrix({
   if (loading) {
     return (
       <div className="flex items-center justify-center py-16">
-        <Loader2 className="h-6 w-6 animate-spin text-[#00d4ff]" />
+        <Loader2 className="h-6 w-6 animate-spin text-brand-cyan" />
         <span className="ml-2 text-sm font-mono text-gray-500">
           Loading matrix...
         </span>
@@ -334,7 +334,7 @@ export function ExtractionMatrix({
     return (
       <div className="space-y-6 rounded-lg border border-border bg-black/30 p-6">
         <div>
-          <h3 className="text-sm font-mono font-bold text-[#00d4ff] uppercase tracking-wide mb-4">
+          <h3 className="text-sm font-mono font-bold text-brand-cyan uppercase tracking-wide mb-4">
             Create Extraction Matrix
           </h3>
           <div className="space-y-4">
@@ -353,7 +353,7 @@ export function ExtractionMatrix({
             <ColumnEditor columns={createColumns} onChange={setCreateColumns} />
 
             <Button
-              className="bg-[#00d4ff]/10 text-[#00d4ff] border border-[#00d4ff]/30 hover:bg-[#00d4ff]/20 font-mono text-sm"
+              className="bg-brand-cyan/10 text-brand-cyan border border-brand-cyan/30 hover:bg-brand-cyan/20 font-mono text-sm"
               disabled={
                 creating ||
                 !createName.trim() ||
@@ -377,9 +377,9 @@ export function ExtractionMatrix({
     <div className="space-y-4">
       {/* Auto-extraction progress indicator */}
       {autoExtractionTaskId && autoExtractionStatus && (
-        <div className="flex items-center gap-2 rounded-md border border-[#00d4ff]/30 bg-[#00d4ff]/5 px-4 py-2">
-          <Loader2 className="h-4 w-4 animate-spin text-[#00d4ff]" />
-          <span className="text-xs font-mono text-[#00d4ff]">
+        <div className="flex items-center gap-2 rounded-md border border-brand-cyan/30 bg-brand-cyan/5 px-4 py-2">
+          <Loader2 className="h-4 w-4 animate-spin text-brand-cyan" />
+          <span className="text-xs font-mono text-brand-cyan">
             Extracting {autoExtractionStatus.completed}/
             {autoExtractionStatus.total}...
           </span>
@@ -401,7 +401,7 @@ export function ExtractionMatrix({
             />
           </div>
         ) : (
-          <h3 className="text-sm font-mono font-bold text-[#00d4ff]">
+          <h3 className="text-sm font-mono font-bold text-brand-cyan">
             {matrix.name}
           </h3>
         )}
@@ -411,7 +411,7 @@ export function ExtractionMatrix({
               <Button
                 variant="outline"
                 size="sm"
-                className="border-[#D4A039]/30 text-[#D4A039] hover:bg-[#D4A039]/10 font-mono text-xs"
+                className="border-sol/30 text-sol hover:bg-sol/10 font-mono text-xs"
                 disabled={
                   saving ||
                   !editName.trim() ||
@@ -439,7 +439,7 @@ export function ExtractionMatrix({
               <Button
                 variant="outline"
                 size="sm"
-                className="border-[#00d4ff]/30 text-[#00d4ff] hover:bg-[#00d4ff]/10 font-mono text-xs"
+                className="border-brand-cyan/30 text-brand-cyan hover:bg-brand-cyan/10 font-mono text-xs"
                 onClick={handleStartEdit}
               >
                 <Pencil className="h-3 w-3 mr-1" />
@@ -448,7 +448,7 @@ export function ExtractionMatrix({
               <Button
                 variant="outline"
                 size="sm"
-                className="border-[#D4A039]/30 text-[#D4A039] hover:bg-[#D4A039]/10 font-mono text-xs"
+                className="border-sol/30 text-sol hover:bg-sol/10 font-mono text-xs"
                 disabled={extracting || documents.length === 0}
                 isLoading={extracting}
                 loadingText="Extracting..."
@@ -460,7 +460,7 @@ export function ExtractionMatrix({
               <Button
                 variant="outline"
                 size="sm"
-                className="border-[#ffb700]/30 text-[#ffb700] hover:bg-[#ffb700]/10 font-mono text-xs"
+                className="border-helios/30 text-helios hover:bg-helios/10 font-mono text-xs"
                 onClick={handleExportCsv}
                 disabled={matrix.cells.length === 0}
               >

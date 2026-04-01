@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
 import { entityService, ProcessingJobStatus } from '@/services/entityService';
+import { useAuthStore } from '@/stores/authStore';
 
 const isActive = (status: string) =>
   ['queued', 'running', 'retrying'].includes(status);
@@ -18,6 +19,8 @@ const isActive = (status: string) =>
 export function GlobalJobCenter() {
   const [jobs, setJobs] = useState<ProcessingJobStatus[]>([]);
   const [loading, setLoading] = useState(false);
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const isAuthLoading = useAuthStore((state) => state.isLoading);
 
   const fetchJobs = async () => {
     try {
@@ -35,10 +38,20 @@ export function GlobalJobCenter() {
   };
 
   useEffect(() => {
+    if (isAuthLoading) {
+      return;
+    }
+
+    if (!isAuthenticated) {
+      setJobs([]);
+      setLoading(false);
+      return;
+    }
+
     fetchJobs();
     const interval = setInterval(fetchJobs, 3000);
     return () => clearInterval(interval);
-  }, []);
+  }, [isAuthenticated, isAuthLoading]);
 
   const activeJobs = useMemo(
     () => jobs.filter((job) => isActive(job.status)),
@@ -61,7 +74,7 @@ export function GlobalJobCenter() {
             <Bell className="w-4 h-4" />
           )}
           {activeJobs.length > 0 && (
-            <span className="absolute -top-1 -right-1 rounded-full bg-[#D4A039] text-[#080808] text-[10px] w-4 h-4 flex items-center justify-center">
+            <span className="absolute -top-1 -right-1 rounded-full bg-sol text-[#080808] text-[10px] w-4 h-4 flex items-center justify-center">
               {activeJobs.length}
             </span>
           )}
@@ -71,7 +84,7 @@ export function GlobalJobCenter() {
         align="end"
         className="w-[360px] bg-[#0A0A0A] border-[#1A1A1A] text-[#fafafa]"
       >
-        <DropdownMenuLabel className="font-mono text-xs uppercase tracking-wider text-[#D4A039]">
+        <DropdownMenuLabel className="font-mono text-xs uppercase tracking-wider text-sol">
           Job Center
         </DropdownMenuLabel>
         <DropdownMenuSeparator className="bg-[#1A1A1A]" />

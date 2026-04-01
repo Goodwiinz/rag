@@ -35,7 +35,7 @@ function deriveStepStatus(
 function StepStatusIcon({ status }: { status: StepStatus }) {
   switch (status) {
     case 'active':
-      return <Loader2 className="h-3.5 w-3.5 animate-spin text-[#D4A039]" />;
+      return <Loader2 className="h-3.5 w-3.5 animate-spin text-sol" />;
     case 'done':
       return <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />;
     case 'pending':
@@ -60,7 +60,7 @@ export function PlanCard({ steps, toolExecutions = [] }: PlanCardProps) {
         className="flex items-center gap-2 w-full px-3 py-2 text-left hover:bg-muted/20 cursor-pointer transition-colors"
         aria-label={`${isExpanded ? 'Collapse' : 'Expand'} execution plan`}
       >
-        <ListChecks className="h-3.5 w-3.5 text-[#D4A039]" />
+        <ListChecks className="h-3.5 w-3.5 text-sol" />
         <span className="text-[#F7F7F5] font-medium">Execution Plan</span>
         <span className="ml-auto flex items-center gap-2 shrink-0">
           <span className="text-muted-foreground/70 tabular-nums text-[10px]">
@@ -96,7 +96,7 @@ export function PlanCard({ steps, toolExecutions = [] }: PlanCardProps) {
                 <span className="flex-1 leading-relaxed">
                   <span className="font-medium">{step.step}.</span>{' '}
                   {step.description}
-                  <span className="ml-1.5 text-[10px] text-[#D4A039]/70 font-mono">
+                  <span className="ml-1.5 text-[10px] text-sol/70 font-mono">
                     {step.tool}
                   </span>
                 </span>

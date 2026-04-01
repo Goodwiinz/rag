@@ -5,9 +5,9 @@ import { useRouter } from 'next/navigation';
 import type { ResearchProject } from '@/store/research-engine-store';
 
 const statusStyles: Record<string, string> = {
-  active: 'bg-[#D4A039]/10 text-[#D4A039] border-[#D4A039]/30',
-  paused: 'bg-[#ffb700]/10 text-[#ffb700] border-[#ffb700]/30',
-  completed: 'bg-[#00d4ff]/10 text-[#00d4ff] border-[#00d4ff]/30',
+  active: 'bg-sol/10 text-sol border-sol/30',
+  paused: 'bg-helios/10 text-helios border-helios/30',
+  completed: 'bg-brand-cyan/10 text-brand-cyan border-brand-cyan/30',
   archived: 'bg-gray-500/10 text-gray-400 border-gray-500/30',
 };
 
@@ -34,8 +34,8 @@ export function ProjectCard({ project }: ProjectCardProps) {
       <div className="flex items-start justify-between gap-3 mb-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <FolderKanban className="h-5 w-5 text-[#D4A039] shrink-0" />
-            <h3 className="font-mono font-medium text-gray-200 truncate group-hover:text-[#D4A039] transition-colors">
+            <FolderKanban className="h-5 w-5 text-sol shrink-0" />
+            <h3 className="font-mono font-medium text-gray-200 truncate group-hover:text-sol transition-colors">
               {project.name}
             </h3>
           </div>

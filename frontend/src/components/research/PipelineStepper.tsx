@@ -79,13 +79,13 @@ export const PipelineStepper: React.FC<PipelineStepperProps> = ({
                   transition-all duration-300 font-mono text-xs
                   ${
                     status === 'completed'
-                      ? 'bg-[#D4A039]/20 border-2 border-[#D4A039] text-[#D4A039] cursor-pointer hover:bg-[#D4A039]/30'
+                      ? 'bg-sol/20 border-2 border-sol text-sol cursor-pointer hover:bg-sol/30'
                       : status === 'active'
                         ? 'bg-secondary/10 border-2 border-secondary text-white animate-pulse'
                         : status === 'skipped'
                           ? 'bg-gray-800/50 border-2 border-gray-600 border-dashed text-gray-500 cursor-pointer hover:border-gray-400'
                           : status === 'invalidated'
-                            ? 'bg-[#ffb700]/10 border-2 border-[#ffb700] text-[#ffb700] cursor-pointer hover:bg-[#ffb700]/20'
+                            ? 'bg-helios/10 border-2 border-helios text-helios cursor-pointer hover:bg-helios/20'
                             : 'bg-gray-800/30 border-2 border-gray-700 text-gray-600'
                   }
                 `}
@@ -104,13 +104,13 @@ export const PipelineStepper: React.FC<PipelineStepperProps> = ({
               <span
                 className={`mt-2 text-[11px] font-mono tracking-wide ${
                   status === 'completed'
-                    ? 'text-[#D4A039]'
+                    ? 'text-sol'
                     : status === 'active'
                       ? 'text-white'
                       : status === 'skipped'
                         ? 'text-gray-500'
                         : status === 'invalidated'
-                          ? 'text-[#ffb700]'
+                          ? 'text-helios'
                           : 'text-gray-600'
                 }`}
               >
@@ -128,11 +128,11 @@ export const PipelineStepper: React.FC<PipelineStepperProps> = ({
               <div
                 className={`flex-1 h-0.5 mx-2 mt-[-20px] ${
                   status === 'completed'
-                    ? 'bg-[#D4A039]/40'
+                    ? 'bg-sol/40'
                     : status === 'skipped'
                       ? 'border-t-2 border-dashed border-gray-700 bg-transparent'
                       : status === 'invalidated'
-                        ? 'bg-[#ffb700]/30'
+                        ? 'bg-helios/30'
                         : 'bg-gray-800'
                 }`}
               />

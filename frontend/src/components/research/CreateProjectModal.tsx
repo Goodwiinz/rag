@@ -19,7 +19,8 @@ export function CreateProjectModal({
 }: CreateProjectModalProps) {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
-  const [projectType, setProjectType] = useState<CreateProjectPayload['project_type']>('research');
+  const [projectType, setProjectType] =
+    useState<CreateProjectPayload['project_type']>('research');
   const [deadline, setDeadline] = useState('');
   const [tagInput, setTagInput] = useState('');
   const [tags, setTags] = useState<string[]>([]);
@@ -75,8 +76,13 @@ export function CreateProjectModal({
     <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
       <div className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg w-full max-w-xl p-6">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-mono font-bold text-[#D4A039]">Create Research Project</h2>
-          <button onClick={handleClose} className="p-1 text-gray-500 hover:text-gray-300">
+          <h2 className="text-lg font-mono font-bold text-sol">
+            Create Research Project
+          </h2>
+          <button
+            onClick={handleClose}
+            className="p-1 text-gray-500 hover:text-gray-300"
+          >
             <X className="h-5 w-5" />
           </button>
         </div>
@@ -91,7 +97,7 @@ export function CreateProjectModal({
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="e.g., ML Healthcare"
-              className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#333] rounded text-sm font-mono text-gray-300 placeholder-gray-600 focus:outline-none focus:border-[#D4A039]"
+              className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#333] rounded text-sm font-mono text-gray-300 placeholder-gray-600 focus:outline-none focus:border-sol"
               autoFocus
             />
           </div>
@@ -105,7 +111,7 @@ export function CreateProjectModal({
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Short project summary"
               rows={3}
-              className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#333] rounded text-sm font-mono text-gray-300 placeholder-gray-600 focus:outline-none focus:border-[#D4A039] resize-none"
+              className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#333] rounded text-sm font-mono text-gray-300 placeholder-gray-600 focus:outline-none focus:border-sol resize-none"
             />
           </div>
 
@@ -121,7 +127,7 @@ export function CreateProjectModal({
                     e.target.value as CreateProjectPayload['project_type']
                   )
                 }
-                className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#333] rounded text-sm font-mono text-gray-300 focus:outline-none focus:border-[#D4A039]"
+                className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#333] rounded text-sm font-mono text-gray-300 focus:outline-none focus:border-sol"
               >
                 <option value="research">Research</option>
                 <option value="literature_review">Literature Review</option>
@@ -137,7 +143,7 @@ export function CreateProjectModal({
                 type="date"
                 value={deadline}
                 onChange={(e) => setDeadline(e.target.value)}
-                className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#333] rounded text-sm font-mono text-gray-300 focus:outline-none focus:border-[#D4A039]"
+                className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#333] rounded text-sm font-mono text-gray-300 focus:outline-none focus:border-sol"
               />
             </div>
           </div>
@@ -158,13 +164,13 @@ export function CreateProjectModal({
                   }
                 }}
                 placeholder="Add tag and press Enter"
-                className="flex-1 px-3 py-2 bg-[#1a1a1a] border border-[#333] rounded text-sm font-mono text-gray-300 placeholder-gray-600 focus:outline-none focus:border-[#D4A039]"
+                className="flex-1 px-3 py-2 bg-[#1a1a1a] border border-[#333] rounded text-sm font-mono text-gray-300 placeholder-gray-600 focus:outline-none focus:border-sol"
               />
               <button
                 onClick={handleAddTag}
                 type="button"
                 aria-label="add tag"
-                className="px-3 py-2 bg-[#D4A039]/10 text-[#D4A039] border border-[#D4A039]/30 rounded hover:bg-[#D4A039]/20 transition-colors"
+                className="px-3 py-2 bg-sol/10 text-sol border border-sol/30 rounded hover:bg-sol/20 transition-colors"
               >
                 <Plus className="h-4 w-4" />
               </button>
@@ -196,7 +202,7 @@ export function CreateProjectModal({
           <button
             onClick={handleSubmit}
             disabled={!name.trim() || submitting}
-            className="flex items-center gap-2 px-4 py-2 bg-[#D4A039]/10 text-[#D4A039] border border-[#D4A039]/30 rounded font-mono text-sm hover:bg-[#D4A039]/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex items-center gap-2 px-4 py-2 bg-sol/10 text-sol border border-sol/30 rounded font-mono text-sm hover:bg-sol/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
             Create Project
