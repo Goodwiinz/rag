@@ -54,6 +54,13 @@ class EntityType(PyEnum):
     EMAIL = "email"
     PHONE = "phone"
     URL = "url"
+    EVENT = "event"
+    FINANCIAL = "financial"
+    JOB_TITLE = "job_title"
+    TOPIC = "topic"
+    TECHNOLOGY = "technology"
+    RESEARCH = "research"
+    DOCUMENT = "document"
     CUSTOM = "custom"
 
 

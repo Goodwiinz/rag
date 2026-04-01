@@ -251,6 +251,70 @@ AGENT_TOOLS = [
     {
         "type": "function",
         "function": {
+            "name": "explore_entity_neighborhood",
+            "description": "Explore an entity's neighborhood in the knowledge graph — find connected entities and the relationships between them. Use when the user asks 'what is connected to X', 'show me everything related to X', or wants to understand how an entity fits in the broader knowledge graph.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "entity_id": {
+                        "type": "string",
+                        "description": "UUID of the entity to explore. Get this from search_knowledge_graph results.",
+                    },
+                    "max_depth": {
+                        "type": "integer",
+                        "description": "How many hops to traverse (1-3). Default 2.",
+                        "default": 2,
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Max number of connected entities to return. Default 30.",
+                        "default": 30,
+                    },
+                },
+                "required": ["entity_id"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "find_entity_paths",
+            "description": "Find relationship paths between two entities in the knowledge graph. Use when the user asks 'how is X related to Y', 'what connects X and Y', or wants to understand the chain of relationships between two concepts/people/organizations.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "source_entity_id": {
+                        "type": "string",
+                        "description": "UUID of the starting entity. Get this from search_knowledge_graph results.",
+                    },
+                    "target_entity_id": {
+                        "type": "string",
+                        "description": "UUID of the destination entity. Get this from search_knowledge_graph results.",
+                    },
+                    "max_depth": {
+                        "type": "integer",
+                        "description": "Maximum path length (1-5). Default 3.",
+                        "default": 3,
+                    },
+                },
+                "required": ["source_entity_id", "target_entity_id"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_graph_stats",
+            "description": "Get statistics about the knowledge graph — total entities, relationships, type distributions, and connectivity metrics. Use when the user asks about the size or shape of the knowledge base, wants an overview of what's in the graph, or asks 'how many entities/relationships do we have'.",
+            "parameters": {
+                "type": "object",
+                "properties": {},
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "create_draft",
             "description": "Generate a literature review draft for a project based on themes. Use when the user wants to create a draft, write a review, or synthesize research.",
             "parameters": {
@@ -334,6 +398,12 @@ async def execute_tool(
         return await _tool_extract_entities(args, db, current_user)
     if tool_name == "search_knowledge_graph":
         return await _tool_search_knowledge_graph(args)
+    if tool_name == "explore_entity_neighborhood":
+        return await _tool_explore_entity_neighborhood(args)
+    if tool_name == "find_entity_paths":
+        return await _tool_find_entity_paths(args)
+    if tool_name == "get_graph_stats":
+        return await _tool_get_graph_stats(args)
     if tool_name == "create_draft":
         return await _tool_create_draft(args, db, current_user)
     if tool_name == "export_bibliography":
@@ -935,6 +1005,123 @@ async def _tool_search_knowledge_graph(args: Dict[str, Any]) -> Dict[str, Any]:
     except Exception as e:
         logger.error("search_knowledge_graph tool failed", exc_info=e)
         return {"error": f"Knowledge graph search failed: {str(e)}"}
+
+
+async def _tool_explore_entity_neighborhood(args: Dict[str, Any]) -> Dict[str, Any]:
+    """Explore an entity's neighborhood — connected entities and relationships."""
+    entity_id = args.get("entity_id", "")
+    max_depth = min(args.get("max_depth", 2), 3)
+    limit = min(args.get("limit", 30), 50)
+
+    if not entity_id:
+        return {"error": "entity_id is required"}
+
+    try:
+        from src.services.knowledge_graph.knowledge_graph_service import knowledge_graph_service
+
+        neighborhood = knowledge_graph_service.get_neighborhood(
+            entity_id=entity_id,
+            max_depth=max_depth,
+            limit=limit,
+        )
+
+        entities = neighborhood.get("entities", [])
+        relationships = neighborhood.get("relationships", [])
+
+        return {
+            "center_entity_id": entity_id,
+            "connected_entities": [
+                {
+                    "id": e.id,
+                    "name": e.name,
+                    "type": e.entity_type.value if e.entity_type else "UNKNOWN",
+                    "confidence": e.confidence_score,
+                }
+                for e in entities
+            ],
+            "relationships": [
+                {
+                    "source": r.source_entity_id,
+                    "target": r.target_entity_id,
+                    "type": r.relationship_type.value if r.relationship_type else "RELATED_TO",
+                    "strength": r.strength,
+                }
+                for r in relationships
+            ],
+            "total_entities": len(entities),
+            "total_relationships": len(relationships),
+        }
+    except Exception as e:
+        logger.error("explore_entity_neighborhood tool failed", exc_info=e)
+        return {"error": f"Neighborhood exploration failed: {str(e)}"}
+
+
+async def _tool_find_entity_paths(args: Dict[str, Any]) -> Dict[str, Any]:
+    """Find relationship paths between two entities."""
+    source_id = args.get("source_entity_id", "")
+    target_id = args.get("target_entity_id", "")
+    max_depth = min(args.get("max_depth", 3), 5)
+
+    if not source_id or not target_id:
+        return {"error": "source_entity_id and target_entity_id are required"}
+
+    try:
+        from src.services.knowledge_graph.knowledge_graph_service import knowledge_graph_service
+
+        paths = knowledge_graph_service.find_paths(
+            source_id=source_id,
+            target_id=target_id,
+            max_depth=max_depth,
+        )
+
+        return {
+            "source_entity_id": source_id,
+            "target_entity_id": target_id,
+            "paths_found": len(paths),
+            "paths": [
+                {
+                    "length": p.path_length,
+                    "strength": p.total_strength,
+                    "confidence": p.confidence_score,
+                    "entities": [
+                        {"id": e.id, "name": e.name, "type": e.entity_type.value if e.entity_type else "UNKNOWN"}
+                        for e in p.entities
+                    ],
+                    "relationships": [
+                        {
+                            "source": r.source_entity_id,
+                            "target": r.target_entity_id,
+                            "type": r.relationship_type.value if r.relationship_type else "RELATED_TO",
+                        }
+                        for r in p.relationships
+                    ],
+                }
+                for p in paths[:5]  # Cap at 5 paths to keep response manageable
+            ],
+        }
+    except Exception as e:
+        logger.error("find_entity_paths tool failed", exc_info=e)
+        return {"error": f"Path finding failed: {str(e)}"}
+
+
+async def _tool_get_graph_stats(args: Dict[str, Any]) -> Dict[str, Any]:
+    """Get knowledge graph statistics."""
+    try:
+        from src.services.knowledge_graph.knowledge_graph_service import knowledge_graph_service
+
+        analytics = knowledge_graph_service.get_graph_analytics()
+
+        return {
+            "total_entities": analytics.total_entities,
+            "total_relationships": analytics.total_relationships,
+            "entity_type_distribution": analytics.entity_type_counts,
+            "relationship_type_distribution": analytics.relationship_type_counts,
+            "average_degree": round(analytics.average_degree, 2),
+            "connected_components": analytics.connected_components,
+        }
+    except Exception as e:
+        logger.error("get_graph_stats tool failed", exc_info=e)
+        return {"error": f"Graph stats retrieval failed: {str(e)}"}
 
 
 async def _tool_create_draft(

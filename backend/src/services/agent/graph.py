@@ -414,8 +414,9 @@ WRITING_TOOLS_NAMES = {
     "summarize_document", "compare_documents",
 }
 KG_TOOLS_NAMES = {
-    "extract_entities", "search_knowledge_graph", "search_documents",
-    "execute_code",
+    "extract_entities", "search_knowledge_graph",
+    "explore_entity_neighborhood", "find_entity_paths", "get_graph_stats",
+    "search_documents", "execute_code",
 }
 
 INTENT_PROMPTS = {
@@ -429,7 +430,8 @@ INTENT_PROMPTS = {
     ),
     "knowledge_graph": (
         "Focus on extracting and exploring entities and relationships. "
-        "Use extract_entities and search_knowledge_graph to help the user understand connections."
+        "Use search_knowledge_graph to find entities, then explore_entity_neighborhood "
+        "or find_entity_paths to understand connections. Use get_graph_stats for overviews."
     ),
     "general": "Use any tools as appropriate to help the user.",
 }

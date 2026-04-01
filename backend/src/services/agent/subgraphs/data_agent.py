@@ -16,7 +16,10 @@ from src.services.agent.planner import make_planner_node
 from src.services.agent.reflection import make_reflection_gate
 from src.services.agent.state import AgentState
 from src.services.agent.tools import (
+    explore_entity_neighborhood,
     extract_entities,
+    find_entity_paths,
+    get_graph_stats,
     list_project_documents,
     search_documents,
     search_knowledge_graph,
@@ -27,6 +30,9 @@ logger = logging.getLogger(__name__)
 DATA_TOOLS = [
     extract_entities,
     search_knowledge_graph,
+    explore_entity_neighborhood,
+    find_entity_paths,
+    get_graph_stats,
     search_documents,
     list_project_documents,
 ]
@@ -37,10 +43,15 @@ DATA_SYSTEM_PROMPT = (
     "You are a specialized Data Agent focused on extracting entities, "
     "exploring knowledge graphs, and analyzing structured data from documents.\n\n"
     "Your tools:\n"
-    "- extract_entities: Extract named entities from documents\n"
-    "- search_knowledge_graph: Search entities and relationships\n"
+    "- search_knowledge_graph: Search for entities by name or type\n"
+    "- explore_entity_neighborhood: Explore an entity's connections (use entity_id from search results)\n"
+    "- find_entity_paths: Find how two entities are connected (use entity_ids from search results)\n"
+    "- get_graph_stats: Get overview statistics of the knowledge graph\n"
+    "- extract_entities: Extract named entities from a document\n"
     "- search_documents: Find documents to analyze\n"
     "- list_project_documents: View project contents\n\n"
+    "Workflow tip: When exploring relationships, first use search_knowledge_graph to find "
+    "entity IDs, then use explore_entity_neighborhood or find_entity_paths with those IDs.\n\n"
     "Be analytical and thorough. Present findings in structured formats."
 )
 
