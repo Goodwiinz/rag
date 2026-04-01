@@ -1,11 +1,12 @@
 import { cn } from '@/lib/utils';
-import { Brain, Loader2, Zap } from 'lucide-react';
+import { Brain, Loader2, Lock, LogIn, Zap } from 'lucide-react';
 import React from 'react';
 
 import { ToggleSwitch } from '../arxivControls';
 import { ExtractionResult } from '../arxivTypes';
 
 interface ExtractTabProps {
+  isAuthenticated: boolean;
   extractPaperIds: string;
   parsedExtractIds: string[];
   invalidExtractIds: string[];
@@ -30,6 +31,7 @@ interface ExtractTabProps {
 }
 
 export function ExtractTab({
+  isAuthenticated,
   extractPaperIds,
   parsedExtractIds,
   invalidExtractIds,
@@ -67,6 +69,35 @@ export function ExtractTab({
           specific papers, then optionally sync to the knowledge graph.
         </p>
       </div>
+
+      {!isAuthenticated && (
+        <div className="rounded-xl border border-[var(--amber-gold)]/20 bg-[var(--amber-gold)]/5 p-4">
+          <div className="flex items-start gap-3">
+            <div className="rounded-lg border border-[var(--amber-gold)]/20 bg-[var(--terminal-bg)]/70 p-2">
+              <Lock
+                className="h-4 w-4 text-[var(--amber-gold)]"
+                aria-hidden="true"
+              />
+            </div>
+            <div className="space-y-2">
+              <p className="text-xs font-mono font-bold uppercase tracking-wider text-foreground">
+                Extraction is workspace-only
+              </p>
+              <p className="text-[11px] font-mono leading-relaxed text-muted-foreground">
+                Paste paper IDs to prep a run, then sign in to extract entities,
+                citations, summaries, and knowledge-graph updates.
+              </p>
+              <a
+                href="/login"
+                className="inline-flex items-center gap-2 rounded-md border border-[var(--amber-gold)]/20 bg-[var(--terminal-bg)]/70 px-3 py-2 text-[10px] font-mono font-bold uppercase tracking-wider text-[var(--amber-gold)] transition-colors hover:bg-[var(--amber-gold)]/10"
+              >
+                <LogIn className="h-3.5 w-3.5" aria-hidden="true" />
+                Sign In To Extract
+              </a>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-12">
         <div className="space-y-4 xl:col-span-5">
@@ -127,6 +158,7 @@ export function ExtractTab({
                 type="button"
                 onClick={onExtractFeatures}
                 disabled={
+                  !isAuthenticated ||
                   isAnyOperationRunning ||
                   parsedExtractIds.length === 0 ||
                   invalidExtractIds.length > 0

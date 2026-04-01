@@ -45,7 +45,7 @@ export const CollectStep: React.FC<CollectStepProps> = ({
 
       {documentsLoading ? (
         <div className="flex items-center justify-center py-12">
-          <Loader2 className="h-6 w-6 animate-spin text-[#D4A039]" />
+          <Loader2 className="h-6 w-6 animate-spin text-sol" />
         </div>
       ) : documents.length === 0 ? (
         <div className="text-center py-12 bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg">
@@ -65,7 +65,7 @@ export const CollectStep: React.FC<CollectStepProps> = ({
               className="flex items-center justify-between p-3 bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg hover:border-[#333] transition-colors"
             >
               <div className="flex items-center gap-3">
-                <FileText className="h-4 w-4 text-[#D4A039]" />
+                <FileText className="h-4 w-4 text-sol" />
                 <div>
                   <p className="font-mono text-sm text-gray-200">
                     {doc.document?.title ||
@@ -96,7 +96,7 @@ export const CollectStep: React.FC<CollectStepProps> = ({
         <button
           onClick={onContinue}
           disabled={!canContinue}
-          className="flex items-center gap-2 px-5 py-2.5 bg-[#D4A039]/10 text-[#D4A039] border border-[#D4A039]/30 rounded font-mono text-sm hover:bg-[#D4A039]/20 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+          className="flex items-center gap-2 px-5 py-2.5 bg-sol/10 text-sol border border-sol/30 rounded font-mono text-sm hover:bg-sol/20 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
         >
           Continue
           <ArrowRight className="h-4 w-4" />

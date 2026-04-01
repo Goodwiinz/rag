@@ -1,11 +1,19 @@
 import { cn } from '@/lib/utils';
-import { Loader2, RefreshCw, Sparkles, Terminal } from 'lucide-react';
+import {
+  Loader2,
+  Lock,
+  LogIn,
+  RefreshCw,
+  Sparkles,
+  Terminal,
+} from 'lucide-react';
 import React from 'react';
 
 import { CustomSlider, ToggleSwitch } from '../arxivControls';
 import { TrackResult } from '../arxivTypes';
 
 interface TrackingTabProps {
+  isAuthenticated: boolean;
   selectedCategories: string[];
   daysBack: number;
   updateDatabase: boolean;
@@ -23,6 +31,7 @@ interface TrackingTabProps {
 }
 
 export function TrackingTab({
+  isAuthenticated,
   selectedCategories,
   daysBack,
   updateDatabase,
@@ -52,6 +61,35 @@ export function TrackingTab({
           {daysBack} day depth
         </span>
       </div>
+
+      {!isAuthenticated && (
+        <div className="rounded-xl border border-[var(--cyan)]/20 bg-[var(--cyan)]/5 p-4">
+          <div className="flex items-start gap-3">
+            <div className="rounded-lg border border-[var(--cyan)]/20 bg-[var(--terminal-bg)]/70 p-2">
+              <Lock
+                className="h-4 w-4 text-[var(--cyan)]"
+                aria-hidden="true"
+              />
+            </div>
+            <div className="space-y-2">
+              <p className="text-xs font-mono font-bold uppercase tracking-wider text-foreground">
+                Workspace scan required
+              </p>
+              <p className="text-[11px] font-mono leading-relaxed text-muted-foreground">
+                Change scans update the tracked corpus for your workspace. Sign
+                in to run scans, or keep using public search and stats.
+              </p>
+              <a
+                href="/login"
+                className="inline-flex items-center gap-2 rounded-md border border-[var(--cyan)]/20 bg-[var(--terminal-bg)]/70 px-3 py-2 text-[10px] font-mono font-bold uppercase tracking-wider text-[var(--cyan)] transition-colors hover:bg-[var(--cyan)]/10"
+              >
+                <LogIn className="h-3.5 w-3.5" aria-hidden="true" />
+                Sign In To Run Scans
+              </a>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-12">
         <div className="space-y-5 xl:col-span-5">
@@ -141,7 +179,9 @@ export function TrackingTab({
               type="button"
               onClick={onTrackChanges}
               disabled={
-                isAnyOperationRunning || selectedCategories.length === 0
+                !isAuthenticated ||
+                isAnyOperationRunning ||
+                selectedCategories.length === 0
               }
               className={cn(
                 'inline-flex items-center gap-2 rounded-lg px-5 py-2.5 text-[11px] font-mono font-bold uppercase transition-colors touch-manipulation',

@@ -60,8 +60,8 @@ export function StepCard({
 
   const modeColor =
     step.mode === 'deterministic'
-      ? 'bg-[#D4A039]/10 text-[#D4A039] border-[#D4A039]/30'
-      : 'bg-[#ffb700]/10 text-[#ffb700] border-[#ffb700]/30';
+      ? 'bg-sol/10 text-sol border-sol/30'
+      : 'bg-helios/10 text-helios border-helios/30';
 
   const handleParamsChange = (value: string) => {
     setParamsText(value);
@@ -95,9 +95,9 @@ export function StepCard({
           {index + 1}
         </span>
 
-        <span className="text-[#00d4ff]">{icon}</span>
+        <span className="text-brand-cyan">{icon}</span>
 
-        <span className="px-2 py-0.5 border rounded text-[10px] uppercase font-mono bg-[#00d4ff]/10 text-[#00d4ff] border-[#00d4ff]/30">
+        <span className="px-2 py-0.5 border rounded text-[10px] uppercase font-mono bg-brand-cyan/10 text-brand-cyan border-brand-cyan/30">
           {step.type}
         </span>
 
@@ -243,7 +243,7 @@ export function StepCard({
                   onChange({ ...step, temperature: parseFloat(e.target.value) })
                 }
                 disabled={step.mode === 'deterministic'}
-                className="flex-1 accent-[#ffb700] disabled:opacity-30"
+                className="flex-1 accent-helios disabled:opacity-30"
               />
               <span className="text-xs font-mono text-muted-foreground w-8 text-right">
                 {(step.temperature ?? 0.7).toFixed(1)}

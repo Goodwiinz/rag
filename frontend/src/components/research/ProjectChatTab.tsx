@@ -13,7 +13,14 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { MessageSquare, Plus, Loader2, AlertCircle, RefreshCw, Link2 } from 'lucide-react';
+import {
+  MessageSquare,
+  Plus,
+  Loader2,
+  AlertCircle,
+  RefreshCw,
+  Link2,
+} from 'lucide-react';
 import { useProjectChat } from '@/hooks/useProjectChat';
 import { ThreadCard } from './ThreadCard';
 import { StartChatModal } from './StartChatModal';
@@ -34,7 +41,9 @@ export interface ProjectChatTabProps {
   projectId: string;
 }
 
-export const ProjectChatTab: React.FC<ProjectChatTabProps> = ({ projectId }) => {
+export const ProjectChatTab: React.FC<ProjectChatTabProps> = ({
+  projectId,
+}) => {
   const {
     threads,
     isLoading,
@@ -52,7 +61,9 @@ export const ProjectChatTab: React.FC<ProjectChatTabProps> = ({ projectId }) => 
   const [isLinkThreadModalOpen, setIsLinkThreadModalOpen] = useState(false);
   const [isSaveToNoteModalOpen, setIsSaveToNoteModalOpen] = useState(false);
   const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null);
-  const [projectWorkspaceId, setProjectWorkspaceId] = useState<string | null>(null);
+  const [projectWorkspaceId, setProjectWorkspaceId] = useState<string | null>(
+    null
+  );
 
   // Unlink confirmation dialog
   const [unlinkDialogOpen, setUnlinkDialogOpen] = useState(false);
@@ -81,7 +92,10 @@ export const ProjectChatTab: React.FC<ProjectChatTabProps> = ({ projectId }) => 
   }, [projectId]);
 
   // Handle start chat
-  const handleStartChat = async (initialMessage: string, threadTitle?: string) => {
+  const handleStartChat = async (
+    initialMessage: string,
+    threadTitle?: string
+  ) => {
     await startChat({
       initial_message: initialMessage,
       thread_title: threadTitle,
@@ -109,7 +123,10 @@ export const ProjectChatTab: React.FC<ProjectChatTabProps> = ({ projectId }) => 
     setIsSaveToNoteModalOpen(true);
   };
 
-  const handleSaveToNote = async (noteTitle: string, includeCitations: boolean) => {
+  const handleSaveToNote = async (
+    noteTitle: string,
+    includeCitations: boolean
+  ) => {
     if (selectedThreadId) {
       await saveToNote({
         thread_id: selectedThreadId,
@@ -139,7 +156,7 @@ export const ProjectChatTab: React.FC<ProjectChatTabProps> = ({ projectId }) => 
     return (
       <div className="flex items-center justify-center py-12">
         <div className="flex flex-col items-center gap-3">
-          <Loader2 className="h-8 w-8 animate-spin text-[#D4A039]" />
+          <Loader2 className="h-8 w-8 animate-spin text-sol" />
           <p className="text-sm text-gray-400 font-mono">Loading threads...</p>
         </div>
       </div>
@@ -161,7 +178,7 @@ export const ProjectChatTab: React.FC<ProjectChatTabProps> = ({ projectId }) => 
             <p className="text-sm text-gray-400 font-mono mb-4">{error}</p>
             <button
               onClick={handleRetry}
-              className="flex items-center gap-2 px-4 py-2 bg-[#D4A039]/10 text-[#D4A039] border border-[#D4A039]/30 rounded font-mono text-sm hover:bg-[#D4A039]/20 transition-colors mx-auto"
+              className="flex items-center gap-2 px-4 py-2 bg-sol/10 text-sol border border-sol/30 rounded font-mono text-sm hover:bg-sol/20 transition-colors mx-auto"
             >
               <RefreshCw className="h-4 w-4" />
               Retry
@@ -186,20 +203,20 @@ export const ProjectChatTab: React.FC<ProjectChatTabProps> = ({ projectId }) => 
                 No Chat Threads Linked
               </h3>
               <p className="text-sm text-gray-400 font-mono mb-4">
-                Start a new chat using this project's documents as context, or link an existing
-                thread.
+                Start a new chat using this project's documents as context, or
+                link an existing thread.
               </p>
               <div className="flex items-center gap-3 justify-center">
                 <button
                   onClick={() => setIsStartChatModalOpen(true)}
-                  className="flex items-center gap-2 px-4 py-2 bg-[#D4A039]/10 text-[#D4A039] border border-[#D4A039]/30 rounded font-mono text-sm hover:bg-[#D4A039]/20 transition-colors"
+                  className="flex items-center gap-2 px-4 py-2 bg-sol/10 text-sol border border-sol/30 rounded font-mono text-sm hover:bg-sol/20 transition-colors"
                 >
                   <Plus className="h-4 w-4" />
                   Start Chat
                 </button>
                 <button
                   onClick={() => setIsLinkThreadModalOpen(true)}
-                  className="flex items-center gap-2 px-4 py-2 bg-[#00d4ff]/10 text-[#00d4ff] border border-[#00d4ff]/30 rounded font-mono text-sm hover:bg-[#00d4ff]/20 transition-colors"
+                  className="flex items-center gap-2 px-4 py-2 bg-brand-cyan/10 text-brand-cyan border border-brand-cyan/30 rounded font-mono text-sm hover:bg-brand-cyan/20 transition-colors"
                 >
                   <Link2 className="h-4 w-4" />
                   Link Existing
@@ -234,7 +251,7 @@ export const ProjectChatTab: React.FC<ProjectChatTabProps> = ({ projectId }) => 
       {/* Header with action button */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <MessageSquare className="h-5 w-5 text-[#D4A039]" />
+          <MessageSquare className="h-5 w-5 text-sol" />
           <h3 className="text-lg font-mono font-bold text-gray-200">
             Linked Threads ({threads.length})
           </h3>
@@ -242,14 +259,14 @@ export const ProjectChatTab: React.FC<ProjectChatTabProps> = ({ projectId }) => 
         <div className="flex items-center gap-2">
           <button
             onClick={() => setIsLinkThreadModalOpen(true)}
-            className="flex items-center gap-2 px-3 py-1.5 bg-[#00d4ff]/10 text-[#00d4ff] border border-[#00d4ff]/30 rounded font-mono text-sm hover:bg-[#00d4ff]/20 transition-colors"
+            className="flex items-center gap-2 px-3 py-1.5 bg-brand-cyan/10 text-brand-cyan border border-brand-cyan/30 rounded font-mono text-sm hover:bg-brand-cyan/20 transition-colors"
           >
             <Link2 className="h-4 w-4" />
             Link Existing
           </button>
           <button
             onClick={() => setIsStartChatModalOpen(true)}
-            className="flex items-center gap-2 px-3 py-1.5 bg-[#D4A039]/10 text-[#D4A039] border border-[#D4A039]/30 rounded font-mono text-sm hover:bg-[#D4A039]/20 transition-colors"
+            className="flex items-center gap-2 px-3 py-1.5 bg-sol/10 text-sol border border-sol/30 rounded font-mono text-sm hover:bg-sol/20 transition-colors"
           >
             <Plus className="h-4 w-4" />
             Start Chat
@@ -302,8 +319,8 @@ export const ProjectChatTab: React.FC<ProjectChatTabProps> = ({ projectId }) => 
               Unlink Thread from Project?
             </AlertDialogTitle>
             <AlertDialogDescription className="font-mono text-gray-400">
-              This will remove the connection between this thread and the project. The thread and
-              its messages will not be deleted.
+              This will remove the connection between this thread and the
+              project. The thread and its messages will not be deleted.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

@@ -279,13 +279,13 @@ export function MessageBubble({
                         href={href}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-[#00d4ff] hover:text-[#D4A039] underline underline-offset-2 transition-colors"
+                        className="text-brand-cyan hover:text-sol underline underline-offset-2 transition-colors"
                       >
                         {children}
                       </a>
                     ),
                     blockquote: ({ children }) => (
-                      <blockquote className="border-l-4 border-[#D4A039]/30 pl-4 italic text-[#a1a1aa]">
+                      <blockquote className="border-l-4 border-sol/30 pl-4 italic text-[#a1a1aa]">
                         {children}
                       </blockquote>
                     ),
@@ -362,7 +362,7 @@ export function MessageBubble({
                   size="sm"
                   className={cn(
                     'h-7 px-2 text-xs',
-                    reaction === 'like' && 'text-[#D4A039]'
+                    reaction === 'like' && 'text-sol'
                   )}
                   onClick={() => onReaction('like')}
                 >
@@ -399,7 +399,7 @@ export function MessageBubble({
                       <Bookmark
                         className={cn(
                           'w-4 h-4 mr-2',
-                          isBookmarked && 'fill-current text-[#ffb700]'
+                          isBookmarked && 'fill-current text-helios'
                         )}
                       />
                       {isBookmarked ? 'Remove bookmark' : 'Bookmark'}

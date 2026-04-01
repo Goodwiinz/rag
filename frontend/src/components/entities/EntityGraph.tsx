@@ -28,13 +28,13 @@ interface EntityGraphProps {
 
 // Terminal Theme Colors
 const TERMINAL_COLORS = {
-  text: '#e6edf3',
-  textDim: '#8b949e',
-  background: '#0d1117',
-  border: '#30363d',
-  primary: '#D4A039', // Phosphor Green
-  secondary: '#00d4ff', // Cyan
-  accent: '#ffb700', // Amber
+  text: 'var(--terminal-text)',
+  textDim: 'var(--terminal-text-muted)',
+  background: 'var(--terminal-bg)',
+  border: 'var(--terminal-border)',
+  primary: 'var(--phosphor-green)',
+  secondary: 'var(--cyan)',
+  accent: 'var(--amber-gold)',
   error: '#ff4757',
 };
 

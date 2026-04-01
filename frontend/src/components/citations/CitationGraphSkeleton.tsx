@@ -28,7 +28,7 @@ export const CitationGraphSkeleton: React.FC<CitationGraphSkeletonProps> = ({
       <div className="absolute inset-0 p-8">
         {/* Central node */}
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
-          <div className="w-16 h-16 rounded-full bg-[#D4A039]/10 border-2 border-[#D4A039]/30 animate-pulse" />
+          <div className="w-16 h-16 rounded-full bg-sol/10 border-2 border-sol/30 animate-pulse" />
         </div>
 
         {/* Surrounding nodes */}
@@ -46,7 +46,7 @@ export const CitationGraphSkeleton: React.FC<CitationGraphSkeletonProps> = ({
             style={{ top: pos.top, left: pos.left }}
           >
             <div
-              className={`rounded-full bg-[#ffb700]/10 border-2 border-[#ffb700]/30 animate-pulse`}
+              className={`rounded-full bg-helios/10 border-2 border-helios/30 animate-pulse`}
               style={{
                 width: 24 + Math.random() * 24,
                 height: 24 + Math.random() * 24,
@@ -57,20 +57,67 @@ export const CitationGraphSkeleton: React.FC<CitationGraphSkeletonProps> = ({
         ))}
 
         {/* Fake edges (lines) */}
-        <svg className="absolute inset-0 w-full h-full" style={{ opacity: 0.3 }}>
-          <line x1="50%" y1="50%" x2="30%" y2="20%" stroke="#333" strokeWidth="1" />
-          <line x1="50%" y1="50%" x2="65%" y2="25%" stroke="#333" strokeWidth="1" />
-          <line x1="50%" y1="50%" x2="20%" y2="45%" stroke="#333" strokeWidth="1" />
-          <line x1="50%" y1="50%" x2="75%" y2="50%" stroke="#333" strokeWidth="1" />
-          <line x1="50%" y1="50%" x2="35%" y2="70%" stroke="#333" strokeWidth="1" />
-          <line x1="50%" y1="50%" x2="60%" y2="65%" stroke="#333" strokeWidth="1" />
+        <svg
+          className="absolute inset-0 w-full h-full"
+          style={{ opacity: 0.3 }}
+        >
+          <line
+            x1="50%"
+            y1="50%"
+            x2="30%"
+            y2="20%"
+            stroke="#333"
+            strokeWidth="1"
+          />
+          <line
+            x1="50%"
+            y1="50%"
+            x2="65%"
+            y2="25%"
+            stroke="#333"
+            strokeWidth="1"
+          />
+          <line
+            x1="50%"
+            y1="50%"
+            x2="20%"
+            y2="45%"
+            stroke="#333"
+            strokeWidth="1"
+          />
+          <line
+            x1="50%"
+            y1="50%"
+            x2="75%"
+            y2="50%"
+            stroke="#333"
+            strokeWidth="1"
+          />
+          <line
+            x1="50%"
+            y1="50%"
+            x2="35%"
+            y2="70%"
+            stroke="#333"
+            strokeWidth="1"
+          />
+          <line
+            x1="50%"
+            y1="50%"
+            x2="60%"
+            y2="65%"
+            stroke="#333"
+            strokeWidth="1"
+          />
         </svg>
       </div>
 
       {/* Loading text */}
       <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2">
-        <div className="w-4 h-4 border-2 border-[#D4A039]/30 border-t-[#D4A039] rounded-full animate-spin" />
-        <span className="text-sm text-gray-500 font-mono">Loading citation graph...</span>
+        <div className="w-4 h-4 border-2 border-sol/30 border-t-sol rounded-full animate-spin" />
+        <span className="text-sm text-gray-500 font-mono">
+          Loading citation graph...
+        </span>
       </div>
 
       {/* Stats skeleton */}

@@ -24,7 +24,7 @@ export interface CitationListProps {
 const getSourceBadgeColor = (source?: string) => {
   switch (source) {
     case 'arxiv':
-      return 'bg-[#D4A039]/10 text-[#D4A039] border-[#D4A039]/20';
+      return 'bg-sol/10 text-sol border-sol/20';
     case 'semantic_scholar':
       return 'bg-cyan-500/10 text-cyan-500 border-cyan-500/20';
     case 'crossref':
@@ -75,7 +75,9 @@ const CitationItem = memo<{
 
               {/* Venue */}
               {citation.venue && (
-                <p className="text-xs font-mono text-gray-500 mt-1 truncate">{citation.venue}</p>
+                <p className="text-xs font-mono text-gray-500 mt-1 truncate">
+                  {citation.venue}
+                </p>
               )}
             </div>
 
@@ -205,13 +207,16 @@ export function CitationList({
   }, []);
 
   // Memoize item data for virtualized list
-  const itemData = useMemo<CitationItemData>(() => ({
-    citations,
-    expandedIds,
-    showActions,
-    onEdit,
-    onToggleExpand: toggleExpand,
-  }), [citations, expandedIds, showActions, onEdit, toggleExpand]);
+  const itemData = useMemo<CitationItemData>(
+    () => ({
+      citations,
+      expandedIds,
+      showActions,
+      onEdit,
+      onToggleExpand: toggleExpand,
+    }),
+    [citations, expandedIds, showActions, onEdit, toggleExpand]
+  );
 
   // Determine if we should use virtualization
   const useVirtualization = citations.length >= virtualizationThreshold;
@@ -219,9 +224,16 @@ export function CitationList({
   // Empty state
   if (citations.length === 0) {
     return (
-      <div className={cn('text-center py-12 rounded-xl border border-[var(--terminal-border)] bg-[var(--terminal-surface)]', className)}>
+      <div
+        className={cn(
+          'text-center py-12 rounded-xl border border-[var(--terminal-border)] bg-[var(--terminal-surface)]',
+          className
+        )}
+      >
         <BookOpen className="w-12 h-12 text-gray-600 mx-auto mb-4" />
-        <p className="font-mono text-sm text-[var(--terminal-text-muted)]">No citations found</p>
+        <p className="font-mono text-sm text-[var(--terminal-text-muted)]">
+          No citations found
+        </p>
         <p className="font-mono text-xs text-gray-600 mt-2">
           Citations will appear here after extraction
         </p>
@@ -232,10 +244,14 @@ export function CitationList({
   // Non-virtualized rendering for small lists
   if (!useVirtualization) {
     return (
-      <div className={cn('space-y-3', className)} style={{ maxHeight, overflowY: 'auto' }}>
+      <div
+        className={cn('space-y-3', className)}
+        style={{ maxHeight, overflowY: 'auto' }}
+      >
         {citations.map((citation) => {
           const isExpanded = expandedIds.has(citation.id);
-          const hasAbstract = citation.abstract && citation.abstract.trim().length > 0;
+          const hasAbstract =
+            citation.abstract && citation.abstract.trim().length > 0;
 
           return (
             <div
@@ -262,7 +278,9 @@ export function CitationList({
 
                     {/* Venue */}
                     {citation.venue && (
-                      <p className="text-xs font-mono text-gray-500 mt-1">{citation.venue}</p>
+                      <p className="text-xs font-mono text-gray-500 mt-1">
+                        {citation.venue}
+                      </p>
                     )}
                   </div>
 
@@ -353,7 +371,12 @@ export function CitationList({
 
   // Virtualized rendering for large lists (100+ items)
   return (
-    <div className={cn('rounded-lg border border-[var(--terminal-border)]', className)}>
+    <div
+      className={cn(
+        'rounded-lg border border-[var(--terminal-border)]',
+        className
+      )}
+    >
       {/* List stats for large lists */}
       <div className="px-4 py-2 bg-[var(--terminal-elevated)] border-b border-[var(--terminal-border)] flex items-center justify-between">
         <span className="text-xs font-mono text-[var(--terminal-text-muted)]">

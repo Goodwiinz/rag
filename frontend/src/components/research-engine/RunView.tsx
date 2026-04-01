@@ -33,21 +33,21 @@ const STATUS_BADGE: Record<
     label: 'Pending',
   },
   running: {
-    bg: 'bg-[#00d4ff]/10',
-    text: 'text-[#00d4ff]',
-    border: 'border-[#00d4ff]/30',
+    bg: 'bg-brand-cyan/10',
+    text: 'text-brand-cyan',
+    border: 'border-brand-cyan/30',
     label: 'Running',
   },
   paused: {
-    bg: 'bg-[#ffb700]/10',
-    text: 'text-[#ffb700]',
-    border: 'border-[#ffb700]/30',
+    bg: 'bg-helios/10',
+    text: 'text-helios',
+    border: 'border-helios/30',
     label: 'Paused',
   },
   completed: {
-    bg: 'bg-[#D4A039]/10',
-    text: 'text-[#D4A039]',
-    border: 'border-[#D4A039]/30',
+    bg: 'bg-sol/10',
+    text: 'text-sol',
+    border: 'border-sol/30',
     label: 'Completed',
   },
   failed: {
@@ -241,7 +241,7 @@ export function RunView({ runId }: RunViewProps) {
   if (isLoading && !activeRun) {
     return (
       <div className="flex items-center justify-center py-20">
-        <Loader2 className="h-6 w-6 animate-spin text-[#D4A039]" />
+        <Loader2 className="h-6 w-6 animate-spin text-sol" />
         <span className="ml-2 font-mono text-sm text-gray-500">
           Loading run...
         </span>
@@ -272,7 +272,7 @@ export function RunView({ runId }: RunViewProps) {
 
         <div className="flex-1">
           <h1 className="text-xl font-mono font-bold text-gray-200">
-            Run <span className="text-[#00d4ff]">{runId.slice(0, 8)}</span>
+            Run <span className="text-brand-cyan">{runId.slice(0, 8)}</span>
           </h1>
           {activeRun?.started_at && (
             <p className="text-xs font-mono text-gray-500 mt-0.5">
@@ -299,7 +299,7 @@ export function RunView({ runId }: RunViewProps) {
           <button
             onClick={handlePause}
             disabled={actionLoading}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono bg-[#ffb700]/10 text-[#ffb700] border border-[#ffb700]/30 rounded hover:bg-[#ffb700]/20 transition-colors disabled:opacity-50"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono bg-helios/10 text-helios border border-helios/30 rounded hover:bg-helios/20 transition-colors disabled:opacity-50"
           >
             {actionLoading ? (
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -313,7 +313,7 @@ export function RunView({ runId }: RunViewProps) {
           <button
             onClick={handleResume}
             disabled={actionLoading}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono bg-[#D4A039]/10 text-[#D4A039] border border-[#D4A039]/30 rounded hover:bg-[#D4A039]/20 transition-colors disabled:opacity-50"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono bg-sol/10 text-sol border border-sol/30 rounded hover:bg-sol/20 transition-colors disabled:opacity-50"
           >
             {actionLoading ? (
               <Loader2 className="h-3.5 w-3.5 animate-spin" />

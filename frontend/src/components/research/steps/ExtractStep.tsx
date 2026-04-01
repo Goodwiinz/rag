@@ -39,8 +39,8 @@ export const ExtractStep: React.FC<ExtractStepProps> = ({
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Grid3X3 className="h-4 w-4 text-[#00d4ff]" />
-          <span className="text-xs font-mono text-gray-500 bg-[#00d4ff]/10 px-2 py-0.5 rounded border border-[#00d4ff]/20">
+          <Grid3X3 className="h-4 w-4 text-brand-cyan" />
+          <span className="text-xs font-mono text-gray-500 bg-brand-cyan/10 px-2 py-0.5 rounded border border-brand-cyan/20">
             Optional
           </span>
         </div>
@@ -74,7 +74,7 @@ export const ExtractStep: React.FC<ExtractStepProps> = ({
           </button>
           <button
             onClick={onContinue}
-            className="flex items-center gap-2 px-5 py-2.5 bg-[#D4A039]/10 text-[#D4A039] border border-[#D4A039]/30 rounded font-mono text-sm hover:bg-[#D4A039]/20 transition-colors"
+            className="flex items-center gap-2 px-5 py-2.5 bg-sol/10 text-sol border border-sol/30 rounded font-mono text-sm hover:bg-sol/20 transition-colors"
           >
             Continue
             <ArrowRight className="h-4 w-4" />

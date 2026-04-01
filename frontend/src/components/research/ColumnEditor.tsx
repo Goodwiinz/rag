@@ -94,7 +94,7 @@ export function ColumnEditor({
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-6 w-6 text-gray-500 hover:text-[#00d4ff]"
+                className="h-6 w-6 text-gray-500 hover:text-brand-cyan"
                 disabled={index === 0}
                 onClick={() => moveColumn(index, -1)}
                 aria-label="Move column up"
@@ -104,7 +104,7 @@ export function ColumnEditor({
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-6 w-6 text-gray-500 hover:text-[#00d4ff]"
+                className="h-6 w-6 text-gray-500 hover:text-brand-cyan"
                 disabled={index === columns.length - 1}
                 onClick={() => moveColumn(index, 1)}
                 aria-label="Move column down"
@@ -118,7 +118,7 @@ export function ColumnEditor({
                 value={col.name}
                 onChange={(e) => updateColumn(index, 'name', e.target.value)}
                 placeholder="Column name"
-                className="h-8 bg-[#1a1a1a] border-[#333] text-sm font-mono text-gray-300 placeholder-gray-600 focus:border-[#00d4ff]"
+                className="h-8 bg-[#1a1a1a] border-[#333] text-sm font-mono text-gray-300 placeholder-gray-600 focus:border-brand-cyan"
               />
               <Input
                 value={col.description ?? ''}
@@ -126,7 +126,7 @@ export function ColumnEditor({
                   updateColumn(index, 'description', e.target.value)
                 }
                 placeholder="Description (optional)"
-                className="h-8 bg-[#1a1a1a] border-[#333] text-xs font-mono text-gray-400 placeholder-gray-600 focus:border-[#00d4ff]"
+                className="h-8 bg-[#1a1a1a] border-[#333] text-xs font-mono text-gray-400 placeholder-gray-600 focus:border-brand-cyan"
               />
             </div>
 
@@ -148,7 +148,7 @@ export function ColumnEditor({
         <Button
           variant="outline"
           size="sm"
-          className="border-[#00d4ff]/30 text-[#00d4ff] hover:bg-[#00d4ff]/10 font-mono text-xs"
+          className="border-brand-cyan/30 text-brand-cyan hover:bg-brand-cyan/10 font-mono text-xs"
           disabled={columns.length >= maxColumns}
           onClick={addColumn}
         >
@@ -161,7 +161,7 @@ export function ColumnEditor({
             <Button
               variant="outline"
               size="sm"
-              className="border-[#ffb700]/30 text-[#ffb700] hover:bg-[#ffb700]/10 font-mono text-xs"
+              className="border-helios/30 text-helios hover:bg-helios/10 font-mono text-xs"
               disabled={columns.length >= maxColumns}
             >
               Add Preset
