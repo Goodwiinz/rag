@@ -122,6 +122,15 @@ class DocumentStatusResponse(BaseModel):
     error_message: Optional[str] = None
 
 
+class DuplicateCheckRequest(BaseModel):
+    sha256: str = Field(..., min_length=64, max_length=64, description="SHA-256 hex digest of file content")
+
+
+class DuplicateCheckResponse(BaseModel):
+    exists: bool
+    document: Optional[DocumentResponse] = None
+
+
 class BulkDocumentRequest(BaseModel):
     document_ids: List[str] = Field(..., min_items=1, max_items=100)
 
@@ -654,6 +663,68 @@ async def get_document_status(
         estimated_completion=estimated_completion,
         error_message=document.processing_error
         or (processing_job.error_message if processing_job else None),
+    )
+
+
+@router.post(
+    "/check-duplicate",
+    response_model=DuplicateCheckResponse,
+    summary="Check if a document with the given content hash already exists",
+)
+async def check_duplicate(
+    body: DuplicateCheckRequest,
+    current_user: User = Depends(get_current_user),
+    organization: Organization = Depends(get_current_organization),
+    db: AsyncSession = Depends(get_db),
+) -> DuplicateCheckResponse:
+    """Pre-upload duplicate check by SHA-256 content hash."""
+    query = (
+        select(Document)
+        .where(
+            Document.checksum_sha256 == body.sha256,
+            Document.organization_id == organization.id,
+            Document.is_deleted.isnot(True),
+        )
+        .limit(1)
+    )
+    result = await db.execute(query)
+    existing = result.scalar_one_or_none()
+
+    if existing is None:
+        # Also check metadata-stored hash for older documents
+        query = (
+            select(Document)
+            .where(
+                Document.document_metadata["file_hash"].astext == body.sha256,
+                Document.organization_id == organization.id,
+                Document.is_deleted.isnot(True),
+            )
+            .limit(1)
+        )
+        result = await db.execute(query)
+        existing = result.scalar_one_or_none()
+
+    if existing is None:
+        return DuplicateCheckResponse(exists=False)
+
+    return DuplicateCheckResponse(
+        exists=True,
+        document=DocumentResponse(
+            id=str(existing.id),
+            title=existing.title or "",
+            filename=existing.filename or "",
+            document_type=existing.document_type or "unknown",
+            file_size_bytes=existing.file_size_bytes or 0,
+            file_size_mb=round((existing.file_size_bytes or 0) / (1024 * 1024), 2),
+            mime_type=existing.mime_type or "",
+            processing_status=existing.processing_status or "unknown",
+            tags=existing.tags or [],
+            is_public=existing.is_public or False,
+            created_at=str(existing.created_at) if existing.created_at else "",
+            updated_at=str(existing.updated_at) if existing.updated_at else "",
+            uploaded_by_user_id=str(existing.uploaded_by_user_id) if existing.uploaded_by_user_id else "",
+            organization_id=str(existing.organization_id) if existing.organization_id else "",
+        ),
     )
 
 

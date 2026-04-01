@@ -975,6 +975,36 @@ class EnhancedFileService:
                 file.file.seek(0)
                 file_hash = hashlib.sha256(file_content).hexdigest()
 
+                # Check for duplicate by content hash
+                existing = (
+                    self.db.query(Document)
+                    .filter(
+                        Document.checksum_sha256 == file_hash,
+                        Document.is_deleted.isnot(True),
+                    )
+                    .first()
+                )
+                if existing is None:
+                    # Also check metadata-stored hash for older documents
+                    from sqlalchemy import cast, String
+                    existing = (
+                        self.db.query(Document)
+                        .filter(
+                            Document.document_metadata["file_hash"].astext == file_hash,
+                            Document.is_deleted.isnot(True),
+                        )
+                        .first()
+                    )
+                if existing is not None:
+                    raise HTTPException(
+                        status_code=409,
+                        detail=(
+                            f"A document with identical content already exists: "
+                            f"'{existing.title or existing.filename}' "
+                            f"(id: {existing.id})"
+                        ),
+                    )
+
                 storage_key = self.storage_helper.upload_file(
                     bucket, key, file_content, mime_type
                 )
@@ -994,6 +1024,7 @@ class EnhancedFileService:
                     uploaded_by_user_id=user.id,
                     storage_path=storage_key,
                     storage_backend="supabase",
+                    checksum_sha256=file_hash,
                 )
             else:
                 # --- Local filesystem path (unchanged) ---
@@ -1004,6 +1035,30 @@ class EnhancedFileService:
                 file_path_with_ext = f"{file_path}{original_ext}"
                 saved_path = await self.save_file_permanently(file, file_path_with_ext)
                 file_hash = self.calculate_file_hash(saved_path)
+
+                # Check for duplicate by content hash
+                existing = (
+                    self.db.query(Document)
+                    .filter(
+                        Document.checksum_sha256 == file_hash,
+                        Document.is_deleted.isnot(True),
+                    )
+                    .first()
+                )
+                if existing is not None:
+                    # Clean up the saved file since it's a duplicate
+                    try:
+                        os.remove(saved_path)
+                    except OSError:
+                        pass
+                    raise HTTPException(
+                        status_code=409,
+                        detail=(
+                            f"A document with identical content already exists: "
+                            f"'{existing.title or existing.filename}' "
+                            f"(id: {existing.id})"
+                        ),
+                    )
 
                 document = Document(
                     title=title,
@@ -1018,6 +1073,7 @@ class EnhancedFileService:
                     organization_id=organization.id,
                     uploaded_by_user_id=user.id,
                     storage_backend="local",
+                    checksum_sha256=file_hash,
                 )
 
             # Add metadata

@@ -257,6 +257,65 @@ async def search_knowledge_graph(
 
 
 @tool
+async def explore_entity_neighborhood(
+    entity_id: str,
+    max_depth: int = 2,
+    limit: int = 30,
+    config: RunnableConfig | None = None,
+) -> Dict[str, Any]:
+    """Explore an entity's neighborhood in the knowledge graph.
+
+    Find all connected entities and the relationships between them.
+    Use when the user asks "what is connected to X", "show me everything
+    related to X", or wants to understand how an entity fits in the graph.
+    First use search_knowledge_graph to find the entity_id.
+    """
+    config = config or {}
+    from src.api.agent.execute import _tool_explore_entity_neighborhood
+
+    return await _tool_explore_entity_neighborhood(
+        {"entity_id": entity_id, "max_depth": max_depth, "limit": limit}
+    )
+
+
+@tool
+async def find_entity_paths(
+    source_entity_id: str,
+    target_entity_id: str,
+    max_depth: int = 3,
+    config: RunnableConfig | None = None,
+) -> Dict[str, Any]:
+    """Find relationship paths between two entities in the knowledge graph.
+
+    Use when the user asks "how is X related to Y", "what connects X and Y",
+    or wants to understand the chain of relationships between two concepts.
+    First use search_knowledge_graph to find both entity IDs.
+    """
+    config = config or {}
+    from src.api.agent.execute import _tool_find_entity_paths
+
+    return await _tool_find_entity_paths(
+        {"source_entity_id": source_entity_id, "target_entity_id": target_entity_id, "max_depth": max_depth}
+    )
+
+
+@tool
+async def get_graph_stats(
+    config: RunnableConfig | None = None,
+) -> Dict[str, Any]:
+    """Get statistics about the knowledge graph.
+
+    Returns total entities, relationships, type distributions, and
+    connectivity metrics. Use when the user asks about the size or shape
+    of the knowledge base, or wants an overview of what's in the graph.
+    """
+    config = config or {}
+    from src.api.agent.execute import _tool_get_graph_stats
+
+    return await _tool_get_graph_stats({})
+
+
+@tool
 async def create_draft(
     themes: List[str],
     project_id: Optional[str] = None,
