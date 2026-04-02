@@ -327,6 +327,7 @@ export function AppSidebar() {
                   <SidebarMenuButton
                     size="lg"
                     data-testid="user-menu"
+                    aria-label="Open user menu"
                     className="h-auto px-5 py-3 hover:bg-[#0A0A0A] data-[state=open]:bg-[#0A0A0A] rounded-none group-data-[collapsible=icon]:!w-9 group-data-[collapsible=icon]:!h-9 group-data-[collapsible=icon]:!p-0 group-data-[collapsible=icon]:rounded-md group-data-[collapsible=icon]:mx-auto"
                   >
                     {/* Avatar */}
