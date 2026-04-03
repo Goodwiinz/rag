@@ -15,7 +15,7 @@
 AZURE_OPENAI_RAG_ENDPOINT=https://goodwiinzapi.cognitiveservices.azure.com/
 AZURE_OPENAI_RAG_DEPLOYMENT_NAME=gpt-4o-mini
 AZURE_OPENAI_RAG_API_VERSION=2025-01-01-preview
-AZURE_OPENAI_RAG_API_KEY=7awsW9wUrULKH9CLPkeh1oeaeeGmKvIotw8HSYjVtjMcIgj0NqyLJQQJ99BIACYeBjFXJ3w3AAABACOG5UHM
+AZURE_OPENAI_RAG_API_KEY=your_azure_openai_api_key_here
 ```
 
 ### Entity Extraction Service
