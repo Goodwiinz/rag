@@ -236,25 +236,20 @@ async def get_api_key_data(
             logger.warning(f"Invalid API key format from {request.client.host}")
             raise credentials_exception
         
-        # Extract prefix to narrow down candidates
-        # API keys are format: rag_<32 chars>
-        # key_prefix stores the first 8 chars of the raw key (rag_ + 4 chars)
-        key_prefix = raw_key[:8]
+        # Compute the expected hash
+        key_hash = hashlib.sha256(raw_key.encode()).hexdigest()
         
-        # Find potential API keys by prefix
-        # This avoids looking up by hash directly in DB (timing attack mitigation)
+        # Look up by hash to avoid DoS vulnerabilities with prefix lookups
         stmt = select(APIKey).where(
-            APIKey.key_prefix == key_prefix,
+            APIKey.key_hash == key_hash,
             APIKey.is_active == True
         )
         result = await db.execute(stmt)
-        candidate_keys = result.scalars().all()
+        api_key_record = result.scalars().first()
 
-        api_key_record = None
-        for key in candidate_keys:
-             if verify_api_key(raw_key, key.key_hash):
-                 api_key_record = key
-                 break
+        # Perform constant-time comparison to prevent timing attacks
+        if api_key_record and not verify_api_key(raw_key, api_key_record.key_hash):
+             api_key_record = None
         
         if not api_key_record:
             logger.warning(f"API key not found or invalid from {request.client.host}")
