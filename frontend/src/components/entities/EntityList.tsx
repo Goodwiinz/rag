@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { IconButton } from '@/components/ui/icon-button';
 import {
   Table,
   TableBody,
@@ -364,22 +365,20 @@ export const EntityList: React.FC<EntityListProps> = ({
                   <TableCell>
                     <div className="flex items-center justify-end gap-1 pr-2">
                       {onView && (
-                        <Button
+                        <IconButton
                           variant="ghost"
                           size="icon"
-                          aria-label="View entity details"
+                          label="View entity details"
                           onClick={() => onView(entity)}
                           className="h-8 w-8 text-[var(--terminal-text-dim)] hover:text-[var(--phosphor-green)] hover:bg-[var(--phosphor-green)]/10"
-                          title="View entity details"
-                        >
-                          <Eye className="h-4 w-4" />
-                        </Button>
+                          icon={<Eye className="h-4 w-4" />}
+                        />
                       )}
                       {onEdit && (
-                        <Button
+                        <IconButton
                           variant="ghost"
                           size="icon"
-                          aria-label={
+                          label={
                             !canEdit
                               ? 'Edit entity (Admin access required)'
                               : 'Edit entity'
@@ -387,18 +386,14 @@ export const EntityList: React.FC<EntityListProps> = ({
                           onClick={() => onEdit(entity)}
                           disabled={!canEdit}
                           className="h-8 w-8 text-[var(--terminal-text-dim)] hover:text-[var(--cyan)] hover:bg-[var(--cyan)]/10 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent"
-                          title={
-                            !canEdit ? 'Admin access required' : 'Edit entity'
-                          }
-                        >
-                          <Edit className="h-4 w-4" />
-                        </Button>
+                          icon={<Edit className="h-4 w-4" />}
+                        />
                       )}
                       {entity.source_document_id && (
-                        <Button
+                        <IconButton
                           variant="ghost"
                           size="icon"
-                          aria-label="View source document"
+                          label="View source document"
                           onClick={() =>
                             window.open(
                               `/documents/${entity.source_document_id}`,
@@ -406,16 +401,14 @@ export const EntityList: React.FC<EntityListProps> = ({
                             )
                           }
                           className="h-8 w-8 text-[var(--terminal-text-dim)] hover:text-[var(--amber-gold)] hover:bg-[var(--amber-gold)]/10"
-                          title="View source document"
-                        >
-                          <ExternalLink className="h-4 w-4" />
-                        </Button>
+                          icon={<ExternalLink className="h-4 w-4" />}
+                        />
                       )}
                       {onDelete && (
-                        <Button
+                        <IconButton
                           variant="ghost"
                           size="icon"
-                          aria-label={
+                          label={
                             !canDelete
                               ? 'Delete entity (Admin access required)'
                               : 'Delete entity'
@@ -423,14 +416,8 @@ export const EntityList: React.FC<EntityListProps> = ({
                           onClick={() => onDelete(entity.id)}
                           disabled={!canDelete}
                           className="h-8 w-8 text-[var(--terminal-text-dim)] hover:text-red-400 hover:bg-red-400/10 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent"
-                          title={
-                            !canDelete
-                              ? 'Admin access required'
-                              : 'Delete entity'
-                          }
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                          icon={<Trash2 className="h-4 w-4" />}
+                        />
                       )}
                     </div>
                   </TableCell>
