@@ -5,7 +5,7 @@
 # Note: cache configuration is handled by the workflow invoking bake
 
 variable "REGISTRY" {
-  default = "ghcr.io/goodwiins/rag_system"
+  default = "ghcr.io/goodwiinz/rag"
 }
 
 variable "TAG" {

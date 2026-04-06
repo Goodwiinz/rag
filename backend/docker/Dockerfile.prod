@@ -40,8 +40,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PATH="/app/.local/bin:$PATH"
 
 # Create non-root user
-RUN groupadd -r appuser && \
-    useradd -r -g appuser -s /bin/bash -d /app appuser
+RUN groupadd -g 1001 appuser && \
+    useradd -u 1001 -g appuser -s /bin/bash -d /app appuser
 
 # Set working directory
 WORKDIR /app
