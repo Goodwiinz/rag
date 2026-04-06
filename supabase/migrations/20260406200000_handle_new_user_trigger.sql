@@ -34,7 +34,7 @@ BEGIN
     is_active, is_deleted, created_at, updated_at
   )
   VALUES (
-    gen_random_uuid(), org_name, 'free', 0, 10737418240,
+    gen_random_uuid(), org_name, 'FREE'::storagetier, 0, 10737418240,
     true, false, now(), now()
   )
   RETURNING id INTO org_id;
@@ -47,7 +47,7 @@ BEGIN
   )
   VALUES (
     NEW.id, NEW.email, NEW.encrypted_password, fname, lname,
-    'user', true, false, org_id,
+    'USER'::userrole, true, false, org_id,
     0, now(), now()
   );
 
