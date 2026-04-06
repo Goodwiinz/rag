@@ -51,6 +51,13 @@ spec:
                 sleep 3
               done
               echo "PostgreSQL is ready!"
+          resources:
+            requests:
+              cpu: 25m
+              memory: 32Mi
+            limits:
+              cpu: 50m
+              memory: 64Mi
           envFrom:
             - secretRef:
                 name: database-credentials
@@ -68,6 +75,9 @@ spec:
             httpGet:
               path: {{ .Values.backend.healthCheck.path }}
               port: http
+              httpHeaders:
+                - name: Host
+                  value: localhost
             initialDelaySeconds: {{ .Values.backend.healthCheck.startupProbe.initialDelaySeconds | default 10 }}
             periodSeconds: {{ .Values.backend.healthCheck.startupProbe.periodSeconds | default 10 }}
             timeoutSeconds: {{ .Values.backend.healthCheck.startupProbe.timeoutSeconds | default 5 }}
@@ -77,6 +87,9 @@ spec:
             httpGet:
               path: {{ .Values.backend.healthCheck.path }}
               port: http
+              httpHeaders:
+                - name: Host
+                  value: localhost
             initialDelaySeconds: {{ .Values.backend.healthCheck.initialDelaySeconds }}
             periodSeconds: {{ .Values.backend.healthCheck.periodSeconds }}
             timeoutSeconds: {{ .Values.backend.healthCheck.timeoutSeconds }}
@@ -86,6 +99,9 @@ spec:
             httpGet:
               path: {{ .Values.backend.healthCheck.path }}
               port: http
+              httpHeaders:
+                - name: Host
+                  value: localhost
             initialDelaySeconds: {{ .Values.backend.healthCheck.readinessInitialDelaySeconds | default 5 }}
             periodSeconds: {{ .Values.backend.healthCheck.readinessPeriodSeconds | default 10 }}
             timeoutSeconds: {{ .Values.backend.healthCheck.readinessTimeoutSeconds | default 3 }}

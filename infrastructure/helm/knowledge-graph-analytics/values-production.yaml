@@ -64,6 +64,12 @@ frontend:
   env:
     - name: NODE_ENV
       value: "production"
+    - name: HOSTNAME
+      value: "0.0.0.0"
+    - name: NEXT_PUBLIC_SUPABASE_URL
+      value: "https://REDACTED.supabase.co"
+    - name: NEXT_PUBLIC_SUPABASE_ANON_KEY
+      value: "JWT_REDACTED"
 
   healthCheck:
     enabled: true
@@ -132,6 +138,8 @@ backend:
         name: app-secrets
     - secretRef:
         name: spaces-credentials
+    - secretRef:
+        name: supabase-credentials
 
   # Additional env vars (static config)
   env:
@@ -153,12 +161,12 @@ backend:
   healthCheck:
     enabled: true
     path: /health
-    # Startup probe gives the container time to load ML models
+    # Startup probe gives the container time to load ML models (~5-8 min)
     startupProbe:
-      initialDelaySeconds: 10
-      periodSeconds: 10
-      timeoutSeconds: 5
-      failureThreshold: 18
+      initialDelaySeconds: 30
+      periodSeconds: 15
+      timeoutSeconds: 10
+      failureThreshold: 40
     # Liveness: is the process alive?
     initialDelaySeconds: 10
     periodSeconds: 15
@@ -187,7 +195,25 @@ redis:
   enabled: false
 
 neo4j:
-  enabled: false
+  enabled: true
+  image:
+    repository: neo4j
+    tag: "5.26-community"
+    pullPolicy: IfNotPresent
+  password: "REDACTED"
+  advertisedAddress: "neo4j.gen-text.app"
+  persistence:
+    size: 10Gi
+  resources:
+    heapSize: "256m"
+    pagecacheSize: "128m"
+    container:
+      limits:
+        cpu: 500m
+        memory: 1Gi
+      requests:
+        cpu: 200m
+        memory: 512Mi
 
 qdrant:
   enabled: false
