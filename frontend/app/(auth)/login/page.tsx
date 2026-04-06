@@ -2,13 +2,7 @@
 
 import { useAuth } from '@/hooks/useAuth';
 import { cn } from '@/lib/utils';
-import {
-  AnimatePresence,
-  motion,
-  useMotionValue,
-  useSpring,
-  useTransform,
-} from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 import { Lock, Mail, Terminal } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
@@ -79,48 +73,12 @@ export default function LoginPage(): React.JSX.Element | null {
   const [showPassword, setShowPassword] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [logIndex, setLogIndex] = useState(0);
-  const [enableTilt, setEnableTilt] = useState(false);
-
-  // 3D Tilt Logic
-  const x = useMotionValue(0);
-  const y = useMotionValue(0);
-  const rotateX = useTransform(y, [-100, 100], [5, -5]);
-  const rotateY = useTransform(x, [-100, 100], [-5, 5]);
-
-  const springConfig = { damping: 20, stiffness: 300 };
-  const springRotateX = useSpring(rotateX, springConfig);
-  const springRotateY = useSpring(rotateY, springConfig);
-
-  function handleMouseMove(event: React.MouseEvent<HTMLDivElement>): void {
-    const rect = event.currentTarget.getBoundingClientRect();
-    const centerX = rect.left + rect.width / 2;
-    const centerY = rect.top + rect.height / 2;
-    x.set(event.clientX - centerX);
-    y.set(event.clientY - centerY);
-  }
-
-  function handleMouseLeave(): void {
-    x.set(0);
-    y.set(0);
-  }
-
   useEffect(() => {
     setMounted(true);
-    // Defer non-critical animations to improve initial paint
-    const tiltTimer = setTimeout(() => {
-      // Check for reduced motion preference
-      const prefersReducedMotion = window.matchMedia(
-        '(prefers-reduced-motion: reduce)'
-      ).matches;
-      if (!prefersReducedMotion) {
-        setEnableTilt(true);
-      }
-    }, 100);
     const interval = setInterval(() => {
       setLogIndex((prev) => (prev + 1) % SYSTEM_LOGS.length);
     }, 2000);
     return () => {
-      clearTimeout(tiltTimer);
       clearInterval(interval);
     };
   }, []);
@@ -365,19 +323,8 @@ export default function LoginPage(): React.JSX.Element | null {
 
       {/* Right Panel - Login Form */}
       <div className="flex-1 flex items-center justify-center px-6 lg:px-8 relative z-10">
-        <div style={{ perspective: '1000px' }} className="w-full max-w-md">
+        <div className="w-full max-w-md">
           <motion.div
-            style={
-              enableTilt
-                ? {
-                    rotateX: springRotateX,
-                    rotateY: springRotateY,
-                    transformStyle: 'preserve-3d',
-                  }
-                : undefined
-            }
-            onMouseMove={enableTilt ? handleMouseMove : undefined}
-            onMouseLeave={enableTilt ? handleMouseLeave : undefined}
             initial={{ opacity: 0, scale: 0.95, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             transition={{ duration: 0.5 }}
