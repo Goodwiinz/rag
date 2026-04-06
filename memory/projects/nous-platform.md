@@ -53,6 +53,13 @@ Enterprise-grade multimodal RAG system that retrieves, reasons, and generates ac
 - Agent v2 implementation started 2026-03-26 on `feature/agent-v2`: 6/10 phases done (error recovery, LLM classifier, compactor, planner, reflection, persistent memory). 118 tests passing. Design doc at `docs/plans/2026-03-25-agent-v2-plan.md`.
 - Critical API key auth DoS vulnerability auto-fixed by Jules bot (`fb672af`) on `feature/agent-v2` 2026-03-26
 - Agent v2 repo housekeeping 2026-03-27: eval task suites, lazy import fix, backend test/config reorganization, root cleanup. Jules bot fixed EntityList IconButton a11y.
+- Agent v2 integration tests added 2026-03-31: 23 tests across 4 files (`8ccea48`). CI unblocked with encryption key init.
+- OOM stability fixes 2026-03-31: Skip GDS analytics (`6d7990e`), optimize KG relationship query (`f3f30a4`) to prevent container crashes.
+- KG hardening 2026-03-31: Fix extraction to create both entities and relationships (`c0bb3b9`), harden serialization (`64314fb`), Unicode SVG export (`d0682c5`).
+- Tailwind v3 PostCSS plugin restored 2026-03-31 (`093b9f8`) — may resolve GOO-199 CI blocker.
+- Security: Sentinel bot fixed CRITICAL API key prefix lookup DoS vulnerability (`baf512d`) 2026-04-03. Hardcoded Azure/Cohere keys removed from test scripts (`acc3782`).
+- A11y: Palette bot refactored EntityList IconButton (`88f0feb`), aria-label added to avatar buttons (`494e039`) 2026-04-02.
+- Agent v2 branch now 33 commits ahead of `develop`. GOO-187 still In Review (7+ days, PR overdue).
 
 ## Connections
 
