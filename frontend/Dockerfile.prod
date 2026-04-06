@@ -22,9 +22,8 @@ FROM base AS deps
 # Copy package.json first
 COPY frontend/package.json ./
 
-# Install dependencies (no lockfile in this monorepo setup)
-# This will generate a lockfile during install
-RUN npm install && npm cache clean --force
+# Install dependencies — force linux platform to avoid darwin-arm64 optional deps
+RUN npm install --force && npm cache clean --force
 
 # Stage 3: Build application
 FROM base AS builder
