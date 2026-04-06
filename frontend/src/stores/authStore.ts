@@ -60,7 +60,9 @@ interface AuthState {
   register: (userData: {
     email: string;
     password: string;
-    full_name?: string;
+    first_name: string;
+    last_name: string;
+    organization_name?: string;
   }) => Promise<void>;
   logout: () => void;
   refreshToken: () => Promise<void>;
@@ -258,27 +260,35 @@ export const useAuthStore = create<AuthState>()(
       register: async (userData: {
         email: string;
         password: string;
-        full_name?: string;
+        first_name: string;
+        last_name: string;
+        organization_name?: string;
       }) => {
         set({ isLoading: true, error: null });
 
         try {
-          // Try Supabase Auth registration first
+          // Register via Supabase Auth — DB trigger creates public.users + organization
           const { data: supabaseData, error: supabaseError } =
             await supabase.auth.signUp({
               email: userData.email,
               password: userData.password,
               options: {
                 data: {
-                  full_name: userData.full_name,
+                  first_name: userData.first_name,
+                  last_name: userData.last_name,
+                  organization_name: userData.organization_name,
                 },
               },
             });
 
-          if (!supabaseError && supabaseData.session) {
+          if (supabaseError) {
+            throw new Error(supabaseError.message);
+          }
+
+          if (supabaseData.session) {
             const session = supabaseData.session;
 
-            // Fetch user profile from backend
+            // Trigger has created public.users row — fetch full profile
             const profileData = await apiClient.get<{
               user: User;
               organization?: Organization;
@@ -297,26 +307,18 @@ export const useAuthStore = create<AuthState>()(
             return;
           }
 
-          // Fallback to custom registration
-          const data: LoginResponse = await apiClient.post(
-            '/auth/register',
-            userData
+          // No session = email confirmation required
+          set({ isLoading: false });
+          throw new Error(
+            'Check your email to confirm your account before signing in.'
           );
-
-          set({
-            user: data.user,
-            organization: data.organization ?? null,
-            token: data.access_token,
-            refreshTokenValue: data.refresh_token,
-            isAuthenticated: true,
-            isLoading: false,
-          });
         } catch (error) {
           set({
             error:
               error instanceof Error ? error.message : 'Registration failed',
             isLoading: false,
           });
+          throw error;
         }
       },
 
