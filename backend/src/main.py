@@ -140,19 +140,20 @@ async def lifespan(app: FastAPI):
     # Startup
     logger.info("Starting up Multimodal RAG System...")
 
-    # Create database tables
-    # Note: With multiple Gunicorn workers, create_all may race on PostgreSQL
-    # ENUM type creation. We catch IntegrityError from duplicate types and
-    # retry, since the first worker will have created them successfully.
-    try:
-        Base.metadata.create_all(bind=engine)
-        logger.info("Database tables created successfully")
-    except Exception as e:
-        if "already exists" in str(e):
-            logger.info("Database tables already created by another worker")
-        else:
-            logger.error(f"Failed to create database tables: {e}")
-            raise
+    # Create database tables (skip in production — migrations handle schema)
+    environment = os.environ.get("ENVIRONMENT", "development")
+    if environment not in ("production", "staging"):
+        try:
+            Base.metadata.create_all(bind=engine)
+            logger.info("Database tables created successfully")
+        except Exception as e:
+            if "already exists" in str(e):
+                logger.info("Database tables already exist")
+            else:
+                logger.error(f"Failed to create database tables: {e}")
+                raise
+    else:
+        logger.info(f"Skipping create_all in {environment} (managed by migrations)")
 
     # Check Redis connection
     if redis_client:
@@ -261,7 +262,7 @@ app.add_middleware(AnalyticsRateLimitMiddleware, redis_client=redis_client)
 if not settings.DEBUG:
     app.add_middleware(
         TrustedHostMiddleware,
-        allowed_hosts=["localhost", "127.0.0.1", "*.yourdomain.com"],
+        allowed_hosts=["localhost", "127.0.0.1", "*.gen-text.app"],
     )
 
 
