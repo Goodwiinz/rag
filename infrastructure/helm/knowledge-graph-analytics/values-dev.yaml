@@ -5,6 +5,8 @@
 
 global:
   imageRegistry: "ghcr.io"
+  imagePullSecrets:
+    - name: do-registry
   environment: "dev"
 
 commonLabels:
