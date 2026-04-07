@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { AlertTriangle } from 'lucide-react';
+import DOMPurify from 'dompurify';
 import { cn } from '@/lib/utils';
 
 interface MathDisplayProps {
@@ -67,10 +68,25 @@ export const MathDisplay: React.FC<MathDisplayProps> = ({
   }
 
   if (katexLoaded && katexHtml) {
+    // Configure DOMPurify to allow KaTeX math markup (MathML and specific HTML elements)
+    const cleanHtml = DOMPurify.sanitize(katexHtml, {
+      USE_PROFILES: { mathMl: true, html: true },
+      ALLOWED_TAGS: [
+        'math', 'annotation', 'semantics', 'mtext', 'mn', 'mo', 'mi', 'mspace',
+        'mover', 'munder', 'munderover', 'msup', 'msub', 'msubsup', 'mfrac',
+        'mroot', 'msqrt', 'mtable', 'mtr', 'mtd', 'mlabeledtr', 'mrow', 'menclose',
+        'style', 'span', 'div', 'svg', 'path', 'g', 'line', 'rect', 'circle'
+      ],
+      ALLOWED_ATTR: [
+        'class', 'id', 'style', 'aria-hidden', 'encoding', 'href', 'd', 'viewbox',
+        'preserveaspectratio', 'width', 'height', 'xmlns', 'viewBox'
+      ],
+    });
+
     return (
       <span
         className={cn(block && 'my-3 flex justify-center')}
-        dangerouslySetInnerHTML={{ __html: katexHtml }}
+        dangerouslySetInnerHTML={{ __html: cleanHtml }}
       />
     );
   }
