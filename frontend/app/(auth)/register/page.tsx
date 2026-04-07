@@ -37,7 +37,8 @@ const _PHOSPHOR_GREEN = '#D4A039';
 const _AMBER = '#ffb700';
 
 export default function RegisterPage() {
-  const { register, isAuthenticated, isLoading } = useAuth();
+  const { register, isAuthenticated, isLoading, pendingEmailConfirmation } =
+    useAuth();
   const router = useRouter();
   const [formData, setFormData] = useState<RegisterFormData>({
     email: '',
@@ -92,7 +93,11 @@ export default function RegisterPage() {
       };
 
       await register(registerData);
-      router.push('/');
+      // If we got a session (no email confirmation), redirect
+      if (!pendingEmailConfirmation) {
+        router.push('/');
+      }
+      // Otherwise pendingEmailConfirmation is true — UI will show confirmation screen
     } catch (err) {
       setError(
         err instanceof Error ? err.message : 'Account provisioning failed'
@@ -131,6 +136,41 @@ export default function RegisterPage() {
   const strength = passwordStrength();
 
   if (!mounted) return null;
+
+  // Email confirmation screen
+  if (pendingEmailConfirmation) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[var(--terminal-bg)]">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="max-w-md w-full mx-6"
+        >
+          <div className="rounded-2xl border border-[var(--terminal-border)] bg-[var(--terminal-surface)] p-10 text-center">
+            <div className="flex items-center justify-center w-16 h-16 rounded-full bg-[var(--phosphor-green)]/10 border border-[var(--phosphor-green)]/30 mx-auto mb-6">
+              <Mail className="w-8 h-8 text-[var(--phosphor-green)]" />
+            </div>
+            <h2 className="text-xl font-mono font-bold text-[var(--terminal-text)] uppercase tracking-[0.15em] mb-3">
+              Verify Your Identity
+            </h2>
+            <p className="text-sm font-mono text-[var(--terminal-text-muted)] mb-8 leading-relaxed">
+              We sent a verification link to{' '}
+              <span className="text-[var(--phosphor-green)]">
+                {formData.email}
+              </span>
+              . Check your inbox and click the link to activate your account.
+            </p>
+            <Link
+              href="/login"
+              className="inline-block text-[10px] font-mono text-[var(--terminal-text-dim)] uppercase tracking-widest hover:text-[var(--phosphor-green)] transition-colors"
+            >
+              Return to Access Terminal
+            </Link>
+          </div>
+        </motion.div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex bg-[var(--terminal-bg)] relative overflow-hidden">

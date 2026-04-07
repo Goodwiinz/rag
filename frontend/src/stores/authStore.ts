@@ -45,6 +45,7 @@ interface AuthState {
   isAuthenticated: boolean;
   isLoading: boolean;
   error: string | null;
+  pendingEmailConfirmation: boolean;
   // Session persistence state
   rememberMe: boolean; // If true, session persists for 30 days
   tokenExpiresAt: number | null; // Unix timestamp when access token expires
@@ -96,6 +97,7 @@ export const useAuthStore = create<AuthState>()(
       isAuthenticated: false,
       isLoading: false,
       error: null,
+      pendingEmailConfirmation: false,
       // Session persistence state
       rememberMe: false,
       tokenExpiresAt: null,
@@ -308,10 +310,7 @@ export const useAuthStore = create<AuthState>()(
           }
 
           // No session = email confirmation required
-          set({ isLoading: false });
-          throw new Error(
-            'Check your email to confirm your account before signing in.'
-          );
+          set({ isLoading: false, pendingEmailConfirmation: true });
         } catch (error) {
           set({
             error:

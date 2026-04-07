@@ -27,6 +27,7 @@ export interface AuthState {
   isAuthenticated: boolean;
   isLoading: boolean;
   error: string | null;
+  pendingEmailConfirmation: boolean;
 }
 
 export interface LoginRequest {
