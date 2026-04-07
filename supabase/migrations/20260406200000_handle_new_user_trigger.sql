@@ -13,8 +13,10 @@ AS $$
 DECLARE
   org_id uuid;
   org_name text;
+  base_org_name text;
   fname text;
   lname text;
+  suffix int := 0;
 BEGIN
   -- Skip if user already exists in public.users (idempotency guard)
   IF EXISTS (SELECT 1 FROM public.users WHERE id = NEW.id) THEN
@@ -23,10 +25,17 @@ BEGIN
 
   fname := COALESCE(NEW.raw_user_meta_data->>'first_name', '');
   lname := COALESCE(NEW.raw_user_meta_data->>'last_name', '');
-  org_name := COALESCE(
+  base_org_name := COALESCE(
     NULLIF(TRIM(NEW.raw_user_meta_data->>'organization_name'), ''),
     fname || '''s Organization'
   );
+
+  -- Find a unique organization name
+  org_name := base_org_name;
+  WHILE EXISTS (SELECT 1 FROM public.organizations WHERE name = org_name) LOOP
+    suffix := suffix + 1;
+    org_name := base_org_name || ' (' || suffix || ')';
+  END LOOP;
 
   -- Create organization (FREE tier, 10 GB)
   INSERT INTO public.organizations (
