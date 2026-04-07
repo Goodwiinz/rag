@@ -44,6 +44,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     isLoading,
     error,
     rememberMe,
+    pendingEmailConfirmation,
     login: storeLogin,
     register: storeRegister,
     logout: storeLogout,
@@ -58,6 +59,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     isAuthenticated: false,
     isLoading: true,
     error: null,
+    pendingEmailConfirmation: false,
   });
 
   // Clear stored auth data
@@ -93,6 +95,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       isAuthenticated,
       isLoading,
       error,
+      pendingEmailConfirmation,
     });
 
     // Keep the old API client and localStorage in sync
