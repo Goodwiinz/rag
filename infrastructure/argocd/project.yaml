@@ -12,8 +12,10 @@ spec:
   sourceRepos:
     - "https://github.com/Goodwiinz/rag.git"
 
-  # Allow deploying to staging and production namespaces
+  # Allow deploying to dev, staging, and production namespaces
   destinations:
+    - server: https://kubernetes.default.svc
+      namespace: rag-dev
     - server: https://kubernetes.default.svc
       namespace: rag-staging
     - server: https://kubernetes.default.svc
