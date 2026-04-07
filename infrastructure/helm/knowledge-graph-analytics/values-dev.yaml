@@ -4,7 +4,7 @@
 # Namespace: rag-dev
 
 global:
-  imageRegistry: "ghcr.io"
+  imageRegistry: "registry.digitalocean.com/ragsystemregistry"
   imagePullSecrets:
     - name: do-registry
   environment: "dev"
@@ -22,7 +22,7 @@ frontend:
   replicaCount: 1
 
   image:
-    repository: ghcr.io/goodwiinz/rag/frontend
+    repository: registry.digitalocean.com/ragsystemregistry/frontend
     tag: "latest"
     pullPolicy: Always
 
@@ -80,7 +80,7 @@ backend:
   replicaCount: 1
 
   image:
-    repository: ghcr.io/goodwiinz/rag/backend
+    repository: registry.digitalocean.com/ragsystemregistry/backend
     tag: "latest"
     pullPolicy: Always
 
