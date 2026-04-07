@@ -52,7 +52,7 @@ export interface AuthResponse {
   user: User;
 }
 
-export interface LoginResponse extends AuthResponse {}
+export type LoginResponse = AuthResponse;
 
 export interface RefreshResponse {
   access_token: string;
