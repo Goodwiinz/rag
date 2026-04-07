@@ -19,7 +19,7 @@ spec:
 
   source:
     repoURL: https://github.com/Goodwiinz/rag.git
-    targetRevision: develop
+    targetRevision: main
     path: infrastructure/helm/knowledge-graph-analytics
     helm:
       valueFiles:
