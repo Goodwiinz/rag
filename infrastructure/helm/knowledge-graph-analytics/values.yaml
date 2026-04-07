@@ -11,6 +11,8 @@ global:
 # Common labels and annotations
 commonLabels:
   app.kubernetes.io/name: knowledge-graph-analytics
+  app.kubernetes.io/instance: knowledge-graph-analytics
+  app.kubernetes.io/managed-by: Helm
 
 commonAnnotations: {}
 
