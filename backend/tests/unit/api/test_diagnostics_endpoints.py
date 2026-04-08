@@ -77,10 +77,26 @@ def test_diagnostics_requires_auth_without_override(test_app) -> None:
     """Diagnostics endpoints should reject unauthenticated requests."""
     test_app.dependency_overrides.pop(require_admin, None)
 
-    with TestClient(test_app) as client:
-        response = client.get("/api/v1/diagnostics/traces")
+    # We must also override get_current_user to simulate an unauthenticated
+    # user without attempting to hit the real database.
+    from src.core.dependencies import get_current_user
+    from fastapi import HTTPException, status
 
-    assert response.status_code in (401, 403)
+    async def mock_unauthenticated_user():
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated"
+        )
+
+    test_app.dependency_overrides[get_current_user] = mock_unauthenticated_user
+
+    try:
+        with TestClient(test_app) as client:
+            response = client.get("/api/v1/diagnostics/traces")
+
+        assert response.status_code in (401, 403)
+    finally:
+        test_app.dependency_overrides.pop(get_current_user, None)
 
 
 # ============================================================================
