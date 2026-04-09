@@ -4,12 +4,12 @@ from datetime import UTC, datetime
 from datetime import timedelta
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel
 
 from src.core.config import settings
 from src.core.dependencies import get_current_user
-from src.core.security import create_access_token
+from src.core.security import auth_rate_limiter, create_access_token
 from src.services.auth.cli_auth_sessions import InMemoryCLIAuthSessionStore
 
 router = APIRouter(prefix="/cli-auth", tags=["cli-auth"])
@@ -37,8 +37,15 @@ def _serialize_datetime(value: datetime) -> str:
 
 @router.post("/start")
 async def start_cli_auth(
+    request: Request,
     store: InMemoryCLIAuthSessionStore = Depends(get_cli_auth_session_store),
 ) -> dict[str, Any]:
+    client_ip = request.client.host if request.client else "unknown"
+    if not await auth_rate_limiter.is_allowed(client_ip, prefix="cli_start"):
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many CLI auth requests. Try again later.",
+        )
     session = store.create_session()
     browser_url = (
         f"{_frontend_base_url()}/cli-auth"

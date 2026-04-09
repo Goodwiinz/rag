@@ -3,10 +3,15 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from typing import TYPE_CHECKING
 import webbrowser
 
 from src.cli.auth_loader import ResolvedCLIAuth, save_cli_auth
+
+if TYPE_CHECKING:
+    from src.cli.agent_api_client import AgentAPIClient
 
 
 @dataclass(frozen=True)
@@ -19,7 +24,7 @@ class CLIBrowserAuthResult:
 
 async def login_via_browser(
     *,
-    client: object,
+    client: AgentAPIClient,
     output_hook: Callable[[str], None],
     open_browser: Callable[[str], bool] = webbrowser.open,
     sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
@@ -31,6 +36,11 @@ async def login_via_browser(
     verification_code = str(start_response["verification_code"])
     poll_token = str(start_response["poll_token"])
     poll_interval_seconds = float(start_response.get("poll_interval_seconds") or 2)
+    expires_at_str = start_response.get("expires_at")
+    if expires_at_str:
+        deadline = datetime.fromisoformat(str(expires_at_str).replace("Z", "+00:00"))
+    else:
+        deadline = datetime.now(UTC) + timedelta(minutes=5)
 
     output_hook("auth> opening browser for NOUS CLI sign-in...")
     try:
@@ -43,7 +53,7 @@ async def login_via_browser(
     output_hook(f"auth> code: {verification_code}")
     output_hook("auth> waiting for approval...")
 
-    while True:
+    while datetime.now(UTC) < deadline:
         if hasattr(client, "poll_cli_auth_status"):
             status_response = await client.poll_cli_auth_status(session_id, poll_token)
         else:
@@ -89,10 +99,13 @@ async def login_via_browser(
         output_hook(f"auth> login failed with unexpected status: {status}")
         return None
 
+    output_hook("auth> login session timed out")
+    return None
+
 
 async def perform_browser_login(
     *,
-    api_client: object,
+    api_client: AgentAPIClient,
     output_hook: Callable[[str], None],
     open_browser: Callable[[str], bool] = webbrowser.open,
     sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,

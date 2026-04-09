@@ -30,7 +30,7 @@ async def test_perform_browser_login_opens_browser_and_persists_auth(
                 "verification_code": "ABCD-1234",
                 "browser_url": "http://localhost:3000/cli-auth?session_id=session-1&code=ABCD-1234",
                 "poll_token": "poll-1",
-                "expires_at": "2026-03-27T12:34:56Z",
+                "expires_at": "2099-12-31T23:59:59Z",
                 "poll_interval_seconds": 2,
             }
 
@@ -47,7 +47,7 @@ async def test_perform_browser_login_opens_browser_and_persists_auth(
                 "token": "cli-token",
                 "organization_id": "org-1",
                 "user_email": "admin@multimodal-rag.com",
-                "expires_at": "2026-03-27T20:34:56Z",
+                "expires_at": "2099-12-31T23:59:59Z",
             }
 
     async def fake_sleep(seconds: float) -> None:
