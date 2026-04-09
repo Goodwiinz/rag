@@ -92,12 +92,10 @@ export default function RegisterPage() {
         organization_name: formData.organization_name || undefined,
       };
 
-      await register(registerData);
-      // If we got a session (no email confirmation), redirect
-      if (!pendingEmailConfirmation) {
+      const result = await register(registerData);
+      if (!result.requiresEmailConfirmation) {
         router.push('/');
       }
-      // Otherwise pendingEmailConfirmation is true — UI will show confirmation screen
     } catch (err) {
       setError(
         err instanceof Error ? err.message : 'Account provisioning failed'

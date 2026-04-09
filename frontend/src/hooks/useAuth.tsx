@@ -7,7 +7,7 @@ import React, {
   useCallback,
   ReactNode,
 } from 'react';
-import { User, Organization, RegisterRequest } from '@/types';
+import { User, Organization, RegisterRequest, RegisterResult } from '@/types';
 import { useAuthStore } from '@/stores/authStore';
 
 interface AuthContextType {
@@ -18,14 +18,14 @@ interface AuthContextType {
   error: string | null;
   pendingEmailConfirmation: boolean;
   signIn: (email: string, password: string) => Promise<void>;
-  signUp: (userData: RegisterRequest) => Promise<void>;
+  signUp: (userData: RegisterRequest) => Promise<RegisterResult>;
   signOut: () => void;
   resetPassword: (email: string) => Promise<void>;
   fetchProfile: () => Promise<void>;
   handleAuthError: () => void;
   // Legacy aliases for backward compatibility
   login: (email: string, password: string) => Promise<void>;
-  register: (userData: RegisterRequest) => Promise<void>;
+  register: (userData: RegisterRequest) => Promise<RegisterResult>;
   logout: () => void;
 }
 

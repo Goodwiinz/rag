@@ -14,10 +14,10 @@ import logging
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
-from fastapi import HTTPException, WebSocket, status
+from fastapi import WebSocket
 from jose import jwt
 
-from .config import settings
+from .security import verify_token
 
 logger = logging.getLogger(__name__)
 
@@ -102,23 +102,37 @@ class WebSocketAuthenticator:
             )
 
         try:
-            # Validate Supabase JWT (HS256 via shared secret)
-            if not settings.SUPABASE_JWT_SECRET:
-                logger.error("SUPABASE_JWT_SECRET not configured")
+            token_data = verify_token(token)
+            if not token_data:
+                try:
+                    claims = jwt.get_unverified_claims(token)
+                    expires_at = claims.get("exp")
+                    if expires_at and datetime.fromtimestamp(
+                        expires_at, tz=timezone.utc
+                    ) <= datetime.now(timezone.utc):
+                        raise WebSocketAuthError(
+                            "Authentication token has expired. Please refresh and reconnect.",
+                            code=4002,
+                        )
+                except WebSocketAuthError:
+                    raise
+                except Exception:
+                    pass
+
                 raise WebSocketAuthError(
-                    "Server authentication not configured.", code=4003
+                    "Invalid authentication token.", code=4003
                 )
 
-            payload = jwt.decode(
-                token,
-                settings.SUPABASE_JWT_SECRET,
-                algorithms=["HS256"],
-                audience="authenticated",
-            )
-            # Map Supabase JWT claims to expected format
-            app_metadata = payload.get("app_metadata", {})
-            if "role" not in payload:
-                payload["role"] = app_metadata.get("role", "USER")
+            if hasattr(token_data, "model_dump"):
+                payload = token_data.model_dump(exclude_none=True)
+            else:
+                payload = token_data.dict(exclude_none=True)
+
+            user_id = payload.pop("user_id", None)
+            if user_id:
+                payload["sub"] = user_id
+
+            payload.setdefault("role", "USER")
 
             payload["_auth_method"] = auth_method
             payload["_authenticated_at"] = datetime.now(timezone.utc).isoformat()
@@ -128,12 +142,8 @@ class WebSocketAuthenticator:
             )
             return payload
 
-        except jwt.ExpiredSignatureError:
-            logger.warning("WebSocket authentication failed: Token expired")
-            raise WebSocketAuthError(
-                "Authentication token has expired. Please refresh and reconnect.",
-                code=4002,
-            )
+        except WebSocketAuthError:
+            raise
         except jwt.JWTError as e:
             logger.warning(f"WebSocket authentication failed: Invalid token - {e}")
             raise WebSocketAuthError(

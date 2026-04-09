@@ -69,16 +69,21 @@ class AuthService:
 
         # Sync password to Supabase auth.users first (fail fast if Supabase is down)
         supabase = get_supabase_client()
-        if supabase:
-            try:
-                supabase.auth.admin.update_user_by_id(
-                    str(user.id), {"password": new_password}
-                )
-            except Exception as exc:
-                logger.error(f"Failed to update Supabase auth password: {exc}")
-                raise AuthenticationError(
-                    "Password change failed. Please try again later."
-                )
+        if not supabase:
+            logger.error("Supabase admin client unavailable for password change")
+            raise AuthenticationError(
+                "Password change unavailable: authentication service is not configured."
+            )
+
+        try:
+            supabase.auth.admin.update_user_by_id(
+                str(user.id), {"password": new_password}
+            )
+        except Exception as exc:
+            logger.error(f"Failed to update Supabase auth password: {exc}")
+            raise AuthenticationError(
+                "Password change failed. Please try again later."
+            )
 
         # Update local password hash
         user.set_password(new_password)

@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/client';
 import { apiClient } from '@/services/apiClient';
-import { Organization, User } from '@/types';
+import { Organization, RegisterResult, User } from '@/types';
 import { create } from 'zustand';
 
 interface SwitchOrganizationResponse {
@@ -29,7 +29,7 @@ interface AuthState {
     first_name: string;
     last_name: string;
     organization_name?: string;
-  }) => Promise<void>;
+  }) => Promise<RegisterResult>;
   signOut: () => void;
   resetPassword: (email: string) => Promise<void>;
   fetchProfile: () => Promise<void>;
@@ -83,7 +83,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
     last_name: string;
     organization_name?: string;
   }) => {
-    set({ isLoading: true, error: null });
+    set({ isLoading: true, error: null, pendingEmailConfirmation: false });
 
     try {
       const { data: supabaseData, error: supabaseError } =
@@ -105,11 +105,12 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
 
       if (supabaseData.session) {
         await get().fetchProfile();
-        return;
+        return { requiresEmailConfirmation: false };
       }
 
       // No session = email confirmation required
       set({ isLoading: false, pendingEmailConfirmation: true });
+      return { requiresEmailConfirmation: true };
     } catch (error) {
       set({
         error: error instanceof Error ? error.message : 'Registration failed',
@@ -181,6 +182,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
         organization: profileData.organization ?? null,
         isAuthenticated: true,
         isLoading: false,
+        pendingEmailConfirmation: false,
       });
     } catch (error) {
       set({
