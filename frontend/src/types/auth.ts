@@ -42,3 +42,7 @@ export interface RegisterRequest {
   organization_name?: string;
   organization_id?: string;
 }
+
+export interface RegisterResult {
+  requiresEmailConfirmation: boolean;
+}
