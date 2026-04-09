@@ -58,19 +58,17 @@ const STATUS_BADGE: Record<
   },
 };
 
-function getAuthToken(): string | null {
+async function getAuthToken(): Promise<string | null> {
   try {
-    const authStorage = localStorage.getItem('auth-storage');
-    if (authStorage) {
-      const auth = JSON.parse(authStorage);
-      return auth.state?.token ?? null;
-    }
+    const { createClient } = await import('@/lib/supabase/client');
+    const supabase = createClient();
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    return session?.access_token ?? null;
   } catch {
-    // ignore parse errors
+    return null;
   }
-  return (
-    localStorage.getItem('access_token') || localStorage.getItem('auth-token')
-  );
 }
 
 export function RunView({ runId }: RunViewProps) {
@@ -124,7 +122,7 @@ export function RunView({ runId }: RunViewProps) {
     abortRef.current = controller;
 
     const connectSSE = async () => {
-      const token = getAuthToken();
+      const token = await getAuthToken();
       const headers: Record<string, string> = {
         Accept: 'text/event-stream',
       };

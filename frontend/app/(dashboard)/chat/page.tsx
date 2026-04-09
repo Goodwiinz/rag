@@ -212,7 +212,7 @@ function ChatPageContent() {
   );
 
   // Auth
-  const { isAuthenticated, token } = useAuthStore();
+  const { isAuthenticated } = useAuthStore();
 
   // Get currentThreadId and setCurrentThread from chat store to sync with sidebar
   const currentThreadIdFromStore = useChatStore(
@@ -481,7 +481,7 @@ function ChatPageContent() {
   // Initialize workspace and conversation from database
   useEffect(() => {
     const initializeFromDb = async () => {
-      if (!isAuthenticated || !token) {
+      if (!isAuthenticated) {
         console.log(
           '[Chat] Not authenticated, skipping database initialization'
         );
@@ -572,7 +572,7 @@ function ChatPageContent() {
     };
 
     initializeFromDb();
-  }, [isAuthenticated, token, loadThreadsFromDb]);
+  }, [isAuthenticated, loadThreadsFromDb]);
 
   // Load messages when active conversation changes (lazy-load from API)
   useEffect(() => {
