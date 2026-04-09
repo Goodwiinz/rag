@@ -23,7 +23,6 @@ export interface Organization {
 
 export interface AuthState {
   user: User | null;
-  token: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
   error: string | null;
@@ -42,20 +41,4 @@ export interface RegisterRequest {
   last_name: string;
   organization_name?: string;
   organization_id?: string;
-}
-
-export interface AuthResponse {
-  access_token: string;
-  refresh_token: string;
-  token_type: string;
-  expires_in: number;
-  user: User;
-}
-
-export interface LoginResponse extends AuthResponse {}
-
-export interface RefreshResponse {
-  access_token: string;
-  token_type: string;
-  expires_in: number;
 }
