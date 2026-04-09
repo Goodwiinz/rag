@@ -40,11 +40,27 @@ class CLIAuthSession:
 
 
 class InMemoryCLIAuthSessionStore:
+    _MAX_SESSIONS = 1000
+    _MAX_APPROVE_ATTEMPTS = 5
+
     def __init__(self, *, ttl_minutes: int = 5) -> None:
         self._ttl = timedelta(minutes=ttl_minutes)
         self._sessions: dict[str, CLIAuthSession] = {}
+        self._approve_attempts: dict[str, int] = {}
+
+    def _evict_expired(self) -> None:
+        now = _utc_now()
+        expired_ids = [
+            sid for sid, s in self._sessions.items() if now >= s.expires_at
+        ]
+        for sid in expired_ids:
+            del self._sessions[sid]
+            self._approve_attempts.pop(sid, None)
 
     def create_session(self) -> CLIAuthSession:
+        self._evict_expired()
+        if len(self._sessions) >= self._MAX_SESSIONS:
+            raise RuntimeError("Too many pending CLI auth sessions")
         now = _utc_now()
         session = CLIAuthSession(
             session_id=secrets.token_urlsafe(16),
@@ -81,7 +97,14 @@ class InMemoryCLIAuthSessionStore:
         session = self._sessions.get(session_id)
         if session is None or session.status != "pending" or session.is_expired():
             return None
+
+        attempts = self._approve_attempts.get(session_id, 0)
+        if attempts >= self._MAX_APPROVE_ATTEMPTS:
+            self.deny_session(session_id)
+            return None
+
         if session.verification_code != verification_code:
+            self._approve_attempts[session_id] = attempts + 1
             return None
 
         approved = replace(
@@ -92,6 +115,7 @@ class InMemoryCLIAuthSessionStore:
             approved_at=_utc_now(),
         )
         self._sessions[session_id] = approved
+        self._approve_attempts.pop(session_id, None)
         return approved
 
     def deny_session(self, session_id: str) -> CLIAuthSession | None:

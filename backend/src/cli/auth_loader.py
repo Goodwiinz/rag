@@ -41,6 +41,7 @@ def save_cli_auth(
         payload["expires_at"] = expires_at
 
     target_path.write_text(json.dumps(payload, indent=2))
+    target_path.chmod(0o600)
     return target_path
 
 

@@ -142,4 +142,30 @@ describe('App login page', () => {
     );
     expect(mockPush).toHaveBeenCalledWith('/cli-auth?session_id=session-1&code=ABCD-1234');
   });
+
+  it.each([
+    ['//evil.com', '/dashboard'],
+    ['http://evil.com', '/dashboard'],
+    ['', '/dashboard'],
+  ])(
+    'blocks open redirect for next=%s and falls back to /dashboard',
+    async (maliciousNext, expectedPath) => {
+      mockLogin.mockResolvedValue(undefined);
+      mockSearchParams = new URLSearchParams(`next=${encodeURIComponent(maliciousNext)}`);
+
+      render(<LoginPage />);
+
+      await screen.findByTestId('email-input');
+      fireEvent.change(screen.getByTestId('email-input'), {
+        target: { value: 'admin@multimodal-rag.com' },
+      });
+      fireEvent.change(screen.getByTestId('password-input'), {
+        target: { value: 'secret-password' },
+      });
+      fireEvent.click(screen.getByTestId('login-button'));
+
+      await waitFor(() => expect(mockLogin).toHaveBeenCalled());
+      expect(mockPush).toHaveBeenCalledWith(expectedPath);
+    }
+  );
 });
