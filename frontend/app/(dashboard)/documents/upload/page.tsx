@@ -72,7 +72,6 @@ export default function DocumentUploadPage() {
   const { toast } = useToast();
   const {
     user,
-    token,
     organization,
     isAuthenticated,
     isLoading: authLoading,
@@ -311,7 +310,7 @@ export default function DocumentUploadPage() {
 
   const uploadAllFiles = async () => {
     if (authLoading) return;
-    if (!isAuthenticated || !token || !organization) {
+    if (!isAuthenticated || !organization) {
       toast({
         title: 'Auth Required',
         description: 'Authenticate to initialize ingestion.',
