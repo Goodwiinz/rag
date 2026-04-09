@@ -209,6 +209,8 @@ class AgentChatService {
                 case 'plan':
                   callbacks.onPlan?.(data.steps, data.reasoning);
                   break;
+                case 'trace':
+                  break;
                 case 'reflection':
                   callbacks.onReflection?.(
                     data.passed,
@@ -294,6 +296,8 @@ class AgentChatService {
                   break;
                 case 'tool_end':
                   callbacks.onToolEnd?.(data.tool, data.result);
+                  break;
+                case 'trace':
                   break;
                 case 'confirmation':
                   callbacks.onConfirmation?.(data.thread_id, data.confirmation);
