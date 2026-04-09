@@ -20,9 +20,6 @@ importers:
       '@mlc-ai/web-llm':
         specifier: ^0.2.80
         version: 0.2.81
-      '@next/swc-darwin-arm64':
-        specifier: ^16.2.2
-        version: 16.2.2
       '@radix-ui/react-alert-dialog':
         specifier: ^1.1.15
         version: 1.1.15(@types/react-dom@18.3.7(@types/react@18.3.28))(@types/react@18.3.28)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -1096,12 +1093,6 @@ packages:
 
   '@next/swc-darwin-arm64@15.5.12':
     resolution: {integrity: sha512-RnRjBtH8S8eXCpUNkQ+543DUc7ys8y15VxmFU9HRqlo9BG3CcBUiwNtF8SNoi2xvGCVJq1vl2yYq+3oISBS0Zg==}
-    engines: {node: '>= 10'}
-    cpu: [arm64]
-    os: [darwin]
-
-  '@next/swc-darwin-arm64@16.2.2':
-    resolution: {integrity: sha512-B92G3ulrwmkDSEJEp9+XzGLex5wC1knrmCSIylyVeiAtCIfvEJYiN3v5kXPlYt5R4RFlsfO/v++aKV63Acrugg==}
     engines: {node: '>= 10'}
     cpu: [arm64]
     os: [darwin]
@@ -7608,8 +7599,6 @@ snapshots:
 
   '@next/swc-darwin-arm64@15.5.12':
     optional: true
-
-  '@next/swc-darwin-arm64@16.2.2': {}
 
   '@next/swc-darwin-x64@15.5.12':
     optional: true

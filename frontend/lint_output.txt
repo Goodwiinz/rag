@@ -1,16 +1,23 @@
 
-> multimodal-rag-frontend@1.0.0 lint /app/frontend
-> eslint --ext .ts,.tsx --max-warnings=9999 --ignore-pattern node_modules --ignore-pattern .next --ignore-pattern e2e --ignore-pattern tests --ignore-pattern '*.test.*' --ignore-pattern '*.spec.*' --ignore-pattern setupTests.ts app src
-
+/app/frontend/app/(auth)/forgot-password/page.tsx
+  10:16  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+  21:51  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
 
 /app/frontend/app/(auth)/layout.tsx
   1:16  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
 
 /app/frontend/app/(auth)/register/page.tsx
    39:16  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
-   67:51  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
-  103:65  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
-  117:31  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+   68:51  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+  110:65  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+  124:31  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+
+/app/frontend/app/(auth)/reset-password/page.tsx
+  18:16  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+  32:51  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+
+/app/frontend/app/(auth)/verify-email/page.tsx
+  9:16  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
 
 /app/frontend/app/(dashboard)/analytics/page.tsx
   7:16  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
@@ -19,66 +26,39 @@
   9:16  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
 
 /app/frontend/app/(dashboard)/chat/[id]/page.tsx
-  9:16  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+  6:16  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
 
 /app/frontend/app/(dashboard)/chat/layout.tsx
-    90:1   warning  Missing return type on function                                                                                        @typescript-eslint/explicit-function-return-type
-   125:46  warning  Missing return type on function                                                                                        @typescript-eslint/explicit-function-return-type
-   269:1   warning  Missing return type on function                                                                                        @typescript-eslint/explicit-function-return-type
-   458:1   warning  Missing return type on function                                                                                        @typescript-eslint/explicit-function-return-type
-   503:38  warning  Missing return type on function                                                                                        @typescript-eslint/explicit-function-return-type
-   512:38  warning  Missing return type on function                                                                                        @typescript-eslint/explicit-function-return-type
-   521:41  warning  Missing return type on function                                                                                        @typescript-eslint/explicit-function-return-type
-   530:37  warning  Missing return type on function                                                                                        @typescript-eslint/explicit-function-return-type
-   558:43  warning  Missing return type on function                                                                                        @typescript-eslint/explicit-function-return-type
-   974:1   warning  Missing return type on function                                                                                        @typescript-eslint/explicit-function-return-type
-   994:45  warning  Missing return type on function                                                                                        @typescript-eslint/explicit-function-return-type
-  1152:1   warning  Missing return type on function                                                                                        @typescript-eslint/explicit-function-return-type
-  1324:1   warning  Missing return type on function                                                                                        @typescript-eslint/explicit-function-return-type
-  1703:16  warning  Missing return type on function                                                                                        @typescript-eslint/explicit-function-return-type
-  1721:5   warning  Missing return type on function                                                                                        @typescript-eslint/explicit-function-return-type
-  1755:6   warning  React Hook useEffect has a missing dependency: 'currentWorkspaceId'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
-  1759:5   warning  Missing return type on function                                                                                        @typescript-eslint/explicit-function-return-type
-  1786:46  warning  Missing return type on function                                                                                        @typescript-eslint/explicit-function-return-type
+   40:1   warning  Missing return type on function                                                                                        @typescript-eslint/explicit-function-return-type
+  129:46  warning  Missing return type on function                                                                                        @typescript-eslint/explicit-function-return-type
+  329:1   warning  Missing return type on function                                                                                        @typescript-eslint/explicit-function-return-type
+  505:1   warning  Missing return type on function                                                                                        @typescript-eslint/explicit-function-return-type
+  894:16  warning  Missing return type on function                                                                                        @typescript-eslint/explicit-function-return-type
+  904:10  warning  'workspaces' is assigned a value but never used. Allowed unused vars must match /^_/u                                  @typescript-eslint/no-unused-vars
+  908:10  warning  'projects' is assigned a value but never used. Allowed unused vars must match /^_/u                                    @typescript-eslint/no-unused-vars
+  909:10  warning  'isLoadingWorkspaces' is assigned a value but never used. Allowed unused vars must match /^_/u                         @typescript-eslint/no-unused-vars
+  910:10  warning  'isLoadingProjects' is assigned a value but never used. Allowed unused vars must match /^_/u                           @typescript-eslint/no-unused-vars
+  914:5   warning  Missing return type on function                                                                                        @typescript-eslint/explicit-function-return-type
+  954:6   warning  React Hook useEffect has a missing dependency: 'currentWorkspaceId'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+  958:5   warning  Missing return type on function                                                                                        @typescript-eslint/explicit-function-return-type
+  980:9   warning  'handleWorkspaceChange' is assigned a value but never used. Allowed unused vars must match /^_/u                       @typescript-eslint/no-unused-vars
+  986:46  warning  Missing return type on function                                                                                        @typescript-eslint/explicit-function-return-type
 
 /app/frontend/app/(dashboard)/chat/new/page.tsx
-  9:16  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+  6:16  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
 
 /app/frontend/app/(dashboard)/chat/page.tsx
-   173:52  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
-   177:18  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
-   177:50  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
-   179:18  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
-   180:18  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
-   182:18  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
-   183:18  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
-   184:18  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
-   193:20  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
-   194:20  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
-   197:25  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
-   199:26  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
-   199:54  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
-   377:1   warning  Missing return type on function           @typescript-eslint/explicit-function-return-type
-   406:31  warning  Missing return type on function           @typescript-eslint/explicit-function-return-type
-   622:1   warning  Missing return type on function           @typescript-eslint/explicit-function-return-type
-   768:1   warning  Missing return type on function           @typescript-eslint/explicit-function-return-type
-   806:50  warning  Missing return type on function           @typescript-eslint/explicit-function-return-type
-   958:1   warning  Missing return type on function           @typescript-eslint/explicit-function-return-type
-   969:65  warning  Missing return type on function           @typescript-eslint/explicit-function-return-type
-   977:31  warning  Missing return type on function           @typescript-eslint/explicit-function-return-type
-  1128:1   warning  Missing return type on function           @typescript-eslint/explicit-function-return-type
-  1190:1   warning  Missing return type on function           @typescript-eslint/explicit-function-return-type
-  1285:66  warning  Missing return type on function           @typescript-eslint/explicit-function-return-type
-  1534:23  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
-  1558:39  warning  Missing return type on function           @typescript-eslint/explicit-function-return-type
-  1604:23  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
-  1685:61  warning  Missing return type on function           @typescript-eslint/explicit-function-return-type
-  1690:45  warning  Missing return type on function           @typescript-eslint/explicit-function-return-type
-  1718:53  warning  Missing return type on function           @typescript-eslint/explicit-function-return-type
-  1724:33  warning  Missing return type on function           @typescript-eslint/explicit-function-return-type
-  2102:25  warning  Missing return type on function           @typescript-eslint/explicit-function-return-type
-  2110:47  warning  Missing return type on function           @typescript-eslint/explicit-function-return-type
-  2309:16  warning  Missing return type on function           @typescript-eslint/explicit-function-return-type
+   161:1   warning  Missing return type on function                                                                                                    @typescript-eslint/explicit-function-return-type
+   301:66  warning  Missing return type on function                                                                                                    @typescript-eslint/explicit-function-return-type
+   478:5   warning  React Hook useCallback has an unnecessary dependency: 'mapDbMessageToUiMessage'. Either exclude it or remove the dependency array  react-hooks/exhaustive-deps
+   483:39  warning  Missing return type on function                                                                                                    @typescript-eslint/explicit-function-return-type
+   654:61  warning  Missing return type on function                                                                                                    @typescript-eslint/explicit-function-return-type
+   659:45  warning  Missing return type on function                                                                                                    @typescript-eslint/explicit-function-return-type
+   691:53  warning  Missing return type on function                                                                                                    @typescript-eslint/explicit-function-return-type
+   698:33  warning  Missing return type on function                                                                                                    @typescript-eslint/explicit-function-return-type
+  1051:25  warning  Missing return type on function                                                                                                    @typescript-eslint/explicit-function-return-type
+  1059:47  warning  Missing return type on function                                                                                                    @typescript-eslint/explicit-function-return-type
+  1346:16  warning  Missing return type on function                                                                                                    @typescript-eslint/explicit-function-return-type
 
 /app/frontend/app/(dashboard)/dashboard/page.tsx
   39:16  warning  Missing return type on function                                                         @typescript-eslint/explicit-function-return-type
@@ -108,22 +88,22 @@
   25:8  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
 
 /app/frontend/app/(dashboard)/documents/components/DocumentList.tsx
-  34:8   warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
-  64:42  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
-  73:44  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+  44:8   warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+  74:42  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+  87:44  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
 
 /app/frontend/app/(dashboard)/documents/components/DocumentStats.tsx
   20:8  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
 
 /app/frontend/app/(dashboard)/documents/page.tsx
-  15:16  warning  Missing return type on function                                                             @typescript-eslint/explicit-function-return-type
-  16:11  warning  'isAuthenticated' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
-  22:5   warning  'error' is assigned a value but never used. Allowed unused vars must match /^_/u            @typescript-eslint/no-unused-vars
-  24:5   warning  'filters' is assigned a value but never used. Allowed unused vars must match /^_/u          @typescript-eslint/no-unused-vars
-  48:81  warning  Unexpected any. Specify a different type                                                    @typescript-eslint/no-explicit-any
-  67:64  warning  Missing return type on function                                                             @typescript-eslint/explicit-function-return-type
-  79:37  warning  Missing return type on function                                                             @typescript-eslint/explicit-function-return-type
-  93:63  warning  Missing return type on function                                                             @typescript-eslint/explicit-function-return-type
+   15:16  warning  Missing return type on function                                                             @typescript-eslint/explicit-function-return-type
+   16:11  warning  'isAuthenticated' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+   22:5   warning  'error' is assigned a value but never used. Allowed unused vars must match /^_/u            @typescript-eslint/no-unused-vars
+   24:5   warning  'filters' is assigned a value but never used. Allowed unused vars must match /^_/u          @typescript-eslint/no-unused-vars
+   49:61  warning  Unexpected any. Specify a different type                                                    @typescript-eslint/no-explicit-any
+   74:64  warning  Missing return type on function                                                             @typescript-eslint/explicit-function-return-type
+   86:37  warning  Missing return type on function                                                             @typescript-eslint/explicit-function-return-type
+  104:63  warning  Missing return type on function                                                             @typescript-eslint/explicit-function-return-type
 
 /app/frontend/app/(dashboard)/documents/upload/page.tsx
    13:3   warning  'Terminal' is defined but never used. Allowed unused vars must match /^_/u                  @typescript-eslint/no-unused-vars
@@ -132,67 +112,72 @@
    18:3   warning  'Cpu' is defined but never used. Allowed unused vars must match /^_/u                       @typescript-eslint/no-unused-vars
    19:3   warning  'Network' is defined but never used. Allowed unused vars must match /^_/u                   @typescript-eslint/no-unused-vars
    34:8   warning  'Link' is defined but never used. Allowed unused vars must match /^_/u                      @typescript-eslint/no-unused-vars
-   53:12  warning  Unexpected any. Specify a different type                                                    @typescript-eslint/no-explicit-any
-   56:18  warning  Unexpected any. Specify a different type                                                    @typescript-eslint/no-explicit-any
-   59:16  warning  Missing return type on function                                                             @typescript-eslint/explicit-function-return-type
-   61:11  warning  'user' is assigned a value but never used. Allowed unused vars must match /^_/u             @typescript-eslint/no-unused-vars
-   64:10  warning  'terminalText' is assigned a value but never used. Allowed unused vars must match /^_/u     @typescript-eslint/no-unused-vars
-   64:24  warning  'setTerminalText' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
-   87:69  warning  Unexpected any. Specify a different type                                                    @typescript-eslint/no-explicit-any
-   90:32  warning  Unexpected any. Specify a different type                                                    @typescript-eslint/no-explicit-any
-  158:77  warning  Missing return type on function                                                             @typescript-eslint/explicit-function-return-type
-  196:57  warning  Missing return type on function                                                             @typescript-eslint/explicit-function-return-type
-  244:35  warning  Missing return type on function                                                             @typescript-eslint/explicit-function-return-type
-  262:39  warning  Missing return type on function                                                             @typescript-eslint/explicit-function-return-type
-  274:38  warning  Missing return type on function                                                             @typescript-eslint/explicit-function-return-type
-  283:59  warning  Missing return type on function                                                             @typescript-eslint/explicit-function-return-type
+   65:12  warning  Unexpected any. Specify a different type                                                    @typescript-eslint/no-explicit-any
+   68:18  warning  Unexpected any. Specify a different type                                                    @typescript-eslint/no-explicit-any
+   71:16  warning  Missing return type on function                                                             @typescript-eslint/explicit-function-return-type
+   74:5   warning  'user' is assigned a value but never used. Allowed unused vars must match /^_/u             @typescript-eslint/no-unused-vars
+   82:10  warning  'terminalText' is assigned a value but never used. Allowed unused vars must match /^_/u     @typescript-eslint/no-unused-vars
+   82:24  warning  'setTerminalText' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+  106:50  warning  Unexpected any. Specify a different type                                                    @typescript-eslint/no-explicit-any
+  109:34  warning  Unexpected any. Specify a different type                                                    @typescript-eslint/no-explicit-any
+  151:27  warning  Unexpected any. Specify a different type                                                    @typescript-eslint/no-explicit-any
+  207:77  warning  Missing return type on function                                                             @typescript-eslint/explicit-function-return-type
+  250:57  warning  Missing return type on function                                                             @typescript-eslint/explicit-function-return-type
+  267:23  warning  Unexpected any. Specify a different type                                                    @typescript-eslint/no-explicit-any
+  312:35  warning  Missing return type on function                                                             @typescript-eslint/explicit-function-return-type
+  334:39  warning  Missing return type on function                                                             @typescript-eslint/explicit-function-return-type
+  346:38  warning  Missing return type on function                                                             @typescript-eslint/explicit-function-return-type
+  359:59  warning  Missing return type on function                                                             @typescript-eslint/explicit-function-return-type
 
 /app/frontend/app/(dashboard)/entities/page.tsx
-   11:87  warning  'PieChart' is defined but never used. Allowed unused vars must match /^_/u                                       @typescript-eslint/no-unused-vars
-   24:10  warning  'NeighborhoodExplorer' is defined but never used. Allowed unused vars must match /^_/u                           @typescript-eslint/no-unused-vars
-   55:62  warning  Missing return type on function                                                                                  @typescript-eslint/explicit-function-return-type
-   63:1   warning  Missing return type on function                                                                                  @typescript-eslint/explicit-function-return-type
-   66:22  warning  'canEdit' is assigned a value but never used. Allowed unused vars must match /^_/u                               @typescript-eslint/no-unused-vars
-   66:31  warning  'canDelete' is assigned a value but never used. Allowed unused vars must match /^_/u                             @typescript-eslint/no-unused-vars
-   98:10  warning  'availableRelationshipTypes' is assigned a value but never used. Allowed unused vars must match /^_/u            @typescript-eslint/no-unused-vars
-  106:11  warning  'entityId' is assigned a value but never used. Allowed unused vars must match /^_/u                              @typescript-eslint/no-unused-vars
-  115:6   warning  React Hook useEffect has a missing dependency: 'searchParams'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
-  135:45  warning  Missing return type on function                                                                                  @typescript-eslint/explicit-function-return-type
-  228:74  warning  Unexpected any. Specify a different type                                                                         @typescript-eslint/no-explicit-any
-  314:43  warning  Missing return type on function                                                                                  @typescript-eslint/explicit-function-return-type
-  318:47  warning  Missing return type on function                                                                                  @typescript-eslint/explicit-function-return-type
-  323:51  warning  Missing return type on function                                                                                  @typescript-eslint/explicit-function-return-type
-  328:65  warning  Missing return type on function                                                                                  @typescript-eslint/explicit-function-return-type
-  333:33  warning  Missing return type on function                                                                                  @typescript-eslint/explicit-function-return-type
-  342:81  warning  Missing return type on function                                                                                  @typescript-eslint/explicit-function-return-type
-  354:55  warning  Missing return type on function                                                                                  @typescript-eslint/explicit-function-return-type
-  369:29  warning  Missing return type on function                                                                                  @typescript-eslint/explicit-function-return-type
-  379:9   warning  'handleAddRelationship' is assigned a value but never used. Allowed unused vars must match /^_/u                 @typescript-eslint/no-unused-vars
-  379:52  warning  Missing return type on function                                                                                  @typescript-eslint/explicit-function-return-type
-  393:6   warning  Missing return type on function                                                                                  @typescript-eslint/explicit-function-return-type
-  846:1   warning  Missing return type on function                                                                                  @typescript-eslint/explicit-function-return-type
-  860:16  warning  Missing return type on function                                                                                  @typescript-eslint/explicit-function-return-type
+    26:3    warning  'PieChart' is defined but never used. Allowed unused vars must match /^_/u                                       @typescript-eslint/no-unused-vars
+    57:10   warning  'NeighborhoodExplorer' is defined but never used. Allowed unused vars must match /^_/u                           @typescript-eslint/no-unused-vars
+    96:62   warning  Missing return type on function                                                                                  @typescript-eslint/explicit-function-return-type
+   104:1    warning  Missing return type on function                                                                                  @typescript-eslint/explicit-function-return-type
+   107:22   warning  'canEdit' is assigned a value but never used. Allowed unused vars must match /^_/u                               @typescript-eslint/no-unused-vars
+   107:31   warning  'canDelete' is assigned a value but never used. Allowed unused vars must match /^_/u                             @typescript-eslint/no-unused-vars
+   144:10   warning  'availableRelationshipTypes' is assigned a value but never used. Allowed unused vars must match /^_/u            @typescript-eslint/no-unused-vars
+   154:11   warning  'entityId' is assigned a value but never used. Allowed unused vars must match /^_/u                              @typescript-eslint/no-unused-vars
+   163:6    warning  React Hook useEffect has a missing dependency: 'searchParams'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+   181:45   warning  Missing return type on function                                                                                  @typescript-eslint/explicit-function-return-type
+   298:37   warning  Unexpected any. Specify a different type                                                                         @typescript-eslint/no-explicit-any
+   399:43   warning  Missing return type on function                                                                                  @typescript-eslint/explicit-function-return-type
+   403:47   warning  Missing return type on function                                                                                  @typescript-eslint/explicit-function-return-type
+   408:51   warning  Missing return type on function                                                                                  @typescript-eslint/explicit-function-return-type
+   413:65   warning  Missing return type on function                                                                                  @typescript-eslint/explicit-function-return-type
+   418:33   warning  Missing return type on function                                                                                  @typescript-eslint/explicit-function-return-type
+   430:5    warning  Missing return type on function                                                                                  @typescript-eslint/explicit-function-return-type
+   442:55   warning  Missing return type on function                                                                                  @typescript-eslint/explicit-function-return-type
+   461:29   warning  Missing return type on function                                                                                  @typescript-eslint/explicit-function-return-type
+   472:9    warning  'handleAddRelationship' is assigned a value but never used. Allowed unused vars must match /^_/u                 @typescript-eslint/no-unused-vars
+   472:52   warning  Missing return type on function                                                                                  @typescript-eslint/explicit-function-return-type
+   486:6    warning  Missing return type on function                                                                                  @typescript-eslint/explicit-function-return-type
+   677:106  error    Comments inside children section of tag should be placed inside braces                                           react/jsx-no-comment-textnodes
+   712:111  error    Comments inside children section of tag should be placed inside braces                                           react/jsx-no-comment-textnodes
+   742:106  error    Comments inside children section of tag should be placed inside braces                                           react/jsx-no-comment-textnodes
+  1112:1    warning  Missing return type on function                                                                                  @typescript-eslint/explicit-function-return-type
+  1126:16   warning  Missing return type on function                                                                                  @typescript-eslint/explicit-function-return-type
 
 /app/frontend/app/(dashboard)/layout.tsx
-  16:16  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+  21:16  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
 
 /app/frontend/app/(dashboard)/projects/[id]/page.tsx
-   54:16  warning  Missing return type on function                                                         @typescript-eslint/explicit-function-return-type
-  119:20  warning  'setMatrixId' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
-  277:59  warning  Missing return type on function                                                         @typescript-eslint/explicit-function-return-type
-  285:31  warning  Missing return type on function                                                         @typescript-eslint/explicit-function-return-type
-  290:46  warning  Missing return type on function                                                         @typescript-eslint/explicit-function-return-type
-  295:62  warning  Missing return type on function                                                         @typescript-eslint/explicit-function-return-type
-  314:51  warning  Missing return type on function                                                         @typescript-eslint/explicit-function-return-type
-  323:50  warning  Missing return type on function                                                         @typescript-eslint/explicit-function-return-type
-  331:45  warning  Missing return type on function                                                         @typescript-eslint/explicit-function-return-type
-  606:55  warning  Missing return type on function                                                         @typescript-eslint/explicit-function-return-type
+   56:16  warning  Missing return type on function                                                         @typescript-eslint/explicit-function-return-type
+  121:20  warning  'setMatrixId' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+  316:59  warning  Missing return type on function                                                         @typescript-eslint/explicit-function-return-type
+  324:31  warning  Missing return type on function                                                         @typescript-eslint/explicit-function-return-type
+  329:46  warning  Missing return type on function                                                         @typescript-eslint/explicit-function-return-type
+  334:62  warning  Missing return type on function                                                         @typescript-eslint/explicit-function-return-type
+  353:51  warning  Missing return type on function                                                         @typescript-eslint/explicit-function-return-type
+  362:50  warning  Missing return type on function                                                         @typescript-eslint/explicit-function-return-type
+  370:45  warning  Missing return type on function                                                         @typescript-eslint/explicit-function-return-type
+  695:55  warning  Missing return type on function                                                         @typescript-eslint/explicit-function-return-type
 
 /app/frontend/app/(dashboard)/projects/page.tsx
   20:16  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
-  69:6   warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
-  82:57  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
-  87:58  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+  77:6   warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+  90:57  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+  95:58  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
 
 /app/frontend/app/(dashboard)/quality-metrics-demo/page.tsx
    5:10  warning  'Button' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
@@ -212,13 +197,9 @@
 
 /app/frontend/app/(dashboard)/search/page.tsx
    20:16  warning  Missing return type on function           @typescript-eslint/explicit-function-return-type
-   66:52  warning  Missing return type on function           @typescript-eslint/explicit-function-return-type
-   94:32  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
-  163:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
-
-/app/frontend/app/(dashboard)/settings/page.tsx
-  22:1   warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
-  50:16  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+   74:52  warning  Missing return type on function           @typescript-eslint/explicit-function-return-type
+  102:32  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  176:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
 
 /app/frontend/app/api/health/route.ts
   8:8  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
@@ -276,7 +257,7 @@
   71:44  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
 
 /app/frontend/app/layout.tsx
-  22:16  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+  34:16  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
 
 /app/frontend/app/not-found.tsx
    6:16  warning  Missing return type on function                                  @typescript-eslint/explicit-function-return-type
@@ -284,38 +265,92 @@
   21:46  warning  `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`  react/no-unescaped-entities
 
 /app/frontend/app/page.tsx
-  32:7   warning  'Badge' is assigned a value but never used. Allowed unused vars must match /^_/u        @typescript-eslint/no-unused-vars
-  32:92  warning  Missing return type on function                                                         @typescript-eslint/explicit-function-return-type
-  38:7   warning  'FeatureCard' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
-  38:65  warning  Unexpected any. Specify a different type                                                @typescript-eslint/no-explicit-any
-  38:70  warning  Missing return type on function                                                         @typescript-eslint/explicit-function-return-type
-  59:23  warning  Missing return type on function                                                         @typescript-eslint/explicit-function-return-type
-  92:16  warning  Missing return type on function                                                         @typescript-eslint/explicit-function-return-type
-  97:9   warning  'y' is assigned a value but never used. Allowed unused vars must match /^_/u            @typescript-eslint/no-unused-vars
+   32:7   warning  'Badge' is assigned a value but never used. Allowed unused vars must match /^_/u        @typescript-eslint/no-unused-vars
+   38:4   warning  Missing return type on function                                                         @typescript-eslint/explicit-function-return-type
+   49:7   warning  'FeatureCard' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+   49:65  warning  Unexpected any. Specify a different type                                                @typescript-eslint/no-explicit-any
+   49:70  warning  Missing return type on function                                                         @typescript-eslint/explicit-function-return-type
+   72:23  warning  Missing return type on function                                                         @typescript-eslint/explicit-function-return-type
+  110:16  warning  Missing return type on function                                                         @typescript-eslint/explicit-function-return-type
+  115:9   warning  'y' is assigned a value but never used. Allowed unused vars must match /^_/u            @typescript-eslint/no-unused-vars
 
 /app/frontend/app/providers.tsx
-  14:8  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+  15:8  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
 
 /app/frontend/src/components/Logo.tsx
    9:8   warning  Missing return type on function           @typescript-eslint/explicit-function-return-type
   15:31  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
 
+/app/frontend/src/components/agent-chat/AgentCitationBadge.tsx
+  29:8  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+
+/app/frontend/src/components/agent-chat/AgentContextBar.tsx
+  11:8  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+
+/app/frontend/src/components/agent-chat/AgentFAB.tsx
+  7:8  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+
+/app/frontend/src/components/agent-chat/AgentInput.tsx
+  16:8   warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+  35:50  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+
+/app/frontend/src/components/agent-chat/AgentMarkdownRenderer.tsx
+   32:1  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+  183:8  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+
+/app/frontend/src/components/agent-chat/AgentMessageItem.tsx
+   43:8  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+  155:1  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+
+/app/frontend/src/components/agent-chat/AgentMessageList.tsx
+  15:8  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+
+/app/frontend/src/components/agent-chat/AgentPanel.tsx
+  27:8  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+  52:5  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+
+/app/frontend/src/components/agent-chat/AgentPanelHeader.tsx
+  14:8  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+
+/app/frontend/src/components/agent-chat/AgentSidebar.tsx
+  15:8   warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+  39:49  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+
+/app/frontend/src/components/agent-chat/AgentThreadList.tsx
+  14:8  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+
+/app/frontend/src/components/agent-chat/ConfirmationCard.tsx
+  26:8  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+
+/app/frontend/src/components/agent-chat/GlobalAgentChat.tsx
+   35:8  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+   69:5  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+  142:5  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+  151:5  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+
+/app/frontend/src/components/agent-chat/PlanCard.tsx
+  35:1  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+  47:8  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+
+/app/frontend/src/components/agent-chat/ToolExecutionCard.tsx
+  55:8  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+
 /app/frontend/src/components/analytics/AnalyticsChart.tsx
    91:8   warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
-  150:26  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+  169:26  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
 
 /app/frontend/src/components/analytics/AnalyticsDashboard.tsx
-   64:61  warning  Missing return type on function           @typescript-eslint/explicit-function-return-type
-   74:60  warning  Missing return type on function           @typescript-eslint/explicit-function-return-type
-   81:61  warning  Missing return type on function           @typescript-eslint/explicit-function-return-type
-   82:46  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
-   97:8   warning  Missing return type on function           @typescript-eslint/explicit-function-return-type
-  101:36  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
-  112:29  warning  Missing return type on function           @typescript-eslint/explicit-function-return-type
-  230:28  warning  Missing return type on function           @typescript-eslint/explicit-function-return-type
-  234:49  warning  Missing return type on function           @typescript-eslint/explicit-function-return-type
-  239:46  warning  Missing return type on function           @typescript-eslint/explicit-function-return-type
-  468:53  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   68:61  warning  Missing return type on function           @typescript-eslint/explicit-function-return-type
+   78:60  warning  Missing return type on function           @typescript-eslint/explicit-function-return-type
+   85:61  warning  Missing return type on function           @typescript-eslint/explicit-function-return-type
+   86:46  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  101:8   warning  Missing return type on function           @typescript-eslint/explicit-function-return-type
+  105:36  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  116:29  warning  Missing return type on function           @typescript-eslint/explicit-function-return-type
+  269:28  warning  Missing return type on function           @typescript-eslint/explicit-function-return-type
+  273:49  warning  Missing return type on function           @typescript-eslint/explicit-function-return-type
+  278:46  warning  Missing return type on function           @typescript-eslint/explicit-function-return-type
+  537:53  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
 
 /app/frontend/src/components/analytics/AnalyticsOverview.tsx
    23:3   warning  'Calendar' is defined but never used. Allowed unused vars must match /^_/u              @typescript-eslint/no-unused-vars
@@ -351,21 +386,21 @@
   519:46  warning  Missing return type on function                                                 @typescript-eslint/explicit-function-return-type
 
 /app/frontend/src/components/arxiv/ArxivManagement.tsx
-   35:16  warning  Missing return type on function           @typescript-eslint/explicit-function-return-type
-  106:60  warning  Missing return type on function           @typescript-eslint/explicit-function-return-type
-  123:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
-  141:45  warning  Missing return type on function           @typescript-eslint/explicit-function-return-type
-  149:66  warning  Missing return type on function           @typescript-eslint/explicit-function-return-type
-  165:39  warning  Missing return type on function           @typescript-eslint/explicit-function-return-type
-  201:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
-  210:39  warning  Missing return type on function           @typescript-eslint/explicit-function-return-type
-  239:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
-  248:50  warning  Missing return type on function           @typescript-eslint/explicit-function-return-type
-  256:37  warning  Missing return type on function           @typescript-eslint/explicit-function-return-type
-  264:41  warning  Missing return type on function           @typescript-eslint/explicit-function-return-type
-  293:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
-  302:42  warning  Missing return type on function           @typescript-eslint/explicit-function-return-type
-  351:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   42:16  warning  Missing return type on function           @typescript-eslint/explicit-function-return-type
+  117:60  warning  Missing return type on function           @typescript-eslint/explicit-function-return-type
+  134:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  159:45  warning  Missing return type on function           @typescript-eslint/explicit-function-return-type
+  167:66  warning  Missing return type on function           @typescript-eslint/explicit-function-return-type
+  183:39  warning  Missing return type on function           @typescript-eslint/explicit-function-return-type
+  219:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  228:39  warning  Missing return type on function           @typescript-eslint/explicit-function-return-type
+  257:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  266:50  warning  Missing return type on function           @typescript-eslint/explicit-function-return-type
+  274:37  warning  Missing return type on function           @typescript-eslint/explicit-function-return-type
+  282:41  warning  Missing return type on function           @typescript-eslint/explicit-function-return-type
+  311:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  320:42  warning  Missing return type on function           @typescript-eslint/explicit-function-return-type
+  369:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
 
 /app/frontend/src/components/arxiv/ArxivStreamingExtraction.tsx
     1:27  warning  'useEffect' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
@@ -388,18 +423,41 @@
   108:50  warning  Missing return type on function           @typescript-eslint/explicit-function-return-type
   118:61  warning  Missing return type on function           @typescript-eslint/explicit-function-return-type
   134:49  warning  Missing return type on function           @typescript-eslint/explicit-function-return-type
+  155:45  warning  Missing return type on function           @typescript-eslint/explicit-function-return-type
+  174:62  warning  Missing return type on function           @typescript-eslint/explicit-function-return-type
 
 /app/frontend/src/components/arxiv/tabs/ExtractTab.tsx
-  32:8  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+  33:8  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
 
 /app/frontend/src/components/arxiv/tabs/IngestTab.tsx
-  45:8  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+  48:8  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
 
 /app/frontend/src/components/arxiv/tabs/StatsTab.tsx
   23:8  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
 
 /app/frontend/src/components/arxiv/tabs/TrackingTab.tsx
-  25:8  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+  33:8  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+
+/app/frontend/src/components/chat-widget/ChatContextBar.tsx
+  30:8  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+
+/app/frontend/src/components/chat-widget/ChatMessageItem.tsx
+  16:8  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+
+/app/frontend/src/components/chat-widget/ChatMessageList.tsx
+  20:8  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+
+/app/frontend/src/components/chat-widget/ChatPanel.tsx
+  35:8  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+  68:5  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+
+/app/frontend/src/components/chat-widget/ChatPanelInput.tsx
+  18:8   warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+  41:71  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+  50:30  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+
+/app/frontend/src/components/chat-widget/ProjectChatWidget.tsx
+  19:8  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
 
 /app/frontend/src/components/chat/ChatAnalytics.tsx
     3:17  warning  'useMemo' is defined but never used. Allowed unused vars must match /^_/u       @typescript-eslint/no-unused-vars
@@ -418,18 +476,13 @@
   125:48  warning  Missing return type on function                                                 @typescript-eslint/explicit-function-return-type
   156:6   warning  Missing return type on function                                                 @typescript-eslint/explicit-function-return-type
 
-/app/frontend/src/components/chat/ChatInput.tsx
-   52:8   warning  Missing return type on function                                                                   @typescript-eslint/explicit-function-return-type
-   75:30  warning  'setShowFormattingHelp' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
-   95:71  warning  Missing return type on function                                                                   @typescript-eslint/explicit-function-return-type
-  123:61  warning  Missing return type on function                                                                   @typescript-eslint/explicit-function-return-type
-  189:69  warning  Missing return type on function                                                                   @typescript-eslint/explicit-function-return-type
-  258:40  warning  Missing return type on function                                                                   @typescript-eslint/explicit-function-return-type
-  265:9   warning  'wordCount' is assigned a value but never used. Allowed unused vars must match /^_/u              @typescript-eslint/no-unused-vars
+/app/frontend/src/components/chat/ChatHeader.tsx
+  26:19  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
 
-/app/frontend/src/components/chat/ChatMessage.tsx
-  37:8   warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
-  57:31  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+/app/frontend/src/components/chat/ChatInput.tsx
+  33:8   warning  Missing return type on function                                                                                 @typescript-eslint/explicit-function-return-type
+  58:6   warning  React Hook useEffect has a missing dependency: 'textareaRef'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+  60:50  warning  Missing return type on function                                                                                 @typescript-eslint/explicit-function-return-type
 
 /app/frontend/src/components/chat/ChatSettings.tsx
    34:3   warning  'DropdownMenu' is defined but never used. Allowed unused vars must match /^_/u                 @typescript-eslint/no-unused-vars
@@ -468,62 +521,44 @@
   552:48  warning  Unexpected any. Specify a different type                                                       @typescript-eslint/no-explicit-any
 
 /app/frontend/src/components/chat/CitationLink.tsx
-   47:8   warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
-   57:45  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
-  103:46  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+   57:8   warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+   67:45  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+  117:46  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
 
 /app/frontend/src/components/chat/CitationPanel.tsx
-  41:8   warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
-  83:25  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
-  93:53  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+  35:8   warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+  79:25  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+  89:53  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
 
 /app/frontend/src/components/chat/CitationPreview.tsx
-  37:8   warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
-  50:31  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
-  60:29  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+  42:8   warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+  55:31  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+  65:29  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
 
 /app/frontend/src/components/chat/CitationRenderer.tsx
-  24:8   warning  Missing return type on function           @typescript-eslint/explicit-function-return-type
-  67:65  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
-  80:41  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  24:8  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
 
 /app/frontend/src/components/chat/ConversationSidebar.tsx
-  102:8   warning  Missing return type on function                                                       @typescript-eslint/explicit-function-return-type
-  115:3   warning  'onMoveConversation' is defined but never used. Allowed unused args must match /^_/u  @typescript-eslint/no-unused-vars
-  118:3   warning  'onDeleteFolder' is defined but never used. Allowed unused args must match /^_/u      @typescript-eslint/no-unused-vars
-  120:3   warning  'isOpen' is assigned a value but never used. Allowed unused vars must match /^_/u     @typescript-eslint/no-unused-vars
-  213:23  warning  Missing return type on function                                                       @typescript-eslint/explicit-function-return-type
+  103:8   warning  Missing return type on function                                                       @typescript-eslint/explicit-function-return-type
+  116:3   warning  'onMoveConversation' is defined but never used. Allowed unused args must match /^_/u  @typescript-eslint/no-unused-vars
+  119:3   warning  'onDeleteFolder' is defined but never used. Allowed unused args must match /^_/u      @typescript-eslint/no-unused-vars
+  121:3   warning  'isOpen' is assigned a value but never used. Allowed unused vars must match /^_/u     @typescript-eslint/no-unused-vars
+  214:23  warning  Missing return type on function                                                       @typescript-eslint/explicit-function-return-type
 
 /app/frontend/src/components/chat/MessageBubble.tsx
-   19:10  warning  'AnimatePresence' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
-   31:3   warning  'MessageSquare' is defined but never used. Allowed unused vars must match /^_/u    @typescript-eslint/no-unused-vars
-   61:8   warning  Missing return type on function                                                    @typescript-eslint/explicit-function-return-type
-   84:48  warning  Missing return type on function                                                    @typescript-eslint/explicit-function-return-type
-  101:36  warning  Missing return type on function                                                    @typescript-eslint/explicit-function-return-type
-  207:28  warning  'node' is defined but never used. Allowed unused args must match /^_/u             @typescript-eslint/no-unused-vars
+   10:10  warning  'IconButton' is defined but never used. Allowed unused vars must match /^_/u       @typescript-eslint/no-unused-vars
+   24:10  warning  'AnimatePresence' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+   36:3   warning  'MessageSquare' is defined but never used. Allowed unused vars must match /^_/u    @typescript-eslint/no-unused-vars
+   66:8   warning  Missing return type on function                                                    @typescript-eslint/explicit-function-return-type
+   89:48  warning  Missing return type on function                                                    @typescript-eslint/explicit-function-return-type
+  106:36  warning  Missing return type on function                                                    @typescript-eslint/explicit-function-return-type
+  228:28  warning  'node' is defined but never used. Allowed unused args must match /^_/u             @typescript-eslint/no-unused-vars
 
 /app/frontend/src/components/chat/ModelLoadingProgress.tsx
   19:8  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
 
 /app/frontend/src/components/chat/ModelSelector.tsx
-    7:3   warning  'Select' is defined but never used. Allowed unused vars must match /^_/u                      @typescript-eslint/no-unused-vars
-    8:3   warning  'SelectContent' is defined but never used. Allowed unused vars must match /^_/u               @typescript-eslint/no-unused-vars
-    9:3   warning  'SelectItem' is defined but never used. Allowed unused vars must match /^_/u                  @typescript-eslint/no-unused-vars
-   10:3   warning  'SelectTrigger' is defined but never used. Allowed unused vars must match /^_/u               @typescript-eslint/no-unused-vars
-   11:3   warning  'SelectValue' is defined but never used. Allowed unused vars must match /^_/u                 @typescript-eslint/no-unused-vars
-   22:10  warning  'Slider' is defined but never used. Allowed unused vars must match /^_/u                      @typescript-eslint/no-unused-vars
-   23:10  warning  'Switch' is defined but never used. Allowed unused vars must match /^_/u                      @typescript-eslint/no-unused-vars
-   26:3   warning  'HoverCard' is defined but never used. Allowed unused vars must match /^_/u                   @typescript-eslint/no-unused-vars
-   27:3   warning  'HoverCardContent' is defined but never used. Allowed unused vars must match /^_/u            @typescript-eslint/no-unused-vars
-   28:3   warning  'HoverCardTrigger' is defined but never used. Allowed unused vars must match /^_/u            @typescript-eslint/no-unused-vars
-   38:3   warning  'AlertCircle' is defined but never used. Allowed unused vars must match /^_/u                 @typescript-eslint/no-unused-vars
-   42:3   warning  'Info' is defined but never used. Allowed unused vars must match /^_/u                        @typescript-eslint/no-unused-vars
-  152:8   warning  Missing return type on function                                                               @typescript-eslint/explicit-function-return-type
-  163:26  warning  'setSelectedModels' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
-  180:41  warning  Missing return type on function                                                               @typescript-eslint/explicit-function-return-type
-  190:40  warning  Missing return type on function                                                               @typescript-eslint/explicit-function-return-type
-  200:87  warning  Missing return type on function                                                               @typescript-eslint/explicit-function-return-type
-  276:30  warning  Missing return type on function                                                               @typescript-eslint/explicit-function-return-type
+  136:8  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
 
 /app/frontend/src/components/chat/RAGToggle.tsx
    4:29  warning  'Sparkles' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
@@ -531,10 +566,13 @@
   53:27  warning  Missing return type on function                                             @typescript-eslint/explicit-function-return-type
 
 /app/frontend/src/components/chat/VirtualizedConversationList.tsx
-  30:3  warning  'X' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+   5:10  warning  'Button' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+  31:3   warning  'X' is defined but never used. Allowed unused vars must match /^_/u       @typescript-eslint/no-unused-vars
 
 /app/frontend/src/components/chat/WelcomeState.tsx
-  53:8  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+  12:8   warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+  20:65  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+  28:31  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
 
 /app/frontend/src/components/chat/shared/TerminalChatBubble.tsx
   29:8   warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
@@ -543,6 +581,9 @@
 /app/frontend/src/components/chat/shared/TerminalChatComposer.tsx
   18:8   warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
   43:71  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+
+/app/frontend/src/components/chat/shared/threadPreviewHydration.ts
+  3:11  warning  'ThreadPreviewMessage' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
 
 /app/frontend/src/components/citations/BibliographyExport.tsx
   62:8   warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
@@ -565,9 +606,9 @@
   39:3  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
 
 /app/frontend/src/components/citations/CitationGraph.tsx
-  236:10  warning  'isInitialized' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
-  451:38  warning  Unexpected any. Specify a different type                                                  @typescript-eslint/no-explicit-any
-  489:30  warning  Unexpected any. Specify a different type                                                  @typescript-eslint/no-explicit-any
+  261:10  warning  'isInitialized' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+  485:38  warning  Unexpected any. Specify a different type                                                  @typescript-eslint/no-explicit-any
+  525:28  warning  Unexpected any. Specify a different type                                                  @typescript-eslint/no-explicit-any
 
 /app/frontend/src/components/citations/CitationGraphControls.tsx
   36:72  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
@@ -578,8 +619,8 @@
 /app/frontend/src/components/citations/CitationList.tsx
     3:50  warning  'useEffect' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
    24:47  warning  Missing return type on function                                              @typescript-eslint/explicit-function-return-type
-  182:8   warning  Missing return type on function                                              @typescript-eslint/explicit-function-return-type
-  185:3   warning  'onDelete' is defined but never used. Allowed unused args must match /^_/u   @typescript-eslint/no-unused-vars
+  184:8   warning  Missing return type on function                                              @typescript-eslint/explicit-function-return-type
+  187:3   warning  'onDelete' is defined but never used. Allowed unused args must match /^_/u   @typescript-eslint/no-unused-vars
 
 /app/frontend/src/components/citations/CitationNodeDetails.tsx
   37:28  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
@@ -655,15 +696,15 @@
   71:56  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
 
 /app/frontend/src/components/diagnostics/RetrievalDiagnosticsDashboard.tsx
-   24:1  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
-   41:1  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
-   57:1  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
-  349:1  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
-  381:1  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
-  519:1  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
-  546:1  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
-  696:1  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
-  862:8  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+   26:1  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+   43:1  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+   59:1  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+  354:1  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+  386:1  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+  524:1  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+  551:1  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+  701:1  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+  867:8  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
 
 /app/frontend/src/components/documents/BatchUploadManager.tsx
   194:28  warning  Missing return type on function           @typescript-eslint/explicit-function-return-type
@@ -756,13 +797,13 @@
 
 /app/frontend/src/components/documents/FileList.tsx
     7:3   warning  'EllipsisHorizontalIcon' is defined but never used. Allowed unused vars must match /^_/u                                                                                                                                                                                                 @typescript-eslint/no-unused-vars
-   51:69  warning  Missing return type on function                                                                                                                                                                                                                                                          @typescript-eslint/explicit-function-return-type
-   71:43  warning  Missing return type on function                                                                                                                                                                                                                                                          @typescript-eslint/explicit-function-return-type
-   81:42  warning  Missing return type on function                                                                                                                                                                                                                                                          @typescript-eslint/explicit-function-return-type
-  139:13  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
-  266:46  warning  Missing return type on function                                                                                                                                                                                                                                                          @typescript-eslint/explicit-function-return-type
-  271:72  warning  Missing return type on function                                                                                                                                                                                                                                                          @typescript-eslint/explicit-function-return-type
-  279:31  warning  Missing return type on function                                                                                                                                                                                                                                                          @typescript-eslint/explicit-function-return-type
+   52:69  warning  Missing return type on function                                                                                                                                                                                                                                                          @typescript-eslint/explicit-function-return-type
+   72:43  warning  Missing return type on function                                                                                                                                                                                                                                                          @typescript-eslint/explicit-function-return-type
+   82:42  warning  Missing return type on function                                                                                                                                                                                                                                                          @typescript-eslint/explicit-function-return-type
+  140:13  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+  264:46  warning  Missing return type on function                                                                                                                                                                                                                                                          @typescript-eslint/explicit-function-return-type
+  269:72  warning  Missing return type on function                                                                                                                                                                                                                                                          @typescript-eslint/explicit-function-return-type
+  277:31  warning  Missing return type on function                                                                                                                                                                                                                                                          @typescript-eslint/explicit-function-return-type
 
 /app/frontend/src/components/documents/IntegrityDetail.tsx
    80:35  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
@@ -821,16 +862,16 @@
   98:58  warning  Missing return type on function                                                                                        @typescript-eslint/explicit-function-return-type
 
 /app/frontend/src/components/entities/EntityErrorBoundary.tsx
-  50:3  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+  55:3  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
 
 /app/frontend/src/components/entities/EntityFilters.tsx
   127:47  warning  Missing return type on function                                  @typescript-eslint/explicit-function-return-type
   135:35  warning  Missing return type on function                                  @typescript-eslint/explicit-function-return-type
   143:47  warning  Missing return type on function                                  @typescript-eslint/explicit-function-return-type
-  235:71  warning  Unexpected any. Specify a different type                         @typescript-eslint/no-explicit-any
-  236:79  warning  Unexpected any. Specify a different type                         @typescript-eslint/no-explicit-any
-  428:23  warning  `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
-  428:37  warning  `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+  236:71  warning  Unexpected any. Specify a different type                         @typescript-eslint/no-explicit-any
+  237:79  warning  Unexpected any. Specify a different type                         @typescript-eslint/no-explicit-any
+  429:23  warning  `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+  429:37  warning  `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
 
 /app/frontend/src/components/entities/EntityForm.tsx
     7:67  warning  'Tag' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
@@ -850,59 +891,59 @@
 
 /app/frontend/src/components/entities/EntityGraph.tsx
    10:10  warning  'cn' is defined but never used. Allowed unused vars must match /^_/u                                            @typescript-eslint/no-unused-vars
-   57:31  warning  Missing return type on function                                                                                 @typescript-eslint/explicit-function-return-type
-   85:26  warning  Missing return type on function                                                                                 @typescript-eslint/explicit-function-return-type
-   97:33  warning  Unexpected any. Specify a different type                                                                        @typescript-eslint/no-explicit-any
-  102:19  warning  Unexpected any. Specify a different type                                                                        @typescript-eslint/no-explicit-any
-  103:25  warning  Unexpected any. Specify a different type                                                                        @typescript-eslint/no-explicit-any
-  109:38  warning  Unexpected any. Specify a different type                                                                        @typescript-eslint/no-explicit-any
-  119:27  warning  Unexpected any. Specify a different type                                                                        @typescript-eslint/no-explicit-any
-  123:22  warning  Unexpected any. Specify a different type                                                                        @typescript-eslint/no-explicit-any
-  152:33  warning  Unexpected any. Specify a different type                                                                        @typescript-eslint/no-explicit-any
-  164:52  warning  Unexpected any. Specify a different type                                                                        @typescript-eslint/no-explicit-any
-  164:57  warning  Unexpected any. Specify a different type                                                                        @typescript-eslint/no-explicit-any
-  165:32  warning  Unexpected any. Specify a different type                                                                        @typescript-eslint/no-explicit-any
-  165:40  warning  Unexpected any. Specify a different type                                                                        @typescript-eslint/no-explicit-any
-  170:31  warning  Unexpected any. Specify a different type                                                                        @typescript-eslint/no-explicit-any
-  170:39  warning  Unexpected any. Specify a different type                                                                        @typescript-eslint/no-explicit-any
-  174:30  warning  Unexpected any. Specify a different type                                                                        @typescript-eslint/no-explicit-any
-  174:38  warning  Unexpected any. Specify a different type                                                                        @typescript-eslint/no-explicit-any
-  178:17  warning  Unexpected any. Specify a different type                                                                        @typescript-eslint/no-explicit-any
-  184:22  warning  Unexpected any. Specify a different type                                                                        @typescript-eslint/no-explicit-any
-  186:27  warning  Unexpected any. Specify a different type                                                                        @typescript-eslint/no-explicit-any
-  190:28  warning  Unexpected any. Specify a different type                                                                        @typescript-eslint/no-explicit-any
-  190:36  warning  Unexpected any. Specify a different type                                                                        @typescript-eslint/no-explicit-any
-  197:65  warning  Unexpected any. Specify a different type                                                                        @typescript-eslint/no-explicit-any
-  197:73  warning  Unexpected any. Specify a different type                                                                        @typescript-eslint/no-explicit-any
-  205:64  warning  Unexpected any. Specify a different type                                                                        @typescript-eslint/no-explicit-any
-  205:72  warning  Unexpected any. Specify a different type                                                                        @typescript-eslint/no-explicit-any
-  217:17  warning  Unexpected any. Specify a different type                                                                        @typescript-eslint/no-explicit-any
-  219:22  warning  Unexpected any. Specify a different type                                                                        @typescript-eslint/no-explicit-any
-  231:17  warning  Unexpected any. Specify a different type                                                                        @typescript-eslint/no-explicit-any
-  233:22  warning  Unexpected any. Specify a different type                                                                        @typescript-eslint/no-explicit-any
-  244:25  warning  Unexpected any. Specify a different type                                                                        @typescript-eslint/no-explicit-any
-  245:25  warning  Unexpected any. Specify a different type                                                                        @typescript-eslint/no-explicit-any
-  246:25  warning  Unexpected any. Specify a different type                                                                        @typescript-eslint/no-explicit-any
-  247:25  warning  Unexpected any. Specify a different type                                                                        @typescript-eslint/no-explicit-any
-  249:34  warning  Unexpected any. Specify a different type                                                                        @typescript-eslint/no-explicit-any
-  253:27  warning  Missing return type on function                                                                                 @typescript-eslint/explicit-function-return-type
-  261:29  warning  Unexpected any. Specify a different type                                                                        @typescript-eslint/no-explicit-any
-  264:28  warning  Missing return type on function                                                                                 @typescript-eslint/explicit-function-return-type
-  272:29  warning  Unexpected any. Specify a different type                                                                        @typescript-eslint/no-explicit-any
-  275:26  warning  Missing return type on function                                                                                 @typescript-eslint/explicit-function-return-type
-  283:31  warning  Unexpected any. Specify a different type                                                                        @typescript-eslint/no-explicit-any
-  286:26  warning  Missing return type on function                                                                                 @typescript-eslint/explicit-function-return-type
-  335:6   warning  React Hook useEffect has a missing dependency: 'renderGraph'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
-  341:6   warning  React Hook useEffect has a missing dependency: 'renderGraph'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
-  511:9   warning  Unexpected any. Specify a different type                                                                        @typescript-eslint/no-explicit-any
+   65:31  warning  Missing return type on function                                                                                 @typescript-eslint/explicit-function-return-type
+   93:26  warning  Missing return type on function                                                                                 @typescript-eslint/explicit-function-return-type
+  105:33  warning  Unexpected any. Specify a different type                                                                        @typescript-eslint/no-explicit-any
+  110:19  warning  Unexpected any. Specify a different type                                                                        @typescript-eslint/no-explicit-any
+  111:25  warning  Unexpected any. Specify a different type                                                                        @typescript-eslint/no-explicit-any
+  117:38  warning  Unexpected any. Specify a different type                                                                        @typescript-eslint/no-explicit-any
+  127:27  warning  Unexpected any. Specify a different type                                                                        @typescript-eslint/no-explicit-any
+  131:22  warning  Unexpected any. Specify a different type                                                                        @typescript-eslint/no-explicit-any
+  160:33  warning  Unexpected any. Specify a different type                                                                        @typescript-eslint/no-explicit-any
+  172:52  warning  Unexpected any. Specify a different type                                                                        @typescript-eslint/no-explicit-any
+  172:57  warning  Unexpected any. Specify a different type                                                                        @typescript-eslint/no-explicit-any
+  173:32  warning  Unexpected any. Specify a different type                                                                        @typescript-eslint/no-explicit-any
+  173:40  warning  Unexpected any. Specify a different type                                                                        @typescript-eslint/no-explicit-any
+  178:31  warning  Unexpected any. Specify a different type                                                                        @typescript-eslint/no-explicit-any
+  178:39  warning  Unexpected any. Specify a different type                                                                        @typescript-eslint/no-explicit-any
+  182:30  warning  Unexpected any. Specify a different type                                                                        @typescript-eslint/no-explicit-any
+  182:38  warning  Unexpected any. Specify a different type                                                                        @typescript-eslint/no-explicit-any
+  186:17  warning  Unexpected any. Specify a different type                                                                        @typescript-eslint/no-explicit-any
+  192:22  warning  Unexpected any. Specify a different type                                                                        @typescript-eslint/no-explicit-any
+  194:27  warning  Unexpected any. Specify a different type                                                                        @typescript-eslint/no-explicit-any
+  198:28  warning  Unexpected any. Specify a different type                                                                        @typescript-eslint/no-explicit-any
+  198:36  warning  Unexpected any. Specify a different type                                                                        @typescript-eslint/no-explicit-any
+  205:65  warning  Unexpected any. Specify a different type                                                                        @typescript-eslint/no-explicit-any
+  205:73  warning  Unexpected any. Specify a different type                                                                        @typescript-eslint/no-explicit-any
+  213:64  warning  Unexpected any. Specify a different type                                                                        @typescript-eslint/no-explicit-any
+  213:72  warning  Unexpected any. Specify a different type                                                                        @typescript-eslint/no-explicit-any
+  225:17  warning  Unexpected any. Specify a different type                                                                        @typescript-eslint/no-explicit-any
+  227:22  warning  Unexpected any. Specify a different type                                                                        @typescript-eslint/no-explicit-any
+  239:17  warning  Unexpected any. Specify a different type                                                                        @typescript-eslint/no-explicit-any
+  241:22  warning  Unexpected any. Specify a different type                                                                        @typescript-eslint/no-explicit-any
+  252:25  warning  Unexpected any. Specify a different type                                                                        @typescript-eslint/no-explicit-any
+  253:25  warning  Unexpected any. Specify a different type                                                                        @typescript-eslint/no-explicit-any
+  254:25  warning  Unexpected any. Specify a different type                                                                        @typescript-eslint/no-explicit-any
+  255:25  warning  Unexpected any. Specify a different type                                                                        @typescript-eslint/no-explicit-any
+  257:34  warning  Unexpected any. Specify a different type                                                                        @typescript-eslint/no-explicit-any
+  261:27  warning  Missing return type on function                                                                                 @typescript-eslint/explicit-function-return-type
+  269:29  warning  Unexpected any. Specify a different type                                                                        @typescript-eslint/no-explicit-any
+  272:28  warning  Missing return type on function                                                                                 @typescript-eslint/explicit-function-return-type
+  280:29  warning  Unexpected any. Specify a different type                                                                        @typescript-eslint/no-explicit-any
+  283:26  warning  Missing return type on function                                                                                 @typescript-eslint/explicit-function-return-type
+  291:31  warning  Unexpected any. Specify a different type                                                                        @typescript-eslint/no-explicit-any
+  294:26  warning  Missing return type on function                                                                                 @typescript-eslint/explicit-function-return-type
+  345:6   warning  React Hook useEffect has a missing dependency: 'renderGraph'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+  351:6   warning  React Hook useEffect has a missing dependency: 'renderGraph'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+  527:9   warning  Unexpected any. Specify a different type                                                                        @typescript-eslint/no-explicit-any
 
 /app/frontend/src/components/entities/EntityList.tsx
-   7:50  warning  'CheckCircle' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
-   7:63  warning  'Info' is defined but never used. Allowed unused vars must match /^_/u         @typescript-eslint/no-unused-vars
-  11:18  warning  'EntityType' is defined but never used. Allowed unused vars must match /^_/u   @typescript-eslint/no-unused-vars
-  49:50  warning  Unexpected any. Specify a different type                                       @typescript-eslint/no-explicit-any
-  67:30  warning  Missing return type on function                                                @typescript-eslint/explicit-function-return-type
-  75:47  warning  Missing return type on function                                                @typescript-eslint/explicit-function-return-type
+  13:3   warning  'CheckCircle' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+  14:3   warning  'Info' is defined but never used. Allowed unused vars must match /^_/u         @typescript-eslint/no-unused-vars
+  27:18  warning  'EntityType' is defined but never used. Allowed unused vars must match /^_/u   @typescript-eslint/no-unused-vars
+  65:50  warning  Unexpected any. Specify a different type                                       @typescript-eslint/no-explicit-any
+  84:30  warning  Missing return type on function                                                @typescript-eslint/explicit-function-return-type
+  92:47  warning  Missing return type on function                                                @typescript-eslint/explicit-function-return-type
 
 /app/frontend/src/components/entities/EntityMergeTool.tsx
   107:6   warning  React Hook useEffect has a missing dependency: 'findDuplicates'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
@@ -1309,13 +1350,13 @@
    863:42  warning  Missing return type on function                                                                 @typescript-eslint/explicit-function-return-type
    874:9   warning  'assignEvaluators' is assigned a value but never used. Allowed unused vars must match /^_/u     @typescript-eslint/no-unused-vars
    884:9   warning  'submitEvaluation' is assigned a value but never used. Allowed unused vars must match /^_/u     @typescript-eslint/no-unused-vars
-  1587:45  warning  Missing return type on function                                                                 @typescript-eslint/explicit-function-return-type
-  1593:30  warning  Unexpected any. Specify a different type                                                        @typescript-eslint/no-explicit-any
-  1594:38  warning  Unexpected any. Specify a different type                                                        @typescript-eslint/no-explicit-any
-  1597:40  warning  Unexpected any. Specify a different type                                                        @typescript-eslint/no-explicit-any
-  1606:38  warning  Unexpected any. Specify a different type                                                        @typescript-eslint/no-explicit-any
-  1623:52  warning  Unexpected any. Specify a different type                                                        @typescript-eslint/no-explicit-any
-  1629:48  warning  Unexpected any. Specify a different type                                                        @typescript-eslint/no-explicit-any
+  1584:45  warning  Missing return type on function                                                                 @typescript-eslint/explicit-function-return-type
+  1590:30  warning  Unexpected any. Specify a different type                                                        @typescript-eslint/no-explicit-any
+  1591:38  warning  Unexpected any. Specify a different type                                                        @typescript-eslint/no-explicit-any
+  1594:40  warning  Unexpected any. Specify a different type                                                        @typescript-eslint/no-explicit-any
+  1603:38  warning  Unexpected any. Specify a different type                                                        @typescript-eslint/no-explicit-any
+  1620:52  warning  Unexpected any. Specify a different type                                                        @typescript-eslint/no-explicit-any
+  1626:48  warning  Unexpected any. Specify a different type                                                        @typescript-eslint/no-explicit-any
 
 /app/frontend/src/components/evaluation/PerformanceAlertingSystem.tsx
     23:10  warning  'Separator' is defined but never used. Allowed unused vars must match /^_/u                                                                                                                                                                          @typescript-eslint/no-unused-vars
@@ -1535,6 +1576,7 @@
 /app/frontend/src/components/graph/GraphAccessibilityProvider.tsx
   105:57  warning  Missing return type on function                                                                            @typescript-eslint/explicit-function-return-type
   115:59  warning  Missing return type on function                                                                            @typescript-eslint/explicit-function-return-type
+  175:7   warning  Expected an assignment or function call and instead saw an expression                                      @typescript-eslint/no-unused-expressions
   282:41  warning  Missing return type on function                                                                            @typescript-eslint/explicit-function-return-type
   298:5   warning  'focusedNodeId' is assigned a value but never used. Allowed unused vars must match /^_/u                   @typescript-eslint/no-unused-vars
   309:6   warning  React Hook useCallback has a missing dependency: 'node'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
@@ -1733,18 +1775,17 @@
   78:3  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
 
 /app/frontend/src/components/layout/AppSidebar.tsx
-   32:3   warning  'FlaskConical' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
-   81:8   warning  Missing return type on function                                                 @typescript-eslint/explicit-function-return-type
-  110:27  warning  Missing return type on function                                                 @typescript-eslint/explicit-function-return-type
-  115:51  warning  Missing return type on function                                                 @typescript-eslint/explicit-function-return-type
-  121:34  warning  Missing return type on function                                                 @typescript-eslint/explicit-function-return-type
-  137:6   warning  Missing return type on function                                                 @typescript-eslint/explicit-function-return-type
-  177:61  warning  Missing return type on function                                                 @typescript-eslint/explicit-function-return-type
+   82:8   warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+  114:27  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+  119:51  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+  125:34  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+  141:6   warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+  183:61  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
 
 /app/frontend/src/components/layout/GlobalJobCenter.tsx
-  15:35  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
-  17:8   warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
-  21:30  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+  16:35  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+  19:8   warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+  25:30  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
 
 /app/frontend/src/components/layout/Header.tsx
   17:26  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
@@ -1752,7 +1793,10 @@
   27:27  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
 
 /app/frontend/src/components/layout/LayoutWrapper.tsx
-  31:8  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+  27:8  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+
+/app/frontend/src/components/layout/PageHeader.tsx
+  12:8  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
 
 /app/frontend/src/components/layout/Sidebar.tsx
     9:44  warning  'navigation' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
@@ -1764,7 +1808,7 @@
   171:35  warning  Missing return type on function                                               @typescript-eslint/explicit-function-return-type
 
 /app/frontend/src/components/layout/SidebarLayout.tsx
-  73:8  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+  75:8  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
 
 /app/frontend/src/components/layout/SimpleLayout.tsx
   30:8   warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
@@ -1793,10 +1837,10 @@
   18:8   warning  Missing return type on function                                                         @typescript-eslint/explicit-function-return-type
 
 /app/frontend/src/components/layout/sidebar/SidebarToggle.tsx
-   5:10  warning  'SidebarTrigger' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
-  10:8   warning  Missing return type on function                                                   @typescript-eslint/explicit-function-return-type
-  31:46  warning  Missing return type on function                                                   @typescript-eslint/explicit-function-return-type
-  44:29  warning  Missing return type on function                                                   @typescript-eslint/explicit-function-return-type
+   9:10  warning  'SidebarTrigger' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+  14:8   warning  Missing return type on function                                                   @typescript-eslint/explicit-function-return-type
+  35:46  warning  Missing return type on function                                                   @typescript-eslint/explicit-function-return-type
+  48:29  warning  Missing return type on function                                                   @typescript-eslint/explicit-function-return-type
 
 /app/frontend/src/components/llm-chat/ChatInput.tsx
    6:24  warning  'Zap' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
@@ -1814,7 +1858,7 @@
   19:31  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
 
 /app/frontend/src/components/llm-chat/KeyboardShortcutsDialog.tsx
-  21:8  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+  26:8  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
 
 /app/frontend/src/components/llm-chat/MarkdownRenderer.tsx
   13:44  warning  'props' is defined but never used. Allowed unused args must match /^_/u  @typescript-eslint/no-unused-vars
@@ -2152,7 +2196,7 @@
   18:8  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
 
 /app/frontend/src/components/research-engine/ResearchDashboard.tsx
-  19:8  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+  20:8  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
 
 /app/frontend/src/components/research-engine/RunView.tsx
    76:8   warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
@@ -2191,23 +2235,23 @@
 
 /app/frontend/src/components/research/CreateProjectModal.tsx
   15:8   warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
-  30:27  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
-  37:41  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
-  41:20  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
-  50:26  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
-  56:33  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+  31:27  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+  38:41  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+  42:20  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+  51:26  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+  57:33  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
 
 /app/frontend/src/components/research/DocumentList.tsx
   55:1  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
   76:8  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
 
 /app/frontend/src/components/research/DraftComparison.tsx
-  51:39  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
-  57:37  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
-  69:63  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+  55:39  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+  61:37  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+  73:63  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
 
 /app/frontend/src/components/research/DraftExportModal.tsx
-  43:33  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+  45:33  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
 
 /app/frontend/src/components/research/DraftGenerationProgress.tsx
   57:34  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
@@ -2253,25 +2297,24 @@
   97:26  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
 
 /app/frontend/src/components/research/ProjectCard.tsx
-  21:8  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
-
-/app/frontend/src/components/research/ProjectChatTab.tsx
-   70:5   warning  Missing return type on function                                  @typescript-eslint/explicit-function-return-type
-   84:80  warning  Missing return type on function                                  @typescript-eslint/explicit-function-return-type
-   93:48  warning  Missing return type on function                                  @typescript-eslint/explicit-function-return-type
-   98:34  warning  Missing return type on function                                  @typescript-eslint/explicit-function-return-type
-  107:52  warning  Missing return type on function                                  @typescript-eslint/explicit-function-return-type
-  112:81  warning  Missing return type on function                                  @typescript-eslint/explicit-function-return-type
-  125:75  warning  Missing return type on function                                  @typescript-eslint/explicit-function-return-type
-  132:26  warning  Missing return type on function                                  @typescript-eslint/explicit-function-return-type
-  189:52  warning  `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`  react/no-unescaped-entities
-
-/app/frontend/src/components/research/ProjectDetail.tsx
   28:8  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
 
+/app/frontend/src/components/research/ProjectChatTab.tsx
+   81:5   warning  Missing return type on function                                  @typescript-eslint/explicit-function-return-type
+   98:5   warning  Missing return type on function                                  @typescript-eslint/explicit-function-return-type
+  107:48  warning  Missing return type on function                                  @typescript-eslint/explicit-function-return-type
+  112:34  warning  Missing return type on function                                  @typescript-eslint/explicit-function-return-type
+  121:52  warning  Missing return type on function                                  @typescript-eslint/explicit-function-return-type
+  129:5   warning  Missing return type on function                                  @typescript-eslint/explicit-function-return-type
+  142:75  warning  Missing return type on function                                  @typescript-eslint/explicit-function-return-type
+  149:26  warning  Missing return type on function                                  @typescript-eslint/explicit-function-return-type
+  206:52  warning  `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`  react/no-unescaped-entities
+
+/app/frontend/src/components/research/ProjectDetail.tsx
+  32:8  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+
 /app/frontend/src/components/research/ProjectHeader.tsx
-  49:1  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
-  69:8  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+  41:8  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
 
 /app/frontend/src/components/research/ProjectList.tsx
   16:8  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
@@ -2321,10 +2364,10 @@
     7:3   warning  'ChartBarIcon' is defined but never used. Allowed unused vars must match /^_/u      @typescript-eslint/no-unused-vars
    10:3   warning  'ClockIcon' is defined but never used. Allowed unused vars must match /^_/u         @typescript-eslint/no-unused-vars
    14:3   warning  'PauseIcon' is defined but never used. Allowed unused vars must match /^_/u         @typescript-eslint/no-unused-vars
-   42:27  warning  Missing return type on function                                                     @typescript-eslint/explicit-function-return-type
-   67:28  warning  Missing return type on function                                                     @typescript-eslint/explicit-function-return-type
-   74:41  warning  Missing return type on function                                                     @typescript-eslint/explicit-function-return-type
-  141:59  warning  Missing return type on function                                                     @typescript-eslint/explicit-function-return-type
+   43:27  warning  Missing return type on function                                                     @typescript-eslint/explicit-function-return-type
+   68:28  warning  Missing return type on function                                                     @typescript-eslint/explicit-function-return-type
+   75:41  warning  Missing return type on function                                                     @typescript-eslint/explicit-function-return-type
+  145:59  warning  Missing return type on function                                                     @typescript-eslint/explicit-function-return-type
 
 /app/frontend/src/components/search/QueryIntentDetector.tsx
    38:47  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
@@ -2400,10 +2443,10 @@
   567:25  warning  Unexpected any. Specify a different type                                                   @typescript-eslint/no-explicit-any
 
 /app/frontend/src/components/search/ResultsPanel.tsx
-  281:10  warning  'copiedSource' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
-  284:43  warning  Missing return type on function                                                          @typescript-eslint/explicit-function-return-type
-  303:52  warning  Missing return type on function                                                          @typescript-eslint/explicit-function-return-type
-  320:5   warning  Missing return type on function                                                          @typescript-eslint/explicit-function-return-type
+  271:10  warning  'copiedSource' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+  274:43  warning  Missing return type on function                                                          @typescript-eslint/explicit-function-return-type
+  293:52  warning  Missing return type on function                                                          @typescript-eslint/explicit-function-return-type
+  330:5   warning  Missing return type on function                                                          @typescript-eslint/explicit-function-return-type
 
 /app/frontend/src/components/search/SearchInterface.tsx
    34:3   warning  'DialogTrigger' is defined but never used. Allowed unused vars must match /^_/u                                                 @typescript-eslint/no-unused-vars
@@ -2416,21 +2459,20 @@
   343:5   warning  React Hook useCallback has missing dependencies: 'handleClear' and 'query'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
   354:51  warning  Unexpected any. Specify a different type                                                                                        @typescript-eslint/no-explicit-any
   354:56  warning  Missing return type on function                                                                                                 @typescript-eslint/explicit-function-return-type
-  444:15  error    No duplicate props allowed                                                                                                      react/jsx-no-duplicate-props
-  723:74  warning  Unexpected any. Specify a different type                                                                                        @typescript-eslint/no-explicit-any
-  731:49  warning  Unexpected any. Specify a different type                                                                                        @typescript-eslint/no-explicit-any
-  765:72  warning  Unexpected any. Specify a different type                                                                                        @typescript-eslint/no-explicit-any
-  773:47  warning  Unexpected any. Specify a different type                                                                                        @typescript-eslint/no-explicit-any
+  722:74  warning  Unexpected any. Specify a different type                                                                                        @typescript-eslint/no-explicit-any
+  730:49  warning  Unexpected any. Specify a different type                                                                                        @typescript-eslint/no-explicit-any
+  764:72  warning  Unexpected any. Specify a different type                                                                                        @typescript-eslint/no-explicit-any
+  772:47  warning  Unexpected any. Specify a different type                                                                                        @typescript-eslint/no-explicit-any
 
 /app/frontend/src/components/search/ThreadMessageSearch.tsx
-   53:8   warning  Missing return type on function                                                                                                 @typescript-eslint/explicit-function-return-type
-  179:9   warning  'fetchSuggestions' is assigned a value but never used. Allowed unused vars must match /^_/u                                     @typescript-eslint/no-unused-vars
-  218:6   warning  React Hook useEffect has missing dependencies: 'performSearch' and 'query'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
-  221:63  warning  Missing return type on function                                                                                                 @typescript-eslint/explicit-function-return-type
-  249:44  warning  Missing return type on function                                                                                                 @typescript-eslint/explicit-function-return-type
-  260:48  warning  Missing return type on function                                                                                                 @typescript-eslint/explicit-function-return-type
-  571:36  warning  `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`                                                                 react/no-unescaped-entities
-  571:44  warning  `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`                                                                 react/no-unescaped-entities
+   60:8   warning  Missing return type on function                                                                                                 @typescript-eslint/explicit-function-return-type
+  205:9   warning  'fetchSuggestions' is assigned a value but never used. Allowed unused vars must match /^_/u                                     @typescript-eslint/no-unused-vars
+  247:6   warning  React Hook useEffect has missing dependencies: 'performSearch' and 'query'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+  250:63  warning  Missing return type on function                                                                                                 @typescript-eslint/explicit-function-return-type
+  281:44  warning  Missing return type on function                                                                                                 @typescript-eslint/explicit-function-return-type
+  297:48  warning  Missing return type on function                                                                                                 @typescript-eslint/explicit-function-return-type
+  674:36  warning  `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`                                                                 react/no-unescaped-entities
+  674:44  warning  `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`                                                                 react/no-unescaped-entities
 
 /app/frontend/src/components/security/SecurityComplianceChecker.tsx
     1:27  warning  'useEffect' is defined but never used. Allowed unused vars must match /^_/u               @typescript-eslint/no-unused-vars
@@ -2455,6 +2497,9 @@
   47:37  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
   62:55  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
   70:53  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+
+/app/frontend/src/components/ui/EmptyState.tsx
+  24:8  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
 
 /app/frontend/src/components/ui/alert-dialog.tsx
   49:42  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
@@ -2718,18 +2763,19 @@
   203:63  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
 
 /app/frontend/src/hooks/useAuth.tsx
-    4:27  warning  'LoginRequest' is defined but never used. Allowed unused vars must match /^_/u                                                                                                                                                                       @typescript-eslint/no-unused-vars
-    5:10  warning  'apiClient' is defined but never used. Allowed unused vars must match /^_/u                                                                                                                                                                          @typescript-eslint/no-unused-vars
-   50:9   warning  'clearStoredAuth' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                                                                                                           @typescript-eslint/no-unused-vars
-   75:9   warning  'storeAuthData' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                                                                                                             @typescript-eslint/no-unused-vars
-  101:6   warning  React Hook useEffect has unnecessary dependencies: 'clearAuth' and 'setAuth'. Either exclude them or remove the dependency array. Outer scope values like 'setAuth' aren't valid dependencies because mutating them doesn't re-render the component  react-hooks/exhaustive-deps
-  123:6   warning  React Hook useEffect has unnecessary dependencies: 'clearAuth' and 'setAuth'. Either exclude them or remove the dependency array. Outer scope values like 'setAuth' aren't valid dependencies because mutating them doesn't re-render the component  react-hooks/exhaustive-deps
+  11:21  warning  'User' is defined but never used. Allowed unused vars must match /^_/u                      @typescript-eslint/no-unused-vars
+  11:27  warning  'LoginRequest' is defined but never used. Allowed unused vars must match /^_/u              @typescript-eslint/no-unused-vars
+  12:10  warning  'apiClient' is defined but never used. Allowed unused vars must match /^_/u                 @typescript-eslint/no-unused-vars
+  66:9   warning  'clearStoredAuth' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
 
 /app/frontend/src/hooks/useChatPersistence.ts
-  227:20  warning  'storeConversations' is assigned a value but never used. Allowed unused vars must match /^_/u   @typescript-eslint/no-unused-vars
-  240:5   warning  'loadMessages' is assigned a value but never used. Allowed unused vars must match /^_/u         @typescript-eslint/no-unused-vars
-  244:5   warning  'setCurrentWorkspace' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
-  249:5   warning  'clearError' is assigned a value but never used. Allowed unused vars must match /^_/u           @typescript-eslint/no-unused-vars
+  261:20  warning  'storeConversations' is assigned a value but never used. Allowed unused vars must match /^_/u   @typescript-eslint/no-unused-vars
+  274:5   warning  'loadMessages' is assigned a value but never used. Allowed unused vars must match /^_/u         @typescript-eslint/no-unused-vars
+  278:5   warning  'setCurrentWorkspace' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+  283:5   warning  'clearError' is assigned a value but never used. Allowed unused vars must match /^_/u           @typescript-eslint/no-unused-vars
+
+/app/frontend/src/hooks/useCitationsForThread.ts
+  19:8  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
 
 /app/frontend/src/hooks/useDocumentProcessingStatus.ts
   36:12  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
@@ -2828,16 +2874,17 @@
     7:3   warning  'cleanupWebSocket' is defined but never used. Allowed unused vars must match /^_/u       @typescript-eslint/no-unused-vars
     8:3   warning  'WebSocketEventHandler' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
    13:10  warning  'UI_CONFIG' is defined but never used. Allowed unused vars must match /^_/u              @typescript-eslint/no-unused-vars
-   45:34  warning  Missing return type on function                                                          @typescript-eslint/explicit-function-return-type
-   50:37  warning  Missing return type on function                                                          @typescript-eslint/explicit-function-return-type
-   54:34  warning  Unexpected any. Specify a different type                                                 @typescript-eslint/no-explicit-any
-   54:39  warning  Missing return type on function                                                          @typescript-eslint/explicit-function-return-type
-  130:48  warning  Missing return type on function                                                          @typescript-eslint/explicit-function-return-type
-  137:59  warning  Missing return type on function                                                          @typescript-eslint/explicit-function-return-type
-  165:41  warning  Missing return type on function                                                          @typescript-eslint/explicit-function-return-type
-  172:52  warning  Missing return type on function                                                          @typescript-eslint/explicit-function-return-type
-  200:42  warning  Missing return type on function                                                          @typescript-eslint/explicit-function-return-type
-  207:59  warning  Missing return type on function                                                          @typescript-eslint/explicit-function-return-type
+   34:20  warning  Unexpected any. Specify a different type                                                 @typescript-eslint/no-explicit-any
+   53:34  warning  Missing return type on function                                                          @typescript-eslint/explicit-function-return-type
+   58:37  warning  Missing return type on function                                                          @typescript-eslint/explicit-function-return-type
+   62:34  warning  Unexpected any. Specify a different type                                                 @typescript-eslint/no-explicit-any
+   62:39  warning  Missing return type on function                                                          @typescript-eslint/explicit-function-return-type
+  146:48  warning  Missing return type on function                                                          @typescript-eslint/explicit-function-return-type
+  153:59  warning  Missing return type on function                                                          @typescript-eslint/explicit-function-return-type
+  183:41  warning  Missing return type on function                                                          @typescript-eslint/explicit-function-return-type
+  190:52  warning  Missing return type on function                                                          @typescript-eslint/explicit-function-return-type
+  220:42  warning  Missing return type on function                                                          @typescript-eslint/explicit-function-return-type
+  227:59  warning  Missing return type on function                                                          @typescript-eslint/explicit-function-return-type
 
 /app/frontend/src/hooks/useWebSocketConnection.ts
    39:33  warning  Missing return type on function                                                                                                                     @typescript-eslint/explicit-function-return-type
@@ -3018,22 +3065,22 @@
   586:6   warning  React Hook useEffect has a missing dependency: 'config'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
 
 /app/frontend/src/services/analyticsService.ts
-    4:3    warning  'SystemPerformanceMetrics' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
-    5:3    warning  'SystemUsageMetrics' is defined but never used. Allowed unused vars must match /^_/u        @typescript-eslint/no-unused-vars
-   18:7    warning  'API_BASE_URL' is assigned a value but never used. Allowed unused vars must match /^_/u     @typescript-eslint/no-unused-vars
-  159:89   warning  Unexpected any. Specify a different type                                                    @typescript-eslint/no-explicit-any
-  174:107  warning  Unexpected any. Specify a different type                                                    @typescript-eslint/no-explicit-any
-  189:82   warning  Unexpected any. Specify a different type                                                    @typescript-eslint/no-explicit-any
-  201:19   warning  Unexpected any. Specify a different type                                                    @typescript-eslint/no-explicit-any
-  204:86   warning  Unexpected any. Specify a different type                                                    @typescript-eslint/no-explicit-any
-  288:76   warning  Unexpected any. Specify a different type                                                    @typescript-eslint/no-explicit-any
-  301:61   warning  Unexpected any. Specify a different type                                                    @typescript-eslint/no-explicit-any
-  313:5    warning  'filters' is defined but never used. Allowed unused args must match /^_/u                   @typescript-eslint/no-unused-vars
-  314:5    warning  'timeRange' is defined but never used. Allowed unused args must match /^_/u                 @typescript-eslint/no-unused-vars
-  325:3    warning  Missing return type on function                                                             @typescript-eslint/explicit-function-return-type
-  416:3    warning  Missing return type on function                                                             @typescript-eslint/explicit-function-return-type
-  465:3    warning  Missing return type on function                                                             @typescript-eslint/explicit-function-return-type
-  524:3    warning  Missing return type on function                                                             @typescript-eslint/explicit-function-return-type
+    4:3   warning  'SystemPerformanceMetrics' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+    5:3   warning  'SystemUsageMetrics' is defined but never used. Allowed unused vars must match /^_/u        @typescript-eslint/no-unused-vars
+   22:7   warning  'API_BASE_URL' is assigned a value but never used. Allowed unused vars must match /^_/u     @typescript-eslint/no-unused-vars
+  174:13  warning  Unexpected any. Specify a different type                                                    @typescript-eslint/no-explicit-any
+  191:13  warning  Unexpected any. Specify a different type                                                    @typescript-eslint/no-explicit-any
+  208:13  warning  Unexpected any. Specify a different type                                                    @typescript-eslint/no-explicit-any
+  220:19  warning  Unexpected any. Specify a different type                                                    @typescript-eslint/no-explicit-any
+  225:13  warning  Unexpected any. Specify a different type                                                    @typescript-eslint/no-explicit-any
+  323:14  warning  Unexpected any. Specify a different type                                                    @typescript-eslint/no-explicit-any
+  338:61  warning  Unexpected any. Specify a different type                                                    @typescript-eslint/no-explicit-any
+  352:5   warning  'filters' is defined but never used. Allowed unused args must match /^_/u                   @typescript-eslint/no-unused-vars
+  353:5   warning  'timeRange' is defined but never used. Allowed unused args must match /^_/u                 @typescript-eslint/no-unused-vars
+  367:3   warning  Missing return type on function                                                             @typescript-eslint/explicit-function-return-type
+  461:3   warning  Missing return type on function                                                             @typescript-eslint/explicit-function-return-type
+  510:3   warning  Missing return type on function                                                             @typescript-eslint/explicit-function-return-type
+  569:3   warning  Missing return type on function                                                             @typescript-eslint/explicit-function-return-type
 
 /app/frontend/src/services/api.ts
   185:38   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
@@ -3119,31 +3166,31 @@
    79:29  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
    88:31  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
   103:27  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
-  125:36  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
-  148:42  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
-  258:31  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
-  420:14  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
-  445:15  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
-  460:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
-  462:15  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
-  504:51  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
-  516:63  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
-  528:14  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
-  536:26  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
-  553:26  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  126:36  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  152:42  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  262:31  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  424:14  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  449:15  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  464:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  466:15  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  508:51  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  520:63  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  532:14  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  540:26  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  557:26  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
 
 /app/frontend/src/services/evaluationService.ts
-  475:50  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
-  514:3   warning  Missing return type on function           @typescript-eslint/explicit-function-return-type
-  514:31  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
-  520:3   warning  Missing return type on function           @typescript-eslint/explicit-function-return-type
-  530:3   warning  Missing return type on function           @typescript-eslint/explicit-function-return-type
-  530:47  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
-  537:3   warning  Missing return type on function           @typescript-eslint/explicit-function-return-type
-  537:49  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
-  547:3   warning  Missing return type on function           @typescript-eslint/explicit-function-return-type
-  547:14  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
-  553:3   warning  Missing return type on function           @typescript-eslint/explicit-function-return-type
+  534:50  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  573:3   warning  Missing return type on function           @typescript-eslint/explicit-function-return-type
+  573:31  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  579:3   warning  Missing return type on function           @typescript-eslint/explicit-function-return-type
+  594:3   warning  Missing return type on function           @typescript-eslint/explicit-function-return-type
+  594:47  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  601:3   warning  Missing return type on function           @typescript-eslint/explicit-function-return-type
+  601:49  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  611:3   warning  Missing return type on function           @typescript-eslint/explicit-function-return-type
+  611:14  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  617:3   warning  Missing return type on function           @typescript-eslint/explicit-function-return-type
 
 /app/frontend/src/services/featureFlags.tsx
    14:27  warning  Unexpected any. Specify a different type                                                 @typescript-eslint/no-explicit-any
@@ -3170,16 +3217,16 @@
 
 /app/frontend/src/services/graphAnalyticsService.ts
    9:10  warning  'GraphAnalyticsData' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
-  89:41  warning  Unexpected any. Specify a different type                                              @typescript-eslint/no-explicit-any
+  90:41  warning  Unexpected any. Specify a different type                                              @typescript-eslint/no-explicit-any
 
 /app/frontend/src/services/graphService.ts
    19:3   warning  'GraphEdge' is defined but never used. Allowed unused vars must match /^_/u             @typescript-eslint/no-unused-vars
    20:3   warning  'GraphLayout' is defined but never used. Allowed unused vars must match /^_/u           @typescript-eslint/no-unused-vars
    22:3   warning  'WebSocketGraphUpdate' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
    26:3   warning  'DistributionData' is defined but never used. Allowed unused vars must match /^_/u      @typescript-eslint/no-unused-vars
-  142:38  warning  Unexpected any. Specify a different type                                                @typescript-eslint/no-explicit-any
-  148:40  warning  Unexpected any. Specify a different type                                                @typescript-eslint/no-explicit-any
-  326:49  warning  Unexpected any. Specify a different type                                                @typescript-eslint/no-explicit-any
+  158:38  warning  Unexpected any. Specify a different type                                                @typescript-eslint/no-explicit-any
+  164:40  warning  Unexpected any. Specify a different type                                                @typescript-eslint/no-explicit-any
+  333:49  warning  Unexpected any. Specify a different type                                                @typescript-eslint/no-explicit-any
 
 /app/frontend/src/services/loggingService.ts
    22:25   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
@@ -3260,7 +3307,7 @@
    14:3   warning  'NotificationMessage' is defined but never used. Allowed unused vars must match /^_/u      @typescript-eslint/no-unused-vars
    15:3   warning  'ConnectionStatusMessage' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
    16:3   warning  'DocumentProcessingState' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
-  366:23  warning  'event' is defined but never used. Allowed unused args must match /^_/u                    @typescript-eslint/no-unused-vars
+  367:23  warning  'event' is defined but never used. Allowed unused args must match /^_/u                    @typescript-eslint/no-unused-vars
 
 /app/frontend/src/services/researchEngineService.ts
   32:32  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
@@ -3297,18 +3344,19 @@
   151:50  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
 
 /app/frontend/src/services/searchService.ts
-   11:3   warning  'GraphData' is defined but never used. Allowed unused vars must match /^_/u     @typescript-eslint/no-unused-vars
-   12:3   warning  'GraphFilters' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
-   47:34  warning  Unexpected any. Specify a different type                                        @typescript-eslint/no-explicit-any
-   51:32  warning  Unexpected any. Specify a different type                                        @typescript-eslint/no-explicit-any
-   55:34  warning  Unexpected any. Specify a different type                                        @typescript-eslint/no-explicit-any
-   90:37  warning  Unexpected any. Specify a different type                                        @typescript-eslint/no-explicit-any
-   95:58  warning  Unexpected any. Specify a different type                                        @typescript-eslint/no-explicit-any
-  173:21  warning  Unexpected any. Specify a different type                                        @typescript-eslint/no-explicit-any
-  195:33  warning  Unexpected any. Specify a different type                                        @typescript-eslint/no-explicit-any
-  201:27  warning  Unexpected any. Specify a different type                                        @typescript-eslint/no-explicit-any
-  212:23  warning  Unexpected any. Specify a different type                                        @typescript-eslint/no-explicit-any
-  252:21  warning  Unexpected any. Specify a different type                                        @typescript-eslint/no-explicit-any
+   12:3   warning  'GraphData' is defined but never used. Allowed unused vars must match /^_/u                       @typescript-eslint/no-unused-vars
+   13:3   warning  'GraphFilters' is defined but never used. Allowed unused vars must match /^_/u                    @typescript-eslint/no-unused-vars
+   69:7   warning  'isNotFoundSearchError' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+   91:7   warning  'getErrorMessage' is assigned a value but never used. Allowed unused vars must match /^_/u        @typescript-eslint/no-unused-vars
+  152:34  warning  Unexpected any. Specify a different type                                                          @typescript-eslint/no-explicit-any
+  156:32  warning  Unexpected any. Specify a different type                                                          @typescript-eslint/no-explicit-any
+  160:34  warning  Unexpected any. Specify a different type                                                          @typescript-eslint/no-explicit-any
+  182:37  warning  Unexpected any. Specify a different type                                                          @typescript-eslint/no-explicit-any
+  270:21  warning  Unexpected any. Specify a different type                                                          @typescript-eslint/no-explicit-any
+  280:33  warning  Unexpected any. Specify a different type                                                          @typescript-eslint/no-explicit-any
+  286:27  warning  Unexpected any. Specify a different type                                                          @typescript-eslint/no-explicit-any
+  297:23  warning  Unexpected any. Specify a different type                                                          @typescript-eslint/no-explicit-any
+  337:21  warning  Unexpected any. Specify a different type                                                          @typescript-eslint/no-explicit-any
 
 /app/frontend/src/services/typeSafeApiClient.ts
    76:26  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
@@ -3335,25 +3383,27 @@
   190:31  warning  'error' is defined but never used. Allowed unused args must match /^_/u  @typescript-eslint/no-unused-vars
 
 /app/frontend/src/services/websocketService.ts
-  159:46  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  167:46  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
 
 /app/frontend/src/services/workspaceService.ts
-  443:25  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
-  473:23  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
-  513:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  531:25  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  572:23  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  623:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/app/frontend/src/store/agentChatStore.ts
+  9:3  warning  'PlanStep' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
 
 /app/frontend/src/store/chat-store.ts
-   536:25  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
-   579:25  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
-   686:25  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
-  1150:49  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
-  1202:23  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
-  1332:58  warning  Missing return type on function           @typescript-eslint/explicit-function-return-type
-  1335:61  warning  Missing return type on function           @typescript-eslint/explicit-function-return-type
-  1343:55  warning  Missing return type on function           @typescript-eslint/explicit-function-return-type
-  1349:57  warning  Missing return type on function           @typescript-eslint/explicit-function-return-type
-  1354:74  warning  Missing return type on function           @typescript-eslint/explicit-function-return-type
-  1359:71  warning  Missing return type on function           @typescript-eslint/explicit-function-return-type
+   537:25  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   580:25  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   687:25  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  1203:23  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  1330:58  warning  Missing return type on function           @typescript-eslint/explicit-function-return-type
+  1333:61  warning  Missing return type on function           @typescript-eslint/explicit-function-return-type
+  1341:55  warning  Missing return type on function           @typescript-eslint/explicit-function-return-type
+  1347:57  warning  Missing return type on function           @typescript-eslint/explicit-function-return-type
+  1352:74  warning  Missing return type on function           @typescript-eslint/explicit-function-return-type
+  1357:71  warning  Missing return type on function           @typescript-eslint/explicit-function-return-type
 
 /app/frontend/src/store/citationStore.ts
   23:61  warning  'get' is defined but never used. Allowed unused args must match /^_/u  @typescript-eslint/no-unused-vars
@@ -3468,10 +3518,6 @@
   117:34  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
   118:38  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
 
-/app/frontend/src/stores/authStore.ts
-  365:18  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
-  396:26  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
-
 /app/frontend/src/stores/enhancedGraphStore.ts
   139:67  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
   615:44  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
@@ -3580,9 +3626,6 @@
   640:36  warning  Missing return type on function                                                    @typescript-eslint/explicit-function-return-type
   643:40  warning  Missing return type on function                                                    @typescript-eslint/explicit-function-return-type
   646:43  warning  Missing return type on function                                                    @typescript-eslint/explicit-function-return-type
-
-/app/frontend/src/test/setup.ts
-  49:43  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
 
 /app/frontend/src/theme/useTheme.ts
   15:8  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
@@ -3839,6 +3882,5 @@
   706:3   warning  Missing return type on function           @typescript-eslint/explicit-function-return-type
   720:3   warning  Missing return type on function           @typescript-eslint/explicit-function-return-type
 
-✖ 3064 problems (1 error, 3063 warnings)
+✖ 3059 problems (3 errors, 3056 warnings)
 
- ELIFECYCLE  Command failed with exit code 1.
