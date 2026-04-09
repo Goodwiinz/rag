@@ -70,27 +70,17 @@ async def websocket_endpoint(
             )
             return
 
-        # Validate JWT token using jose library (same as auth endpoints)
-        from jose import JWTError, jwt
+        # Validate Supabase JWT
+        from src.core.security import verify_token
 
-        from src.core.config import settings
-
-        try:
-            payload = jwt.decode(token, settings.JWT_SECRET_KEY, algorithms=["HS256"])
-            user_id = payload.get("sub")
-
-            if not user_id:
-                await websocket.close(
-                    code=status.WS_1008_POLICY_VIOLATION, reason="Invalid token"
-                )
-                return
-
-        except JWTError as e:
-            logger.warning(f"JWT validation failed: {e}")
+        token_data = verify_token(token)
+        if not token_data or not token_data.user_id:
             await websocket.close(
                 code=status.WS_1008_POLICY_VIOLATION, reason="Invalid or expired token"
             )
             return
+
+        user_id = token_data.user_id
 
     except Exception as e:
         logger.error(f"WebSocket authentication error: {e}")
