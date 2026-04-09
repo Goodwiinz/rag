@@ -158,11 +158,8 @@ function LoginPageContent(): React.JSX.Element | null {
             </div>
             <div>
               <h1 className="text-4xl font-mono font-bold text-[var(--terminal-text)] tracking-tighter">
-                RAG SYSTEM
+                NOUS
               </h1>
-              <p className="text-[10px] font-mono font-bold text-[var(--phosphor-green)]/70 uppercase tracking-[0.3em]">
-                Terminal Observatory V2.4
-              </p>
             </div>
           </div>
           <h2 className="text-6xl font-mono font-bold text-[var(--terminal-text)] leading-[0.9] mb-8 tracking-tight">
@@ -254,16 +251,10 @@ function LoginPageContent(): React.JSX.Element | null {
             <div>
               <h1
                 className="text-4xl font-mono font-bold text-[var(--terminal-text)] tracking-tighter glitch-text"
-                data-text="RAG SYSTEM"
+                data-text="NOUS"
               >
-                RAG SYSTEM
+                NOUS
               </h1>
-              <div className="flex items-center gap-2 mt-1">
-                <div className="w-2 h-2 rounded-full bg-[var(--phosphor-green)] animate-pulse" />
-                <p className="text-[10px] font-mono font-bold text-[var(--phosphor-green)]/70 uppercase tracking-[0.3em]">
-                  Terminal Observatory V2.4
-                </p>
-              </div>
             </div>
           </div>
 
