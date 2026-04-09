@@ -86,6 +86,12 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
     set({ isLoading: true, error: null, pendingEmailConfirmation: false });
 
     try {
+      const emailRedirectTo = new URL(
+        '/auth/callback',
+        window.location.origin
+      );
+      emailRedirectTo.searchParams.set('next', '/verify-email');
+
       const { data: supabaseData, error: supabaseError } =
         await supabase.auth.signUp({
           email: userData.email,
@@ -96,6 +102,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
               last_name: userData.last_name,
               organization_name: userData.organization_name,
             },
+            emailRedirectTo: emailRedirectTo.toString(),
           },
         });
 
