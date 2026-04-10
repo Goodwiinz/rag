@@ -450,11 +450,11 @@ export class SearchService {
   /**
    * Get real-time search results via WebSocket
    */
-  createSearchWebSocket(
+  async createSearchWebSocket(
     sessionId: string,
     onMessage: (update: QueryProcessingUpdate) => void
-  ): WebSocket {
-    const ws = apiClient.createWebSocket(
+  ): Promise<WebSocket> {
+    const ws = await apiClient.createWebSocket(
       `${this.basePath}/stream/${sessionId}`
     );
 

@@ -346,35 +346,8 @@ class TestAuthService:
             
             assert "Email already exists" in str(exc_info.value)
     
-    @pytest.mark.asyncio
-    async def test_generate_tokens(self, service, sample_user):
-        """Test token generation"""
-        with patch('src.core.security.create_access_token') as mock_access:
-            with patch('src.core.security.create_refresh_token') as mock_refresh:
-                
-                mock_access.return_value = "access_token_123"
-                mock_refresh.return_value = "refresh_token_456"
-                
-                tokens = await service.generate_tokens(sample_user)
-                
-                assert tokens["access_token"] == "access_token_123"
-                assert tokens["refresh_token"] == "refresh_token_456"
-                assert tokens["token_type"] == "bearer"
-    
-    @pytest.mark.asyncio
-    async def test_refresh_access_token(self, service, sample_user):
-        """Test access token refresh"""
-        with patch('src.core.security.verify_refresh_token') as mock_verify:
-            with patch.object(service, '_get_user_by_id') as mock_get_user:
-                with patch('src.core.security.create_access_token') as mock_create:
-                    
-                    mock_verify.return_value = {"sub": str(sample_user.id)}
-                    mock_get_user.return_value = sample_user
-                    mock_create.return_value = "new_access_token"
-                    
-                    new_token = await service.refresh_access_token("valid_refresh_token")
-                    
-                    assert new_token == "new_access_token"
+    # test_generate_tokens and test_refresh_access_token removed —
+    # token creation is now handled by Supabase, not the backend auth service
 
 
 class TestRBACService:

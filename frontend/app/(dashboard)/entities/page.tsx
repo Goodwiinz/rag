@@ -675,7 +675,7 @@ function EntityManagementContent() {
             {/* View group */}
             <div className="flex items-center gap-2 flex-wrap">
               <span className="font-mono text-[9px] text-primary uppercase tracking-wider w-14 shrink-0">
-                // View
+                {'// View'}
               </span>
               <TabsList className="bg-[var(--terminal-bg)] border border-[var(--terminal-border)] p-1 rounded-lg">
                 <TabsTrigger
@@ -710,7 +710,7 @@ function EntityManagementContent() {
 
               {/* Actions group */}
               <span className="font-mono text-[9px] text-primary uppercase tracking-wider w-14 shrink-0 ml-2">
-                // Actions
+                {'// Actions'}
               </span>
               <TabsList className="bg-[var(--terminal-bg)] border border-[var(--terminal-border)] p-1 rounded-lg">
                 <TabsTrigger
@@ -740,7 +740,7 @@ function EntityManagementContent() {
             {/* Monitor group */}
             <div className="flex items-center gap-2 flex-wrap">
               <span className="font-mono text-[9px] text-primary uppercase tracking-wider w-14 shrink-0">
-                // Monitor
+                {'// Monitor'}
               </span>
               <TabsList className="bg-[var(--terminal-bg)] border border-[var(--terminal-border)] p-1 rounded-lg">
                 <TabsTrigger
