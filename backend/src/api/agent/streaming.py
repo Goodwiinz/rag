@@ -20,6 +20,7 @@ from .jobs import (
     _page_context_to_dict,
     _persist_thread_messages,
 )
+from .trace_context import build_trace_payload
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +29,24 @@ _SSE_HEADERS = {
     "Connection": "keep-alive",
     "X-Accel-Buffering": "no",
 }
+
+
+def _bootstrap_langsmith() -> None:
+    """Enable LangSmith tracing when the API key is configured."""
+    try:
+        from src.services.agent.observability import configure_langsmith
+
+        configure_langsmith()
+    except Exception:
+        logger.warning(
+            "Failed to configure LangSmith tracing; continuing without tracing",
+            exc_info=True,
+        )
+
+
+def _format_sse_event(event_type: str, data: Dict[str, Any]) -> str:
+    """Format a single SSE event frame."""
+    return f"event: {event_type}\ndata: {_json.dumps(data)}\n\n"
 
 
 async def stream_event_generator(
@@ -55,6 +74,7 @@ async def stream_event_generator(
     )
 
     try:
+        _bootstrap_langsmith()
         checkpointer = await get_checkpointer()
         graph = compile_agent_graph(checkpointer=checkpointer)
 
@@ -92,6 +112,15 @@ async def stream_event_generator(
                 "page_context": _page_context_to_dict(request_body.page_context),
             }
         }
+
+        yield _format_sse_event(
+            "trace",
+            build_trace_payload(
+                thread_id=config["configurable"]["thread_id"],
+                cli_session_id="",
+                langsmith_run_id="",
+            ),
+        )
 
         async with asyncio.timeout(300):  # 5 minutes
             async for event in graph.astream_events(
@@ -221,6 +250,7 @@ async def stream_confirm_event_generator(
     )
 
     try:
+        _bootstrap_langsmith()
         checkpointer = await get_checkpointer()
         graph = compile_agent_graph(checkpointer=checkpointer)
 
@@ -252,6 +282,15 @@ async def stream_confirm_event_generator(
         }
 
         resume_input = Command(resume={"confirmed": request_body.confirmed})
+
+        yield _format_sse_event(
+            "trace",
+            build_trace_payload(
+                thread_id=request_body.thread_id,
+                cli_session_id="",
+                langsmith_run_id="",
+            ),
+        )
 
         async with asyncio.timeout(300):
             async for event in graph.astream_events(

@@ -106,7 +106,8 @@ export function buildNousCliAuthPayload(
   source: NousCliAuthSource
 ): NousCliAuthPayload {
   const token = getToken(source);
-  const organizationId = source.organization?.id ?? source.user?.organization_id;
+  const organizationId =
+    source.organization?.id ?? source.user?.organization_id;
   const organizationName =
     source.organization?.name ?? source.user?.organization_name;
 
