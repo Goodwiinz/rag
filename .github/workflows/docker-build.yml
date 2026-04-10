@@ -117,7 +117,7 @@ jobs:
           build-args: |
             NEXT_PUBLIC_SUPABASE_URL=${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
             NEXT_PUBLIC_SUPABASE_ANON_KEY=${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
-            BACKEND_URL=http://rag-knowledge-graph-analytics-backend.rag-dev.svc.cluster.local:80
+            BACKEND_URL=http://nous-dev-knowledge-graph-analytics-backend.rag-dev.svc.cluster.local:80
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
