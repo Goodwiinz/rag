@@ -271,3 +271,5 @@ supabase/.temp/
 # Backend data artifacts (state files, logs)
 backend/data/*.json
 backend/data/*.log
+graphify-out/
+backend/graphify-out/
