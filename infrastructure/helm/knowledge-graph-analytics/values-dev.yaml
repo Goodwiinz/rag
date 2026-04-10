@@ -127,6 +127,8 @@ backend:
         name: database-credentials
     - secretRef:
         name: app-secrets
+    - secretRef:
+        name: supabase-credentials
 
   env:
     - name: ENVIRONMENT
