@@ -180,7 +180,6 @@ class TestSubgraphErrorCountCheck:
 
     def test_research_should_continue_stops_on_high_errors(self):
         from langchain_core.messages import AIMessage
-        from langgraph.graph import END
 
         from src.services.agent.subgraphs.research_agent import (
             research_should_continue,
@@ -198,11 +197,10 @@ class TestSubgraphErrorCountCheck:
             "tool_loop_count": 1,
             "error_count": 3,
         }
-        assert research_should_continue(state) == END
+        assert research_should_continue(state) == "research_reflection_gate"
 
     def test_writing_should_continue_stops_on_high_errors(self):
         from langchain_core.messages import AIMessage
-        from langgraph.graph import END
 
         from src.services.agent.subgraphs.writing_agent import (
             writing_should_continue,
@@ -220,11 +218,10 @@ class TestSubgraphErrorCountCheck:
             "tool_loop_count": 1,
             "error_count": 3,
         }
-        assert writing_should_continue(state) == END
+        assert writing_should_continue(state) == "writing_reflection_gate"
 
     def test_data_should_continue_stops_on_high_errors(self):
         from langchain_core.messages import AIMessage
-        from langgraph.graph import END
 
         from src.services.agent.subgraphs.data_agent import data_should_continue
 
@@ -240,7 +237,7 @@ class TestSubgraphErrorCountCheck:
             "tool_loop_count": 1,
             "error_count": 3,
         }
-        assert data_should_continue(state) == END
+        assert data_should_continue(state) == "data_reflection_gate"
 
     def test_research_should_continue_proceeds_when_errors_low(self):
         from langchain_core.messages import AIMessage
@@ -445,8 +442,9 @@ class TestGatherExceptionToolMessages:
         content = json.loads(error_msg.content)
         assert "error" in content
         assert "Connection failed" in content["error"]
-        # Error count should have incremented
-        assert result["error_count"] == 1
+        # Error count resets to 0 because at least one tool succeeded
+        # (consecutive error counter resets on any success)
+        assert result["error_count"] == 0
 
 
 class TestCheckpointerLock:
@@ -743,7 +741,7 @@ class TestShouldContinue:
             "last_error": "timeout",
             "tool_loop_count": 0,
         }
-        assert should_continue(state) == "memory_save_node"
+        assert should_continue(state) == "reflection_gate"
 
     def test_routes_to_tool_node_for_non_destructive(self):
         from langchain_core.messages import AIMessage
@@ -804,4 +802,4 @@ class TestShouldContinue:
             "error_count": 0,
             "tool_loop_count": MAX_TOOL_LOOPS,
         }
-        assert should_continue(state) == "memory_save_node"
+        assert should_continue(state) == "reflection_gate"
