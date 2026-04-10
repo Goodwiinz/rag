@@ -87,8 +87,10 @@ def test_resolve_cli_auth_finds_latest_downloaded_frontend_export(
     )
 
     monkeypatch.setenv("HOME", str(home_dir))
-    older_export.touch()
-    newer_export.touch()
+    import os, time
+    now = time.time()
+    os.utime(older_export, (now - 10, now - 10))
+    os.utime(newer_export, (now, now))
 
     resolved = resolve_cli_auth(token="", organization_id="")
 
