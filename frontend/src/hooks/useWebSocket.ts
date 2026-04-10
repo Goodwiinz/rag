@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useAuth } from './useAuth';
 import { createClient } from '@/lib/supabase/client';
+import { getPublicWebSocketOrigin } from '@/utils/publicEndpoints';
 import {
   WebSocketManager,
   getWebSocketManager,
@@ -51,7 +52,7 @@ export const useWebSocket = (): UseWebSocketReturn => {
         return;
       }
 
-      const wsUrl = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8000/ws';
+      const wsUrl = `${getPublicWebSocketOrigin()}/ws`;
 
       // Initialize or get existing manager
       const manager =
