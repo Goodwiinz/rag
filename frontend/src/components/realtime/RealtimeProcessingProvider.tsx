@@ -9,6 +9,7 @@ import { useRealtimeProcessingStore } from '@/store/realtimeProcessingStore';
 import { useAuth } from '@/hooks/useAuth';
 import { createClient } from '@/lib/supabase/client';
 import { WebSocketManager } from '@/services/websocket';
+import { getPublicWebSocketOrigin } from '@/utils/publicEndpoints';
 import {
   DocumentUpdateMessage,
   QueueUpdateMessage,
@@ -48,7 +49,7 @@ export const RealtimeProcessingProvider: React.FC<
   RealtimeProcessingProviderProps
 > = ({
   children,
-  wsUrl = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8000/ws',
+  wsUrl = `${getPublicWebSocketOrigin()}/ws`,
   autoConnect = true,
 }) => {
   const { user, isAuthenticated } = useAuth();

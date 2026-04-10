@@ -30,6 +30,7 @@ import {
   WorkspaceDetail,
   WorkspaceUpdate,
 } from '@/types/workspace';
+import { getPublicApiOrigin } from '@/utils/publicEndpoints';
 import axios, { AxiosInstance } from 'axios';
 
 const getAuthContext = async (): Promise<{
@@ -60,9 +61,8 @@ const getAuthContext = async (): Promise<{
 };
 
 const getDirectApiBaseUrl = (): string | null => {
-  const configured = process.env.NEXT_PUBLIC_API_URL?.trim();
-  if (!configured) return null;
-  return configured.replace(/\/$/, '');
+  const configured = getPublicApiOrigin();
+  return configured || null;
 };
 
 // Create a dedicated axios instance for v2 API
