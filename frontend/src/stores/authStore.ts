@@ -1,6 +1,7 @@
-import { createClient } from '@/lib/supabase/client';
+import { createClient as createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { apiClient } from '@/services/apiClient';
 import { Organization, RegisterResult, User } from '@/types';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { create } from 'zustand';
 
 interface SwitchOrganizationResponse {
@@ -40,7 +41,36 @@ interface AuthState {
   initialize: () => Promise<void>;
 }
 
-const supabase = createClient();
+let authStateListenerRegistered = false;
+
+function getSupabaseClient(): SupabaseClient {
+  const supabase = createSupabaseBrowserClient();
+
+  if (!authStateListenerRegistered) {
+    supabase.auth.onAuthStateChange((event, session) => {
+      if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session) {
+        const currentUser = useAuthStore.getState().user;
+        if (!currentUser) {
+          void useAuthStore.getState().fetchProfile();
+        }
+      }
+
+      if (event === 'SIGNED_OUT') {
+        useAuthStore.setState({
+          user: null,
+          organization: null,
+          isAuthenticated: false,
+          error: null,
+          pendingEmailConfirmation: false,
+        });
+      }
+    });
+
+    authStateListenerRegistered = true;
+  }
+
+  return supabase;
+}
 
 export const useAuthStore = create<AuthState>()((set, get) => ({
   // Initial state
@@ -55,6 +85,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
     set({ isLoading: true, error: null });
 
     try {
+      const supabase = getSupabaseClient();
       const { data, error: supabaseError } =
         await supabase.auth.signInWithPassword({
           email,
@@ -104,6 +135,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
     set({ isLoading: true, error: null, pendingEmailConfirmation: false });
 
     try {
+      const supabase = getSupabaseClient();
       const emailRedirectTo = new URL('/auth/callback', window.location.origin);
       emailRedirectTo.searchParams.set('next', '/verify-email');
 
@@ -143,7 +175,13 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
   },
 
   signOut: () => {
-    supabase.auth.signOut().catch(() => {});
+    try {
+      getSupabaseClient()
+        .auth.signOut()
+        .catch(() => {});
+    } catch {
+      // If browser auth was never configured correctly, still clear local state.
+    }
 
     set({
       user: null,
@@ -158,6 +196,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
     set({ isLoading: true, error: null });
 
     try {
+      const supabase = getSupabaseClient();
       const { error: supabaseError } =
         await supabase.auth.resetPasswordForEmail(email, {
           redirectTo: window.location.origin + '/reset-password',
@@ -180,6 +219,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
 
   fetchProfile: async () => {
     try {
+      const supabase = getSupabaseClient();
       const { data: sessionData, error: sessionError } =
         await supabase.auth.getSession();
 
@@ -254,6 +294,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
 
   initialize: async () => {
     try {
+      const supabase = getSupabaseClient();
       const { data: sessionData, error: sessionError } =
         await supabase.auth.getSession();
 
@@ -263,28 +304,15 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       }
 
       await get().fetchProfile();
-    } catch {
-      set({ isAuthenticated: false, isLoading: false });
+    } catch (error) {
+      set({
+        isAuthenticated: false,
+        isLoading: false,
+        error:
+          error instanceof Error
+            ? error.message
+            : 'Failed to initialize authentication',
+      });
     }
   },
 }));
-
-// Listen for Supabase auth state changes
-supabase.auth.onAuthStateChange((event, session) => {
-  if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session) {
-    const currentUser = useAuthStore.getState().user;
-    if (!currentUser) {
-      useAuthStore.getState().fetchProfile();
-    }
-  }
-
-  if (event === 'SIGNED_OUT') {
-    useAuthStore.setState({
-      user: null,
-      organization: null,
-      isAuthenticated: false,
-      error: null,
-      pendingEmailConfirmation: false,
-    });
-  }
-});
