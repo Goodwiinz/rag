@@ -1,14 +1,6 @@
 name: Docker Build
 
 on:
-  workflow_run:
-    workflows: ["Test Pipeline"]
-    types:
-      - completed
-    branches:
-      - main
-      - develop
-
   push:
     branches: [main, develop]
     paths:
@@ -18,275 +10,100 @@ on:
       - "docker-bake.hcl"
       - ".github/workflows/docker-build.yml"
 
-  pull_request:
-    branches: [main, develop]
-    paths:
-      - "backend/**"
-      - "frontend/**"
-      - "docker-compose*.yml"
-      - "docker-bake.hcl"
-
   workflow_dispatch:
     inputs:
       push_images:
         description: "Push images to registry"
         type: boolean
-        default: false
+        default: true
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 env:
-  REGISTRY: ghcr.io
-  BACKEND_IMAGE: ghcr.io/${{ github.repository }}/backend
-  FRONTEND_IMAGE: ghcr.io/${{ github.repository }}/frontend
+  REGISTRY: registry.digitalocean.com/ragsystemregistry
 
 jobs:
-  check-tests:
-    name: Check Test Results
-    runs-on: ubuntu-latest
-    outputs:
-      should_build: ${{ steps.check.outputs.should_build }}
-    steps:
-      - name: Check if we should build
-        id: check
-        env:
-          EVENT_NAME: ${{ github.event_name }}
-          WORKFLOW_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
-        run: |
-          if [ "$EVENT_NAME" == "workflow_run" ]; then
-            if [ "$WORKFLOW_CONCLUSION" != "success" ]; then
-              echo "Test pipeline did not succeed, skipping build"
-              echo "should_build=false" >> $GITHUB_OUTPUT
-              exit 0
-            fi
-          fi
-          echo "should_build=true" >> $GITHUB_OUTPUT
-
   build-backend:
     name: Build Backend Image
     runs-on: ubuntu-latest
-    needs: check-tests
-    if: needs.check-tests.outputs.should_build == 'true'
-    permissions:
-      contents: read
-      packages: write
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
-        with:
-          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
 
-      - name: Log in to Container Registry
-        if: github.event_name != 'pull_request'
+      - name: Log in to DO Container Registry
         uses: docker/login-action@v4
         with:
           registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Extract metadata for Docker
-        id: meta
-        uses: docker/metadata-action@v6
-        with:
-          images: ${{ env.BACKEND_IMAGE }}
-          tags: |
-            type=ref,event=branch
-            type=ref,event=pr
-            type=sha,prefix=
-            type=raw,value=latest,enable={{is_default_branch}}
+          username: ${{ secrets.DO_REGISTRY_TOKEN }}
+          password: ${{ secrets.DO_REGISTRY_TOKEN }}
 
       - name: Build and push backend image
         uses: docker/build-push-action@v7
         with:
           context: .
           file: backend/docker/Dockerfile.prod
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64
+          provenance: false
           push: ${{ github.event_name != 'pull_request' }}
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          tags: |
+            ${{ env.REGISTRY }}/backend:latest
+            ${{ env.REGISTRY }}/backend:${{ github.sha }}
           build-args: |
             PYTHON_VERSION=3.11
+            TORCH_CPU_ONLY=true
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
   build-frontend:
     name: Build Frontend Image
     runs-on: ubuntu-latest
-    needs: check-tests
-    if: needs.check-tests.outputs.should_build == 'true'
-    permissions:
-      contents: read
-      packages: write
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
-        with:
-          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
 
-      - name: Log in to Container Registry
-        if: github.event_name != 'pull_request'
+      - name: Log in to DO Container Registry
         uses: docker/login-action@v4
         with:
           registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Extract metadata for Docker
-        id: meta
-        uses: docker/metadata-action@v6
-        with:
-          images: ${{ env.FRONTEND_IMAGE }}
-          tags: |
-            type=ref,event=branch
-            type=ref,event=pr
-            type=sha,prefix=
-            type=raw,value=latest,enable={{is_default_branch}}
+          username: ${{ secrets.DO_REGISTRY_TOKEN }}
+          password: ${{ secrets.DO_REGISTRY_TOKEN }}
 
       - name: Build and push frontend image
         uses: docker/build-push-action@v7
         with:
           context: .
           file: frontend/Dockerfile.prod
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64
+          provenance: false
           push: ${{ github.event_name != 'pull_request' }}
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          tags: |
+            ${{ env.REGISTRY }}/frontend:latest
+            ${{ env.REGISTRY }}/frontend:${{ github.sha }}
+          build-args: |
+            NEXT_PUBLIC_SUPABASE_URL=${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+            NEXT_PUBLIC_SUPABASE_ANON_KEY=${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+            BACKEND_URL=http://rag-knowledge-graph-analytics-backend.rag-dev.svc.cluster.local:80
           cache-from: type=gha
           cache-to: type=gha,mode=max
-
-  build-all-services:
-    name: Build All Services (Bake)
-    runs-on: ubuntu-latest
-    needs: [build-backend, build-frontend]
-    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
-    permissions:
-      contents: read
-      packages: write
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v6
-        with:
-          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v4
-
-      - name: Log in to Container Registry
-        uses: docker/login-action@v4
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build all services with Docker Bake
-        uses: docker/bake-action@v7
-        with:
-          files: docker-bake.hcl
-          push: true
-          set: |
-            *.cache-from=type=gha
-            *.cache-to=type=gha,mode=max
-
-  test-images:
-    name: Test Built Images
-    runs-on: ubuntu-latest
-    needs: [build-backend, build-frontend]
-    if: github.event_name == 'pull_request'
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v6
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v4
-
-      - name: Build and load backend for testing
-        uses: docker/build-push-action@v7
-        with:
-          context: .
-          file: backend/docker/Dockerfile.prod
-          load: true
-          tags: backend:test
-          cache-from: type=gha
-
-      - name: Build and load frontend for testing
-        uses: docker/build-push-action@v7
-        with:
-          context: .
-          file: frontend/Dockerfile.prod
-          load: true
-          tags: frontend:test
-          cache-from: type=gha
-
-      - name: Test backend container starts
-        run: |
-          docker run -d --name backend-test -p 8000:8000 \
-            -e ENVIRONMENT=testing \
-            -e DATABASE_URL=sqlite:///:memory: \
-            -e SECRET_KEY=test-secret-key-32-characters!! \
-            -e JWT_SECRET_KEY=test-jwt-secret-key-32chars!! \
-            backend:test
-
-          echo "Waiting for backend to start..."
-          for i in {1..30}; do
-            if curl -sf http://localhost:8000/health > /dev/null 2>&1; then
-              echo "Backend is healthy!"
-              break
-            fi
-            if [ $i -eq 30 ]; then
-              echo "Backend failed to start"
-              docker logs backend-test
-              exit 1
-            fi
-            sleep 2
-          done
-
-          docker logs backend-test
-          docker stop backend-test
-
-      - name: Test frontend container starts
-        run: |
-          docker run -d --name frontend-test -p 3000:3000 \
-            -e NEXT_PUBLIC_API_URL=http://localhost:8000 \
-            frontend:test
-
-          echo "Waiting for frontend to start..."
-          for i in {1..30}; do
-            if curl -sf http://localhost:3000/ > /dev/null 2>&1; then
-              echo "Frontend is healthy!"
-              break
-            fi
-            if [ $i -eq 30 ]; then
-              echo "Frontend failed to start"
-              docker logs frontend-test
-              exit 1
-            fi
-            sleep 2
-          done
-
-          docker logs frontend-test
-          docker stop frontend-test
 
   build-summary:
     name: Build Summary
     runs-on: ubuntu-latest
-    needs: [build-backend, build-frontend, build-all-services]
-    if: always() && github.event_name != 'pull_request'
+    needs: [build-backend, build-frontend]
+    if: always()
     env:
       BACKEND_RESULT: ${{ needs.build-backend.result }}
       FRONTEND_RESULT: ${{ needs.build-frontend.result }}
-      BAKE_RESULT: ${{ needs.build-all-services.result }}
       GH_REF: ${{ github.ref_name }}
       GH_SHA: ${{ github.sha }}
     steps:
@@ -298,29 +115,18 @@ jobs:
           echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
 
           if [ "$BACKEND_RESULT" == "success" ]; then
-            echo "| Backend | :white_check_mark: Built |" >> $GITHUB_STEP_SUMMARY
-          elif [ "$BACKEND_RESULT" == "skipped" ]; then
-            echo "| Backend | :fast_forward: Skipped |" >> $GITHUB_STEP_SUMMARY
+            echo "| Backend | :white_check_mark: Built and pushed |" >> $GITHUB_STEP_SUMMARY
           else
             echo "| Backend | :x: $BACKEND_RESULT |" >> $GITHUB_STEP_SUMMARY
           fi
 
           if [ "$FRONTEND_RESULT" == "success" ]; then
-            echo "| Frontend | :white_check_mark: Built |" >> $GITHUB_STEP_SUMMARY
-          elif [ "$FRONTEND_RESULT" == "skipped" ]; then
-            echo "| Frontend | :fast_forward: Skipped |" >> $GITHUB_STEP_SUMMARY
+            echo "| Frontend | :white_check_mark: Built and pushed |" >> $GITHUB_STEP_SUMMARY
           else
             echo "| Frontend | :x: $FRONTEND_RESULT |" >> $GITHUB_STEP_SUMMARY
           fi
 
-          if [ "$BAKE_RESULT" == "success" ]; then
-            echo "| All Services (Bake) | :white_check_mark: Built |" >> $GITHUB_STEP_SUMMARY
-          elif [ "$BAKE_RESULT" == "skipped" ]; then
-            echo "| All Services (Bake) | :fast_forward: Skipped |" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "| All Services (Bake) | :x: $BAKE_RESULT |" >> $GITHUB_STEP_SUMMARY
-          fi
-
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Branch:** \`$GH_REF\`" >> $GITHUB_STEP_SUMMARY
-          echo "**Commit:** \`$GH_SHA\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Registry:** registry.digitalocean.com/ragsystemregistry" >> $GITHUB_STEP_SUMMARY
+          echo "**Branch:** $GH_REF" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit:** $GH_SHA" >> $GITHUB_STEP_SUMMARY
