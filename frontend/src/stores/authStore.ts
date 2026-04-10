@@ -55,16 +55,34 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
     set({ isLoading: true, error: null });
 
     try {
-      const { error: supabaseError } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
+      const { data, error: supabaseError } =
+        await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
 
       if (supabaseError) {
         throw new Error(supabaseError.message);
       }
 
-      await get().fetchProfile();
+      // Use the session from signIn directly — getSession() may return null
+      // before the SSR cookie is established
+      if (data.session) {
+        const accessToken = data.session.access_token;
+        const profileData = await apiClient.get<ProfileResponse>('/auth/me', {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+
+        set({
+          user: profileData.user,
+          organization: profileData.organization ?? null,
+          isAuthenticated: true,
+          isLoading: false,
+          pendingEmailConfirmation: false,
+        });
+      } else {
+        set({ isLoading: false });
+      }
     } catch (error) {
       const authError =
         error instanceof Error ? error : new Error('Login failed');
@@ -86,10 +104,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
     set({ isLoading: true, error: null, pendingEmailConfirmation: false });
 
     try {
-      const emailRedirectTo = new URL(
-        '/auth/callback',
-        window.location.origin
-      );
+      const emailRedirectTo = new URL('/auth/callback', window.location.origin);
       emailRedirectTo.searchParams.set('next', '/verify-email');
 
       const { data: supabaseData, error: supabaseError } =
