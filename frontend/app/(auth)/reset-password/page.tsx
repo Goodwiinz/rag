@@ -1,6 +1,6 @@
 'use client';
 
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@/lib/supabase/client';
 import { cn } from '@/lib/utils';
 import { motion } from 'framer-motion';
 import {
@@ -46,6 +46,7 @@ export default function ResetPasswordPage() {
     setIsSubmitting(true);
 
     try {
+      const supabase = createClient();
       const { error: updateError } = await supabase.auth.updateUser({
         password,
       });

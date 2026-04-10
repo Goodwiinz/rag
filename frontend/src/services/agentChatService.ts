@@ -1,17 +1,21 @@
 import { apiClient } from '@/services/apiClient';
+import { createClient } from '@/lib/supabase/client';
 
-function getStreamAuthHeaders(): Record<string, string> {
+async function getStreamAuthHeaders(): Promise<Record<string, string>> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
   };
   try {
-    const storageItem = localStorage.getItem('auth-storage');
-    if (storageItem) {
-      const parsed = JSON.parse(storageItem);
-      const token = parsed?.state?.token;
-      const orgId = parsed?.state?.organization?.id;
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-      if (orgId) headers['X-Organization-ID'] = orgId;
+    const supabase = createClient();
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    if (session?.access_token) {
+      headers['Authorization'] = `Bearer ${session.access_token}`;
+    }
+    const orgId = session?.user?.user_metadata?.organization_id;
+    if (orgId) {
+      headers['X-Organization-ID'] = orgId;
     }
   } catch {
     // Fall through without auth headers
@@ -160,7 +164,7 @@ class AgentChatService {
       onError?: (error: string) => void;
     }
   ): Promise<void> {
-    const headers = getStreamAuthHeaders();
+    const headers = await getStreamAuthHeaders();
 
     const response = await fetch('/api/v1/agent/stream', {
       method: 'POST',
@@ -254,7 +258,7 @@ class AgentChatService {
       onError?: (error: string) => void;
     }
   ): Promise<void> {
-    const headers = getStreamAuthHeaders();
+    const headers = await getStreamAuthHeaders();
 
     const response = await fetch('/api/v1/agent/stream/confirm', {
       method: 'POST',

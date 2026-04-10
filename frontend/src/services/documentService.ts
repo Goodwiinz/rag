@@ -1,9 +1,11 @@
+import { createClient } from '@/lib/supabase/client';
+import { useAuthStore } from '@/stores/authStore';
 import { APIResponse } from '@/types/api';
 import {
-    Document,
-    DocumentFilters,
-    DocumentListResponse,
-    UploadProgress
+  Document,
+  DocumentFilters,
+  DocumentListResponse,
+  UploadProgress,
 } from '@/types/document';
 import { apiClient } from './apiClient';
 
@@ -25,12 +27,24 @@ export class DocumentService {
    */
   async uploadFiles(
     files: File[],
-    onProgress?: (fileIndex: number, fileProgress: number, totalProgress: number) => void
+    onProgress?: (
+      fileIndex: number,
+      fileProgress: number,
+      totalProgress: number
+    ) => void
   ): Promise<APIResponse<Document[]>> {
     const formData = new FormData();
     files.forEach((file) => {
       formData.append('files', file);
     });
+
+    // Fetch auth before entering the XHR Promise
+    const supabase = createClient();
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    const token = session?.access_token;
+    const organizationId = useAuthStore.getState().organization?.id;
 
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
@@ -47,7 +61,9 @@ export class DocumentService {
       xhr.addEventListener('load', () => {
         if (xhr.status >= 200 && xhr.status < 300) {
           try {
-            const response = JSON.parse(xhr.responseText) as APIResponse<Document[]>;
+            const response = JSON.parse(xhr.responseText) as APIResponse<
+              Document[]
+            >;
             resolve(response);
           } catch (error) {
             reject(new Error('Invalid response format'));
@@ -61,14 +77,17 @@ export class DocumentService {
         reject(new Error('Network error during upload'));
       });
 
-      xhr.open('POST', `${apiClient.client.defaults.baseURL}${this.basePath}/batch-upload`);
+      xhr.open(
+        'POST',
+        `${apiClient.client.defaults.baseURL}${this.basePath}/batch-upload`
+      );
 
       // Add auth headers
-      const token = localStorage.getItem('auth_token');
-      const organizationId = localStorage.getItem('organization_id');
-      if (token && organizationId) {
+      if (token) {
         xhr.setRequestHeader('Authorization', `Bearer ${token}`);
-        xhr.setRequestHeader('X-Organization-ID', organizationId);
+        if (organizationId) {
+          xhr.setRequestHeader('X-Organization-ID', organizationId);
+        }
       }
 
       xhr.send(formData);
@@ -119,7 +138,9 @@ export class DocumentService {
    */
   async updateDocument(
     id: string,
-    updates: Partial<Pick<Document, 'title' | 'description' | 'tags' | 'custom_fields'>>
+    updates: Partial<
+      Pick<Document, 'title' | 'description' | 'tags' | 'custom_fields'>
+    >
   ): Promise<APIResponse<Document>> {
     return apiClient.patch(`${this.basePath}/${id}`, updates);
   }
@@ -148,7 +169,9 @@ export class DocumentService {
   /**
    * Get document preview (text snippet)
    */
-  async getDocumentPreview(id: string): Promise<APIResponse<{ preview: string }>> {
+  async getDocumentPreview(
+    id: string
+  ): Promise<APIResponse<{ preview: string }>> {
     return apiClient.get(`${this.basePath}/${id}/preview`);
   }
 
@@ -197,13 +220,15 @@ export class DocumentService {
   /**
    * Get document statistics
    */
-  async getDocumentStats(): Promise<APIResponse<{
-    total_documents: number;
-    total_size: number;
-    by_file_type: Record<string, number>;
-    by_status: Record<string, number>;
-    recent_uploads: Document[];
-  }>> {
+  async getDocumentStats(): Promise<
+    APIResponse<{
+      total_documents: number;
+      total_size: number;
+      by_file_type: Record<string, number>;
+      by_status: Record<string, number>;
+      recent_uploads: Document[];
+    }>
+  > {
     return apiClient.get(`${this.basePath}/stats`);
   }
 }
