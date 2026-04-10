@@ -63,6 +63,8 @@ frontend:
       value: "production"
     - name: NEXT_PUBLIC_ENVIRONMENT
       value: "dev"
+    - name: BACKEND_URL
+      value: "http://nous-dev-knowledge-graph-analytics-backend.rag-dev.svc.cluster.local:80"
 
   healthCheck:
     enabled: true
