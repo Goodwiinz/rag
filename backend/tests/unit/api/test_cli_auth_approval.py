@@ -57,6 +57,7 @@ def test_cli_auth_approve_marks_session_approved_and_stores_credentials(
                 "session_id": session["session_id"],
                 "verification_code": session["verification_code"],
             },
+            headers={"Authorization": "Bearer mock-token"},
         )
     finally:
         app.dependency_overrides.pop(get_current_user, None)
