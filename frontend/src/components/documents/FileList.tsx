@@ -14,6 +14,7 @@ import {
 import { cn } from '@/lib/utils';
 import { Document } from '@/types';
 import { STATUS_COLORS } from '@/types/constants';
+import { IconButton } from '@/components/ui/icon-button';
 
 export interface FileListProps {
   documents: Document[];
@@ -205,42 +206,39 @@ const FileListItem: React.FC<FileListItemProps> = ({
               showActions && "opacity-100"
             )}>
               {onPreview && (
-                <button
+                <IconButton
                   onClick={(e) => {
                     e.stopPropagation();
                     onPreview();
                   }}
-                  className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-accent rounded"
-                  title="Preview"
-                >
-                  <EyeIcon className="h-4 w-4" />
-                </button>
+                  className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-accent rounded h-8 w-8"
+                  label="Preview"
+                  icon={<EyeIcon className="h-4 w-4" />}
+                />
               )}
 
               {onDownload && (
-                <button
+                <IconButton
                   onClick={(e) => {
                     e.stopPropagation();
                     onDownload();
                   }}
-                  className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-accent rounded"
-                  title="Download"
-                >
-                  <ArrowDownTrayIcon className="h-4 w-4" />
-                </button>
+                  className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-accent rounded h-8 w-8"
+                  label="Download"
+                  icon={<ArrowDownTrayIcon className="h-4 w-4" />}
+                />
               )}
 
               {onDelete && (
-                <button
+                <IconButton
                   onClick={(e) => {
                     e.stopPropagation();
                     onDelete();
                   }}
-                  className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded"
-                  title="Delete"
-                >
-                  <TrashIcon className="h-4 w-4" />
-                </button>
+                  className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded h-8 w-8"
+                  label="Delete"
+                  icon={<TrashIcon className="h-4 w-4" />}
+                />
               )}
             </div>
           </div>
