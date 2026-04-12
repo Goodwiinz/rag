@@ -145,6 +145,8 @@ backend:
       value: "300"
     - name: CORS_ORIGINS
       value: "https://dev-app.gen-text.app"
+    - name: NEO4J_URI
+      value: "bolt://nous-dev-knowledge-graph-analytics-neo4j:7687"
 
   healthCheck:
     enabled: true
@@ -179,7 +181,25 @@ redis:
   enabled: false
 
 neo4j:
-  enabled: false
+  enabled: true
+  image:
+    repository: neo4j
+    tag: "5.26-community"
+    pullPolicy: IfNotPresent
+  password: "REDACTED"
+  advertisedAddress: "dev-neo4j.gen-text.app"
+  persistence:
+    size: 5Gi
+  resources:
+    heapSize: "128m"
+    pagecacheSize: "64m"
+    container:
+      limits:
+        cpu: 300m
+        memory: 512Mi
+      requests:
+        cpu: 100m
+        memory: 256Mi
 
 qdrant:
   enabled: false
