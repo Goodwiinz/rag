@@ -226,6 +226,13 @@ class Settings(BaseSettings):
     COHERE_RERANK_MODEL: str = "Cohere-rerank-v4.0-pro"
     COHERE_RERANK_TOP_N: int = 10
 
+    # Cohere Embedding Configuration
+    COHERE_EMBED_ENDPOINT: Optional[str] = None  # https://api.cohere.com/v2/embed
+    COHERE_EMBED_API_KEY: Optional[str] = None  # Falls back to COHERE_RERANK_API_KEY
+    COHERE_EMBED_MODEL: str = "embed-v4.0"
+    COHERE_EMBED_DIMENSIONS: int = 1024
+    COHERE_EMBED_BATCH_SIZE: int = 96
+
     # Processing Configuration
     MAX_CONCURRENT_JOBS: int = 5
     JOB_RETRY_MAX: int = 3
@@ -238,7 +245,7 @@ class Settings(BaseSettings):
 
     # Embedding Provider Configuration
     EMBEDDING_PROVIDER: str = (
-        "sentence_transformers"  # sentence_transformers, azure_openai, auto
+        "sentence_transformers"  # cohere, sentence_transformers, azure_openai, auto
     )
 
     # LLM Response Cache Configuration
