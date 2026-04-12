@@ -8,6 +8,7 @@ global:
   imagePullSecrets:
     - name: do-registry
   environment: "dev"
+  storageClass: "do-block-storage"
 
 commonLabels:
   app.kubernetes.io/name: knowledge-graph-analytics
