@@ -701,10 +701,11 @@ async def check_duplicate(
 
     if existing is None:
         # Also check metadata-stored hash for older documents
+        from sqlalchemy import cast, String
         query = (
             select(Document)
             .where(
-                Document.document_metadata["file_hash"].astext == body.sha256,
+                cast(Document.document_metadata["file_hash"], String) == body.sha256,
                 Document.organization_id == organization.id,
                 Document.is_deleted.isnot(True),
             )

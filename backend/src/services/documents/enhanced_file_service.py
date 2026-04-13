@@ -1001,7 +1001,7 @@ class EnhancedFileService:
                     existing = (
                         self.db.query(Document)
                         .filter(
-                            Document.document_metadata["file_hash"].astext == file_hash,
+                            cast(Document.document_metadata["file_hash"], String) == file_hash,
                             Document.is_deleted.isnot(True),
                         )
                         .first()
@@ -1065,7 +1065,7 @@ class EnhancedFileService:
                     existing = (
                         self.db.query(Document)
                         .filter(
-                            Document.document_metadata["file_hash"].astext == file_hash,
+                            cast(Document.document_metadata["file_hash"], String) == file_hash,
                             Document.is_deleted.isnot(True),
                         )
                         .first()
