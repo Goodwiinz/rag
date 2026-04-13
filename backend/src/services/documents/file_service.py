@@ -69,8 +69,12 @@ class FileService:
         self.db = db
         self.upload_dir = Path(settings.UPLOAD_DIR)
         self.upload_dir.mkdir(parents=True, exist_ok=True)
-        self._storage_enabled = settings.SUPABASE_STORAGE_ENABLED
+        self._storage_backend = settings.STORAGE_BACKEND  # "local", "s3", or "supabase"
+        # Legacy compat: SUPABASE_STORAGE_ENABLED=True overrides to "supabase"
+        if settings.SUPABASE_STORAGE_ENABLED and self._storage_backend == "local":
+            self._storage_backend = "supabase"
         self._storage_helper = None
+        self._s3_helper = None
 
         # Create subdirectories for different file types
         self.create_subdirectories()
@@ -85,11 +89,20 @@ class FileService:
     @property
     def storage_helper(self):
         """Lazy-load StorageHelper only when Supabase Storage is enabled."""
-        if self._storage_helper is None and self._storage_enabled:
+        if self._storage_helper is None and self._storage_backend == "supabase":
             from src.core.supabase_client import StorageHelper
 
             self._storage_helper = StorageHelper()
         return self._storage_helper
+
+    @property
+    def s3_helper(self):
+        """Lazy-load S3StorageHelper only when S3 backend is active."""
+        if self._s3_helper is None and self._storage_backend == "s3":
+            from src.core.s3_client import S3StorageHelper
+
+            self._s3_helper = S3StorageHelper()
+        return self._s3_helper
 
     def generate_storage_key(
         self,
@@ -325,9 +338,42 @@ class FileService:
             original_ext = Path(file.filename).suffix
             mime_type = validation_result["mime_type"] or "application/octet-stream"
 
-            if self._storage_enabled:
+            if self._storage_backend == "s3":
+                # --- S3/DO Spaces path ---
+                doc_id = str(uuid.uuid4())
+                bucket_prefix = self.TYPE_TO_BUCKET.get(
+                    validation_result["document_type"], "documents"
+                )
+                s3_key = (
+                    f"{bucket_prefix}/{organization.id}/{doc_id}/"
+                    f"{int(time.time())}_{uuid.uuid4().hex[:8]}{original_ext}"
+                )
+
+                file_content = await file.read()
+                file.file.seek(0)
+                file_hash = self.calculate_file_hash_from_bytes(file_content)
+
+                self.s3_helper.upload_file(s3_key, file_content, mime_type)
+
+                document = Document(
+                    id=doc_id,
+                    title=title,
+                    filename=file.filename,
+                    file_path=f"s3://{settings.S3_BUCKET_NAME}/{s3_key}",
+                    file_size_bytes=validation_result["file_size"],
+                    mime_type=mime_type,
+                    document_type=validation_result["document_type"],
+                    processing_status=ProcessingStatus.PENDING,
+                    is_public=is_public,
+                    tags=tags or [],
+                    organization_id=organization.id,
+                    uploaded_by_user_id=user.id,
+                    storage_path=s3_key,
+                    storage_backend="s3",
+                )
+
+            elif self._storage_backend == "supabase":
                 # --- Supabase Storage path ---
-                # We need a doc_id before uploading, generate one ahead of time
                 doc_id = str(uuid.uuid4())
                 bucket, key = self.generate_storage_key(
                     validation_result["document_type"],
@@ -336,12 +382,10 @@ class FileService:
                     original_ext,
                 )
 
-                # Read file content for hash + upload
                 file_content = await file.read()
                 file.file.seek(0)
                 file_hash = self.calculate_file_hash_from_bytes(file_content)
 
-                # Upload to Supabase Storage
                 storage_key = self.storage_helper.upload_file(
                     bucket, key, file_content, mime_type
                 )
@@ -362,8 +406,9 @@ class FileService:
                     storage_path=storage_key,
                     storage_backend="supabase",
                 )
+
             else:
-                # --- Local filesystem path (unchanged) ---
+                # --- Local filesystem path (default) ---
                 file_path = self.generate_file_path(
                     validation_result["document_type"], str(organization.id)
                 )
@@ -575,8 +620,13 @@ class FileService:
         return metadata
 
     def delete_physical_file(self, document: Document) -> None:
-        """Delete the physical file from either Supabase Storage or local disk."""
-        if document.storage_backend == "supabase" and document.storage_path:
+        """Delete the physical file from S3, Supabase Storage, or local disk."""
+        if document.storage_backend == "s3" and document.storage_path:
+            from src.core.s3_client import S3StorageHelper
+
+            helper = S3StorageHelper()
+            helper.delete_file(document.storage_path)
+        elif document.storage_backend == "supabase" and document.storage_path:
             from src.core.supabase_client import parse_storage_key
 
             bucket, key = parse_storage_key(document.storage_path)
