@@ -243,6 +243,9 @@ qdrant:
       api_key: ""
       http_port: 6333
       grpc_port: 6334
+  backup:
+    enabled: true
+    schedule: "0 3 * * 0"  # Weekly Sunday 3am
 
 celeryWorker:
   enabled: true

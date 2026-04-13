@@ -775,10 +775,31 @@ async def store_search_analytics(
     user_id: Optional[uuid.UUID],
     result_count: int,
     search_time_ms: float,
+    search_type: Optional[str] = None,
 ):
-    """Store search analytics in background"""
+    """Store search analytics to DB and event log"""
     try:
-        # This would store in analytics database
+        # Persist to search_analytics table
+        from src.core.database import AsyncSessionLocal
+        from src.models.search_analytics import SearchAnalyticsEvent
+
+        async with AsyncSessionLocal() as db:
+            event = SearchAnalyticsEvent(
+                search_id=search_id,
+                query=query,
+                organization_id=organization_id,
+                user_id=user_id,
+                search_type=search_type,
+                result_count=result_count,
+                search_time_ms=search_time_ms,
+            )
+            db.add(event)
+            await db.commit()
+    except Exception as db_err:
+        # DB persistence is best-effort; fall back to event log only
+        logger.debug(f"Search analytics DB write failed (non-critical): {db_err}")
+
+    try:
         await event_logger.log_event(
             event_type="search_analytics_stored",
             event_data={
