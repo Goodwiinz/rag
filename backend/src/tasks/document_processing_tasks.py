@@ -11,7 +11,7 @@ from celery.exceptions import Retry
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from src.api.document_upload import upload_manager
+from src.api.documents.document_upload import upload_manager
 from src.core.config import settings
 from src.core.database import get_db
 from src.models.document import Document, ProcessingStatus
