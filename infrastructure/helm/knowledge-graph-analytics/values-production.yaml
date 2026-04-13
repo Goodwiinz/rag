@@ -157,6 +157,27 @@ backend:
       value: "https://app.gen-text.app,https://gen-text.app"
     - name: QDRANT_URL
       value: "http://localhost:6333"
+    # S3-Compatible Object Storage (DigitalOcean Spaces)
+    - name: STORAGE_BACKEND
+      value: "s3"
+    - name: S3_ENDPOINT_URL
+      value: "https://nyc3.digitaloceanspaces.com"
+    - name: S3_BUCKET_NAME
+      value: "rag-system-storage"
+    - name: S3_REGION
+      value: "nyc3"
+    - name: S3_CDN_ENDPOINT
+      value: "https://rag-system-storage.nyc3.cdn.digitaloceanspaces.com"
+    - name: S3_ACCESS_KEY
+      valueFrom:
+        secretKeyRef:
+          name: spaces-credentials
+          key: S3_ACCESS_KEY
+    - name: S3_SECRET_KEY
+      valueFrom:
+        secretKeyRef:
+          name: spaces-credentials
+          key: S3_SECRET_KEY
 
   healthCheck:
     enabled: true

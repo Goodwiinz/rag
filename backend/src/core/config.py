@@ -181,7 +181,19 @@ class Settings(BaseSettings):
     MAX_FILE_SIZE_MB: int = 10
     FREE_TIER_STORAGE_GB: int = 10
 
-    # Supabase Storage
+    # Storage Backend: "local", "s3", or "supabase"
+    STORAGE_BACKEND: str = "local"
+
+    # S3-Compatible Object Storage (DigitalOcean Spaces)
+    S3_ENDPOINT_URL: Optional[str] = None  # https://nyc3.digitaloceanspaces.com
+    S3_ACCESS_KEY: Optional[str] = None
+    S3_SECRET_KEY: Optional[str] = None
+    S3_BUCKET_NAME: str = "rag-system-storage"
+    S3_REGION: str = "nyc3"
+    S3_CDN_ENDPOINT: Optional[str] = None  # https://rag-system-storage.nyc3.cdn.digitaloceanspaces.com
+    S3_STORAGE_TEMP_DIR: str = "/tmp/rag_s3_storage"
+
+    # Supabase Storage (legacy)
     SUPABASE_STORAGE_ENABLED: bool = False
     SUPABASE_STORAGE_TEMP_DIR: str = "/tmp/rag_storage"
 
