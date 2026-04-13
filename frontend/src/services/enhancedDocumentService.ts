@@ -78,6 +78,16 @@ export interface UploadProgressResponse {
   error_message?: string;
 }
 
+export interface DocumentProcessingStatusResponse {
+  document_id: string;
+  processing_status: string;
+  progress_percentage: number;
+  current_step?: string;
+  processing_started_at?: string;
+  estimated_completion?: string;
+  error_message?: string;
+}
+
 export interface ProcessingJobStatus {
   job_id: string;
   document_id: string;
@@ -139,6 +149,9 @@ export interface WebSocketProgressUpdate {
 export class EnhancedDocumentService {
   private readonly basePath = '/api/v1/files';  // Using v1 API for now
   private websocketConnections: Map<string, WebSocket> = new Map();
+  private statusPollers: Map<string, ReturnType<typeof setTimeout>> = new Map();
+  private readonly statusPollIntervalMs = 2000;
+  private readonly maxStatusPollAttempts = 60;
 
   /**
    * Upload a single document with enhanced processing
@@ -172,6 +185,31 @@ export class EnhancedDocumentService {
     // Note: WebSocket progress tracking not yet implemented in backend
     // Return null websocket for now
     // TODO: Implement WebSocket progress tracking when backend supports it
+
+    if (onProgress) {
+      if (this.isTerminalProcessingStatus(response.processing_status)) {
+        onProgress({
+          type: response.processing_status === 'failed' ? 'error' : 'upload_complete',
+          upload_id: response.upload_id,
+          error_message:
+            response.processing_status === 'failed'
+              ? response.message
+              : undefined,
+          result:
+            response.processing_status === 'failed'
+              ? undefined
+              : {
+                  document_id: response.document_id,
+                  job_id: response.job_id,
+                  title: response.title,
+                  status: response.processing_status,
+                },
+          timestamp: new Date().toISOString(),
+        });
+      } else {
+        void this.pollDocumentStatus(response, onProgress);
+      }
+    }
 
     return {
       response: response,
@@ -234,6 +272,8 @@ export class EnhancedDocumentService {
    * Cancel an ongoing upload
    */
   async cancelUpload(uploadId: string): Promise<APIResponse<{ message: string }>> {
+    this.clearStatusPolling(uploadId);
+
     // Close WebSocket connection if exists
     const websocket = this.websocketConnections.get(uploadId);
     if (websocket) {
@@ -351,6 +391,11 @@ export class EnhancedDocumentService {
    * Close all WebSocket connections
    */
   closeAllConnections(): void {
+    this.statusPollers.forEach((poller) => {
+      clearTimeout(poller);
+    });
+    this.statusPollers.clear();
+
     this.websocketConnections.forEach((websocket, uploadId) => {
       websocket.close();
       console.log(`Closed WebSocket connection for upload ${uploadId}`);
@@ -431,6 +476,125 @@ export class EnhancedDocumentService {
     const multiplier = typeMultipliers[file.type as keyof typeof typeMultipliers] || 1.0;
 
     return Math.ceil((baseTime + sizeTime) * multiplier);
+  }
+
+  private async pollDocumentStatus(
+    response: DocumentUploadResponse,
+    onProgress: (update: WebSocketProgressUpdate) => void,
+    attempt: number = 0
+  ): Promise<void> {
+    if (attempt >= this.maxStatusPollAttempts) {
+      this.clearStatusPolling(response.upload_id);
+      onProgress({
+        type: 'error',
+        upload_id: response.upload_id,
+        error_message: 'Timed out waiting for document processing to complete',
+        timestamp: new Date().toISOString(),
+      });
+      return;
+    }
+
+    try {
+      const status = await apiClient.get<DocumentProcessingStatusResponse>(
+        `/documents/${response.document_id}/status`
+      );
+
+      onProgress({
+        type: 'progress_update',
+        upload_id: response.upload_id,
+        progress_percentage: status.progress_percentage,
+        current_step:
+          status.current_step ||
+          this.getFallbackStepLabel(status.processing_status),
+        error_message: status.error_message,
+        timestamp: new Date().toISOString(),
+      });
+
+      if (status.processing_status === 'failed') {
+        this.clearStatusPolling(response.upload_id);
+        onProgress({
+          type: 'error',
+          upload_id: response.upload_id,
+          error_message:
+            status.error_message || 'Document processing failed',
+          timestamp: new Date().toISOString(),
+        });
+        return;
+      }
+
+      if (this.isCompletedProcessingStatus(status.processing_status)) {
+        this.clearStatusPolling(response.upload_id);
+        onProgress({
+          type: 'upload_complete',
+          upload_id: response.upload_id,
+          result: {
+            document_id: response.document_id,
+            job_id: response.job_id,
+            title: response.title,
+            status: status.processing_status,
+          },
+          timestamp: new Date().toISOString(),
+        });
+        return;
+      }
+
+      this.scheduleStatusPolling(response, onProgress, attempt + 1);
+    } catch (error) {
+      console.error(
+        `Failed to poll document status for ${response.document_id}:`,
+        error
+      );
+      this.scheduleStatusPolling(response, onProgress, attempt + 1);
+    }
+  }
+
+  private scheduleStatusPolling(
+    response: DocumentUploadResponse,
+    onProgress: (update: WebSocketProgressUpdate) => void,
+    attempt: number
+  ): void {
+    this.clearStatusPolling(response.upload_id);
+
+    const poller = setTimeout(() => {
+      void this.pollDocumentStatus(response, onProgress, attempt);
+    }, this.statusPollIntervalMs);
+
+    this.statusPollers.set(response.upload_id, poller);
+  }
+
+  private clearStatusPolling(uploadId: string): void {
+    const poller = this.statusPollers.get(uploadId);
+    if (!poller) {
+      return;
+    }
+
+    clearTimeout(poller);
+    this.statusPollers.delete(uploadId);
+  }
+
+  private isCompletedProcessingStatus(status?: string): boolean {
+    return status === 'indexed' || status === 'completed';
+  }
+
+  private isTerminalProcessingStatus(status?: string): boolean {
+    return this.isCompletedProcessingStatus(status) || status === 'failed';
+  }
+
+  private getFallbackStepLabel(status?: string): string {
+    switch (status) {
+      case 'queued':
+      case 'pending':
+        return 'Queued for processing';
+      case 'processing':
+        return 'Processing';
+      case 'indexed':
+      case 'completed':
+        return 'Completed';
+      case 'failed':
+        return 'Failed';
+      default:
+        return 'Processing';
+    }
   }
 }
 

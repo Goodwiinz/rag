@@ -2,6 +2,7 @@
 Document management API endpoints
 """
 
+import logging
 import uuid as uuid_module
 from datetime import datetime, timedelta
 from typing import List, Optional
@@ -17,6 +18,7 @@ from fastapi import (
 )
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -45,6 +47,7 @@ from src.services.documents.file_service import FileService, get_file_service
 from src.shared.enums import DocumentSortField, SortOrder
 
 router = APIRouter(prefix="/documents", tags=["documents"], redirect_slashes=False)
+logger = logging.getLogger(__name__)
 
 
 # Request/Response Models
@@ -141,6 +144,25 @@ class BulkDocumentResponse(BaseModel):
     total_processed: int
     success_count: int
     failure_count: int
+
+
+async def _run_duplicate_lookup(
+    db: AsyncSession,
+    query,
+    lookup_name: str,
+):
+    """Run a duplicate lookup query, tolerating schema drift between environments."""
+    try:
+        result = await db.execute(query)
+    except SQLAlchemyError as exc:
+        logger.warning(
+            "Duplicate lookup failed for %s; falling back to legacy hash strategies",
+            lookup_name,
+            exc_info=exc,
+        )
+        return None
+
+    return result.scalar_one_or_none()
 
 
 @router.get(
@@ -696,12 +718,12 @@ async def check_duplicate(
         )
         .limit(1)
     )
-    result = await db.execute(query)
-    existing = result.scalar_one_or_none()
+    existing = await _run_duplicate_lookup(db, query, "checksum_sha256")
 
     if existing is None:
         # Also check metadata-stored hash for older documents
         from sqlalchemy import cast, String
+
         query = (
             select(Document)
             .where(
@@ -711,8 +733,11 @@ async def check_duplicate(
             )
             .limit(1)
         )
-        result = await db.execute(query)
-        existing = result.scalar_one_or_none()
+        existing = await _run_duplicate_lookup(
+            db,
+            query,
+            "document_metadata.file_hash",
+        )
 
     if existing is None:
         return DuplicateCheckResponse(exists=False)
