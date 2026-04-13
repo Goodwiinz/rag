@@ -1,13 +1,6 @@
 'use client';
 
-import {
-  AVAILABLE_MODELS,
-  ChatInput,
-  ChatSettings,
-  CitationPanel,
-  ModelLoadingProgress,
-  WelcomeState,
-} from '@/components/chat';
+import { ChatInput, CitationPanel, WelcomeState } from '@/components/chat';
 import { ChatHeader } from '@/components/chat/ChatHeader';
 import { ChatSidebar } from '@/components/chat/ChatSidebar';
 import {
@@ -21,30 +14,18 @@ import {
 import { TerminalChatBubble } from '@/components/chat/shared/TerminalChatBubble';
 import { upsertConversationFromThreadDetail } from '@/components/chat/shared/threadConversationState';
 import { buildThreadCreateRequest } from '@/components/chat/shared/threadCreation';
-import {
-  buildRAGSystemPrompt,
-  getModelAwareHistory,
-  getModelSize,
-  getRAGConfigForModel,
-  RAGContextItem,
-  ragService,
-} from '@/services/ragService';
+import { agentChatService } from '@/services/agentChatService';
 import { workspaceService } from '@/services/workspaceService';
 import { useChatStore } from '@/store/chat-store';
 import { useAuthStore } from '@/stores/authStore';
 import {
-  CitationCreate,
   ChatMessage as DBChatMessage,
   Conversation as DBConversation,
   MessageRole,
   Workspace,
 } from '@/types/workspace';
-import {
-  Citation,
-  getReferencedItemsByCitationIndex,
-} from '@/utils/citationParser';
+import { Citation } from '@/utils/citationParser';
 import { normalizeCitation } from '@/utils/citationNormalizer';
-import type { InitProgressReport, MLCEngine } from '@mlc-ai/web-llm';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Activity, ArrowDown, Loader2 } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -127,33 +108,6 @@ interface Conversation {
 // CONSTANTS
 // ============================================
 
-// Wait for Zustand store loadMessages to propagate after streaming completes
-const STORE_PROPAGATION_DELAY_MS = 200;
-
-const DEFAULT_SETTINGS: ChatSettings = {
-  temperature: 0.7,
-  maxTokens: 2048,
-  topP: 0.9,
-  frequencyPenalty: 0,
-  presencePenalty: 0,
-  systemPrompt:
-    'You are an advanced AI assistant operating within the Terminal Observatory. Provide precise, well-structured responses.',
-  systemPromptTemplate: 'default',
-  streamResponses: true,
-  autoSave: true,
-  showTimestamps: true,
-  showThinking: false,
-  markdownRendering: true,
-  theme: 'system',
-  fontSize: 'medium',
-  compactMode: false,
-  showAvatars: true,
-  soundEnabled: true,
-  desktopNotifications: false,
-  dataRetention: 30,
-  shareAnalytics: false,
-};
-
 // ============================================
 // MAIN PAGE COMPONENT
 // ============================================
@@ -166,7 +120,6 @@ function ChatPageContent() {
   >(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
-  const [selectedModel, setSelectedModel] = useState<string>('gpt-4o');
 
   // Database state
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
@@ -178,21 +131,16 @@ function ChatPageContent() {
 
   // Loading states
   const [isLoading, setIsLoading] = useState(false);
-  const [isModelLoading, setIsModelLoading] = useState(false);
-  const [modelLoadError, setModelLoadError] = useState<string | null>(null);
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
-  const [progress, setProgress] = useState('');
-  const [progressVal, setProgressVal] = useState(0);
 
-  // RAG state for local models
+  // RAG state
   const [enableRAG, setEnableRAG] = useState(true);
-  const [isRAGLoading, setIsRAGLoading] = useState(false);
 
-  // Settings
-  const [settings] = useState<ChatSettings>(DEFAULT_SETTINGS);
+  // Agent state
+  const [agentThreadId, setAgentThreadId] = useState<string | null>(null);
+  const agentThreadMapRef = useRef<Record<string, string>>({});
 
   // Refs
-  const engineRef = useRef<MLCEngine | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const chatInputRef = useRef<HTMLTextAreaElement>(null);
@@ -222,12 +170,10 @@ function ChatPageContent() {
   const storeMessages = useChatStore((state) => state.messages);
   const addMessageToStore = useChatStore((state) => state.addMessageToStore);
 
-  // Streaming state from store (for cloud model SSE streaming)
-  const storeStreamMessage = useChatStore((state) => state.streamMessage);
+  // Streaming state from store
   const storeStopStreaming = useChatStore((state) => state.stopStreaming);
   const storeIsStreaming = useChatStore((state) => state.isStreaming);
   const storeStreamingContent = useChatStore((state) => state.streamingContent);
-  const currentModel = AVAILABLE_MODELS.find((m) => m.id === selectedModel);
   const activeThreadId = currentThreadIdFromStore || activeConversationId;
   const displayedMessages = selectDisplayedMessages({
     localMessages: messages,
@@ -256,13 +202,6 @@ function ChatPageContent() {
       streamingTimestampRef.current = Date.now();
     }
   }, [storeIsStreaming]);
-
-  // Track streaming content in a ref for post-stream fallback
-  useEffect(() => {
-    if (storeStreamingContent) {
-      lastStreamedContentRef.current = storeStreamingContent;
-    }
-  }, [storeStreamingContent]);
 
   useEffect(() => {
     if (!activeThreadId) {
@@ -650,69 +589,9 @@ function ChatPageContent() {
     setShowScrollButton(false);
   }, []);
 
-  // Model initialization
-  const initProgressCallback = (report: InitProgressReport) => {
-    setProgress(report.text);
-    setProgressVal(report.progress);
-  };
-
-  const loadModel = async (modelId: string) => {
-    const model = AVAILABLE_MODELS.find((m) => m.id === modelId);
-
-    // Skip WebLLM loading for cloud models
-    if (model?.isCloud) {
-      setProgress('Cloud model ready - no local loading required');
-      setProgressVal(1);
-      return;
-    }
-
-    setIsModelLoading(true);
-    setModelLoadError(null);
-    try {
-      if (!engineRef.current) {
-        const { CreateMLCEngine } = await import('@mlc-ai/web-llm');
-        engineRef.current = await CreateMLCEngine(modelId, {
-          initProgressCallback,
-        });
-      } else {
-        await engineRef.current.reload(modelId);
-      }
-    } catch (err) {
-      console.error('Failed to load model:', err);
-      setModelLoadError(
-        err instanceof Error ? err.message : 'Failed to load model'
-      );
-    } finally {
-      setIsModelLoading(false);
-    }
-  };
-
-  // Model change handler
-  const handleModelChange = async (modelId: string) => {
-    setSelectedModel(modelId);
-    setModelLoadError(null);
-    await loadModel(modelId);
-  };
-
   // Send message
   const handleSubmit = async () => {
-    if (
-      !input.trim() ||
-      isLoading ||
-      storeIsStreaming ||
-      isModelLoading ||
-      !selectedModel
-    )
-      return;
-
-    const model = AVAILABLE_MODELS.find((m) => m.id === selectedModel);
-    const isCloudModel = model?.isCloud;
-
-    // For local models, require engine to be initialized
-    if (!isCloudModel && !engineRef.current) {
-      console.error('Engine not initialized');
-      return;
-    }
+    if (!input.trim() || isLoading || storeIsStreaming) return;
 
     const userMessage: Message = {
       role: 'user',
@@ -727,11 +606,10 @@ function ChatPageContent() {
 
     // Create new thread if needed (when no active conversation)
     let currentConversationId = activeConversationId;
-    let currentThreadId = activeConversationId; // In our mapping, conversation ID = thread ID
+    let currentThreadId = activeConversationId;
 
     if (!currentConversationId && dbConversation) {
       try {
-        // Create new thread in database with dynamic title
         const dynamicTitle = generateConversationTitle(input);
         console.log(
           '[Chat] Creating new thread in database with title:',
@@ -751,7 +629,6 @@ function ChatPageContent() {
           id: newThread.id,
           title: newThread.title || dynamicTitle,
           messages: newMessages,
-          modelId: selectedModel,
           createdAt: Date.now(),
           updatedAt: Date.now(),
           threadId: newThread.id,
@@ -770,261 +647,117 @@ function ChatPageContent() {
       }
     }
 
-    // Save user message to database (skip for cloud models -- streaming endpoint persists it)
-    if (currentThreadId && isAuthenticated && !isCloudModel) {
-      try {
-        const savedUserMessage = await workspaceService.createMessage({
-          thread_id: currentThreadId,
-          content: input.trim(),
-          role: MessageRole.USER,
-        });
-        console.log('[Chat] Saved user message to database');
-        // Sync to Zustand store so layout can see it
-        addMessageToStore(currentThreadId, savedUserMessage);
-      } catch (error) {
-        console.error('[Chat] Failed to save user message:', error);
-      }
-    }
-
     try {
-      let assistantMessage = '';
+      // Stream via Agent (LangGraph) backend
+      const existingAgentThreadId = currentThreadId
+        ? agentThreadMapRef.current[currentThreadId]
+        : undefined;
 
-      if (isCloudModel) {
-        // Use SSE streaming for cloud models (GPT-4o via Azure OpenAI)
-        console.log(
-          '[Chat] Starting SSE stream for cloud model, thread:',
-          currentThreadId
-        );
-        lastStreamedContentRef.current = '';
-        await storeStreamMessage(
-          input.trim(),
-          currentThreadId || undefined,
-          enableRAG
-        );
+      console.log(
+        '[Chat] Starting agent stream, workspace thread:',
+        currentThreadId,
+        'agent thread:',
+        existingAgentThreadId
+      );
 
-        // After streaming completes, the store has refreshed messages via loadMessages.
-        if (currentThreadId) {
-          let updatedStoreMessages =
-            useChatStore.getState().messages[currentThreadId] || [];
-          if (updatedStoreMessages.length === 0) {
-            // Retry after a short delay — loadMessages may still be propagating
-            await new Promise((r) => setTimeout(r, STORE_PROPAGATION_DELAY_MS));
-            updatedStoreMessages =
-              useChatStore.getState().messages[currentThreadId] || [];
-          }
-          if (
-            updatedStoreMessages.length === 0 &&
-            lastStreamedContentRef.current
-          ) {
-            // Fallback: store loadMessages returned empty (e.g. network hiccup).
-            console.warn(
-              '[Chat] Store messages empty after stream, using captured content fallback'
-            );
-            const fallbackMessages: Message[] = [
-              ...newMessages,
-              {
-                role: 'assistant' as const,
-                content: lastStreamedContentRef.current,
-                timestamp: Date.now(),
-              },
-            ];
-            setMessages(fallbackMessages);
-            setConversations((prev) =>
-              prev.map((conv) =>
-                conv.id === currentConversationId
-                  ? {
-                      ...conv,
-                      messages: fallbackMessages,
-                      updatedAt: Date.now(),
-                    }
-                  : conv
-              )
-            );
-          }
-        }
+      let assistantContent = '';
+      lastStreamedContentRef.current = '';
 
-        // NOW clear streaming state
-        storeStopStreaming();
-        lastStreamedContentRef.current = '';
-      } else {
-        // Use local WebLLM engine for browser-based models
-        let ragContexts: RAGContextItem[] = [];
-        let systemPrompt = settings.systemPrompt;
+      // Set streaming state in store for UI
+      useChatStore.setState({
+        isStreaming: true,
+        streamingContent: '',
+      });
 
-        // Phase 2: Get model-aware configuration
-        const modelSize = getModelSize(selectedModel);
-        const ragConfig = getRAGConfigForModel(modelSize);
-        console.log(`[RAG] Model size: ${modelSize}, Config:`, ragConfig);
-
-        // Retrieve RAG context if enabled for local models
-        if (enableRAG) {
-          setIsRAGLoading(true);
-          console.log('[RAG] Retrieving context for local model...');
-
-          try {
-            const ragResult = await ragService.retrieve(input.trim(), {
-              maxDocs: ragConfig.maxDocs,
-              minScore: 0.05,
-              maxTokens: ragConfig.maxTokens,
+      await agentChatService.streamMessage(
+        {
+          messages: newMessages.map((m) => ({
+            role: m.role,
+            content: m.content,
+          })),
+          page_context: { type: 'chat' },
+          use_rag: enableRAG,
+          thread_id: existingAgentThreadId,
+        },
+        {
+          onToken: (content) => {
+            assistantContent += content;
+            lastStreamedContentRef.current = assistantContent;
+            useChatStore.setState({
+              streamingContent: assistantContent,
             });
-
-            if (ragResult && ragResult.contexts.length > 0) {
-              ragContexts = ragResult.contexts;
-              systemPrompt = buildRAGSystemPrompt(
-                settings.systemPrompt,
-                ragContexts,
-                modelSize
-              );
-              console.log(
-                `[RAG] Retrieved ${ragContexts.length} contexts in ${ragResult.retrievalTimeMs.toFixed(0)}ms`
-              );
-            } else {
-              console.log(
-                '[RAG] No relevant context found, proceeding without RAG'
-              );
-            }
-          } catch (error) {
-            console.error(
-              '[RAG] Retrieval failed, falling back to no-context mode:',
-              error
-            );
-          } finally {
-            setIsRAGLoading(false);
-          }
-        }
-
-        // Debug: Log the system prompt to verify RAG context is included
-        console.log('[RAG] System prompt length:', systemPrompt.length);
-        console.log(
-          '[RAG] System prompt preview:',
-          systemPrompt.substring(0, 500) + '...'
-        );
-
-        // Phase 2: Trim conversation history based on model size
-        const trimmedHistory = getModelAwareHistory(
-          newMessages.map((m) => ({ role: m.role, content: m.content })),
-          selectedModel
-        );
-
-        const response = await engineRef.current!.chat.completions.create({
-          messages: [
-            { role: 'system', content: systemPrompt },
-            ...trimmedHistory,
-          ],
-          temperature: settings.temperature,
-          max_tokens: settings.maxTokens,
-          stream: true,
-        });
-
-        const allLocalModelCitations: Citation[] = ragContexts.map((ctx) => ({
-          documentId: ctx.documentId,
-          title: ctx.title,
-          score: ctx.score,
-          content: ctx.content,
-          source: ctx.source || ctx.documentType,
-        }));
-
-        const allDbCitations: CitationCreate[] = ragContexts
-          .filter((ctx) => ctx.documentId)
-          .map((ctx) => ({
-            document_id: ctx.documentId,
-            document_title: ctx.title,
-            document_type: ctx.documentType,
-            snippet: ctx.content,
-            score: ctx.score,
-          }));
-
-        // Handle streaming response
-        for await (const chunk of response) {
-          const delta = chunk.choices[0]?.delta?.content || '';
-          assistantMessage += delta;
-          const referencedStreamingCitations =
-            getReferencedItemsByCitationIndex(
-              assistantMessage,
-              allLocalModelCitations
-            );
-          setMessages([
-            ...newMessages,
-            {
-              role: 'assistant',
-              content: assistantMessage,
-              timestamp: Date.now(),
-              citations:
-                referencedStreamingCitations.length > 0
-                  ? referencedStreamingCitations
-                  : undefined,
-            },
-          ]);
-        }
-
-        const localModelCitations = getReferencedItemsByCitationIndex(
-          assistantMessage,
-          allLocalModelCitations
-        );
-        const dbCitations = getReferencedItemsByCitationIndex(
-          assistantMessage,
-          allDbCitations
-        );
-
-        // Save assistant message to database (for local models too)
-        if (currentThreadId && isAuthenticated) {
-          try {
-            const savedMessage = await workspaceService.createMessage({
-              thread_id: currentThreadId,
-              content: assistantMessage,
-              role: MessageRole.ASSISTANT,
-              citations: dbCitations.length > 0 ? dbCitations : undefined,
-            });
-            console.log(
-              '[Chat] Saved local model response to database with',
-              dbCitations.length,
-              'citations'
-            );
-            // Sync to Zustand store so layout's citation panel can read it
-            addMessageToStore(currentThreadId, savedMessage);
-
-            // Persist citations through citation service for better querying
-            if (savedMessage?.id && ragContexts.length > 0) {
-              try {
-                const citationIds = await ragService.persistCitations(
-                  savedMessage.id,
-                  assistantMessage,
-                  ragContexts
-                );
-                console.log(
-                  `[RAG] Persisted ${citationIds.length} citations for message ${savedMessage.id}`
-                );
-              } catch (citError) {
-                console.error('[RAG] Failed to persist citations:', citError);
-              }
-            }
-          } catch (error) {
-            console.error('[Chat] Failed to save assistant message:', error);
-          }
-        }
-
-        const finalMessages: Message[] = [
-          ...newMessages,
-          {
-            role: 'assistant',
-            content: assistantMessage,
-            timestamp: Date.now(),
-            citations:
-              localModelCitations.length > 0 ? localModelCitations : undefined,
           },
-        ];
+          onToolStart: (tool, args) => {
+            console.log('[Agent] Tool start:', tool, args);
+          },
+          onToolEnd: (tool, result) => {
+            console.log('[Agent] Tool end:', tool, result);
+          },
+          onRagContext: (contexts) => {
+            console.log('[Agent] RAG contexts:', contexts.length);
+            useChatStore.setState({
+              streamingCitations: contexts,
+            });
+          },
+          onConfirmation: (threadId, confirmation) => {
+            console.log('[Agent] HITL confirmation needed:', confirmation);
+            // Store agent thread ID for confirmation flow
+            if (currentThreadId) {
+              agentThreadMapRef.current[currentThreadId] = threadId;
+            }
+            setAgentThreadId(threadId);
+          },
+          onDone: () => {
+            console.log('[Agent] Stream complete');
+          },
+          onError: (error) => {
+            console.error('[Agent] Stream error:', error);
+          },
+        }
+      );
 
-        setMessages(finalMessages);
+      // After streaming completes, build final message
+      const finalAssistantMessage: Message = {
+        role: 'assistant',
+        content: assistantContent || lastStreamedContentRef.current,
+        timestamp: Date.now(),
+      };
 
-        // Update conversation
-        setConversations((prev) =>
-          prev.map((conv) =>
-            conv.id === currentConversationId
-              ? { ...conv, messages: finalMessages, updatedAt: Date.now() }
-              : conv
-          )
-        );
+      const finalMessages = [...newMessages, finalAssistantMessage];
+      setMessages(finalMessages);
+
+      // Save messages to workspace database for persistence
+      if (currentThreadId && isAuthenticated) {
+        try {
+          // Save user message
+          const savedUserMessage = await workspaceService.createMessage({
+            thread_id: currentThreadId,
+            content: input.trim(),
+            role: MessageRole.USER,
+          });
+          addMessageToStore(currentThreadId, savedUserMessage);
+
+          // Save assistant message
+          const savedAssistantMessage = await workspaceService.createMessage({
+            thread_id: currentThreadId,
+            content: finalAssistantMessage.content,
+            role: MessageRole.ASSISTANT,
+          });
+          addMessageToStore(currentThreadId, savedAssistantMessage);
+          console.log('[Chat] Saved messages to database');
+        } catch (error) {
+          console.error('[Chat] Failed to save messages:', error);
+        }
       }
+
+      // Update conversation
+      setConversations((prev) =>
+        prev.map((conv) =>
+          conv.id === currentConversationId
+            ? { ...conv, messages: finalMessages, updatedAt: Date.now() }
+            : conv
+        )
+      );
     } catch (err) {
       console.error('Failed to send message:', err);
       const errorMessage =
@@ -1041,19 +774,25 @@ function ChatPageContent() {
       ]);
     } finally {
       setIsLoading(false);
-      // Safety: ensure streaming state is always cleared.
-      if (useChatStore.getState().isStreaming) {
-        storeStopStreaming();
-      }
+      useChatStore.setState({
+        isStreaming: false,
+        streamingContent: '',
+        streamingCitations: [],
+      });
+      lastStreamedContentRef.current = '';
     }
   };
 
   const handleStop = () => {
     setIsLoading(false);
-    // Also stop SSE streaming if active (for cloud models)
     if (storeIsStreaming) {
       storeStopStreaming();
     }
+    useChatStore.setState({
+      isStreaming: false,
+      streamingContent: '',
+      streamingCitations: [],
+    });
   };
 
   const handlePromptSelect = (prompt: string) => {
@@ -1084,38 +823,6 @@ function ChatPageContent() {
       {/* Main Chat Area */}
       <div className="flex-1 flex flex-col relative h-full min-w-0 overflow-hidden">
         <ChatHeader currentWorkspace={workspace} />
-
-        {/* Model Loading Progress */}
-        <AnimatePresence>
-          {isModelLoading && (
-            <ModelLoadingProgress
-              progress={progress}
-              progressVal={progressVal}
-            />
-          )}
-        </AnimatePresence>
-
-        {/* Model Load Error */}
-        {modelLoadError && (
-          <div
-            className="mx-4 mt-2 px-3 py-2 rounded-lg border text-xs flex items-center gap-2"
-            style={{
-              borderColor: 'rgba(239, 68, 68, 0.3)',
-              backgroundColor: 'rgba(239, 68, 68, 0.1)',
-              color: '#ef4444',
-              fontFamily: "'JetBrains Mono', monospace",
-            }}
-          >
-            <span>Model load failed: {modelLoadError}</span>
-            <button
-              onClick={() => setModelLoadError(null)}
-              className="ml-auto opacity-60 hover:opacity-100"
-              aria-label="Dismiss model error"
-            >
-              &times;
-            </button>
-          </div>
-        )}
 
         {/* Messages Area Wrapper */}
         <div className="flex-1 relative min-h-0">
@@ -1209,7 +916,7 @@ function ChatPageContent() {
             ) : displayedMessages.length === 0 && !storeIsStreaming ? (
               <WelcomeState
                 onPromptSelect={handlePromptSelect}
-                selectedModel={selectedModel}
+                selectedModel="nous-agent"
               />
             ) : (
               <div className="max-w-4xl mx-auto pt-4 px-4 pb-6">
@@ -1231,7 +938,7 @@ function ChatPageContent() {
                         index={index}
                         modelName={
                           message.role === 'assistant'
-                            ? currentModel?.name
+                            ? 'NOUS AGENT'
                             : undefined
                         }
                         isTyping={
@@ -1269,7 +976,7 @@ function ChatPageContent() {
                           timestamp: streamingTimestampRef.current,
                         }}
                         index={displayedMessages.length}
-                        modelName={currentModel?.name}
+                        modelName="NOUS AGENT"
                         isStreaming={true}
                         streamingContent={storeStreamingContent}
                         onCitationClick={(citations, clickedCitation) => {
@@ -1315,13 +1022,8 @@ function ChatPageContent() {
           onSubmit={handleSubmit}
           onStop={handleStop}
           isLoading={isLoading || storeIsStreaming}
-          isModelLoading={isModelLoading}
-          selectedModel={selectedModel}
-          models={AVAILABLE_MODELS}
-          onModelChange={handleModelChange}
           enableRAG={enableRAG}
           onRAGToggle={setEnableRAG}
-          isRAGLoading={isRAGLoading}
           inputRef={chatInputRef}
         />
 
