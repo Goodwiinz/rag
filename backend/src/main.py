@@ -177,6 +177,35 @@ async def lifespan(app: FastAPI):
         logger.error(f"Failed to initialize WebSocket services: {e}")
         # Continue startup even if WebSocket services fail
 
+    # Validate S3 storage backend if configured
+    from src.core.config import settings as app_settings
+
+    if app_settings.STORAGE_BACKEND == "s3":
+        missing = []
+        if not app_settings.S3_ENDPOINT_URL:
+            missing.append("S3_ENDPOINT_URL")
+        if not app_settings.S3_ACCESS_KEY:
+            missing.append("S3_ACCESS_KEY")
+        if not app_settings.S3_SECRET_KEY:
+            missing.append("S3_SECRET_KEY")
+        if missing:
+            raise RuntimeError(
+                f"STORAGE_BACKEND=s3 but missing required env vars: {', '.join(missing)}"
+            )
+        try:
+            from src.core.s3_client import S3StorageHelper
+
+            helper = S3StorageHelper()
+            if not helper.check_health():
+                logger.warning("S3 storage health check failed — uploads may fail")
+            else:
+                logger.info(
+                    "S3 storage backend verified",
+                    extra={"bucket": app_settings.S3_BUCKET_NAME},
+                )
+        except Exception as e:
+            raise RuntimeError(f"S3 storage backend initialization failed: {e}")
+
     # Configure LangSmith tracing for agent observability
     try:
         from src.services.agent.observability import configure_langsmith

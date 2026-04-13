@@ -52,7 +52,6 @@ import {
   enhancedDocumentService,
   WebSocketProgressUpdate,
 } from '@/services/enhancedDocumentService';
-import { mockDocumentService } from '@/services/mockDocumentService';
 import { useAuthStore } from '@/stores/authStore';
 
 interface UploadedFile {
@@ -268,12 +267,7 @@ export const EnhancedDocumentUploadZone: React.FC<
             validation = enhancedDocumentService.validateFile(file);
             console.log('✅ Enhanced service validation:', validation);
           } catch (error) {
-            console.warn(
-              '⚠️ Enhanced service validation failed, using mock service:',
-              error
-            );
-            validation = mockDocumentService.validateFile(file);
-            console.log('✅ Mock service validation:', validation);
+            throw error;
           }
 
           if (!validation.isValid) {
@@ -441,33 +435,13 @@ export const EnhancedDocumentUploadZone: React.FC<
         throw new Error('Invalid file: File is empty or null');
       }
 
-      // Try enhanced service first, fallback to mock service
-      try {
-        console.log('📡 Attempting upload with enhanced service...');
-        const result = await enhancedDocumentService.uploadDocument(
-          uploadedFile.file,
-          uploadedFile.request,
-          handleProgressUpdate(uploadedFile.id)
-        );
-        response = result.response;
-        websocket = result.websocket;
-        console.log('✅ Enhanced service upload successful:', response);
-      } catch (error) {
-        console.warn('⚠️ Enhanced service failed, using mock service:', error);
-
-        // Note: Don't try to cancel with uploadedFile.id - the backend doesn't know about it yet
-        // Only WebSocket connections need cleanup, which will be handled automatically
-
-        console.log('📡 Attempting upload with mock service...');
-        const result = await mockDocumentService.uploadDocument(
-          uploadedFile.file,
-          uploadedFile.request,
-          handleProgressUpdate(uploadedFile.id)
-        );
-        response = result.response;
-        websocket = result.websocket;
-        console.log('✅ Mock service upload successful:', response);
-      }
+      const result = await enhancedDocumentService.uploadDocument(
+        uploadedFile.file,
+        uploadedFile.request,
+        handleProgressUpdate(uploadedFile.id)
+      );
+      response = result.response;
+      websocket = result.websocket;
 
       // Validate response
       if (!response || !response.upload_id) {
@@ -545,20 +519,12 @@ export const EnhancedDocumentUploadZone: React.FC<
     const file = uploadedFiles.find((f) => f.id === fileId);
     if (!file) return;
 
-    // Cancel the upload via API (try both services)
+    // Cancel the upload via API
     if (file.uploadId) {
       try {
         await enhancedDocumentService.cancelUpload(file.uploadId);
       } catch (error) {
-        try {
-          await mockDocumentService.cancelUpload(file.uploadId);
-        } catch (mockError) {
-          console.error(
-            'Failed to cancel upload with both services:',
-            error,
-            mockError
-          );
-        }
+        console.error('Failed to cancel upload:', error);
       }
     }
 
@@ -639,7 +605,6 @@ export const EnhancedDocumentUploadZone: React.FC<
   useEffect(() => {
     return () => {
       enhancedDocumentService.closeAllConnections();
-      mockDocumentService.closeAllConnections();
       abortControllers.current.forEach((controller) => controller.abort());
     };
   }, []);
@@ -1230,15 +1195,9 @@ export const EnhancedDocumentUploadZone: React.FC<
                           <div className="text-xs text-gray-500 pt-2">
                             Estimated processing time:{' '}
                             {(() => {
-                              try {
-                                return enhancedDocumentService.estimateProcessingTime(
-                                  file.file
-                                );
-                              } catch {
-                                return mockDocumentService.estimateProcessingTime(
-                                  file.file
-                                );
-                              }
+                              return enhancedDocumentService.estimateProcessingTime(
+                                file.file
+                              );
                             })()}
                             s
                           </div>
