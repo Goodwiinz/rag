@@ -148,6 +148,8 @@ backend:
       value: "https://dev-app.gen-text.app"
     - name: NEO4J_URI
       value: "bolt://nous-dev-knowledge-graph-analytics-neo4j:7687"
+    - name: QDRANT_URL
+      value: "http://nous-dev-knowledge-graph-analytics-qdrant:6333"
 
   healthCheck:
     enabled: true
@@ -203,7 +205,21 @@ neo4j:
         memory: 256Mi
 
 qdrant:
-  enabled: false
+  enabled: true
+  persistence:
+    size: 5Gi
+  resources:
+    limits:
+      cpu: 300m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 256Mi
+  config:
+    service:
+      api_key: ""
+      http_port: 6333
+      grpc_port: 6334
 
 celeryWorker:
   enabled: false

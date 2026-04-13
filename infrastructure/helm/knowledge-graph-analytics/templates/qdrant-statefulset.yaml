@@ -1,0 +1,86 @@
+{{- if .Values.qdrant.enabled }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "knowledge-graph-analytics.fullname" . }}-qdrant
+  labels:
+    app.kubernetes.io/component: qdrant
+    {{- include "knowledge-graph-analytics.labels" . | nindent 4 }}
+spec:
+  serviceName: {{ include "knowledge-graph-analytics.fullname" . }}-qdrant
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: qdrant
+      {{- include "knowledge-graph-analytics.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: qdrant
+        {{- include "knowledge-graph-analytics.selectorLabels" . | nindent 8 }}
+    spec:
+      containers:
+        - name: qdrant
+          image: "qdrant/qdrant:v1.13.2"
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 6333
+            - name: grpc
+              containerPort: 6334
+          {{- if .Values.qdrant.config.service.api_key }}
+          env:
+            - name: QDRANT__SERVICE__API_KEY
+              value: "{{ .Values.qdrant.config.service.api_key }}"
+          {{- end }}
+          resources:
+            {{- toYaml .Values.qdrant.resources | nindent 12 }}
+          volumeMounts:
+            - name: qdrant-data
+              mountPath: /qdrant/storage
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 5
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+  volumeClaimTemplates:
+    - metadata:
+        name: qdrant-data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: {{ .Values.global.storageClass | default "do-block-storage" }}
+        resources:
+          requests:
+            storage: {{ .Values.qdrant.persistence.size | default "10Gi" }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "knowledge-graph-analytics.fullname" . }}-qdrant
+  labels:
+    app.kubernetes.io/component: qdrant
+    {{- include "knowledge-graph-analytics.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 6333
+      targetPort: http
+    - name: grpc
+      port: 6334
+      targetPort: grpc
+  selector:
+    app.kubernetes.io/component: qdrant
+    {{- include "knowledge-graph-analytics.selectorLabels" . | nindent 4 }}
+{{- end }}
