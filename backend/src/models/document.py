@@ -48,9 +48,10 @@ class Document(BaseModel):
     mime_type = Column(String(100), nullable=False)
     document_type = Column(Enum(DocumentType), nullable=False, index=True)
 
-    # Supabase Storage
+    # Storage
     storage_path = Column(String(2000), nullable=True)  # Storage key (bucket/key)
     storage_backend = Column(String(20), nullable=False, server_default="local")
+    checksum_sha256 = Column(String(64), nullable=True, index=True)  # SHA-256 content hash
 
     # Content
     content_text = Column(Text, nullable=True)  # Extracted text content
