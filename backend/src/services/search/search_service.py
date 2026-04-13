@@ -421,13 +421,21 @@ class HybridSearchEngine:
                 WHERE d.organization_id = $org_id
                 """
 
-                if query_words:
-                    entity_conditions = []
-                    for word in query_words[:3]:  # Limit to prevent complex queries
-                        entity_conditions.append(f"toLower(d.title) CONTAINS '{word}'")
+                # Build parameterized word conditions to prevent Cypher injection
+                params = {
+                    "org_id": str(organization_id) if organization_id else "",
+                    "limit": limit,
+                }
 
-                    if entity_conditions:
-                        cypher_query += " AND (" + " OR ".join(entity_conditions) + ")"
+                if query_words:
+                    word_conditions = []
+                    for i, word in enumerate(query_words[:3]):
+                        param_name = f"word{i}"
+                        word_conditions.append(f"toLower(d.title) CONTAINS ${param_name}")
+                        params[param_name] = word
+
+                    if word_conditions:
+                        cypher_query += " AND (" + " OR ".join(word_conditions) + ")"
 
                 cypher_query += """
                 OPTIONAL MATCH (d)-[:CONTAINS_ENTITY]->(e:Entity)
@@ -437,11 +445,7 @@ class HybridSearchEngine:
                 RETURN d, entities
                 """
 
-                result = session.run(
-                    cypher_query,
-                    org_id=str(organization_id) if organization_id else "",
-                    limit=limit,
-                )
+                result = session.run(cypher_query, **params)
 
                 # Convert to search results
                 search_results = []

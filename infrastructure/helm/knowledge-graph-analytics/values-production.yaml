@@ -221,7 +221,7 @@ neo4j:
     repository: neo4j
     tag: "5.26-community"
     pullPolicy: IfNotPresent
-  password: "N@rutops129"
+  password: "N@rutops129"  # TODO: rotate and move to sealed secret
   advertisedAddress: "neo4j.gen-text.app"
   persistence:
     size: 10Gi

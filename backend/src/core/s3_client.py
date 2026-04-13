@@ -28,6 +28,7 @@ def get_s3_client():
 
     try:
         import boto3
+        from botocore.config import Config
 
         _s3_client = boto3.client(
             "s3",
@@ -35,6 +36,11 @@ def get_s3_client():
             aws_access_key_id=settings.S3_ACCESS_KEY,
             aws_secret_access_key=settings.S3_SECRET_KEY,
             region_name=settings.S3_REGION,
+            config=Config(
+                retries={"max_attempts": 3, "mode": "adaptive"},
+                connect_timeout=10,
+                read_timeout=30,
+            ),
         )
         logger.info(
             "s3_client_initialized",
@@ -110,12 +116,12 @@ class S3StorageHelper:
             self._log.error("s3_delete_failed", key=key, error=str(exc))
             return False
 
-    def create_signed_url(self, key: str, expires_in: int = 3600) -> str:
+    def create_signed_url(self, key: str, expires_in: int = 900) -> str:
         """Create a presigned URL for temporary file access.
 
         Args:
             key: Object key within the bucket.
-            expires_in: URL validity in seconds (default 1 hour).
+            expires_in: URL validity in seconds (default 15 minutes).
 
         Returns:
             Presigned URL string.
