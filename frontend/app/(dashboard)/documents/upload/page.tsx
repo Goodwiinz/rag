@@ -39,7 +39,6 @@ import {
   DocumentUploadRequest,
   WebSocketProgressUpdate,
 } from '@/services/enhancedDocumentService';
-import { mockDocumentService } from '@/services/mockDocumentService';
 import { apiClient } from '@/services/apiClient';
 import { useAuthStore } from '@/stores/authStore';
 import { cn } from '@/lib/utils';
@@ -128,12 +127,7 @@ export default function DocumentUploadPage() {
       const newFiles: UploadedFile[] = [];
 
       for (const file of acceptedFiles) {
-        let validation;
-        try {
-          validation = enhancedDocumentService.validateFile(file);
-        } catch {
-          validation = mockDocumentService.validateFile(file);
-        }
+        const validation = enhancedDocumentService.validateFile(file);
 
         if (!validation.isValid) {
           toast({
@@ -254,37 +248,12 @@ export default function DocumentUploadPage() {
         currentStep: 'Establishing uplink',
       });
 
-      let response, websocket;
-      try {
-        const result = await enhancedDocumentService.uploadDocument(
-          uploadedFile.file,
-          uploadedFile.request,
-          handleProgressUpdate(uploadedFile.id)
-        );
-        response = result.response;
-        websocket = result.websocket;
-      } catch (error: any) {
-        // Re-throw duplicate errors (409) so the user sees them
-        const isDuplicate =
-          error?.response?.status === 409 ||
-          error?.status === 409 ||
-          (typeof error?.message === 'string' &&
-            error.message.includes('already exists'));
-        if (isDuplicate) {
-          const detail =
-            error?.response?.data?.detail ||
-            error?.message ||
-            'Duplicate document';
-          throw new Error(detail);
-        }
-        const result = await mockDocumentService.uploadDocument(
-          uploadedFile.file,
-          uploadedFile.request,
-          handleProgressUpdate(uploadedFile.id)
-        );
-        response = result.response;
-        websocket = result.websocket;
-      }
+      const result = await enhancedDocumentService.uploadDocument(
+        uploadedFile.file,
+        uploadedFile.request,
+        handleProgressUpdate(uploadedFile.id)
+      );
+      const { response, websocket } = result;
 
       updateFileStatus(uploadedFile.id, {
         status: 'processing',
