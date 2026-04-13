@@ -541,20 +541,47 @@ class EmbeddingService:
             return {"success": False, "error": str(e)}
 
     def chunk_text(
-        self, text: str, chunk_size: int = 500, overlap: int = 150
+        self, text: str, chunk_size: int = 500, overlap: int = 100
     ) -> List[str]:
-        """Split text into chunks for embedding"""
+        """Split text into chunks for embedding using sentence-aware boundaries.
+
+        Splits on paragraph/sentence boundaries first, then merges into
+        chunks of approximately chunk_size words with overlap.
+        """
         if not text or not text.strip():
             return []
 
-        # Simple word-based chunking
-        words = text.split()
-        chunks = []
+        # Split into sentences/paragraphs (prefer paragraph breaks)
+        import re
 
-        for i in range(0, len(words), chunk_size - overlap):
-            chunk = " ".join(words[i : i + chunk_size])
-            if chunk.strip():
-                chunks.append(chunk.strip())
+        segments = re.split(r"\n\n+", text.strip())
+        # Further split long paragraphs on sentence boundaries
+        sentences: list[str] = []
+        for seg in segments:
+            seg = seg.strip()
+            if not seg:
+                continue
+            # Split on sentence endings followed by space/newline
+            parts = re.split(r"(?<=[.!?])\s+", seg)
+            sentences.extend(p.strip() for p in parts if p.strip())
+
+        if not sentences:
+            return []
+
+        # Merge sentences into chunks of ~chunk_size words
+        chunks: list[str] = []
+        current_words: list[str] = []
+
+        for sentence in sentences:
+            s_words = sentence.split()
+            if current_words and len(current_words) + len(s_words) > chunk_size:
+                chunks.append(" ".join(current_words))
+                # Keep overlap words from the end
+                current_words = current_words[-overlap:] if overlap > 0 else []
+            current_words.extend(s_words)
+
+        if current_words:
+            chunks.append(" ".join(current_words))
 
         return chunks
 
@@ -575,9 +602,8 @@ class EmbeddingService:
             if not chunks:
                 return []
 
-            # Generate embeddings for all chunks - force Azure OpenAI for 1536d vectors
-            chunk_texts = [chunk for chunk in chunks]
-            request = BatchEmbeddingRequest(texts=chunk_texts, provider="azure_openai")
+            # Generate embeddings for all chunks using the configured provider
+            request = BatchEmbeddingRequest(texts=chunks, provider=self.embedding_provider)
             response = await self.generate_batch_embeddings(request)
 
             # Combine embeddings with metadata
