@@ -23,7 +23,7 @@ frontend:
 
   image:
     repository: registry.digitalocean.com/ragsystemregistry/frontend
-    tag: "47f7f45"
+    tag: "2ba6e85"
     pullPolicy: Always
 
   service:
@@ -81,7 +81,7 @@ backend:
 
   image:
     repository: registry.digitalocean.com/ragsystemregistry/backend
-    tag: "47f7f45"
+    tag: "2ba6e85"
     pullPolicy: Always
 
   service:
