@@ -11,7 +11,6 @@ from celery.exceptions import Retry
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from src.api.documents.document_upload import upload_manager
 from src.core.config import settings
 from src.core.database import get_db
 from src.models.document import Document, ProcessingStatus
@@ -44,6 +43,9 @@ def process_document_upload(self, job_id: str, upload_id: Optional[str] = None):
     """
     Process document upload with enhanced pipeline
     """
+    # Lazy import to avoid circular dependency
+    from src.api.documents.document_upload import upload_manager
+
     db = SessionLocal()
     task_id = self.request.id
 
