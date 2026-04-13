@@ -9,25 +9,13 @@ import sys
 from datetime import datetime, timedelta
 from typing import Any, Dict
 
-from celery import Task
-
-# Add src directory to Python path
-sys.path.append(os.path.join(os.path.dirname(__file__), "..", ".."))
-
-from celery import Celery, current_app
-
-# Create Celery app
-celery_app = Celery(
-    "multimodal_rag",
-    broker="redis://redis:6379/0",
-    backend="redis://redis:6379/0",
-    include=["src.tasks.processing_tasks"],
-)
+from celery import Task, current_app
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from src.core.config import settings
 from src.core.database import get_db
+from src.tasks.celery_app import celery_app
 from src.models.document import Document, ProcessingStatus
 from src.models.entity import Entity
 from src.models.graph import (

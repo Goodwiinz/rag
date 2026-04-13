@@ -245,10 +245,25 @@ qdrant:
       grpc_port: 6334
 
 celeryWorker:
-  enabled: false
+  enabled: true
+  replicaCount: 1
+  resources:
+    limits:
+      cpu: 500m
+      memory: 1Gi
+    requests:
+      cpu: 200m
+      memory: 512Mi
 
 celeryBeat:
-  enabled: false
+  enabled: true
+  resources:
+    limits:
+      cpu: 200m
+      memory: 256Mi
+    requests:
+      cpu: 50m
+      memory: 128Mi
 
 prometheus:
   enabled: false
