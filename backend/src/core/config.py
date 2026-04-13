@@ -229,7 +229,7 @@ class Settings(BaseSettings):
     # Cohere Embedding Configuration
     COHERE_EMBED_ENDPOINT: Optional[str] = None  # https://api.cohere.com/v2/embed
     COHERE_EMBED_API_KEY: Optional[str] = None  # Falls back to COHERE_RERANK_API_KEY
-    COHERE_EMBED_MODEL: str = "embed-v4.0"
+    COHERE_EMBED_MODEL: str = "embed-v-4-0"  # Azure AI deployment name
     COHERE_EMBED_DIMENSIONS: int = 1024
     COHERE_EMBED_BATCH_SIZE: int = 96
 
