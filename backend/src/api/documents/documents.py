@@ -491,6 +491,15 @@ async def delete_document(
 
         await db.commit()
 
+        # Invalidate search cache so stale results don't include deleted document
+        try:
+            from src.services.search.search_service import cache
+
+            await cache.delete_pattern("search:*")
+            await cache.delete_pattern("suggestions:*")
+        except Exception:
+            pass  # Cache invalidation is best-effort
+
         return {
             "message": "Document deleted successfully",
             "document_id": str(document.id),

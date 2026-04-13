@@ -1,0 +1,59 @@
+{{- if .Values.backend.autoscaling.enabled }}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "knowledge-graph-analytics.fullname" . }}-backend
+  labels:
+    app.kubernetes.io/component: backend
+    {{- include "knowledge-graph-analytics.labels" . | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "knowledge-graph-analytics.fullname" . }}-backend
+  minReplicas: {{ .Values.backend.autoscaling.minReplicas | default 1 }}
+  maxReplicas: {{ .Values.backend.autoscaling.maxReplicas | default 4 }}
+  metrics:
+    {{- if .Values.backend.autoscaling.targetCPUUtilizationPercentage }}
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.backend.autoscaling.targetCPUUtilizationPercentage }}
+    {{- end }}
+    {{- if .Values.backend.autoscaling.targetMemoryUtilizationPercentage }}
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.backend.autoscaling.targetMemoryUtilizationPercentage }}
+    {{- end }}
+{{- end }}
+---
+{{- if .Values.frontend.autoscaling.enabled }}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "knowledge-graph-analytics.fullname" . }}-frontend
+  labels:
+    app.kubernetes.io/component: frontend
+    {{- include "knowledge-graph-analytics.labels" . | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "knowledge-graph-analytics.fullname" . }}-frontend
+  minReplicas: {{ .Values.frontend.autoscaling.minReplicas | default 1 }}
+  maxReplicas: {{ .Values.frontend.autoscaling.maxReplicas | default 2 }}
+  metrics:
+    {{- if .Values.frontend.autoscaling.targetCPUUtilizationPercentage }}
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.frontend.autoscaling.targetCPUUtilizationPercentage }}
+    {{- end }}
+{{- end }}
