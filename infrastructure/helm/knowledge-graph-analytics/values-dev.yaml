@@ -134,6 +134,8 @@ backend:
         name: spaces-credentials
     - secretRef:
         name: supabase-credentials
+    - secretRef:
+        name: redis-credentials
 
   env:
     - name: ENVIRONMENT
