@@ -109,16 +109,33 @@ class CohereEmbedService:
             raise RuntimeError("Cohere embed circuit breaker is open")
 
         all_embeddings: List[List[float]] = []
+        failed_count = 0
         start_time = time.time()
 
         for i in range(0, len(texts), self.batch_size):
             batch = texts[i : i + self.batch_size]
-            batch_embeddings = await self._embed_texts_batch(batch, input_type)
-            all_embeddings.extend(batch_embeddings)
+            try:
+                batch_embeddings = await self._embed_texts_batch(batch, input_type)
+                all_embeddings.extend(batch_embeddings)
+            except Exception as batch_err:
+                logger.warning(
+                    f"Batch {i // self.batch_size} failed ({len(batch)} texts), "
+                    f"retrying individually: {batch_err}"
+                )
+                # Retry each item in the failed batch individually
+                for text in batch:
+                    try:
+                        single = await self._embed_texts_batch([text], input_type)
+                        all_embeddings.extend(single)
+                    except Exception:
+                        logger.error(f"Single text embed failed, using zero vector: {text[:80]}")
+                        all_embeddings.append([0.0] * self.dimensions)
+                        failed_count += 1
 
         elapsed_ms = (time.time() - start_time) * 1000
         logger.info(
             f"Cohere embed completed in {elapsed_ms:.0f}ms for {len(texts)} texts"
+            f"{f' ({failed_count} failed)' if failed_count else ''}"
         )
 
         if breaker:

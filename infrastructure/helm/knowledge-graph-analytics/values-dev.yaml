@@ -278,7 +278,8 @@ networkPolicy:
   enabled: false
 
 podDisruptionBudget:
-  enabled: false
+  enabled: true
+  minAvailable: 1
 
 serviceAccount:
   create: true
