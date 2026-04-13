@@ -108,6 +108,10 @@ class CohereEmbedService:
         if breaker and not breaker.can_execute():
             raise RuntimeError("Cohere embed circuit breaker is open")
 
+        # Pre-validate: truncate texts exceeding ~8000 tokens (~32000 chars)
+        max_chars = 32000
+        texts = [t[:max_chars] if len(t) > max_chars else t for t in texts]
+
         all_embeddings: List[List[float]] = []
         failed_count = 0
         start_time = time.time()
