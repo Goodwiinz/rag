@@ -27,6 +27,8 @@ from src.services.processing.video_processing_service import VideoProcessingServ
 logger = logging.getLogger(__name__)
 
 # Celery configuration
+import ssl as _ssl
+
 celery_app = Celery(
     "rag_processing",
     broker=settings.REDIS_URL,
@@ -34,7 +36,11 @@ celery_app = Celery(
     include=["src.tasks.processing_tasks"],
 )
 
+_redis_tls = settings.REDIS_URL.startswith("rediss://")
+_ssl_opts = {"ssl_cert_reqs": _ssl.CERT_NONE} if _redis_tls else None
+
 celery_app.conf.update(
+    **({"broker_use_ssl": _ssl_opts, "redis_backend_use_ssl": _ssl_opts} if _redis_tls else {}),
     task_serializer="json",
     accept_content=["json"],
     result_serializer="json",
