@@ -6,7 +6,6 @@ and returns a dict result.
 """
 
 import logging
-import re
 from datetime import datetime
 from typing import Any, Dict, Optional
 from uuid import UUID
@@ -27,6 +26,11 @@ from .tool_helpers import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _escape_like(value: str) -> str:
+    """Escape special LIKE pattern characters for safe ilike() queries."""
+    return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
 
 # ---------------------------------------------------------------------------
@@ -571,8 +575,7 @@ async def _tool_search_documents(
         return {"error": "Query is required"}
 
     try:
-        escaped = re.sub(r"([%_\\])", r"\\\1", query)
-        pattern = f"%{escaped}%"
+        pattern = f"%{_escape_like(query)}%"
         stmt = (
             select(Document)
             .where(
@@ -1198,6 +1201,16 @@ async def _tool_export_bibliography(
                 doc_uuid = UUID(did)
             except (ValueError, AttributeError):
                 continue
+
+            # Verify document belongs to user's organization before fetching citations
+            doc_stmt = select(Document).where(
+                Document.id == doc_uuid,
+                Document.organization_id == current_user.organization_id,
+                Document.is_deleted == False,
+            )
+            doc_result = await db.execute(doc_stmt)
+            if not doc_result.scalar_one_or_none():
+                continue  # skip documents user doesn't have access to
 
             stmt = (
                 select(Citation)

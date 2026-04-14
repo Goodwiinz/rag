@@ -32,3 +32,4 @@ class AgentState(TypedDict):
     compaction_count: int     # Increments each compaction, reset per turn
     intent_confidence: float  # LLM classifier confidence 0-1
     last_error_info: dict     # {category, message, suggestion}
+    user_id: str              # Owner user ID for HITL ownership verification

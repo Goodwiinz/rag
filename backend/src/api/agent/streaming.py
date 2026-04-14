@@ -74,6 +74,7 @@ async def stream_event_generator(
     )
 
     stream_thread_id = request_body.thread_id or "unknown"
+    config: Dict[str, Any] = {}  # Initialize before try block for safe access in except handlers
     try:
         _bootstrap_langsmith()
         checkpointer = await get_checkpointer()
@@ -103,6 +104,7 @@ async def stream_event_generator(
             "compaction_count": 0,
             "intent_confidence": 0.0,
             "last_error_info": {},
+            "user_id": str(current_user.id),
         }
 
         stream_thread_id = request_body.thread_id or str(_uuid.uuid4())
@@ -268,8 +270,20 @@ async def stream_confirm_event_generator(
         }
         current_snapshot = await graph.aget_state(snapshot_config)
 
-        # Verify thread ownership — prevent users from resuming others' graphs
+        # Verify thread exists
         if not current_snapshot or not current_snapshot.values:
+            yield f"event: error\ndata: {_json.dumps({'error': 'Thread not found'})}\n\n"
+            return
+
+        # Verify thread ownership — prevent users from resuming others' graphs
+        snapshot_user_id = current_snapshot.values.get("user_id", "")
+        if snapshot_user_id and snapshot_user_id != str(current_user.id):
+            logger.warning(
+                "HITL ownership mismatch: thread %s owned by %s, requested by %s",
+                request_body.thread_id,
+                snapshot_user_id,
+                current_user.id,
+            )
             yield f"event: error\ndata: {_json.dumps({'error': 'Thread not found'})}\n\n"
             return
 
