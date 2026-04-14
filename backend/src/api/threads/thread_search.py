@@ -371,6 +371,10 @@ async def get_search_suggestions(
         # Simple suggestion based on thread titles
         from sqlalchemy import text
 
+        def _escape_like(value: str) -> str:
+            """Escape SQL LIKE special characters."""
+            return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
         suggestion_sql = """
             SELECT DISTINCT t.title
             FROM threads t
@@ -385,7 +389,7 @@ async def get_search_suggestions(
         """
 
         params = {
-            "query_pattern": f"%{query}%",
+            "query_pattern": f"%{_escape_like(query)}%",
             "organization_id": str(current_user.organization_id),
         }
 

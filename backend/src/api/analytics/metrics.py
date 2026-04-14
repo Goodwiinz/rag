@@ -31,6 +31,11 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/metrics", tags=["analytics-metrics"])
 
 
+def _escape_like(value: str) -> str:
+    """Escape SQL LIKE special characters."""
+    return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
 # Metric endpoints
 
 
@@ -76,10 +81,11 @@ async def list_metrics(
             if is_public is not None:
                 query = query.where(AnalyticsMetric.is_public == is_public)
             if search:
+                escaped_search = _escape_like(search)
                 query = query.where(
                     or_(
-                        AnalyticsMetric.name.ilike(f"%{search}%"),
-                        AnalyticsMetric.display_name.ilike(f"%{search}%"),
+                        AnalyticsMetric.name.ilike(f"%{escaped_search}%"),
+                        AnalyticsMetric.display_name.ilike(f"%{escaped_search}%"),
                     )
                 )
 
@@ -235,6 +241,11 @@ async def ingest_batch_values(
     values: List[Dict[str, Any]], current_user: User = Depends(get_current_user)
 ):
     """Ingest multiple metric values in batch"""
+    if len(values) > 1000:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Batch size limited to 1000",
+        )
     try:
         success_count = await metrics_service.ingest_batch_values(values)
         return {

@@ -444,6 +444,39 @@ async def get_upload_progress(
 @router.websocket("/progress/{upload_id}/ws")
 async def websocket_upload_progress(websocket: WebSocket, upload_id: str):
     """WebSocket endpoint for real-time upload progress updates"""
+    # Authenticate via Sec-WebSocket-Protocol header
+    protocols = websocket.headers.get("sec-websocket-protocol", "")
+    token = None
+    for protocol in protocols.split(","):
+        protocol = protocol.strip()
+        if protocol.startswith("access_token."):
+            token = protocol.replace("access_token.", "", 1)
+
+    try:
+        if not token:
+            await websocket.close(
+                code=status.WS_1008_POLICY_VIOLATION,
+                reason="Missing authentication token",
+            )
+            return
+
+        from src.core.security import verify_token
+
+        token_data = verify_token(token)
+        if not token_data or not token_data.user_id:
+            await websocket.close(
+                code=status.WS_1008_POLICY_VIOLATION,
+                reason="Invalid or expired token",
+            )
+            return
+    except Exception as e:
+        logger.error(f"WebSocket upload progress auth error: {e}")
+        await websocket.close(
+            code=status.WS_1011_INTERNAL_ERROR,
+            reason="Authentication error",
+        )
+        return
+
     await upload_manager.connect(websocket, upload_id)
 
     try:
