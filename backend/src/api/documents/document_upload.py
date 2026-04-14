@@ -25,7 +25,8 @@ from fastapi import (
 )
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, validator
-from sqlalchemy.orm import Session
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.database import get_db
 from src.core.dependencies import get_current_organization, get_current_user
@@ -234,7 +235,7 @@ async def upload_single_document(
     background_tasks: BackgroundTasks = BackgroundTasks(),
     current_user: User = Depends(get_current_user),
     organization: Organization = Depends(get_current_organization),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     file_service: EnhancedFileService = Depends(get_enhanced_file_service),
     processing_service: MultimodalProcessingService = Depends(
         get_multimodal_processing_service
@@ -324,8 +325,8 @@ async def upload_single_document(
         )
 
         db.add(processing_job)
-        db.commit()
-        db.refresh(processing_job)
+        await db.commit()
+        await db.refresh(processing_job)
 
         await upload_manager.update_progress(upload_id, 75.0, "Queuing for processing")
 
@@ -405,7 +406,7 @@ async def upload_batch_documents(
     background_tasks: BackgroundTasks = BackgroundTasks(),
     current_user: User = Depends(get_current_user),
     organization: Organization = Depends(get_current_organization),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     file_service: EnhancedFileService = Depends(get_enhanced_file_service),
     processing_service: MultimodalProcessingService = Depends(
         get_multimodal_processing_service
@@ -492,19 +493,18 @@ async def get_document_quality(
     document_id: str,
     current_user: User = Depends(get_current_user),
     organization: Organization = Depends(get_current_organization),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     quality_service: DocumentQualityService = Depends(get_document_quality_service),
 ):
     """Get comprehensive quality assessment for a document"""
-    document = (
-        db.query(Document)
-        .filter(
+    result = await db.execute(
+        select(Document).where(
             Document.id == document_id,
             Document.organization_id == organization.id,
             Document.is_deleted == False,
         )
-        .first()
     )
+    document = result.scalars().first()
 
     if not document:
         raise HTTPException(
@@ -547,19 +547,18 @@ async def rescan_document_security(
     document_id: str,
     current_user: User = Depends(get_current_user),
     organization: Organization = Depends(get_current_organization),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     file_service: EnhancedFileService = Depends(get_enhanced_file_service),
 ):
     """Rescan document for security threats"""
-    document = (
-        db.query(Document)
-        .filter(
+    result = await db.execute(
+        select(Document).where(
             Document.id == document_id,
             Document.organization_id == organization.id,
             Document.is_deleted == False,
         )
-        .first()
     )
+    document = result.scalars().first()
 
     if not document:
         raise HTTPException(
