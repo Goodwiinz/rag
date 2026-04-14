@@ -82,8 +82,8 @@ class Document(BaseModel):
     tags = Column(StringArray, nullable=True)
 
     # Organization
-    organization_id = Column(GUID(), ForeignKey("organizations.id"), nullable=False)
-    uploaded_by_user_id = Column(GUID(), ForeignKey("users.id"), nullable=False)
+    organization_id = Column(GUID(), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False)
+    uploaded_by_user_id = Column(GUID(), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
 
     # Relationships
     organization = relationship("Organization", back_populates="documents")
