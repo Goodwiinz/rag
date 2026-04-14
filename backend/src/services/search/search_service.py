@@ -4,6 +4,7 @@ Handles hybrid search orchestration combining vector, graph, and keyword search 
 """
 
 import asyncio
+import hashlib
 import json
 import time
 import uuid
@@ -253,14 +254,18 @@ class HybridSearchEngine:
                     qdrant_filter = Filter(must=filter_conditions)
 
             # Search in Qdrant
-            search_result = qdrant_client.search(
-                collection_name="documents",
-                query_vector=Vector(query_embedding),
-                query_filter=qdrant_filter,
-                limit=limit,
-                with_payload=True,
-                with_vectors=False,
-            )
+            try:
+                search_result = qdrant_client.search(
+                    collection_name="documents",
+                    query_vector=Vector(query_embedding),
+                    query_filter=qdrant_filter,
+                    limit=limit,
+                    with_payload=True,
+                    with_vectors=False,
+                )
+            except Exception as e:
+                logger.warning("Qdrant search failed, falling back: %s", str(e))
+                search_result = []
 
             # Convert to search results
             results = []
@@ -737,7 +742,7 @@ async def search(
         "limit": request.limit,
         "organization_id": str(organization_id),
     }
-    cache_key = f"search:{hash(json.dumps(cache_data, sort_keys=True))}"
+    cache_key = f"search:{hashlib.md5(json.dumps(cache_data, sort_keys=True).encode()).hexdigest()}"
 
     cached_result = await cache.get(cache_key)
     if cached_result:
