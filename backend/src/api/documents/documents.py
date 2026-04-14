@@ -4,7 +4,7 @@ Document management API endpoints
 
 import logging
 import uuid as uuid_module
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import List, Optional
 
 from fastapi import (
@@ -674,7 +674,7 @@ async def get_document_status(
         and processing_job.progress_percentage < 100
     ):
         # Simple estimation based on current progress
-        elapsed_time = (datetime.utcnow() - processing_job.started_at).total_seconds()
+        elapsed_time = (datetime.now(timezone.utc) - processing_job.started_at).total_seconds()
         if processing_job.progress_percentage > 0:
             estimated_total_time = elapsed_time / (
                 processing_job.progress_percentage / 100
