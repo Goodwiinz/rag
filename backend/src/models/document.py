@@ -287,6 +287,7 @@ class Document(BaseModel):
             "processing": "processing",
             "completed": "indexed",
             "failed": "failed",
+            "retrying": "processing",
         }
         backend_status = (
             self.processing_status.value if self.processing_status else None

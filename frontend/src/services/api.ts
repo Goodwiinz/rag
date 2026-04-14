@@ -320,9 +320,7 @@ export class RAGAPIClient {
     }
   }
 
-  async getDocument(
-    documentId: string
-  ): Promise<{
+  async getDocument(documentId: string): Promise<{
     document: Document;
     extracted_content: any;
     processing_history: any[];
@@ -343,7 +341,7 @@ export class RAGAPIClient {
   async retryDocumentProcessing(
     documentId: string
   ): Promise<{ job_id: string; message: string }> {
-    return this.requestWithRetry(`/processing/documents/${documentId}/retry`, {
+    return this.requestWithRetry(`/documents/${documentId}/reprocess`, {
       method: 'POST',
     });
   }

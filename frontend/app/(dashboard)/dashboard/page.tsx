@@ -304,14 +304,14 @@ export default function DashboardPage() {
           {[
             {
               label: 'Active Documents',
-              value: stats.documents || '12,543',
+              value: stats.documents ?? '12,543',
               icon: FileText,
               change: '+12.5%',
               color: COLORS.phosphorGreen,
             },
             {
               label: 'Daily Queries',
-              value: stats.searches || '8,921',
+              value: stats.searches ?? '8,921',
               icon: Search,
               change: '+5.2%',
               color: COLORS.phosphorGreen,

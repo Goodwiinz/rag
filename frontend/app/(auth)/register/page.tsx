@@ -370,7 +370,6 @@ export default function RegisterPage() {
                     id="organization_name"
                     name="organization_name"
                     type="text"
-                    required
                     value={formData.organization_name}
                     onChange={handleChange}
                     className="w-full pl-11 pr-4 py-2.5 rounded-xl bg-[var(--terminal-bg)] border border-[var(--terminal-border)] font-mono text-sm text-[var(--terminal-text)] placeholder:text-[var(--terminal-text-muted)]/30 focus:border-[var(--phosphor-green)]/50 focus:ring-0 outline-none transition-all"

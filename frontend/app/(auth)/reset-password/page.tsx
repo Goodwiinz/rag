@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/client';
 import { cn } from '@/lib/utils';
 import { motion } from 'framer-motion';
 import {
+  AlertTriangle,
   ArrowRight,
   CheckCircle,
   Eye,
@@ -13,7 +14,9 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+
+const SESSION_TIMEOUT_MS = 5000;
 
 export default function ResetPasswordPage() {
   const router = useRouter();
@@ -24,9 +27,34 @@ export default function ResetPasswordPage() {
   const [success, setSuccess] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [sessionReady, setSessionReady] = useState(false);
+  const [sessionExpired, setSessionExpired] = useState(false);
+  const sessionDetected = useRef(false);
 
   useEffect(() => {
     setMounted(true);
+
+    const supabase = createClient();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        sessionDetected.current = true;
+        setSessionReady(true);
+      }
+    });
+
+    const timeout = setTimeout(() => {
+      if (!sessionDetected.current) {
+        setSessionExpired(true);
+      }
+    }, SESSION_TIMEOUT_MS);
+
+    return () => {
+      subscription.unsubscribe();
+      clearTimeout(timeout);
+    };
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -65,6 +93,60 @@ export default function ResetPasswordPage() {
   };
 
   if (!mounted) return null;
+
+  if (sessionExpired) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[var(--terminal-bg)]">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="max-w-md w-full mx-6"
+        >
+          <div className="rounded-2xl border border-[var(--terminal-border)] bg-[var(--terminal-surface)] p-10 text-center">
+            <div className="flex items-center justify-center w-16 h-16 rounded-full bg-red-500/10 border border-red-500/30 mx-auto mb-6">
+              <AlertTriangle className="w-8 h-8 text-red-400" />
+            </div>
+            <h2 className="text-xl font-mono font-bold text-[var(--terminal-text)] uppercase tracking-[0.15em] mb-3">
+              Link Expired
+            </h2>
+            <p className="text-sm font-mono text-[var(--terminal-text-muted)] mb-6 leading-relaxed">
+              This reset link is expired or invalid. Request a new one to
+              continue.
+            </p>
+            <Link
+              href="/forgot-password"
+              className={cn(
+                'inline-flex items-center gap-2 py-3 px-6 rounded-xl font-mono text-xs font-bold uppercase tracking-[0.2em]',
+                'bg-[var(--phosphor-green)] text-[var(--terminal-bg)]',
+                'hover:shadow-[0_0_25px_var(--phosphor-green-glow)] hover:scale-[1.02] active:scale-[0.98]',
+                'transition-all duration-300'
+              )}
+            >
+              <span>Request New Link</span>
+              <ArrowRight className="w-4 h-4" />
+            </Link>
+          </div>
+        </motion.div>
+      </div>
+    );
+  }
+
+  if (!sessionReady) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[var(--terminal-bg)]">
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="text-center"
+        >
+          <RefreshCw className="w-6 h-6 text-[var(--phosphor-green)] animate-spin mx-auto mb-4" />
+          <p className="text-[10px] font-mono text-[var(--terminal-text-muted)] uppercase tracking-widest">
+            Verifying recovery session...
+          </p>
+        </motion.div>
+      </div>
+    );
+  }
 
   if (success) {
     return (

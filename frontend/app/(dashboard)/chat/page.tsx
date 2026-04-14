@@ -140,6 +140,14 @@ function ChatPageContent() {
   const [agentThreadId, setAgentThreadId] = useState<string | null>(null);
   const agentThreadMapRef = useRef<Record<string, string>>({});
 
+  // HITL confirmation state
+  const [pendingConfirmation, setPendingConfirmation] = useState<{
+    threadId: string;
+    workspaceThreadId: string;
+    confirmation: Record<string, unknown>;
+  } | null>(null);
+  const [isConfirming, setIsConfirming] = useState(false);
+
   // Refs
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -662,6 +670,8 @@ function ChatPageContent() {
 
       let assistantContent = '';
       lastStreamedContentRef.current = '';
+      let streamHadError = false;
+      let streamHadConfirmation = false;
 
       // Set streaming state in store for UI
       useChatStore.setState({
@@ -699,27 +709,71 @@ function ChatPageContent() {
               streamingCitations: contexts,
             });
           },
+          onTrace: (threadId) => {
+            // Capture agent thread_id from trace event for subsequent sends
+            if (currentThreadId) {
+              agentThreadMapRef.current[currentThreadId] = threadId;
+            }
+            setAgentThreadId(threadId);
+          },
           onConfirmation: (threadId, confirmation) => {
             console.log('[Agent] HITL confirmation needed:', confirmation);
+            streamHadConfirmation = true;
             // Store agent thread ID for confirmation flow
             if (currentThreadId) {
               agentThreadMapRef.current[currentThreadId] = threadId;
             }
             setAgentThreadId(threadId);
+            setPendingConfirmation({
+              threadId,
+              workspaceThreadId: currentThreadId || '',
+              confirmation,
+            });
           },
           onDone: () => {
             console.log('[Agent] Stream complete');
           },
           onError: (error) => {
             console.error('[Agent] Stream error:', error);
+            streamHadError = true;
+            // Show error as assistant message instead of blank bubble
+            const errorMsg: Message = {
+              role: 'assistant',
+              content: `Stream error: ${error}`,
+              timestamp: Date.now(),
+            };
+            setMessages([...newMessages, errorMsg]);
           },
         }
       );
 
+      // Don't append a normal message if stream errored or needs confirmation
+      if (streamHadError || streamHadConfirmation) {
+        useChatStore.setState({
+          isStreaming: false,
+          streamingContent: '',
+          streamingCitations: [],
+        });
+        setIsLoading(false);
+        return;
+      }
+
+      // Guard against empty content (no tokens received)
+      const finalContent = assistantContent || lastStreamedContentRef.current;
+      if (!finalContent.trim()) {
+        useChatStore.setState({
+          isStreaming: false,
+          streamingContent: '',
+          streamingCitations: [],
+        });
+        setIsLoading(false);
+        return;
+      }
+
       // After streaming completes, build final message
       const finalAssistantMessage: Message = {
         role: 'assistant',
-        content: assistantContent || lastStreamedContentRef.current,
+        content: finalContent,
         timestamp: Date.now(),
       };
 
@@ -793,6 +847,64 @@ function ChatPageContent() {
       streamingContent: '',
       streamingCitations: [],
     });
+  };
+
+  const handleConfirmation = async (confirmed: boolean) => {
+    if (!pendingConfirmation) return;
+    setIsConfirming(true);
+    useChatStore.setState({ isStreaming: true, streamingContent: '' });
+
+    let confirmContent = '';
+    const confirmMessages = [...messages];
+
+    try {
+      await agentChatService.streamConfirm(
+        { thread_id: pendingConfirmation.threadId, confirmed },
+        {
+          onToken: (content) => {
+            confirmContent += content;
+            useChatStore.setState({ streamingContent: confirmContent });
+          },
+          onDone: () => {
+            if (confirmContent.trim()) {
+              const msg: Message = {
+                role: 'assistant',
+                content: confirmContent,
+                timestamp: Date.now(),
+              };
+              setMessages([...confirmMessages, msg]);
+            }
+          },
+          onError: (error) => {
+            console.error('[Agent] Confirm error:', error);
+            const msg: Message = {
+              role: 'assistant',
+              content: `Confirmation error: ${error}`,
+              timestamp: Date.now(),
+            };
+            setMessages([...confirmMessages, msg]);
+          },
+        }
+      );
+    } catch (err) {
+      const errorMessage =
+        err instanceof Error
+          ? err.message
+          : 'Network error during confirmation';
+      const msg: Message = {
+        role: 'assistant',
+        content: `Confirmation failed: ${errorMessage}`,
+        timestamp: Date.now(),
+      };
+      setMessages([...confirmMessages, msg]);
+    } finally {
+      setPendingConfirmation(null);
+      setIsConfirming(false);
+      useChatStore.setState({
+        isStreaming: false,
+        streamingContent: '',
+      });
+    }
   };
 
   const handlePromptSelect = (prompt: string) => {
@@ -1015,13 +1127,47 @@ function ChatPageContent() {
           </AnimatePresence>
         </div>
 
+        {/* HITL Confirmation Banner */}
+        {pendingConfirmation && (
+          <div className="mx-4 mb-2 p-4 rounded-xl border border-[var(--sol)]/30 bg-[var(--sol)]/5">
+            <p className="text-xs font-mono text-[var(--terminal-text-muted)] uppercase tracking-wider mb-2">
+              Action Requires Approval
+            </p>
+            <p className="text-sm font-mono text-[var(--terminal-text)] mb-3">
+              The agent wants to run{' '}
+              <span className="font-bold text-[var(--sol)]">
+                {String(
+                  pendingConfirmation.confirmation?.tool_name ||
+                    'a destructive action'
+                )}
+              </span>
+            </p>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => handleConfirmation(true)}
+                disabled={isConfirming}
+                className="px-4 py-2 rounded-lg bg-[var(--phosphor-green)] text-[var(--terminal-bg)] text-xs font-mono font-bold uppercase tracking-wider hover:shadow-[0_0_15px_var(--phosphor-green-glow)] disabled:opacity-50 transition-all"
+              >
+                {isConfirming ? 'Processing...' : 'Approve'}
+              </button>
+              <button
+                onClick={() => handleConfirmation(false)}
+                disabled={isConfirming}
+                className="px-4 py-2 rounded-lg border border-red-500/30 bg-red-500/5 text-red-400 text-xs font-mono font-bold uppercase tracking-wider hover:bg-red-500/10 disabled:opacity-50 transition-all"
+              >
+                Deny
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Input Area */}
         <ChatInput
           value={input}
           onChange={setInput}
           onSubmit={handleSubmit}
           onStop={handleStop}
-          isLoading={isLoading || storeIsStreaming}
+          isLoading={isLoading || storeIsStreaming || !!pendingConfirmation}
           enableRAG={enableRAG}
           onRAGToggle={setEnableRAG}
           inputRef={chatInputRef}
