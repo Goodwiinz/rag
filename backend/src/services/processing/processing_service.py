@@ -270,16 +270,15 @@ class ProcessingPipeline:
                     f"Direct PDF extraction failed, trying OCR: {str(pdf_error)}"
                 )
                 # Fallback: Convert all pages to images and OCR them
-                doc = fitz.open(file_path)
-                for page_num in range(len(doc)):
-                    page = doc.load_page(page_num)
-                    pix = page.get_pixmap()
-                    img_data = pix.tobytes("png")
-                    img = Image.open(io.BytesIO(img_data))
-                    ocr_text = pytesseract.image_to_string(img)
-                    if ocr_text.strip():
-                        text.append(f"[OCR Page {page_num + 1}]\n{ocr_text}")
-                doc.close()
+                with fitz.open(file_path) as doc:
+                    for page_num in range(len(doc)):
+                        page = doc.load_page(page_num)
+                        pix = page.get_pixmap()
+                        img_data = pix.tobytes("png")
+                        img = Image.open(io.BytesIO(img_data))
+                        ocr_text = pytesseract.image_to_string(img)
+                        if ocr_text.strip():
+                            text.append(f"[OCR Page {page_num + 1}]\n{ocr_text}")
 
             extracted_text = "\n".join(text)
 
