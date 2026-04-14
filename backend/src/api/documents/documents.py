@@ -240,8 +240,8 @@ async def list_documents(
     document_type: Optional[DocumentType] = Query(
         None, description="Filter by document type"
     ),
-    processing_status: Optional[ProcessingStatus] = Query(
-        None, description="Filter by processing status"
+    processing_status: Optional[str] = Query(
+        None, description="Filter by processing status (accepts: pending, processing, completed, failed, retrying, queued, indexed)"
     ),
     search: Optional[str] = Query(None, description="Search in title and filename"),
     tags: Optional[str] = Query(None, description="Filter by tags (comma-separated)"),
@@ -278,7 +278,25 @@ async def list_documents(
             conditions.append(Document.document_type == document_type)
 
         if processing_status:
-            conditions.append(Document.processing_status == processing_status)
+            # Reverse-map frontend status names to backend enum values
+            frontend_to_backend = {
+                "queued": ProcessingStatus.PENDING,
+                "indexed": ProcessingStatus.COMPLETED,
+                "processing": ProcessingStatus.PROCESSING,
+                "failed": ProcessingStatus.FAILED,
+                "retrying": ProcessingStatus.RETRYING,
+                # Also accept raw backend values
+                "pending": ProcessingStatus.PENDING,
+                "completed": ProcessingStatus.COMPLETED,
+            }
+            mapped = frontend_to_backend.get(processing_status.lower())
+            if mapped:
+                conditions.append(Document.processing_status == mapped)
+            else:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Invalid processing_status: {processing_status}",
+                )
 
         if search:
             search_pattern = f"%{search}%"
