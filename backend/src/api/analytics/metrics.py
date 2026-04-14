@@ -4,12 +4,17 @@ Metrics API routes
 
 import logging
 import uuid
+from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
+from sqlalchemy import and_, or_, select
 
 from src.auth.dependencies import get_current_user
+from src.core.database import get_async_session
 from src.models.analytics.analytics_models import (
+    AnalyticsKPI,
+    AnalyticsMetric,
     KPICreate,
     KPIResponse,
     MetricCreate,
@@ -347,7 +352,7 @@ async def list_kpis(
             kpi_responses = []
             for kpi in kpis:
                 current_value = await metrics_service._calculate_kpi_value(kpi)
-                status = metrics_service._determine_kpi_status(current_value, kpi)
+                kpi_status = metrics_service._determine_kpi_status(current_value, kpi)
 
                 kpi_response = KPIResponse(
                     id=kpi.id,
@@ -367,7 +372,7 @@ async def list_kpis(
                     created_at=kpi.created_at,
                     updated_at=kpi.updated_at,
                     current_value=current_value,
-                    status=status,
+                    status=kpi_status,
                 )
                 kpi_responses.append(kpi_response)
 
@@ -398,7 +403,7 @@ async def get_kpi(kpi_id: uuid.UUID, current_user: User = Depends(get_current_us
                 )
 
             current_value = await metrics_service._calculate_kpi_value(kpi)
-            status = metrics_service._determine_kpi_status(current_value, kpi)
+            kpi_status = metrics_service._determine_kpi_status(current_value, kpi)
 
             return KPIResponse(
                 id=kpi.id,
@@ -418,7 +423,7 @@ async def get_kpi(kpi_id: uuid.UUID, current_user: User = Depends(get_current_us
                 created_at=kpi.created_at,
                 updated_at=kpi.updated_at,
                 current_value=current_value,
-                status=status,
+                status=kpi_status,
             )
 
     except HTTPException:
