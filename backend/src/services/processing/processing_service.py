@@ -12,6 +12,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from celery import Celery
 from fastapi import Depends
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from src.core.config import settings
@@ -70,11 +71,10 @@ class ProcessingPipeline:
 
     async def process_document(self, document_id: str, user_id: str) -> ProcessingJob:
         """Start processing for a document"""
-        document = (
-            self.db.query(Document)
-            .filter(Document.id == document_id, Document.is_deleted == False)
-            .first()
-        )
+        stmt = select(Document).where(
+            Document.id == document_id, Document.is_deleted == False
+        ).with_for_update()
+        document = self.db.execute(stmt).scalar_one_or_none()
 
         if not document:
             raise ValueError(f"Document {document_id} not found")
@@ -84,6 +84,9 @@ class ProcessingPipeline:
             ProcessingStatus.FAILED,
         ]:
             raise ValueError(f"Document {document_id} is not in a processable state")
+
+        if document.processing_status == ProcessingStatus.PROCESSING:
+            raise ValueError(f"Document {document_id} is already being processed")
 
         # Create processing job
         job = ProcessingJob(
@@ -155,6 +158,12 @@ class ProcessingPipeline:
         except Exception as e:
             logger.error(f"Failed to queue job {job_id}: {str(e)}")
             job.fail_job(f"Failed to queue job: {str(e)}")
+            # Also fail the associated document so it doesn't stay PENDING forever
+            if job.document_id:
+                document = self.db.query(Document).filter(Document.id == job.document_id).first()
+                if document:
+                    document.processing_status = ProcessingStatus.FAILED
+                    document.processing_error = f"Failed to queue: {str(e)}"
             self.db.commit()
 
     async def process_text_extraction(self, document: Document) -> Dict[str, Any]:

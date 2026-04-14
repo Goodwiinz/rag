@@ -418,7 +418,7 @@ class ChatService:
                     selectinload(Thread.messages)
                     .selectinload(ChatMessage.citations)
                     .selectinload(Citation.document),
-                    selectinload(Thread.messages).selectinload(ChatMessage.attachments),
+                    selectinload(Thread.messages).selectinload(ChatMessage.attachments).selectinload(MessageAttachment.document),
                 ]
             )
 
@@ -947,7 +947,7 @@ class ChatService:
             select(ChatMessage)
             .options(
                 selectinload(ChatMessage.citations).selectinload(Citation.document),
-                selectinload(ChatMessage.attachments),
+                selectinload(ChatMessage.attachments).selectinload(MessageAttachment.document),
                 selectinload(ChatMessage.thread)
                 .selectinload(Thread.conversation)
                 .selectinload(Conversation.workspace)
@@ -1006,7 +1006,7 @@ class ChatService:
             select(ChatMessage)
             .options(
                 selectinload(ChatMessage.citations).selectinload(Citation.document),
-                selectinload(ChatMessage.attachments),
+                selectinload(ChatMessage.attachments).selectinload(MessageAttachment.document),
             )
             .where(*base_conditions)
             .order_by(ChatMessage.created_at.asc())
