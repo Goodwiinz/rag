@@ -297,6 +297,7 @@ async def _run_agent_graph(
             "compaction_count": 0,
             "intent_confidence": 0.0,
             "last_error_info": {},
+            "user_id": str(current_user.id),
         }
 
         config = {
@@ -411,13 +412,15 @@ async def _resume_agent_graph(
         if job and job.get("request"):
             original_request = AgentExecuteRequest(**job["request"])
 
+        resume_thread_id = (
+            original_request.thread_id
+            if original_request and original_request.thread_id
+            else job_id
+        )
+
         config = {
             "configurable": {
-                "thread_id": (
-                    original_request.thread_id
-                    if original_request and original_request.thread_id
-                    else job_id
-                ),
+                "thread_id": resume_thread_id,
                 "db": db,
                 "current_user": current_user,
                 "page_context": (
@@ -427,6 +430,23 @@ async def _resume_agent_graph(
                 ),
             }
         }
+
+        # Verify thread ownership before resuming
+        snapshot = await graph.aget_state(config)
+        if snapshot and snapshot.values:
+            snapshot_user_id = snapshot.values.get("user_id", "")
+            if snapshot_user_id and snapshot_user_id != str(current_user.id):
+                logger.warning(
+                    "HITL ownership mismatch: job %s thread owned by %s, requested by %s",
+                    job_id,
+                    snapshot_user_id,
+                    current_user.id,
+                )
+                _set_job(job_id, {
+                    "status": "error",
+                    "error": "Thread not found",
+                })
+                return
 
         final_state = await graph.ainvoke(
             Command(resume={"confirmed": confirmed}),
