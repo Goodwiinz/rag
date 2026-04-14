@@ -408,6 +408,9 @@ class HybridSearchEngine:
         organization_id: Optional[uuid.UUID] = None,
     ) -> SearchComponentResult:
         """Perform knowledge graph search"""
+        if not organization_id:
+            raise ValueError("organization_id is required for graph search")
+
         start_time = time.time()
 
         try:
