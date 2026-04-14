@@ -95,29 +95,71 @@
 
 ---
 
-## 4. Infrastructure (pending — agent still running)
+## 4. Infrastructure (7 findings)
+
+### P1 — Secrets Exposure (2)
+
+| #   | File:Line                                                                 | Issue                                                                        |
+| --- | ------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| I1  | `infrastructure/helm/knowledge-graph-analytics/values-production.yaml:71` | Hardcoded Supabase JWT anon key in production helm values — committed to git |
+| I2  | `frontend/.env.local:3`                                                   | Same Supabase anon key exposed locally                                       |
+
+**Action:** Rotate the Supabase anon key in the Supabase dashboard immediately. Move to ExternalSecrets.
+
+### P2 — Docker / K8s (4)
+
+| #   | File:Line                                                       | Issue                                                                                              |
+| --- | --------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| I3  | `backend/docker/Dockerfile:40-46`                               | Dev dependencies (`requirements.dev.txt`) installed in production image — increases attack surface |
+| I4  | `backend/src/core/config.py:73`                                 | Missing DATABASE_URL validation at startup in production                                           |
+| I5  | `infrastructure/kubernetes/secrets.yaml`                        | Secret structure in git (placeholders, but still exposes schema)                                   |
+| I6  | `infrastructure/kubernetes/base/backend/network-policy.yaml:92` | Egress allows 0.0.0.0/0 on port 8080 — overly broad                                                |
+
+### P3 — Hardening (3)
+
+| #   | File:Line                 | Issue                                                        |
+| --- | ------------------------- | ------------------------------------------------------------ |
+| I7  | `backend/src/main.py:293` | Wildcard TrustedHost `*.gen-text.app` — allows any subdomain |
+| I8  | `frontend/nginx.conf:41`  | CSP has `'unsafe-inline'` and `http:` — too permissive       |
+| I9  | `frontend/nginx.conf`     | Missing HSTS header (`Strict-Transport-Security`)            |
+
+### Positive findings
+
+- CORS properly configured (explicit origins, no wildcards)
+- JWT secret validation enforced in production
+- Neo4j password validation enforced in production
+- K8s security context: non-root, capability dropping, read-only rootfs
+- Network policies implemented with namespace isolation
+- ExternalSecrets operator configured (but not consistently used)
 
 ---
 
 ## Recommended Fix Priority
 
-### Immediate — Security
+### EMERGENCY — Rotate Secrets
 
-1. **Path traversal in file_service** (S4) — validate org_id format
-2. **Graph search org scoping** (S2) — require non-null org_id
-3. **NPM critical vulnerabilities** — update axios, handlebars
-4. **Processing race condition** (S1) — add row locking or unique constraint
+0. **Rotate Supabase anon key** (I1, I2) — do this in Supabase dashboard NOW, then update ExternalSecrets
+
+### Immediate — Security (service layer P1s)
+
+1. **Path traversal in file_service** (S4) — validate org_id is UUID format
+2. **Graph search org scoping** (S2) — require non-null org_id, raise if missing
+3. **Processing race condition** (S1) — add `SELECT ... FOR UPDATE` row locking
+4. **NPM critical vulnerabilities** — `npm audit fix`, manual upgrade axios + handlebars
 
 ### Short-term — Data Integrity
 
-5. **Add ON DELETE to all ForeignKeys** — one migration, 14 FKs
-6. **Add missing indexes** — one migration, 6 composite indexes
-7. **Cache key fix** (S8) — include user_id, use hashlib
-8. **Document stuck in PENDING** (S5) — rollback status on queue failure
+5. **Add ON DELETE to all ForeignKeys** — one Alembic migration, 14 FKs
+6. **Add missing composite indexes** — one Alembic migration, 6 indexes
+7. **Cache key fix** (S8) — include user_id, use hashlib.md5 instead of hash()
+8. **Document stuck in PENDING** (S5) — set status to FAILED on queue failure
 
 ### Medium-term — Hardening
 
-9. **Tool argument validation** (S3) — schema registry for agent tools
-10. **NPM high vulnerabilities** — upgrade lodash, follow-redirects, etc.
-11. **Resource leaks** (S6, S9, S13) — context managers, state pruning
-12. **File size re-validation** (S12) — check after write
+9. **Tool argument validation** (S3) — Pydantic schema per tool before execution
+10. **NPM high vulnerabilities** — upgrade lodash, follow-redirects, ajv, etc.
+11. **Resource leaks** (S6, S9, S13) — fitz context manager, tool_executions pruning, WS cleanup
+12. **Dev deps out of prod Docker** (I3) — separate builder from prod in Dockerfile
+13. **DATABASE_URL validation** (I4) — add startup check in config.py
+14. **CSP + HSTS headers** (I8, I9) — tighten nginx.conf
+15. **File size re-validation** (S12) — check actual size after write
