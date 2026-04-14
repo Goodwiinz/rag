@@ -5,9 +5,8 @@ General WebSocket endpoint for real-time updates
 import json
 import logging
 from datetime import datetime
-from typing import Optional
 
-from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect, status
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect, status
 
 logger = logging.getLogger(__name__)
 
@@ -47,11 +46,14 @@ manager = SimpleConnectionManager()
 @router.websocket("/ws")
 async def websocket_endpoint(
     websocket: WebSocket,
-    token: Optional[str] = Query(None),
-    organization_id: Optional[str] = Query(None),
 ):
     """
     General WebSocket endpoint for real-time updates
+
+    SECURITY: Authentication is performed via Sec-WebSocket-Protocol header,
+    NOT URL query parameters (tokens in URLs are logged by proxies).
+
+    Authentication: Sec-WebSocket-Protocol: access_token.<jwt>
 
     This endpoint provides:
     - Connection heartbeat/ping
@@ -60,9 +62,16 @@ async def websocket_endpoint(
     - Query status updates (future)
     """
 
+    # Extract token from Sec-WebSocket-Protocol header
+    protocols = websocket.headers.get("sec-websocket-protocol", "")
+    token = None
+    for protocol in protocols.split(","):
+        protocol = protocol.strip()
+        if protocol.startswith("access_token."):
+            token = protocol.replace("access_token.", "", 1)
+
     # Authenticate user from token
     try:
-        # Simple validation - in production, decode JWT properly
         if not token:
             await websocket.close(
                 code=status.WS_1008_POLICY_VIOLATION,
