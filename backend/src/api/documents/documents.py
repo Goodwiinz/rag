@@ -50,6 +50,11 @@ router = APIRouter(prefix="/documents", tags=["documents"], redirect_slashes=Fal
 logger = logging.getLogger(__name__)
 
 
+def _escape_like(value: str) -> str:
+    """Escape SQL LIKE special characters."""
+    return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
 # Request/Response Models
 class DocumentResponse(BaseModel):
     id: str
@@ -299,7 +304,7 @@ async def list_documents(
                 )
 
         if search:
-            search_pattern = f"%{search}%"
+            search_pattern = f"%{_escape_like(search)}%"
             conditions.append(
                 or_(
                     Document.title.ilike(search_pattern),
@@ -860,7 +865,7 @@ async def search_documents(
         ]
 
         # Apply text search
-        search_pattern = f"%{query}%"
+        search_pattern = f"%{_escape_like(query)}%"
         conditions.append(
             or_(
                 Document.title.ilike(search_pattern),

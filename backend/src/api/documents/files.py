@@ -27,6 +27,11 @@ from src.services.documents.file_service import FileService, get_file_service
 router = APIRouter(prefix="/files", tags=["files"])
 
 
+def _escape_like(value: str) -> str:
+    """Escape SQL LIKE special characters."""
+    return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
 # Request/Response Models
 class FileUploadResponse(BaseModel):
     document_id: str
@@ -207,10 +212,11 @@ async def list_files(
             conditions.append(Document.processing_status == processing_status)
 
         if search:
+            escaped_search = _escape_like(search)
             conditions.append(
                 or_(
-                    Document.title.ilike(f"%{search}%"),
-                    Document.filename.ilike(f"%{search}%"),
+                    Document.title.ilike(f"%{escaped_search}%"),
+                    Document.filename.ilike(f"%{escaped_search}%"),
                 )
             )
 
