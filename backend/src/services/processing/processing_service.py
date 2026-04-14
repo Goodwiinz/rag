@@ -159,23 +159,26 @@ class ProcessingPipeline:
 
     async def process_text_extraction(self, document: Document) -> Dict[str, Any]:
         """Extract text content from document"""
+        from src.services.documents.storage_utils import local_file_for_document
+
         try:
-            if document.document_type == DocumentType.TEXT:
-                text = self._extract_text_from_text_file(document.file_path)
-            elif document.document_type == DocumentType.PDF:
-                text = self._extract_text_from_pdf(document.file_path)
-            elif document.document_type == DocumentType.SPREADSHEET:
-                text = self._extract_text_from_spreadsheet(document.file_path)
-            elif document.document_type == DocumentType.PRESENTATION:
-                text = self._extract_text_from_presentation(document.file_path)
-            elif document.document_type == DocumentType.IMAGE:
-                text = await self._extract_text_from_image(document)
-            elif document.document_type == DocumentType.AUDIO:
-                text = await self._extract_text_from_audio(document)
-            elif document.document_type == DocumentType.VIDEO:
-                text = await self._extract_text_from_video(document)
-            else:
-                text = ""
+            with local_file_for_document(document) as file_path:
+                if document.document_type == DocumentType.TEXT:
+                    text = self._extract_text_from_text_file(file_path)
+                elif document.document_type == DocumentType.PDF:
+                    text = self._extract_text_from_pdf(file_path)
+                elif document.document_type == DocumentType.SPREADSHEET:
+                    text = self._extract_text_from_spreadsheet(file_path)
+                elif document.document_type == DocumentType.PRESENTATION:
+                    text = self._extract_text_from_presentation(file_path)
+                elif document.document_type == DocumentType.IMAGE:
+                    text = await self._extract_text_from_image(document)
+                elif document.document_type == DocumentType.AUDIO:
+                    text = await self._extract_text_from_audio(document)
+                elif document.document_type == DocumentType.VIDEO:
+                    text = await self._extract_text_from_video(document)
+                else:
+                    text = ""
 
             # Generate summary using AI
             summary = await self._generate_text_summary(text) if text else ""
