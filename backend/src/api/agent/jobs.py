@@ -7,6 +7,7 @@ Manages the async job lifecycle for agent execution:
 """
 
 import logging
+import time
 import uuid as _uuid
 from collections import OrderedDict
 from datetime import datetime, timezone
@@ -30,15 +31,23 @@ MAX_JOBS = 500
 
 
 def _cleanup_jobs():
-    with _jobs_lock:
-        while len(_jobs) > MAX_JOBS:
-            _jobs.popitem(last=False)
+    """Remove expired jobs (>1 hour) and evict oldest when over MAX_JOBS.
+
+    Must be called while holding ``_jobs_lock``.
+    """
+    now = time.time()
+    expired = [k for k, v in _jobs.items() if now - v.get("created_at", now) > 3600]
+    for k in expired:
+        del _jobs[k]
+    while len(_jobs) > MAX_JOBS:
+        _jobs.popitem(last=False)
 
 
 def _set_job(job_id: str, data: dict):
     with _jobs_lock:
+        data["created_at"] = time.time()
         _jobs[job_id] = data
-    _cleanup_jobs()
+        _cleanup_jobs()
 
 
 def _get_job(job_id: str) -> dict | None:

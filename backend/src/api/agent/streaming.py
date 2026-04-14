@@ -73,6 +73,7 @@ async def stream_event_generator(
         ToolExecutionResponse,
     )
 
+    stream_thread_id = request_body.thread_id or "unknown"
     try:
         _bootstrap_langsmith()
         checkpointer = await get_checkpointer()
@@ -104,9 +105,10 @@ async def stream_event_generator(
             "last_error_info": {},
         }
 
+        stream_thread_id = request_body.thread_id or str(_uuid.uuid4())
         config = {
             "configurable": {
-                "thread_id": request_body.thread_id or str(_uuid.uuid4()),
+                "thread_id": stream_thread_id,
                 "db": db,
                 "current_user": current_user,
                 "page_context": _page_context_to_dict(request_body.page_context),
@@ -218,12 +220,15 @@ async def stream_event_generator(
         confirmation_details = {}
         if interrupts:
             confirmation_details = getattr(interrupts[0], "value", {})
-        thread_id = config["configurable"]["thread_id"]
+        thread_id = config["configurable"]["thread_id"] if config else stream_thread_id
         yield f"event: confirmation\ndata: {_json.dumps({'thread_id': thread_id, 'confirmation': confirmation_details})}\n\n"
 
     except Exception as e:
         logger.error("SSE stream error", exc_info=e)
         yield f"event: error\ndata: {_json.dumps({'error': str(e)})}\n\n"
+
+    finally:
+        logger.info("SSE stream ended for thread %s", stream_thread_id)
 
 
 async def stream_confirm_event_generator(
@@ -394,3 +399,6 @@ async def stream_confirm_event_generator(
     except Exception as e:
         logger.error("SSE stream confirm error", exc_info=e)
         yield f"event: error\ndata: {_json.dumps({'error': str(e)})}\n\n"
+
+    finally:
+        logger.info("SSE confirm stream ended for thread %s", request_body.thread_id)
