@@ -273,6 +273,12 @@ qdrant:
 celeryWorker:
   enabled: true
   replicaCount: 1
+  livenessProbe:
+    commandTimeout: 15
+    initialDelaySeconds: 60
+    periodSeconds: 120
+    timeoutSeconds: 30
+    failureThreshold: 5
   resources:
     limits:
       cpu: "1"
@@ -286,10 +292,10 @@ celeryBeat:
   resources:
     limits:
       cpu: 200m
-      memory: 512Mi
+      memory: 768Mi
     requests:
       cpu: 50m
-      memory: 256Mi
+      memory: 384Mi
 
 prometheus:
   enabled: false

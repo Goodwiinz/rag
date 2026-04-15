@@ -65,9 +65,9 @@ spec:
                 - src.tasks.celery_app
                 - inspect
                 - ping
-                - --timeout=10
-            initialDelaySeconds: 30
-            periodSeconds: 60
-            timeoutSeconds: 15
-            failureThreshold: 3
+                - --timeout={{ .Values.celeryWorker.livenessProbe.commandTimeout | default 10 }}
+            initialDelaySeconds: {{ .Values.celeryWorker.livenessProbe.initialDelaySeconds | default 60 }}
+            periodSeconds: {{ .Values.celeryWorker.livenessProbe.periodSeconds | default 120 }}
+            timeoutSeconds: {{ .Values.celeryWorker.livenessProbe.timeoutSeconds | default 30 }}
+            failureThreshold: {{ .Values.celeryWorker.livenessProbe.failureThreshold | default 5 }}
 {{- end }}
