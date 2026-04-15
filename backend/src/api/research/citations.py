@@ -13,7 +13,8 @@ from uuid import UUID
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
-from sqlalchemy import and_, select
+from sqlalchemy import and_, or_, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from structlog import get_logger
@@ -68,6 +69,57 @@ def _citation_is_accessible(citation: Citation, current_user: User) -> bool:
     return _document_is_accessible(
         getattr(citation, "document", None), current_user
     ) or _message_is_accessible(getattr(citation, "message", None), current_user)
+
+
+async def _find_existing_extracted_citation(
+    db: AsyncSession,
+    document_id: Optional[UUID],
+    doi: Optional[str],
+    arxiv_id: Optional[str],
+    *,
+    scope_to_document: bool = True,
+) -> Optional[Citation]:
+    """Find an existing extracted citation by scholarly identifiers."""
+    identifier_filters = []
+    if doi:
+        identifier_filters.append(Citation.doi == doi)
+    if arxiv_id:
+        identifier_filters.append(Citation.arxiv_id == arxiv_id)
+
+    if not identifier_filters:
+        return None
+
+    filters = [Citation.is_deleted == False, or_(*identifier_filters)]
+    if scope_to_document and document_id:
+        filters.append(Citation.document_id == document_id)
+
+    result = await db.execute(
+        select(Citation)
+        .where(*filters)
+        .order_by(Citation.updated_at.desc())
+    )
+    return result.scalar_one_or_none()
+
+
+def _apply_extracted_citation_data(
+    citation: Citation,
+    citation_data: CitationCreate,
+    source: str,
+    document_id: Optional[UUID],
+) -> Citation:
+    """Populate or refresh a citation row with extracted metadata."""
+    citation.document_id = document_id or citation_data.document_id or citation.document_id
+    citation.document_title = citation_data.document_title
+    citation.document_type = citation_data.document_type or citation.document_type or "paper"
+    citation.authors = citation_data.authors
+    citation.year = citation_data.year
+    citation.venue = citation_data.venue
+    citation.doi = citation_data.doi
+    citation.arxiv_id = citation_data.arxiv_id
+    citation.abstract = citation_data.abstract
+    citation.metadata_source = source or citation_data.metadata_source
+    citation.needs_review = bool(citation_data.needs_review)
+    return citation
 
 
 async def _ensure_project_access(
@@ -415,38 +467,71 @@ async def extract_citation(
                 detail="Could not extract citation metadata from any source",
             )
 
-        # Create citation in database
-        citation = Citation(
-            document_id=resolved_document_id or citation_data.document_id,
-            document_title=citation_data.document_title,
-            authors=citation_data.authors,
-            year=citation_data.year,
-            venue=citation_data.venue,
-            doi=citation_data.doi,
-            arxiv_id=citation_data.arxiv_id,
-            abstract=citation_data.abstract,
-            metadata_source=source,
-            needs_review=bool(citation_data.needs_review),
+        citation_document_id = resolved_document_id or citation_data.document_id
+        citation = await _find_existing_extracted_citation(
+            db,
+            citation_document_id,
+            citation_data.doi,
+            citation_data.arxiv_id,
         )
+        citation_reused = citation is not None
+        if citation is None:
+            citation = Citation()
+            db.add(citation)
 
-        db.add(citation)
+        _apply_extracted_citation_data(
+            citation,
+            citation_data,
+            source,
+            citation_document_id,
+        )
         await db.commit()
         await db.refresh(citation)
 
         logger.info(
             "citation_extracted",
             citation_id=str(citation.id),
+            reused_existing=citation_reused,
             source=source,
             strategy=resolved_strategy,
-            document_id=str(resolved_document_id) if resolved_document_id else None,
-            arxiv_id=resolved_arxiv_id,
-            doi=resolved_doi,
+            document_id=str(citation_document_id) if citation_document_id else None,
+            arxiv_id=citation_data.arxiv_id,
+            doi=citation_data.doi,
         )
 
         return CitationResponse.model_validate(citation)
 
     except HTTPException:
         raise
+    except IntegrityError as e:
+        await db.rollback()
+
+        citation_data = locals().get("citation_data")
+        citation_document_id = locals().get("citation_document_id")
+        if citation_data:
+            existing_citation = await _find_existing_extracted_citation(
+                db,
+                citation_document_id,
+                citation_data.doi,
+                citation_data.arxiv_id,
+                scope_to_document=False,
+            )
+            if existing_citation:
+                logger.warning(
+                    "citation_extraction_identifier_conflict_reused",
+                    citation_id=str(existing_citation.id),
+                    document_id=str(citation_document_id) if citation_document_id else None,
+                    doi=citation_data.doi,
+                    arxiv_id=citation_data.arxiv_id,
+                    error=str(e),
+                )
+                return CitationResponse.model_validate(existing_citation)
+
+        logger.error("citation_extraction_failed", error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to extract citation: {str(e)}",
+        )
     except Exception as e:
         await db.rollback()
         logger.error("citation_extraction_failed", error=str(e))

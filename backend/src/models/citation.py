@@ -48,8 +48,8 @@ class Citation(BaseModel):
     authors = Column(JSONB, nullable=True)  # List of author names/objects
     year = Column(Integer, nullable=True)  # Publication year
     venue = Column(String(500), nullable=True)  # Journal/conference name
-    doi = Column(String(255), nullable=True, unique=True)  # Digital Object Identifier
-    arxiv_id = Column(String(100), nullable=True, unique=True)  # arXiv identifier
+    doi = Column(String(255), nullable=True, index=True)  # Digital Object Identifier
+    arxiv_id = Column(String(100), nullable=True, index=True)  # arXiv identifier
     abstract = Column(Text, nullable=True)  # Paper abstract
     metadata_source = Column(
         String(100), nullable=True
