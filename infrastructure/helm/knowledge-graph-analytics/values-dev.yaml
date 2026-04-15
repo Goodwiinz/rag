@@ -273,6 +273,11 @@ qdrant:
 celeryWorker:
   enabled: true
   replicaCount: 1
+  autoscaling:
+    enabled: true
+    minReplicas: 1
+    maxReplicas: 3
+    targetCPUUtilizationPercentage: 90
   livenessProbe:
     commandTimeout: 15
     initialDelaySeconds: 60
