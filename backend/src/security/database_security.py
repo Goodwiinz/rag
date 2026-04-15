@@ -14,6 +14,7 @@ import ssl
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional, Tuple
 
+from fastapi import Depends
 from cryptography.fernet import Fernet
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import hashes, serialization
@@ -25,7 +26,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from src.core.config import settings
-from src.core.database import engine
+from src.core.database import engine, get_db
 
 logger = logging.getLogger(__name__)
 
@@ -597,6 +598,11 @@ class DatabaseSecurityManager:
 
         # Execute insert
         try:
+            # Validate column names to prevent SQL injection
+            for key in encrypted_data.keys():
+                if not key.isidentifier():
+                    raise ValueError(f"Invalid column name: {key}")
+
             columns = ', '.join(encrypted_data.keys())
             placeholders = ', '.join([f':{key}' for key in encrypted_data.keys()])
             query = text("INSERT INTO {} ({}) VALUES ({})".format(table_name, columns, placeholders))  # nosec: B608 - table/column names validated against whitelist
