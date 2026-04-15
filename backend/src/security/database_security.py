@@ -597,9 +597,16 @@ class DatabaseSecurityManager:
 
         # Execute insert
         try:
+            # Validate table name and column names to prevent SQL injection
+            if not table_name.isidentifier():
+                raise ValueError(f"Invalid table name: {table_name}")
+            for key in encrypted_data.keys():
+                if not key.isidentifier():
+                    raise ValueError(f"Invalid column name: {key}")
+
             columns = ', '.join(encrypted_data.keys())
             placeholders = ', '.join([f':{key}' for key in encrypted_data.keys()])
-            query = text("INSERT INTO {} ({}) VALUES ({})".format(table_name, columns, placeholders))  # nosec: B608 - table/column names validated against whitelist
+            query = text("INSERT INTO {} ({}) VALUES ({})".format(table_name, columns, placeholders))  # nosec: B608 - table and column names validated via isidentifier()
 
             result = self.db.execute(query, encrypted_data)
             self.db.commit()
