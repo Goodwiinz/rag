@@ -147,6 +147,8 @@ backend:
         name: spaces-credentials
     - secretRef:
         name: supabase-credentials
+    - secretRef:
+        name: redis-credentials
 
   # Additional env vars (static config)
   env:
@@ -164,6 +166,17 @@ backend:
       value: "https://app.gen-text.app,https://gen-text.app"
     - name: QDRANT_URL
       value: "http://knowledge-graph-analytics-qdrant:6333"
+    # Cache tuning
+    - name: LLM_CACHE_ENABLED
+      value: "true"
+    - name: LLM_CACHE_TTL_SECONDS
+      value: "3600"
+    - name: LLM_CACHE_MAX_ENTRIES
+      value: "5000"
+    - name: LLM_CACHE_SEMANTIC_ENABLED
+      value: "true"
+    - name: LLM_CACHE_SIMILARITY_THRESHOLD
+      value: "0.92"
     # S3-Compatible Object Storage (DigitalOcean Spaces)
     - name: STORAGE_BACKEND
       value: "s3"
