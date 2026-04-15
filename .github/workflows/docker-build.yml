@@ -53,7 +53,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
@@ -66,7 +66,7 @@ jobs:
           password: ${{ secrets.DO_REGISTRY_TOKEN }}
 
       - name: Build and push backend image
-        uses: docker/build-push-action@v7
+        uses: docker/build-push-action@v6
         with:
           context: .
           file: backend/docker/Dockerfile.prod
@@ -90,7 +90,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
@@ -103,7 +103,7 @@ jobs:
           password: ${{ secrets.DO_REGISTRY_TOKEN }}
 
       - name: Build and push frontend image
-        uses: docker/build-push-action@v7
+        uses: docker/build-push-action@v6
         with:
           context: .
           file: frontend/Dockerfile.prod
