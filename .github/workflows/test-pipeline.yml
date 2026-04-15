@@ -48,7 +48,7 @@ jobs:
   # ==========================================================================
   lint-backend:
     name: Lint Backend
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux]
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -83,7 +83,7 @@ jobs:
 
   lint-frontend:
     name: Lint Frontend
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux]
     timeout-minutes: 10
     defaults:
       run:
@@ -108,14 +108,12 @@ jobs:
   # ==========================================================================
   unit-tests:
     name: Unit Tests
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux]
     timeout-minutes: 15
     continue-on-error: true  # TODO: remove once 145 pre-existing test failures are fixed
     needs: lint-backend
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-
-      - uses: ./.github/actions/free-disk-space
 
       - name: Setup Python backend
         uses: ./.github/actions/setup-python-backend
@@ -151,7 +149,7 @@ jobs:
   # ==========================================================================
   security-scan:
     name: Security Scan
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux]
     timeout-minutes: 10
     needs: lint-backend
     steps:
@@ -179,7 +177,7 @@ jobs:
   # ==========================================================================
   frontend-tests:
     name: Frontend Tests
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux]
     timeout-minutes: 10
     continue-on-error: true  # TODO: remove once 15 pre-existing test failures are fixed
     needs: lint-frontend
@@ -211,7 +209,7 @@ jobs:
   # ==========================================================================
   integration-tests:
     name: Integration Tests
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux]
     timeout-minutes: 15
     continue-on-error: true  # Don't block workflow if integration tests fail/timeout
     needs: [unit-tests, frontend-tests]
@@ -242,8 +240,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-
-      - uses: ./.github/actions/free-disk-space
 
       - name: Setup Python backend
         uses: ./.github/actions/setup-python-backend
@@ -287,14 +283,12 @@ jobs:
   # ==========================================================================
   resilience-tests:
     name: Resilience Tests
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux]
     timeout-minutes: 10
     continue-on-error: true  # Non-critical in PR checks; don't block merges
     needs: unit-tests
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-
-      - uses: ./.github/actions/free-disk-space
 
       - name: Setup Python backend
         uses: ./.github/actions/setup-python-backend
@@ -336,7 +330,7 @@ jobs:
   # ==========================================================================
   api-contract-tests:
     name: API Contract Tests
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux]
     continue-on-error: true  # Non-critical in PR checks; don't block merges
     needs: [unit-tests, frontend-tests]
     services:
@@ -352,8 +346,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-
-      - uses: ./.github/actions/free-disk-space
 
       - name: Setup Python backend
         uses: ./.github/actions/setup-python-backend
@@ -379,14 +371,12 @@ jobs:
   # ==========================================================================
   e2e-tests:
     name: E2E Tests
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux]
     timeout-minutes: 30
     continue-on-error: true  # Non-critical in PR checks; don't block merges
     needs: [integration-tests]
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-
-      - uses: ./.github/actions/free-disk-space
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2 # v3.10.0
@@ -517,7 +507,7 @@ jobs:
   # ==========================================================================
   performance-tests:
     name: Performance Tests
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux]
     timeout-minutes: 20
     continue-on-error: true  # Non-critical in PR checks; don't block merges
     needs: integration-tests
@@ -534,8 +524,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-
-      - uses: ./.github/actions/free-disk-space
 
       - name: Setup Python backend
         uses: ./.github/actions/setup-python-backend
@@ -569,7 +557,7 @@ jobs:
   # ==========================================================================
   test-summary:
     name: Test Summary
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux]
     timeout-minutes: 5
     needs: [unit-tests, integration-tests, resilience-tests, frontend-tests, security-scan, api-contract-tests]
     if: always()
