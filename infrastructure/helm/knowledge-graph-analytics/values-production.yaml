@@ -59,7 +59,10 @@ frontend:
       memory: 256Mi
 
   autoscaling:
-    enabled: false
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 4
+    targetCPUUtilizationPercentage: 70
 
   env:
     - name: NODE_ENV
@@ -128,7 +131,11 @@ backend:
       memory: 1Gi
 
   autoscaling:
-    enabled: false
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 6
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
 
   # Environment variables from existing DO secrets
   envFrom:
@@ -156,7 +163,7 @@ backend:
     - name: CORS_ORIGINS
       value: "https://app.gen-text.app,https://gen-text.app"
     - name: QDRANT_URL
-      value: "http://localhost:6333"
+      value: "http://knowledge-graph-analytics-qdrant:6333"
     # S3-Compatible Object Storage (DigitalOcean Spaces)
     - name: STORAGE_BACKEND
       value: "s3"
@@ -242,7 +249,7 @@ neo4j:
     repository: neo4j
     tag: "5.26-community"
     pullPolicy: IfNotPresent
-  password: "N@rutops129"  # TODO: rotate and move to sealed secret
+  # password: supply via --set neo4j.password=... or an external secrets operator at deploy time
   advertisedAddress: "neo4j.gen-text.app"
   persistence:
     size: 10Gi
