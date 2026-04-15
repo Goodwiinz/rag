@@ -26,8 +26,8 @@ frontend:
 
   image:
     repository: registry.digitalocean.com/ragsystemregistry/frontend
-    tag: "latest"
-    pullPolicy: Always
+    tag: "latest"  # overridden by CI via --set frontend.image.tag=<sha>
+    pullPolicy: IfNotPresent
 
   service:
     type: ClusterIP
@@ -59,7 +59,10 @@ frontend:
       memory: 256Mi
 
   autoscaling:
-    enabled: false
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 4
+    targetCPUUtilizationPercentage: 70
 
   env:
     - name: NODE_ENV
@@ -88,8 +91,8 @@ backend:
 
   image:
     repository: registry.digitalocean.com/ragsystemregistry/backend
-    tag: "latest"
-    pullPolicy: Always
+    tag: "latest"  # overridden by CI via --set backend.image.tag=<sha>
+    pullPolicy: IfNotPresent
 
   service:
     type: ClusterIP
@@ -128,7 +131,11 @@ backend:
       memory: 1Gi
 
   autoscaling:
-    enabled: false
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 6
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
 
   # Environment variables from existing DO secrets
   envFrom:
@@ -140,6 +147,8 @@ backend:
         name: spaces-credentials
     - secretRef:
         name: supabase-credentials
+    - secretRef:
+        name: redis-credentials
 
   # Additional env vars (static config)
   env:
@@ -156,7 +165,18 @@ backend:
     - name: CORS_ORIGINS
       value: "https://app.gen-text.app,https://gen-text.app"
     - name: QDRANT_URL
-      value: "http://localhost:6333"
+      value: "http://knowledge-graph-analytics-qdrant:6333"
+    # Cache tuning
+    - name: LLM_CACHE_ENABLED
+      value: "true"
+    - name: LLM_CACHE_TTL_SECONDS
+      value: "3600"
+    - name: LLM_CACHE_MAX_ENTRIES
+      value: "5000"
+    - name: LLM_CACHE_SEMANTIC_ENABLED
+      value: "true"
+    - name: LLM_CACHE_SIMILARITY_THRESHOLD
+      value: "0.92"
     # S3-Compatible Object Storage (DigitalOcean Spaces)
     - name: STORAGE_BACKEND
       value: "s3"
@@ -242,7 +262,7 @@ neo4j:
     repository: neo4j
     tag: "5.26-community"
     pullPolicy: IfNotPresent
-  password: "N@rutops129"  # TODO: rotate and move to sealed secret
+  # password: supply via --set neo4j.password=... or an external secrets operator at deploy time
   advertisedAddress: "neo4j.gen-text.app"
   persistence:
     size: 10Gi
@@ -297,7 +317,7 @@ podSecurityPolicy:
   enabled: false
 
 networkPolicy:
-  enabled: false
+  enabled: true
 
 podDisruptionBudget:
   enabled: true

@@ -1,0 +1,70 @@
+# GitHub Actions self-hosted runner via actions-runner-controller (ARC)
+#
+# Prerequisites — run once:
+#
+#   helm repo add actions-runner-controller \
+#     https://actions-runner-controller.github.io/actions-runner-controller
+#   helm repo update
+#
+#   helm install arc \
+#     actions-runner-controller/actions-runner-controller \
+#     --namespace arc-systems \
+#     --create-namespace \
+#     --set authSecret.create=true \
+#     --set "authSecret.github_token=<GITHUB_PAT>"
+#
+# Then apply this file:
+#   kubectl apply -f infrastructure/arc/runner-deployment.yaml
+#
+# Required GitHub secrets (repo → Settings → Secrets → Actions):
+#   DO_SPACES_ACCESS_KEY   — Spaces access key ID
+#   DO_SPACES_SECRET_KEY   — Spaces secret access key
+#
+apiVersion: actions.summerwind.dev/v1alpha1
+kind: RunnerDeployment
+metadata:
+  name: rag-runner
+  namespace: arc-systems
+spec:
+  replicas: 1
+  template:
+    spec:
+      repository: Goodwiinz/rag
+
+      # Labels matched by `runs-on: [self-hosted, linux]` in workflows
+      labels:
+        - self-hosted
+        - linux
+
+      # Docker-in-Docker so build jobs can run `docker build` inside the pod
+      dockerdWithinRunnerContainer: true
+
+      # Resource limits — conservative on a 16 GB / 8 vCPU node so K8s
+      # workloads are not starved.  Raise limits if builds are slow.
+      resources:
+        requests:
+          cpu: "500m"
+          memory: "2Gi"
+        limits:
+          cpu: "4"
+          memory: "8Gi"
+
+      # Ephemeral runner: pod is recycled after each job (security best practice)
+      ephemeral: true
+
+---
+# Optional: auto-scale between 1 and 3 runners based on pending workflow jobs
+apiVersion: actions.summerwind.dev/v1alpha1
+kind: HorizontalRunnerAutoscaler
+metadata:
+  name: rag-runner-autoscaler
+  namespace: arc-systems
+spec:
+  scaleTargetRef:
+    name: rag-runner
+  minReplicas: 1
+  maxReplicas: 3
+  metrics:
+    - type: TotalNumberOfQueuedAndInProgressWorkflowRuns
+      repositoryNames:
+        - Goodwiinz/rag
