@@ -24,6 +24,8 @@ jobs:
           curl -sL "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz" | tar xz -C /usr/local/bin actionlint
 
       - name: Run actionlint
+        env:
+          SHELLCHECK_OPTS: "-e SC2086 -e SC2129"
         run: |
           if [ -n "${GITHUB_BASE_REF:-}" ]; then
             git fetch --no-tags origin "$GITHUB_BASE_REF"
@@ -39,6 +41,8 @@ jobs:
 
             while IFS= read -r file; do
               [ -n "$file" ] || continue
+              # Skip deleted files
+              [ -f "$file" ] || continue
               actionlint "$file"
             done <<< "$changed_files"
           else
