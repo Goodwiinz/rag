@@ -28,14 +28,10 @@ RUN npm install --force && npm cache clean --force
 # Stage 3: Build application
 FROM base AS builder
 
-# Build-time env vars (NEXT_PUBLIC_* are baked into client JS by Next.js)
-ARG NEXT_PUBLIC_SUPABASE_URL
-ARG NEXT_PUBLIC_SUPABASE_ANON_KEY
+# Non-secret build-time args (safe to bake into image layers)
 ARG NEXT_PUBLIC_API_BASE_URL
 ARG BACKEND_URL
 
-ENV NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL
-ENV NEXT_PUBLIC_SUPABASE_ANON_KEY=$NEXT_PUBLIC_SUPABASE_ANON_KEY
 ENV NEXT_PUBLIC_API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL
 ENV BACKEND_URL=$BACKEND_URL
 
@@ -45,10 +41,13 @@ COPY --from=deps /app/node_modules /app/node_modules
 # Copy source code
 COPY frontend/ .
 
-# Build the application
-RUN if [ -z "$NEXT_PUBLIC_SUPABASE_URL" ] || [ -z "$NEXT_PUBLIC_SUPABASE_ANON_KEY" ]; then \
-      echo "NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY must be set at build time." >&2; \
-      exit 1; \
+# Build the application using BuildKit secret mount for sensitive NEXT_PUBLIC_* vars.
+# Secrets are injected via --mount and only exist during this RUN layer — they are
+# NOT persisted in the image history.  When no secret is mounted (local dev), the
+# build still succeeds with empty env vars.
+RUN --mount=type=secret,id=frontend_env \
+    if [ -f /run/secrets/frontend_env ]; then \
+      set -a && . /run/secrets/frontend_env && set +a; \
     fi && \
     npm run build
 
