@@ -2,6 +2,7 @@
 Main FastAPI application for the multimodal RAG system
 """
 
+import asyncio
 import logging
 import os
 import time
@@ -213,6 +214,14 @@ async def lifespan(app: FastAPI):
         configure_langsmith()
     except Exception as e:
         logger.debug(f"LangSmith configuration skipped: {e}")
+
+    # Pre-populate critical caches in the background (non-blocking)
+    try:
+        from src.core.cache_warmup import warm_critical_caches
+
+        asyncio.create_task(warm_critical_caches())
+    except Exception as e:
+        logger.debug(f"Cache warm-up skipped: {e}")
 
     logger.info("Application startup complete")
 
