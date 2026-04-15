@@ -16,11 +16,12 @@ from pathlib import Path
 backend_dir = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(backend_dir))
 
-# CRITICAL: Force test environment variables BEFORE any application imports.
-# Do not use setdefault here - local shells may already export production/dev URLs.
+# CRITICAL: Set test environment variables BEFORE any application imports.
+# Use setdefault for DATABASE_URL so CI-provided postgresql:// URLs are respected;
+# local devs without a postgres instance fall back to SQLite in-memory.
 os.environ["ENVIRONMENT"] = "testing"
-os.environ["DATABASE_URL"] = "sqlite:///:memory:"
-os.environ["ASYNC_DATABASE_URL"] = "sqlite+aiosqlite:///:memory:"
+os.environ.setdefault("DATABASE_URL", "sqlite:///:memory:")
+os.environ.setdefault("ASYNC_DATABASE_URL", "sqlite+aiosqlite:///:memory:")
 os.environ["TESTING"] = "true"
 os.environ["DEBUG"] = "true"
 os.environ["LOG_LEVEL"] = "WARNING"
@@ -564,3 +565,4 @@ async def test_message(test_db: AsyncSession, test_thread: Thread, test_user: Us
     await test_db.commit()
     await test_db.refresh(message)
     return message
+
