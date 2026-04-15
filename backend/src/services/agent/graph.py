@@ -776,6 +776,9 @@ async def tool_node(state: AgentState, config: RunnableConfig) -> dict:
         error_count = 0
         last_error = ""
 
+    # Prune to last 20 entries to prevent unbounded growth
+    tool_executions = tool_executions[-20:]
+
     return {
         "messages": tool_messages,
         "tool_executions": tool_executions,
@@ -861,6 +864,9 @@ def make_filtered_tool_node(allowed_tool_names: set[str]):
             error_count += r["error_increment"]
             if r["error_text"]:
                 last_error = r["error_text"]
+
+        # Prune to last 20 entries to prevent unbounded growth
+        tool_executions = tool_executions[-20:]
 
         return {
             "messages": tool_messages,

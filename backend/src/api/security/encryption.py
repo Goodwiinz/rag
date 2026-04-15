@@ -171,7 +171,7 @@ class EncryptionValidationResponse(BaseModel):
 
 
 @router.post("/profiles/user", response_model=Dict[str, Any])
-# @require_permission(["encryption:manage"])
+@require_permission(["encryption:manage"])
 async def encrypt_user_profile(
     request: UserProfileEncryptionRequest,
     current_user: User = Depends(is_active_user),
@@ -187,13 +187,16 @@ async def encrypt_user_profile(
         encryption_service = EncryptionService(db)
 
         # Check if user has permission to encrypt the target user's profile
-        if request.user_id != current_user.id and current_user.role.value not in [
-            "admin",
-            "content_manager",
-        ]:
+        if request.user_id != current_user.id and current_user.role.value != "admin":
             raise HTTPException(
                 status_code=403, detail="Not authorized to encrypt this user's profile"
             )
+
+        # Verify target user belongs to same organization
+        if request.user_id != current_user.id:
+            target_user = db.query(User).filter(User.id == request.user_id).first()
+            if not target_user or str(target_user.organization_id) != str(current_user.organization_id):
+                raise HTTPException(status_code=404, detail="User not found")
 
         # Encrypt the profile
         encrypted_profile = encryption_service.encrypt_user_profile(
@@ -216,7 +219,7 @@ async def encrypt_user_profile(
 
 
 @router.post("/profiles/organization", response_model=Dict[str, Any])
-# @require_permission(["encryption:manage", "organization:manage"])
+@require_permission(["encryption:manage", "organization:manage"])
 async def encrypt_organization_profile(
     request: OrganizationProfileEncryptionRequest,
     current_user: User = Depends(is_active_user),
@@ -262,7 +265,7 @@ async def encrypt_organization_profile(
 
 
 @router.post("/decrypt", response_model=Dict[str, Any])
-# @require_permission(["encryption:decrypt"])
+@require_permission(["encryption:decrypt"])
 async def decrypt_data(
     request: DecryptionRequest,
     current_user: User = Depends(is_active_user),
@@ -282,11 +285,17 @@ async def decrypt_data(
             # Check if user can access this profile
             if (
                 request.resource_id != current_user.id
-                and current_user.role.value not in ["admin", "content_manager"]
+                and current_user.role.value != "admin"
             ):
                 raise HTTPException(
                     status_code=403, detail="Not authorized to decrypt this user's data"
                 )
+
+            # Verify target user belongs to same organization
+            if request.resource_id != current_user.id:
+                target_user = db.query(User).filter(User.id == request.resource_id).first()
+                if not target_user or str(target_user.organization_id) != str(current_user.organization_id):
+                    raise HTTPException(status_code=404, detail="User not found")
 
             decrypted_data = encryption_service.decrypt_user_profile(
                 user_id=request.resource_id,
@@ -332,7 +341,7 @@ async def decrypt_data(
 
 
 @router.post("/keys/rotate", response_model=KeyRotationResponse)
-# @require_permission(["encryption:key_rotate"])
+@require_permission(["encryption:key_rotate"])
 async def rotate_encryption_key(
     request: KeyRotationRequest,
     background_tasks: BackgroundTasks,
@@ -372,7 +381,7 @@ async def rotate_encryption_key(
 
 
 @router.get("/status", response_model=EncryptionStatusResponse)
-# @require_permission(["encryption:view"])
+@require_permission(["encryption:view"])
 async def get_encryption_status(
     organization_id: Optional[UUID] = Query(
         None, description="Organization scope (admin only)"
@@ -409,7 +418,7 @@ async def get_encryption_status(
 
 
 @router.post("/validate", response_model=EncryptionValidationResponse)
-# @require_permission(["encryption:validate"])
+@require_permission(["encryption:validate"])
 async def validate_encryption_integrity(
     sample_size: int = Query(10, ge=1, le=100, description="Number of records to test"),
     current_user: User = Depends(is_active_user),
@@ -442,7 +451,7 @@ async def validate_encryption_integrity(
 
 
 @router.get("/audit/logs", response_model=List[Dict[str, Any]])
-# @require_permission(["encryption:audit"])
+@require_permission(["encryption:audit"])
 async def get_encryption_audit_logs(
     limit: int = Query(50, ge=1, le=500, description="Number of logs to return"),
     offset: int = Query(0, ge=0, description="Offset for pagination"),
@@ -510,7 +519,7 @@ async def get_encryption_audit_logs(
 
 
 @router.get("/config/sensitive-fields", response_model=List[str])
-# @require_permission(["encryption:view"])
+@require_permission(["encryption:view"])
 async def get_sensitive_fields_config(current_user: User = Depends(is_active_user)):
     """
     Get list of configured sensitive field patterns

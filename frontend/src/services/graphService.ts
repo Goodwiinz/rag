@@ -386,8 +386,10 @@ class GraphService {
    * Subscribe to WebSocket updates
    * BACKEND RESPONSIBILITY: Real-time data streaming, change notifications
    */
-  createWebSocketSubscription(filters?: GraphFilters): WebSocket {
-    const ws = apiClient.createWebSocket(
+  async createWebSocketSubscription(
+    filters?: GraphFilters
+  ): Promise<WebSocket> {
+    const ws = await apiClient.createWebSocket(
       `${this.visualizationUrl}/ws/subscribe`
     );
 

@@ -2,6 +2,7 @@
 Main FastAPI application for the multimodal RAG system
 """
 
+import asyncio
 import logging
 import os
 import time
@@ -28,7 +29,7 @@ from src.api.arxiv import (
     arxiv_local_router,
     arxiv_router,
 )
-from src.api.auth import auth_router
+from src.api.auth import auth_router, cli_auth_router
 from src.api.auth.api_keys import router as api_keys_router
 from src.api.documents import documents_router, files_router, integrity_router, processing_router, table_extraction_router
 from src.api.evidence.router import router as evidence_router
@@ -177,6 +178,35 @@ async def lifespan(app: FastAPI):
         logger.error(f"Failed to initialize WebSocket services: {e}")
         # Continue startup even if WebSocket services fail
 
+    # Validate S3 storage backend if configured
+    from src.core.config import settings as app_settings
+
+    if app_settings.STORAGE_BACKEND == "s3":
+        missing = []
+        if not app_settings.S3_ENDPOINT_URL:
+            missing.append("S3_ENDPOINT_URL")
+        if not app_settings.S3_ACCESS_KEY:
+            missing.append("S3_ACCESS_KEY")
+        if not app_settings.S3_SECRET_KEY:
+            missing.append("S3_SECRET_KEY")
+        if missing:
+            raise RuntimeError(
+                f"STORAGE_BACKEND=s3 but missing required env vars: {', '.join(missing)}"
+            )
+        try:
+            from src.core.s3_client import S3StorageHelper
+
+            helper = S3StorageHelper()
+            if not helper.check_health():
+                logger.warning("S3 storage health check failed — uploads may fail")
+            else:
+                logger.info(
+                    "S3 storage backend verified",
+                    extra={"bucket": app_settings.S3_BUCKET_NAME},
+                )
+        except Exception as e:
+            raise RuntimeError(f"S3 storage backend initialization failed: {e}")
+
     # Configure LangSmith tracing for agent observability
     try:
         from src.services.agent.observability import configure_langsmith
@@ -184,6 +214,14 @@ async def lifespan(app: FastAPI):
         configure_langsmith()
     except Exception as e:
         logger.debug(f"LangSmith configuration skipped: {e}")
+
+    # Pre-populate critical caches in the background (non-blocking)
+    try:
+        from src.core.cache_warmup import warm_critical_caches
+
+        asyncio.create_task(warm_critical_caches())
+    except Exception as e:
+        logger.debug(f"Cache warm-up skipped: {e}")
 
     logger.info("Application startup complete")
 
@@ -300,6 +338,7 @@ async def log_requests(request: Request, call_next):
 
 # Include routers
 app.include_router(auth_router, prefix="/api/v1")
+app.include_router(cli_auth_router, prefix="/api/v1")
 app.include_router(api_keys_router, prefix="/api/v1")
 app.include_router(files_router, prefix="/api/v1")
 app.include_router(documents_router, prefix="/api/v1")

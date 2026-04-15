@@ -38,4 +38,5 @@ if (typeof globalWithPolyfills.PerformanceObserver === 'undefined') {
 // Mock NEXT_PUBLIC_SUPABASE_ANON_KEY to prevent errors during test initialization
 // This ensures that `getSupabaseClient` in production properly errors on empty keys,
 // but the test suite does not fail out-of-the-box.
+process.env.NEXT_PUBLIC_SUPABASE_URL = 'http://localhost:54321';
 process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = 'mock-anon-key-for-tests';

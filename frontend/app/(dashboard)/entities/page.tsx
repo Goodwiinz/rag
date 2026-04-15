@@ -32,6 +32,7 @@ import {
   FileSearch,
   GitMerge,
   HeartPulse,
+  AlertTriangle,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -113,6 +114,7 @@ function EntityManagementContent() {
   const [selectedEntity, setSelectedEntity] = useState<Entity | null>(null);
   const [loading, setLoading] = useState(true);
   const [relationshipsLoading, setRelationshipsLoading] = useState(false);
+  const [serviceUnavailable, setServiceUnavailable] = useState(false);
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -190,7 +192,11 @@ function EntityManagementContent() {
         setTypeCounts(analytics.entity_type_counts || {});
       } catch (error) {
         logEntityPageError('Error fetching types and analytics', error);
-        toast.error('Failed to load entity types and analytics');
+        if (isServiceUnavailableError(error)) {
+          setServiceUnavailable(true);
+        } else {
+          toast.error('Failed to load entity types and analytics');
+        }
       }
     };
     fetchTypesAndAnalytics();
@@ -230,9 +236,14 @@ function EntityManagementContent() {
 
       setEntities(convertedEntities);
       setTotalEntities(paginatedResponse.total);
+      setServiceUnavailable(false);
     } catch (error) {
       logEntityPageError('Error fetching entities', error);
-      toast.error('Failed to fetch entities');
+      if (isServiceUnavailableError(error)) {
+        setServiceUnavailable(true);
+      } else {
+        toast.error('Failed to fetch entities');
+      }
       setEntities([]);
       setTotalEntities(0);
     } finally {
@@ -268,6 +279,9 @@ function EntityManagementContent() {
       setGraphEntities(converted);
     } catch (error) {
       logEntityPageError('Error fetching relationships', error);
+      if (isServiceUnavailableError(error)) {
+        setServiceUnavailable(true);
+      }
       setRelationships([]);
       setGraphEntities([]);
     } finally {
@@ -643,6 +657,37 @@ function EntityManagementContent() {
           </div>
         </motion.div>
 
+        {/* Service Unavailable Banner */}
+        {serviceUnavailable && (
+          <Card className="border-amber-500/30 bg-amber-500/5">
+            <CardContent className="p-4 flex items-center gap-3">
+              <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0" />
+              <div>
+                <p className="font-mono text-sm text-amber-400 font-bold">
+                  Knowledge Graph Unavailable
+                </p>
+                <p className="font-mono text-xs text-[var(--terminal-text-dim)] mt-1">
+                  The graph database is currently unreachable. Entity data
+                  cannot be loaded.
+                </p>
+              </div>
+              <Button
+                onClick={() => {
+                  setServiceUnavailable(false);
+                  fetchEntities();
+                  if (activeTab === 'graph') fetchRelationships();
+                }}
+                variant="outline"
+                size="sm"
+                className="ml-auto shrink-0 font-mono text-xs border-amber-500/30 hover:bg-amber-500/10"
+              >
+                <RefreshCw className="w-3 h-3 mr-1" />
+                RETRY
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Filters */}
         <Card className="border-[var(--terminal-border)] bg-[var(--terminal-surface)] shadow-lg">
           <CardContent className="p-4">
@@ -675,7 +720,7 @@ function EntityManagementContent() {
             {/* View group */}
             <div className="flex items-center gap-2 flex-wrap">
               <span className="font-mono text-[9px] text-primary uppercase tracking-wider w-14 shrink-0">
-                // View
+                {'// View'}
               </span>
               <TabsList className="bg-[var(--terminal-bg)] border border-[var(--terminal-border)] p-1 rounded-lg">
                 <TabsTrigger
@@ -710,7 +755,7 @@ function EntityManagementContent() {
 
               {/* Actions group */}
               <span className="font-mono text-[9px] text-primary uppercase tracking-wider w-14 shrink-0 ml-2">
-                // Actions
+                {'// Actions'}
               </span>
               <TabsList className="bg-[var(--terminal-bg)] border border-[var(--terminal-border)] p-1 rounded-lg">
                 <TabsTrigger
@@ -740,7 +785,7 @@ function EntityManagementContent() {
             {/* Monitor group */}
             <div className="flex items-center gap-2 flex-wrap">
               <span className="font-mono text-[9px] text-primary uppercase tracking-wider w-14 shrink-0">
-                // Monitor
+                {'// Monitor'}
               </span>
               <TabsList className="bg-[var(--terminal-bg)] border border-[var(--terminal-border)] p-1 rounded-lg">
                 <TabsTrigger

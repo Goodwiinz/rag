@@ -32,6 +32,15 @@ def configure_langsmith():
         logger.debug("LangSmith tracing disabled (no LANGCHAIN_API_KEY)")
 
 
+def get_langsmith_base_url() -> str:
+    """Return the configured LangSmith endpoint or the public default."""
+    return (
+        os.environ.get("LANGCHAIN_ENDPOINT")
+        or os.environ.get("LANGSMITH_ENDPOINT")
+        or "https://smith.langchain.com"
+    )
+
+
 # ---------------------------------------------------------------------------
 # Prometheus metrics (using existing monitoring infrastructure)
 # ---------------------------------------------------------------------------

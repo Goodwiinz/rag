@@ -8,6 +8,7 @@ performance and reduce load on search backends.
 import asyncio
 import hashlib
 import json
+import random
 import logging
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -205,7 +206,9 @@ class RedisCache:
             return
 
         try:
-            await self._client.setex(self._make_key(key), ttl, json.dumps(results))
+            jitter = int(ttl * 0.15)
+            effective_ttl = ttl + random.randint(-jitter, jitter)
+            await self._client.setex(self._make_key(key), effective_ttl, json.dumps(results))
         except Exception as e:
             logger.error(f"Redis set error: {e}")
 
@@ -302,7 +305,7 @@ class SearchCache:
         }
 
         key_string = json.dumps(key_data, sort_keys=True)
-        return hashlib.sha256(key_string.encode()).hexdigest()[:16]
+        return hashlib.sha256(key_string.encode()).hexdigest()[:32]
 
     def _serialize_results(self, results: List[SearchResult]) -> List[Dict[str, Any]]:
         """Serialize results for caching."""
