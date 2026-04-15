@@ -26,8 +26,8 @@ frontend:
 
   image:
     repository: registry.digitalocean.com/ragsystemregistry/frontend
-    tag: "latest"
-    pullPolicy: Always
+    tag: "latest"  # overridden by CI via --set frontend.image.tag=<sha>
+    pullPolicy: IfNotPresent
 
   service:
     type: ClusterIP
@@ -91,8 +91,8 @@ backend:
 
   image:
     repository: registry.digitalocean.com/ragsystemregistry/backend
-    tag: "latest"
-    pullPolicy: Always
+    tag: "latest"  # overridden by CI via --set backend.image.tag=<sha>
+    pullPolicy: IfNotPresent
 
   service:
     type: ClusterIP
@@ -304,7 +304,7 @@ podSecurityPolicy:
   enabled: false
 
 networkPolicy:
-  enabled: false
+  enabled: true
 
 podDisruptionBudget:
   enabled: true
