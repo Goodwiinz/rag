@@ -32,7 +32,7 @@ os.environ.setdefault("ENVIRONMENT", "testing")
 # Force DEBUG in tests so TrustedHostMiddleware is not enabled for TestClient host.
 os.environ["DEBUG"] = "true"
 os.environ.setdefault("LOG_LEVEL", "WARNING")
-os.environ.setdefault("DATABASE_URL", "sqlite:///:memory:")
+os.environ.setdefault("DATABASE_URL", "postgresql://test:test@localhost:5432/test_db")
 os.environ.setdefault("REDIS_URL", "redis://localhost:6379/15")
 os.environ.setdefault("NEO4J_URI", "bolt://localhost:7687")
 os.environ.setdefault("QDRANT_URL", "http://localhost:6333")
