@@ -105,6 +105,13 @@ class Settings(BaseSettings):
         """Override DATABASE_URL when SUPABASE_DB_URL is set."""
         if self.SUPABASE_DB_URL:
             self.DATABASE_URL = self.SUPABASE_DB_URL
+        # Allow SQLite for testing environments only
+        if self.DATABASE_URL.startswith("sqlite://"):
+            if self.ENVIRONMENT not in ("testing", "test"):
+                raise ValueError(
+                    "SQLite DATABASE_URL is only allowed in testing environment"
+                )
+            return self
         # Validate final DATABASE_URL
         if not self.DATABASE_URL.startswith(("postgresql://", "postgresql+asyncpg://")):
             raise ValueError(
@@ -398,3 +405,4 @@ settings = Settings()
 def get_settings() -> Settings:
     """Get application settings"""
     return settings
+
