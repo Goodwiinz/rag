@@ -246,6 +246,9 @@ backend:
     waitForRedis: false
     waitForNeo4j: false
     waitForQdrant: false
+    # Migrations are NOT auto-applied in prod — run `alembic upgrade head`
+    # explicitly via `kubectl exec` after a pre-deploy DB snapshot.
+    runMigrations: false
 
 # ──────────────────────────────────────────────
 # All databases are external (DO Managed)
