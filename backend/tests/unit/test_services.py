@@ -31,14 +31,28 @@ from src.models.document import Document
 @pytest.fixture
 def mock_db_session():
     """Mock database session"""
-    session = Mock(spec=Session)
-    session.query.return_value = session
-    session.filter.return_value = session
-    session.first.return_value = None
-    session.all.return_value = []
+    session = Mock()
+
+    # Create a chainable query mock
+    query_mock = Mock()
+    query_mock.filter.return_value = query_mock
+    query_mock.filter_by.return_value = query_mock
+    query_mock.first.return_value = None
+    query_mock.all.return_value = []
+    query_mock.one_or_none.return_value = None
+    query_mock.count.return_value = 0
+    query_mock.order_by.return_value = query_mock
+    query_mock.limit.return_value = query_mock
+    query_mock.offset.return_value = query_mock
+    query_mock.join.return_value = query_mock
+    query_mock.options.return_value = query_mock
+
+    session.query.return_value = query_mock
     session.add = Mock()
     session.commit = Mock()
     session.refresh = Mock()
+    session.rollback = Mock()
+    session.close = Mock()
     return session
 
 
