@@ -226,7 +226,7 @@ export const useDocuments = (options: UseDocumentsOptions = {}) => {
       try {
         const params: Record<string, string | number> = {
           page: actualPage,
-          size: actualPageSize,
+          page_size: actualPageSize,
         };
 
         // Add filters to params with proper null checks
