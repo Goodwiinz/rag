@@ -1,6 +1,6 @@
 import { apiClient } from '@/services/apiClient';
 
-const BASE = '/research-engine';
+const BASE = '/api/v1/research-engine';
 
 // Types
 export interface ProjectCreate {
