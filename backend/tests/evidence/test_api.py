@@ -58,12 +58,28 @@ app.dependency_overrides[get_current_user] = override_get_current_user
 
 @pytest.fixture(scope="module")
 def test_client():
-    """Test client with database override"""
+    """Test client with database override.
+
+    Disables FastAPI lifespan events (which try to connect to real services)
+    so tests don't hang in CI when PostgreSQL/Redis/Neo4j are unavailable.
+    """
+    from contextlib import asynccontextmanager
+
+    @asynccontextmanager
+    async def _no_lifespan(_app):
+        yield
+
+    original_lifespan = app.router.lifespan_context
+    app.router.lifespan_context = _no_lifespan
+
     # Only create the specific tables we need for testing (avoid PostgreSQL-specific types)
     StanceClassificationModel.__table__.create(bind=engine, checkfirst=True)
-    with TestClient(app) as client:
-        yield client
-    StanceClassificationModel.__table__.drop(bind=engine, checkfirst=True)
+    try:
+        with TestClient(app) as client:
+            yield client
+    finally:
+        StanceClassificationModel.__table__.drop(bind=engine, checkfirst=True)
+        app.router.lifespan_context = original_lifespan
 
 
 @pytest.fixture

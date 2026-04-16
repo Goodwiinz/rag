@@ -73,12 +73,14 @@ def _override_diagnostics_auth(test_app, mock_admin_user):
         test_app.dependency_overrides.pop(require_admin, None)
 
 
-def test_diagnostics_requires_auth_without_override(test_app) -> None:
+def test_diagnostics_requires_auth_without_override(test_app, test_client) -> None:
     """Diagnostics endpoints should reject unauthenticated requests."""
+    # Use test_client (which disables lifespan) instead of a bare TestClient.
+    # Creating TestClient(test_app) with a context manager triggers FastAPI
+    # lifespan events that try to connect to real services and hang in CI.
     test_app.dependency_overrides.pop(require_admin, None)
 
-    with TestClient(test_app) as client:
-        response = client.get("/api/v1/diagnostics/traces")
+    response = test_client.get("/api/v1/diagnostics/traces")
 
     assert response.status_code in (401, 403)
 
