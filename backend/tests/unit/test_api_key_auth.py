@@ -38,7 +38,7 @@ async def test_get_api_key_data_success():
 
     # Mock db.execute result
     mock_result = MagicMock()
-    mock_result.scalars.return_value.all.return_value = [api_key_record]
+    mock_result.scalars.return_value.first.return_value = api_key_record
     mock_db.execute.return_value = mock_result
 
     # Mock rate limiter
@@ -75,7 +75,7 @@ async def test_get_api_key_data_invalid_key():
 
     # Scenario 1: No key with prefix
     mock_result = MagicMock()
-    mock_result.scalars.return_value.all.return_value = []
+    mock_result.scalars.return_value.first.return_value = None
     mock_db.execute.return_value = mock_result
 
     with pytest.raises(HTTPException) as excinfo:
@@ -112,7 +112,7 @@ async def test_get_api_key_data_hash_mismatch():
     )
 
     mock_result = MagicMock()
-    mock_result.scalars.return_value.all.return_value = [api_key_record]
+    mock_result.scalars.return_value.first.return_value = api_key_record
     mock_db.execute.return_value = mock_result
 
     # Execute
