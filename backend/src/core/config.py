@@ -105,8 +105,10 @@ class Settings(BaseSettings):
         """Override DATABASE_URL when SUPABASE_DB_URL is set."""
         if self.SUPABASE_DB_URL:
             self.DATABASE_URL = self.SUPABASE_DB_URL
-        # Validate final DATABASE_URL
-        if not self.DATABASE_URL.startswith(("postgresql://", "postgresql+asyncpg://")):
+        # Validate final DATABASE_URL (allow sqlite in testing)
+        if self.ENVIRONMENT == "testing" and self.DATABASE_URL.startswith("sqlite"):
+            pass  # SQLite allowed for unit/integration tests
+        elif not self.DATABASE_URL.startswith(("postgresql://", "postgresql+asyncpg://")):
             raise ValueError(
                 "DATABASE_URL must start with postgresql:// or postgresql+asyncpg://"
             )
