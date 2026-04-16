@@ -8,7 +8,7 @@ from datetime import datetime
 from typing import Any, Dict, Optional
 
 from celery.exceptions import Retry
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 
 from src.core.config import settings
@@ -618,7 +618,7 @@ def health_check():
         db = SessionLocal()
 
         # Check database connectivity
-        db.execute("SELECT 1")
+        db.execute(text("SELECT 1"))
 
         # Check Redis connectivity
         celery_app.backend.result_backend.ping()
