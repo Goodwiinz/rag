@@ -99,6 +99,7 @@ ignore = [
 
 [dependency-groups]
 dev = [
+    "bcrypt>=5.0.0",
     "cryptography>=46.0.4",
     "fastapi>=0.128.4",
     "httpx>=0.28.1",
