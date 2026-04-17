@@ -4,6 +4,7 @@ Provides mock LLM, tool executor, compiled graph, and config fixtures
 that build on the existing integration conftest (test_db, test_user, etc.).
 """
 
+import contextlib
 import uuid
 from unittest.mock import AsyncMock, Mock, patch
 
@@ -139,12 +140,15 @@ def mock_execute_tool():
 # ---------------------------------------------------------------------------
 
 
-def compile_graph_with_mocks(mock_llm_instance, mock_tool_fn):
-    """Compile the agent graph with all external deps patched."""
-    from langgraph.checkpoint.memory import MemorySaver
-
+@contextlib.contextmanager
+def _llm_patches(mock_llm_instance, mock_tool_fn):
+    """Keep all LLM and external-dep patches active for the duration of the block."""
     with (
         patch("src.services.agent.graph._build_llm", return_value=mock_llm_instance),
+        patch("src.services.agent.classifier._build_classifier_llm", return_value=mock_llm_instance),
+        patch("src.services.agent.planner._build_planner_llm", return_value=mock_llm_instance),
+        patch("src.services.agent.reflection._build_reflection_llm", return_value=mock_llm_instance),
+        patch("src.services.agent.compactor._build_compactor_llm", return_value=mock_llm_instance),
         patch("src.services.agent.graph.execute_tool", new=mock_tool_fn),
         patch("src.services.agent.graph._get_execute_tool", return_value=mock_tool_fn),
         patch(
@@ -160,6 +164,18 @@ def compile_graph_with_mocks(mock_llm_instance, mock_tool_fn):
             new=AsyncMock(return_value={"retrieved_contexts": []}),
         ),
     ):
+        yield
+
+
+def compile_graph_with_mocks(mock_llm_instance, mock_tool_fn):
+    """Compile the agent graph with all external deps patched.
+
+    IMPORTANT: The returned graph must be invoked inside an ``_llm_patches``
+    context so that runtime LLM calls hit the mock, not real Azure/OpenAI.
+    """
+    from langgraph.checkpoint.memory import MemorySaver
+
+    with _llm_patches(mock_llm_instance, mock_tool_fn):
         from src.services.agent.graph import compile_agent_graph
 
         return compile_agent_graph(checkpointer=MemorySaver())
