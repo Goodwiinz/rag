@@ -40,7 +40,7 @@ export const MathDisplay: React.FC<MathDisplayProps> = ({
       } catch {
         if (!cancelled) {
           setKatexLoaded(false);
-          setError(false);
+          setError(true);
         }
       }
     };
