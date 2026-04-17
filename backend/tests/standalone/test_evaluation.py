@@ -10,9 +10,9 @@ import sys
 import os
 
 # Set Azure OpenAI credentials for testing
-os.environ["AZURE_OPENAI_CHAT_ENDPOINT"] = "https://goodwiinzapi.cognitiveservices.azure.com"
-os.environ["AZURE_OPENAI_CHAT_API_KEY"] = "7awsW9wUrULKH9CLPkeh1oeaeeGmKvIotw8HSYjVtjMcIgj0NqyLJQQJ99BIACYeBjFXJ3w3AAABACOG5UHM"
-os.environ["AZURE_OPENAI_CHAT_DEPLOYMENT_NAME"] = "gpt-5-nano"
+os.environ["AZURE_OPENAI_CHAT_ENDPOINT"] = os.environ.get("AZURE_OPENAI_CHAT_ENDPOINT", "https://goodwiinzapi.cognitiveservices.azure.com")
+os.environ["AZURE_OPENAI_CHAT_API_KEY"] = os.environ.get("AZURE_OPENAI_CHAT_API_KEY", "")
+os.environ["AZURE_OPENAI_CHAT_DEPLOYMENT_NAME"] = os.environ.get("AZURE_OPENAI_CHAT_DEPLOYMENT_NAME", "gpt-5-nano")
 
 # Add backend to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -34,9 +34,9 @@ async def test_llm_judge():
     # Create fresh instance with explicit credentials
     from src.services.evaluation.llm_judge_service import LLMJudgeService
     judge = LLMJudgeService(
-        endpoint="https://goodwiinzapi.cognitiveservices.azure.com",
-        api_key="7awsW9wUrULKH9CLPkeh1oeaeeGmKvIotw8HSYjVtjMcIgj0NqyLJQQJ99BIACYeBjFXJ3w3AAABACOG5UHM",
-        deployment_name="gpt-5-nano"
+        endpoint=os.environ.get("AZURE_OPENAI_CHAT_ENDPOINT", "https://goodwiinzapi.cognitiveservices.azure.com"),
+        api_key=os.environ.get("AZURE_OPENAI_CHAT_API_KEY", ""),
+        deployment_name=os.environ.get("AZURE_OPENAI_CHAT_DEPLOYMENT_NAME", "gpt-5-nano")
     )
     
     if not judge.is_available():
