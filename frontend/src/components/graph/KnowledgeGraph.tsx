@@ -13,7 +13,6 @@ import {
 import { Entity, Relationship, GraphData, GraphFilters } from '@/types/search';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
-import { IconButton } from '@/components/ui/icon-button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -636,20 +635,12 @@ export const KnowledgeGraph: React.FC<KnowledgeGraphProps> = ({
 
             {/* Zoom controls */}
             <div className="flex items-center space-x-1">
-              <IconButton
-                variant="outline"
-                size="sm"
-                onClick={handleZoomIn}
-                icon={<ArrowsPointingOutIcon className="h-4 w-4" />}
-                label="Zoom in"
-              />
-              <IconButton
-                variant="outline"
-                size="sm"
-                onClick={handleZoomOut}
-                icon={<ArrowsPointingInIcon className="h-4 w-4" />}
-                label="Zoom out"
-              />
+              <Button variant="outline" size="sm" onClick={handleZoomIn}>
+                <ArrowsPointingOutIcon className="h-4 w-4" />
+              </Button>
+              <Button variant="outline" size="sm" onClick={handleZoomOut}>
+                <ArrowsPointingInIcon className="h-4 w-4" />
+              </Button>
               <Button variant="outline" size="sm" onClick={handleResetZoom}>
                 Reset
               </Button>
