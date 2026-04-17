@@ -32,8 +32,7 @@ concurrency:
 env:
   PYTHON_VERSION: "3.11"
   NODE_VERSION: "20"
-  DOCKER_BUILDKIT: "0"
-  PIP_NO_CACHE_DIR: "1"
+  DOCKER_BUILDKIT: "1"
   PIP_DISABLE_PIP_VERSION_CHECK: "1"
 
 defaults:
@@ -82,7 +81,7 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
-          cache-dependency-path: package-lock.json
+          cache-dependency-path: frontend/pnpm-lock.yaml
 
       - name: Install dependencies
         run: npm ci
@@ -201,7 +200,7 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
-          cache-dependency-path: package-lock.json
+          cache-dependency-path: frontend/pnpm-lock.yaml
 
       - name: Install dependencies
         run: npm ci
@@ -270,6 +269,15 @@ jobs:
           docker system prune -af || true
           df -h
 
+      - name: Cache pip dependencies
+        uses: actions/cache@v5
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-integration-${{ hashFiles('backend/requirements*.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-integration-
+            ${{ runner.os }}-pip-
+
       - name: Install dependencies
         run: |
           pip install --build-constraint backend/constraints-ci.txt -r backend/requirements.txt
@@ -331,6 +339,15 @@ jobs:
           sudo rm -rf /opt/hostedtoolcache/CodeQL || true
           docker system prune -af || true
           df -h
+
+      - name: Cache pip dependencies
+        uses: actions/cache@v5
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-resilience-${{ hashFiles('backend/requirements*.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-resilience-
+            ${{ runner.os }}-pip-
 
       - name: Install dependencies
         run: |
@@ -403,6 +420,15 @@ jobs:
           docker system prune -af || true
           df -h
 
+      - name: Cache pip dependencies
+        uses: actions/cache@v5
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-contract-${{ hashFiles('backend/requirements*.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-contract-
+            ${{ runner.os }}-pip-
+
       - name: Install dependencies
         run: |
           pip install --build-constraint backend/constraints-ci.txt -r backend/requirements.txt
@@ -448,15 +474,34 @@ jobs:
           docker system prune -af --volumes || true
           df -h
 
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
       - name: Build backend image
-        run: docker build --build-arg PYTHON_VERSION=3.11 --build-arg TORCH_CPU_ONLY=true -t rag-backend:test -f backend/docker/Dockerfile.prod .
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: backend/docker/Dockerfile.prod
+          tags: rag-backend:test
+          load: true
+          build-args: |
+            PYTHON_VERSION=3.11
+            TORCH_CPU_ONLY=true
+          cache-from: type=gha,scope=backend-e2e
+          cache-to: type=gha,mode=max,scope=backend-e2e
 
       - name: Build frontend image
-        run: |
-          docker build \
-            --build-arg NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL:-http://localhost:54321} \
-            --build-arg NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY:-e2e-test-anon-key} \
-            -t rag-frontend:test -f frontend/Dockerfile.prod .
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: frontend/Dockerfile.prod
+          tags: rag-frontend:test
+          load: true
+          build-args: |
+            NEXT_PUBLIC_SUPABASE_URL=http://localhost:54321
+            NEXT_PUBLIC_SUPABASE_ANON_KEY=e2e-test-anon-key
+          cache-from: type=gha,scope=frontend-e2e
+          cache-to: type=gha,mode=max,scope=frontend-e2e
 
       - name: Start infrastructure services
         run: |
@@ -592,6 +637,15 @@ jobs:
           sudo rm -rf /opt/hostedtoolcache/CodeQL || true
           docker system prune -af || true
           df -h
+
+      - name: Cache pip dependencies
+        uses: actions/cache@v5
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-perf-${{ hashFiles('backend/requirements*.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-perf-
+            ${{ runner.os }}-pip-
 
       - name: Install dependencies
         run: |
