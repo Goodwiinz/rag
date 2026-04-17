@@ -14,28 +14,34 @@ backend_root = Path(__file__).resolve().parents[3]
 if str(backend_root) not in sys.path:
     sys.path.insert(0, str(backend_root))
 
+# Temporarily stub heavy modules so spec_from_file_location can load the
+# route module without pulling in the full dependency tree.  We save any
+# pre-existing entries and restore them immediately after loading.
+_STUB_KEYS = [
+    "src.core.database",
+    "src.services.research.bibliography_service",
+    "src.services.research.citation_extraction_service",
+    "src.services.security.user_management",
+]
+_saved = {k: sys.modules.pop(k) for k in _STUB_KEYS if k in sys.modules}
 
 database_stub = ModuleType("src.core.database")
 database_stub.get_db = AsyncMock()
-sys.modules.setdefault("src.core.database", database_stub)
+sys.modules["src.core.database"] = database_stub
 
 bibliography_stub = ModuleType("src.services.research.bibliography_service")
 bibliography_stub.BibliographyService = object
-sys.modules.setdefault(
-    "src.services.research.bibliography_service",
-    bibliography_stub,
-)
+sys.modules["src.services.research.bibliography_service"] = bibliography_stub
 
 extraction_stub = ModuleType("src.services.research.citation_extraction_service")
 extraction_stub.CitationExtractionService = object
-sys.modules.setdefault(
-    "src.services.research.citation_extraction_service",
-    extraction_stub,
-)
+extraction_stub.SemanticScholarClient = object
+extraction_stub.CrossRefClient = object
+sys.modules["src.services.research.citation_extraction_service"] = extraction_stub
 
 user_management_stub = ModuleType("src.services.security.user_management")
 user_management_stub.get_current_user = AsyncMock()
-sys.modules.setdefault("src.services.security.user_management", user_management_stub)
+sys.modules["src.services.security.user_management"] = user_management_stub
 
 from src.models.citation import Citation
 from src.shared.research_schemas import CitationCreate
@@ -50,6 +56,13 @@ citations_spec.loader.exec_module(citations_module)
 
 CitationExtractRequest = citations_module.CitationExtractRequest
 extract_citation = citations_module.extract_citation
+
+# Restore original modules so other test files get the real implementations.
+for k in _STUB_KEYS:
+    if k in _saved:
+        sys.modules[k] = _saved[k]
+    else:
+        sys.modules.pop(k, None)
 
 
 def _make_existing_citation(*, document_id, doi=None, arxiv_id=None) -> Citation:
