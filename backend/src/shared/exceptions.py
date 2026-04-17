@@ -508,6 +508,12 @@ class ExternalServiceError(BaseCustomException):
 # HTTP Exception factory
 def create_http_exception(exc: BaseCustomException) -> HTTPException:
     """Create HTTPException from custom exception"""
+    headers: Optional[Dict[str, str]] = None
+    # Forward Retry-After for rate-limit errors so clients can back off.
+    retry_after = exc.details.get("retry_after") if exc.details else None
+    if exc.status_code == status.HTTP_429_TOO_MANY_REQUESTS:
+        headers = {"Retry-After": str(max(1, int(retry_after)) if retry_after else 1)}
+
     return HTTPException(
         status_code=exc.status_code,
         detail={
@@ -519,6 +525,7 @@ def create_http_exception(exc: BaseCustomException) -> HTTPException:
                 "suggestions": exc.suggestions,
             }
         },
+        headers=headers,
     )
 
 
