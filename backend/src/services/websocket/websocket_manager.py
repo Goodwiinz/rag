@@ -5,6 +5,7 @@ Enhanced WebSocket connection manager for enterprise real-time communications
 import asyncio
 import json
 import logging
+import re
 import uuid
 from collections import defaultdict
 from dataclasses import asdict, dataclass
@@ -220,12 +221,27 @@ class EnhancedConnectionManager(BaseService):
     async def authenticate_websocket(
         self, websocket: WebSocket, token: str
     ) -> Optional[Dict[str, Any]]:
-        """Authenticate WebSocket connection using JWT token"""
+        """Authenticate WebSocket connection using JWT token.
+
+        On auth failure, accepts the WebSocket before closing it to ensure
+        proper protocol ordering (close frame requires an accepted connection).
+        """
+        async def _reject(code: int, reason: str) -> None:
+            """Accept then immediately close to avoid connection leak."""
+            try:
+                await websocket.accept()
+            except Exception:
+                pass  # Already accepted or connection lost
+            try:
+                await websocket.close(code=code, reason=reason)
+            except Exception:
+                pass  # Best-effort close
+
         try:
             if not token:
-                await websocket.close(
-                    code=status.WS_1008_POLICY_VIOLATION,
-                    reason="Authentication token required",
+                await _reject(
+                    status.WS_1008_POLICY_VIOLATION,
+                    "Authentication token required",
                 )
                 return None
 
@@ -238,8 +254,8 @@ class EnhancedConnectionManager(BaseService):
             organization_id = payload.get("organization_id")
 
             if not user_id or not organization_id:
-                await websocket.close(
-                    code=status.WS_1008_POLICY_VIOLATION, reason="Invalid token payload"
+                await _reject(
+                    status.WS_1008_POLICY_VIOLATION, "Invalid token payload"
                 )
                 return None
 
@@ -251,14 +267,14 @@ class EnhancedConnectionManager(BaseService):
 
         except JWTError as e:
             logger.warning(f"JWT authentication failed: {e}")
-            await websocket.close(
-                code=status.WS_1008_POLICY_VIOLATION, reason="Invalid or expired token"
+            await _reject(
+                status.WS_1008_POLICY_VIOLATION, "Invalid or expired token"
             )
             return None
         except Exception as e:
             logger.error(f"WebSocket authentication error: {e}")
-            await websocket.close(
-                code=status.WS_1011_INTERNAL_ERROR, reason="Authentication error"
+            await _reject(
+                status.WS_1011_INTERNAL_ERROR, "Authentication error"
             )
             return None
 
@@ -353,11 +369,18 @@ class EnhancedConnectionManager(BaseService):
         if not auth_result:
             return None
 
-        # Check connection limits
+        # Check connection limits — accept then close to avoid connection leak
         if len(self.active_connections) >= self.max_connections:
-            await websocket.close(
-                code=status.WS_1013_TRY_AGAIN_LATER, reason="Server at maximum capacity"
-            )
+            try:
+                await websocket.accept()
+            except Exception:
+                pass
+            try:
+                await websocket.close(
+                    code=status.WS_1013_TRY_AGAIN_LATER, reason="Server at maximum capacity"
+                )
+            except Exception:
+                pass
             return None
 
         # Accept connection
@@ -397,11 +420,18 @@ class EnhancedConnectionManager(BaseService):
         Returns:
             Connection ID if successful, None otherwise
         """
-        # Check connection limits
+        # Check connection limits — accept then close to avoid connection leak
         if len(self.active_connections) >= self.max_connections:
-            await websocket.close(
-                code=status.WS_1013_TRY_AGAIN_LATER, reason="Server at maximum capacity"
-            )
+            try:
+                await websocket.accept()
+            except Exception:
+                pass
+            try:
+                await websocket.close(
+                    code=status.WS_1013_TRY_AGAIN_LATER, reason="Server at maximum capacity"
+                )
+            except Exception:
+                pass
             return None
 
         # Accept connection with appropriate subprotocol
@@ -526,6 +556,10 @@ class EnhancedConnectionManager(BaseService):
 
     async def broadcast_to_channel(self, channel: str, message: WebSocketMessage):
         """Broadcast message to all subscribers of a channel"""
+        # Validate channel name to prevent injection
+        if not re.match(r'^[a-zA-Z0-9_.\-]+$', channel):
+            raise ValueError(f"Invalid channel name: {channel}")
+
         # Add channel to target channels if not already present
         if channel not in message.target_channels:
             message.target_channels.append(channel)

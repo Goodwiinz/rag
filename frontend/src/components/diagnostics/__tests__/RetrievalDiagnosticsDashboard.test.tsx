@@ -73,9 +73,7 @@ describe('RetrievalDiagnosticsDashboard', () => {
       expect(mockGetRecentTraces).toHaveBeenCalledWith(50);
     });
 
-    expect(
-      screen.getByText('No traces yet. Send a RAG query to start capturing diagnostics.')
-    ).toBeInTheDocument();
+    expect(screen.getByText('NO_TRACES_CAPTURED')).toBeInTheDocument();
   });
 
   it('refreshes traces when refresh button is clicked', async () => {

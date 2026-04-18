@@ -32,10 +32,43 @@ os.environ.setdefault("ENVIRONMENT", "testing")
 # Force DEBUG in tests so TrustedHostMiddleware is not enabled for TestClient host.
 os.environ["DEBUG"] = "true"
 os.environ.setdefault("LOG_LEVEL", "WARNING")
-os.environ.setdefault("DATABASE_URL", "sqlite:///:memory:")
+os.environ.setdefault("DATABASE_URL", "postgresql://test:test@localhost:5432/test_db")
 os.environ.setdefault("REDIS_URL", "redis://localhost:6379/15")
 os.environ.setdefault("NEO4J_URI", "bolt://localhost:7687")
 os.environ.setdefault("QDRANT_URL", "http://localhost:6333")
+
+# ============================================================================
+# Test Auth Helper — Supabase-compatible JWT generation
+# ============================================================================
+
+def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
+    """Create a Supabase-compatible HS256 JWT for testing.
+
+    Replaces the removed src.core.security.create_access_token.
+    Accepts the same {sub, email, organization_id, role} dict for backward compat.
+    """
+    from jose import jwt as jose_jwt
+
+    if expires_delta is None:
+        expires_delta = timedelta(hours=1)
+
+    sub = data.get("sub", data.get("user_id", "test-user-id"))
+    email = data.get("email", "test@test.com")
+    role = data.get("role", "USER")
+
+    payload = {
+        "sub": sub,
+        "email": email,
+        "exp": datetime.utcnow() + expires_delta,
+        "iat": datetime.utcnow(),
+        "iss": "supabase",
+        "role": "authenticated",
+        "app_metadata": {"role": role},
+    }
+
+    secret = os.environ.get("SUPABASE_JWT_SECRET", "super-secret-jwt-token-with-at-least-32-characters-long")
+    return jose_jwt.encode(payload, secret, algorithm="HS256")
+
 
 # ============================================================================
 # Pytest Configuration
@@ -52,6 +85,9 @@ def pytest_configure(config):
     config.addinivalue_line("markers", "scalability: Scalability tests (caching, pooling)")
     config.addinivalue_line("markers", "regression: Regression tests for previously fixed bugs")
     config.addinivalue_line("markers", "smoke: Quick smoke tests for basic validation")
+    config.addinivalue_line("markers", "deepeval: DeepEval LLM-judge evaluation tests")
+    config.addinivalue_line("markers", "langsmith: LangSmith evaluation tests - require LANGCHAIN_API_KEY")
+    config.addinivalue_line("markers", "eval: Slow evaluation benchmarks that run agent against dataset")
 
     # Feature/domain markers
     config.addinivalue_line("markers", "ai: AI-specific tests (mocked or real)")
@@ -99,11 +135,12 @@ def pytest_collection_modifyitems(config, items):
         # Add markers based on test file names
         test_path = str(item.fspath)
 
-        # Search security suites exercise full endpoint behavior and externalized
-        # security controls; treat them as integration tests so unit jobs stay stable.
-        if (
-            "/tests/security/search_security/" in test_path
-            or test_path.endswith("/tests/security/test_search_security.py")
+        # Tests under security/, evidence/, and contract/ import src.main and
+        # spin up TestClient(app) at module level, triggering the full app
+        # lifespan.  Mark them as integration so `-m unit` jobs skip them.
+        if any(
+            seg in test_path
+            for seg in ("/tests/security/", "/tests/evidence/", "/tests/contract/")
         ):
             item.add_marker(pytest.mark.integration)
 

@@ -1,0 +1,42 @@
+name: implement-intent-classifier
+description: |
+  Implement an LLM-based intent classifier with keyword fallback for the NOUS agent.
+  The classifier routes user queries to specialized subgraphs (research, writing,
+  knowledge_graph, general) using gpt-4o-mini structured output with keyword fallback
+  when confidence is low or the LLM fails.
+repo: .
+commit: "6af5432"
+files:
+  - backend/src/services/agent/classifier.py
+context:
+  - docs/plans/2026-03-25-agent-v2-design.md
+  - docs/plans/2026-03-25-agent-v2-plan.md
+  - backend/src/services/agent/graph.py
+  - backend/src/core/config.py
+prompt: |
+  Read the design doc section 2 (LLM Intent Classifier) and implementation plan Tasks 4-5.
+
+  Create backend/src/services/agent/classifier.py with:
+  1. IntentClassification (Pydantic BaseModel): intent, confidence, reasoning
+  2. ClassificationResult (frozen dataclass): intent, confidence, reasoning, source
+  3. classify_intent_keywords(query) — import INTENT_KEYWORDS/INTENT_PRIORITY from graph.py
+  4. _build_classifier_llm() — gpt-4o-mini, temperature=0, max_tokens=256 (Azure/OpenAI config from get_settings)
+  5. classify_intent_llm(query, page_context, previous_turn) — structured output
+  6. classify_intent_with_fallback(query, page_context, previous_turn) — try LLM, fall back if confidence < 0.7
+
+  System prompt must include few-shot examples for known confusions:
+  - "graph neural networks" -> research (not knowledge_graph)
+  - "extract entities from this paper" -> knowledge_graph
+  - "summarize the relationship between papers" -> writing
+
+  The tests at backend/tests/unit/services/test_agent_classifier.py must all pass.
+judge:
+  - type: pytest
+    command: >
+      cd backend &&
+      mkdir -p .agent-eval-tmp &&
+      git show 98a17bb:backend/tests/unit/services/test_agent_classifier.py > .agent-eval-tmp/test_agent_classifier.py &&
+      .venv/bin/python -m pytest .agent-eval-tmp/test_agent_classifier.py -v
+  - type: grep
+    pattern: "classify_intent_with_fallback"
+    files: backend/src/services/agent/classifier.py

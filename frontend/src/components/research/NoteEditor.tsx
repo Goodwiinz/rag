@@ -185,13 +185,13 @@ export function NoteEditor({
     <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
       <div className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg w-full max-w-3xl max-h-[85vh] overflow-hidden">
         <div className="flex items-center justify-between p-4 border-b border-[#1a1a1a]">
-          <h2 className="text-lg font-mono font-bold text-[#00ff9f]">
+          <h2 className="text-lg font-mono font-bold text-sol">
             {initialNote ? 'Edit Note' : 'Create Note'}
           </h2>
           <div className="flex items-center gap-2">
             <button
               onClick={() => setPreview((prev) => !prev)}
-              className="px-3 py-1.5 text-xs font-mono border border-[#333] rounded text-gray-300 hover:border-[#00ff9f]/50"
+              className="px-3 py-1.5 text-xs font-mono border border-[#333] rounded text-gray-300 hover:border-sol/50"
             >
               {preview ? (
                 <span className="inline-flex items-center gap-1">
@@ -222,7 +222,7 @@ export function NoteEditor({
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Note title"
-              className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#333] rounded text-sm font-mono text-gray-300 placeholder-gray-600 focus:outline-none focus:border-[#00ff9f]"
+              className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#333] rounded text-sm font-mono text-gray-300 placeholder-gray-600 focus:outline-none focus:border-sol"
             />
           </div>
 
@@ -264,7 +264,7 @@ export function NoteEditor({
                   onKeyUp={handleTextSelect}
                   placeholder="Write note content in markdown..."
                   rows={12}
-                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#333] rounded text-sm font-mono text-gray-300 placeholder-gray-600 focus:outline-none focus:border-[#00ff9f] resize-none"
+                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#333] rounded text-sm font-mono text-gray-300 placeholder-gray-600 focus:outline-none focus:border-sol resize-none"
                 />
                 {rewriteResult && (
                   <div className="mt-3">
@@ -317,11 +317,11 @@ export function NoteEditor({
                   }
                 }}
                 placeholder="Add tag and press Enter"
-                className="flex-1 px-3 py-2 bg-[#1a1a1a] border border-[#333] rounded text-sm font-mono text-gray-300 placeholder-gray-600 focus:outline-none focus:border-[#00ff9f]"
+                className="flex-1 px-3 py-2 bg-[#1a1a1a] border border-[#333] rounded text-sm font-mono text-gray-300 placeholder-gray-600 focus:outline-none focus:border-sol"
               />
               <button
                 onClick={handleAddTag}
-                className="px-3 py-2 text-xs font-mono border border-[#00ff9f]/30 text-[#00ff9f] rounded hover:bg-[#00ff9f]/10"
+                className="px-3 py-2 text-xs font-mono border border-sol/30 text-sol rounded hover:bg-sol/10"
               >
                 Add
               </button>
@@ -381,7 +381,7 @@ export function NoteEditor({
           <button
             onClick={handleSubmit}
             disabled={!canSave}
-            className="flex items-center gap-2 px-4 py-2 bg-[#00ff9f]/10 text-[#00ff9f] border border-[#00ff9f]/30 rounded font-mono text-sm hover:bg-[#00ff9f]/20 transition-colors disabled:opacity-50"
+            className="flex items-center gap-2 px-4 py-2 bg-sol/10 text-sol border border-sol/30 rounded font-mono text-sm hover:bg-sol/20 transition-colors disabled:opacity-50"
           >
             <Save className="h-4 w-4" />
             {saving ? 'Saving...' : 'Save Note'}

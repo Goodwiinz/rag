@@ -275,15 +275,18 @@ class AnalyticsRateLimitMiddleware(BaseHTTPMiddleware):
         if not allowed:
             logger.warning(f"Rate limit exceeded for analytics request", extra=log_data)
 
-            # Add rate limit headers
+            # Add rate limit headers. Retry-After is always included on 429 so
+            # clients can back off correctly; fall back to the window length
+            # when the limiter couldn't compute a precise value.
+            retry_after = info["retry_after"]
+            if not retry_after or retry_after < 1:
+                retry_after = limit_config["window"]
             headers = {
                 "X-RateLimit-Limit": str(info["limit"]),
                 "X-RateLimit-Remaining": "0",
                 "X-RateLimit-Reset": str(int(info["reset_time"])),
+                "Retry-After": str(retry_after),
             }
-
-            if info["retry_after"]:
-                headers["Retry-After"] = str(info["retry_after"])
 
             raise HTTPException(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,

@@ -5,19 +5,19 @@ import { cn } from '@/lib/utils';
 import { RegisterRequest } from '@/types';
 import { motion } from 'framer-motion';
 import {
-    ArrowRight,
-    Building2,
-    Database,
-    Eye,
-    EyeOff,
-    Lock,
-    Mail,
-    RefreshCw,
-    Shield,
-    Sparkles,
-    Terminal,
-    User,
-    Zap,
+  ArrowRight,
+  Building2,
+  Database,
+  Eye,
+  EyeOff,
+  Lock,
+  Mail,
+  RefreshCw,
+  Shield,
+  Sparkles,
+  Terminal,
+  User,
+  Zap,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -33,11 +33,12 @@ interface RegisterFormData {
 }
 
 // Terminal Observatory Theme Constants
-const _PHOSPHOR_GREEN = '#00ff9f';
+const _PHOSPHOR_GREEN = '#D4A039';
 const _AMBER = '#ffb700';
 
 export default function RegisterPage() {
-  const { register, isAuthenticated, isLoading } = useAuth();
+  const { register, isAuthenticated, isLoading, pendingEmailConfirmation } =
+    useAuth();
   const router = useRouter();
   const [formData, setFormData] = useState<RegisterFormData>({
     email: '',
@@ -91,17 +92,21 @@ export default function RegisterPage() {
         organization_name: formData.organization_name || undefined,
       };
 
-      await register(registerData);
-      router.push('/');
+      const result = await register(registerData);
+      if (!result.requiresEmailConfirmation) {
+        router.push('/');
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Account provisioning failed');
+      setError(
+        err instanceof Error ? err.message : 'Account provisioning failed'
+      );
     } finally {
       setIsSubmitting(false);
     }
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
       [e.target.name]: e.target.value,
     }));
@@ -117,9 +122,12 @@ export default function RegisterPage() {
   const passwordStrength = () => {
     const password = formData.password;
     if (!password) return { level: 0, text: '', color: '' };
-    if (password.length < 6) return { level: 1, text: 'WEAK', color: 'bg-red-500' };
-    if (password.length < 8) return { level: 2, text: 'FAIR', color: 'bg-yellow-500' };
-    if (password.length < 12) return { level: 3, text: 'GOOD', color: 'bg-[var(--phosphor-green)]' };
+    if (password.length < 6)
+      return { level: 1, text: 'WEAK', color: 'bg-red-500' };
+    if (password.length < 8)
+      return { level: 2, text: 'FAIR', color: 'bg-yellow-500' };
+    if (password.length < 12)
+      return { level: 3, text: 'GOOD', color: 'bg-[var(--phosphor-green)]' };
     return { level: 4, text: 'OPTIMAL', color: 'bg-[var(--phosphor-green)]' };
   };
 
@@ -127,14 +135,52 @@ export default function RegisterPage() {
 
   if (!mounted) return null;
 
+  // Email confirmation screen
+  if (pendingEmailConfirmation) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[var(--terminal-bg)]">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="max-w-md w-full mx-6"
+        >
+          <div className="rounded-2xl border border-[var(--terminal-border)] bg-[var(--terminal-surface)] p-10 text-center">
+            <div className="flex items-center justify-center w-16 h-16 rounded-full bg-[var(--phosphor-green)]/10 border border-[var(--phosphor-green)]/30 mx-auto mb-6">
+              <Mail className="w-8 h-8 text-[var(--phosphor-green)]" />
+            </div>
+            <h2 className="text-xl font-mono font-bold text-[var(--terminal-text)] uppercase tracking-[0.15em] mb-3">
+              Verify Your Identity
+            </h2>
+            <p className="text-sm font-mono text-[var(--terminal-text-muted)] mb-8 leading-relaxed">
+              We sent a verification link to{' '}
+              <span className="text-[var(--phosphor-green)]">
+                {formData.email}
+              </span>
+              . Check your inbox and click the link to activate your account.
+            </p>
+            <Link
+              href="/login"
+              className="inline-block text-[10px] font-mono text-[var(--terminal-text-dim)] uppercase tracking-widest hover:text-[var(--phosphor-green)] transition-colors"
+            >
+              Return to Access Terminal
+            </Link>
+          </div>
+        </motion.div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen flex bg-[var(--terminal-bg)] relative overflow-hidden">
       {/* Background Grid */}
       <div className="absolute inset-0 opacity-[0.02] pointer-events-none">
-        <div className="h-full w-full" style={{
-          backgroundImage: `linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)`,
-          backgroundSize: '40px 40px',
-        }} />
+        <div
+          className="h-full w-full"
+          style={{
+            backgroundImage: `linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)`,
+            backgroundSize: '40px 40px',
+          }}
+        />
       </div>
 
       {/* Left Panel - Branding */}
@@ -151,8 +197,12 @@ export default function RegisterPage() {
               <Terminal className="w-7 h-7 text-[var(--phosphor-green)]" />
             </div>
             <div>
-              <h1 className="text-3xl font-mono font-bold text-[var(--terminal-text)] tracking-tighter">RAG SYSTEM</h1>
-              <p className="text-[10px] font-mono font-bold text-[var(--phosphor-green)]/70 uppercase tracking-[0.3em]">Identity Registry</p>
+              <h1 className="text-3xl font-mono font-bold text-[var(--terminal-text)] tracking-tighter">
+                RAG SYSTEM
+              </h1>
+              <p className="text-[10px] font-mono font-bold text-[var(--phosphor-green)]/70 uppercase tracking-[0.3em]">
+                Identity Registry
+              </p>
             </div>
           </motion.div>
 
@@ -163,13 +213,15 @@ export default function RegisterPage() {
             transition={{ duration: 0.6, delay: 0.2 }}
           >
             <h2 className="text-4xl font-mono font-bold text-[var(--terminal-text)] leading-tight mb-8 tracking-tight uppercase">
-              Initialize<br />
+              Initialize
+              <br />
               <span className="bg-gradient-to-r from-[var(--phosphor-green)] to-[var(--cyan)] bg-clip-text text-transparent">
                 New Node
               </span>
             </h2>
             <p className="text-sm font-mono text-[var(--terminal-text-muted)] max-w-sm mb-12 leading-relaxed uppercase tracking-wide">
-              Provision access credentials for high-density document intelligence and synthesis.
+              Provision access credentials for high-density document
+              intelligence and synthesis.
             </p>
           </motion.div>
 
@@ -185,7 +237,9 @@ export default function RegisterPage() {
                 <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-[var(--terminal-surface)] border border-[var(--terminal-border)] group-hover:border-[var(--phosphor-green)]/50 transition-colors">
                   <feature.icon className="w-4 h-4 text-[var(--phosphor-green)]" />
                 </div>
-                <span className="text-[11px] font-mono font-bold text-[var(--terminal-text-dim)] uppercase tracking-widest group-hover:text-[var(--terminal-text)] transition-colors">{feature.text}</span>
+                <span className="text-[11px] font-mono font-bold text-[var(--terminal-text-dim)] uppercase tracking-widest group-hover:text-[var(--terminal-text)] transition-colors">
+                  {feature.text}
+                </span>
               </div>
             ))}
           </motion.div>
@@ -204,7 +258,9 @@ export default function RegisterPage() {
           <div className="rounded-2xl border border-[var(--terminal-border)] bg-[var(--terminal-surface)] p-8 shadow-2xl shadow-black/50 relative overflow-hidden">
             {/* Form Header */}
             <div className="text-center mb-10">
-              <h2 className="text-xl font-mono font-bold text-[var(--terminal-text)] uppercase tracking-[0.2em]">Provisioning Terminal</h2>
+              <h2 className="text-xl font-mono font-bold text-[var(--terminal-text)] uppercase tracking-[0.2em]">
+                Provisioning Terminal
+              </h2>
               <div className="h-0.5 w-12 bg-[var(--phosphor-green)] mx-auto mt-3 opacity-50" />
             </div>
 
@@ -216,14 +272,21 @@ export default function RegisterPage() {
                   animate={{ opacity: 1, y: 0 }}
                   className="rounded-lg border border-red-500/30 bg-red-500/5 p-3"
                 >
-                  <p className="text-[10px] font-mono text-red-400 font-bold uppercase tracking-tighter">Provisioning Error: {error}</p>
+                  <p className="text-[10px] font-mono text-red-400 font-bold uppercase tracking-tighter">
+                    Provisioning Error: {error}
+                  </p>
                 </motion.div>
               )}
 
               {/* Name Fields */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <label htmlFor="first_name" className="block text-[10px] font-mono text-[var(--terminal-text-dim)] uppercase tracking-[0.2em] font-bold pl-1">First Name</label>
+                  <label
+                    htmlFor="first_name"
+                    className="block text-[10px] font-mono text-[var(--terminal-text-dim)] uppercase tracking-[0.2em] font-bold pl-1"
+                  >
+                    First Name
+                  </label>
                   <div className="relative">
                     <div className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none">
                       <User className="w-4 h-4 text-[var(--terminal-text-muted)]" />
@@ -242,7 +305,12 @@ export default function RegisterPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <label htmlFor="last_name" className="block text-[10px] font-mono text-[var(--terminal-text-dim)] uppercase tracking-[0.2em] font-bold pl-1">Last Name</label>
+                  <label
+                    htmlFor="last_name"
+                    className="block text-[10px] font-mono text-[var(--terminal-text-dim)] uppercase tracking-[0.2em] font-bold pl-1"
+                  >
+                    Last Name
+                  </label>
                   <div className="relative">
                     <div className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none">
                       <User className="w-4 h-4 text-[var(--terminal-text-muted)]" />
@@ -263,7 +331,12 @@ export default function RegisterPage() {
 
               {/* Email Field */}
               <div className="space-y-2">
-                <label htmlFor="email" className="block text-[10px] font-mono text-[var(--terminal-text-dim)] uppercase tracking-[0.2em] font-bold pl-1">Identity Protocol</label>
+                <label
+                  htmlFor="email"
+                  className="block text-[10px] font-mono text-[var(--terminal-text-dim)] uppercase tracking-[0.2em] font-bold pl-1"
+                >
+                  Identity Protocol
+                </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none">
                     <Mail className="w-4 h-4 text-[var(--terminal-text-muted)]" />
@@ -283,7 +356,12 @@ export default function RegisterPage() {
 
               {/* Organization Field */}
               <div className="space-y-2">
-                <label htmlFor="organization_name" className="block text-[10px] font-mono text-[var(--terminal-text-dim)] uppercase tracking-[0.2em] font-bold pl-1">Organization <span className="opacity-30">(OPTIONAL)</span></label>
+                <label
+                  htmlFor="organization_name"
+                  className="block text-[10px] font-mono text-[var(--terminal-text-dim)] uppercase tracking-[0.2em] font-bold pl-1"
+                >
+                  Organization
+                </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none">
                     <Building2 className="w-4 h-4 text-[var(--terminal-text-muted)]" />
@@ -302,7 +380,12 @@ export default function RegisterPage() {
 
               {/* Password Field */}
               <div className="space-y-2">
-                <label htmlFor="password" className="block text-[10px] font-mono text-[var(--terminal-text-dim)] uppercase tracking-[0.2em] font-bold pl-1">Security Key</label>
+                <label
+                  htmlFor="password"
+                  className="block text-[10px] font-mono text-[var(--terminal-text-dim)] uppercase tracking-[0.2em] font-bold pl-1"
+                >
+                  Security Key
+                </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none">
                     <Lock className="w-4 h-4 text-[var(--terminal-text-muted)]" />
@@ -322,7 +405,11 @@ export default function RegisterPage() {
                     onClick={() => setShowPassword(!showPassword)}
                     className="absolute inset-y-0 right-0 flex items-center pr-3.5 text-[var(--terminal-text-muted)] hover:text-[var(--phosphor-green)] transition-colors"
                   >
-                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    {showPassword ? (
+                      <EyeOff className="w-4 h-4" />
+                    ) : (
+                      <Eye className="w-4 h-4" />
+                    )}
                   </button>
                 </div>
                 {/* Strength */}
@@ -333,20 +420,29 @@ export default function RegisterPage() {
                         <div
                           key={level}
                           className={cn(
-                            "h-0.5 flex-1 rounded-full transition-all duration-500",
-                            level <= strength.level ? strength.color : "bg-white/5"
+                            'h-0.5 flex-1 rounded-full transition-all duration-500',
+                            level <= strength.level
+                              ? strength.color
+                              : 'bg-white/5'
                           )}
                         />
                       ))}
                     </div>
-                    <span className="text-[8px] font-mono text-[var(--terminal-text-dim)] font-bold">{strength.text}</span>
+                    <span className="text-[8px] font-mono text-[var(--terminal-text-dim)] font-bold">
+                      {strength.text}
+                    </span>
                   </div>
                 )}
               </div>
 
               {/* Confirm Field */}
               <div className="space-y-2">
-                <label htmlFor="confirmPassword" className="block text-[10px] font-mono text-[var(--terminal-text-dim)] uppercase tracking-[0.2em] font-bold pl-1">Verify Key</label>
+                <label
+                  htmlFor="confirmPassword"
+                  className="block text-[10px] font-mono text-[var(--terminal-text-dim)] uppercase tracking-[0.2em] font-bold pl-1"
+                >
+                  Verify Key
+                </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none">
                     <Lock className="w-4 h-4 text-[var(--terminal-text-muted)]" />
@@ -363,10 +459,18 @@ export default function RegisterPage() {
                   />
                   <button
                     type="button"
-                    onClick={() => showConfirmPassword ? setShowConfirmPassword(false) : setShowConfirmPassword(true)}
+                    onClick={() =>
+                      showConfirmPassword
+                        ? setShowConfirmPassword(false)
+                        : setShowConfirmPassword(true)
+                    }
                     className="absolute inset-y-0 right-0 flex items-center pr-3.5 text-[var(--terminal-text-muted)] hover:text-[var(--phosphor-green)] transition-colors"
                   >
-                    {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    {showConfirmPassword ? (
+                      <EyeOff className="w-4 h-4" />
+                    ) : (
+                      <Eye className="w-4 h-4" />
+                    )}
                   </button>
                 </div>
               </div>
@@ -376,10 +480,10 @@ export default function RegisterPage() {
                 type="submit"
                 disabled={isSubmitting}
                 className={cn(
-                  "group w-full flex items-center justify-center gap-3 py-3.5 px-4 rounded-xl font-mono text-xs font-bold uppercase tracking-[0.2em]",
-                  "bg-[var(--phosphor-green)] text-[var(--terminal-bg)]",
-                  "hover:shadow-[0_0_25px_var(--phosphor-green-glow)] hover:scale-[1.02] active:scale-[0.98]",
-                  "disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300"
+                  'group w-full flex items-center justify-center gap-3 py-3.5 px-4 rounded-xl font-mono text-xs font-bold uppercase tracking-[0.2em]',
+                  'bg-[var(--phosphor-green)] text-[var(--terminal-bg)]',
+                  'hover:shadow-[0_0_25px_var(--phosphor-green-glow)] hover:scale-[1.02] active:scale-[0.98]',
+                  'disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300'
                 )}
               >
                 {isSubmitting ? (

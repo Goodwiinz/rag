@@ -210,6 +210,8 @@ async def rate_limit_by_user(current_user: User = Depends(get_current_user)):
     """Rate limiting dependency"""
     if not await rate_limiter.is_allowed(current_user.id, limit=1000, window=60):
         raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="Rate limit exceeded"
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Rate limit exceeded",
+            headers={"Retry-After": "60"},
         )
     return current_user

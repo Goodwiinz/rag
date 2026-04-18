@@ -118,7 +118,7 @@ export const ToneToolbar: React.FC<ToneToolbarProps> = ({
         <Checkbox
           checked={preserveCitations}
           onCheckedChange={(checked) => setPreserveCitations(checked === true)}
-          className="h-3.5 w-3.5 border-gray-600 data-[state=checked]:border-[#00d4ff] data-[state=checked]:bg-[#00d4ff]"
+          className="h-3.5 w-3.5 border-gray-600 data-[state=checked]:border-brand-cyan data-[state=checked]:bg-brand-cyan"
         />
         <span className="select-none text-[10px] text-gray-500">Citations</span>
       </label>
