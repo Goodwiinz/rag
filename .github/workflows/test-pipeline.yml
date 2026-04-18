@@ -132,29 +132,25 @@ jobs:
           pip install pytest pytest-asyncio pytest-cov pytest-xdist
           pip install --build-constraint backend/constraints-ci.txt -r backend/requirements.txt
 
-      - name: Run unit tests
+      - name: Run unit tests (fast PR gate)
+        # Directory-scoped to backend/tests/unit/ so pytest never descends into
+        # backend/tests/integration/, whose conftest defines an autouse fixture
+        # that patches Redis/Qdrant/Neo4j on every collected test. Coverage is
+        # measured nightly by the coverage-trend job, not on every PR.
         run: |
-          pytest backend/tests/ \
+          pytest backend/tests/unit/ \
             -c backend/pytest.ini \
-            -m "unit or not (integration or e2e or slow)" \
-            --cov=backend/src \
-            --cov-report=xml \
-            --cov-report=term-missing \
-            --cov-fail-under=8 \
-            -n auto \
-            -v
-        # Note: Coverage threshold lowered to 8% after excluding integration tests from norecursedirs
-        # to prevent Qdrant connection errors during unit test collection (GOO-151)
+            --rootdir=backend \
+            -p no:cacheprovider \
+            --no-cov \
+            -n auto --dist=loadfile \
+            -x -q --tb=short \
+            --durations=15
         env:
           ENVIRONMENT: testing
           DATABASE_URL: "sqlite:///:memory:"
-
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v5
-        with:
-          files: coverage.xml
-          flags: unit
-          name: unit-tests
+          ASYNC_DATABASE_URL: "sqlite+aiosqlite:///:memory:"
+          PYTHONDONTWRITEBYTECODE: "1"
 
   # ==========================================================================
   # Security Scan
