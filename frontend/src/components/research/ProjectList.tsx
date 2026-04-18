@@ -24,13 +24,13 @@ export function ProjectList({
   return (
     <div>
       <div className="flex justify-end mb-4">
-        <div className="inline-flex items-center border border-[#333] rounded-lg overflow-hidden">
+        <div className="inline-flex items-center border border-border rounded-lg overflow-hidden">
           <button
             onClick={() => onViewModeChange('grid')}
             className={`px-3 py-2 text-xs font-mono flex items-center gap-1.5 ${
               viewMode === 'grid'
-                ? 'bg-[#00ff9f]/10 text-[#00ff9f]'
-                : 'bg-[#1a1a1a] text-gray-400 hover:text-gray-300'
+                ? 'bg-primary/10 text-primary'
+                : 'bg-muted text-muted-foreground hover:text-foreground'
             }`}
             title="Grid view"
           >
@@ -41,8 +41,8 @@ export function ProjectList({
             onClick={() => onViewModeChange('list')}
             className={`px-3 py-2 text-xs font-mono flex items-center gap-1.5 ${
               viewMode === 'list'
-                ? 'bg-[#00ff9f]/10 text-[#00ff9f]'
-                : 'bg-[#1a1a1a] text-gray-400 hover:text-gray-300'
+                ? 'bg-primary/10 text-primary'
+                : 'bg-muted text-muted-foreground hover:text-foreground'
             }`}
             title="List view"
           >

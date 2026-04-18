@@ -204,16 +204,10 @@ export default function SearchPage() {
         {messages.length === 0 && !isLoading ? (
           <div className="mx-auto flex h-full w-full max-w-4xl flex-col items-center justify-center p-8">
             <div className="mb-8 text-center">
-              <h1
-                className="mb-2 text-xl tracking-wider text-[var(--terminal-text)]"
-                style={{ fontFamily: "'JetBrains Mono', monospace" }}
-              >
-                SEMANTIC SEARCH CHAT
+              <h1 className="mb-2 text-2xl font-mono font-bold tracking-wider text-[var(--terminal-text)]">
+                SEMANTIC_SEARCH
               </h1>
-              <p
-                className="text-sm text-[var(--terminal-text-dim)]"
-                style={{ fontFamily: "'JetBrains Mono', monospace" }}
-              >
+              <p className="text-xs font-mono text-muted-foreground uppercase tracking-widest">
                 Ask questions and get synthesized answers with source citations.
               </p>
             </div>

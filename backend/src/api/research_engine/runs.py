@@ -194,6 +194,7 @@ def _get_effective_parameters(
 
 
 
+
 router = APIRouter(
     prefix="/research-engine",
     tags=["research-engine"],
@@ -215,25 +216,18 @@ async def start_run(
     if body is None:
         body = RunCreate()
 
-    # Look up the blueprint
-    query = select(ResearchBlueprint).where(
-        ResearchBlueprint.id == blueprint_id,
+    # Look up the blueprint with ownership verification in one query
+    query = (
+        select(ResearchBlueprint)
+        .join(ResearchProject, ResearchProject.id == ResearchBlueprint.project_id)
+        .where(
+            ResearchBlueprint.id == blueprint_id,
+            ResearchProject.owner_id == current_user.id,
+        )
     )
     result = await db.execute(query)
     blueprint = result.scalars().first()
     if not blueprint:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Blueprint not found",
-        )
-
-    # Verify ownership through project
-    proj_query = select(ResearchProject).where(
-        ResearchProject.id == blueprint.project_id,
-        ResearchProject.owner_id == current_user.id,
-    )
-    proj_result = await db.execute(proj_query)
-    if not proj_result.scalars().first():
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Blueprint not found",
@@ -309,8 +303,7 @@ async def resume_run(
             status_code=status.HTTP_409_CONFLICT,
             detail="Run is not currently paused",
         )
-    # Keep resumed runs in PAUSED; SSE stream computes start_from for PAUSED runs.
-    run.status = RunStatus.PAUSED.value
+    run.status = RunStatus.RUNNING.value
     await db.commit()
     await db.refresh(run)
     return RunResponse.model_validate(run)

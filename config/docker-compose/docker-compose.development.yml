@@ -65,6 +65,11 @@ services:
       - COHERE_RERANK_API_KEY=${COHERE_RERANK_API_KEY:-}
       - COHERE_RERANK_MODEL=${COHERE_RERANK_MODEL:-}
 
+      # LangSmith / LangGraph Tracing
+      - LANGCHAIN_API_KEY=${LANGCHAIN_API_KEY:-}
+      - LANGCHAIN_TRACING_V2=${LANGCHAIN_TRACING_V2:-true}
+      - LANGCHAIN_PROJECT=${LANGCHAIN_PROJECT:-rag-agent}
+
       # Embedding Configuration
       - EMBEDDING_PROVIDER=${EMBEDDING_PROVIDER:-sentence_transformers}
       - EMBEDDING_MODEL=${EMBEDDING_MODEL:-sentence-transformers/all-MiniLM-L6-v2}
@@ -81,7 +86,10 @@ services:
       - SUPABASE_JWT_SECRET=${SUPABASE_JWT_SECRET:-}
       - SUPABASE_STORAGE_ENABLED=${SUPABASE_STORAGE_ENABLED:-false}
       - SUPABASE_STORAGE_TEMP_DIR=/tmp/rag_storage
-    command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
+    command: >-
+      sh -lc "python -m pip show langgraph >/dev/null 2>&1 ||
+      python -m pip install --no-cache-dir langgraph &&
+      exec uvicorn src.main:app --host 0.0.0.0 --port 8000"
     volumes:
       - ./backend:/app
       - ./uploads:/app/uploads

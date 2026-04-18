@@ -4,7 +4,11 @@ import type { ReactNode } from 'react';
 import { BookOpen, FileText, Sparkles, StickyNote } from 'lucide-react';
 import type { Project } from '@/services/projectService';
 
-export type ProjectDetailTab = 'documents' | 'notes' | 'bibliography' | 'drafts';
+export type ProjectDetailTab =
+  | 'documents'
+  | 'notes'
+  | 'bibliography'
+  | 'drafts';
 
 export interface ProjectDetailProps {
   project: Project;
@@ -36,8 +40,12 @@ export function ProjectDetail({
     <div>
       <div className="mb-6 flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-mono font-bold text-[#00ff9f]">{project.name}</h1>
-          {project.description && <p className="text-gray-400 mt-2">{project.description}</p>}
+          <h1 className="text-2xl font-mono font-bold text-sol">
+            {project.name}
+          </h1>
+          {project.description && (
+            <p className="text-gray-400 mt-2">{project.description}</p>
+          )}
         </div>
         {actions}
       </div>
@@ -52,7 +60,7 @@ export function ProjectDetail({
               onClick={() => onTabChange(tab.id)}
               className={`flex items-center gap-2 px-4 py-2 font-mono text-sm border-b-2 transition-colors ${
                 selected
-                  ? 'text-[#00ff9f] border-[#00ff9f]'
+                  ? 'text-sol border-sol'
                   : 'text-gray-500 border-transparent hover:text-gray-300'
               }`}
             >

@@ -156,7 +156,7 @@ export const LinkThreadModal: React.FC<LinkThreadModalProps> = ({
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-[#1a1a1a] shrink-0">
           <div className="flex items-center gap-2">
-            <Link2 className="h-5 w-5 text-[#00ff9f]" />
+            <Link2 className="h-5 w-5 text-sol" />
             <h2 className="font-mono font-bold text-gray-200">
               Link Existing Thread
             </h2>
@@ -171,7 +171,10 @@ export const LinkThreadModal: React.FC<LinkThreadModalProps> = ({
         </div>
 
         {/* Content */}
-        <form onSubmit={handleSubmit} className="flex flex-col flex-1 overflow-hidden">
+        <form
+          onSubmit={handleSubmit}
+          className="flex flex-col flex-1 overflow-hidden"
+        >
           <div className="p-4 space-y-4 overflow-y-auto flex-1">
             {/* Search */}
             <div className="relative">
@@ -182,7 +185,7 @@ export const LinkThreadModal: React.FC<LinkThreadModalProps> = ({
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search threads..."
                 disabled={isSubmitting}
-                className="w-full pl-10 pr-3 py-2 bg-[#1a1a1a] border border-[#333] rounded text-gray-200 font-mono text-sm placeholder:text-gray-600 focus:outline-none focus:border-[#00ff9f]/50 disabled:opacity-50"
+                className="w-full pl-10 pr-3 py-2 bg-[#1a1a1a] border border-[#333] rounded text-gray-200 font-mono text-sm placeholder:text-gray-600 focus:outline-none focus:border-sol/50 disabled:opacity-50"
               />
             </div>
 
@@ -190,7 +193,7 @@ export const LinkThreadModal: React.FC<LinkThreadModalProps> = ({
             <div className="space-y-2 max-h-64 overflow-y-auto">
               {isLoadingThreads ? (
                 <div className="flex items-center justify-center py-8">
-                  <Loader2 className="h-6 w-6 animate-spin text-[#00ff9f]" />
+                  <Loader2 className="h-6 w-6 animate-spin text-sol" />
                 </div>
               ) : filteredThreads.length === 0 ? (
                 <div className="text-center py-8 text-gray-500 font-mono text-sm">
@@ -207,15 +210,15 @@ export const LinkThreadModal: React.FC<LinkThreadModalProps> = ({
                     disabled={isSubmitting}
                     className={`w-full p-3 rounded border text-left transition-colors ${
                       selectedThreadId === thread.id
-                        ? 'bg-[#00ff9f]/10 border-[#00ff9f]/50'
-                        : 'bg-[#1a1a1a] border-[#333] hover:border-[#00ff9f]/30'
+                        ? 'bg-sol/10 border-sol/50'
+                        : 'bg-[#1a1a1a] border-[#333] hover:border-sol/30'
                     } disabled:opacity-50`}
                   >
                     <div className="flex items-start gap-3">
                       <MessageSquare
                         className={`h-4 w-4 mt-0.5 shrink-0 ${
                           selectedThreadId === thread.id
-                            ? 'text-[#00ff9f]'
+                            ? 'text-sol'
                             : 'text-gray-500'
                         }`}
                       />
@@ -223,7 +226,7 @@ export const LinkThreadModal: React.FC<LinkThreadModalProps> = ({
                         <p
                           className={`font-mono text-sm truncate ${
                             selectedThreadId === thread.id
-                              ? 'text-[#00ff9f]'
+                              ? 'text-sol'
                               : 'text-gray-200'
                           }`}
                         >
@@ -233,12 +236,14 @@ export const LinkThreadModal: React.FC<LinkThreadModalProps> = ({
                           <span>{thread.message_count} messages</span>
                           <span className="flex items-center gap-1">
                             <Clock className="h-3 w-3" />
-                            {formatDate(thread.last_message_at || thread.created_at)}
+                            {formatDate(
+                              thread.last_message_at || thread.created_at
+                            )}
                           </span>
                         </div>
                       </div>
                       {selectedThreadId === thread.id && (
-                        <div className="w-2 h-2 rounded-full bg-[#00ff9f] shrink-0 mt-1.5" />
+                        <div className="w-2 h-2 rounded-full bg-sol shrink-0 mt-1.5" />
                       )}
                     </div>
                   </button>
@@ -257,7 +262,7 @@ export const LinkThreadModal: React.FC<LinkThreadModalProps> = ({
                 placeholder="Add a note about why this thread is linked..."
                 disabled={isSubmitting}
                 maxLength={500}
-                className="w-full h-20 px-3 py-2 bg-[#1a1a1a] border border-[#333] rounded text-gray-200 font-mono text-sm placeholder:text-gray-600 focus:outline-none focus:border-[#00ff9f]/50 disabled:opacity-50 resize-none"
+                className="w-full h-20 px-3 py-2 bg-[#1a1a1a] border border-[#333] rounded text-gray-200 font-mono text-sm placeholder:text-gray-600 focus:outline-none focus:border-sol/50 disabled:opacity-50 resize-none"
               />
               <p className="text-xs text-gray-600 font-mono mt-1 text-right">
                 {contextNote.length}/500
@@ -285,7 +290,7 @@ export const LinkThreadModal: React.FC<LinkThreadModalProps> = ({
             <button
               type="submit"
               disabled={isSubmitting || !selectedThreadId}
-              className="flex items-center gap-2 px-4 py-2 bg-[#00ff9f]/10 text-[#00ff9f] border border-[#00ff9f]/30 rounded font-mono text-sm hover:bg-[#00ff9f]/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex items-center gap-2 px-4 py-2 bg-sol/10 text-sol border border-sol/30 rounded font-mono text-sm hover:bg-sol/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isSubmitting ? (
                 <>

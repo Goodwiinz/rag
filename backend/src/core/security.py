@@ -1,12 +1,15 @@
 """
-Security utilities for authentication and authorization
+Security utilities for authentication and authorization.
+
+Supabase-only JWT verification — custom token creation has been removed.
+The frontend uses Supabase SSR with cookie-based sessions; the backend
+only verifies Supabase-issued JWTs (HS256 via shared secret or ES256 via JWKS).
 """
 
 import logging
-import os
 import secrets
-from datetime import datetime, timedelta
-from typing import Any, Dict, Optional, Union
+from datetime import datetime
+from typing import Any, Dict, Optional
 
 import bcrypt  # Changed from passlib
 import httpx
@@ -34,22 +37,6 @@ class TokenData(BaseModel):
     organization_id: Optional[str] = None
     role: Optional[str] = None
     exp: Optional[datetime] = None
-    remember_me: bool = False  # Indicates if session should persist for 30 days
-
-
-class Token(BaseModel):
-    """Token response model"""
-
-    access_token: str
-    token_type: str
-    expires_in: int
-    user: Dict[str, Any]
-
-
-class TokenRefresh(BaseModel):
-    """Token refresh request model"""
-
-    refresh_token: str
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
@@ -108,62 +95,6 @@ def get_client_ip(request: Request) -> str:
     return request.client.host if request.client else "unknown"
 
 
-def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
-    """Create JWT access token"""
-    to_encode = data.copy()
-
-    if expires_delta:
-        expire = datetime.utcnow() + expires_delta
-    else:
-        expire = datetime.utcnow() + timedelta(
-            minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES
-        )
-
-    to_encode.update(
-        {"exp": expire, "type": "access"}  # Add token type for verification
-    )
-    encoded_jwt = jwt.encode(
-        to_encode, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM
-    )
-    return encoded_jwt
-
-
-def create_refresh_token(
-    data: dict, expires_delta: Optional[timedelta] = None, remember_me: bool = False
-) -> str:
-    """Create JWT refresh token
-
-    Args:
-        data: Token payload data
-        expires_delta: Custom expiration time
-        remember_me: If True, use extended 30-day expiration for persistent sessions
-    """
-    to_encode = data.copy()
-
-    if expires_delta:
-        expire = datetime.utcnow() + expires_delta
-    elif remember_me:
-        # Extended session for "Remember Me" - 30 days
-        expire = datetime.utcnow() + timedelta(
-            days=settings.REMEMBER_ME_REFRESH_TOKEN_DAYS
-        )
-    else:
-        # Default refresh token lifetime
-        expire = datetime.utcnow() + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
-
-    to_encode.update(
-        {
-            "exp": expire,
-            "type": "refresh",
-            "remember_me": remember_me,  # Track if this is an extended session
-        }
-    )
-    encoded_jwt = jwt.encode(
-        to_encode, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM
-    )
-    return encoded_jwt
-
-
 def _get_supabase_jwks() -> Optional[Dict]:
     """Fetch and cache JWKS from Supabase for ES256 verification."""
     global _supabase_jwks_cache
@@ -200,8 +131,12 @@ def _extract_supabase_token_data(payload: dict) -> Optional[TokenData]:
 
 
 def verify_token(token: str) -> Optional[TokenData]:
-    """Verify JWT token — supports both Supabase (HS256/ES256) and custom JWTs."""
-    # Try Supabase JWT first — HS256 with shared secret
+    """Verify a Supabase JWT token (HS256 via shared secret or ES256 via JWKS).
+
+    Custom JWT creation/verification has been removed — only Supabase-issued
+    tokens are accepted.
+    """
+    # Try Supabase JWT — HS256 with shared secret
     if settings.SUPABASE_JWT_SECRET:
         try:
             payload = jwt.decode(
@@ -218,7 +153,6 @@ def verify_token(token: str) -> Optional[TokenData]:
 
     # Try Supabase JWT — ES256 via JWKS
     try:
-        # Peek at the token header to check algorithm
         header = jwt.get_unverified_header(token)
         if header.get("alg") == "ES256":
             jwks_data = _get_supabase_jwks()
@@ -236,78 +170,12 @@ def verify_token(token: str) -> Optional[TokenData]:
                         result = _extract_supabase_token_data(payload)
                         if result:
                             return result
-    except JWTError:
-        pass  # Fall through to custom JWT
+    except JWTError as e:
+        logger.error(f"ES256 JWTError: {e}")
     except Exception as e:
-        logger.debug(f"JWKS verification failed: {e}")
+        logger.error(f"ES256 verification failed: {type(e).__name__}: {e}")
 
-    # Fallback: custom JWT (existing logic)
-    try:
-        payload = jwt.decode(
-            token, settings.JWT_SECRET_KEY, algorithms=[settings.JWT_ALGORITHM]
-        )
-        user_id: str = payload.get("sub")
-        email: str = payload.get("email")
-        organization_id: str = payload.get("organization_id")
-        role: str = payload.get("role")
-        exp: int = payload.get("exp")
-
-        if user_id is None:
-            return None
-
-        return TokenData(
-            user_id=user_id,
-            email=email,
-            organization_id=organization_id,
-            role=role,
-            exp=datetime.utcfromtimestamp(exp) if exp else None,
-        )
-    except JWTError:
-        return None
-
-
-def extract_refresh_token_user_id(token: str) -> Optional[str]:
-    """Extract user_id from refresh token without verifying expiration.
-
-    Signature is still verified. Used for rate-limiting identification
-    before full token validation.
-    """
-    try:
-        payload = jwt.decode(
-            token,
-            settings.JWT_SECRET_KEY,
-            algorithms=[settings.JWT_ALGORITHM],
-            options={"verify_exp": False},
-        )
-        if payload.get("type") != "refresh":
-            return None
-        return payload.get("sub")
-    except JWTError:
-        return None
-
-
-def verify_refresh_token(token: str) -> Optional[TokenData]:
-    """Verify and decode refresh token"""
-    try:
-        payload = jwt.decode(
-            token, settings.JWT_SECRET_KEY, algorithms=[settings.JWT_ALGORITHM]
-        )
-
-        # Check if it's a refresh token
-        if payload.get("type") != "refresh":
-            return None
-
-        user_id: str = payload.get("sub")
-        if user_id is None:
-            return None
-
-        # Preserve the remember_me flag from the original refresh token
-        remember_me: bool = payload.get("remember_me", False)
-
-        return TokenData(user_id=user_id, remember_me=remember_me)
-
-    except JWTError:
-        return None
+    return None
 
 
 def get_current_user_token(

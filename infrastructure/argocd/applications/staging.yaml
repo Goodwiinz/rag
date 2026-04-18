@@ -1,0 +1,48 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: nous-staging
+  namespace: argocd
+  labels:
+    app.kubernetes.io/part-of: nous-platform
+    environment: staging
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: nous-platform
+
+  source:
+    repoURL: https://github.com/Goodwiinz/rag.git
+    targetRevision: staging
+    path: infrastructure/helm/knowledge-graph-analytics
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-staging.yaml
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: rag-staging
+
+  # Manual sync: staging requires an explicit ArgoCD sync trigger.
+  # selfHeal ensures in-cluster manual changes are reverted but new git commits
+  # must be promoted explicitly (argocd app sync nous-staging).
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+      - PrunePropagationPolicy=foreground
+      - PruneLast=true
+      - ApplyOutOfSyncOnly=true
+    retry:
+      limit: 3
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 3m
+
+  # Health checks
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/replicas

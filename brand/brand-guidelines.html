@@ -1,0 +1,824 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NOUS — Brand Guidelines</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Source+Serif+4:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+  :root {
+    --ink: #0A0A0E;
+    --surface: #F7F7F5;
+    --muted: #4A4A4E;
+    --subtle: #9A9A9E;
+    --border: #E2E2E0;
+    --accent: #D4A039;
+    --accent-soft: #E8B84A;
+    --accent-bg: #FDF6E3;
+  }
+  html { font-size: 16px; }
+  body {
+    font-family: 'Inter', -apple-system, sans-serif;
+    background: var(--surface); color: var(--ink);
+    line-height: 1.6; -webkit-font-smoothing: antialiased;
+  }
+  .page { max-width: 880px; margin: 0 auto; padding: 4rem 2rem; }
+
+  /* Cover */
+  .cover {
+    text-align: center; padding: 6rem 2rem 4rem;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 4rem;
+  }
+  .cover-mark { width: 80px; height: 80px; margin: 0 auto 2rem; }
+  .cover h1 {
+    font-size: 2.5rem; font-weight: 700; letter-spacing: -0.02em;
+    margin-bottom: 0.5rem;
+  }
+  .cover p { color: var(--muted); font-size: 1.05rem; }
+  .cover .version {
+    display: inline-block; margin-top: 1.5rem;
+    font-size: 0.75rem; color: var(--subtle);
+    padding: 0.3rem 0.8rem; border: 1px solid var(--border);
+    border-radius: 100px;
+  }
+
+  /* Sections */
+  .guide-section { margin-bottom: 4rem; }
+  .guide-section h2 {
+    font-size: 0.7rem; font-weight: 600;
+    letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--accent); margin-bottom: 1.5rem;
+    padding-bottom: 0.75rem; border-bottom: 1px solid var(--border);
+  }
+  .guide-section h3 {
+    font-size: 1.15rem; font-weight: 600; margin-bottom: 0.75rem;
+  }
+  .guide-section p, .guide-section li {
+    color: var(--muted); font-size: 0.92rem; line-height: 1.7;
+    margin-bottom: 0.75rem;
+  }
+  .guide-section ul { padding-left: 1.25rem; }
+
+  /* Name Section */
+  .name-display {
+    text-align: center; padding: 3rem;
+    background: #fff; border: 1px solid var(--border);
+    border-radius: 16px; margin-bottom: 1.5rem;
+  }
+  .name-display .big {
+    font-size: 4rem; font-weight: 700; letter-spacing: 0.12em;
+  }
+  .name-display .phonetic {
+    color: var(--subtle); font-size: 0.9rem; margin-top: 0.5rem;
+    font-style: italic;
+  }
+  .name-meaning {
+    background: var(--accent-bg); border-radius: 12px; padding: 1.5rem;
+    margin-bottom: 1.5rem;
+  }
+  .name-meaning strong { color: var(--accent); }
+
+  /* Color Palette */
+  .palette-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 1rem; margin-bottom: 1.5rem;
+  }
+  .swatch {
+    border-radius: 12px; overflow: hidden;
+    border: 1px solid var(--border);
+    background: #fff;
+  }
+  .swatch-color {
+    height: 100px; display: flex; align-items: flex-end;
+    padding: 0.75rem;
+  }
+  .swatch-color span {
+    font-size: 0.7rem; font-weight: 600;
+    padding: 0.2rem 0.5rem; border-radius: 4px;
+    background: rgba(255,255,255,0.9); color: var(--ink);
+  }
+  .swatch-info {
+    padding: 0.75rem;
+  }
+  .swatch-info .name { font-size: 0.85rem; font-weight: 600; }
+  .swatch-info .hex { font-size: 0.75rem; color: var(--subtle); font-family: monospace; }
+
+  /* Typography */
+  .type-sample {
+    background: #fff; border: 1px solid var(--border);
+    border-radius: 12px; padding: 2rem;
+    margin-bottom: 1rem;
+  }
+  .type-sample .label {
+    font-size: 0.7rem; font-weight: 600; color: var(--accent);
+    text-transform: uppercase; letter-spacing: 0.1em;
+    margin-bottom: 1rem;
+  }
+  .type-heading {
+    font-family: 'Inter', sans-serif;
+    font-weight: 700; font-size: 2rem;
+    letter-spacing: -0.02em; line-height: 1.2;
+  }
+  .type-body {
+    font-family: 'Source Serif 4', Georgia, serif;
+    font-size: 1.05rem; line-height: 1.8;
+    color: var(--muted);
+  }
+  .type-ui {
+    font-family: 'Inter', sans-serif;
+    font-size: 0.875rem; font-weight: 500;
+    color: var(--ink);
+  }
+  .type-mono {
+    font-family: 'JetBrains Mono', 'SF Mono', monospace;
+    font-size: 0.85rem; color: var(--accent);
+    background: var(--accent-bg); padding: 0.2rem 0.5rem; border-radius: 4px;
+  }
+  .type-scale {
+    display: grid; gap: 1rem;
+    background: #fff; border: 1px solid var(--border);
+    border-radius: 12px; padding: 2rem; margin-bottom: 1.5rem;
+  }
+  .type-scale-row {
+    display: flex; align-items: baseline; gap: 1.5rem;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid #f0f0ee;
+  }
+  .type-scale-row:last-child { border: none; }
+  .type-scale-row .meta {
+    font-size: 0.7rem; color: var(--subtle); min-width: 120px;
+    font-family: monospace;
+  }
+
+  /* Logo Rules */
+  .logo-grid {
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 1rem; margin-bottom: 1.5rem;
+  }
+  .logo-box {
+    border-radius: 12px; padding: 2.5rem;
+    display: flex; align-items: center; justify-content: center;
+    border: 1px solid var(--border);
+    min-height: 160px;
+  }
+  .logo-box.light { background: var(--surface); }
+  .logo-box.dark { background: var(--ink); border-color: transparent; }
+  .logo-box.accent { background: var(--accent); border-color: transparent; }
+  .logo-box.white { background: #fff; }
+  .logo-box svg { max-width: 200px; }
+  .logo-caption {
+    font-size: 0.75rem; color: var(--subtle); text-align: center;
+    margin-top: 0.5rem;
+  }
+
+  /* Spacing */
+  .spacing-demo {
+    background: #fff; border: 1px solid var(--border);
+    border-radius: 12px; padding: 2rem; margin-bottom: 1.5rem;
+  }
+  .space-row {
+    display: flex; align-items: center; gap: 1rem;
+    margin-bottom: 0.75rem;
+  }
+  .space-bar {
+    height: 24px; background: var(--accent-bg);
+    border: 1px solid rgba(99,102,241,0.15);
+    border-radius: 4px;
+  }
+  .space-label { font-size: 0.75rem; color: var(--subtle); min-width: 60px; font-family: monospace; }
+
+  /* Do/Don't */
+  .do-dont {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;
+    margin-bottom: 1.5rem;
+  }
+  .do-dont-card {
+    border-radius: 12px; padding: 1.5rem;
+    border: 1px solid var(--border); background: #fff;
+  }
+  .do-dont-card.do { border-top: 3px solid #34D399; }
+  .do-dont-card.dont { border-top: 3px solid #EF4444; }
+  .do-dont-card .tag {
+    font-size: 0.7rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.1em; margin-bottom: 0.75rem;
+  }
+  .do-dont-card.do .tag { color: #34D399; }
+  .do-dont-card.dont .tag { color: #EF4444; }
+  .do-dont-card p { font-size: 0.85rem; color: var(--muted); margin-bottom: 0.5rem; }
+
+  @media (max-width: 640px) {
+    .logo-grid, .do-dont { grid-template-columns: 1fr; }
+    .palette-grid { grid-template-columns: 1fr 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<div class="page">
+
+<!-- COVER -->
+<div class="cover">
+  <svg class="cover-mark" viewBox="0 0 940 996" fill="none">
+    <rect width="940" height="996" rx="120" fill="#0A0A0E"/>
+    <g transform="translate(0,0)">
+      <path d="m437 211h38l27 3 29 6 23 7 25 10 24 12 21 13 21 16 15 13 17 17 18 22 12 17 12 21-1 2-10-10-14-10-17-9-18-6-14-3-9-1h-20l-19 3-17 5-17 8-11 7-11 9-13 13-10 14-8 15-6 16-4 18-1 9h-1l-2-29-4-20-5-17-8-18-9-16-9-12-12-14-13-12-17-12-16-9-14-6-18-6-21-4-11-1h-22l-18 2-21 5-16 6-2-1 13-11 18-13 15-9 23-12 18-8 30-10 27-6 21-3z" fill="#E8B84A" opacity="0.6"/>
+      <path d="m498 570h1l3 19 5 17 8 17 10 15 11 12 8 8 14 10 17 9 18 6 14 3 9 1h20l19-3 17-5 17-8 15-10 12-11 3-2-2 6-12 20-11 15-8 10-12 14-17 17-22 18-17 12-21 12-16 8-21 9-25 8-27 6-21 3-12 1h-38l-27-3-29-6-26-8-22-9-16-8-18-10-15-10-17-13-5-5 10 3 22 6 22 3h24l22-3 22-6 19-8 16-9 14-10 14-12 12-13 10-14 9-15 9-20 6-21 3-16z" fill="#E8B84A" opacity="0.6"/>
+      <path d="m314 273h28l21 3 21 6 19 8 16 9 11 8 11 9 15 15 12 16 10 17 9 21 6 21 3 21v165l-3 21-6 21-8 19-9 16-10 14-12 13-10 10-13 10-13 8-16 8-15 6-18 5-21 3h-28l-21-3-21-6-15-6-10-9-12-12-9-11-10-12-12-18-9-15-8-16-9-20-10-30-6-27-2-13v-78l5-28 7-25 8-22 12-25 10-18 10-15 9-12 11-13 11-12 9-9 12-6 21-7 20-4z" fill="#F5D680" opacity="0.3" stroke="#D4A039" stroke-width="4"/>
+      <path d="m614 332h24l18 3 21 7 17 9 13 10 12 11 6 8 7 15 9 25 6 22 5 28v78l-5 28-7 25-8 22-8 17-12 13-15 12-18 10-19 7-14 3-8 1h-24l-18-3-21-7-17-9-13-10-10-9-11-13-9-14-7-15-5-16-3-18v-126l3-18 7-21 9-17 10-13 9-10 13-11 11-7 16-8 18-6z" fill="#F5D680" opacity="0.3" stroke="#D4A039" stroke-width="4"/>
+    </g>
+  </svg>
+  <h1>NOUS</h1>
+  <p>Brand Guidelines v1.0</p>
+  <span class="version">March 2026</span>
+</div>
+
+<!-- 1. NAME & STORY -->
+<div class="guide-section">
+  <h2>01 — Brand Name</h2>
+
+  <div class="name-display">
+    <div class="big">NOUS</div>
+    <div class="phonetic">/nuːs/ — rhymes with "goose"</div>
+  </div>
+
+  <div class="name-meaning">
+    <p><strong>Nous</strong> (Greek: <em>νοῦς</em>) — In ancient Greek philosophy, <em>nous</em> refers to the mind, intellect, or the faculty of rational understanding. Plato used it to describe the highest form of knowledge; Aristotle considered it the divine element in human thought. In modern usage, it means practical intelligence or common sense.</p>
+  </div>
+
+  <h3>Why NOUS</h3>
+  <p>The name captures the core purpose of the platform: transforming raw information into structured understanding. Just as <em>nous</em> represents the leap from perception to comprehension, our system bridges the gap between scattered documents and actionable knowledge.</p>
+
+  <h3>Tagline</h3>
+  <p style="font-size: 1.15rem; font-weight: 500; color: var(--ink);">"Multimodal Intelligence"</p>
+  <p>Secondary options: "Research at the speed of thought" / "Think deeper, retrieve faster"</p>
+</div>
+
+<!-- 2. LOGO -->
+<div class="guide-section">
+  <h2>02 — Logo</h2>
+
+  <h3>Logo Mark</h3>
+  <p>The mark represents two interlocking orbital forms — symbolizing the convergence of multiple knowledge modalities (text, images, graphs) into unified understanding. The overlapping geometry evokes neural pathways and planetary orbits.</p>
+
+  <div class="logo-grid">
+    <div>
+      <div class="logo-box light">
+        <svg width="160" viewBox="0 0 940 996" fill="none">
+          <path d="m437 211h38l27 3 29 6 23 7 25 10 24 12 21 13 21 16 15 13 17 17 18 22 12 17 12 21-1 2-10-10-14-10-17-9-18-6-14-3-9-1h-20l-19 3-17 5-17 8-11 7-11 9-13 13-10 14-8 15-6 16-4 18-1 9h-1l-2-29-4-20-5-17-8-18-9-16-9-12-12-14-13-12-17-12-16-9-14-6-18-6-21-4-11-1h-22l-18 2-21 5-16 6-2-1 13-11 18-13 15-9 23-12 18-8 30-10 27-6 21-3z" fill="#4A4A4E" opacity="0.5"/>
+          <path d="m498 570h1l3 19 5 17 8 17 10 15 11 12 8 8 14 10 17 9 18 6 14 3 9 1h20l19-3 17-5 17-8 15-10 12-11 3-2-2 6-12 20-11 15-8 10-12 14-17 17-22 18-17 12-21 12-16 8-21 9-25 8-27 6-21 3-12 1h-38l-27-3-29-6-26-8-22-9-16-8-18-10-15-10-17-13-5-5 10 3 22 6 22 3h24l22-3 22-6 19-8 16-9 14-10 14-12 12-13 10-14 9-15 9-20 6-21 3-16z" fill="#4A4A4E" opacity="0.5"/>
+          <path d="m314 273h28l21 3 21 6 19 8 16 9 11 8 11 9 15 15 12 16 10 17 9 21 6 21 3 21v165l-3 21-6 21-8 19-9 16-10 14-12 13-10 10-13 10-13 8-16 8-15 6-18 5-21 3h-28l-21-3-21-6-15-6-10-9-12-12-9-11-10-12-12-18-9-15-8-16-9-20-10-30-6-27-2-13v-78l5-28 7-25 8-22 12-25 10-18 10-15 9-12 11-13 11-12 9-9 12-6 21-7 20-4z" fill="none" stroke="#0A0A0E" stroke-width="6"/>
+          <path d="m614 332h24l18 3 21 7 17 9 13 10 12 11 6 8 7 15 9 25 6 22 5 28v78l-5 28-7 25-8 22-8 17-12 13-15 12-18 10-19 7-14 3-8 1h-24l-18-3-21-7-17-9-13-10-10-9-11-13-9-14-7-15-5-16-3-18v-126l3-18 7-21 9-17 10-13 9-10 13-11 11-7 16-8 18-6z" fill="none" stroke="#0A0A0E" stroke-width="6"/>
+        </svg>
+      </div>
+      <div class="logo-caption">On light backgrounds</div>
+    </div>
+    <div>
+      <div class="logo-box dark">
+        <svg width="160" viewBox="0 0 940 996" fill="none">
+          <path d="m437 211h38l27 3 29 6 23 7 25 10 24 12 21 13 21 16 15 13 17 17 18 22 12 17 12 21-1 2-10-10-14-10-17-9-18-6-14-3-9-1h-20l-19 3-17 5-17 8-11 7-11 9-13 13-10 14-8 15-6 16-4 18-1 9h-1l-2-29-4-20-5-17-8-18-9-16-9-12-12-14-13-12-17-12-16-9-14-6-18-6-21-4-11-1h-22l-18 2-21 5-16 6-2-1 13-11 18-13 15-9 23-12 18-8 30-10 27-6 21-3z" fill="#E8B84A" opacity="0.6"/>
+          <path d="m498 570h1l3 19 5 17 8 17 10 15 11 12 8 8 14 10 17 9 18 6 14 3 9 1h20l19-3 17-5 17-8 15-10 12-11 3-2-2 6-12 20-11 15-8 10-12 14-17 17-22 18-17 12-21 12-16 8-21 9-25 8-27 6-21 3-12 1h-38l-27-3-29-6-26-8-22-9-16-8-18-10-15-10-17-13-5-5 10 3 22 6 22 3h24l22-3 22-6 19-8 16-9 14-10 14-12 12-13 10-14 9-15 9-20 6-21 3-16z" fill="#E8B84A" opacity="0.6"/>
+          <path d="m314 273h28l21 3 21 6 19 8 16 9 11 8 11 9 15 15 12 16 10 17 9 21 6 21 3 21v165l-3 21-6 21-8 19-9 16-10 14-12 13-10 10-13 10-13 8-16 8-15 6-18 5-21 3h-28l-21-3-21-6-15-6-10-9-12-12-9-11-10-12-12-18-9-15-8-16-9-20-10-30-6-27-2-13v-78l5-28 7-25 8-22 12-25 10-18 10-15 9-12 11-13 11-12 9-9 12-6 21-7 20-4z" fill="#F5D680" opacity="0.3" stroke="#D4A039" stroke-width="4"/>
+          <path d="m614 332h24l18 3 21 7 17 9 13 10 12 11 6 8 7 15 9 25 6 22 5 28v78l-5 28-7 25-8 22-8 17-12 13-15 12-18 10-19 7-14 3-8 1h-24l-18-3-21-7-17-9-13-10-10-9-11-13-9-14-7-15-5-16-3-18v-126l3-18 7-21 9-17 10-13 9-10 13-11 11-7 16-8 18-6z" fill="#F5D680" opacity="0.3" stroke="#D4A039" stroke-width="4"/>
+        </svg>
+      </div>
+      <div class="logo-caption">On dark backgrounds</div>
+    </div>
+  </div>
+
+  <h3>Clear Space</h3>
+  <p>Maintain a minimum clear space around the logo equal to the height of the "N" in the wordmark. Never crowd the mark with other elements.</p>
+
+  <div class="do-dont">
+    <div class="do-dont-card do">
+      <div class="tag">Do</div>
+      <p>Use the mark at sizes 24px and above</p>
+      <p>Maintain clear space around the mark</p>
+      <p>Use on solid, uncluttered backgrounds</p>
+      <p>Use the dark variant on light and the light variant on dark</p>
+    </div>
+    <div class="do-dont-card dont">
+      <div class="tag">Don't</div>
+      <p>Rotate, skew, or distort the mark</p>
+      <p>Apply drop shadows or glows</p>
+      <p>Place on busy photographic backgrounds</p>
+      <p>Change the proportions of the orbital forms</p>
+    </div>
+  </div>
+</div>
+
+<!-- 3. COLORS -->
+<div class="guide-section">
+  <h2>03 — Color Palette</h2>
+
+  <p style="margin-bottom:1.5rem;">Every color in the NOUS palette is named after a celestial body — reflecting the platform's origin in Greek cosmology and the orbital forms in our logo. The palette evokes the deep void of space, the luminous glow of distant worlds, and the subtle atmospheres between them.</p>
+
+  <h3>Primary — The Void & The Light</h3>
+  <div class="palette-grid">
+    <div class="swatch">
+      <div class="swatch-color" style="background:#0A0A0E;"><span>Primary</span></div>
+      <div class="swatch-info">
+        <div class="name">Erebus</div>
+        <div class="hex">#0A0A0E &middot; The primordial void</div>
+      </div>
+    </div>
+    <div class="swatch">
+      <div class="swatch-color" style="background:#F7F7F5;"><span>Primary</span></div>
+      <div class="swatch-info">
+        <div class="name">Selene</div>
+        <div class="hex">#F7F7F5 &middot; Moonlit surface</div>
+      </div>
+    </div>
+    <div class="swatch">
+      <div class="swatch-color" style="background:#D4A039;"><span style="background:rgba(0,0,0,0.3); color:#fff;">Accent</span></div>
+      <div class="swatch-info">
+        <div class="name">Sol</div>
+        <div class="hex">#D4A039 &middot; Solar gold</div>
+      </div>
+    </div>
+  </div>
+
+  <h3>Extended — The Spectrum</h3>
+  <div class="palette-grid">
+    <div class="swatch">
+      <div class="swatch-color" style="background:#E8B84A;"><span style="background:rgba(0,0,0,0.3); color:#fff;">Accent Soft</span></div>
+      <div class="swatch-info">
+        <div class="name">Helios</div>
+        <div class="hex">#E8B84A &middot; Warm solar glow</div>
+      </div>
+    </div>
+    <div class="swatch">
+      <div class="swatch-color" style="background:#F5D680;"><span style="background:rgba(0,0,0,0.3); color:#fff;">Highlight</span></div>
+      <div class="swatch-info">
+        <div class="name">Apollo</div>
+        <div class="hex">#F5D680 &middot; Pale gold radiance</div>
+      </div>
+    </div>
+    <div class="swatch">
+      <div class="swatch-color" style="background:#FDF6E3;"><span>Tint</span></div>
+      <div class="swatch-info">
+        <div class="name">Aurum</div>
+        <div class="hex">#FDF6E3 &middot; Warm parchment wash</div>
+      </div>
+    </div>
+    <div class="swatch">
+      <div class="swatch-color" style="background:#4A4A4E;"><span style="background:rgba(255,255,255,0.9);">Text</span></div>
+      <div class="swatch-info">
+        <div class="name">Titan</div>
+        <div class="hex">#4A4A4E &middot; Saturn's dense moon</div>
+      </div>
+    </div>
+    <div class="swatch">
+      <div class="swatch-color" style="background:#9A9A9E;"><span>Caption</span></div>
+      <div class="swatch-info">
+        <div class="name">Charon</div>
+        <div class="hex">#9A9A9E &middot; Pluto's pale companion</div>
+      </div>
+    </div>
+    <div class="swatch">
+      <div class="swatch-color" style="background:#E2E2E0;"><span>Divider</span></div>
+      <div class="swatch-info">
+        <div class="name">Enceladus</div>
+        <div class="hex">#E2E2E0 &middot; Ice moon shimmer</div>
+      </div>
+    </div>
+  </div>
+
+  <h3>Semantic — Signal Colors</h3>
+  <div class="palette-grid">
+    <div class="swatch">
+      <div class="swatch-color" style="background:#34D399;"><span style="background:rgba(0,0,0,0.3); color:#fff;">Success</span></div>
+      <div class="swatch-info">
+        <div class="name">Terra</div>
+        <div class="hex">#34D399 &middot; Earth's living green</div>
+      </div>
+    </div>
+    <div class="swatch">
+      <div class="swatch-color" style="background:#F59E0B;"><span style="background:rgba(0,0,0,0.3); color:#fff;">Warning</span></div>
+      <div class="swatch-info">
+        <div class="name">Corona</div>
+        <div class="hex">#F59E0B &middot; Solar corona amber</div>
+      </div>
+    </div>
+    <div class="swatch">
+      <div class="swatch-color" style="background:#EF4444;"><span style="background:rgba(0,0,0,0.3); color:#fff;">Error</span></div>
+      <div class="swatch-info">
+        <div class="name">Mars</div>
+        <div class="hex">#EF4444 &middot; The red planet</div>
+      </div>
+    </div>
+  </div>
+
+  <h3>Color Naming Reference</h3>
+  <div class="type-sample">
+    <div class="label">Quick Reference</div>
+    <pre style="font-family:'JetBrains Mono','SF Mono',monospace; font-size:0.8rem; line-height:2; color:var(--muted); overflow-x:auto;">Erebus    #0A0A0E  →  Backgrounds, text, dark surfaces
+Selene    #F7F7F5  →  Light backgrounds, cards, surface
+Sol       #D4A039  →  Primary accent, buttons, links, focus rings
+Helios    #E8B84A  →  Hover states, secondary accent
+Apollo    #F5D680  →  Highlights, gradients, decorative
+Aurum     #FDF6E3  →  Tinted backgrounds, accent wash
+Titan     #4A4A4E  →  Body text, paragraphs
+Charon    #9A9A9E  →  Captions, placeholders, secondary text
+Enceladus #E2E2E0  →  Borders, dividers, separators
+Terra     #34D399  →  Success states, confirmations
+Corona    #F59E0B  →  Warnings, attention required
+Mars      #EF4444  →  Errors, destructive actions</pre>
+  </div>
+</div>
+
+<!-- 3.5 DARK MODE -->
+<div class="guide-section">
+  <h2>03.5 — Dark Mode</h2>
+
+  <p style="margin-bottom:1.5rem;">NOUS dark mode is built on warm, earthy tones that echo the gold accent — not the cold blue-greys typical of dark UIs. Every surface carries a subtle amber warmth, like parchment lit by candlelight. The result feels scholarly and human, not clinical.</p>
+
+  <h3>Surfaces — The Depth Stack</h3>
+  <p style="margin-bottom:1rem;">Six layers of warm dark surfaces, each subtly lighter with amber undertones. Higher elevation = more visible warmth.</p>
+  <div class="palette-grid">
+    <div class="swatch">
+      <div class="swatch-color" style="background:#0A0A0B;"><span>Void</span></div>
+      <div class="swatch-info">
+        <div class="name">Erebus</div>
+        <div class="hex">#0A0A0B &middot; App background, true black</div>
+      </div>
+    </div>
+    <div class="swatch">
+      <div class="swatch-color" style="background:#141210;"><span style="background:rgba(255,255,255,0.08); color:#ccc;">Base</span></div>
+      <div class="swatch-info">
+        <div class="name">Nyx</div>
+        <div class="hex">#141210 &middot; Page canvas, sidebar</div>
+      </div>
+    </div>
+    <div class="swatch">
+      <div class="swatch-color" style="background:#1E1B17;"><span style="background:rgba(255,255,255,0.08); color:#ccc;">Raised</span></div>
+      <div class="swatch-info">
+        <div class="name">Obsidian</div>
+        <div class="hex">#1E1B17 &middot; Cards, panels, nav</div>
+      </div>
+    </div>
+    <div class="swatch">
+      <div class="swatch-color" style="background:#28241E;"><span style="background:rgba(255,255,255,0.08); color:#ccc;">Elevated</span></div>
+      <div class="swatch-info">
+        <div class="name">Umber</div>
+        <div class="hex">#28241E &middot; Modals, sheets, dropdowns</div>
+      </div>
+    </div>
+    <div class="swatch">
+      <div class="swatch-color" style="background:#332E26;"><span style="background:rgba(255,255,255,0.08); color:#ccc;">Overlay</span></div>
+      <div class="swatch-info">
+        <div class="name">Sepia</div>
+        <div class="hex">#332E26 &middot; Tooltips, popovers</div>
+      </div>
+    </div>
+    <div class="swatch">
+      <div class="swatch-color" style="background:#3D372E;"><span style="background:rgba(255,255,255,0.08); color:#ccc;">Hover</span></div>
+      <div class="swatch-info">
+        <div class="name">Dusk</div>
+        <div class="hex">#3D372E &middot; Hover states, active row</div>
+      </div>
+    </div>
+  </div>
+
+  <h3>Text — Warm Neutrals</h3>
+  <p style="margin-bottom:1rem;">Text colors have warm ivory undertones rather than pure white, reducing eye strain and complementing the gold accent.</p>
+  <div class="palette-grid">
+    <div class="swatch">
+      <div class="swatch-color" style="background:#F5F0E8;"><span>Primary</span></div>
+      <div class="swatch-info">
+        <div class="name">Ivory</div>
+        <div class="hex">#F5F0E8 &middot; Headings, emphasis</div>
+      </div>
+    </div>
+    <div class="swatch">
+      <div class="swatch-color" style="background:#C8BFA8;"><span>Secondary</span></div>
+      <div class="swatch-info">
+        <div class="name">Parchment</div>
+        <div class="hex">#C8BFA8 &middot; Body text, descriptions</div>
+      </div>
+    </div>
+    <div class="swatch">
+      <div class="swatch-color" style="background:#8A8070;"><span>Tertiary</span></div>
+      <div class="swatch-info">
+        <div class="name">Dust</div>
+        <div class="hex">#8A8070 &middot; Captions, placeholders</div>
+      </div>
+    </div>
+    <div class="swatch">
+      <div class="swatch-color" style="background:#524C42;"><span style="background:rgba(255,255,255,0.08); color:#ccc;">Muted</span></div>
+      <div class="swatch-info">
+        <div class="name">Clay</div>
+        <div class="hex">#524C42 &middot; Disabled text, subtle labels</div>
+      </div>
+    </div>
+  </div>
+
+  <h3>Borders & Dividers</h3>
+  <div class="palette-grid">
+    <div class="swatch">
+      <div class="swatch-color" style="background:#2A261F;"><span style="background:rgba(255,255,255,0.08); color:#ccc;">Default</span></div>
+      <div class="swatch-info">
+        <div class="name">Shade</div>
+        <div class="hex">#2A261F &middot; Dividers, separators</div>
+      </div>
+    </div>
+    <div class="swatch">
+      <div class="swatch-color" style="background:#3D372E;"><span style="background:rgba(255,255,255,0.08); color:#ccc;">Hover</span></div>
+      <div class="swatch-info">
+        <div class="name">Shade +1</div>
+        <div class="hex">#3D372E &middot; Hover border, focus</div>
+      </div>
+    </div>
+    <div class="swatch">
+      <div class="swatch-color" style="background:#4A4338;"><span style="background:rgba(255,255,255,0.08); color:#ccc;">Strong</span></div>
+      <div class="swatch-info">
+        <div class="name">Shade +2</div>
+        <div class="hex">#4A4338 &middot; Input borders, active</div>
+      </div>
+    </div>
+  </div>
+
+  <h3>Accents on Dark</h3>
+  <p style="margin-bottom:1rem;">Gold accents glow against warm dark surfaces. The accent shifts one step brighter for WCAG AA contrast.</p>
+  <div class="palette-grid">
+    <div class="swatch">
+      <div class="swatch-color" style="background:#E8B84A;"><span style="background:rgba(0,0,0,0.3); color:#fff;">Primary</span></div>
+      <div class="swatch-info">
+        <div class="name">Helios</div>
+        <div class="hex">#E8B84A &middot; Buttons, links, focus rings</div>
+      </div>
+    </div>
+    <div class="swatch">
+      <div class="swatch-color" style="background:#F5D680;"><span style="background:rgba(0,0,0,0.3); color:#fff;">Soft</span></div>
+      <div class="swatch-info">
+        <div class="name">Apollo</div>
+        <div class="hex">#F5D680 &middot; Hover, active states</div>
+      </div>
+    </div>
+    <div class="swatch">
+      <div class="swatch-color" style="background:#28241E;"><span style="color:#E8B84A;">Accent BG</span></div>
+      <div class="swatch-info">
+        <div class="name">Ember</div>
+        <div class="hex">rgba(212,160,57,0.10) on Nyx &middot; Tinted surfaces</div>
+      </div>
+    </div>
+  </div>
+
+  <h3>Semantic on Dark</h3>
+  <div class="palette-grid">
+    <div class="swatch">
+      <div class="swatch-color" style="background:#4ADE80;"><span style="background:rgba(0,0,0,0.3); color:#fff;">Success</span></div>
+      <div class="swatch-info">
+        <div class="name">Terra +1</div>
+        <div class="hex">#4ADE80 &middot; Brighter green for contrast</div>
+      </div>
+    </div>
+    <div class="swatch">
+      <div class="swatch-color" style="background:#FBBF24;"><span style="background:rgba(0,0,0,0.3); color:#fff;">Warning</span></div>
+      <div class="swatch-info">
+        <div class="name">Corona</div>
+        <div class="hex">#FBBF24 &middot; Warm amber warning</div>
+      </div>
+    </div>
+    <div class="swatch">
+      <div class="swatch-color" style="background:#F87171;"><span style="background:rgba(0,0,0,0.3); color:#fff;">Error</span></div>
+      <div class="swatch-info">
+        <div class="name">Mars +1</div>
+        <div class="hex">#F87171 &middot; Brighter red for contrast</div>
+      </div>
+    </div>
+  </div>
+
+  <h3>Dark Mode CSS Tokens</h3>
+  <div class="type-sample">
+    <div class="label">Copy into your stylesheet</div>
+    <pre style="font-family:'JetBrains Mono','SF Mono',monospace; font-size:0.8rem; line-height:1.8; color:var(--muted); overflow-x:auto;">[data-theme="dark"],
+.dark {
+  /* Surfaces — warm depth stack */
+  --nous-bg-void:      #0A0A0B;   /* Erebus   — true black */
+  --nous-bg-base:      #141210;   /* Nyx      — page canvas */
+  --nous-bg-raised:    #1E1B17;   /* Obsidian — cards, panels */
+  --nous-bg-elevated:  #28241E;   /* Umber    — modals, sheets */
+  --nous-bg-overlay:   #332E26;   /* Sepia    — tooltips */
+  --nous-bg-hover:     #3D372E;   /* Dusk     — hover, active */
+
+  /* Text — warm ivory scale */
+  --nous-text-primary:   #F5F0E8; /* Ivory    — headings */
+  --nous-text-secondary: #C8BFA8; /* Parchment — body */
+  --nous-text-tertiary:  #8A8070; /* Dust     — captions */
+  --nous-text-muted:     #524C42; /* Clay     — disabled */
+
+  /* Borders — earthy separators */
+  --nous-border:       #2A261F;   /* Shade    — dividers */
+  --nous-border-hover: #3D372E;   /* Shade +1 — hover */
+  --nous-border-strong:#4A4338;   /* Shade +2 — inputs, active */
+
+  /* Accents — gold shifts brighter */
+  --nous-accent:       #E8B84A;   /* Helios   — primary */
+  --nous-accent-soft:  #F5D680;   /* Apollo   — secondary */
+  --nous-accent-bg:    rgba(212,160,57,0.10); /* Ember */
+
+  /* Semantic — adjusted for contrast */
+  --nous-success:      #4ADE80;   /* Terra +1 */
+  --nous-warning:      #FBBF24;   /* Corona */
+  --nous-error:        #F87171;   /* Mars +1 */
+}</pre>
+  </div>
+
+  <h3>Dark Mode Preview</h3>
+  <div style="background:#141210; border-radius:16px; padding:2.5rem; margin-bottom:1.5rem; border:1px solid #2A261F;">
+    <div style="display:flex; gap:1rem; margin-bottom:1.5rem;">
+      <div style="background:#1E1B17; border:1px solid #2A261F; border-radius:12px; padding:1.5rem; flex:1;">
+        <div style="font-family:'Inter',sans-serif; font-size:0.65rem; font-weight:600; letter-spacing:0.1em; text-transform:uppercase; color:#E8B84A; margin-bottom:0.75rem;">Research Agent</div>
+        <div style="font-family:'Inter',sans-serif; font-size:1rem; font-weight:600; color:#F5F0E8; margin-bottom:0.5rem;">3 sources found</div>
+        <div style="font-family:'Source Serif 4',serif; font-size:0.85rem; color:#C8BFA8; line-height:1.6;">Retrieved from vector search and knowledge graph with high confidence.</div>
+        <div style="margin-top:1rem; display:flex; gap:0.5rem;">
+          <span style="font-family:'Inter',sans-serif; font-size:0.7rem; font-weight:500; color:#E8B84A; background:rgba(212,160,57,0.10); padding:0.25rem 0.75rem; border-radius:100px;">View sources</span>
+          <span style="font-family:'Inter',sans-serif; font-size:0.7rem; font-weight:500; color:#8A8070; background:#28241E; padding:0.25rem 0.75rem; border-radius:100px;">Dismiss</span>
+        </div>
+      </div>
+      <div style="background:#1E1B17; border:1px solid #2A261F; border-radius:12px; padding:1.5rem; flex:1;">
+        <div style="font-family:'Inter',sans-serif; font-size:0.65rem; font-weight:600; letter-spacing:0.1em; text-transform:uppercase; color:#4ADE80; margin-bottom:0.75rem;">Indexed</div>
+        <div style="font-family:'Inter',sans-serif; font-size:1rem; font-weight:600; color:#F5F0E8; margin-bottom:0.5rem;">quantum-computing.pdf</div>
+        <div style="font-family:'Source Serif 4',serif; font-size:0.85rem; color:#C8BFA8; line-height:1.6;">42 pages processed. 18 entities extracted, 7 relationships mapped.</div>
+        <div style="margin-top:1rem; display:flex; gap:0.5rem;">
+          <span style="font-family:'Inter',sans-serif; font-size:0.7rem; font-weight:500; color:#F5F0E8; background:#28241E; padding:0.25rem 0.75rem; border-radius:100px; border:1px solid #2A261F;">View graph</span>
+        </div>
+      </div>
+    </div>
+    <div style="background:#1E1B17; border:1px solid #2A261F; border-radius:8px; padding:0.75rem 1rem; display:flex; align-items:center; gap:0.75rem;">
+      <span style="font-family:'Source Serif 4',serif; font-size:0.9rem; color:#8A8070;">Ask NOUS anything...</span>
+      <span style="margin-left:auto; font-family:'Inter',sans-serif; font-size:0.7rem; font-weight:600; color:#141210; background:#E8B84A; padding:0.35rem 1rem; border-radius:6px;">Send</span>
+    </div>
+  </div>
+
+  <h3>Design Principles</h3>
+  <p>Warm dark mode follows three rules: (1) <strong>No pure white</strong> — the brightest text is Ivory (#F5F0E8), not #FFFFFF, reducing harshness; (2) <strong>Amber undertones throughout</strong> — every surface carries a hint of warmth, from Nyx (#141210) upward; (3) <strong>Elevation = warmth</strong> — as layers stack, the amber tone becomes more visible, creating natural depth without needing shadows. Always default to the system preference via <code style="font-family:'JetBrains Mono',monospace; font-size:0.85em; background:rgba(212,160,57,0.10); padding:0.15rem 0.4rem; border-radius:4px; color:#E8B84A;">prefers-color-scheme</code>, with a manual toggle available.</p>
+</div>
+
+<!-- 4. TYPOGRAPHY -->
+<div class="guide-section">
+  <h2>04 — Typography</h2>
+
+  <div class="type-sample">
+    <div class="label">Headings — Inter</div>
+    <div class="type-heading">The architecture of understanding</div>
+  </div>
+  <div class="type-sample">
+    <div class="label">Body — Source Serif 4</div>
+    <div class="type-body">NOUS transforms scattered documents into structured knowledge through semantic search, knowledge graphs, and generative AI. Each query is routed through specialized subgraphs designed for research, writing, data extraction, or general reasoning.</div>
+  </div>
+  <div class="type-sample">
+    <div class="label">UI / Labels — Inter</div>
+    <div class="type-ui" style="display:flex; gap:2rem; flex-wrap:wrap;">
+      <span>Navigation Links</span>
+      <span>Button Labels</span>
+      <span>Form Fields</span>
+      <span>Status Badges</span>
+    </div>
+  </div>
+  <div class="type-sample">
+    <div class="label">Code — JetBrains Mono</div>
+    <span class="type-mono">POST /api/v1/agent/execute</span>
+  </div>
+
+  <h3>Type Scale</h3>
+  <div class="type-scale">
+    <div class="type-scale-row">
+      <span class="meta">4.5rem / 72px</span>
+      <span style="font-size:2rem; font-weight:700; letter-spacing:-0.03em;">Display</span>
+    </div>
+    <div class="type-scale-row">
+      <span class="meta">2.5rem / 40px</span>
+      <span style="font-size:1.5rem; font-weight:700; letter-spacing:-0.02em;">Heading 1</span>
+    </div>
+    <div class="type-scale-row">
+      <span class="meta">1.75rem / 28px</span>
+      <span style="font-size:1.25rem; font-weight:600;">Heading 2</span>
+    </div>
+    <div class="type-scale-row">
+      <span class="meta">1.15rem / 18px</span>
+      <span style="font-size:1rem; font-weight:600;">Heading 3</span>
+    </div>
+    <div class="type-scale-row">
+      <span class="meta">1rem / 16px</span>
+      <span style="font-family:'Source Serif 4', serif;">Body</span>
+    </div>
+    <div class="type-scale-row">
+      <span class="meta">0.875rem / 14px</span>
+      <span style="font-size:0.875rem;">UI / Small</span>
+    </div>
+    <div class="type-scale-row">
+      <span class="meta">0.75rem / 12px</span>
+      <span style="font-size:0.75rem; letter-spacing:0.1em; text-transform:uppercase;">Caption / Label</span>
+    </div>
+  </div>
+</div>
+
+<!-- 5. SPACING & RADIUS -->
+<div class="guide-section">
+  <h2>05 — Spacing & Radius</h2>
+
+  <h3>Spacing Scale</h3>
+  <div class="spacing-demo">
+    <div class="space-row"><span class="space-label">4px</span><div class="space-bar" style="width:4px;"></div></div>
+    <div class="space-row"><span class="space-label">8px</span><div class="space-bar" style="width:16px;"></div></div>
+    <div class="space-row"><span class="space-label">16px</span><div class="space-bar" style="width:48px;"></div></div>
+    <div class="space-row"><span class="space-label">24px</span><div class="space-bar" style="width:80px;"></div></div>
+    <div class="space-row"><span class="space-label">32px</span><div class="space-bar" style="width:120px;"></div></div>
+    <div class="space-row"><span class="space-label">48px</span><div class="space-bar" style="width:180px;"></div></div>
+    <div class="space-row"><span class="space-label">64px</span><div class="space-bar" style="width:240px;"></div></div>
+  </div>
+
+  <h3>Border Radius</h3>
+  <p>Use consistent radii throughout the product: 4px for small elements (badges, tags), 8px for buttons and inputs, 12px for cards and panels, 16px for larger containers, and 24px for hero sections and modals.</p>
+</div>
+
+<!-- 6. VOICE & TONE -->
+<div class="guide-section">
+  <h2>06 — Voice & Tone</h2>
+
+  <h3>Brand Personality</h3>
+  <p>NOUS speaks with the clarity of a well-organized mind. The voice is precise without being cold, intelligent without being intimidating, and confident without being arrogant.</p>
+
+  <div class="do-dont">
+    <div class="do-dont-card do">
+      <div class="tag">Voice Attributes</div>
+      <p><strong>Clear</strong> — Say exactly what you mean</p>
+      <p><strong>Precise</strong> — Use specific language over vague claims</p>
+      <p><strong>Warm</strong> — Welcoming to newcomers and experts alike</p>
+      <p><strong>Grounded</strong> — Backed by capability, not hype</p>
+    </div>
+    <div class="do-dont-card dont">
+      <div class="tag">Avoid</div>
+      <p>Buzzword-heavy marketing jargon</p>
+      <p>Overpromising or magical thinking</p>
+      <p>Condescending or overly technical defaults</p>
+      <p>Exclamation marks in product copy</p>
+    </div>
+  </div>
+</div>
+
+<!-- 7. CSS TOKENS -->
+<div class="guide-section">
+  <h2>07 — CSS Custom Properties</h2>
+  <div class="type-sample">
+    <div class="label">Copy into your stylesheet</div>
+    <pre style="font-family:'JetBrains Mono','SF Mono',monospace; font-size:0.8rem; line-height:1.8; color:var(--muted); overflow-x:auto;">:root {
+  /* Planetary Palette — Light Mode */
+  --nous-erebus:      #0A0A0E;   /* Ink / dark background */
+  --nous-selene:      #F7F7F5;   /* Surface / light background */
+  --nous-sol:         #D4A039;   /* Primary accent — solar gold */
+  --nous-helios:      #E8B84A;   /* Accent soft — warm glow */
+  --nous-apollo:      #F5D680;   /* Highlight — pale radiance */
+  --nous-aurum:       #FDF6E3;   /* Accent tint — parchment wash */
+  --nous-titan:       #4A4A4E;   /* Body text */
+  --nous-charon:      #9A9A9E;   /* Secondary text */
+  --nous-enceladus:   #E2E2E0;   /* Borders */
+  --nous-terra:       #34D399;   /* Success */
+  --nous-corona:      #F59E0B;   /* Warning */
+  --nous-mars:        #EF4444;   /* Error */
+
+  /* Legacy aliases (backward compatible) */
+  --nous-ink:         var(--nous-erebus);
+  --nous-surface:     var(--nous-selene);
+  --nous-accent:      var(--nous-sol);
+  --nous-accent-soft: var(--nous-helios);
+  --nous-accent-bg:   var(--nous-aurum);
+  --nous-highlight:   var(--nous-apollo);
+  --nous-muted:       var(--nous-titan);
+  --nous-subtle:      var(--nous-charon);
+  --nous-border:      var(--nous-enceladus);
+  --nous-success:     var(--nous-terra);
+  --nous-warning:     var(--nous-corona);
+  --nous-error:       var(--nous-mars);
+
+  /* Typography */
+  --nous-font-heading: 'Inter', -apple-system, sans-serif;
+  --nous-font-body:    'Source Serif 4', Georgia, serif;
+  --nous-font-ui:      'Inter', -apple-system, sans-serif;
+  --nous-font-mono:    'JetBrains Mono', 'SF Mono', monospace;
+
+  /* Spacing */
+  --nous-space-xs: 4px;
+  --nous-space-sm: 8px;
+  --nous-space-md: 16px;
+  --nous-space-lg: 24px;
+  --nous-space-xl: 32px;
+  --nous-space-2xl: 48px;
+  --nous-space-3xl: 64px;
+
+  /* Radius */
+  --nous-radius-sm: 4px;
+  --nous-radius-md: 8px;
+  --nous-radius-lg: 12px;
+  --nous-radius-xl: 16px;
+  --nous-radius-2xl: 24px;
+}</pre>
+  </div>
+</div>
+
+</div>
+</body>
+</html>

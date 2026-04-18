@@ -32,13 +32,18 @@ export class EntityErrorBoundary extends React.Component<
     };
   }
 
-  static getDerivedStateFromError(error: Error): Partial<EntityErrorBoundaryState> {
+  static getDerivedStateFromError(
+    error: Error
+  ): Partial<EntityErrorBoundaryState> {
     return { hasError: true, error };
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo): void {
     console.error('[EntityErrorBoundary] Caught error:', error);
-    console.error('[EntityErrorBoundary] Component stack:', errorInfo.componentStack);
+    console.error(
+      '[EntityErrorBoundary] Component stack:',
+      errorInfo.componentStack
+    );
     this.setState({ errorInfo });
   }
 
@@ -96,9 +101,7 @@ export class EntityErrorBoundary extends React.Component<
                   justifyContent: 'center',
                 }}
               >
-                <AlertCircle
-                  style={{ width: '1.75rem', height: '1.75rem', color: '#ff4b4b' }}
-                />
+                <AlertCircle className="w-7 h-7 text-red-500" />
               </div>
               <h2
                 style={{
@@ -133,7 +136,8 @@ export class EntityErrorBoundary extends React.Component<
                   wordBreak: 'break-word',
                 }}
               >
-                {this.state.error?.message || 'An unexpected error occurred in the entity component.'}
+                {this.state.error?.message ||
+                  'An unexpected error occurred in the entity component.'}
               </p>
             </div>
 
@@ -148,7 +152,8 @@ export class EntityErrorBoundary extends React.Component<
                 lineHeight: 1.6,
               }}
             >
-              The entity component encountered a rendering error. You can retry, reload the page, or navigate back to the dashboard.
+              The entity component encountered a rendering error. You can retry,
+              reload the page, or navigate back to the dashboard.
             </p>
 
             {/* Action buttons */}
@@ -170,7 +175,7 @@ export class EntityErrorBoundary extends React.Component<
                   letterSpacing: '0.1em',
                   textTransform: 'uppercase',
                   color: '#0a0f0a',
-                  backgroundColor: '#00ff9f',
+                  backgroundColor: '#D4A039',
                   border: 'none',
                   borderRadius: '0.375rem',
                   cursor: 'pointer',
