@@ -7,7 +7,7 @@ export * from './thread-search';
 export type {
   KnowledgeGraphData,
   GraphNodeInteraction,
-  EntityDetails
+  EntityDetails,
 } from './knowledge-graph';
 export * from './evaluation';
 export * from './ui';
@@ -21,7 +21,7 @@ export {
   UI_CONFIG,
   PERFORMANCE_THRESHOLDS,
   ENTITY_TYPE_COLORS,
-  STATUS_COLORS
+  STATUS_COLORS,
 } from './constants';
 
 // Utility Types
@@ -31,16 +31,17 @@ export type DeepPartial<T> = {
 
 export type EntityById<T extends { id: string }> = Record<string, T>;
 
-export type ProcessingStatus = import('./document').Document['processing_status'];
+export type ProcessingStatus =
+  import('./document').Document['processing_status'];
 export type FileType = import('./document').Document['file_type'];
 export type EntityType = import('./search').Entity['type'];
 export type TabType = import('./ui').UIState['activeTab'];
 
 export type DocumentListParams = {
   page?: number;
-  page_size?: number;
-  file_type?: FileType;
-  status?: ProcessingStatus;
+  size?: number;
+  document_type?: string;
+  processing_status?: string;
   search?: string;
 };
 

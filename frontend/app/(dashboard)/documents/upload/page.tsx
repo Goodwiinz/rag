@@ -54,7 +54,13 @@ interface UploadedFile {
   id: string;
   file: File;
   request: DocumentUploadRequest;
-  status: 'pending' | 'uploading' | 'processing' | 'completed' | 'failed';
+  status:
+    | 'pending'
+    | 'uploading'
+    | 'queued'
+    | 'processing'
+    | 'completed'
+    | 'failed';
   progress: number;
   currentStep: string;
   uploadId?: string;
@@ -256,7 +262,7 @@ export default function DocumentUploadPage() {
       const { response, websocket } = result;
 
       updateFileStatus(uploadedFile.id, {
-        status: 'processing',
+        status: 'queued',
         uploadId: response.upload_id,
         jobId: response.job_id,
         qualityScore: response.quality_score,
@@ -328,6 +334,7 @@ export default function DocumentUploadPage() {
     switch (status) {
       case 'completed':
         return 'var(--phosphor-green)';
+      case 'queued':
       case 'processing':
       case 'uploading':
         return 'var(--cyan)';
@@ -510,7 +517,8 @@ export default function DocumentUploadPage() {
                                     <span
                                       className={cn(
                                         'w-1.5 h-1.5 rounded-full',
-                                        file.status === 'processing'
+                                        file.status === 'processing' ||
+                                          file.status === 'queued'
                                           ? 'animate-pulse'
                                           : ''
                                       )}
@@ -534,6 +542,7 @@ export default function DocumentUploadPage() {
                                 <AlertTriangle className="w-4 h-4 text-[var(--error-red)]" />
                               )}
                               {(file.status === 'uploading' ||
+                                file.status === 'queued' ||
                                 file.status === 'processing') && (
                                 <div className="flex items-center gap-2">
                                   <span className="text-[9px] font-mono text-[var(--cyan)] font-bold">
@@ -556,6 +565,7 @@ export default function DocumentUploadPage() {
 
                           {/* Progress Line */}
                           {(file.status === 'uploading' ||
+                            file.status === 'queued' ||
                             file.status === 'processing') && (
                             <div className="mt-4">
                               <div className="h-0.5 w-full bg-[var(--terminal-border)] rounded-full overflow-hidden">

@@ -30,7 +30,10 @@ spec:
               containerPort: 7474
           env:
             - name: NEO4J_AUTH
-              value: "neo4j/{{ .Values.neo4j.password }}"
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "knowledge-graph-analytics.fullname" . }}-neo4j-credentials
+                  key: NEO4J_AUTH
             - name: NEO4J_PLUGINS
               value: '["apoc"]'
             - name: NEO4J_server_memory_heap_initial__size

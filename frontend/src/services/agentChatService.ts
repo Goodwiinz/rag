@@ -160,6 +160,7 @@ class AgentChatService {
         threadId: string,
         confirmation: Record<string, unknown>
       ) => void;
+      onTrace?: (threadId: string) => void;
       onDone?: () => void;
       onError?: (error: string) => void;
     }
@@ -214,6 +215,9 @@ class AgentChatService {
                   callbacks.onPlan?.(data.steps, data.reasoning);
                   break;
                 case 'trace':
+                  if (data.thread_id) {
+                    callbacks.onTrace?.(data.thread_id);
+                  }
                   break;
                 case 'reflection':
                   callbacks.onReflection?.(

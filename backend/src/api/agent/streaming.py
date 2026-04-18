@@ -73,6 +73,8 @@ async def stream_event_generator(
         ToolExecutionResponse,
     )
 
+    stream_thread_id = request_body.thread_id or "unknown"
+    config: Dict[str, Any] = {}  # Initialize before try block for safe access in except handlers
     try:
         _bootstrap_langsmith()
         checkpointer = await get_checkpointer()
@@ -102,11 +104,13 @@ async def stream_event_generator(
             "compaction_count": 0,
             "intent_confidence": 0.0,
             "last_error_info": {},
+            "user_id": str(current_user.id),
         }
 
+        stream_thread_id = request_body.thread_id or str(_uuid.uuid4())
         config = {
             "configurable": {
-                "thread_id": request_body.thread_id or str(_uuid.uuid4()),
+                "thread_id": stream_thread_id,
                 "db": db,
                 "current_user": current_user,
                 "page_context": _page_context_to_dict(request_body.page_context),
@@ -218,12 +222,15 @@ async def stream_event_generator(
         confirmation_details = {}
         if interrupts:
             confirmation_details = getattr(interrupts[0], "value", {})
-        thread_id = config["configurable"]["thread_id"]
+        thread_id = config["configurable"]["thread_id"] if config else stream_thread_id
         yield f"event: confirmation\ndata: {_json.dumps({'thread_id': thread_id, 'confirmation': confirmation_details})}\n\n"
 
     except Exception as e:
         logger.error("SSE stream error", exc_info=e)
         yield f"event: error\ndata: {_json.dumps({'error': str(e)})}\n\n"
+
+    finally:
+        logger.info("SSE stream ended for thread %s", stream_thread_id)
 
 
 async def stream_confirm_event_generator(
@@ -263,8 +270,20 @@ async def stream_confirm_event_generator(
         }
         current_snapshot = await graph.aget_state(snapshot_config)
 
-        # Verify thread ownership — prevent users from resuming others' graphs
+        # Verify thread exists
         if not current_snapshot or not current_snapshot.values:
+            yield f"event: error\ndata: {_json.dumps({'error': 'Thread not found'})}\n\n"
+            return
+
+        # Verify thread ownership — prevent users from resuming others' graphs
+        snapshot_user_id = current_snapshot.values.get("user_id", "")
+        if snapshot_user_id and snapshot_user_id != str(current_user.id):
+            logger.warning(
+                "HITL ownership mismatch: thread %s owned by %s, requested by %s",
+                request_body.thread_id,
+                snapshot_user_id,
+                current_user.id,
+            )
             yield f"event: error\ndata: {_json.dumps({'error': 'Thread not found'})}\n\n"
             return
 
@@ -394,3 +413,6 @@ async def stream_confirm_event_generator(
     except Exception as e:
         logger.error("SSE stream confirm error", exc_info=e)
         yield f"event: error\ndata: {_json.dumps({'error': str(e)})}\n\n"
+
+    finally:
+        logger.info("SSE confirm stream ended for thread %s", request_body.thread_id)

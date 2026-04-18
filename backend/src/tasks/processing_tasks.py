@@ -183,6 +183,34 @@ def process_document_ingestion(self, job_id: str):
                 db.add(entity)
             db.commit()
 
+            # Index entities into Neo4j knowledge graph
+            job.update_progress("Indexing knowledge graph", 60)
+            db.commit()
+
+            try:
+                from src.services.knowledge_graph.knowledge_graph_service import (
+                    knowledge_graph_service,
+                )
+
+                kg_indexed = 0
+                for entity in entities:
+                    entity_id = knowledge_graph_service.create_entity_node(
+                        entity_text=entity.name,
+                        entity_type=entity.entity_type.value if hasattr(entity.entity_type, 'value') else str(entity.entity_type),
+                        document_id=str(document.id),
+                        confidence=entity.confidence_score or 0.8,
+                    )
+                    if entity_id:
+                        kg_indexed += 1
+                logger.info(
+                    f"Indexed {kg_indexed}/{len(entities)} entities into Neo4j for document {document.id}"
+                )
+            except Exception as e:
+                logger.warning(
+                    f"Neo4j indexing failed for document {document.id}: {e}. "
+                    "Entities are still available in PostgreSQL."
+                )
+
         # Step 3: Embedding Generation
         job.update_progress("Generating embeddings", 75)
         db.commit()

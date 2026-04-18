@@ -134,6 +134,8 @@ backend:
         name: spaces-credentials
     - secretRef:
         name: supabase-credentials
+    - secretRef:
+        name: redis-credentials
 
   env:
     - name: ENVIRONMENT
@@ -173,6 +175,27 @@ backend:
         secretKeyRef:
           name: spaces-credentials
           key: S3_SECRET_KEY
+    # Azure OpenAI (Chat / Agent)
+    - name: AZURE_OPENAI_CHAT_ENDPOINT
+      valueFrom:
+        secretKeyRef:
+          name: azure-openai-credentials
+          key: AZURE_OPENAI_CHAT_ENDPOINT
+    - name: AZURE_OPENAI_CHAT_API_KEY
+      valueFrom:
+        secretKeyRef:
+          name: azure-openai-credentials
+          key: AZURE_OPENAI_CHAT_API_KEY
+    - name: AZURE_OPENAI_CHAT_DEPLOYMENT_NAME
+      valueFrom:
+        secretKeyRef:
+          name: azure-openai-credentials
+          key: AZURE_OPENAI_CHAT_DEPLOYMENT_NAME
+    - name: AZURE_OPENAI_CHAT_API_VERSION
+      valueFrom:
+        secretKeyRef:
+          name: azure-openai-credentials
+          key: AZURE_OPENAI_CHAT_API_VERSION
 
   healthCheck:
     enabled: true
@@ -212,7 +235,7 @@ neo4j:
     repository: neo4j
     tag: "5.26-community"
     pullPolicy: IfNotPresent
-  password: "N@rutops129"  # TODO: rotate and move to sealed secret
+  # password: supply via --set neo4j.password=... at deploy time
   advertisedAddress: "dev-neo4j.gen-text.app"
   persistence:
     size: 5Gi
@@ -250,23 +273,34 @@ qdrant:
 celeryWorker:
   enabled: true
   replicaCount: 1
+  autoscaling:
+    enabled: true
+    minReplicas: 1
+    maxReplicas: 3
+    targetCPUUtilizationPercentage: 90
+  livenessProbe:
+    commandTimeout: 15
+    initialDelaySeconds: 60
+    periodSeconds: 120
+    timeoutSeconds: 30
+    failureThreshold: 5
   resources:
     limits:
-      cpu: 500m
-      memory: 1Gi
+      cpu: "1"
+      memory: 2Gi
     requests:
-      cpu: 200m
-      memory: 512Mi
+      cpu: 250m
+      memory: 1Gi
 
 celeryBeat:
   enabled: true
   resources:
     limits:
       cpu: 200m
-      memory: 256Mi
+      memory: 768Mi
     requests:
       cpu: 50m
-      memory: 128Mi
+      memory: 384Mi
 
 prometheus:
   enabled: false

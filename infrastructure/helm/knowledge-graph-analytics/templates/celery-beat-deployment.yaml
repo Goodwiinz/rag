@@ -56,4 +56,14 @@ spec:
               cpu: 50m
               memory: 128Mi
             {{- end }}
+          livenessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - "pgrep -f 'celery.*beat' > /dev/null"
+            initialDelaySeconds: 60
+            periodSeconds: 60
+            timeoutSeconds: 10
+            failureThreshold: 3
 {{- end }}

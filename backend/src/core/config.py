@@ -105,6 +105,18 @@ class Settings(BaseSettings):
         """Override DATABASE_URL when SUPABASE_DB_URL is set."""
         if self.SUPABASE_DB_URL:
             self.DATABASE_URL = self.SUPABASE_DB_URL
+        # Validate final DATABASE_URL (allow sqlite in testing)
+        allowed_prefixes = ("postgresql://", "postgresql+asyncpg://")
+        if self.ENVIRONMENT == "testing":
+            allowed_prefixes = ("postgresql://", "postgresql+asyncpg://", "sqlite://")
+        if not self.DATABASE_URL.startswith(allowed_prefixes):
+            raise ValueError(
+                "DATABASE_URL must start with postgresql:// or postgresql+asyncpg://"
+            )
+        if self.ENVIRONMENT in ("production", "staging") and "localhost" in self.DATABASE_URL:
+            raise ValueError(
+                "DATABASE_URL must not point to localhost in production/staging"
+            )
         return self
 
     @field_validator("SECRET_KEY", mode="before")

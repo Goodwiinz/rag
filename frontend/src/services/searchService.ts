@@ -56,7 +56,20 @@ type SearchError = {
 
 const SUPPORTED_FILE_TYPES: ReadonlySet<
   NonNullable<SourceReference['file_type']>
-> = new Set(['pdf', 'txt', 'jpg', 'png', 'mp3', 'mp4']);
+> = new Set([
+  'pdf',
+  'txt',
+  'jpg',
+  'png',
+  'mp3',
+  'mp4',
+  'text',
+  'image',
+  'audio',
+  'video',
+  'spreadsheet',
+  'presentation',
+]);
 
 const isSupportedFileType = (
   value: string

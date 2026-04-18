@@ -32,7 +32,7 @@ os.environ.setdefault("ENVIRONMENT", "testing")
 # Force DEBUG in tests so TrustedHostMiddleware is not enabled for TestClient host.
 os.environ["DEBUG"] = "true"
 os.environ.setdefault("LOG_LEVEL", "WARNING")
-os.environ.setdefault("DATABASE_URL", "sqlite:///:memory:")
+os.environ.setdefault("DATABASE_URL", "postgresql://test:test@localhost:5432/test_db")
 os.environ.setdefault("REDIS_URL", "redis://localhost:6379/15")
 os.environ.setdefault("NEO4J_URI", "bolt://localhost:7687")
 os.environ.setdefault("QDRANT_URL", "http://localhost:6333")
@@ -135,11 +135,12 @@ def pytest_collection_modifyitems(config, items):
         # Add markers based on test file names
         test_path = str(item.fspath)
 
-        # Search security suites exercise full endpoint behavior and externalized
-        # security controls; treat them as integration tests so unit jobs stay stable.
-        if (
-            "/tests/security/search_security/" in test_path
-            or test_path.endswith("/tests/security/test_search_security.py")
+        # Tests under security/, evidence/, and contract/ import src.main and
+        # spin up TestClient(app) at module level, triggering the full app
+        # lifespan.  Mark them as integration so `-m unit` jobs skip them.
+        if any(
+            seg in test_path
+            for seg in ("/tests/security/", "/tests/evidence/", "/tests/contract/")
         ):
             item.add_marker(pytest.mark.integration)
 

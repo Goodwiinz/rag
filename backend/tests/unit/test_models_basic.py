@@ -16,6 +16,27 @@ from src.models.organization import Organization, StorageTier
 from src.models.evidence import StanceClassificationModel
 
 
+@pytest.fixture(autouse=True, scope="module")
+def _init_encryption():
+    """Initialize encryption for model tests that use encrypted fields."""
+    import os
+    from unittest.mock import patch as _patch
+
+    # Use a valid 32-byte Fernet key (same format as integration conftest)
+    test_key = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+
+    with _patch.dict(os.environ, {"ENCRYPTION_MASTER_KEY": test_key}):
+        try:
+            from src.core.encryption import EncryptionKeyType, get_key_manager, initialize_encryption
+            initialize_encryption()
+            km = get_key_manager()
+            if km.get_active_key(EncryptionKeyType.DATA) is None:
+                km.generate_key(EncryptionKeyType.DATA)
+        except Exception:
+            pass
+        yield
+
+
 # Test database setup - using only models that work with SQLite
 SQLALCHEMY_TEST_DATABASE_URL = "sqlite:///:memory:"
 engine = create_engine(SQLALCHEMY_TEST_DATABASE_URL, connect_args={"check_same_thread": False})

@@ -52,7 +52,11 @@ class RoleUpdate(BaseModel):
 @router.get("/me")
 async def get_current_user_info(current_user: User = Depends(get_current_user)):
     """Get current user information"""
-    return {"user": current_user.to_dict(exclude_sensitive=True)}
+    org = current_user.organization
+    return {
+        "user": current_user.to_dict(exclude_sensitive=True),
+        "organization": org.to_dict() if org else None,
+    }
 
 
 @router.get("/session")

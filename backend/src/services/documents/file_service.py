@@ -8,6 +8,7 @@ import mimetypes
 import os
 import time
 import uuid
+import uuid as uuid_module
 from pathlib import Path
 from typing import Any, BinaryIO, Dict, List, Optional
 
@@ -276,6 +277,12 @@ class FileService:
         self, document_type: DocumentType, organization_id: str
     ) -> str:
         """Generate unique file path for uploaded file"""
+        # Validate organization_id is a proper UUID to prevent path traversal
+        try:
+            uuid_module.UUID(organization_id)
+        except (ValueError, AttributeError):
+            raise ValueError(f"Invalid organization_id format: {organization_id}")
+
         timestamp = int(time.time())
         unique_id = str(uuid.uuid4())
 

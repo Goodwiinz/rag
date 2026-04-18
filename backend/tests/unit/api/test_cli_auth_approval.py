@@ -53,6 +53,7 @@ def test_cli_auth_approve_marks_session_approved_and_stores_credentials(
     try:
         approval = client.post(
             "/api/v1/cli-auth/approve",
+            headers={"Authorization": "Bearer fake-supabase-token"},
             json={
                 "session_id": session["session_id"],
                 "verification_code": session["verification_code"],
