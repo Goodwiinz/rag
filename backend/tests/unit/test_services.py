@@ -91,7 +91,7 @@ class TestHybridSearchService:
         """Create service instance with mocked dependencies"""
         with patch('src.services.search.hybrid_search_service.get_db') as mock_get_db:
             mock_get_db.return_value = mock_db_session
-            service = HybridSearchService(db=mock_db_session)
+            service = HybridSearchService()
             return service
     
     @pytest.mark.asyncio
@@ -187,7 +187,7 @@ class TestFullTextSearchService:
     @pytest.fixture
     def service(self, mock_db_session):
         """Create service instance"""
-        return FullTextSearchService(db=mock_db_session)
+        return FullTextSearchService()
     
     @pytest.mark.asyncio
     async def test_fulltext_search_success(self, service, sample_user, mock_db_session):
@@ -256,7 +256,7 @@ class TestAuthService:
     @pytest.fixture
     def service(self, mock_db_session):
         """Create service instance"""
-        return AuthService()
+        return AuthService(db=mock_db_session)
     
     @pytest.mark.asyncio
     async def test_authenticate_user_success(self, service, sample_user):

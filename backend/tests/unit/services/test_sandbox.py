@@ -23,32 +23,6 @@ pytestmark = [pytest.mark.asyncio, pytest.mark.unit]
 # These stubs are only applied when the real packages are absent.
 # ---------------------------------------------------------------------------
 
-def _stub_if_missing(name: str) -> None:
-    """Insert a MagicMock stub for *name* (and each prefix) if not installed."""
-    if name not in sys.modules:
-        parts = name.split(".")
-        for i in range(1, len(parts) + 1):
-            key = ".".join(parts[:i])
-            if key not in sys.modules:
-                sys.modules[key] = ModuleType(key)
-
-
-for _mod in [
-    "langchain_core",
-    "langchain_core.runnables",
-    "langchain_core.tools",
-    "langchain_core.messages",
-    "langsmith",
-    "openai",
-    "anthropic",
-    "cohere",
-    "redis",
-    "celery",
-    "qdrant_client",
-    "neo4j",
-    "structlog",
-]:
-    _stub_if_missing(_mod)
 
 
 # ---------------------------------------------------------------------------
@@ -472,6 +446,11 @@ import pathlib
 
 def _make_stub(name: str):
     """Create a MagicMock module stub and register all its prefixes."""
+    try:
+        __import__(name)
+        return sys.modules[name]
+    except ImportError:
+        pass
     from unittest.mock import MagicMock
 
     parts = name.split(".")
@@ -514,43 +493,8 @@ for _stub_name in _HEAVY_STUBS:
 
 
 def _import_tools_impl():
-    """Return the tools_impl module, importing it under its real package name.
-
-    Bypasses src/api/agent/__init__.py (which drags in langgraph/fastapi) by
-    pre-populating sys.modules with stubs for every sibling module and then
-    loading tools_impl.py directly under its canonical dotted name.
-    """
-    key = "src.api.agent.tools_impl"
-    if key in sys.modules:
-        return sys.modules[key]
-
-    agent_dir = pathlib.Path(__file__).parents[3] / "src" / "api" / "agent"
-
-    # Ensure the package hierarchy exists in sys.modules without running __init__.py
-    for pkg in ("src.api", "src.api.agent"):
-        if pkg not in sys.modules:
-            m = ModuleType(pkg)
-            m.__path__ = [str(agent_dir.parent if "agent" not in pkg else agent_dir)]
-            m.__package__ = pkg
-            sys.modules[pkg] = m
-
-    # Stub every sibling module with MagicMock so attribute imports succeed
-    from unittest.mock import MagicMock as _MM
-
-    for sibling in ("execute", "tool_helpers", "jobs", "streaming", "trace_context"):
-        sibling_key = f"src.api.agent.{sibling}"
-        if sibling_key not in sys.modules:
-            sys.modules[sibling_key] = _MM()
-
-    spec = importlib.util.spec_from_file_location(
-        key,
-        str(agent_dir / "tools_impl.py"),
-    )
-    mod = importlib.util.module_from_spec(spec)  # type: ignore[arg-type]
-    mod.__package__ = "src.api.agent"
-    sys.modules[key] = mod
-    spec.loader.exec_module(mod)  # type: ignore[union-attr]
-    return mod
+    import src.api.agent.tools_impl as tools_impl
+    return tools_impl
 
 
 class TestToolExecuteCode:
