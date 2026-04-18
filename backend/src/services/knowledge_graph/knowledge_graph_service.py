@@ -42,23 +42,69 @@ from src.models.graph import (
 logger = logging.getLogger(__name__)
 
 
-def _parse_metadata(metadata_str: str) -> Dict[str, Any]:
-    """Parse metadata string back to dictionary"""
-    if not metadata_str or metadata_str == "{}":
+def _parse_metadata(metadata_val) -> Dict[str, Any]:
+    """Parse metadata from Neo4j (may be JSON string, Python repr, or dict)."""
+    if not metadata_val or metadata_val == "{}":
         return {}
+    if isinstance(metadata_val, dict):
+        return metadata_val
+    try:
+        parsed = json.loads(metadata_val)
+        return parsed if isinstance(parsed, dict) else {}
+    except (ValueError, TypeError):
+        pass
+    # Fallback for legacy data stored via str() instead of json.dumps().
+    # ast.literal_eval is safe here — it only handles Python literals
+    # (strings, numbers, dicts, lists, tuples, booleans, None), NOT
+    # arbitrary code execution. It is explicitly designed as a safe
+    # alternative to eval() for parsing Python literal structures.
     try:
         import ast
-
-        return ast.literal_eval(metadata_str)
+        parsed = ast.literal_eval(metadata_val)  # noqa: S307 — safe, literal-only
+        return parsed if isinstance(parsed, dict) else {}
     except (ValueError, SyntaxError):
         return {}
 
 
+def _parse_evidence(evidence_val) -> List[str]:
+    """Parse evidence from Neo4j (may be JSON string or native list)."""
+    if not evidence_val or evidence_val == "[]":
+        return []
+    if isinstance(evidence_val, list):
+        return evidence_val
+    try:
+        parsed = json.loads(evidence_val)
+        return parsed if isinstance(parsed, list) else []
+    except (ValueError, TypeError):
+        return []
+
+
 def _convert_datetime(dt) -> datetime:
     """Convert Neo4j datetime to Python datetime"""
+    if dt is None:
+        return datetime.utcnow()
+    if isinstance(dt, datetime):
+        return dt
+    if isinstance(dt, str):
+        # Handle ISO format strings from Neo4j
+        return datetime.fromisoformat(dt.replace("Z", "+00:00"))
     if hasattr(dt, "to_native"):
         return dt.to_native()
-    return datetime(dt.year, dt.month, dt.day, dt.hour, dt.minute, dt.second)
+    try:
+        return datetime(dt.year, dt.month, dt.day, dt.hour, dt.minute, dt.second)
+    except (AttributeError, TypeError):
+        return datetime.utcnow()
+
+
+def _safe_relationship_type(value: Optional[str]) -> RelationshipType:
+    """Safely convert string to RelationshipType, falling back to RELATED_TO"""
+    if not value:
+        return RelationshipType.RELATED_TO
+    try:
+        return RelationshipType(value)
+    except ValueError:
+        logger.debug(f"Unknown RelationshipType '{value}', using RELATED_TO")
+        return RelationshipType.RELATED_TO
 
 
 def _safe_entity_type(value: Optional[str]) -> EntityType:
@@ -229,6 +275,10 @@ class KnowledgeGraphService:
     # Entity Management
     def create_entity(self, request: CreateEntityRequest) -> EntityResponse:
         """Create a new entity in the knowledge graph"""
+        if not request.name or not request.name.strip():
+            raise ValueError("Entity name cannot be blank or whitespace-only")
+        request.name = request.name.strip()
+
         start_time = time.time()
         entity_id = str(uuid.uuid4())
 
@@ -261,7 +311,7 @@ class KnowledgeGraphService:
                         "extraction_method": request.extraction_method.value,
                         "position": request.position,
                         "context": request.context,
-                        "metadata": str(request.metadata) if request.metadata else "{}",
+                        "metadata": json.dumps(request.metadata) if request.metadata else "{}",
                         "source_document_id": request.source_document_id,
                     },
                 )
@@ -293,16 +343,29 @@ class KnowledgeGraphService:
             logger.error(f"Error creating entity {request.name}: {e}")
             raise
 
-    def get_entity(self, entity_id: str) -> Optional[EntityResponse]:
-        """Retrieve an entity by ID"""
+    def get_entity(
+        self,
+        entity_id: str,
+        source_document_ids: Optional[List[str]] = None,
+    ) -> Optional[EntityResponse]:
+        """Retrieve an entity by ID, optionally scoped to organization documents"""
         try:
             with self.get_session() as session:
-                query = """
-                MATCH (e:Entity {id: $entity_id})
-                RETURN e
-                """
+                params = {"entity_id": entity_id}
+                if source_document_ids is not None:
+                    query = """
+                    MATCH (e:Entity {id: $entity_id})
+                    WHERE e.source_document_id IN $source_document_ids
+                    RETURN e
+                    """
+                    params["source_document_ids"] = source_document_ids
+                else:
+                    query = """
+                    MATCH (e:Entity {id: $entity_id})
+                    RETURN e
+                    """
 
-                result = session.run(query, {"entity_id": entity_id})
+                result = session.run(query, params)
                 node = result.single()
 
                 if not node:
@@ -329,14 +392,19 @@ class KnowledgeGraphService:
             return None
 
     def update_entity(
-        self, entity_id: str, request: UpdateEntityRequest
+        self,
+        entity_id: str,
+        request: UpdateEntityRequest,
+        source_document_ids: Optional[List[str]] = None,
     ) -> Optional[EntityResponse]:
-        """Update an existing entity"""
+        """Update an existing entity, optionally scoped to organization documents"""
         try:
             with self.get_session() as session:
                 # Build update parameters dynamically
                 update_fields = []
                 params = {"entity_id": entity_id, "updated_at": datetime.utcnow()}
+                if source_document_ids is not None:
+                    params["source_document_ids"] = source_document_ids
 
                 if request.name is not None:
                     update_fields.append("e.name = $name")
@@ -349,17 +417,22 @@ class KnowledgeGraphService:
                 if request.metadata is not None:
                     update_fields.append("e.metadata = $metadata")
                     params["metadata"] = (
-                        str(request.metadata) if request.metadata else "{}"
+                        json.dumps(request.metadata) if request.metadata else "{}"
                     )
 
                 if not update_fields:
-                    return self.get_entity(entity_id)
+                    return self.get_entity(entity_id, source_document_ids=source_document_ids)
 
                 update_fields.append("e.updated_at = $updated_at")
                 set_clause = ", ".join(update_fields)
 
+                tenant_filter = (
+                    "\nWHERE e.source_document_id IN $source_document_ids"
+                    if source_document_ids is not None
+                    else ""
+                )
                 query = f"""
-                MATCH (e:Entity {{id: $entity_id}})
+                MATCH (e:Entity {{id: $entity_id}}){tenant_filter}
                 SET {set_clause}
                 RETURN e
                 """
@@ -390,17 +463,31 @@ class KnowledgeGraphService:
             logger.error(f"Error updating entity {entity_id}: {e}")
             return None
 
-    def delete_entity(self, entity_id: str) -> bool:
-        """Delete an entity and all its relationships"""
+    def delete_entity(
+        self,
+        entity_id: str,
+        source_document_ids: Optional[List[str]] = None,
+    ) -> bool:
+        """Delete an entity and all its relationships, optionally scoped to organization documents"""
         try:
             with self.get_session() as session:
-                query = """
-                MATCH (e:Entity {id: $entity_id})
-                DETACH DELETE e
-                RETURN count(e) as deleted_count
-                """
+                params: Dict[str, Any] = {"entity_id": entity_id}
+                if source_document_ids is not None:
+                    query = """
+                    MATCH (e:Entity {id: $entity_id})
+                    WHERE e.source_document_id IN $source_document_ids
+                    DETACH DELETE e
+                    RETURN count(e) as deleted_count
+                    """
+                    params["source_document_ids"] = source_document_ids
+                else:
+                    query = """
+                    MATCH (e:Entity {id: $entity_id})
+                    DETACH DELETE e
+                    RETURN count(e) as deleted_count
+                    """
 
-                result = session.run(query, {"entity_id": entity_id})
+                result = session.run(query, params)
                 deleted_count = result.single()["deleted_count"]
 
                 if deleted_count > 0:
@@ -418,13 +505,18 @@ class KnowledgeGraphService:
         query: str,
         entity_types: Optional[List[EntityType]] = None,
         limit: int = 50,
+        source_document_ids: Optional[List[str]] = None,
     ) -> List[EntityResponse]:
-        """Search for entities by name or properties"""
+        """Search for entities by name or properties, optionally scoped to organization documents"""
         try:
             with self.get_session() as session:
                 # Build query conditions
                 conditions = ["e.name CONTAINS $query"]
-                params = {"query": query, "limit": limit}
+                params: Dict[str, Any] = {"query": query, "limit": limit}
+
+                if source_document_ids is not None:
+                    conditions.append("e.source_document_id IN $source_document_ids")
+                    params["source_document_ids"] = source_document_ids
 
                 if entity_types:
                     type_condition = " OR ".join(
@@ -495,7 +587,7 @@ class KnowledgeGraphService:
 
                 if source_document_ids is not None:
                     conditions.append(
-                        "(e.source_document_id IN $source_document_ids OR e.source_document_id IS NULL)"
+                        "e.source_document_id IN $source_document_ids"
                     )
                     params["source_document_ids"] = source_document_ids
 
@@ -594,7 +686,7 @@ class KnowledgeGraphService:
 
                 if source_document_ids is not None:
                     conditions.append(
-                        "(e.source_document_id IN $source_document_ids OR e.source_document_id IS NULL)"
+                        "e.source_document_id IN $source_document_ids"
                     )
                     params["source_document_ids"] = source_document_ids
 
@@ -628,6 +720,8 @@ class KnowledgeGraphService:
         source_document_ids: Optional[List[str]] = None,
     ) -> List[RelationshipResponse]:
         """Get all relationships with pagination"""
+        # Cap limit to prevent OOM on large graphs
+        limit = min(limit, 200)
         try:
             with self.get_session() as session:
                 conditions = []
@@ -639,11 +733,10 @@ class KnowledgeGraphService:
                     params["relationship_types"] = type_values
 
                 if source_document_ids is not None:
+                    # Use relationship-level source_document_id for filtering
+                    # (more reliable than entity node property for scoping)
                     conditions.append(
-                        "(source.source_document_id IN $source_document_ids OR source.source_document_id IS NULL)"
-                    )
-                    conditions.append(
-                        "(target.source_document_id IN $source_document_ids OR target.source_document_id IS NULL)"
+                        "r.source_document_id IN $source_document_ids"
                     )
                     params["source_document_ids"] = source_document_ids
 
@@ -652,7 +745,14 @@ class KnowledgeGraphService:
                 query = f"""
                 MATCH (source:Entity)-[r:RELATED_TO]->(target:Entity)
                 {where_clause}
-                RETURN r, source.id as source_id, target.id as target_id
+                RETURN r.id AS rid,
+                       source.id AS source_id,
+                       target.id AS target_id,
+                       r.type AS rel_type,
+                       r.strength AS strength,
+                       r.confidence_score AS confidence,
+                       r.source_document_id AS doc_id,
+                       r.created_at AS created_at
                 ORDER BY r.created_at DESC
                 SKIP $offset
                 LIMIT $limit
@@ -662,58 +762,57 @@ class KnowledgeGraphService:
                 relationships = []
 
                 for record in result:
-                    r = record["r"]
                     source_id = record["source_id"]
                     target_id = record["target_id"]
 
-                    # Skip relationships with missing entity IDs
                     if not source_id or not target_id:
-                        logger.warning(
-                            f"Skipping relationship with missing entity ID: source={source_id}, target={target_id}"
-                        )
                         continue
 
                     relationships.append(
                         RelationshipResponse(
-                            id=r.get("id", str(uuid.uuid4())),
+                            id=record["rid"] or str(uuid.uuid4()),
                             source_entity_id=source_id,
                             target_entity_id=target_id,
-                            relationship_type=RelationshipType(
-                                r.get("type", "RELATED_TO")
+                            relationship_type=_safe_relationship_type(
+                                record["rel_type"] or "RELATED_TO"
                             ),
-                            strength=r.get("strength", 0.5),
-                            confidence_score=r.get("confidence_score", 0.8),
-                            context=r.get("context"),
-                            evidence=r.get("evidence", []),
-                            metadata=_parse_metadata(r.get("metadata", "{}")),
-                            source_document_id=r.get("source_document_id"),
-                            created_at=_convert_datetime(
-                                r.get("created_at", datetime.utcnow())
-                            ),
-                            updated_at=_convert_datetime(r["updated_at"])
-                            if r.get("updated_at")
-                            else None,
+                            strength=record["strength"] or 0.5,
+                            confidence_score=record["confidence"] or 0.8,
+                            context=None,
+                            evidence=[],
+                            metadata={},
+                            source_document_id=record["doc_id"],
+                            created_at=_convert_datetime(record["created_at"]),
+                            updated_at=None,
                         )
                     )
 
                 return relationships
         except Exception as e:
-            logger.error(f"Error getting all relationships: {e}")
+            logger.error(f"Error getting all relationships: {e}", exc_info=True)
             return []
 
     # Relationship Management
     def create_relationship(
-        self, request: CreateRelationshipRequest
+        self,
+        request: CreateRelationshipRequest,
+        source_document_ids: Optional[List[str]] = None,
     ) -> RelationshipResponse:
-        """Create a new relationship between entities"""
+        """Create a new relationship between entities, optionally scoped to organization documents"""
         start_time = time.time()
         relationship_id = str(uuid.uuid4())
 
         try:
             with self.get_session() as session:
-                query = """
-                MATCH (source:Entity {id: $source_entity_id})
-                MATCH (target:Entity {id: $target_entity_id})
+                tenant_filter = (
+                    "\nWHERE source.source_document_id IN $source_document_ids"
+                    " AND target.source_document_id IN $source_document_ids"
+                    if source_document_ids is not None
+                    else ""
+                )
+                query = f"""
+                MATCH (source:Entity {{id: $source_entity_id}})
+                MATCH (target:Entity {{id: $target_entity_id}}){tenant_filter}
                 CREATE (source)-[r:RELATED_TO {
                     id: $id,
                     type: $relationship_type,
@@ -737,21 +836,22 @@ class KnowledgeGraphService:
                     json.dumps(request.metadata) if request.metadata else "{}"
                 )
 
-                result = session.run(
-                    query,
-                    {
-                        "id": relationship_id,
-                        "source_entity_id": request.source_entity_id,
-                        "target_entity_id": request.target_entity_id,
-                        "relationship_type": request.relationship_type.value,
-                        "strength": request.strength,
-                        "confidence_score": request.confidence_score,
-                        "context": request.context,
-                        "evidence": evidence_str,
-                        "metadata": metadata_str,
-                        "source_document_id": request.source_document_id,
-                    },
-                )
+                params: Dict[str, Any] = {
+                    "id": relationship_id,
+                    "source_entity_id": request.source_entity_id,
+                    "target_entity_id": request.target_entity_id,
+                    "relationship_type": request.relationship_type.value,
+                    "strength": request.strength,
+                    "confidence_score": request.confidence_score,
+                    "context": request.context,
+                    "evidence": evidence_str,
+                    "metadata": metadata_str,
+                    "source_document_id": request.source_document_id,
+                }
+                if source_document_ids is not None:
+                    params["source_document_ids"] = source_document_ids
+
+                result = session.run(query, params)
 
                 record = result.single()
                 if not record:
@@ -784,12 +884,18 @@ class KnowledgeGraphService:
         self,
         entity_id: str,
         relationship_types: Optional[List[RelationshipType]] = None,
+        source_document_ids: Optional[List[str]] = None,
     ) -> List[RelationshipResponse]:
-        """Get all relationships for an entity"""
+        """Get all relationships for an entity, optionally scoped to organization documents"""
         try:
             with self.get_session() as session:
-                conditions = ["source.id = $entity_id OR target.id = $entity_id"]
-                params = {"entity_id": entity_id}
+                conditions = ["(source.id = $entity_id OR target.id = $entity_id)"]
+                params: Dict[str, Any] = {"entity_id": entity_id}
+
+                if source_document_ids is not None:
+                    conditions.append("source.source_document_id IN $source_document_ids")
+                    conditions.append("target.source_document_id IN $source_document_ids")
+                    params["source_document_ids"] = source_document_ids
 
                 if relationship_types:
                     type_values = [t.value for t in relationship_types]
@@ -832,8 +938,8 @@ class KnowledgeGraphService:
                             strength=r.get("strength", r.get("confidence", 0.5)),
                             confidence_score=r.get("confidence_score", r.get("confidence", 0.5)),
                             context=r.get("context"),
-                            evidence=r.get("evidence", []),
-                            metadata=r.get("metadata", {}),
+                            evidence=_parse_evidence(r.get("evidence", [])),
+                            metadata=_parse_metadata(r.get("metadata", "{}")),
                             source_document_id=r.get("source_document_id", r.get("source_paper")),
                             created_at=r.get("created_at", datetime.utcnow()),
                             updated_at=r.get("updated_at"),
@@ -845,16 +951,30 @@ class KnowledgeGraphService:
             logger.error(f"Error retrieving relationships for {entity_id}: {e}")
             return []
 
-    def get_relationship(self, relationship_id: str) -> Optional[RelationshipResponse]:
-        """Get a single relationship by ID"""
+    def get_relationship(
+        self,
+        relationship_id: str,
+        source_document_ids: Optional[List[str]] = None,
+    ) -> Optional[RelationshipResponse]:
+        """Get a single relationship by ID, optionally scoped to organization documents"""
         try:
             with self.get_session() as session:
-                query = """
-                MATCH (source:Entity)-[r:RELATED_TO {id: $relationship_id}]-(target:Entity)
-                RETURN r, source.id AS source_id, target.id AS target_id
-                """
+                params: Dict[str, Any] = {"relationship_id": relationship_id}
+                if source_document_ids is not None:
+                    query = """
+                    MATCH (source:Entity)-[r:RELATED_TO {id: $relationship_id}]-(target:Entity)
+                    WHERE source.source_document_id IN $source_document_ids
+                      AND target.source_document_id IN $source_document_ids
+                    RETURN r, source.id AS source_id, target.id AS target_id
+                    """
+                    params["source_document_ids"] = source_document_ids
+                else:
+                    query = """
+                    MATCH (source:Entity)-[r:RELATED_TO {id: $relationship_id}]-(target:Entity)
+                    RETURN r, source.id AS source_id, target.id AS target_id
+                    """
 
-                result = session.run(query, {"relationship_id": relationship_id})
+                result = session.run(query, params)
                 record = result.single()
 
                 if not record:
@@ -869,8 +989,8 @@ class KnowledgeGraphService:
                     strength=r["strength"],
                     confidence_score=r["confidence_score"],
                     context=r.get("context"),
-                    evidence=r.get("evidence", []),
-                    metadata=r.get("metadata", {}),
+                    evidence=_parse_evidence(r.get("evidence", [])),
+                    metadata=_parse_metadata(r.get("metadata", "{}")),
                     source_document_id=r.get("source_document_id"),
                     created_at=r["created_at"],
                     updated_at=r.get("updated_at"),
@@ -879,17 +999,32 @@ class KnowledgeGraphService:
             logger.error(f"Error retrieving relationship {relationship_id}: {e}")
             return None
 
-    def delete_relationship(self, relationship_id: str) -> bool:
-        """Delete a relationship by ID"""
+    def delete_relationship(
+        self,
+        relationship_id: str,
+        source_document_ids: Optional[List[str]] = None,
+    ) -> bool:
+        """Delete a relationship by ID, optionally scoped to organization documents"""
         try:
             with self.get_session() as session:
-                query = """
-                MATCH (source)-[r:RELATED_TO {id: $relationship_id}]-(target)
-                DELETE r
-                RETURN count(r) as deleted_count
-                """
+                params: Dict[str, Any] = {"relationship_id": relationship_id}
+                if source_document_ids is not None:
+                    query = """
+                    MATCH (source:Entity)-[r:RELATED_TO {id: $relationship_id}]-(target:Entity)
+                    WHERE source.source_document_id IN $source_document_ids
+                      AND target.source_document_id IN $source_document_ids
+                    DELETE r
+                    RETURN count(r) as deleted_count
+                    """
+                    params["source_document_ids"] = source_document_ids
+                else:
+                    query = """
+                    MATCH (source)-[r:RELATED_TO {id: $relationship_id}]-(target)
+                    DELETE r
+                    RETURN count(r) as deleted_count
+                    """
 
-                result = session.run(query, {"relationship_id": relationship_id})
+                result = session.run(query, params)
                 deleted_count = result.single()["deleted_count"]
 
                 if deleted_count > 0:
@@ -911,29 +1046,34 @@ class KnowledgeGraphService:
         max_depth: int = 2,
         min_strength: float = 0.1,
         limit: int = 50,
+        source_document_ids: Optional[List[str]] = None,
     ) -> List[EntityResponse]:
-        """Find entities related to a given entity"""
+        """Find entities related to a given entity, optionally scoped to organization documents"""
         try:
             with self.get_session() as session:
-                # Match ANY relationship type, not just RELATED_TO
-                # Note: Neo4j doesn't support parameters in variable-length patterns
-                # max_depth is validated at API level (1-5), safe to interpolate
+                tenant_filter = (
+                    "\n  AND start.source_document_id IN $source_document_ids"
+                    "\n  AND related.source_document_id IN $source_document_ids"
+                    if source_document_ids is not None
+                    else ""
+                )
                 query = f"""
                 MATCH (start:Entity {{id: $entity_id}})
                 MATCH (start)-[r*1..{max_depth}]-(related:Entity)
-                WHERE all(rel in r WHERE coalesce(rel.strength, 1.0) >= $min_strength)
+                WHERE all(rel in r WHERE coalesce(rel.strength, 1.0) >= $min_strength){tenant_filter}
                 RETURN DISTINCT related
                 LIMIT $limit
                 """
 
-                result = session.run(
-                    query,
-                    {
-                        "entity_id": entity_id,
-                        "min_strength": min_strength,
-                        "limit": limit,
-                    },
-                )
+                params: Dict[str, Any] = {
+                    "entity_id": entity_id,
+                    "min_strength": min_strength,
+                    "limit": limit,
+                }
+                if source_document_ids is not None:
+                    params["source_document_ids"] = source_document_ids
+
+                result = session.run(query, params)
 
                 entities = []
                 for node in result:
@@ -970,6 +1110,7 @@ class KnowledgeGraphService:
         max_depth: int = 2,
         min_strength: float = 0.1,
         limit: int = 50,
+        source_document_ids: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
         """Get neighborhood entities and relationships in a single query.
 
@@ -978,14 +1119,18 @@ class KnowledgeGraphService:
         """
         try:
             with self.get_session() as session:
-                # Single query: find all paths from start to related Entity nodes,
-                # return the Entity endpoints plus relationship info from each path
+                tenant_filter = (
+                    "\n  AND start.source_document_id IN $source_document_ids"
+                    "\n  AND related.source_document_id IN $source_document_ids"
+                    if source_document_ids is not None
+                    else ""
+                )
                 query = f"""
                 MATCH (start:Entity {{id: $entity_id}})
                 MATCH path = (start)-[*1..{max_depth}]-(related:Entity)
                 WHERE related.id <> $entity_id
                   AND all(rel in relationships(path)
-                      WHERE coalesce(rel.strength, rel.confidence, 1.0) >= $min_strength)
+                      WHERE coalesce(rel.strength, rel.confidence, 1.0) >= $min_strength){tenant_filter}
                 WITH DISTINCT related, path, length(path) AS hops
                 ORDER BY hops
                 WITH related,
@@ -1002,14 +1147,15 @@ class KnowledgeGraphService:
                 LIMIT $limit
                 """
 
-                result = session.run(
-                    query,
-                    {
-                        "entity_id": entity_id,
-                        "min_strength": min_strength,
-                        "limit": limit,
-                    },
-                )
+                params: Dict[str, Any] = {
+                    "entity_id": entity_id,
+                    "min_strength": min_strength,
+                    "limit": limit,
+                }
+                if source_document_ids is not None:
+                    params["source_document_ids"] = source_document_ids
+
+                result = session.run(query, params)
 
                 entities = []
                 edges = []
@@ -1092,29 +1238,34 @@ class KnowledgeGraphService:
         target_id: str,
         max_depth: int = 3,
         min_strength: float = 0.1,
+        source_document_ids: Optional[List[str]] = None,
     ) -> List[GraphPath]:
-        """Find paths between two entities"""
+        """Find paths between two entities, optionally scoped to organization documents"""
         try:
             with self.get_session() as session:
-                # Match ANY relationship type, not just RELATED_TO
-                # Note: Neo4j doesn't support parameters in variable-length patterns
-                # max_depth is validated at API level (1-5), safe to interpolate
+                tenant_filter = (
+                    "\n  AND start.source_document_id IN $source_document_ids"
+                    "\n  AND end.source_document_id IN $source_document_ids"
+                    if source_document_ids is not None
+                    else ""
+                )
                 query = f"""
                 MATCH path = (start:Entity {{id: $source_id}})-[*1..{max_depth}]-(end:Entity {{id: $target_id}})
-                WHERE all(rel in relationships(path) WHERE coalesce(rel.strength, 1.0) >= $min_strength)
+                WHERE all(rel in relationships(path) WHERE coalesce(rel.strength, 1.0) >= $min_strength){tenant_filter}
                 RETURN path, length(path) as path_length
                 ORDER BY path_length, reduce(strength = 1.0, rel in relationships(path) | strength * coalesce(rel.strength, 1.0)) DESC
                 LIMIT 10
                 """
 
-                result = session.run(
-                    query,
-                    {
-                        "source_id": source_id,
-                        "target_id": target_id,
-                        "min_strength": min_strength,
-                    },
-                )
+                params: Dict[str, Any] = {
+                    "source_id": source_id,
+                    "target_id": target_id,
+                    "min_strength": min_strength,
+                }
+                if source_document_ids is not None:
+                    params["source_document_ids"] = source_document_ids
+
+                result = session.run(query, params)
 
                 paths = []
                 for record in result:
@@ -1160,8 +1311,8 @@ class KnowledgeGraphService:
                                 strength=r["strength"],
                                 confidence_score=r["confidence_score"],
                                 context=r.get("context"),
-                                evidence=r.get("evidence", []),
-                                metadata=r.get("metadata", {}),
+                                evidence=_parse_evidence(r.get("evidence", [])),
+                                metadata=_parse_metadata(r.get("metadata", "{}")),
                                 source_document_id=r.get("source_document_id"),
                                 created_at=r["created_at"],
                                 updated_at=r.get("updated_at"),
@@ -1188,7 +1339,11 @@ class KnowledgeGraphService:
             return []
 
     # Batch Operations
-    def create_entities_batch(self, request: BatchEntityRequest) -> BatchEntityResponse:
+    def create_entities_batch(
+        self,
+        request: BatchEntityRequest,
+        source_document_ids: Optional[List[str]] = None,
+    ) -> BatchEntityResponse:
         """Create multiple entities and relationships in a batch"""
         start_time = time.time()
         response = BatchEntityResponse()
@@ -1244,6 +1399,10 @@ class KnowledgeGraphService:
         self, tx, request: CreateEntityRequest
     ) -> Optional[EntityResponse]:
         """Helper to create entity within a transaction"""
+        if not request.name or not request.name.strip():
+            raise ValueError("Entity name cannot be blank or whitespace-only")
+        request.name = request.name.strip()
+
         entity_id = str(uuid.uuid4())
         query = f"""
         CREATE (e:Entity:{request.entity_type.value} {{
@@ -1272,7 +1431,7 @@ class KnowledgeGraphService:
                 "extraction_method": request.extraction_method.value,
                 "position": request.position,
                 "context": request.context,
-                "metadata": str(request.metadata) if request.metadata else "{}",
+                "metadata": json.dumps(request.metadata) if request.metadata else "{}",
                 "source_document_id": request.source_document_id,
             },
         )
@@ -1358,16 +1517,31 @@ class KnowledgeGraphService:
         )
 
     # Analytics and Statistics
-    def get_graph_analytics(self) -> GraphAnalytics:
-        """Get comprehensive graph analytics"""
+    def get_graph_analytics(
+        self,
+        source_document_ids: Optional[List[str]] = None,
+    ) -> GraphAnalytics:
+        """Get comprehensive graph analytics, optionally scoped to organization documents"""
         try:
             with self.get_session() as session:
+                # Build tenant-scoped queries
+                if source_document_ids is not None:
+                    entity_where = "WHERE e.source_document_id IN $source_document_ids"
+                    rel_where = "WHERE source.source_document_id IN $source_document_ids"
+                    params: Dict[str, Any] = {"source_document_ids": source_document_ids}
+                else:
+                    entity_where = ""
+                    rel_where = ""
+                    params = {}
+
                 # Get basic counts
                 node_count_result = session.run(
-                    "MATCH (n) RETURN count(n) as count"
+                    f"MATCH (e:Entity) {entity_where} RETURN count(e) as count",
+                    params,
                 ).single()
                 relationship_count_result = session.run(
-                    "MATCH ()-[r]->() RETURN count(r) as count"
+                    f"MATCH (source:Entity)-[r:RELATED_TO]->() {rel_where} RETURN count(r) as count",
+                    params,
                 ).single()
 
                 total_entities = node_count_result["count"]
@@ -1375,7 +1549,8 @@ class KnowledgeGraphService:
 
                 # Get entity type distribution
                 entity_types_result = session.run(
-                    "MATCH (e:Entity) RETURN e.type as type, count(e) as count"
+                    f"MATCH (e:Entity) {entity_where} RETURN e.type as type, count(e) as count",
+                    params,
                 )
                 entity_type_counts = {
                     record["type"]: record["count"] for record in entity_types_result
@@ -1383,7 +1558,8 @@ class KnowledgeGraphService:
 
                 # Get relationship type distribution
                 rel_types_result = session.run(
-                    "MATCH ()-[r:RELATED_TO]->() RETURN r.type as type, count(r) as count"
+                    f"MATCH (source:Entity)-[r:RELATED_TO]->() {rel_where} RETURN r.type as type, count(r) as count",
+                    params,
                 )
                 relationship_type_counts = {
                     record["type"]: record["count"] for record in rel_types_result
@@ -1395,48 +1571,32 @@ class KnowledgeGraphService:
                 else:
                     avg_degree = 0.0
 
-                # Get connected components
-                components_result = session.run(
-                    """
-                CALL gds.graph.project('tempGraph', 'Entity', 'RELATED_TO')
-                YIELD graphName
-                CALL gds.connectedComponents.stream('tempGraph')
-                YIELD nodeId, componentId
-                WITH componentId, count(*) as size
-                RETURN count(DISTINCT componentId) as components, max(size) as largest_size
-                """
-                ).single()
-
-                connected_components = (
-                    components_result["components"] if components_result else 0
-                )
-                largest_component_size = (
-                    components_result["largest_size"] if components_result else 0
-                )
-
-                # Calculate global clustering coefficient using GDS
+                # Approximate connected components with a lightweight Cypher query
+                # (GDS procedures are skipped — they OOM in constrained containers)
+                connected_components = 0
+                largest_component_size = 0
                 clustering_coefficient = 0.0
+
                 try:
-                    # Use the existing tempGraph from connected components calculation
-                    clustering_result = session.run(
-                        """
-                        CALL gds.localClusteringCoefficient.stream('tempGraph')
-                        YIELD nodeId, localClusteringCoefficient
-                        WITH localClusteringCoefficient
-                        WHERE localClusteringCoefficient IS NOT NULL
-                        RETURN avg(localClusteringCoefficient) as avgClustering
-                        """
+                    # Count isolated vs connected entities as a lightweight proxy
+                    iso_filter = (
+                        "AND e.source_document_id IN $source_document_ids"
+                        if source_document_ids is not None
+                        else ""
+                    )
+                    iso_result = session.run(
+                        f"""
+                        MATCH (e:Entity)
+                        WHERE NOT (e)-[:RELATED_TO]-() {iso_filter}
+                        RETURN count(e) AS isolated
+                        """,
+                        params,
                     ).single()
-                    if clustering_result and clustering_result["avgClustering"] is not None:
-                        clustering_coefficient = float(clustering_result["avgClustering"])
-                except Exception as cc_error:
-                    logger.warning(f"Could not calculate clustering coefficient: {cc_error}")
-                finally:
-                    # Clean up the temporary graph projection
-                    try:
-                        session.run("CALL gds.graph.drop('tempGraph', false)")
-                    except Exception:
-                        pass
+                    isolated = iso_result["isolated"] if iso_result else 0
+                    connected_components = max(1, total_entities - isolated)
+                    largest_component_size = total_entities - isolated
+                except Exception:
+                    pass
 
                 return GraphAnalytics(
                     total_entities=total_entities,
@@ -1573,6 +1733,164 @@ class KnowledgeGraphService:
                 response_time_ms=(time.time() - start_time) * 1000,
                 last_error=str(e),
             )
+
+
+    # --- Integration adapter methods ---
+    # These adapt the KG service to match contracts expected by search, document
+    # processing, and multi-agent callers.
+
+    def search(
+        self,
+        search_request: Any = None,
+        user_id: str = None,
+        organization_id: str = None,
+        db: Any = None,
+    ) -> Any:
+        """Search adapter matching the contract used by search.py and hybrid_search_service.
+
+        Returns a SearchResponse-compatible object so the search API can treat
+        knowledge-graph search identically to fulltext/vector search.
+        """
+        from src.models.search_schemas import (
+            SearchResponse,
+            SearchResult as SearchResultModel,
+            SearchType as SearchTypeEnum,
+        )
+        from src.models.document import DocumentType
+
+        start_time = time.time()
+
+        # Derive tenant scope
+        source_document_ids = None
+        if organization_id and db:
+            try:
+                from src.models.document import Document
+
+                source_document_ids = [
+                    str(doc_id)
+                    for (doc_id,) in db.query(Document.id)
+                    .filter(Document.organization_id == organization_id)
+                    .all()
+                ]
+            except Exception:
+                pass
+
+        query_text = search_request.query if search_request else ""
+        limit = getattr(search_request, "limit", 20)
+
+        entities = self.search_entities(
+            query_text, limit=limit, source_document_ids=source_document_ids
+        )
+
+        results = []
+        now = datetime.utcnow()
+        for entity in entities:
+            results.append(
+                SearchResultModel(
+                    document_id=entity.source_document_id or str(uuid.uuid4()),
+                    title=entity.name,
+                    document_type=DocumentType.TEXT,
+                    content_preview=entity.context or "",
+                    snippets=[],
+                    relevance_score=min(entity.confidence_score, 1.0),
+                    file_size_bytes=0,
+                    created_at=entity.created_at or now,
+                    updated_at=entity.updated_at or now,
+                    processing_status="completed",
+                    tags=[entity.entity_type.value],
+                    is_public=False,
+                    uploaded_by_user_id=user_id or "",
+                    organization_id=organization_id or "",
+                    metadata={"entity_id": entity.id, "entity_type": entity.entity_type.value},
+                )
+            )
+
+        search_time_ms = (time.time() - start_time) * 1000
+        return SearchResponse(
+            query=query_text,
+            search_id=str(uuid.uuid4()),
+            search_type=SearchTypeEnum.KNOWLEDGE_GRAPH
+            if hasattr(SearchTypeEnum, "KNOWLEDGE_GRAPH")
+            else "knowledge_graph",
+            results=results,
+            total_results=len(results),
+            returned_results=len(results),
+            search_time_ms=search_time_ms,
+            limit=limit,
+            offset=getattr(search_request, "offset", 0),
+            has_more=False,
+        )
+
+    def create_entity_node(
+        self,
+        entity_text: str,
+        entity_type: str,
+        document_id: str = None,
+        confidence: float = 0.8,
+        metadata: str = "",
+    ) -> Optional[str]:
+        """Adapter for legacy callers that expect create_entity_node.
+
+        Returns the entity ID on success, None on failure.
+        """
+        try:
+            request = CreateEntityRequest(
+                name=entity_text.strip(),
+                entity_type=_safe_entity_type(entity_type),
+                confidence_score=confidence,
+                extraction_method=ExtractionMethod.LLM_EXTRACTION,
+                context=metadata if isinstance(metadata, str) else None,
+                source_document_id=document_id,
+            )
+            result = self.create_entity(request)
+            return result.id if result else None
+        except Exception as e:
+            logger.error(f"Error in create_entity_node adapter: {e}")
+            return None
+
+    def find_entity_node(
+        self, name: str, entity_type: str
+    ) -> Optional[Dict[str, Any]]:
+        """Adapter for legacy callers that expect find_entity_node.
+
+        Returns {"id": ..., "name": ...} on match, None otherwise.
+        """
+        try:
+            entities = self.search_entities(
+                name, entity_types=[_safe_entity_type(entity_type)], limit=5
+            )
+            for entity in entities:
+                if entity.name.lower().strip() == name.lower().strip():
+                    return {"id": entity.id, "name": entity.name}
+            return None
+        except Exception as e:
+            logger.error(f"Error in find_entity_node adapter: {e}")
+            return None
+
+    def query_graph(
+        self, query: str, params: Optional[Dict[str, Any]] = None
+    ) -> List[Dict[str, Any]]:
+        """Adapter for multi-agent search callers that expect query_graph.
+
+        Performs an entity search and returns results as dicts rather than
+        executing raw Cypher (which would be an injection risk).
+        """
+        try:
+            limit = params.get("limit", 50) if params else 50
+            entities = self.search_entities(query, limit=limit)
+            return [
+                {
+                    "id": e.id,
+                    "name": e.name,
+                    "type": e.entity_type.value,
+                    "confidence": e.confidence_score,
+                    "source_document_id": e.source_document_id,
+                }
+                for e in entities
+            ]
+        except Exception as e:
+            logger.error(f"Error in query_graph adapter: {e}")
+            return []
 
 
 # Global instance

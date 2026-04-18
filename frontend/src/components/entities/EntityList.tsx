@@ -4,10 +4,26 @@
  */
 
 import React, { useState } from 'react';
-import { Edit, Trash2, Eye, ExternalLink, Clock, CheckCircle, Info, Database } from 'lucide-react';
+import {
+  Edit,
+  Trash2,
+  Eye,
+  ExternalLink,
+  Clock,
+  CheckCircle,
+  Info,
+  Database,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 import { Entity, EntityType } from '@/types/entity';
 import { useEntityPermissions } from '@/hooks/useEntityPermissions';
 import { cn } from '@/lib/utils';
@@ -49,7 +65,8 @@ const getConfidenceColor = (confidence: number): string => {
 const formatMetadata = (metadata: Record<string, any>): string => {
   if (!metadata) return '';
   const items = [];
-  if (metadata.description) items.push(metadata.description.substring(0, 100) + '...');
+  if (metadata.description)
+    items.push(metadata.description.substring(0, 100) + '...');
   if (metadata.category) items.push(`Category: ${metadata.category}`);
   return items.slice(0, 2).join(' • ');
 };
@@ -59,7 +76,7 @@ export const EntityList: React.FC<EntityListProps> = ({
   loading,
   onEdit,
   onView,
-  onDelete
+  onDelete,
 }) => {
   const { canEdit, canDelete } = useEntityPermissions();
   const [selectedItems, setSelectedItems] = useState<string[]>([]);
@@ -68,14 +85,14 @@ export const EntityList: React.FC<EntityListProps> = ({
     if (selectedItems.length === entities.length) {
       setSelectedItems([]);
     } else {
-      setSelectedItems(entities.map(e => e.id));
+      setSelectedItems(entities.map((e) => e.id));
     }
   };
 
   const handleSelectItem = (entityId: string) => {
-    setSelectedItems(prev =>
+    setSelectedItems((prev) =>
       prev.includes(entityId)
-        ? prev.filter(id => id !== entityId)
+        ? prev.filter((id) => id !== entityId)
         : [...prev, entityId]
     );
   };
@@ -110,22 +127,67 @@ export const EntityList: React.FC<EntityListProps> = ({
             className="px-6 py-3.5 border-b border-[var(--terminal-border)] grid grid-cols-[3rem_1fr_8rem_5rem_1fr_7rem_7rem] gap-4 items-center"
             style={{ animationDelay: `${i * 75}ms` }}
           >
-            <div className="w-4 h-4 rounded bg-[var(--terminal-border)] animate-pulse" style={{ animationDelay: `${i * 75}ms` }} />
+            <div
+              className="w-4 h-4 rounded bg-[var(--terminal-border)] animate-pulse"
+              style={{ animationDelay: `${i * 75}ms` }}
+            />
             <div className="space-y-1.5">
-              <div className="h-4 rounded bg-[var(--terminal-border)] animate-pulse" style={{ width: `${60 + (i % 3) * 15}%`, animationDelay: `${i * 75}ms` }} />
-              <div className="h-2.5 rounded bg-[var(--terminal-border)]/50 animate-pulse" style={{ width: `${30 + (i % 2) * 20}%`, animationDelay: `${i * 75}ms` }} />
+              <div
+                className="h-4 rounded bg-[var(--terminal-border)] animate-pulse"
+                style={{
+                  width: `${60 + (i % 3) * 15}%`,
+                  animationDelay: `${i * 75}ms`,
+                }}
+              />
+              <div
+                className="h-2.5 rounded bg-[var(--terminal-border)]/50 animate-pulse"
+                style={{
+                  width: `${30 + (i % 2) * 20}%`,
+                  animationDelay: `${i * 75}ms`,
+                }}
+              />
             </div>
-            <div className="h-5 rounded-full bg-[var(--terminal-border)] animate-pulse" style={{ width: `${50 + (i % 4) * 10}%`, animationDelay: `${i * 75}ms` }} />
+            <div
+              className="h-5 rounded-full bg-[var(--terminal-border)] animate-pulse"
+              style={{
+                width: `${50 + (i % 4) * 10}%`,
+                animationDelay: `${i * 75}ms`,
+              }}
+            />
             <div className="space-y-1">
-              <div className="h-1.5 rounded-full bg-[var(--terminal-border)] animate-pulse" style={{ animationDelay: `${i * 75}ms` }} />
-              <div className="h-3 w-10 rounded bg-[var(--terminal-border)]/50 animate-pulse" style={{ animationDelay: `${i * 75}ms` }} />
+              <div
+                className="h-1.5 rounded-full bg-[var(--terminal-border)] animate-pulse"
+                style={{ animationDelay: `${i * 75}ms` }}
+              />
+              <div
+                className="h-3 w-10 rounded bg-[var(--terminal-border)]/50 animate-pulse"
+                style={{ animationDelay: `${i * 75}ms` }}
+              />
             </div>
-            <div className="h-3 rounded bg-[var(--terminal-border)]/50 animate-pulse" style={{ width: `${40 + (i % 3) * 20}%`, animationDelay: `${i * 75}ms` }} />
-            <div className="h-3 w-16 rounded bg-[var(--terminal-border)]/50 animate-pulse" style={{ animationDelay: `${i * 75}ms` }} />
+            <div
+              className="h-3 rounded bg-[var(--terminal-border)]/50 animate-pulse"
+              style={{
+                width: `${40 + (i % 3) * 20}%`,
+                animationDelay: `${i * 75}ms`,
+              }}
+            />
+            <div
+              className="h-3 w-16 rounded bg-[var(--terminal-border)]/50 animate-pulse"
+              style={{ animationDelay: `${i * 75}ms` }}
+            />
             <div className="flex items-center justify-end gap-1.5">
-              <div className="w-7 h-7 rounded bg-[var(--terminal-border)] animate-pulse" style={{ animationDelay: `${i * 75}ms` }} />
-              <div className="w-7 h-7 rounded bg-[var(--terminal-border)] animate-pulse" style={{ animationDelay: `${i * 75 + 25}ms` }} />
-              <div className="w-7 h-7 rounded bg-[var(--terminal-border)] animate-pulse" style={{ animationDelay: `${i * 75 + 50}ms` }} />
+              <div
+                className="w-7 h-7 rounded bg-[var(--terminal-border)] animate-pulse"
+                style={{ animationDelay: `${i * 75}ms` }}
+              />
+              <div
+                className="w-7 h-7 rounded bg-[var(--terminal-border)] animate-pulse"
+                style={{ animationDelay: `${i * 75 + 25}ms` }}
+              />
+              <div
+                className="w-7 h-7 rounded bg-[var(--terminal-border)] animate-pulse"
+                style={{ animationDelay: `${i * 75 + 50}ms` }}
+              />
             </div>
           </div>
         ))}
@@ -140,14 +202,21 @@ export const EntityList: React.FC<EntityListProps> = ({
         <div className="flex items-center gap-4">
           <input
             type="checkbox"
-            checked={selectedItems.length === entities.length && entities.length > 0}
+            checked={
+              selectedItems.length === entities.length && entities.length > 0
+            }
             onChange={handleSelectAll}
             className="rounded border-[var(--terminal-border)] bg-[var(--terminal-bg)] text-[var(--phosphor-green)] focus:ring-0 focus:ring-offset-0"
           />
-          <span className="text-[10px] font-mono text-[var(--terminal-text-dim)] uppercase tracking-widest">Select All</span>
+          <span className="text-[10px] font-mono text-[var(--terminal-text-dim)] uppercase tracking-widest">
+            Select All
+          </span>
           {selectedItems.length > 0 && (
             <div className="flex items-center gap-3 ml-4 pl-4 border-l border-[var(--terminal-border)]">
-              <Badge variant="outline" className="font-mono text-[10px] border-[var(--phosphor-green)]/30 text-[var(--phosphor-green)] bg-[var(--phosphor-green)]/5">
+              <Badge
+                variant="outline"
+                className="font-mono text-[10px] border-[var(--phosphor-green)]/30 text-[var(--phosphor-green)] bg-[var(--phosphor-green)]/5"
+              >
                 {selectedItems.length} SELECTED
               </Badge>
               <Button
@@ -169,161 +238,208 @@ export const EntityList: React.FC<EntityListProps> = ({
       {/* Table */}
       {entities.length === 0 ? (
         <div className="flex-1 flex flex-col items-center justify-center py-16 gap-3">
-          <div className="w-14 h-14 rounded-full bg-[var(--terminal-bg)] border border-[var(--terminal-border)] flex items-center justify-center">
-            <Database className="w-7 h-7 text-[var(--terminal-text-muted)] opacity-40" />
+          <div className="w-14 h-14 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center">
+            <Database className="w-7 h-7 text-primary" />
           </div>
-          <p className="text-sm font-mono font-bold text-[var(--terminal-text-dim)] uppercase tracking-wider">
+          <p className="text-sm font-mono font-bold text-foreground uppercase tracking-wider">
             NO_ENTITIES_FOUND
           </p>
-          <p className="text-xs font-mono text-[var(--terminal-text-muted)] text-center max-w-xs leading-relaxed">
-            No entities match the current filters. Try adjusting your search query, type selections, or confidence range.
+          <p className="text-xs font-mono text-muted-foreground text-center max-w-xs leading-relaxed">
+            No entities extracted yet. Process a document to populate the
+            knowledge graph, or adjust your filters.
           </p>
         </div>
       ) : (
-          <div className="overflow-x-auto terminal-scrollbar">
-            <Table>
-              <TableHeader className="bg-[var(--terminal-bg)]/30 sticky top-0 z-10">
-                <TableRow className="border-[var(--terminal-border)] hover:bg-transparent">
-                  <TableHead className="w-12"></TableHead>
-                  <TableHead className="font-mono text-[10px] uppercase tracking-widest text-[var(--terminal-text-dim)]">Node_Identity</TableHead>
-                  <TableHead className="font-mono text-[10px] uppercase tracking-widest text-[var(--terminal-text-dim)]">Classification</TableHead>
-                  <TableHead className="font-mono text-[10px] uppercase tracking-widest text-[var(--terminal-text-dim)]">Confidence</TableHead>
-                  <TableHead className="font-mono text-[10px] uppercase tracking-widest text-[var(--terminal-text-dim)]">Attributes_Dump</TableHead>
-                  <TableHead className="font-mono text-[10px] uppercase tracking-widest text-[var(--terminal-text-dim)]">Timestamp</TableHead>
-                  <TableHead className="text-right font-mono text-[10px] uppercase tracking-widest text-[var(--terminal-text-dim)] pr-6">Direct_Access</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {entities.map((entity) => (
-                  <TableRow
-                    key={entity.id}
-                    className={cn(
-                      "border-[var(--terminal-border)] transition-colors group",
-                      selectedItems.includes(entity.id) ? "bg-[var(--phosphor-green)]/5" : "hover:bg-[var(--terminal-elevated)]"
-                    )}
-                  >
-                    <TableCell className="w-12">
-                      <input
-                        type="checkbox"
-                        checked={selectedItems.includes(entity.id)}
-                        onChange={() => handleSelectItem(entity.id)}
-                        className="rounded border-[var(--terminal-border)] bg-[var(--terminal-bg)] text-[var(--phosphor-green)] focus:ring-0 focus:ring-offset-0"
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex flex-col gap-0.5">
-                        <span className="font-mono text-sm font-bold text-[var(--terminal-text)] group-hover:text-[var(--phosphor-green)] transition-colors">
-                          {entity.name}
-                        </span>
-                        {entity.metadata?.aliases && entity.metadata.aliases.length > 0 && (
+        <div className="overflow-x-auto terminal-scrollbar">
+          <Table>
+            <TableHeader className="bg-[var(--terminal-bg)]/30 sticky top-0 z-10">
+              <TableRow className="border-[var(--terminal-border)] hover:bg-transparent">
+                <TableHead className="w-12"></TableHead>
+                <TableHead className="font-mono text-[10px] uppercase tracking-widest text-[var(--terminal-text-dim)]">
+                  Node_Identity
+                </TableHead>
+                <TableHead className="font-mono text-[10px] uppercase tracking-widest text-[var(--terminal-text-dim)]">
+                  Classification
+                </TableHead>
+                <TableHead className="font-mono text-[10px] uppercase tracking-widest text-[var(--terminal-text-dim)]">
+                  Confidence
+                </TableHead>
+                <TableHead className="font-mono text-[10px] uppercase tracking-widest text-[var(--terminal-text-dim)]">
+                  Attributes_Dump
+                </TableHead>
+                <TableHead className="font-mono text-[10px] uppercase tracking-widest text-[var(--terminal-text-dim)]">
+                  Timestamp
+                </TableHead>
+                <TableHead className="text-right font-mono text-[10px] uppercase tracking-widest text-[var(--terminal-text-dim)] pr-6">
+                  Direct_Access
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {entities.map((entity) => (
+                <TableRow
+                  key={entity.id}
+                  className={cn(
+                    'border-[var(--terminal-border)] transition-colors group',
+                    selectedItems.includes(entity.id)
+                      ? 'bg-[var(--phosphor-green)]/5'
+                      : 'hover:bg-[var(--terminal-elevated)]'
+                  )}
+                >
+                  <TableCell className="w-12">
+                    <input
+                      type="checkbox"
+                      checked={selectedItems.includes(entity.id)}
+                      onChange={() => handleSelectItem(entity.id)}
+                      className="rounded border-[var(--terminal-border)] bg-[var(--terminal-bg)] text-[var(--phosphor-green)] focus:ring-0 focus:ring-offset-0"
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex flex-col gap-0.5">
+                      <span className="font-mono text-sm font-bold text-[var(--terminal-text)] group-hover:text-[var(--phosphor-green)] transition-colors">
+                        {entity.name}
+                      </span>
+                      {entity.metadata?.aliases &&
+                        entity.metadata.aliases.length > 0 && (
                           <span className="text-[9px] font-mono text-[var(--terminal-text-muted)] uppercase mt-0.5">
-                            AKA: {entity.metadata.aliases.slice(0, 2).join(', ')}
+                            AKA:{' '}
+                            {entity.metadata.aliases.slice(0, 2).join(', ')}
                           </span>
                         )}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <Badge
+                      variant="outline"
+                      className={cn(
+                        'font-mono text-[10px] uppercase tracking-wide border',
+                        typeColors[entity.type] ||
+                          'text-gray-400 bg-gray-400/10 border-gray-400/20'
+                      )}
+                    >
+                      {entity.type}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex flex-col gap-1">
+                      <div className="w-16 h-1.5 bg-[var(--terminal-bg)] rounded-full overflow-hidden border border-[var(--terminal-border)]">
+                        <div
+                          className={cn(
+                            'h-full transition-all duration-500',
+                            entity.confidence && entity.confidence >= 0.8
+                              ? 'bg-[var(--phosphor-green)]'
+                              : 'bg-[var(--amber-gold)]'
+                          )}
+                          style={{
+                            width: `${(entity.confidence || 0) * 100}%`,
+                          }}
+                        />
                       </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge
-                        variant="outline"
+                      <span
                         className={cn(
-                          "font-mono text-[10px] uppercase tracking-wide border",
-                          typeColors[entity.type] || 'text-gray-400 bg-gray-400/10 border-gray-400/20'
+                          'font-mono text-[10px] font-bold',
+                          getConfidenceColor(entity.confidence || 0)
                         )}
                       >
-                        {entity.type}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex flex-col gap-1">
-                        <div className="w-16 h-1.5 bg-[var(--terminal-bg)] rounded-full overflow-hidden border border-[var(--terminal-border)]">
-                          <div
-                            className={cn(
-                              "h-full transition-all duration-500",
-                              entity.confidence && entity.confidence >= 0.8 ? "bg-[var(--phosphor-green)]" : "bg-[var(--amber-gold)]"
-                            )}
-                            style={{ width: `${(entity.confidence || 0) * 100}%` }}
-                          />
-                        </div>
-                        <span className={cn("font-mono text-[10px] font-bold", getConfidenceColor(entity.confidence || 0))}>
-                          {((entity.confidence || 0) * 100).toFixed(1)}%
-                        </span>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="text-[10px] font-mono text-[var(--terminal-text-dim)] max-w-xs truncate" title={formatMetadata(entity.metadata ?? {})}>
-                        {formatMetadata(entity.metadata ?? {}) || 'NO_METADATA'}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-1.5 text-[10px] font-mono text-[var(--terminal-text-muted)]">
-                        <Clock className="w-3 h-3" />
-                        {entity.created_at ? new Date(entity.created_at).toLocaleDateString() : 'N/A'}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center justify-end gap-1 pr-2">
-                        {onView && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            aria-label="View entity details"
-                            onClick={() => onView(entity)}
-                            className="h-8 w-8 text-[var(--terminal-text-dim)] hover:text-[var(--phosphor-green)] hover:bg-[var(--phosphor-green)]/10"
-                            title="View entity details"
-                            aria-label="View entity details"
-                          >
-                            <Eye className="h-4 w-4" />
-                          </Button>
-                        )}
-                        {onEdit && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            aria-label={!canEdit ? 'Edit entity (Admin access required)' : 'Edit entity'}
-                            onClick={() => onEdit(entity)}
-                            disabled={!canEdit}
-                            className="h-8 w-8 text-[var(--terminal-text-dim)] hover:text-[var(--cyan)] hover:bg-[var(--cyan)]/10 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent"
-                            title={!canEdit ? 'Admin access required' : 'Edit entity'}
-                            aria-label={!canEdit ? 'Admin access required' : 'Edit entity'}
-                          >
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                        )}
-                        {entity.source_document_id && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            aria-label="View source document"
-                            onClick={() => window.open(`/documents/${entity.source_document_id}`, '_blank')}
-                            className="h-8 w-8 text-[var(--terminal-text-dim)] hover:text-[var(--amber-gold)] hover:bg-[var(--amber-gold)]/10"
-                            title="View source document"
-                            aria-label="View source document"
-                          >
-                            <ExternalLink className="h-4 w-4" />
-                          </Button>
-                        )}
-                        {onDelete && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            aria-label={!canDelete ? 'Delete entity (Admin access required)' : 'Delete entity'}
-                            onClick={() => onDelete(entity.id)}
-                            disabled={!canDelete}
-                            className="h-8 w-8 text-[var(--terminal-text-dim)] hover:text-red-400 hover:bg-red-400/10 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent"
-                            title={!canDelete ? 'Admin access required' : 'Delete entity'}
-                            aria-label={!canDelete ? 'Admin access required' : 'Delete entity'}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        )}
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        )}
+                        {((entity.confidence || 0) * 100).toFixed(1)}%
+                      </span>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div
+                      className="text-[10px] font-mono text-[var(--terminal-text-dim)] max-w-xs truncate"
+                      title={formatMetadata(entity.metadata ?? {})}
+                    >
+                      {formatMetadata(entity.metadata ?? {}) || 'NO_METADATA'}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-1.5 text-[10px] font-mono text-[var(--terminal-text-muted)]">
+                      <Clock className="w-3 h-3" />
+                      {entity.created_at
+                        ? new Date(entity.created_at).toLocaleDateString()
+                        : 'N/A'}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center justify-end gap-1 pr-2">
+                      {onView && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          aria-label="View entity details"
+                          onClick={() => onView(entity)}
+                          className="h-8 w-8 text-[var(--terminal-text-dim)] hover:text-[var(--phosphor-green)] hover:bg-[var(--phosphor-green)]/10"
+                          title="View entity details"
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                      )}
+                      {onEdit && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          aria-label={
+                            !canEdit
+                              ? 'Edit entity (Admin access required)'
+                              : 'Edit entity'
+                          }
+                          onClick={() => onEdit(entity)}
+                          disabled={!canEdit}
+                          className="h-8 w-8 text-[var(--terminal-text-dim)] hover:text-[var(--cyan)] hover:bg-[var(--cyan)]/10 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+                          title={
+                            !canEdit ? 'Admin access required' : 'Edit entity'
+                          }
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                      )}
+                      {entity.source_document_id && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          aria-label="View source document"
+                          onClick={() =>
+                            window.open(
+                              `/documents/${entity.source_document_id}`,
+                              '_blank'
+                            )
+                          }
+                          className="h-8 w-8 text-[var(--terminal-text-dim)] hover:text-[var(--amber-gold)] hover:bg-[var(--amber-gold)]/10"
+                          title="View source document"
+                        >
+                          <ExternalLink className="h-4 w-4" />
+                        </Button>
+                      )}
+                      {onDelete && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          aria-label={
+                            !canDelete
+                              ? 'Delete entity (Admin access required)'
+                              : 'Delete entity'
+                          }
+                          onClick={() => onDelete(entity.id)}
+                          disabled={!canDelete}
+                          className="h-8 w-8 text-[var(--terminal-text-dim)] hover:text-red-400 hover:bg-red-400/10 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+                          title={
+                            !canDelete
+                              ? 'Admin access required'
+                              : 'Delete entity'
+                          }
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      )}
     </div>
   );
 };

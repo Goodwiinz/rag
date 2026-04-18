@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NOUS — Multimodal Intelligence</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Source+Serif+4:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    /* Brand Colors */
+    --ink:        #0A0A0E;
+    --surface:    #F7F7F5;
+    --muted:      #4A4A4E;
+    --subtle:     #9A9A9E;
+    --border:     #E2E2E0;
+    --accent:     #6366F1;
+    --accent-soft:#818CF8;
+    --accent-bg:  #EEF2FF;
+    --success:    #34D399;
+    --warm:       #F59E0B;
+  }
+
+  html { font-size: 16px; scroll-behavior: smooth; }
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: var(--surface);
+    color: var(--ink);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ─── NAV ─── */
+  nav {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+    backdrop-filter: blur(20px);
+    background: rgba(247,247,245,0.85);
+    border-bottom: 1px solid var(--border);
+  }
+  .nav-inner {
+    max-width: 1200px; margin: 0 auto;
+    padding: 0 2rem;
+    height: 64px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .nav-logo {
+    display: flex; align-items: center; gap: 10px;
+    font-weight: 600; font-size: 1.15rem; letter-spacing: 0.08em;
+    color: var(--ink); text-decoration: none;
+  }
+  .nav-logo svg { width: 28px; height: 28px; }
+  .nav-links { display: flex; gap: 2rem; align-items: center; }
+  .nav-links a {
+    color: var(--muted); text-decoration: none; font-size: 0.875rem;
+    font-weight: 500; transition: color 0.2s;
+  }
+  .nav-links a:hover { color: var(--ink); }
+
+  /* ─── BUTTONS ─── */
+  .btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 0.65rem 1.5rem;
+    border-radius: 8px; font-size: 0.875rem; font-weight: 500;
+    text-decoration: none; transition: all 0.2s; cursor: pointer; border: none;
+  }
+  .btn-primary {
+    background: var(--ink); color: #fff;
+  }
+  .btn-primary:hover { background: #1a1a2e; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(10,10,14,0.2); }
+  .btn-secondary {
+    background: transparent; color: var(--ink);
+    border: 1px solid var(--border);
+  }
+  .btn-secondary:hover { border-color: var(--muted); background: #fff; }
+  .btn-accent {
+    background: var(--accent); color: #fff;
+  }
+  .btn-accent:hover { background: #4F46E5; transform: translateY(-1px); box-shadow: 0 4px 16px rgba(99,102,241,0.35); }
+
+  /* ─── HERO ─── */
+  .hero {
+    padding: 10rem 2rem 6rem;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+  .hero::before {
+    content: '';
+    position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+    width: 800px; height: 800px;
+    background: radial-gradient(circle, rgba(99,102,241,0.06) 0%, transparent 70%);
+    pointer-events: none;
+  }
+  .hero-badge {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 0.35rem 1rem;
+    background: var(--accent-bg);
+    color: var(--accent);
+    border-radius: 100px;
+    font-size: 0.8rem; font-weight: 500;
+    margin-bottom: 2rem;
+  }
+  .hero-badge::before {
+    content: ''; width: 6px; height: 6px;
+    background: var(--accent); border-radius: 50%;
+  }
+  .hero h1 {
+    font-size: clamp(2.5rem, 6vw, 4.5rem);
+    font-weight: 700;
+    line-height: 1.1;
+    letter-spacing: -0.03em;
+    max-width: 800px; margin: 0 auto 1.5rem;
+  }
+  .hero h1 span { color: var(--accent); }
+  .hero p {
+    font-size: 1.15rem;
+    color: var(--muted);
+    max-width: 560px; margin: 0 auto 2.5rem;
+    line-height: 1.7;
+  }
+  .hero-actions {
+    display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;
+  }
+
+  /* ─── LOGO SHOWCASE ─── */
+  .logo-showcase {
+    display: flex; justify-content: center;
+    padding: 3rem 2rem 5rem;
+  }
+  .logo-showcase .mark {
+    width: 120px; height: 120px;
+    background: var(--ink);
+    border-radius: 24px;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 20px 60px rgba(10,10,14,0.15);
+  }
+  .logo-showcase .mark svg { width: 80px; height: 80px; }
+
+  /* ─── SECTIONS ─── */
+  section { padding: 5rem 2rem; }
+  .container { max-width: 1200px; margin: 0 auto; }
+  .section-label {
+    font-size: 0.75rem; font-weight: 600;
+    letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--accent); margin-bottom: 1rem;
+  }
+  .section-title {
+    font-size: clamp(1.75rem, 3.5vw, 2.5rem);
+    font-weight: 700; letter-spacing: -0.02em;
+    line-height: 1.2; margin-bottom: 1rem;
+  }
+  .section-desc {
+    color: var(--muted); font-size: 1.05rem;
+    max-width: 520px; line-height: 1.7;
+  }
+
+  /* ─── FEATURES GRID ─── */
+  .features-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 1.5rem;
+    margin-top: 3rem;
+  }
+  .feature-card {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 2rem;
+    transition: all 0.25s;
+  }
+  .feature-card:hover {
+    border-color: var(--accent-soft);
+    box-shadow: 0 8px 30px rgba(99,102,241,0.08);
+    transform: translateY(-2px);
+  }
+  .feature-icon {
+    width: 44px; height: 44px;
+    background: var(--accent-bg);
+    border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    margin-bottom: 1.25rem;
+    color: var(--accent); font-size: 1.25rem;
+  }
+  .feature-card h3 {
+    font-size: 1.05rem; font-weight: 600;
+    margin-bottom: 0.5rem;
+  }
+  .feature-card p {
+    color: var(--muted); font-size: 0.9rem; line-height: 1.6;
+  }
+
+  /* ─── ARCHITECTURE SECTION ─── */
+  .arch-section {
+    background: var(--ink);
+    color: #fff;
+    border-radius: 24px;
+    max-width: 1200px;
+    margin: 2rem auto;
+    padding: 4rem;
+  }
+  .arch-section .section-label { color: var(--accent-soft); }
+  .arch-section .section-desc { color: var(--subtle); }
+  .arch-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 2rem;
+    margin-top: 3rem;
+  }
+  .arch-item {
+    padding: 1.5rem;
+    background: rgba(255,255,255,0.05);
+    border-radius: 12px;
+    border: 1px solid rgba(255,255,255,0.08);
+  }
+  .arch-item h4 {
+    font-size: 0.9rem; font-weight: 600;
+    margin-bottom: 0.5rem;
+    color: var(--accent-soft);
+  }
+  .arch-item p {
+    font-size: 0.85rem; color: var(--subtle); line-height: 1.5;
+  }
+
+  /* ─── STATS ─── */
+  .stats-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 2rem;
+    text-align: center;
+    padding: 4rem 2rem;
+    max-width: 900px; margin: 0 auto;
+  }
+  .stat-num {
+    font-size: 2.5rem; font-weight: 700;
+    color: var(--ink); letter-spacing: -0.02em;
+  }
+  .stat-num span { color: var(--accent); }
+  .stat-label {
+    font-size: 0.85rem; color: var(--muted); margin-top: 0.25rem;
+  }
+
+  /* ─── CTA ─── */
+  .cta {
+    text-align: center;
+    padding: 5rem 2rem;
+  }
+  .cta h2 {
+    font-size: clamp(1.75rem, 3vw, 2.25rem);
+    font-weight: 700; margin-bottom: 1rem;
+    letter-spacing: -0.02em;
+  }
+  .cta p {
+    color: var(--muted); margin-bottom: 2rem;
+    max-width: 440px; margin-left: auto; margin-right: auto;
+  }
+
+  /* ─── FOOTER ─── */
+  footer {
+    border-top: 1px solid var(--border);
+    padding: 2.5rem 2rem;
+  }
+  .footer-inner {
+    max-width: 1200px; margin: 0 auto;
+    display: flex; justify-content: space-between; align-items: center;
+    flex-wrap: wrap; gap: 1rem;
+  }
+  .footer-inner p {
+    font-size: 0.8rem; color: var(--subtle);
+  }
+  .footer-links { display: flex; gap: 1.5rem; }
+  .footer-links a {
+    font-size: 0.8rem; color: var(--subtle);
+    text-decoration: none;
+  }
+  .footer-links a:hover { color: var(--ink); }
+
+  /* ─── RESPONSIVE ─── */
+  @media (max-width: 768px) {
+    .hero { padding: 8rem 1.5rem 4rem; }
+    .arch-section { margin: 1rem; padding: 2.5rem 1.5rem; border-radius: 16px; }
+    .nav-links { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <div class="nav-inner">
+    <a href="#" class="nav-logo">
+      <svg viewBox="0 0 28 28" fill="none">
+        <rect width="28" height="28" rx="6" fill="#0A0A0E"/>
+        <g transform="translate(14,14) scale(0.22)">
+          <ellipse cx="0" cy="-8" rx="32" ry="20" fill="none" stroke="#818CF8" stroke-width="3"/>
+          <ellipse cx="0" cy="8" rx="32" ry="20" fill="none" stroke="#818CF8" stroke-width="3"/>
+          <circle cx="0" cy="0" r="8" fill="#818CF8"/>
+        </g>
+      </svg>
+      NOUS
+    </a>
+    <div class="nav-links">
+      <a href="#features">Features</a>
+      <a href="#architecture">Architecture</a>
+      <a href="#docs">Docs</a>
+      <a href="#" class="btn btn-primary" style="padding: 0.5rem 1.2rem;">Get Started</a>
+    </div>
+  </div>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-badge">Now in Beta</div>
+  <h1>Research at the<br>speed of <span>thought</span></h1>
+  <p>NOUS is a multimodal intelligence platform that retrieves, reasons, and generates across documents, images, and knowledge graphs.</p>
+  <div class="hero-actions">
+    <a href="#" class="btn btn-accent">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 1v14M1 8h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      Start Building
+    </a>
+    <a href="#" class="btn btn-secondary">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2 8l5 5L14 3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      View Demo
+    </a>
+  </div>
+</section>
+
+<!-- LOGO SHOWCASE -->
+<div class="logo-showcase">
+  <div class="mark">
+    <svg viewBox="0 0 940 996" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="m437 211h38l27 3 29 6 23 7 25 10 24 12 21 13 21 16 15 13 17 17 18 22 12 17 12 21-1 2-10-10-14-10-17-9-18-6-14-3-9-1h-20l-19 3-17 5-17 8-11 7-11 9-13 13-10 14-8 15-6 16-4 18-1 9h-1l-2-29-4-20-5-17-8-18-9-16-9-12-12-14-13-12-17-12-16-9-14-6-18-6-21-4-11-1h-22l-18 2-21 5-16 6-2-1 13-11 18-13 15-9 23-12 18-8 30-10 27-6 21-3z" fill="#818CF8" opacity="0.6"/>
+      <path d="m498 570h1l3 19 5 17 8 17 10 15 11 12 8 8 14 10 17 9 18 6 14 3 9 1h20l19-3 17-5 17-8 15-10 12-11 3-2-2 6-12 20-11 15-8 10-12 14-17 17-22 18-17 12-21 12-16 8-21 9-25 8-27 6-21 3-12 1h-38l-27-3-29-6-26-8-22-9-16-8-18-10-15-10-17-13-5-5 10 3 22 6 22 3h24l22-3 22-6 19-8 16-9 14-10 14-12 12-13 10-14 9-15 9-20 6-21 3-16z" fill="#818CF8" opacity="0.6"/>
+      <path d="m314 273h28l21 3 21 6 19 8 16 9 11 8 11 9 15 15 12 16 10 17 9 21 6 21 3 21v165l-3 21-6 21-8 19-9 16-10 14-12 13-10 10-13 10-13 8-16 8-15 6-18 5-21 3h-28l-21-3-21-6-15-6-10-9-12-12-9-11-10-12-12-18-9-15-8-16-9-20-10-30-6-27-2-13v-78l5-28 7-25 8-22 12-25 10-18 10-15 9-12 11-13 11-12 9-9 12-6 21-7 20-4z" fill="#A78BFA" opacity="0.3" stroke="#818CF8" stroke-width="4"/>
+      <path d="m614 332h24l18 3 21 7 17 9 13 10 12 11 6 8 7 15 9 25 6 22 5 28v78l-5 28-7 25-8 22-8 17-12 13-15 12-18 10-19 7-14 3-8 1h-24l-18-3-21-7-17-9-13-10-10-9-11-13-9-14-7-15-5-16-3-18v-126l3-18 7-21 9-17 10-13 9-10 13-11 11-7 16-8 18-6z" fill="#A78BFA" opacity="0.3" stroke="#818CF8" stroke-width="4"/>
+    </svg>
+  </div>
+</div>
+
+<!-- FEATURES -->
+<section id="features">
+  <div class="container">
+    <div class="section-label">Capabilities</div>
+    <div class="section-title">Intelligence, not just retrieval</div>
+    <p class="section-desc">NOUS combines semantic search, knowledge graphs, and generative AI into a unified research workflow.</p>
+
+    <div class="features-grid">
+      <div class="feature-card">
+        <div class="feature-icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+        </div>
+        <h3>Semantic Search</h3>
+        <p>Vector-powered retrieval across documents, PDFs, and research papers with contextual re-ranking.</p>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="5" r="3"/><circle cx="5" cy="19" r="3"/><circle cx="19" cy="19" r="3"/><path d="M12 8v4M7.5 17.2L10 14M16.5 17.2L14 14"/></svg>
+        </div>
+        <h3>Knowledge Graphs</h3>
+        <p>Entity extraction and graph-based reasoning powered by Neo4j for deep relational understanding.</p>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14,2 14,8 20,8"/><path d="M16 13H8M16 17H8M10 9H8"/></svg>
+        </div>
+        <h3>Document Intelligence</h3>
+        <p>Ingest and analyze PDFs, papers, and multimodal content with automatic metadata extraction.</p>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+        </div>
+        <h3>AI Writing Assistant</h3>
+        <p>Generate drafts, summaries, bibliographies, and research notes with context from your corpus.</p>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        </div>
+        <h3>Agent Workflows</h3>
+        <p>LangGraph-powered research agents with intent routing, tool use, and human-in-the-loop control.</p>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        </div>
+        <h3>Secure by Design</h3>
+        <p>Row-level security, validated enums, explicit CORS allowlists, and WebSocket auth via protocol headers.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- STATS -->
+<div class="stats-row">
+  <div>
+    <div class="stat-num">12<span>+</span></div>
+    <div class="stat-label">AI-powered tools</div>
+  </div>
+  <div>
+    <div class="stat-num">4</div>
+    <div class="stat-label">Specialized subgraphs</div>
+  </div>
+  <div>
+    <div class="stat-num">&lt;2<span>s</span></div>
+    <div class="stat-label">Avg. retrieval time</div>
+  </div>
+  <div>
+    <div class="stat-num">SSE</div>
+    <div class="stat-label">Real-time streaming</div>
+  </div>
+</div>
+
+<!-- ARCHITECTURE -->
+<div id="architecture">
+  <div class="arch-section">
+    <div class="section-label">Architecture</div>
+    <div class="section-title" style="color:#fff">Built on a modern stack</div>
+    <p class="section-desc">A composable architecture designed for scale, observability, and developer experience.</p>
+
+    <div class="arch-grid">
+      <div class="arch-item">
+        <h4>Frontend</h4>
+        <p>Next.js 15 with TypeScript strict mode, shadcn/ui components, and real-time SSE streaming.</p>
+      </div>
+      <div class="arch-item">
+        <h4>Backend</h4>
+        <p>FastAPI with async endpoints, structured logging via structlog, and Prometheus metrics.</p>
+      </div>
+      <div class="arch-item">
+        <h4>Vector Store</h4>
+        <p>Qdrant for high-performance semantic search with contextual re-ranking.</p>
+      </div>
+      <div class="arch-item">
+        <h4>Graph Database</h4>
+        <p>Neo4j for entity relationships, knowledge graph queries, and relational reasoning.</p>
+      </div>
+      <div class="arch-item">
+        <h4>Relational DB</h4>
+        <p>PostgreSQL with row-level security, validated enums, and async session management.</p>
+      </div>
+      <div class="arch-item">
+        <h4>Agent Engine</h4>
+        <p>LangGraph StateGraph with intent classification, checkpointing, and human-in-the-loop.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- CTA -->
+<section class="cta">
+  <h2>Ready to think faster?</h2>
+  <p>Deploy NOUS locally or in the cloud. Open source, extensible, yours.</p>
+  <div style="display:flex; gap:1rem; justify-content:center; flex-wrap:wrap;">
+    <a href="#" class="btn btn-accent">Get Started Free</a>
+    <a href="#" class="btn btn-secondary">Read the Docs</a>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="footer-inner">
+    <p>&copy; 2026 NOUS. Multimodal Intelligence Platform.</p>
+    <div class="footer-links">
+      <a href="#">Documentation</a>
+      <a href="#">GitHub</a>
+      <a href="#">License</a>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>

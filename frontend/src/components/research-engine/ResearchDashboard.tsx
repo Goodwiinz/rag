@@ -1,7 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { AlertCircle, Loader2, Plus, Sparkles } from 'lucide-react';
+import { AlertCircle, FolderOpen, Loader2, Plus, Sparkles } from 'lucide-react';
+import { EmptyState } from '@/components/ui/EmptyState';
 import { listProjects, listTemplates } from '@/services/researchEngineService';
 import {
   useResearchEngineStore,
@@ -54,17 +55,17 @@ export function ResearchDashboard() {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-mono font-bold text-[#00ff9f]">
-            Research Engine
+          <h1 className="text-2xl font-mono font-bold text-[var(--terminal-text)] tracking-wider">
+            RESEARCH_ENGINE
           </h1>
-          <p className="text-sm text-gray-500 font-mono mt-1">
+          <p className="text-xs font-mono text-muted-foreground mt-0.5 uppercase tracking-widest">
             Create and manage reproducible research workflows with
             blueprint-driven pipelines.
           </p>
         </div>
         <button
           onClick={() => setShowCreateModal(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-[#00ff9f]/10 text-[#00ff9f] border border-[#00ff9f]/30 rounded font-mono text-sm hover:bg-[#00ff9f]/20 transition-colors"
+          className="flex items-center gap-2 px-4 py-2 bg-primary/10 text-primary border border-primary/30 rounded font-mono text-sm hover:bg-primary/20 transition-colors"
         >
           <Plus className="h-4 w-4" />
           New Project
@@ -82,7 +83,7 @@ export function ResearchDashboard() {
               <button
                 key={tpl.id}
                 title={tpl.description}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-[#00d4ff]/5 text-[#00d4ff] border border-[#00d4ff]/20 rounded font-mono text-xs hover:bg-[#00d4ff]/10 transition-colors"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-[var(--cyan)]/5 text-[var(--cyan)] border border-[var(--cyan)]/20 rounded font-mono text-xs hover:bg-[var(--cyan)]/10 transition-colors"
               >
                 <Sparkles className="h-3 w-3" />
                 {tpl.name}
@@ -95,30 +96,35 @@ export function ResearchDashboard() {
       {/* Loading state */}
       {isLoading && (
         <div className="flex items-center justify-center py-20">
-          <Loader2 className="h-6 w-6 animate-spin text-[#00ff9f]" />
+          <Loader2 className="h-6 w-6 animate-spin text-primary" />
           <span className="ml-2 font-mono text-sm text-gray-500">
             Loading projects...
           </span>
         </div>
       )}
 
-      {/* Error state */}
+      {/* Error state — graceful fallback instead of alarming red banner */}
       {error && !isLoading && (
-        <div className="flex items-center gap-2 p-4 bg-red-500/10 border border-red-500/30 rounded mb-6">
-          <AlertCircle className="h-5 w-5 text-red-400 shrink-0" />
-          <span className="text-sm text-red-400 font-mono">{error}</span>
-        </div>
+        <EmptyState
+          icon={AlertCircle}
+          title="SERVICE_UNAVAILABLE"
+          description="The Research Engine service is not responding. This may be a temporary issue."
+          action={{
+            label: 'RETRY_CONNECTION',
+            onClick: () => window.location.reload(),
+          }}
+        />
       )}
 
       {/* Project list */}
       {!isLoading && !error && (
         <>
           {projects.length === 0 ? (
-            <div className="text-center py-20">
-              <p className="text-gray-500 font-mono text-sm">
-                No projects yet. Create one to get started.
-              </p>
-            </div>
+            <EmptyState
+              icon={FolderOpen}
+              title="NO_PROJECTS_FOUND"
+              description="Create your first research project to start organizing documents and workflows."
+            />
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {projects.map((project) => (

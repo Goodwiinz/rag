@@ -14,6 +14,7 @@ import {
   AnalyticsFilters,
 } from '@/types';
 import analyticsService from '@/services/analyticsService';
+import { getPublicWebSocketOrigin } from '@/utils/publicEndpoints';
 
 // Type guard for CustomTimeRange
 const isCustomTimeRange = (
@@ -125,9 +126,7 @@ export const useRealTimeMetrics = () => {
 
   // WebSocket for real-time updates
   React.useEffect(() => {
-    const ws = new WebSocket(
-      `${process.env.NEXT_PUBLIC_WS_URL}/analytics/metrics`
-    );
+    const ws = new WebSocket(`${getPublicWebSocketOrigin()}/analytics/metrics`);
 
     ws.onopen = () => {
       setRealTimeConnection(true);
@@ -144,7 +143,7 @@ export const useRealTimeMetrics = () => {
       // Attempt to reconnect after 5 seconds
       setTimeout(() => {
         const newWs = new WebSocket(
-          `${process.env.NEXT_PUBLIC_WS_URL}/analytics/metrics`
+          `${getPublicWebSocketOrigin()}/analytics/metrics`
         );
         ws.onopen = newWs.onopen;
         ws.onmessage = newWs.onmessage;

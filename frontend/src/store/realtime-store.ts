@@ -21,6 +21,7 @@ import {
   WebSocketClientConfig,
   WebSocketClientInfo
 } from '../types/realtime-processing';
+import { getPublicWebSocketOrigin } from '@/utils/publicEndpoints';
 
 // WebSocket Service
 import RealtimeWebSocketService from '../services/realtime-websocket-service';
@@ -86,7 +87,7 @@ export const useRealtimeStore = create<RealtimeStore>()(
 
             // Create WebSocket configuration
             const wsConfig: WebSocketClientConfig = {
-              url: `${process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8000'}/api/v2/ws/connect`,
+              url: `${getPublicWebSocketOrigin()}/api/v2/ws/connect`,
               token,
               channels: channels.length > 0 ? channels : Array.from(state.config.subscribedChannels),
               frequency: frequency || state.config.updateFrequency,

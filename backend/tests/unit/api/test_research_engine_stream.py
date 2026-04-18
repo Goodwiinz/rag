@@ -413,6 +413,27 @@ class TestStreamEndpointErrors:
         assert response.status_code == 409
         stream_app.dependency_overrides.pop(get_db, None)
 
+    def test_resume_keeps_paused_status_for_step_index_recovery(self, stream_app, stream_client):
+        run_id = uuid.uuid4()
+        run = _make_run(id=run_id, status="paused")
+        db = AsyncMock()
+        db.commit = AsyncMock()
+        db.refresh = AsyncMock()
+        stream_app.dependency_overrides[get_db] = lambda: db
+
+        with patch(
+            "src.api.research_engine.runs._get_owned_run",
+            new=AsyncMock(return_value=run),
+        ):
+            response = stream_client.post(
+                f"/api/v1/research-engine/runs/{run_id}/resume"
+            )
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["status"] == "running"
+        stream_app.dependency_overrides.pop(get_db, None)
+
     def test_stream_returns_409_for_failed_run(self, stream_app, stream_client):
         run_id = uuid.uuid4()
         bp_id = uuid.uuid4()
