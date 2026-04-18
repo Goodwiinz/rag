@@ -6,6 +6,7 @@
 import React, { useState } from 'react';
 import { Search, Filter, X, ChevronDown, SlidersHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { IconButtonSm } from '@/components/ui/icon-button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -158,15 +159,13 @@ export const EntityFilters: React.FC<EntityFiltersProps> = ({
             className="pl-10 bg-[var(--terminal-bg)] border-[var(--terminal-border)] focus:border-[var(--phosphor-green)]/30 font-mono text-sm h-10"
           />
           {searchQuery && (
-            <Button
+            <IconButtonSm
               variant="ghost"
-              size="icon"
+              icon={<X className="h-3 w-3" />}
+              label="Clear search"
               onClick={() => onSearchChange('')}
-              className="absolute right-2 top-1/2 -translate-y-1/2 h-6 w-6 text-[var(--terminal-text-dim)] hover:text-white"
-              aria-label="Clear search"
-            >
-              <X className="h-3 w-3" />
-            </Button>
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--terminal-text-dim)] hover:text-white hover:bg-transparent h-6 w-6"
+            />
           )}
         </div>
 
