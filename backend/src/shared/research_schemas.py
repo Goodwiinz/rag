@@ -577,6 +577,9 @@ class ProjectDetailResponse(ProjectResponse):
     documents: List[Dict[str, Any]] = Field(
         default_factory=list, description="Documents in project"
     )
+    notes: List[ProjectNoteResponse] = Field(
+        default_factory=list, description="Notes in project"
+    )
     recent_notes: List[Dict[str, Any]] = Field(
         default_factory=list, description="Recent notes"
     )

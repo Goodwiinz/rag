@@ -1,0 +1,268 @@
+# Staging values for NOUS Platform
+# Auto-deployed by ArgoCD when develop branch changes
+# Cluster: do-nyc3-rag-system-cluster
+# Namespace: rag-staging
+
+global:
+  imageRegistry: "registry.digitalocean.com/ragsystemregistry"
+  imagePullSecrets:
+    - name: do-registry
+  environment: "staging"
+
+commonLabels:
+  app.kubernetes.io/name: knowledge-graph-analytics
+  app.kubernetes.io/part-of: nous-platform
+  environment: staging
+
+# ──────────────────────────────────────────────
+# Frontend
+# ──────────────────────────────────────────────
+frontend:
+  enabled: true
+  replicaCount: 1
+
+  image:
+    repository: registry.digitalocean.com/ragsystemregistry/frontend
+    tag: "5c2ca1f"
+    pullPolicy: Always
+
+  service:
+    type: ClusterIP
+    port: 80
+    targetPort: 3000
+
+  ingress:
+    enabled: true
+    className: "nginx"
+    annotations:
+      nginx.ingress.kubernetes.io/ssl-redirect: "true"
+      cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    hosts:
+      - host: staging-app.gen-text.app
+        paths:
+          - path: /
+            pathType: Prefix
+    tls:
+      - secretName: rag-staging-app-tls
+        hosts:
+          - staging-app.gen-text.app
+
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 256Mi
+
+  autoscaling:
+    enabled: false
+
+  env:
+    - name: NODE_ENV
+      value: "production"
+    - name: NEXT_PUBLIC_ENVIRONMENT
+      value: "staging"
+
+  healthCheck:
+    enabled: true
+    path: /
+    initialDelaySeconds: 15
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+# ──────────────────────────────────────────────
+# Backend
+# ──────────────────────────────────────────────
+backend:
+  enabled: true
+  replicaCount: 1
+
+  image:
+    repository: registry.digitalocean.com/ragsystemregistry/backend
+    tag: "5c2ca1f"
+    pullPolicy: Always
+
+  service:
+    type: ClusterIP
+    port: 80
+    targetPort: 8000
+
+  ingress:
+    enabled: true
+    className: "nginx"
+    annotations:
+      nginx.ingress.kubernetes.io/ssl-redirect: "true"
+      cert-manager.io/cluster-issuer: "letsencrypt-prod"
+      nginx.ingress.kubernetes.io/proxy-body-size: "100m"
+      nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+      nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
+      nginx.ingress.kubernetes.io/proxy-connect-timeout: "60"
+      nginx.ingress.kubernetes.io/proxy-http-version: "1.1"
+      nginx.ingress.kubernetes.io/upstream-hash-by: "$request_uri"
+    hosts:
+      - host: staging-api.gen-text.app
+        paths:
+          - path: /
+            pathType: Prefix
+    tls:
+      - secretName: rag-staging-api-tls
+        hosts:
+          - staging-api.gen-text.app
+
+  resources:
+    limits:
+      cpu: "1"
+      memory: 2Gi
+    requests:
+      cpu: 250m
+      memory: 512Mi
+
+  autoscaling:
+    enabled: false
+
+  envFrom:
+    - secretRef:
+        name: database-credentials
+    - secretRef:
+        name: app-secrets
+    - secretRef:
+        name: supabase-credentials
+    - secretRef:
+        name: spaces-credentials
+
+  env:
+    - name: ENVIRONMENT
+      value: "staging"
+    - name: PYTHONPATH
+      value: "/app"
+    - name: LOG_LEVEL
+      value: "DEBUG"
+    - name: WORKERS
+      value: "2"
+    - name: TIMEOUT
+      value: "300"
+    - name: CORS_ORIGINS
+      value: "https://staging-app.gen-text.app"
+    # S3-Compatible Object Storage (DigitalOcean Spaces)
+    - name: STORAGE_BACKEND
+      value: "s3"
+    - name: S3_ENDPOINT_URL
+      value: "https://nyc3.digitaloceanspaces.com"
+    - name: S3_BUCKET_NAME
+      value: "rag-system-storage"
+    - name: S3_REGION
+      value: "nyc3"
+    - name: S3_CDN_ENDPOINT
+      value: "https://rag-system-storage.nyc3.cdn.digitaloceanspaces.com"
+    - name: S3_ACCESS_KEY
+      valueFrom:
+        secretKeyRef:
+          name: spaces-credentials
+          key: S3_ACCESS_KEY
+    - name: S3_SECRET_KEY
+      valueFrom:
+        secretKeyRef:
+          name: spaces-credentials
+          key: S3_SECRET_KEY
+    # Azure OpenAI (Chat / Agent)
+    - name: AZURE_OPENAI_CHAT_ENDPOINT
+      valueFrom:
+        secretKeyRef:
+          name: azure-openai-credentials
+          key: AZURE_OPENAI_CHAT_ENDPOINT
+    - name: AZURE_OPENAI_CHAT_API_KEY
+      valueFrom:
+        secretKeyRef:
+          name: azure-openai-credentials
+          key: AZURE_OPENAI_CHAT_API_KEY
+    - name: AZURE_OPENAI_CHAT_DEPLOYMENT_NAME
+      valueFrom:
+        secretKeyRef:
+          name: azure-openai-credentials
+          key: AZURE_OPENAI_CHAT_DEPLOYMENT_NAME
+    - name: AZURE_OPENAI_CHAT_API_VERSION
+      valueFrom:
+        secretKeyRef:
+          name: azure-openai-credentials
+          key: AZURE_OPENAI_CHAT_API_VERSION
+
+  healthCheck:
+    enabled: true
+    path: /health
+    startupProbe:
+      initialDelaySeconds: 10
+      periodSeconds: 10
+      timeoutSeconds: 5
+      failureThreshold: 18
+    initialDelaySeconds: 10
+    periodSeconds: 15
+    timeoutSeconds: 5
+    failureThreshold: 3
+    readinessInitialDelaySeconds: 5
+    readinessPeriodSeconds: 10
+    readinessTimeoutSeconds: 3
+    readinessFailureThreshold: 2
+
+  initContainers:
+    waitForPostgres: true
+    waitForRedis: false
+    waitForNeo4j: false
+    waitForQdrant: false
+
+# ──────────────────────────────────────────────
+# All databases are external (DO Managed)
+# ──────────────────────────────────────────────
+postgresql:
+  enabled: false
+
+redis:
+  enabled: false
+
+neo4j:
+  enabled: false
+
+qdrant:
+  enabled: false
+
+celeryWorker:
+  enabled: false
+
+celeryBeat:
+  enabled: false
+
+prometheus:
+  enabled: false
+
+grafana:
+  enabled: false
+
+nginx-ingress-controller:
+  enabled: false
+
+monitoring:
+  enabled: false
+
+# ──────────────────────────────────────────────
+# Security
+# ──────────────────────────────────────────────
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 1001
+  runAsGroup: 1001
+  fsGroup: 1001
+
+podSecurityPolicy:
+  enabled: false
+
+networkPolicy:
+  enabled: false
+
+podDisruptionBudget:
+  enabled: false
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""

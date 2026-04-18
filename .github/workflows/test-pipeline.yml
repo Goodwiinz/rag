@@ -32,8 +32,7 @@ concurrency:
 env:
   PYTHON_VERSION: "3.11"
   NODE_VERSION: "20"
-  DOCKER_BUILDKIT: "0"
-  PIP_NO_CACHE_DIR: "1"
+  DOCKER_BUILDKIT: "1"
   PIP_DISABLE_PIP_VERSION_CHECK: "1"
 
 defaults:
@@ -48,7 +47,7 @@ jobs:
     name: Lint Backend
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
 
       - name: Build lint image
         run: docker build -t rag-lint:ci -f backend/docker/Dockerfile.lint .
@@ -75,14 +74,14 @@ jobs:
       run:
         working-directory: frontend
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
 
       - name: Set up Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
-          cache-dependency-path: package-lock.json
+          cache-dependency-path: frontend/pnpm-lock.yaml
 
       - name: Install dependencies
         run: npm ci
@@ -102,10 +101,10 @@ jobs:
     runs-on: ubuntu-latest
     needs: lint-backend
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
@@ -133,29 +132,25 @@ jobs:
           pip install pytest pytest-asyncio pytest-cov pytest-xdist
           pip install --build-constraint backend/constraints-ci.txt -r backend/requirements.txt
 
-      - name: Run unit tests
+      - name: Run unit tests (fast PR gate)
+        # Directory-scoped to backend/tests/unit/ so pytest never descends into
+        # backend/tests/integration/, whose conftest defines an autouse fixture
+        # that patches Redis/Qdrant/Neo4j on every collected test. Coverage is
+        # measured nightly by the coverage-trend job, not on every PR.
         run: |
-          pytest backend/tests/ \
+          pytest backend/tests/unit/ \
             -c backend/pytest.ini \
-            -m "unit or not (integration or e2e or slow)" \
-            --cov=backend/src \
-            --cov-report=xml \
-            --cov-report=term-missing \
-            --cov-fail-under=8 \
-            -n auto \
-            -v
-        # Note: Coverage threshold lowered to 8% after excluding integration tests from norecursedirs
-        # to prevent Qdrant connection errors during unit test collection (GOO-151)
+            --rootdir=backend \
+            -p no:cacheprovider \
+            --no-cov \
+            -n auto --dist=loadfile \
+            -x -q --tb=short \
+            --durations=15
         env:
           ENVIRONMENT: testing
           DATABASE_URL: "sqlite:///:memory:"
-
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v5
-        with:
-          files: coverage.xml
-          flags: unit
-          name: unit-tests
+          ASYNC_DATABASE_URL: "sqlite+aiosqlite:///:memory:"
+          PYTHONDONTWRITEBYTECODE: "1"
 
   # ==========================================================================
   # Security Scan
@@ -165,10 +160,10 @@ jobs:
     runs-on: ubuntu-latest
     needs: lint-backend
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
@@ -194,14 +189,14 @@ jobs:
       run:
         working-directory: frontend
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
 
       - name: Set up Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
-          cache-dependency-path: package-lock.json
+          cache-dependency-path: frontend/pnpm-lock.yaml
 
       - name: Install dependencies
         run: npm ci
@@ -253,10 +248,10 @@ jobs:
           --health-retries 5
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
@@ -269,6 +264,15 @@ jobs:
           sudo rm -rf /opt/hostedtoolcache/CodeQL || true
           docker system prune -af || true
           df -h
+
+      - name: Cache pip dependencies
+        uses: actions/cache@v5
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-integration-${{ hashFiles('backend/requirements*.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-integration-
+            ${{ runner.os }}-pip-
 
       - name: Install dependencies
         run: |
@@ -315,10 +319,10 @@ jobs:
     continue-on-error: true  # Non-critical in PR checks; don't block merges
     needs: unit-tests
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
@@ -331,6 +335,15 @@ jobs:
           sudo rm -rf /opt/hostedtoolcache/CodeQL || true
           docker system prune -af || true
           df -h
+
+      - name: Cache pip dependencies
+        uses: actions/cache@v5
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-resilience-${{ hashFiles('backend/requirements*.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-resilience-
+            ${{ runner.os }}-pip-
 
       - name: Install dependencies
         run: |
@@ -386,10 +399,10 @@ jobs:
         options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
@@ -402,6 +415,15 @@ jobs:
           sudo rm -rf /opt/hostedtoolcache/CodeQL || true
           docker system prune -af || true
           df -h
+
+      - name: Cache pip dependencies
+        uses: actions/cache@v5
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-contract-${{ hashFiles('backend/requirements*.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-contract-
+            ${{ runner.os }}-pip-
 
       - name: Install dependencies
         run: |
@@ -427,7 +449,7 @@ jobs:
     continue-on-error: true  # Non-critical in PR checks; don't block merges
     needs: [integration-tests]
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
 
       - name: Free runner disk space
         run: |
@@ -449,10 +471,20 @@ jobs:
           df -h
 
       - name: Build backend image
-        run: docker build --build-arg PYTHON_VERSION=3.11 --build-arg TORCH_CPU_ONLY=true -t rag-backend:test -f backend/docker/Dockerfile.prod .
+        run: >
+          docker build
+          --build-arg PYTHON_VERSION=3.11
+          --build-arg TORCH_CPU_ONLY=true
+          -t rag-backend:test
+          -f backend/docker/Dockerfile.prod .
 
       - name: Build frontend image
-        run: docker build -t rag-frontend:test -f frontend/Dockerfile.prod .
+        run: >
+          docker build
+          --build-arg NEXT_PUBLIC_SUPABASE_URL=http://localhost:54321
+          --build-arg NEXT_PUBLIC_SUPABASE_ANON_KEY=e2e-test-anon-key
+          -t rag-frontend:test
+          -f frontend/Dockerfile.prod .
 
       - name: Start infrastructure services
         run: |
@@ -527,7 +559,7 @@ jobs:
           fi
 
       - name: Upload E2E test results
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v4
         if: always()
         with:
           name: e2e-test-results
@@ -572,10 +604,10 @@ jobs:
           - 5432/tcp
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
@@ -588,6 +620,15 @@ jobs:
           sudo rm -rf /opt/hostedtoolcache/CodeQL || true
           docker system prune -af || true
           df -h
+
+      - name: Cache pip dependencies
+        uses: actions/cache@v5
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-perf-${{ hashFiles('backend/requirements*.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-perf-
+            ${{ runner.os }}-pip-
 
       - name: Install dependencies
         run: |
@@ -607,7 +648,7 @@ jobs:
           DATABASE_URL: "postgresql://test:test@localhost:${{ job.services.postgres.ports['5432'] }}/test_db"
 
       - name: Store benchmark results
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v4
         with:
           name: benchmark-results
           path: benchmark.json

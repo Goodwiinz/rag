@@ -681,7 +681,7 @@ class HybridSearchService:
 
             # Convert to raw results
             raw_results = []
-            for result in kg_result.results if hasattr(kg_result, "results") else []:
+            for result in kg_result:
                 # Create SearchResult from knowledge graph result
                 search_result = SearchResult(
                     document_id=str(result.id)

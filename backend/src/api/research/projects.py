@@ -395,6 +395,15 @@ async def add_document_to_project(
                 detail=f"Document {document_id} not found",
             )
 
+        if (
+            document.uploaded_by_user_id != current_user.id
+            and not getattr(document, "is_public", False)
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Document {document_id} not found",
+            )
+
         # Check if already in project
         existing_query = select(CollectionDocument).where(
             and_(

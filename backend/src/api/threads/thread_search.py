@@ -21,7 +21,7 @@ from fastapi import (
 )
 from sqlalchemy.orm import Session
 
-from src.core.database import get_db
+from src.core.database import get_db_sync
 from src.core.dependencies import get_current_user
 from src.models.chat_message import MessageRole
 from src.models.thread import ThreadStatus
@@ -50,10 +50,10 @@ router = APIRouter(prefix="/search", tags=["Thread & Message Search"])
 
 
 @router.post("/threads", response_model=ThreadSearchResponse)
-async def search_threads(
+def search_threads(
     request: ThreadSearchRequest = Body(...),
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db_sync),
 ):
     """
     Search threads using PostgreSQL full-text search.
@@ -83,7 +83,7 @@ async def search_threads(
 
 
 @router.get("/threads", response_model=ThreadSearchResponse)
-async def search_threads_get(
+def search_threads_get(
     query: str = Query(..., min_length=1, description="Search query"),
     conversation_id: Optional[UUID] = Query(
         None, description="Filter by conversation ID"
@@ -108,7 +108,7 @@ async def search_threads_get(
     limit: int = Query(20, ge=1, le=100, description="Max results to return"),
     offset: int = Query(0, ge=0, description="Results offset for pagination"),
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db_sync),
 ):
     """
     Search threads using GET request with query parameters.
@@ -177,10 +177,10 @@ async def search_threads_get(
 
 
 @router.post("/messages", response_model=MessageSearchResponse)
-async def search_messages(
+def search_messages(
     request: MessageSearchRequest = Body(...),
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db_sync),
 ):
     """
     Search messages using PostgreSQL full-text search.
@@ -211,7 +211,7 @@ async def search_messages(
 
 
 @router.get("/messages", response_model=MessageSearchResponse)
-async def search_messages_get(
+def search_messages_get(
     query: str = Query(..., min_length=1, description="Search query"),
     thread_id: Optional[UUID] = Query(None, description="Filter by thread ID"),
     conversation_id: Optional[UUID] = Query(
@@ -239,7 +239,7 @@ async def search_messages_get(
     limit: int = Query(20, ge=1, le=100, description="Max results to return"),
     offset: int = Query(0, ge=0, description="Results offset for pagination"),
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db_sync),
 ):
     """
     Search messages using GET request with query parameters.
@@ -308,7 +308,7 @@ async def search_messages_get(
 
 
 @router.get("/combined", response_model=CombinedSearchResponse)
-async def combined_search(
+def combined_search(
     query: str = Query(..., min_length=1, description="Search query"),
     workspace_id: Optional[UUID] = Query(None, description="Filter by workspace ID"),
     conversation_id: Optional[UUID] = Query(
@@ -316,7 +316,7 @@ async def combined_search(
     ),
     limit: int = Query(20, ge=1, le=50, description="Max results to return"),
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db_sync),
 ):
     """
     Search across both threads and messages in a single query.
@@ -353,14 +353,14 @@ async def combined_search(
 
 
 @router.get("/suggestions")
-async def get_search_suggestions(
+def get_search_suggestions(
     query: str = Query(..., min_length=1, description="Partial search query"),
     workspace_id: Optional[UUID] = Query(
         None, description="Limit suggestions to workspace"
     ),
     limit: int = Query(5, ge=1, le=10, description="Max suggestions to return"),
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db_sync),
 ):
     """
     Get search suggestions based on thread titles and recent searches.
@@ -370,6 +370,10 @@ async def get_search_suggestions(
     try:
         # Simple suggestion based on thread titles
         from sqlalchemy import text
+
+        def _escape_like(value: str) -> str:
+            """Escape SQL LIKE special characters."""
+            return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
         suggestion_sql = """
             SELECT DISTINCT t.title
@@ -381,9 +385,13 @@ async def get_search_suggestions(
                 AND w.is_deleted = false
                 AND t.title IS NOT NULL
                 AND LOWER(t.title) LIKE LOWER(:query_pattern)
+                AND (w.organization_id = :organization_id OR w.organization_id IS NULL)
         """
 
-        params = {"query_pattern": f"%{query}%"}
+        params = {
+            "query_pattern": f"%{_escape_like(query)}%",
+            "organization_id": str(current_user.organization_id),
+        }
 
         if workspace_id:
             suggestion_sql += " AND w.id = :workspace_id"
@@ -407,7 +415,7 @@ async def get_search_suggestions(
 
 
 @router.get("/health")
-async def search_health_check(db: Session = Depends(get_db)):
+def search_health_check(db: Session = Depends(get_db_sync)):
     """
     Check health of the thread/message search system.
 

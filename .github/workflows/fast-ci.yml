@@ -21,18 +21,22 @@ jobs:
     name: Lint (Fast)
     runs-on: ${{ github.event.inputs.runner || vars.FAST_CI_RUNNER || 'ubuntu-latest' }}
     continue-on-error: true
-    env:
-      NPM_CONFIG_CACHE: ${{ github.workspace }}/.npm-cache
-      PIP_CACHE_DIR: ${{ github.workspace }}/.pip-cache
     steps:
-      - uses: actions/checkout@v6
-      
+      - uses: actions/checkout@v4
+
+      - name: Cache pip packages
+        uses: actions/cache@v5
+        with:
+          path: ~/.local/lib
+          key: ${{ runner.os }}-fast-lint-pip-v1
+          restore-keys: ${{ runner.os }}-fast-lint-pip-
+
       - name: Setup Python
         run: |
           python3 --version
           pip3 install ruff black isort --quiet --user
           export PATH="$HOME/.local/bin:$PATH"
-      
+
       - name: Backend Lint
         working-directory: backend
         continue-on-error: true
@@ -40,7 +44,7 @@ jobs:
           export PATH="$HOME/.local/bin:$PATH"
           echo "Running ruff..."
           ruff check src/ --output-format=concise 2>/dev/null || echo "Ruff found issues"
-          
+
       - name: Frontend Lint
         working-directory: frontend
         continue-on-error: true
@@ -52,18 +56,26 @@ jobs:
     name: Backend Tests (Fast)
     runs-on: ${{ github.event.inputs.runner || vars.FAST_CI_RUNNER || 'ubuntu-latest' }}
     continue-on-error: true
-    env:
-      NPM_CONFIG_CACHE: ${{ github.workspace }}/.npm-cache
-      PIP_CACHE_DIR: ${{ github.workspace }}/.pip-cache
     steps:
-      - uses: actions/checkout@v6
-      
+      - uses: actions/checkout@v4
+
+      - name: Cache pip packages
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cache/pip
+            ~/.local/lib
+          key: ${{ runner.os }}-fast-backend-pip-${{ hashFiles('backend/requirements*.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-fast-backend-pip-
+            ${{ runner.os }}-fast-
+
       - name: Install Dependencies
         working-directory: backend
         run: |
           pip3 install -r requirements.txt --quiet --user 2>/dev/null || true
           pip3 install pytest pytest-cov --quiet --user
-          
+
       - name: Run Tests
         working-directory: backend
         continue-on-error: true
@@ -75,12 +87,16 @@ jobs:
     name: Frontend Tests (Fast)
     runs-on: ${{ github.event.inputs.runner || vars.FAST_CI_RUNNER || 'ubuntu-latest' }}
     continue-on-error: true
-    env:
-      NPM_CONFIG_CACHE: ${{ github.workspace }}/.npm-cache
-      PIP_CACHE_DIR: ${{ github.workspace }}/.pip-cache
     steps:
-      - uses: actions/checkout@v6
-      
+      - uses: actions/checkout@v4
+
+      - name: Cache npm packages
+        uses: actions/cache@v5
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-fast-npm-${{ hashFiles('frontend/pnpm-lock.yaml', 'frontend/package.json') }}
+          restore-keys: ${{ runner.os }}-fast-npm-
+
       - name: Install & Test
         working-directory: frontend
         continue-on-error: true

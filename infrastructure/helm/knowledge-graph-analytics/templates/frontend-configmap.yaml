@@ -1,0 +1,11 @@
+{{- if .Values.frontend.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "knowledge-graph-analytics.fullname" . }}-frontend-config
+  labels:
+    {{- include "knowledge-graph-analytics.labels" . | nindent 4 }}
+    app.kubernetes.io/component: frontend
+data:
+  NODE_ENV: "production"
+{{- end }}
