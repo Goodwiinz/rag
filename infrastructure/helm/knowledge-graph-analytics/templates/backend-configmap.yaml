@@ -1,0 +1,13 @@
+{{- if .Values.backend.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "knowledge-graph-analytics.fullname" . }}-backend-config
+  labels:
+    {{- include "knowledge-graph-analytics.labels" . | nindent 4 }}
+    app.kubernetes.io/component: backend
+data:
+  ENVIRONMENT: {{ .Values.global.environment | default "production" | quote }}
+  LOG_LEVEL: "INFO"
+  PYTHONPATH: "/app"
+{{- end }}

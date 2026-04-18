@@ -1,0 +1,38 @@
+name: implement-adaptive-planner
+description: |
+  Implement an adaptive planner that generates execution plans for complex multi-step
+  agent queries. Uses complexity gating to skip planning for simple queries.
+repo: .
+commit: "6af5432"
+files:
+  - backend/src/services/agent/planner.py
+context:
+  - docs/plans/2026-03-25-agent-v2-design.md
+  - docs/plans/2026-03-25-agent-v2-plan.md
+  - backend/src/services/agent/state.py
+  - backend/src/core/config.py
+prompt: |
+  Read the design doc section 4 (Adaptive Planner) and implementation plan Task 7.
+
+  Create backend/src/services/agent/planner.py with:
+  1. ComplexityCheck (Pydantic): step_count: int
+  2. PlanStep (Pydantic): step, description, tool, args_hint, depends_on
+  3. AgentPlan (Pydantic): steps, reasoning
+  4. _build_planner_llm(model) — configurable model (gpt-4o-mini for complexity, gpt-4o for plan)
+  5. check_complexity(query, tool_names, page_context) -> int — structured output
+  6. generate_plan(query, tool_names, page_context) -> AgentPlan — structured output
+  7. make_planner_node(tool_names) -> callable — skips if plan exists or step_count < 3
+
+  Key: Plans are advisory only — stored in state, not enforced.
+
+  The tests at backend/tests/unit/services/test_agent_planner.py must all pass.
+judge:
+  - type: pytest
+    command: >
+      cd backend &&
+      mkdir -p .agent-eval-tmp &&
+      git show 98a17bb:backend/tests/unit/services/test_agent_planner.py > .agent-eval-tmp/test_agent_planner.py &&
+      .venv/bin/python -m pytest .agent-eval-tmp/test_agent_planner.py -v
+  - type: grep
+    pattern: "make_planner_node"
+    files: backend/src/services/agent/planner.py

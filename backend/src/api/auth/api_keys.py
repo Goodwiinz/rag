@@ -7,8 +7,11 @@ from typing import List, Optional
 from datetime import datetime, timedelta
 import logging
 
+from sqlalchemy import select, func, or_
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from src.core.database import get_db
-from src.core.dependencies import get_current_user, require_admin
+from src.core.dependencies import require_admin
 from src.core.api_key_auth import (
     APIKey, APIKeyData, APIKeyCreate, APIKeyResponse,
     generate_api_key, api_key_auth
@@ -24,11 +27,11 @@ router = APIRouter(prefix="/api-keys", tags=["api-keys"])
 async def create_api_key(
     api_key_create: APIKeyCreate,
     current_user: User = Depends(require_admin),
-    db = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """
     Create a new API key (Admin only).
-    
+
     **WARNING**: The raw API key is only shown once during creation.
     Store it securely as it cannot be retrieved later.
     """
@@ -61,13 +64,13 @@ async def create_api_key(
             allowed_endpoints=str(api_key_create.allowed_endpoints) if api_key_create.allowed_endpoints else None,
             organization_id=str(current_user.organization_id)
         )
-        
+
         db.add(new_api_key)
-        db.commit()
-        db.refresh(new_api_key)
-        
+        await db.commit()
+        await db.refresh(new_api_key)
+
         logger.info(f"API key created: {new_api_key.name} ({key_prefix}***) by {current_user.email}")
-        
+
         return APIKeyResponse(
             id=new_api_key.id,
             name=new_api_key.name,
@@ -77,10 +80,10 @@ async def create_api_key(
             expires_at=expires_at,
             organization_id=new_api_key.organization_id
         )
-        
+
     except Exception as e:
         logger.error(f"Error creating API key: {e}")
-        db.rollback()
+        await db.rollback()
         raise HTTPException(status_code=500, detail=f"Failed to create API key: {str(e)}")
 
 
@@ -90,29 +93,33 @@ async def list_api_keys(
     limit: int = Query(default=50, ge=1, le=100, description="Number of keys to return"),
     offset: int = Query(default=0, ge=0, description="Number of keys to skip"),
     current_user: User = Depends(require_admin),
-    db = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """
     List all API keys (Admin only).
-    
+
     Note: Raw API keys are never returned, only metadata.
     """
     try:
         # Prevent IDOR by scoping to the admin's organization
-        query = db.query(APIKey).filter(APIKey.organization_id == str(current_user.organization_id))
-        
+        stmt = select(APIKey).where(APIKey.organization_id == str(current_user.organization_id))
+
         if active_only:
-            query = query.filter(APIKey.is_active == True)
-        
+            stmt = stmt.where(APIKey.is_active == True)
+
         # Check for non-expired keys if active_only is True
         if active_only:
-            query = query.filter(
-                (APIKey.expires_at.is_(None)) | 
-                (APIKey.expires_at > datetime.utcnow())
+            stmt = stmt.where(
+                or_(
+                    APIKey.expires_at.is_(None),
+                    APIKey.expires_at > datetime.utcnow()
+                )
             )
-        
-        api_keys = query.order_by(APIKey.created_at.desc()).offset(offset).limit(limit).all()
-        
+
+        stmt = stmt.order_by(APIKey.created_at.desc()).offset(offset).limit(limit)
+        result = await db.execute(stmt)
+        api_keys = result.scalars().all()
+
         return [
             APIKeyData(
                 id=key.id,
@@ -125,7 +132,7 @@ async def list_api_keys(
                 organization_id=key.organization_id
             ) for key in api_keys
         ]
-        
+
     except Exception as e:
         logger.error(f"Error listing API keys: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to list API keys: {str(e)}")
@@ -135,21 +142,24 @@ async def list_api_keys(
 async def get_api_key(
     api_key_id: str,
     current_user: User = Depends(require_admin),
-    db = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """
     Get API key details by ID (Admin only).
     """
     try:
         # Prevent IDOR by scoping to the admin's organization
-        api_key = db.query(APIKey).filter(
-            APIKey.id == api_key_id,
-            APIKey.organization_id == str(current_user.organization_id)
-        ).first()
-        
+        result = await db.execute(
+            select(APIKey).where(
+                APIKey.id == api_key_id,
+                APIKey.organization_id == str(current_user.organization_id)
+            )
+        )
+        api_key = result.scalars().first()
+
         if not api_key:
             raise HTTPException(status_code=404, detail="API key not found")
-        
+
         return APIKeyData(
             id=api_key.id,
             name=api_key.name,
@@ -160,7 +170,7 @@ async def get_api_key(
             usage_count=api_key.usage_count,
             organization_id=api_key.organization_id
         )
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -175,21 +185,24 @@ async def update_api_key(
     is_active: Optional[bool] = None,
     rate_limit_per_hour: Optional[int] = None,
     current_user: User = Depends(require_admin),
-    db = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """
     Update API key properties (Admin only).
     """
     try:
         # Prevent IDOR by scoping to the admin's organization
-        api_key = db.query(APIKey).filter(
-            APIKey.id == api_key_id,
-            APIKey.organization_id == str(current_user.organization_id)
-        ).first()
-        
+        result = await db.execute(
+            select(APIKey).where(
+                APIKey.id == api_key_id,
+                APIKey.organization_id == str(current_user.organization_id)
+            )
+        )
+        api_key = result.scalars().first()
+
         if not api_key:
             raise HTTPException(status_code=404, detail="API key not found")
-        
+
         # Update fields if provided
         if name is not None:
             api_key.name = name
@@ -199,12 +212,12 @@ async def update_api_key(
             if rate_limit_per_hour < 1:
                 raise HTTPException(status_code=400, detail="Rate limit must be at least 1 request per hour")
             api_key.rate_limit_per_hour = rate_limit_per_hour
-        
-        db.commit()
-        db.refresh(api_key)
-        
+
+        await db.commit()
+        await db.refresh(api_key)
+
         logger.info(f"API key updated: {api_key.name} ({api_key.key_prefix}***) by {current_user.email}")
-        
+
         return {
             "message": "API key updated successfully",
             "api_key": APIKeyData(
@@ -218,12 +231,12 @@ async def update_api_key(
                 organization_id=api_key.organization_id
             )
         }
-        
+
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Error updating API key {api_key_id}: {e}")
-        db.rollback()
+        await db.rollback()
         raise HTTPException(status_code=500, detail=f"Failed to update API key: {str(e)}")
 
 
@@ -231,40 +244,43 @@ async def update_api_key(
 async def delete_api_key(
     api_key_id: str,
     current_user: User = Depends(require_admin),
-    db = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """
     Delete (deactivate) an API key (Admin only).
-    
+
     Note: API keys are not permanently deleted for audit purposes,
     but are marked as inactive.
     """
     try:
         # Prevent IDOR by scoping to the admin's organization
-        api_key = db.query(APIKey).filter(
-            APIKey.id == api_key_id,
-            APIKey.organization_id == str(current_user.organization_id)
-        ).first()
-        
+        result = await db.execute(
+            select(APIKey).where(
+                APIKey.id == api_key_id,
+                APIKey.organization_id == str(current_user.organization_id)
+            )
+        )
+        api_key = result.scalars().first()
+
         if not api_key:
             raise HTTPException(status_code=404, detail="API key not found")
-        
+
         # Deactivate instead of deleting for audit trail
         api_key.is_active = False
-        db.commit()
-        
+        await db.commit()
+
         logger.info(f"API key deactivated: {api_key.name} ({api_key.key_prefix}***) by {current_user.email}")
-        
+
         return {
             "message": f"API key '{api_key.name}' has been deactivated",
             "api_key_id": api_key_id
         }
-        
+
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Error deleting API key {api_key_id}: {e}")
-        db.rollback()
+        await db.rollback()
         raise HTTPException(status_code=500, detail=f"Failed to delete API key: {str(e)}")
 
 
@@ -273,18 +289,21 @@ async def get_api_key_usage(
     api_key_id: str,
     days: int = Query(default=7, ge=1, le=30, description="Number of days of usage data"),
     current_user: User = Depends(require_admin),
-    db = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """
     Get usage statistics for an API key (Admin only).
     """
     try:
         # Prevent IDOR by scoping to the admin's organization
-        api_key = db.query(APIKey).filter(
-            APIKey.id == api_key_id,
-            APIKey.organization_id == str(current_user.organization_id)
-        ).first()
-        
+        result = await db.execute(
+            select(APIKey).where(
+                APIKey.id == api_key_id,
+                APIKey.organization_id == str(current_user.organization_id)
+            )
+        )
+        api_key = result.scalars().first()
+
         if not api_key:
             raise HTTPException(status_code=404, detail="API key not found")
         
@@ -322,40 +341,43 @@ async def get_api_key_usage(
 async def regenerate_api_key(
     api_key_id: str,
     current_user: User = Depends(require_admin),
-    db = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """
     Regenerate an API key (Admin only).
-    
+
     **WARNING**: This will invalidate the old key immediately.
     The new key is only shown once.
     """
     try:
         # Prevent IDOR by scoping to the admin's organization
-        api_key = db.query(APIKey).filter(
-            APIKey.id == api_key_id,
-            APIKey.organization_id == str(current_user.organization_id)
-        ).first()
-        
+        result = await db.execute(
+            select(APIKey).where(
+                APIKey.id == api_key_id,
+                APIKey.organization_id == str(current_user.organization_id)
+            )
+        )
+        api_key = result.scalars().first()
+
         if not api_key:
             raise HTTPException(status_code=404, detail="API key not found")
-        
+
         # Generate new key
         raw_key, key_hash = generate_api_key()
         key_prefix = raw_key[:8]
-        
+
         # Update existing record
         old_prefix = api_key.key_prefix
         api_key.key_hash = key_hash
         api_key.key_prefix = key_prefix
         api_key.usage_count = 0  # Reset usage count
         api_key.last_used_at = None  # Reset last used
-        
-        db.commit()
-        db.refresh(api_key)
-        
+
+        await db.commit()
+        await db.refresh(api_key)
+
         logger.warning(f"API key regenerated: {api_key.name} (old: {old_prefix}***, new: {key_prefix}***) by {current_user.email}")
-        
+
         return APIKeyResponse(
             id=api_key.id,
             name=api_key.name,
@@ -365,19 +387,19 @@ async def regenerate_api_key(
             expires_at=api_key.expires_at,
             organization_id=api_key.organization_id
         )
-        
+
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Error regenerating API key {api_key_id}: {e}")
-        db.rollback()
+        await db.rollback()
         raise HTTPException(status_code=500, detail=f"Failed to regenerate API key: {str(e)}")
 
 
 @router.get("/usage/summary")
 async def get_api_keys_usage_summary(
     current_user: User = Depends(require_admin),
-    db = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """
     Get overall usage summary for all API keys (Admin only).
@@ -387,22 +409,35 @@ async def get_api_keys_usage_summary(
         org_id = str(current_user.organization_id)
 
         # Get basic statistics
-        total_keys = db.query(APIKey).filter(APIKey.organization_id == org_id).count()
-        active_keys = db.query(APIKey).filter(
-            APIKey.organization_id == org_id,
-            APIKey.is_active == True
-        ).count()
-        
+        total_result = await db.execute(
+            select(func.count()).select_from(APIKey).where(APIKey.organization_id == org_id)
+        )
+        total_keys = total_result.scalar()
+
+        active_result = await db.execute(
+            select(func.count()).select_from(APIKey).where(
+                APIKey.organization_id == org_id,
+                APIKey.is_active == True
+            )
+        )
+        active_keys = active_result.scalar()
+
         # Get most active keys
-        most_active = db.query(APIKey).filter(
-            APIKey.organization_id == org_id,
-            APIKey.is_active == True
-        ).order_by(APIKey.usage_count.desc()).limit(5).all()
-        
+        most_active_result = await db.execute(
+            select(APIKey).where(
+                APIKey.organization_id == org_id,
+                APIKey.is_active == True
+            ).order_by(APIKey.usage_count.desc()).limit(5)
+        )
+        most_active = most_active_result.scalars().all()
+
         # Get recently created keys
-        recent_keys = db.query(APIKey).filter(
-            APIKey.organization_id == org_id
-        ).order_by(APIKey.created_at.desc()).limit(5).all()
+        recent_result = await db.execute(
+            select(APIKey).where(
+                APIKey.organization_id == org_id
+            ).order_by(APIKey.created_at.desc()).limit(5)
+        )
+        recent_keys = recent_result.scalars().all()
         
         return {
             "summary": {

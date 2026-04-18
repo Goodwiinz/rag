@@ -6,12 +6,21 @@ import type {
   AgentMessage,
   AgentThread,
   PageContext,
+  PlanStep,
 } from '@/types/agent-chat';
 
 const DEFAULT_PAGE_CONTEXT: PageContext = {
   type: 'unknown',
   label: 'Dashboard',
 };
+
+/** Tools that mutate project data — triggers a refetch on the project page */
+const PROJECT_MUTATING_TOOLS = new Set([
+  'add_document_to_project',
+  'ingest_arxiv_papers',
+  'create_draft',
+  'create_project_note',
+]);
 
 interface AgentChatStore extends AgentChatState, AgentChatActions {
   /** Internal: AbortController for current polling loop */
@@ -32,6 +41,8 @@ const initialState: AgentChatState = {
   isLoadingMessages: false,
   pendingConfirmation: null,
   isConfirming: false,
+  projectDataVersion: 0,
+  currentPlan: null,
 };
 
 export const useAgentChatStore = create<AgentChatStore>()(
@@ -101,6 +112,7 @@ export const useAgentChatStore = create<AgentChatStore>()(
       try {
         const { agentChatService } =
           await import('@/services/agentChatService');
+        let didMutateProjectData = false;
 
         // Build messages array for the API (only user/assistant roles)
         const apiMessages = get()
@@ -191,6 +203,52 @@ export const useAgentChatStore = create<AgentChatStore>()(
                     }
                   }
                 });
+                if (PROJECT_MUTATING_TOOLS.has(tool)) {
+                  didMutateProjectData = true;
+                }
+              },
+              onPlan: (steps: Array<Record<string, unknown>>) => {
+                set((state) => {
+                  state.currentPlan = steps.map((s) => ({
+                    step: (s.step as number) ?? 0,
+                    description: (s.description as string) ?? '',
+                    tool: (s.tool as string) ?? '',
+                    args_hint: (s.args_hint as Record<string, unknown>) ?? {},
+                    depends_on: (s.depends_on as number[]) ?? [],
+                  }));
+                });
+              },
+              onReflection: () => {
+                // Reflection events are informational; no store mutation needed
+                // beyond what onDone handles.
+              },
+              onConfirmation: (
+                threadId: string,
+                confirmation: Record<string, unknown>
+              ) => {
+                set((state) => {
+                  const idx = state.messages.findIndex(
+                    (m) => m.id === placeholderId
+                  );
+                  if (idx !== -1) {
+                    state.messages[idx].isStreaming = false;
+                    state.messages[idx].content =
+                      'Waiting for your confirmation...';
+                  }
+                  state.pendingConfirmation = {
+                    jobId: threadId, // thread_id used as job identifier for SSE
+                    tools:
+                      (confirmation.tools as Array<{
+                        name: string;
+                        args: Record<string, unknown>;
+                      }>) || [],
+                    message:
+                      (confirmation.message as string) ||
+                      'The agent wants to perform an action. Please confirm.',
+                  };
+                  state.isStreaming = false;
+                  (state as unknown as AgentChatStore)._abortController = null;
+                });
               },
               onDone: () => {
                 set((state) => {
@@ -199,8 +257,12 @@ export const useAgentChatStore = create<AgentChatStore>()(
                   );
                   if (idx !== -1) {
                     state.messages[idx].isStreaming = false;
+                    if (didMutateProjectData) {
+                      state.projectDataVersion += 1;
+                    }
                   }
                   state.isStreaming = false;
+                  state.currentPlan = null;
                   (state as unknown as AgentChatStore)._abortController = null;
                 });
                 if (uiMode === 'closed') {
@@ -219,6 +281,9 @@ export const useAgentChatStore = create<AgentChatStore>()(
                       streamedContent || error || 'An error occurred.';
                     state.messages[idx].isStreaming = false;
                     state.messages[idx].isError = !streamedContent;
+                  }
+                  if (didMutateProjectData) {
+                    state.projectDataVersion += 1;
                   }
                   state.isStreaming = false;
                 });
@@ -327,6 +392,14 @@ export const useAgentChatStore = create<AgentChatStore>()(
               }
               state.isStreaming = false;
               state.activeThreadId = response.thread_id || state.activeThreadId;
+
+              // Bump projectDataVersion if any mutating tools ran
+              const hasMutation = response.tool_executions?.some((te) =>
+                PROJECT_MUTATING_TOOLS.has(te.tool_name)
+              );
+              if (hasMutation) {
+                state.projectDataVersion += 1;
+              }
             });
 
             // Mark unread if chat is closed
@@ -431,14 +504,187 @@ export const useAgentChatStore = create<AgentChatStore>()(
       set((state) => {
         state.isConfirming = true;
         state.isStreaming = true;
+        // Update the waiting message to show streaming
+        const lastAsst = [...state.messages]
+          .reverse()
+          .find((m) => m.role === 'assistant');
+        if (lastAsst) {
+          const idx = state.messages.findIndex((m) => m.id === lastAsst.id);
+          if (idx !== -1) {
+            state.messages[idx].isStreaming = true;
+            state.messages[idx].content = '';
+          }
+        }
+        state.pendingConfirmation = null;
       });
 
       try {
         const { agentChatService } =
           await import('@/services/agentChatService');
+
+        // Try SSE streaming confirm first
+        let streamedContent = '';
+        let didMutateProjectData = false;
+
+        try {
+          await agentChatService.streamConfirm(
+            { thread_id: jobId, confirmed },
+            {
+              onToken: (content: string) => {
+                streamedContent += content;
+                set((state) => {
+                  const lastAsst = [...state.messages]
+                    .reverse()
+                    .find((m) => m.role === 'assistant');
+                  if (lastAsst) {
+                    const idx = state.messages.findIndex(
+                      (m) => m.id === lastAsst.id
+                    );
+                    if (idx !== -1) {
+                      state.messages[idx].content = streamedContent;
+                    }
+                  }
+                });
+              },
+              onToolStart: (tool: string) => {
+                set((state) => {
+                  const lastAsst = [...state.messages]
+                    .reverse()
+                    .find((m) => m.role === 'assistant');
+                  if (lastAsst) {
+                    const idx = state.messages.findIndex(
+                      (m) => m.id === lastAsst.id
+                    );
+                    if (idx !== -1) {
+                      const existing = state.messages[idx].toolExecutions || [];
+                      existing.push({
+                        id: `te-${Date.now()}`,
+                        toolName: tool,
+                        toolDisplayName: tool
+                          .replace(/_/g, ' ')
+                          .replace(/\b\w/g, (c) => c.toUpperCase()),
+                        args: {},
+                        status: 'running',
+                      });
+                      state.messages[idx].toolExecutions = existing;
+                    }
+                  }
+                });
+              },
+              onToolEnd: (tool: string, result: string) => {
+                set((state) => {
+                  const lastAsst = [...state.messages]
+                    .reverse()
+                    .find((m) => m.role === 'assistant');
+                  if (lastAsst) {
+                    const idx = state.messages.findIndex(
+                      (m) => m.id === lastAsst.id
+                    );
+                    if (idx !== -1) {
+                      const execs = state.messages[idx].toolExecutions || [];
+                      const teIdx = [...execs]
+                        .reverse()
+                        .findIndex((te) => te.toolName === tool);
+                      if (teIdx !== -1) {
+                        const actualIdx = execs.length - 1 - teIdx;
+                        execs[actualIdx].status = 'completed';
+                        try {
+                          execs[actualIdx].result = JSON.parse(result);
+                        } catch {
+                          execs[actualIdx].result = result;
+                        }
+                      }
+                    }
+                  }
+                  if (PROJECT_MUTATING_TOOLS.has(tool)) {
+                    didMutateProjectData = true;
+                  }
+                });
+              },
+              onConfirmation: (
+                threadId: string,
+                confirmation: Record<string, unknown>
+              ) => {
+                // Nested confirmation (e.g. ingest confirmed → add needs confirm)
+                set((state) => {
+                  const lastAsst = [...state.messages]
+                    .reverse()
+                    .find((m) => m.role === 'assistant');
+                  if (lastAsst) {
+                    const idx = state.messages.findIndex(
+                      (m) => m.id === lastAsst.id
+                    );
+                    if (idx !== -1) {
+                      state.messages[idx].isStreaming = false;
+                      state.messages[idx].content =
+                        'Waiting for your confirmation...';
+                    }
+                  }
+                  state.pendingConfirmation = {
+                    jobId: threadId,
+                    tools:
+                      (confirmation.tools as Array<{
+                        name: string;
+                        args: Record<string, unknown>;
+                      }>) || [],
+                    message:
+                      (confirmation.message as string) ||
+                      'The agent wants to perform an action. Please confirm.',
+                  };
+                  state.isStreaming = false;
+                  state.isConfirming = false;
+                });
+              },
+              onDone: () => {
+                set((state) => {
+                  const lastAsst = [...state.messages]
+                    .reverse()
+                    .find((m) => m.role === 'assistant');
+                  if (lastAsst) {
+                    const idx = state.messages.findIndex(
+                      (m) => m.id === lastAsst.id
+                    );
+                    if (idx !== -1) {
+                      state.messages[idx].isStreaming = false;
+                    }
+                  }
+                  state.isStreaming = false;
+                  state.isConfirming = false;
+                  state.currentPlan = null;
+                  if (didMutateProjectData) {
+                    state.projectDataVersion += 1;
+                  }
+                });
+              },
+              onError: (error: string) => {
+                set((state) => {
+                  const lastAsst = [...state.messages]
+                    .reverse()
+                    .find((m) => m.role === 'assistant');
+                  if (lastAsst) {
+                    const idx = state.messages.findIndex(
+                      (m) => m.id === lastAsst.id
+                    );
+                    if (idx !== -1) {
+                      state.messages[idx].content =
+                        streamedContent || error || 'Action failed.';
+                      state.messages[idx].isStreaming = false;
+                    }
+                  }
+                  state.isStreaming = false;
+                  state.isConfirming = false;
+                });
+              },
+            }
+          );
+          return; // SSE confirm succeeded
+        } catch {
+          // SSE confirm failed — fall back to polling
+        }
+
+        // Polling fallback
         await agentChatService.confirmAction(jobId, confirmed);
 
-        // Resume polling for the confirmed job
         const MAX_POLLS = 120;
         const POLL_INTERVAL_MS = 1500;
         for (let i = 0; i < MAX_POLLS; i++) {
@@ -447,7 +693,6 @@ export const useAgentChatStore = create<AgentChatStore>()(
 
           if (job.status === 'completed' && job.result) {
             set((state) => {
-              // Find the last assistant message and update it
               const lastAsst = [...state.messages]
                 .reverse()
                 .find((m) => m.role === 'assistant');
@@ -474,6 +719,13 @@ export const useAgentChatStore = create<AgentChatStore>()(
               state.isStreaming = false;
               state.pendingConfirmation = null;
               state.isConfirming = false;
+
+              const hasMutation = job.result!.tool_executions?.some((te) =>
+                PROJECT_MUTATING_TOOLS.has(te.tool_name)
+              );
+              if (hasMutation) {
+                state.projectDataVersion += 1;
+              }
             });
             return;
           }
@@ -559,6 +811,7 @@ export const useAgentChatStore = create<AgentChatStore>()(
         state.activeThreadId = null;
         state.isStreaming = false;
         state.pendingConfirmation = null;
+        state.currentPlan = null;
         (state as unknown as AgentChatStore)._abortController = null;
       }),
 

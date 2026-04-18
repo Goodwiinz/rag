@@ -1,0 +1,33 @@
+# cert-manager resource limits + webhook timeout fix
+# Resolves DOKS clusterlint warnings:
+#   - Webhook TimeoutSeconds blocking upgrades
+#   - Missing resource requests/limits for controller, cainjector, webhook
+#
+# Apply with: helm upgrade cert-manager jetstack/cert-manager -n cert-manager -f cert-manager-values.yaml
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi
+
+cainjector:
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 250m
+      memory: 256Mi
+
+webhook:
+  timeoutSeconds: 10
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 250m
+      memory: 128Mi

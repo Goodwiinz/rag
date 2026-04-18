@@ -151,3 +151,42 @@ export const getErrorMessage = (error: unknown) => {
 
   return 'Request failed. Please retry.';
 };
+
+const getErrorStatusCode = (error: unknown) => {
+  if (typeof error !== 'object' || error === null) {
+    return null;
+  }
+
+  const typed = error as {
+    error?: { status_code?: number };
+    response?: { status?: number; data?: { error?: { status_code?: number } } };
+    message?: string;
+  };
+
+  return (
+    typed.error?.status_code ??
+    typed.response?.data?.error?.status_code ??
+    typed.response?.status ??
+    null
+  );
+};
+
+export const getArxivTrackingErrorMessage = (error: unknown) => {
+  const rawMessage = getErrorMessage(error);
+  const statusCode = getErrorStatusCode(error);
+  const normalizedMessage = rawMessage.toLowerCase();
+
+  if (
+    statusCode === 429 ||
+    statusCode === 503 ||
+    normalizedMessage.includes('rate limit') ||
+    normalizedMessage.includes('temporarily unavailable') ||
+    normalizedMessage.includes('timed out') ||
+    normalizedMessage.includes('failed after retries') ||
+    normalizedMessage.includes('status code 500')
+  ) {
+    return 'ArXiv scan failed because the upstream arXiv service is temporarily unavailable or rate limiting requests. Retry in about a minute or scan fewer categories.';
+  }
+
+  return rawMessage;
+};

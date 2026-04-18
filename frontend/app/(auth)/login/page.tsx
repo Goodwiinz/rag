@@ -2,17 +2,12 @@
 
 import { useAuth } from '@/hooks/useAuth';
 import { cn } from '@/lib/utils';
-import {
-  AnimatePresence,
-  motion,
-  useMotionValue,
-  useSpring,
-  useTransform,
-} from 'framer-motion';
+import { downloadStoredNousCliAuth } from '@/services/nousCliAuth';
+import { AnimatePresence, motion } from 'framer-motion';
 import { Lock, Mail, Terminal } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import React, { useEffect, useState } from 'react';
 
 const Activity = dynamic(
@@ -54,6 +49,7 @@ const Zap = dynamic(() => import('lucide-react').then((mod) => mod.Zap), {
 interface LoginFormData {
   email: string;
   password: string;
+  downloadCliAuth: boolean;
 }
 
 const SYSTEM_LOGS = [
@@ -67,69 +63,48 @@ const SYSTEM_LOGS = [
   'Scanning for unauthorized nodes...',
 ];
 
-export default function LoginPage(): React.JSX.Element | null {
+function resolvePostLoginPath(rawNextPath: string | null): string {
+  if (!rawNextPath || !rawNextPath.startsWith('/')) {
+    return '/dashboard';
+  }
+
+  if (rawNextPath.startsWith('//')) {
+    return '/dashboard';
+  }
+
+  return rawNextPath;
+}
+
+function LoginPageContent(): React.JSX.Element | null {
   const { login, isAuthenticated, isLoading } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const nextPath = resolvePostLoginPath(searchParams.get('next'));
   const [formData, setFormData] = useState<LoginFormData>({
     email: '',
     password: '',
+    downloadCliAuth: false,
   });
   const [error, setError] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [logIndex, setLogIndex] = useState(0);
-  const [enableTilt, setEnableTilt] = useState(false);
-
-  // 3D Tilt Logic
-  const x = useMotionValue(0);
-  const y = useMotionValue(0);
-  const rotateX = useTransform(y, [-100, 100], [5, -5]);
-  const rotateY = useTransform(x, [-100, 100], [-5, 5]);
-
-  const springConfig = { damping: 20, stiffness: 300 };
-  const springRotateX = useSpring(rotateX, springConfig);
-  const springRotateY = useSpring(rotateY, springConfig);
-
-  function handleMouseMove(event: React.MouseEvent<HTMLDivElement>): void {
-    const rect = event.currentTarget.getBoundingClientRect();
-    const centerX = rect.left + rect.width / 2;
-    const centerY = rect.top + rect.height / 2;
-    x.set(event.clientX - centerX);
-    y.set(event.clientY - centerY);
-  }
-
-  function handleMouseLeave(): void {
-    x.set(0);
-    y.set(0);
-  }
-
   useEffect(() => {
     setMounted(true);
-    // Defer non-critical animations to improve initial paint
-    const tiltTimer = setTimeout(() => {
-      // Check for reduced motion preference
-      const prefersReducedMotion = window.matchMedia(
-        '(prefers-reduced-motion: reduce)'
-      ).matches;
-      if (!prefersReducedMotion) {
-        setEnableTilt(true);
-      }
-    }, 100);
     const interval = setInterval(() => {
       setLogIndex((prev) => (prev + 1) % SYSTEM_LOGS.length);
     }, 2000);
     return () => {
-      clearTimeout(tiltTimer);
       clearInterval(interval);
     };
   }, []);
 
   useEffect(() => {
     if (isAuthenticated && !isLoading) {
-      router.push('/dashboard');
+      router.push(nextPath);
     }
-  }, [isAuthenticated, isLoading, router]);
+  }, [isAuthenticated, isLoading, nextPath, router]);
 
   const handleSubmit = async (e: React.FormEvent): Promise<void> => {
     e.preventDefault();
@@ -138,7 +113,14 @@ export default function LoginPage(): React.JSX.Element | null {
 
     try {
       await login(formData.email, formData.password);
-      router.push('/dashboard');
+      if (formData.downloadCliAuth) {
+        try {
+          downloadStoredNousCliAuth();
+        } catch (downloadError) {
+          console.error('Failed to export NOUS CLI auth:', downloadError);
+        }
+      }
+      router.push(nextPath);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Authentication failed');
     } finally {
@@ -149,7 +131,8 @@ export default function LoginPage(): React.JSX.Element | null {
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>): void => {
     setFormData((prev) => ({
       ...prev,
-      [e.target.name]: e.target.value,
+      [e.target.name]:
+        e.target.type === 'checkbox' ? e.target.checked : e.target.value,
     }));
   };
 
@@ -175,11 +158,8 @@ export default function LoginPage(): React.JSX.Element | null {
             </div>
             <div>
               <h1 className="text-4xl font-mono font-bold text-[var(--terminal-text)] tracking-tighter">
-                RAG SYSTEM
+                NOUS
               </h1>
-              <p className="text-[10px] font-mono font-bold text-[var(--phosphor-green)]/70 uppercase tracking-[0.3em]">
-                Terminal Observatory V2.4
-              </p>
             </div>
           </div>
           <h2 className="text-6xl font-mono font-bold text-[var(--terminal-text)] leading-[0.9] mb-8 tracking-tight">
@@ -263,7 +243,7 @@ export default function LoginPage(): React.JSX.Element | null {
           <div className="flex items-center gap-4 mb-16">
             <div className="relative group">
               <div className="absolute inset-0 bg-[var(--phosphor-green)]/20 blur-xl rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-              <div className="relative flex items-center justify-center w-16 h-16 rounded-2xl border border-[var(--phosphor-green)]/30 bg-[var(--terminal-elevated)] shadow-[0_0_30px_rgba(0,255,159,0.1)] overflow-hidden">
+              <div className="relative flex items-center justify-center w-16 h-16 rounded-2xl border border-[var(--phosphor-green)]/30 bg-[var(--terminal-elevated)] shadow-[0_0_30px_rgba(212,160,57,0.1)] overflow-hidden">
                 <div className="absolute inset-0 bg-gradient-to-br from-[var(--phosphor-green)]/10 to-transparent" />
                 <Terminal className="w-8 h-8 text-[var(--phosphor-green)] relative z-10" />
               </div>
@@ -271,23 +251,17 @@ export default function LoginPage(): React.JSX.Element | null {
             <div>
               <h1
                 className="text-4xl font-mono font-bold text-[var(--terminal-text)] tracking-tighter glitch-text"
-                data-text="RAG SYSTEM"
+                data-text="NOUS"
               >
-                RAG SYSTEM
+                NOUS
               </h1>
-              <div className="flex items-center gap-2 mt-1">
-                <div className="w-2 h-2 rounded-full bg-[var(--phosphor-green)] animate-pulse" />
-                <p className="text-[10px] font-mono font-bold text-[var(--phosphor-green)]/70 uppercase tracking-[0.3em]">
-                  Terminal Observatory V2.4
-                </p>
-              </div>
             </div>
           </div>
 
           <h2 className="text-6xl font-mono font-bold text-[var(--terminal-text)] leading-[0.9] mb-8 tracking-tight">
             NEURAL DATA
             <br />
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-[var(--phosphor-green)] via-[var(--cyan)] to-[var(--phosphor-green)] bg-[length:200%_auto] animate-gradient">
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-[var(--phosphor-green)] via-[var(--amber-gold)] to-[var(--phosphor-green)] bg-[length:200%_auto]">
               SYNTHESIS
             </span>
           </h2>
@@ -305,7 +279,7 @@ export default function LoginPage(): React.JSX.Element | null {
                 transition={{ delay: 0.4 + i * 0.1 }}
                 className="flex items-center gap-3 group p-3 rounded-lg border border-transparent hover:border-[var(--terminal-border)] hover:bg-[var(--terminal-surface)] transition-all duration-300"
               >
-                <div className="flex items-center justify-center w-8 h-8 rounded-md bg-[var(--terminal-elevated)] border border-[var(--terminal-border)] group-hover:border-[var(--phosphor-green)]/50 group-hover:shadow-[0_0_15px_rgba(0,255,159,0.15)] transition-all">
+                <div className="flex items-center justify-center w-8 h-8 rounded-md bg-[var(--terminal-elevated)] border border-[var(--terminal-border)] group-hover:border-[var(--phosphor-green)]/50 group-hover:shadow-[0_0_15px_rgba(212,160,57,0.15)] transition-all">
                   <feature.icon className="w-4 h-4 text-[var(--phosphor-green)] group-hover:scale-110 transition-transform" />
                 </div>
                 <span className="text-[10px] font-mono font-bold text-[var(--terminal-text-dim)] uppercase tracking-widest group-hover:text-[var(--terminal-text)] transition-colors">
@@ -365,19 +339,8 @@ export default function LoginPage(): React.JSX.Element | null {
 
       {/* Right Panel - Login Form */}
       <div className="flex-1 flex items-center justify-center px-6 lg:px-8 relative z-10">
-        <div style={{ perspective: '1000px' }} className="w-full max-w-md">
+        <div className="w-full max-w-md">
           <motion.div
-            style={
-              enableTilt
-                ? {
-                    rotateX: springRotateX,
-                    rotateY: springRotateY,
-                    transformStyle: 'preserve-3d',
-                  }
-                : undefined
-            }
-            onMouseMove={enableTilt ? handleMouseMove : undefined}
-            onMouseLeave={enableTilt ? handleMouseLeave : undefined}
             initial={{ opacity: 0, scale: 0.95, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             transition={{ duration: 0.5 }}
@@ -512,6 +475,28 @@ export default function LoginPage(): React.JSX.Element | null {
                   </div>
                 </div>
 
+                <div className="flex items-center justify-between rounded-lg border border-[var(--terminal-border)] bg-[var(--terminal-bg)]/60 px-3.5 py-3">
+                  <label
+                    htmlFor="downloadCliAuth"
+                    className="flex items-center gap-3 cursor-pointer"
+                  >
+                    <input
+                      id="downloadCliAuth"
+                      name="downloadCliAuth"
+                      type="checkbox"
+                      checked={formData.downloadCliAuth}
+                      onChange={handleChange}
+                      className="h-4 w-4 rounded border border-[var(--terminal-border)] bg-[var(--terminal-bg)] text-[var(--phosphor-green)] focus:ring-[var(--phosphor-green)]/30"
+                    />
+                    <span className="text-[10px] font-mono text-[var(--terminal-text-dim)] uppercase tracking-[0.18em]">
+                      Download NOUS CLI auth after sign in
+                    </span>
+                  </label>
+                  <span className="text-[8px] font-mono text-[var(--terminal-text-muted)] uppercase tracking-[0.2em]">
+                    Optional
+                  </span>
+                </div>
+
                 {/* Submit Button */}
                 <div className="pt-2">
                   <button
@@ -563,5 +548,13 @@ export default function LoginPage(): React.JSX.Element | null {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage(): React.JSX.Element {
+  return (
+    <React.Suspense fallback={null}>
+      <LoginPageContent />
+    </React.Suspense>
   );
 }

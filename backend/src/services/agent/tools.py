@@ -257,6 +257,65 @@ async def search_knowledge_graph(
 
 
 @tool
+async def explore_entity_neighborhood(
+    entity_id: str,
+    max_depth: int = 2,
+    limit: int = 30,
+    config: RunnableConfig | None = None,
+) -> Dict[str, Any]:
+    """Explore an entity's neighborhood in the knowledge graph.
+
+    Find all connected entities and the relationships between them.
+    Use when the user asks "what is connected to X", "show me everything
+    related to X", or wants to understand how an entity fits in the graph.
+    First use search_knowledge_graph to find the entity_id.
+    """
+    config = config or {}
+    from src.api.agent.execute import _tool_explore_entity_neighborhood
+
+    return await _tool_explore_entity_neighborhood(
+        {"entity_id": entity_id, "max_depth": max_depth, "limit": limit}
+    )
+
+
+@tool
+async def find_entity_paths(
+    source_entity_id: str,
+    target_entity_id: str,
+    max_depth: int = 3,
+    config: RunnableConfig | None = None,
+) -> Dict[str, Any]:
+    """Find relationship paths between two entities in the knowledge graph.
+
+    Use when the user asks "how is X related to Y", "what connects X and Y",
+    or wants to understand the chain of relationships between two concepts.
+    First use search_knowledge_graph to find both entity IDs.
+    """
+    config = config or {}
+    from src.api.agent.execute import _tool_find_entity_paths
+
+    return await _tool_find_entity_paths(
+        {"source_entity_id": source_entity_id, "target_entity_id": target_entity_id, "max_depth": max_depth}
+    )
+
+
+@tool
+async def get_graph_stats(
+    config: RunnableConfig | None = None,
+) -> Dict[str, Any]:
+    """Get statistics about the knowledge graph.
+
+    Returns total entities, relationships, type distributions, and
+    connectivity metrics. Use when the user asks about the size or shape
+    of the knowledge base, or wants an overview of what's in the graph.
+    """
+    config = config or {}
+    from src.api.agent.execute import _tool_get_graph_stats
+
+    return await _tool_get_graph_stats({})
+
+
+@tool
 async def create_draft(
     themes: List[str],
     project_id: Optional[str] = None,
@@ -301,6 +360,49 @@ async def export_bibliography(
 
 
 # ---------------------------------------------------------------------------
+# Code Execution
+# ---------------------------------------------------------------------------
+
+
+@tool
+async def execute_code(
+    code: str,
+    description: str,
+    language: str = "python",
+    packages: Optional[List[str]] = None,
+    config: RunnableConfig | None = None,
+) -> Dict[str, Any]:
+    """Execute Python code in a sandboxed E2B environment.
+
+    Use this tool when the user asks you to run code, perform data analysis,
+    create visualizations, train models, or do any computation that requires
+    executing Python. The sandbox has numpy, pandas, matplotlib, scipy,
+    scikit-learn, and seaborn pre-installed. You can install additional
+    packages via the ``packages`` parameter.
+
+    The sandbox is stateful within a conversation — variables and files
+    persist between executions, so you can build on previous results.
+    """
+    config = config or {}
+    from src.api.agent.execute import _tool_execute_code
+
+    configurable = config.get("configurable", {})
+    thread_id = configurable.get("thread_id", "default")
+    current_user = configurable.get("current_user")
+
+    return await _tool_execute_code(
+        {
+            "code": code,
+            "description": description,
+            "language": language,
+            "packages": packages,
+        },
+        thread_id=thread_id,
+        current_user=current_user,
+    )
+
+
+# ---------------------------------------------------------------------------
 # Exported list
 # ---------------------------------------------------------------------------
 
@@ -317,4 +419,5 @@ ALL_TOOLS = [
     search_knowledge_graph,
     create_draft,
     export_bibliography,
+    execute_code,
 ]
