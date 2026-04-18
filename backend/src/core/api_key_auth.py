@@ -92,17 +92,19 @@ class APIKeyResponse(BaseModel):
     expires_at: Optional[datetime]
     organization_id: Optional[str] = None
 
+def hash_api_key(raw_key: str) -> str:
+    """Hash an API key using SHA-256"""
+    return hashlib.sha256(raw_key.encode()).hexdigest()
+
 def generate_api_key() -> tuple[str, str]:
     """Generate API key and return (raw_key, hash)"""
     raw_key = f"rag_{''.join(secrets.choice('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789') for _ in range(32))}"
-    key_hash = hashlib.sha256(raw_key.encode()).hexdigest()
+    key_hash = hash_api_key(raw_key)
     return raw_key, key_hash
 
 def verify_api_key(raw_key: str, key_hash: str) -> bool:
     """Verify API key against hash using constant-time comparison"""
-    return secrets.compare_digest(
-        hashlib.sha256(raw_key.encode()).hexdigest(), key_hash
-    )
+    return secrets.compare_digest(hash_api_key(raw_key), key_hash)
 
 # Rate limiter for API key endpoints
 api_key_rate_limiter = RateLimiter(max_attempts=1000, window_minutes=60)
@@ -241,10 +243,14 @@ async def get_api_key_data(
         # key_prefix stores the first 8 chars of the raw key (rag_ + 4 chars)
         key_prefix = raw_key[:8]
         
-        # Find potential API keys by prefix
-        # This avoids looking up by hash directly in DB (timing attack mitigation)
+        # Hash the raw key to query directly
+        key_hash = hash_api_key(raw_key)
+
+        # Find potential API keys by both prefix and hash to prevent memory exhaustion
+        # Retain timing attack mitigation by verifying below
         stmt = select(APIKey).where(
             APIKey.key_prefix == key_prefix,
+            APIKey.key_hash == key_hash,
             APIKey.is_active == True
         )
         result = await db.execute(stmt)
