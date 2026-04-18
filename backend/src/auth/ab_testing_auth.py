@@ -730,6 +730,7 @@ class ABTestingSecurityMiddleware:
             raise HTTPException(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                 detail="Rate limit exceeded",
+                headers={"Retry-After": "60"},
             )
 
         # Process request

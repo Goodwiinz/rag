@@ -239,15 +239,15 @@ export const EntityList: React.FC<EntityListProps> = ({
       {/* Table */}
       {entities.length === 0 ? (
         <div className="flex-1 flex flex-col items-center justify-center py-16 gap-3">
-          <div className="w-14 h-14 rounded-full bg-[var(--terminal-bg)] border border-[var(--terminal-border)] flex items-center justify-center">
-            <Database className="w-7 h-7 text-[var(--terminal-text-muted)] opacity-40" />
+          <div className="w-14 h-14 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center">
+            <Database className="w-7 h-7 text-primary" />
           </div>
-          <p className="text-sm font-mono font-bold text-[var(--terminal-text-dim)] uppercase tracking-wider">
+          <p className="text-sm font-mono font-bold text-foreground uppercase tracking-wider">
             NO_ENTITIES_FOUND
           </p>
-          <p className="text-xs font-mono text-[var(--terminal-text-muted)] text-center max-w-xs leading-relaxed">
-            No entities match the current filters. Try adjusting your search
-            query, type selections, or confidence range.
+          <p className="text-xs font-mono text-muted-foreground text-center max-w-xs leading-relaxed">
+            No entities extracted yet. Process a document to populate the
+            knowledge graph, or adjust your filters.
           </p>
         </div>
       ) : (

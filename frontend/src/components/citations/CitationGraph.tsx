@@ -17,11 +17,22 @@
  * - Expand/collapse cluster nodes
  */
 
-import cytoscape, { Core, EdgeSingular, ElementDefinition, NodeSingular } from 'cytoscape';
+import cytoscape, {
+  Core,
+  EdgeSingular,
+  ElementDefinition,
+  NodeSingular,
+} from 'cytoscape';
 import coseBilkent from 'cytoscape-cose-bilkent';
 import popper from 'cytoscape-popper';
 import { Layers, Loader2, Minimize2 } from 'lucide-react';
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 
 // Register Cytoscape extensions
 if (typeof window !== 'undefined') {
@@ -91,21 +102,25 @@ export interface CitationGraphProps {
 }
 
 // Simple community detection using label propagation
-function detectCommunities(nodes: GraphNode[], edges: GraphEdge[], targetClusters: number = 20): Map<string, string> {
+function detectCommunities(
+  nodes: GraphNode[],
+  edges: GraphEdge[],
+  targetClusters: number = 20
+): Map<string, string> {
   const nodeMap = new Map<string, GraphNode>();
-  nodes.forEach(n => nodeMap.set(n.id, n));
+  nodes.forEach((n) => nodeMap.set(n.id, n));
 
   // Build adjacency list
   const adjacency = new Map<string, Set<string>>();
-  nodes.forEach(n => adjacency.set(n.id, new Set()));
-  edges.forEach(e => {
+  nodes.forEach((n) => adjacency.set(n.id, new Set()));
+  edges.forEach((e) => {
     adjacency.get(e.source)?.add(e.target);
     adjacency.get(e.target)?.add(e.source);
   });
 
   // Initialize labels (each node gets its own label)
   const labels = new Map<string, string>();
-  nodes.forEach(n => labels.set(n.id, n.id));
+  nodes.forEach((n) => labels.set(n.id, n.id));
 
   // Label propagation iterations
   const maxIterations = 10;
@@ -119,7 +134,7 @@ function detectCommunities(nodes: GraphNode[], edges: GraphEdge[], targetCluster
 
       // Count neighbor labels
       const labelCounts = new Map<string, number>();
-      neighbors.forEach(neighborId => {
+      neighbors.forEach((neighborId) => {
         const label = labels.get(neighborId)!;
         labelCounts.set(label, (labelCounts.get(label) || 0) + 1);
       });
@@ -145,15 +160,19 @@ function detectCommunities(nodes: GraphNode[], edges: GraphEdge[], targetCluster
 
   // Merge small clusters to reach target count
   const clusterSizes = new Map<string, number>();
-  labels.forEach(label => {
+  labels.forEach((label) => {
     clusterSizes.set(label, (clusterSizes.get(label) || 0) + 1);
   });
 
   // Sort clusters by size
-  const sortedClusters = [...clusterSizes.entries()].sort((a, b) => b[1] - a[1]);
+  const sortedClusters = [...clusterSizes.entries()].sort(
+    (a, b) => b[1] - a[1]
+  );
 
   // Keep top clusters, merge rest into 'other'
-  const topClusters = new Set(sortedClusters.slice(0, targetClusters - 1).map(c => c[0]));
+  const topClusters = new Set(
+    sortedClusters.slice(0, targetClusters - 1).map((c) => c[0])
+  );
 
   const finalLabels = new Map<string, string>();
   labels.forEach((label, nodeId) => {
@@ -168,10 +187,13 @@ function detectCommunities(nodes: GraphNode[], edges: GraphEdge[], targetCluster
 }
 
 // Build cluster information
-function buildClusters(nodes: GraphNode[], clusterLabels: Map<string, string>): ClusterInfo[] {
+function buildClusters(
+  nodes: GraphNode[],
+  clusterLabels: Map<string, string>
+): ClusterInfo[] {
   const clusters = new Map<string, ClusterInfo>();
 
-  nodes.forEach(node => {
+  nodes.forEach((node) => {
     const clusterId = clusterLabels.get(node.id) || 'cluster_other';
 
     if (!clusters.has(clusterId)) {
@@ -197,7 +219,10 @@ function buildClusters(nodes: GraphNode[], clusterLabels: Map<string, string>): 
     }
 
     // Track most-cited node as centroid
-    if (!cluster.centroid || (node.citation_count || 0) > (cluster.centroid.citation_count || 0)) {
+    if (
+      !cluster.centroid ||
+      (node.citation_count || 0) > (cluster.centroid.citation_count || 0)
+    ) {
       cluster.centroid = node;
     }
   });
@@ -207,14 +232,14 @@ function buildClusters(nodes: GraphNode[], clusterLabels: Map<string, string>): 
 
 // Theme colors matching Terminal Observatory
 const THEME = {
-  phosphorGreen: '#00ff9f',
+  phosphorGreen: '#D4A039',
   amber: '#ffb700',
   cyan: '#00d4ff',
   background: '#0a0a0a',
   nodeBorder: '#1a1a1a',
   edgeColor: '#333333',
   textColor: '#e0e0e0',
-  uploadedNode: '#00ff9f',
+  uploadedNode: '#D4A039',
   externalNode: '#ffb700',
   selectedBorder: '#00d4ff',
 };
@@ -235,7 +260,9 @@ export const CitationGraph: React.FC<CitationGraphProps> = ({
   const cyRef = useRef<Core | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
   const [isClusteredView, setIsClusteredView] = useState(false);
-  const [expandedClusters, setExpandedClusters] = useState<Set<string>>(new Set());
+  const [expandedClusters, setExpandedClusters] = useState<Set<string>>(
+    new Set()
+  );
   const [clusters, setClusters] = useState<ClusterInfo[]>([]);
 
   // Determine if clustering should be active
@@ -264,126 +291,129 @@ export const CitationGraph: React.FC<CitationGraphProps> = ({
   }, [clusterData]);
 
   // Convert data to Cytoscape elements format
-  const convertToElements = useCallback((graphData: GraphData): ElementDefinition[] => {
-    // Standard non-clustered view
-    if (!isClusteredView || !clusterData) {
-      const nodes = graphData.nodes.map((node) => {
-        const { id, ...rest } = node;
-        return {
-          data: {
-            id,
-            label: node.title || 'Untitled',
-            ...rest,
-          },
-          position: node.position || undefined,
-        } as ElementDefinition;
-      });
-
-      const edges: ElementDefinition[] = graphData.edges.map((edge) => ({
-        data: {
-          id: edge.id,
-          source: edge.source,
-          target: edge.target,
-          type: edge.type || 'CITES',
-          confidence: edge.confidence || 1.0,
-        },
-      }));
-
-      return [...nodes, ...edges];
-    }
-
-    // Clustered view - show cluster nodes + expanded cluster contents
-    const elements: ElementDefinition[] = [];
-    const visibleNodeIds = new Set<string>();
-
-    // Add cluster nodes
-    clusterData.infos.forEach(cluster => {
-      const isExpanded = expandedClusters.has(cluster.id);
-
-      if (!isExpanded) {
-        // Show cluster as a single compound node
-        elements.push({
-          data: {
-            id: cluster.id,
-            label: `${cluster.size} papers`,
-            isCluster: true,
-            clusterSize: cluster.size,
-            uploadedCount: cluster.uploadedCount,
-            externalCount: cluster.externalCount,
-            centroidTitle: cluster.centroid?.title || 'Cluster',
-          },
-        });
-        // Track all nodes in this cluster as "visible" via cluster
-        cluster.nodeIds.forEach(id => visibleNodeIds.add(id));
-      } else {
-        // Show individual nodes for expanded cluster
-        cluster.nodeIds.forEach(nodeId => {
-          const node = graphData.nodes.find(n => n.id === nodeId);
-          if (node) {
-            const { id, ...rest } = node;
-            elements.push({
-              data: {
-                id,
-                label: node.title || 'Untitled',
-                parent: cluster.id, // Compound node parent
-                ...rest,
-              },
-              position: node.position || undefined,
-            } as ElementDefinition);
-            visibleNodeIds.add(nodeId);
-          }
+  const convertToElements = useCallback(
+    (graphData: GraphData): ElementDefinition[] => {
+      // Standard non-clustered view
+      if (!isClusteredView || !clusterData) {
+        const nodes = graphData.nodes.map((node) => {
+          const { id, ...rest } = node;
+          return {
+            data: {
+              id,
+              label: node.title || 'Untitled',
+              ...rest,
+            },
+            position: node.position || undefined,
+          } as ElementDefinition;
         });
 
-        // Add parent compound node for expanded cluster
-        elements.push({
+        const edges: ElementDefinition[] = graphData.edges.map((edge) => ({
           data: {
-            id: cluster.id,
-            label: `${cluster.size} papers`,
-            isCluster: true,
-            isExpanded: true,
-            clusterSize: cluster.size,
-            uploadedCount: cluster.uploadedCount,
-            externalCount: cluster.externalCount,
+            id: edge.id,
+            source: edge.source,
+            target: edge.target,
+            type: edge.type || 'CITES',
+            confidence: edge.confidence || 1.0,
           },
-        });
+        }));
+
+        return [...nodes, ...edges];
       }
-    });
 
-    // Add edges between visible elements
-    graphData.edges.forEach(edge => {
-      const sourceCluster = clusterData.labels.get(edge.source);
-      const targetCluster = clusterData.labels.get(edge.target);
+      // Clustered view - show cluster nodes + expanded cluster contents
+      const elements: ElementDefinition[] = [];
+      const visibleNodeIds = new Set<string>();
 
-      // Determine actual source/target (node or cluster)
-      const sourceVisible = expandedClusters.has(sourceCluster || '');
-      const targetVisible = expandedClusters.has(targetCluster || '');
+      // Add cluster nodes
+      clusterData.infos.forEach((cluster) => {
+        const isExpanded = expandedClusters.has(cluster.id);
 
-      const actualSource = sourceVisible ? edge.source : sourceCluster;
-      const actualTarget = targetVisible ? edge.target : targetCluster;
-
-      if (actualSource && actualTarget && actualSource !== actualTarget) {
-        const edgeId = `${actualSource}-${actualTarget}`;
-        // Avoid duplicate edges
-        if (!elements.some(e => e.data?.id === edgeId)) {
+        if (!isExpanded) {
+          // Show cluster as a single compound node
           elements.push({
             data: {
-              id: edgeId,
-              source: actualSource,
-              target: actualTarget,
-              type: edge.type || 'CITES',
-              confidence: edge.confidence || 1.0,
+              id: cluster.id,
+              label: `${cluster.size} papers`,
+              isCluster: true,
+              clusterSize: cluster.size,
+              uploadedCount: cluster.uploadedCount,
+              externalCount: cluster.externalCount,
+              centroidTitle: cluster.centroid?.title || 'Cluster',
+            },
+          });
+          // Track all nodes in this cluster as "visible" via cluster
+          cluster.nodeIds.forEach((id) => visibleNodeIds.add(id));
+        } else {
+          // Show individual nodes for expanded cluster
+          cluster.nodeIds.forEach((nodeId) => {
+            const node = graphData.nodes.find((n) => n.id === nodeId);
+            if (node) {
+              const { id, ...rest } = node;
+              elements.push({
+                data: {
+                  id,
+                  label: node.title || 'Untitled',
+                  parent: cluster.id, // Compound node parent
+                  ...rest,
+                },
+                position: node.position || undefined,
+              } as ElementDefinition);
+              visibleNodeIds.add(nodeId);
+            }
+          });
+
+          // Add parent compound node for expanded cluster
+          elements.push({
+            data: {
+              id: cluster.id,
+              label: `${cluster.size} papers`,
+              isCluster: true,
+              isExpanded: true,
+              clusterSize: cluster.size,
+              uploadedCount: cluster.uploadedCount,
+              externalCount: cluster.externalCount,
             },
           });
         }
-      }
-    });
+      });
 
-    return elements;
-  }, [isClusteredView, clusterData, expandedClusters]);
+      // Add edges between visible elements
+      graphData.edges.forEach((edge) => {
+        const sourceCluster = clusterData.labels.get(edge.source);
+        const targetCluster = clusterData.labels.get(edge.target);
+
+        // Determine actual source/target (node or cluster)
+        const sourceVisible = expandedClusters.has(sourceCluster || '');
+        const targetVisible = expandedClusters.has(targetCluster || '');
+
+        const actualSource = sourceVisible ? edge.source : sourceCluster;
+        const actualTarget = targetVisible ? edge.target : targetCluster;
+
+        if (actualSource && actualTarget && actualSource !== actualTarget) {
+          const edgeId = `${actualSource}-${actualTarget}`;
+          // Avoid duplicate edges
+          if (!elements.some((e) => e.data?.id === edgeId)) {
+            elements.push({
+              data: {
+                id: edgeId,
+                source: actualSource,
+                target: actualTarget,
+                type: edge.type || 'CITES',
+                confidence: edge.confidence || 1.0,
+              },
+            });
+          }
+        }
+      });
+
+      return elements;
+    },
+    [isClusteredView, clusterData, expandedClusters]
+  );
 
   // Toggle cluster expansion
   const toggleCluster = useCallback((clusterId: string) => {
-    setExpandedClusters(prev => {
+    setExpandedClusters((prev) => {
       const next = new Set(prev);
       if (next.has(clusterId)) {
         next.delete(clusterId);
@@ -397,7 +427,7 @@ export const CitationGraph: React.FC<CitationGraphProps> = ({
   // Expand all clusters
   const expandAllClusters = useCallback(() => {
     if (clusterData) {
-      setExpandedClusters(new Set(clusterData.infos.map(c => c.id)));
+      setExpandedClusters(new Set(clusterData.infos.map((c) => c.id)));
     }
   }, [clusterData]);
 
@@ -434,23 +464,27 @@ export const CitationGraph: React.FC<CitationGraphProps> = ({
           selector: 'node[!isCluster]',
           style: {
             'background-color': (ele: NodeSingular) =>
-              ele.data('is_uploaded') !== false ? THEME.uploadedNode : THEME.externalNode,
+              ele.data('is_uploaded') !== false
+                ? THEME.uploadedNode
+                : THEME.externalNode,
             'border-color': THEME.nodeBorder,
             'border-width': 2,
-            'width': (ele: NodeSingular) => getNodeSize(ele.data('citation_count') || 0),
-            'height': (ele: NodeSingular) => getNodeSize(ele.data('citation_count') || 0),
-            'label': 'data(label)',
+            width: (ele: NodeSingular) =>
+              getNodeSize(ele.data('citation_count') || 0),
+            height: (ele: NodeSingular) =>
+              getNodeSize(ele.data('citation_count') || 0),
+            label: 'data(label)',
             'text-valign': 'bottom',
             'text-halign': 'center',
             'text-margin-y': 8,
             'font-size': 10,
             'font-family': 'JetBrains Mono, monospace',
-            'color': THEME.textColor,
+            color: THEME.textColor,
             'text-outline-color': THEME.background,
             'text-outline-width': 2,
             'text-max-width': 120 as any,
             'text-wrap': 'ellipsis',
-            'opacity': 0.9,
+            opacity: 0.9,
           },
         },
         // Cluster node styles (collapsed)
@@ -462,16 +496,18 @@ export const CitationGraph: React.FC<CitationGraphProps> = ({
             'border-color': THEME.cyan,
             'border-width': 3,
             'border-style': 'dashed',
-            'width': (ele: NodeSingular) => 50 + Math.sqrt(ele.data('clusterSize') || 1) * 8,
-            'height': (ele: NodeSingular) => 50 + Math.sqrt(ele.data('clusterSize') || 1) * 8,
-            'shape': 'round-rectangle',
-            'label': 'data(label)',
+            width: (ele: NodeSingular) =>
+              50 + Math.sqrt(ele.data('clusterSize') || 1) * 8,
+            height: (ele: NodeSingular) =>
+              50 + Math.sqrt(ele.data('clusterSize') || 1) * 8,
+            shape: 'round-rectangle',
+            label: 'data(label)',
             'text-valign': 'center',
             'text-halign': 'center',
             'font-size': 12,
             'font-weight': 'bold',
             'font-family': 'JetBrains Mono, monospace',
-            'color': THEME.textColor,
+            color: THEME.textColor,
             'text-outline-color': THEME.background,
             'text-outline-width': 2,
           },
@@ -485,14 +521,14 @@ export const CitationGraph: React.FC<CitationGraphProps> = ({
             'border-color': THEME.cyan,
             'border-width': 2,
             'border-style': 'solid',
-            'shape': 'round-rectangle',
-            'padding': 20 as any,
-            'label': 'data(label)',
+            shape: 'round-rectangle',
+            padding: 20 as any,
+            label: 'data(label)',
             'text-valign': 'top',
             'text-halign': 'center',
             'font-size': 10,
             'font-family': 'JetBrains Mono, monospace',
-            'color': THEME.cyan,
+            color: THEME.cyan,
             'text-margin-y': -10,
           },
         },
@@ -502,7 +538,7 @@ export const CitationGraph: React.FC<CitationGraphProps> = ({
           style: {
             'border-color': THEME.selectedBorder,
             'border-width': 4,
-            'opacity': 1,
+            opacity: 1,
           },
         },
         // Hovered node style
@@ -517,12 +553,12 @@ export const CitationGraph: React.FC<CitationGraphProps> = ({
         {
           selector: 'edge',
           style: {
-            'width': (ele: EdgeSingular) => 1 + (ele.data('confidence') || 1) * 2,
+            width: (ele: EdgeSingular) => 1 + (ele.data('confidence') || 1) * 2,
             'line-color': THEME.edgeColor,
             'target-arrow-color': THEME.edgeColor,
             'target-arrow-shape': 'triangle',
             'curve-style': 'bezier',
-            'opacity': 0.6,
+            opacity: 0.6,
           },
         },
         // Selected edge style
@@ -531,20 +567,20 @@ export const CitationGraph: React.FC<CitationGraphProps> = ({
           style: {
             'line-color': THEME.cyan,
             'target-arrow-color': THEME.cyan,
-            'opacity': 1,
+            opacity: 1,
           },
         },
         // Highlighted path (connected to selected)
         {
           selector: '.highlighted',
           style: {
-            'opacity': 1,
+            opacity: 1,
           },
         },
         {
           selector: '.faded',
           style: {
-            'opacity': 0.2,
+            opacity: 0.2,
           },
         },
       ],
@@ -552,7 +588,7 @@ export const CitationGraph: React.FC<CitationGraphProps> = ({
         name: 'cose-bilkent',
         // @ts-expect-error - cose-bilkent options
         quality: 'default',
-        randomize: !data.nodes.some(n => n.position),
+        randomize: !data.nodes.some((n) => n.position),
         animate: false,
         nodeDimensionsIncludeLabels: true,
         idealEdgeLength: 100,
@@ -624,7 +660,16 @@ export const CitationGraph: React.FC<CitationGraphProps> = ({
         cyRef.current = null;
       }
     };
-  }, [data, loading, convertToElements, onNodeClick, onEdgeClick, onNodeHover, toggleCluster, expandedClusters]);
+  }, [
+    data,
+    loading,
+    convertToElements,
+    onNodeClick,
+    onEdgeClick,
+    onNodeHover,
+    toggleCluster,
+    expandedClusters,
+  ]);
 
   // Handle external node selection
   useEffect(() => {
@@ -639,12 +684,15 @@ export const CitationGraph: React.FC<CitationGraphProps> = ({
       cyRef.current.elements().not('.highlighted').addClass('faded');
 
       // Center on selected node
-      cyRef.current.animate({
-        center: { eles: node },
-        zoom: 1.5,
-      }, {
-        duration: 300,
-      });
+      cyRef.current.animate(
+        {
+          center: { eles: node },
+          zoom: 1.5,
+        },
+        {
+          duration: 300,
+        }
+      );
     }
   }, [selectedNodeId]);
 
@@ -675,8 +723,10 @@ export const CitationGraph: React.FC<CitationGraphProps> = ({
         style={{ height }}
       >
         <div className="flex flex-col items-center gap-2">
-          <Loader2 className="h-8 w-8 animate-spin text-[#00ff9f]" />
-          <span className="text-sm text-gray-400 font-mono">Loading citation graph...</span>
+          <Loader2 className="h-8 w-8 animate-spin text-sol" />
+          <span className="text-sm text-gray-400 font-mono">
+            Loading citation graph...
+          </span>
         </div>
       </div>
     );
@@ -711,7 +761,7 @@ export const CitationGraph: React.FC<CitationGraphProps> = ({
       <div className="absolute top-4 right-4 flex flex-col gap-2">
         <button
           onClick={zoomIn}
-          className="p-2 bg-[#1a1a1a] border border-[#333] rounded hover:bg-[#252525] text-[#00ff9f] font-mono text-sm"
+          className="p-2 bg-[#1a1a1a] border border-[#333] rounded hover:bg-[#252525] text-sol font-mono text-sm"
           title="Zoom In"
           aria-label="Zoom In"
         >
@@ -719,7 +769,7 @@ export const CitationGraph: React.FC<CitationGraphProps> = ({
         </button>
         <button
           onClick={zoomOut}
-          className="p-2 bg-[#1a1a1a] border border-[#333] rounded hover:bg-[#252525] text-[#00ff9f] font-mono text-sm"
+          className="p-2 bg-[#1a1a1a] border border-[#333] rounded hover:bg-[#252525] text-sol font-mono text-sm"
           title="Zoom Out"
           aria-label="Zoom Out"
         >
@@ -727,7 +777,7 @@ export const CitationGraph: React.FC<CitationGraphProps> = ({
         </button>
         <button
           onClick={fitGraph}
-          className="p-2 bg-[#1a1a1a] border border-[#333] rounded hover:bg-[#252525] text-[#00ff9f] font-mono text-sm"
+          className="p-2 bg-[#1a1a1a] border border-[#333] rounded hover:bg-[#252525] text-sol font-mono text-sm"
           title="Fit to View"
           aria-label="Fit to View"
         >
@@ -735,7 +785,7 @@ export const CitationGraph: React.FC<CitationGraphProps> = ({
         </button>
         <button
           onClick={resetView}
-          className="p-2 bg-[#1a1a1a] border border-[#333] rounded hover:bg-[#252525] text-[#00ff9f] font-mono text-sm"
+          className="p-2 bg-[#1a1a1a] border border-[#333] rounded hover:bg-[#252525] text-sol font-mono text-sm"
           title="Reset View"
           aria-label="Reset View"
         >
@@ -748,7 +798,7 @@ export const CitationGraph: React.FC<CitationGraphProps> = ({
             <div className="h-px bg-[#333] my-1" />
             <button
               onClick={expandAllClusters}
-              className="p-2 bg-[#1a1a1a] border border-[#333] rounded hover:bg-[#252525] text-[#00d4ff] font-mono text-sm"
+              className="p-2 bg-[#1a1a1a] border border-[#333] rounded hover:bg-[#252525] text-brand-cyan font-mono text-sm"
               title="Expand All Clusters"
               aria-label="Expand All Clusters"
             >
@@ -756,7 +806,7 @@ export const CitationGraph: React.FC<CitationGraphProps> = ({
             </button>
             <button
               onClick={collapseAllClusters}
-              className="p-2 bg-[#1a1a1a] border border-[#333] rounded hover:bg-[#252525] text-[#00d4ff] font-mono text-sm"
+              className="p-2 bg-[#1a1a1a] border border-[#333] rounded hover:bg-[#252525] text-brand-cyan font-mono text-sm"
               title="Collapse All Clusters"
               aria-label="Collapse All Clusters"
             >
@@ -770,11 +820,11 @@ export const CitationGraph: React.FC<CitationGraphProps> = ({
       <div className="absolute bottom-4 left-4 bg-[#1a1a1a]/90 border border-[#333] rounded p-3">
         <div className="flex items-center gap-4 text-xs font-mono">
           <div className="flex items-center gap-1.5">
-            <div className="w-3 h-3 rounded-full bg-[#00ff9f]" />
+            <div className="w-3 h-3 rounded-full bg-sol" />
             <span className="text-gray-400">Uploaded</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <div className="w-3 h-3 rounded-full bg-[#ffb700]" />
+            <div className="w-3 h-3 rounded-full bg-helios" />
             <span className="text-gray-400">External</span>
           </div>
           <div className="flex items-center gap-1.5">
@@ -783,7 +833,7 @@ export const CitationGraph: React.FC<CitationGraphProps> = ({
           </div>
           {isClusteredView && (
             <div className="flex items-center gap-1.5">
-              <div className="w-4 h-3 rounded border-2 border-dashed border-[#00d4ff] bg-[#00d4ff]/20" />
+              <div className="w-4 h-3 rounded border-2 border-dashed border-brand-cyan bg-brand-cyan/20" />
               <span className="text-gray-400">Cluster</span>
             </div>
           )}
@@ -794,17 +844,27 @@ export const CitationGraph: React.FC<CitationGraphProps> = ({
       {data.metadata && (
         <div className="absolute top-4 left-4 bg-[#1a1a1a]/90 border border-[#333] rounded px-3 py-2">
           <div className="text-xs font-mono text-gray-400">
-            <span className="text-[#00ff9f]">{data.metadata.total_nodes.toLocaleString()}</span> nodes
+            <span className="text-sol">
+              {data.metadata.total_nodes.toLocaleString()}
+            </span>{' '}
+            nodes
             <span className="mx-2">|</span>
-            <span className="text-[#00ff9f]">{data.metadata.total_edges.toLocaleString()}</span> edges
+            <span className="text-sol">
+              {data.metadata.total_edges.toLocaleString()}
+            </span>{' '}
+            edges
             <span className="mx-2">|</span>
-            depth: <span className="text-[#00ff9f]">{data.metadata.depth}</span>
+            depth: <span className="text-sol">{data.metadata.depth}</span>
             {isClusteredView && (
               <>
                 <span className="mx-2">|</span>
-                <span className="text-[#00d4ff]">{clusters.length}</span> clusters
+                <span className="text-brand-cyan">{clusters.length}</span>{' '}
+                clusters
                 {expandedClusters.size > 0 && (
-                  <span className="text-gray-500"> ({expandedClusters.size} expanded)</span>
+                  <span className="text-gray-500">
+                    {' '}
+                    ({expandedClusters.size} expanded)
+                  </span>
                 )}
               </>
             )}

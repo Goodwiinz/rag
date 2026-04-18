@@ -83,12 +83,12 @@ export const MathDisplay: React.FC<MathDisplayProps> = ({
           block && 'my-3 flex justify-center'
         )}
       >
-        <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-[#ffb700]" />
+        <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-helios" />
         <code
           className={cn(
             'font-mono text-sm text-gray-300',
             'rounded border border-[#1a1a1a] bg-black/30 px-2 py-1',
-            'bg-gradient-to-r from-purple-500/5 to-[#00d4ff]/5'
+            'bg-gradient-to-r from-purple-500/5 to-brand-cyan/5'
           )}
         >
           {content}
@@ -102,7 +102,7 @@ export const MathDisplay: React.FC<MathDisplayProps> = ({
       className={cn(
         'font-mono text-sm text-gray-300',
         'rounded border border-[#1a1a1a] bg-black/30 px-2 py-1',
-        'bg-gradient-to-r from-purple-500/5 to-[#00d4ff]/5',
+        'bg-gradient-to-r from-purple-500/5 to-brand-cyan/5',
         block && 'my-3 block text-center'
       )}
     >

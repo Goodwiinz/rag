@@ -1,33 +1,32 @@
 'use client';
 
 import React, {
-  useState,
   useEffect,
-  useCallback,
   createContext,
   useContext,
+  useCallback,
   ReactNode,
 } from 'react';
-import { AuthState, User, LoginRequest, RegisterRequest } from '@/types';
-import { apiClient, setAuth, clearAuth } from '@/services/api';
+import { User, Organization, RegisterRequest, RegisterResult } from '@/types';
 import { useAuthStore } from '@/stores/authStore';
-import { cleanupWebSocket } from '@/services/websocket';
 
-interface AuthContextType extends AuthState {
-  login: (
-    email: string,
-    password: string,
-    rememberMe?: boolean
-  ) => Promise<void>;
-  register: (userData: RegisterRequest) => Promise<void>;
-  logout: () => void;
-  refreshToken: () => Promise<void>;
+interface AuthContextType {
+  user: User | null;
+  organization: Organization | null;
+  isAuthenticated: boolean;
+  isLoading: boolean;
+  error: string | null;
+  pendingEmailConfirmation: boolean;
+  signIn: (email: string, password: string) => Promise<void>;
+  signUp: (userData: RegisterRequest) => Promise<RegisterResult>;
+  signOut: () => void;
+  resetPassword: (email: string) => Promise<void>;
+  fetchProfile: () => Promise<void>;
   handleAuthError: () => void;
-  rememberMe: boolean;
-  sessionTimeRemaining: () => {
-    accessRemaining: number;
-    refreshRemaining: number;
-  };
+  // Legacy aliases for backward compatibility
+  login: (email: string, password: string) => Promise<void>;
+  register: (userData: RegisterRequest) => Promise<RegisterResult>;
+  logout: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -37,122 +36,35 @@ interface AuthProviderProps {
 }
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
-  const {
-    user,
-    token,
-    isAuthenticated,
-    isLoading,
-    error,
-    rememberMe,
-    login: storeLogin,
-    register: storeRegister,
-    logout: storeLogout,
-    refreshToken,
-    initializeFromStorage,
-    getSessionTimeRemaining,
-  } = useAuthStore();
+  const store = useAuthStore();
 
-  const [authState, setAuthState] = useState<AuthState>({
-    user: null,
-    token: null,
-    isAuthenticated: false,
-    isLoading: true,
-    error: null,
-  });
-
-  // Clear stored auth data
-  const clearStoredAuth = useCallback(() => {
-    try {
-      localStorage.removeItem('access_token');
-      localStorage.removeItem('refresh_token');
-      localStorage.removeItem('user_data');
-      clearAuth();
-    } catch (error) {
-      console.error('Error clearing auth data:', error);
-    }
+  // Initialize auth state on mount
+  useEffect(() => {
+    store.initialize();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only run on mount
   }, []);
 
-  // Logout function (defined first to avoid circular dependency)
-  const logout = useCallback(() => {
-    cleanupWebSocket();
-    storeLogout();
-  }, [storeLogout]);
-
-  // Handle authentication errors (401 responses)
   const handleAuthError = useCallback(() => {
-    console.warn('Authentication error detected, logging out...');
-    cleanupWebSocket();
-    storeLogout();
-  }, [storeLogout]);
-
-  // Sync auth state with store and localStorage
-  useEffect(() => {
-    setAuthState({
-      user,
-      token,
-      isAuthenticated,
-      isLoading,
-      error,
-    });
-
-    // Keep the old API client and localStorage in sync
-    try {
-      if (token && user) {
-        localStorage.setItem('access_token', token);
-        localStorage.setItem('user_data', JSON.stringify(user));
-        setAuth(token, user.organization_id);
-      } else {
-        localStorage.removeItem('access_token');
-        localStorage.removeItem('user_data');
-        clearAuth();
-      }
-    } catch (error) {
-      console.error('Error syncing auth data to localStorage:', error);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- setAuth/clearAuth are module-level imports, not reactive
-  }, [user, token, isAuthenticated, isLoading, error]);
-
-  // Initialize auth store from localStorage on mount
-  useEffect(() => {
-    initializeFromStorage();
-  }, [initializeFromStorage]);
-
-  // Login function with optional rememberMe for 30-day sessions
-  const login = useCallback(
-    async (email: string, password: string, rememberMe: boolean = false) => {
-      await storeLogin(email, password, rememberMe);
-    },
-    [storeLogin]
-  );
-
-  // Register function
-  const register = useCallback(
-    async (userData: RegisterRequest) => {
-      await storeRegister(userData);
-    },
-    [storeRegister]
-  );
-
-  // Refresh token function
-  const refreshTokenCallback = useCallback(async () => {
-    try {
-      await refreshToken();
-    } catch (error) {
-      console.error('Token refresh failed:', error);
-      cleanupWebSocket();
-      storeLogout();
-    }
-  }, [refreshToken, storeLogout]);
+    store.signOut();
+  }, [store]);
 
   const contextValue: AuthContextType = {
-    ...authState,
-    login,
-    register,
-    logout,
-    refreshToken: refreshTokenCallback,
+    user: store.user,
+    organization: store.organization,
+    isAuthenticated: store.isAuthenticated,
+    isLoading: store.isLoading,
+    error: store.error,
+    pendingEmailConfirmation: store.pendingEmailConfirmation,
+    signIn: store.signIn,
+    signUp: store.signUp,
+    signOut: store.signOut,
+    resetPassword: store.resetPassword,
+    fetchProfile: store.fetchProfile,
     handleAuthError,
-    rememberMe,
-    sessionTimeRemaining: getSessionTimeRemaining,
+    // Legacy aliases
+    login: store.signIn,
+    register: store.signUp,
+    logout: store.signOut,
   };
 
   return React.createElement(

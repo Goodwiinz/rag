@@ -26,7 +26,7 @@ interface IntegrityDetailProps {
 }
 
 const levelColors: Record<IntegrityLevel, string> = {
-  human: '#00ff9f',
+  human: '#D4A039',
   mixed: '#ffb700',
   ai: '#ef4444',
 };
@@ -157,7 +157,7 @@ export const IntegrityDetail: React.FC<IntegrityDetailProps> = ({
       <DialogContent className="max-w-lg border-[#1a1a1a] bg-black/30 backdrop-blur-xl sm:max-w-xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-gray-100">
-            <Shield className="h-5 w-5 text-[#00d4ff]" />
+            <Shield className="h-5 w-5 text-brand-cyan" />
             AI Integrity Analysis
           </DialogTitle>
           <DialogDescription className="text-gray-400">
@@ -168,7 +168,7 @@ export const IntegrityDetail: React.FC<IntegrityDetailProps> = ({
         <div className="space-y-6 py-2">
           {loading && (
             <div className="flex flex-col items-center justify-center gap-3 py-12">
-              <Loader2 className="h-8 w-8 animate-spin text-[#00d4ff]" />
+              <Loader2 className="h-8 w-8 animate-spin text-brand-cyan" />
               <span className="text-sm text-gray-400">Loading score...</span>
             </div>
           )}
@@ -254,7 +254,7 @@ export const IntegrityDetail: React.FC<IntegrityDetailProps> = ({
           <Button
             onClick={handleRunCheck}
             disabled={checking || loading}
-            className="gap-2 border border-[#00d4ff]/30 bg-[#00d4ff]/10 text-[#00d4ff] hover:bg-[#00d4ff]/20"
+            className="gap-2 border border-brand-cyan/30 bg-brand-cyan/10 text-brand-cyan hover:bg-brand-cyan/20"
           >
             {checking ? (
               <Loader2 className="h-4 w-4 animate-spin" />

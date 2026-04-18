@@ -9,14 +9,14 @@ import { useState, useCallback, useEffect } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { motion, AnimatePresence } from 'framer-motion';
 import { v4 as uuidv4 } from 'uuid';
-import { 
-  Terminal, 
-  Activity, 
-  ArrowRight, 
-  ChevronLeft, 
-  Database, 
-  Cpu, 
-  Network, 
+import {
+  Terminal,
+  Activity,
+  ArrowRight,
+  ChevronLeft,
+  Database,
+  Cpu,
+  Network,
   Loader2,
   Upload,
   UploadCloud,
@@ -29,21 +29,38 @@ import {
   CheckCircle,
   AlertTriangle,
   Sparkles,
-  ShieldCheck
+  ShieldCheck,
 } from 'lucide-react';
 import Link from 'next/link';
 
 import { useToast } from '@/hooks/use-toast';
-import { enhancedDocumentService, DocumentUploadRequest, WebSocketProgressUpdate } from '@/services/enhancedDocumentService';
-import { mockDocumentService } from '@/services/mockDocumentService';
+import {
+  enhancedDocumentService,
+  DocumentUploadRequest,
+  WebSocketProgressUpdate,
+} from '@/services/enhancedDocumentService';
+import { apiClient } from '@/services/apiClient';
 import { useAuthStore } from '@/stores/authStore';
 import { cn } from '@/lib/utils';
+
+async function computeSHA256(file: File): Promise<string> {
+  const buffer = await file.arrayBuffer();
+  const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
+}
 
 interface UploadedFile {
   id: string;
   file: File;
   request: DocumentUploadRequest;
-  status: 'pending' | 'uploading' | 'processing' | 'completed' | 'failed';
+  status:
+    | 'pending'
+    | 'uploading'
+    | 'queued'
+    | 'processing'
+    | 'completed'
+    | 'failed';
   progress: number;
   currentStep: string;
   uploadId?: string;
@@ -58,7 +75,12 @@ interface UploadedFile {
 
 export default function DocumentUploadPage() {
   const { toast } = useToast();
-  const { user, token, organization, isAuthenticated, isLoading: authLoading } = useAuthStore();
+  const {
+    user,
+    organization,
+    isAuthenticated,
+    isLoading: authLoading,
+  } = useAuthStore();
 
   const [mounted, setMounted] = useState(false);
   const [terminalText, setTerminalText] = useState('');
@@ -81,68 +103,94 @@ export default function DocumentUploadPage() {
     is_public: false,
     processing_priority: 'normal',
     enable_quality_check: true,
-    custom_metadata: {}
+    custom_metadata: {},
   });
 
-  const onDrop = useCallback((acceptedFiles: File[], rejectedFiles: any[]) => {
-    if (rejectedFiles.length > 0) {
-      rejectedFiles.forEach(({ file, errors }) => {
-        errors.forEach((error: any) => {
-          toast({
-            title: "Transmission Error",
-            description: `${file.name}: ${error.message}`,
-            variant: "destructive"
+  const onDrop = useCallback(
+    async (acceptedFiles: File[], rejectedFiles: any[]) => {
+      if (rejectedFiles.length > 0) {
+        rejectedFiles.forEach(({ file, errors }) => {
+          errors.forEach((error: any) => {
+            toast({
+              title: 'Transmission Error',
+              description: `${file.name}: ${error.message}`,
+              variant: 'destructive',
+            });
           });
         });
-      });
-      return;
-    }
-
-    if (uploadedFiles.length + acceptedFiles.length > 10) {
-      toast({
-        title: "Queue Overload",
-        description: "Maximum 10 files allowed per upload session",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    const newFiles: UploadedFile[] = acceptedFiles.map(file => {
-      let validation;
-      try {
-        validation = enhancedDocumentService.validateFile(file);
-      } catch (error) {
-        validation = mockDocumentService.validateFile(file);
+        return;
       }
 
-      if (!validation.isValid) {
+      if (uploadedFiles.length + acceptedFiles.length > 10) {
         toast({
-          title: "Incompatible Payload",
-          description: validation.errors.join(', '),
-          variant: "destructive"
+          title: 'Queue Overload',
+          description: 'Maximum 10 files allowed per upload session',
+          variant: 'destructive',
         });
-        return null;
+        return;
       }
 
-      return {
-        id: uuidv4(),
-        file,
-        request: getDefaultRequest(file),
-        status: 'pending' as const,
-        progress: 0,
-        currentStep: 'Ready for ingestion',
-      };
-    }).filter(Boolean) as UploadedFile[];
+      const newFiles: UploadedFile[] = [];
 
-    setUploadedFiles(prev => [...prev, ...newFiles]);
-  }, [uploadedFiles.length, toast]);
+      for (const file of acceptedFiles) {
+        const validation = enhancedDocumentService.validateFile(file);
+
+        if (!validation.isValid) {
+          toast({
+            title: 'Incompatible Payload',
+            description: validation.errors.join(', '),
+            variant: 'destructive',
+          });
+          continue;
+        }
+
+        // Pre-upload duplicate check via content hash
+        try {
+          const sha256 = await computeSHA256(file);
+          const response: any = await apiClient.post(
+            '/documents/check-duplicate',
+            {
+              sha256,
+            }
+          );
+          const data = response?.data ?? response;
+          if (data?.exists) {
+            const existing = data.document;
+            toast({
+              title: 'Duplicate Detected',
+              description: `"${file.name}" matches existing document "${existing?.title || existing?.filename}" — skipped.`,
+              variant: 'destructive',
+            });
+            continue;
+          }
+        } catch {
+          // If check fails (e.g. not authenticated), allow upload — server-side check is the fallback
+        }
+
+        newFiles.push({
+          id: uuidv4(),
+          file,
+          request: getDefaultRequest(file),
+          status: 'pending' as const,
+          progress: 0,
+          currentStep: 'Ready for ingestion',
+        });
+      }
+
+      if (newFiles.length > 0) {
+        setUploadedFiles((prev) => [...prev, ...newFiles]);
+      }
+    },
+    [uploadedFiles.length, toast]
+  );
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
     accept: {
       'application/pdf': ['.pdf'],
       'text/plain': ['.txt'],
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document':
+        ['.docx'],
       'image/jpeg': ['.jpg', '.jpeg'],
       'image/png': ['.png'],
       'audio/mpeg': ['.mp3'],
@@ -156,111 +204,109 @@ export default function DocumentUploadPage() {
   });
 
   const updateFileStatus = (fileId: string, updates: Partial<UploadedFile>) => {
-    setUploadedFiles(prev => prev.map(file =>
-      file.id === fileId ? { ...file, ...updates } : file
-    ));
+    setUploadedFiles((prev) =>
+      prev.map((file) => (file.id === fileId ? { ...file, ...updates } : file))
+    );
   };
 
-  const handleProgressUpdate = (fileId: string) => (update: WebSocketProgressUpdate) => {
-    updateFileStatus(fileId, {
-      progress: update.progress_percentage || 0,
-      currentStep: update.current_step || 'Processing',
-      error: update.error_message
-    });
-
-    if (update.type === 'upload_complete' && update.result) {
+  const handleProgressUpdate =
+    (fileId: string) => (update: WebSocketProgressUpdate) => {
       updateFileStatus(fileId, {
-        status: 'completed',
-        result: update.result,
-        documentId: update.result.document_id,
-        jobId: update.result.job_id,
-        progress: 100,
-        currentStep: 'Synchronized'
+        progress: update.progress_percentage || 0,
+        currentStep: update.current_step || 'Processing',
+        error: update.error_message,
       });
-      toast({ title: "Node Ingested", description: `${update.result.title} processed successfully` });
-    }
 
-    if (update.type === 'error') {
-      updateFileStatus(fileId, {
-        status: 'failed',
-        error: update.error_message || 'Processing failed'
-      });
-      toast({
-        title: "Protocol Breach",
-        description: update.error_message || 'An error occurred during ingestion',
-        variant: "destructive"
-      });
-    }
-  };
+      if (update.type === 'upload_complete' && update.result) {
+        updateFileStatus(fileId, {
+          status: 'completed',
+          result: update.result,
+          documentId: update.result.document_id,
+          jobId: update.result.job_id,
+          progress: 100,
+          currentStep: 'Synchronized',
+        });
+        toast({
+          title: 'Node Ingested',
+          description: `${update.result.title} processed successfully`,
+        });
+      }
+
+      if (update.type === 'error') {
+        updateFileStatus(fileId, {
+          status: 'failed',
+          error: update.error_message || 'Processing failed',
+        });
+        toast({
+          title: 'Protocol Breach',
+          description:
+            update.error_message || 'An error occurred during ingestion',
+          variant: 'destructive',
+        });
+      }
+    };
 
   const uploadFile = async (uploadedFile: UploadedFile) => {
     try {
       updateFileStatus(uploadedFile.id, {
         status: 'uploading',
         progress: 0,
-        currentStep: 'Establishing uplink'
+        currentStep: 'Establishing uplink',
       });
 
-      let response, websocket;
-      try {
-        const result = await enhancedDocumentService.uploadDocument(
-          uploadedFile.file,
-          uploadedFile.request,
-          handleProgressUpdate(uploadedFile.id)
-        );
-        response = result.response;
-        websocket = result.websocket;
-      } catch (error) {
-        const result = await mockDocumentService.uploadDocument(
-          uploadedFile.file,
-          uploadedFile.request,
-          handleProgressUpdate(uploadedFile.id)
-        );
-        response = result.response;
-        websocket = result.websocket;
-      }
+      const result = await enhancedDocumentService.uploadDocument(
+        uploadedFile.file,
+        uploadedFile.request,
+        handleProgressUpdate(uploadedFile.id)
+      );
+      const { response, websocket } = result;
 
       updateFileStatus(uploadedFile.id, {
-        status: 'processing',
+        status: 'queued',
         uploadId: response.upload_id,
         jobId: response.job_id,
         qualityScore: response.quality_score,
         securityScan: response.security_scan_result,
-        websocket
+        websocket,
       });
     } catch (error) {
       updateFileStatus(uploadedFile.id, {
         status: 'failed',
-        error: error instanceof Error ? error.message : 'Uplink failed'
+        error: error instanceof Error ? error.message : 'Uplink failed',
       });
       toast({
-        title: "Upload Failed",
-        description: error instanceof Error ? error.message : 'An error occurred',
-        variant: "destructive"
+        title: 'Upload Failed',
+        description:
+          error instanceof Error ? error.message : 'An error occurred',
+        variant: 'destructive',
       });
     }
   };
 
   const uploadAllFiles = async () => {
     if (authLoading) return;
-    if (!isAuthenticated || !token || !organization) {
-      toast({ title: "Auth Required", description: "Authenticate to initialize ingestion.", variant: "destructive" });
+    if (!isAuthenticated || !organization) {
+      toast({
+        title: 'Auth Required',
+        description: 'Authenticate to initialize ingestion.',
+        variant: 'destructive',
+      });
       return;
     }
 
     setIsUploading(true);
-    const pendingFiles = uploadedFiles.filter(f => f.status === 'pending');
+    const pendingFiles = uploadedFiles.filter((f) => f.status === 'pending');
 
     for (const file of pendingFiles) {
       await uploadFile(file);
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await new Promise((resolve) => setTimeout(resolve, 500));
     }
 
     setIsUploading(false);
   };
 
   const removeFile = (fileId: string) => {
-    setUploadedFiles(prev => prev.filter(f => f.id !== fileId));
+    setUploadedFiles((prev) => prev.filter((f) => f.id !== fileId));
   };
 
   const formatFileSize = (bytes: number): string => {
@@ -272,7 +318,11 @@ export default function DocumentUploadPage() {
   };
 
   const getFileIcon = (type: string) => {
-    if (type.includes('pdf') || type.includes('text') || type.includes('document'))
+    if (
+      type.includes('pdf') ||
+      type.includes('text') ||
+      type.includes('document')
+    )
       return <FileText className="w-5 h-5" />;
     if (type.includes('image')) return <ImageIcon className="w-5 h-5" />;
     if (type.includes('audio')) return <Music className="w-5 h-5" />;
@@ -282,11 +332,16 @@ export default function DocumentUploadPage() {
 
   const getStatusColor = (status: UploadedFile['status']) => {
     switch (status) {
-      case 'completed': return 'var(--phosphor-green)';
+      case 'completed':
+        return 'var(--phosphor-green)';
+      case 'queued':
       case 'processing':
-      case 'uploading': return 'var(--cyan)';
-      case 'failed': return 'var(--error-red)';
-      default: return 'var(--terminal-text-muted)';
+      case 'uploading':
+        return 'var(--cyan)';
+      case 'failed':
+        return 'var(--error-red)';
+      default:
+        return 'var(--terminal-text-muted)';
     }
   };
 
@@ -339,9 +394,11 @@ export default function DocumentUploadPage() {
               <div
                 {...getRootProps()}
                 className={cn(
-                  "relative border-2 border-dashed rounded-xl p-12 text-center cursor-pointer transition-all duration-300",
-                  isDragActive ? "border-[var(--phosphor-green)] bg-[var(--phosphor-green)]/5 scale-[1.01]" : "border-[var(--terminal-border)] hover:border-[var(--terminal-border-muted)]",
-                  isUploading && "opacity-50 cursor-not-allowed"
+                  'relative border-2 border-dashed rounded-xl p-12 text-center cursor-pointer transition-all duration-300',
+                  isDragActive
+                    ? 'border-[var(--phosphor-green)] bg-[var(--phosphor-green)]/5 scale-[1.01]'
+                    : 'border-[var(--terminal-border)] hover:border-[var(--terminal-border-muted)]',
+                  isUploading && 'opacity-50 cursor-not-allowed'
                 )}
               >
                 <input {...getInputProps()} />
@@ -351,16 +408,22 @@ export default function DocumentUploadPage() {
                   className="space-y-6"
                 >
                   <div className="mx-auto w-20 h-20 rounded-2xl flex items-center justify-center bg-[var(--terminal-bg)] border border-[var(--terminal-border)] relative group">
-                    <UploadCloud className={cn(
-                      "w-10 h-10 transition-colors duration-300",
-                      isDragActive ? "text-[var(--phosphor-green)]" : "text-[var(--terminal-text-dim)]"
-                    )} />
+                    <UploadCloud
+                      className={cn(
+                        'w-10 h-10 transition-colors duration-300',
+                        isDragActive
+                          ? 'text-[var(--phosphor-green)]'
+                          : 'text-[var(--terminal-text-dim)]'
+                      )}
+                    />
                     <div className="absolute inset-0 rounded-2xl border border-[var(--phosphor-green)]/50 scale-110 opacity-0 group-hover:opacity-100 group-hover:scale-100 transition-all duration-500" />
                   </div>
 
                   <div className="space-y-2">
                     <p className="text-sm font-mono font-bold tracking-widest text-[var(--terminal-text)] uppercase">
-                      {isDragActive ? 'Drop files now' : 'Drag & drop files or click to browse'}
+                      {isDragActive
+                        ? 'Drop files now'
+                        : 'Drag & drop files or click to browse'}
                     </p>
                     <p className="text-[10px] text-[var(--terminal-text-muted)] font-mono uppercase tracking-widest">
                       Max file size: 50MB • Up to 10 files at once
@@ -398,8 +461,8 @@ export default function DocumentUploadPage() {
                           Transmission_Queue ({uploadedFiles.length})
                         </span>
                       </div>
-                      
-                      {uploadedFiles.some(f => f.status === 'pending') && (
+
+                      {uploadedFiles.some((f) => f.status === 'pending') && (
                         <button
                           onClick={uploadAllFiles}
                           disabled={isUploading || !isAuthenticated}
@@ -445,8 +508,26 @@ export default function DocumentUploadPage() {
                                 <div className="flex items-center gap-3 mt-1 text-[9px] font-mono uppercase tracking-widest text-[var(--terminal-text-muted)]">
                                   <span>{formatFileSize(file.file.size)}</span>
                                   <span className="w-1 h-1 rounded-full bg-[var(--terminal-border)]" />
-                                  <span className="flex items-center gap-1.5" style={{ color: getStatusColor(file.status) }}>
-                                    <span className={cn("w-1.5 h-1.5 rounded-full", file.status === 'processing' ? "animate-pulse" : "")} style={{ backgroundColor: getStatusColor(file.status) }} />
+                                  <span
+                                    className="flex items-center gap-1.5"
+                                    style={{
+                                      color: getStatusColor(file.status),
+                                    }}
+                                  >
+                                    <span
+                                      className={cn(
+                                        'w-1.5 h-1.5 rounded-full',
+                                        file.status === 'processing' ||
+                                          file.status === 'queued'
+                                          ? 'animate-pulse'
+                                          : ''
+                                      )}
+                                      style={{
+                                        backgroundColor: getStatusColor(
+                                          file.status
+                                        ),
+                                      }}
+                                    />
                                     {file.currentStep}
                                   </span>
                                 </div>
@@ -460,13 +541,18 @@ export default function DocumentUploadPage() {
                               {file.status === 'failed' && (
                                 <AlertTriangle className="w-4 h-4 text-[var(--error-red)]" />
                               )}
-                              {(file.status === 'uploading' || file.status === 'processing') && (
+                              {(file.status === 'uploading' ||
+                                file.status === 'queued' ||
+                                file.status === 'processing') && (
                                 <div className="flex items-center gap-2">
-                                  <span className="text-[9px] font-mono text-[var(--cyan)] font-bold">{Math.round(file.progress)}%</span>
+                                  <span className="text-[9px] font-mono text-[var(--cyan)] font-bold">
+                                    {Math.round(file.progress)}%
+                                  </span>
                                   <Loader2 className="w-4 h-4 text-[var(--cyan)] animate-spin" />
                                 </div>
                               )}
-                              {(file.status === 'pending' || file.status === 'failed') && (
+                              {(file.status === 'pending' ||
+                                file.status === 'failed') && (
                                 <button
                                   onClick={() => removeFile(file.id)}
                                   className="p-2 rounded-lg hover:bg-[var(--error-red)]/10 text-[var(--terminal-text-muted)] hover:text-[var(--error-red)] transition-colors border border-transparent hover:border-[var(--error-red)]/30"
@@ -478,7 +564,9 @@ export default function DocumentUploadPage() {
                           </div>
 
                           {/* Progress Line */}
-                          {(file.status === 'uploading' || file.status === 'processing') && (
+                          {(file.status === 'uploading' ||
+                            file.status === 'queued' ||
+                            file.status === 'processing') && (
                             <div className="mt-4">
                               <div className="h-0.5 w-full bg-[var(--terminal-border)] rounded-full overflow-hidden">
                                 <motion.div
@@ -499,7 +587,7 @@ export default function DocumentUploadPage() {
                                 NODE_ID: {file.documentId}
                               </div>
                             )}
-                            
+
                             {file.qualityScore && (
                               <div className="px-2 py-1 rounded bg-[var(--amber-gold)]/5 border border-[var(--amber-gold)]/20 text-[8px] font-mono text-[var(--amber-gold)] flex items-center gap-1.5 uppercase">
                                 <Sparkles className="w-3 h-3" />
@@ -508,12 +596,14 @@ export default function DocumentUploadPage() {
                             )}
 
                             {file.securityScan && (
-                              <div className={cn(
-                                "px-2 py-1 rounded border text-[8px] font-mono flex items-center gap-1.5 uppercase",
-                                file.securityScan.scan_status === 'passed' 
-                                  ? "bg-[var(--phosphor-green)]/5 border-[var(--phosphor-green)]/20 text-[var(--phosphor-green)]" 
-                                  : "bg-[var(--error-red)]/5 border-[var(--error-red)]/20 text-[var(--error-red)]"
-                              )}>
+                              <div
+                                className={cn(
+                                  'px-2 py-1 rounded border text-[8px] font-mono flex items-center gap-1.5 uppercase',
+                                  file.securityScan.scan_status === 'passed'
+                                    ? 'bg-[var(--phosphor-green)]/5 border-[var(--phosphor-green)]/20 text-[var(--phosphor-green)]'
+                                    : 'bg-[var(--error-red)]/5 border-[var(--error-red)]/20 text-[var(--error-red)]'
+                                )}
+                              >
                                 <ShieldCheck className="w-3 h-3" />
                                 SCAN: {file.securityScan.scan_status}
                               </div>

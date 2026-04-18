@@ -129,8 +129,8 @@ export function MessageBubble({
           className={cn(
             'text-xs font-medium transition-colors',
             isUser
-              ? 'bg-gradient-to-br from-[#ffb700] to-[#cc9200] text-[#0a0a0f]'
-              : 'bg-gradient-to-br from-[#00ff9f] to-[#00cc7a] text-[#0a0a0f]'
+              ? 'bg-gradient-to-br from-primary to-primary/80 text-primary-foreground'
+              : 'bg-gradient-to-br from-primary to-primary/80 text-primary-foreground'
           )}
         >
           {isUser ? <User className="w-4 h-4" /> : <Bot className="w-4 h-4" />}
@@ -192,8 +192,8 @@ export function MessageBubble({
           className={cn(
             'relative rounded-2xl px-4 py-3 shadow-sm transition-all hover:shadow-md',
             isUser
-              ? 'bg-gradient-to-br from-[#ffb700] to-[#cc9200] text-[#0a0a0f] ml-auto max-w-[80%] shadow-[0_0_15px_rgba(255,183,0,0.15)]'
-              : 'bg-[#12121a] border border-[#1a1a28] max-w-[90%] hover:border-[#00ff9f]/30'
+              ? 'bg-gradient-to-br from-primary to-primary/80 text-primary-foreground ml-auto max-w-[80%] shadow-[0_0_15px_hsl(var(--primary)/0.15)]'
+              : 'bg-[var(--terminal-surface)] border border-[var(--terminal-border)] max-w-[90%] hover:border-[var(--phosphor-green)]/30'
           )}
         >
           {isTyping ? (
@@ -279,13 +279,13 @@ export function MessageBubble({
                         href={href}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-[#00d4ff] hover:text-[#00ff9f] underline underline-offset-2 transition-colors"
+                        className="text-brand-cyan hover:text-sol underline underline-offset-2 transition-colors"
                       >
                         {children}
                       </a>
                     ),
                     blockquote: ({ children }) => (
-                      <blockquote className="border-l-4 border-[#00ff9f]/30 pl-4 italic text-[#a1a1aa]">
+                      <blockquote className="border-l-4 border-sol/30 pl-4 italic text-[#a1a1aa]">
                         {children}
                       </blockquote>
                     ),
@@ -362,7 +362,7 @@ export function MessageBubble({
                   size="sm"
                   className={cn(
                     'h-7 px-2 text-xs',
-                    reaction === 'like' && 'text-[#00ff9f]'
+                    reaction === 'like' && 'text-sol'
                   )}
                   onClick={() => onReaction('like')}
                 >
@@ -399,7 +399,7 @@ export function MessageBubble({
                       <Bookmark
                         className={cn(
                           'w-4 h-4 mr-2',
-                          isBookmarked && 'fill-current text-[#ffb700]'
+                          isBookmarked && 'fill-current text-helios'
                         )}
                       />
                       {isBookmarked ? 'Remove bookmark' : 'Bookmark'}

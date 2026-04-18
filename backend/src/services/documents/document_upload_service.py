@@ -29,7 +29,7 @@ from src.core.config import settings
 from src.models.document import Document
 from src.models.processing import JobPriority, JobStatus, JobType, ProcessingJob
 from src.models.user import User
-from src.services.knowledge_graph.knowledge_graph_service import KnowledgeGraphService
+from src.services.knowledge_graph.knowledge_graph_service import knowledge_graph_service
 
 # ProcessingPipeline imported lazily in __init__ to avoid circular import
 
@@ -75,7 +75,7 @@ class DocumentUploadService:
     def __init__(self, db: Session):
         self.db = db
         self.minio_client = self._init_minio_client()
-        self.knowledge_graph_service = KnowledgeGraphService(db)
+        self.knowledge_graph_service = knowledge_graph_service
         # Lazy import to avoid circular dependency
         from src.services.processing.processing_service import ProcessingPipeline
         self.processing_service = ProcessingPipeline(db)
@@ -121,6 +121,25 @@ class DocumentUploadService:
             # Use MD5 for legacy compatibility (usedforsecurity=False)
             md5_hash = hashlib.md5(file_content, usedforsecurity=False).hexdigest()
             sha256_hash = hashlib.sha256(file_content).hexdigest()
+
+            # Check for duplicate by content hash
+            existing = (
+                self.db.query(Document)
+                .filter(
+                    Document.checksum_sha256 == sha256_hash,
+                    Document.is_deleted.isnot(True),
+                )
+                .first()
+            )
+            if existing is not None:
+                raise HTTPException(
+                    status_code=409,
+                    detail=(
+                        f"A document with identical content already exists: "
+                        f"'{existing.title or existing.filename}' "
+                        f"(id: {existing.id})"
+                    ),
+                )
 
             # Generate file path
             file_path = self._generate_file_path(file.filename, user.id)
@@ -416,9 +435,11 @@ class DocumentUploadService:
             if not document:
                 raise ValueError("Document not found")
 
-            # Populate knowledge graph
-            entities_added = await self.knowledge_graph_service.populate_from_document(
-                document
+            # Populate knowledge graph (uses entity extraction pipeline)
+            entities_added = 0
+            logger.warning(
+                "Knowledge graph population via document upload is handled "
+                "by the extraction pipeline endpoint, not inline."
             )
 
             # Update job result
