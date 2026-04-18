@@ -53,6 +53,8 @@ from .tools_impl import (  # noqa: F401
     _tool_create_draft,
     _tool_export_bibliography,
     _tool_execute_code,
+    _tool_search_external_database,
+    _tool_list_external_databases,
 )
 
 from .tool_helpers import (  # noqa: F401
@@ -64,6 +66,7 @@ from .tool_helpers import (  # noqa: F401
 
 from .jobs import (  # noqa: F401
     _jobs,
+    _jobs_lock,
     _cleanup_jobs,
     _set_job,
     _get_job,
@@ -261,19 +264,21 @@ async def confirm_agent_action(
     db: AsyncSession = Depends(get_db),
 ):
     """Confirm or deny a pending agent action (human-in-the-loop)."""
-    job = _get_job(job_id)
-    if not job:
-        raise HTTPException(status_code=404, detail="Job not found")
-    if job.get("user_id") and job["user_id"] != str(current_user.id):
-        raise HTTPException(status_code=404, detail="Job not found")
-    if job.get("status") != "awaiting_confirmation":
-        raise HTTPException(status_code=400, detail="Job is not awaiting confirmation")
+    # Atomic check-and-update to prevent TOCTOU race
+    with _jobs_lock:
+        job = _jobs.get(job_id)
+        if not job:
+            raise HTTPException(status_code=404, detail="Job not found")
+        if job.get("user_id") and job["user_id"] != str(current_user.id):
+            raise HTTPException(status_code=404, detail="Job not found")
+        if job.get("status") != "awaiting_confirmation":
+            raise HTTPException(status_code=400, detail="Job is not awaiting confirmation")
+        job["status"] = "running"
 
     # Resume the graph with the user's decision
     background_tasks.add_task(
         _resume_agent_graph, job_id, request.confirmed, current_user, db,
     )
-    _set_job(job_id, {**job, "status": "running"})
     return {"status": "running", "job_id": job_id}
 
 

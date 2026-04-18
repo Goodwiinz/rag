@@ -661,8 +661,35 @@ class QualityRecommendationsService:
                 target_value = float(relevance_data.target_value or 0.8)
                 gap = target_value - current_value
 
-                # Analyze trend
-                trend = "stable"  # TODO: Implement trend analysis
+                # Analyze trend by comparing to the previous equivalent period
+                period_length = datetime.utcnow() - cutoff_date
+                prev_cutoff = cutoff_date - period_length
+                prev_data = db.execute(
+                    text(
+                        """
+                    SELECT AVG(qm.value) as prev_value
+                    FROM quality_metrics qm
+                    WHERE qm.organization_id = :org_id
+                        AND qm.metric_type = 'relevance'
+                        AND qm.measured_at >= :prev_cutoff
+                        AND qm.measured_at < :cutoff_date
+                """
+                    ),
+                    {
+                        "org_id": organization_id,
+                        "prev_cutoff": prev_cutoff,
+                        "cutoff_date": cutoff_date,
+                    },
+                ).fetchone()
+
+                trend = "stable"
+                if prev_data and prev_data.prev_value:
+                    prev_value = float(prev_data.prev_value)
+                    # Relevance is higher-is-better; 5% relative change threshold
+                    if current_value > prev_value * 1.05:
+                        trend = "improving"
+                    elif current_value < prev_value * 0.95:
+                        trend = "declining"
 
                 return [
                     QualityInsight(
@@ -738,7 +765,36 @@ class QualityRecommendationsService:
                 target_value = 1000.0  # 1 second target
                 gap = current_value - target_value
 
-                trend = "stable"  # TODO: Implement trend analysis
+                # Analyze trend by comparing to the previous equivalent period
+                period_length = datetime.utcnow() - cutoff_date
+                prev_cutoff = cutoff_date - period_length
+                prev_rt_data = db.execute(
+                    text(
+                        """
+                    SELECT AVG(sq.response_time) as prev_value
+                    FROM search_queries sq
+                    JOIN search_sessions s ON sq.session_id = s.id
+                    WHERE s.organization_id = :org_id
+                        AND sq.created_at >= :prev_cutoff
+                        AND sq.created_at < :cutoff_date
+                        AND sq.response_time IS NOT NULL
+                """
+                    ),
+                    {
+                        "org_id": organization_id,
+                        "prev_cutoff": prev_cutoff,
+                        "cutoff_date": cutoff_date,
+                    },
+                ).fetchone()
+
+                trend = "stable"
+                if prev_rt_data and prev_rt_data.prev_value:
+                    prev_value = float(prev_rt_data.prev_value)
+                    # Response time is lower-is-better; 5% relative change threshold
+                    if current_value < prev_value * 0.95:
+                        trend = "improving"
+                    elif current_value > prev_value * 1.05:
+                        trend = "declining"
 
                 return [
                     QualityInsight(

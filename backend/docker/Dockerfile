@@ -37,7 +37,7 @@ FROM base AS dependencies
 WORKDIR /app
 
 # Copy requirements files
-COPY backend/requirements.txt backend/requirements-minimal.txt backend/requirements.dev.txt ./
+COPY backend/requirements.txt backend/requirements-minimal.txt ./
 
 # Install Python dependencies while preserving pkg_resources for pybtex.
 RUN pip install --upgrade pip wheel "setuptools<72" && \

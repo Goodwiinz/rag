@@ -5,7 +5,11 @@
 
 import { typeSafeApiClient } from './typeSafeApiClient';
 import * as schemas from '@/types/schemas';
-import { validateFile, isSupportedFileType, type FileValidationResult } from '@/lib/typeGuards';
+import {
+  validateFile,
+  isSupportedFileType,
+  type FileValidationResult,
+} from '@/lib/typeGuards';
 import { z } from 'zod';
 
 // ============================================================================
@@ -122,7 +126,9 @@ export class EnhancedDocumentServiceV2 {
     // Validate file before upload
     const validation = validateFile(file);
     if (!validation.isValid) {
-      throw new Error(`File validation failed: ${validation.errors.join(', ')}`);
+      throw new Error(
+        `File validation failed: ${validation.errors.join(', ')}`
+      );
     }
 
     // Log warnings if any
@@ -135,16 +141,23 @@ export class EnhancedDocumentServiceV2 {
 
     // Add optional fields
     if (request?.title) formData.append('title', request.title);
-    if (request?.description) formData.append('description', request.description);
+    if (request?.description)
+      formData.append('description', request.description);
     if (request?.tags) formData.append('tags', request.tags.join(','));
     if (request?.is_public !== undefined)
       formData.append('is_public', request.is_public.toString());
     if (request?.processing_priority)
       formData.append('processing_priority', request.processing_priority);
     if (request?.enable_quality_check !== undefined)
-      formData.append('enable_quality_check', request.enable_quality_check.toString());
+      formData.append(
+        'enable_quality_check',
+        request.enable_quality_check.toString()
+      );
     if (request?.custom_metadata)
-      formData.append('custom_metadata', JSON.stringify(request.custom_metadata));
+      formData.append(
+        'custom_metadata',
+        JSON.stringify(request.custom_metadata)
+      );
 
     // Use type-safe client for upload
     const response = await typeSafeApiClient.uploadDocument(file);
@@ -229,7 +242,9 @@ export class EnhancedDocumentServiceV2 {
   /**
    * Get document quality assessment
    */
-  async getDocumentQuality(documentId: string): Promise<QualityAssessmentResponse> {
+  async getDocumentQuality(
+    documentId: string
+  ): Promise<QualityAssessmentResponse> {
     return typeSafeApiClient.get(
       `${this.basePath}/${documentId}/quality`,
       QualityAssessmentSchema
@@ -259,9 +274,11 @@ export class EnhancedDocumentServiceV2 {
   /**
    * Retry failed document processing
    */
-  async retryDocumentProcessing(documentId: string): Promise<{ job_id: string }> {
+  async retryDocumentProcessing(
+    documentId: string
+  ): Promise<{ job_id: string }> {
     return typeSafeApiClient.post(
-      `/documents/${documentId}/retry-processing`,
+      `/documents/${documentId}/reprocess`,
       z.object({ job_id: z.string().uuid() })
     );
   }
@@ -318,7 +335,9 @@ export class EnhancedDocumentServiceV2 {
   /**
    * Get file category from MIME type
    */
-  getFileCategory(file: File): 'document' | 'image' | 'audio' | 'video' | 'unknown' {
+  getFileCategory(
+    file: File
+  ): 'document' | 'image' | 'audio' | 'video' | 'unknown' {
     if (file.type.startsWith('application/') || file.type.startsWith('text/')) {
       return 'document';
     }

@@ -11,7 +11,7 @@ sys.path.append(str(Path(__file__).parent.parent))
 
 import logging
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 
 from src.core.config import settings
 from src.core.database import Base, get_db
@@ -160,7 +160,7 @@ def check_database_health():
     try:
         engine = create_engine(settings.DATABASE_URL)
         with engine.connect() as conn:
-            result = conn.execute("SELECT 1")
+            result = conn.execute(text("SELECT 1"))
             logger.info("Database health check: OK")
             return True
     except Exception as e:

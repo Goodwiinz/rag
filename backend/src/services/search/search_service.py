@@ -4,6 +4,7 @@ Handles hybrid search orchestration combining vector, graph, and keyword search 
 """
 
 import asyncio
+import hashlib
 import json
 import time
 import uuid
@@ -253,14 +254,18 @@ class HybridSearchEngine:
                     qdrant_filter = Filter(must=filter_conditions)
 
             # Search in Qdrant
-            search_result = qdrant_client.search(
-                collection_name="documents",
-                query_vector=Vector(query_embedding),
-                query_filter=qdrant_filter,
-                limit=limit,
-                with_payload=True,
-                with_vectors=False,
-            )
+            try:
+                search_result = qdrant_client.search(
+                    collection_name="documents",
+                    query_vector=Vector(query_embedding),
+                    query_filter=qdrant_filter,
+                    limit=limit,
+                    with_payload=True,
+                    with_vectors=False,
+                )
+            except Exception as e:
+                logger.warning("Qdrant search failed, falling back: %s", str(e))
+                search_result = []
 
             # Convert to search results
             results = []
@@ -408,6 +413,9 @@ class HybridSearchEngine:
         organization_id: Optional[uuid.UUID] = None,
     ) -> SearchComponentResult:
         """Perform knowledge graph search"""
+        if not organization_id:
+            raise ValueError("organization_id is required for graph search")
+
         start_time = time.time()
 
         try:
@@ -421,13 +429,21 @@ class HybridSearchEngine:
                 WHERE d.organization_id = $org_id
                 """
 
-                if query_words:
-                    entity_conditions = []
-                    for word in query_words[:3]:  # Limit to prevent complex queries
-                        entity_conditions.append(f"toLower(d.title) CONTAINS '{word}'")
+                # Build parameterized word conditions to prevent Cypher injection
+                params = {
+                    "org_id": str(organization_id) if organization_id else "",
+                    "limit": limit,
+                }
 
-                    if entity_conditions:
-                        cypher_query += " AND (" + " OR ".join(entity_conditions) + ")"
+                if query_words:
+                    word_conditions = []
+                    for i, word in enumerate(query_words[:3]):
+                        param_name = f"word{i}"
+                        word_conditions.append(f"toLower(d.title) CONTAINS ${param_name}")
+                        params[param_name] = word
+
+                    if word_conditions:
+                        cypher_query += " AND (" + " OR ".join(word_conditions) + ")"
 
                 cypher_query += """
                 OPTIONAL MATCH (d)-[:CONTAINS_ENTITY]->(e:Entity)
@@ -437,11 +453,7 @@ class HybridSearchEngine:
                 RETURN d, entities
                 """
 
-                result = session.run(
-                    cypher_query,
-                    org_id=str(organization_id) if organization_id else "",
-                    limit=limit,
-                )
+                result = session.run(cypher_query, **params)
 
                 # Convert to search results
                 search_results = []
@@ -730,7 +742,7 @@ async def search(
         "limit": request.limit,
         "organization_id": str(organization_id),
     }
-    cache_key = f"search:{hash(json.dumps(cache_data, sort_keys=True))}"
+    cache_key = f"search:{hashlib.md5(json.dumps(cache_data, sort_keys=True).encode()).hexdigest()}"
 
     cached_result = await cache.get(cache_key)
     if cached_result:
@@ -771,10 +783,31 @@ async def store_search_analytics(
     user_id: Optional[uuid.UUID],
     result_count: int,
     search_time_ms: float,
+    search_type: Optional[str] = None,
 ):
-    """Store search analytics in background"""
+    """Store search analytics to DB and event log"""
     try:
-        # This would store in analytics database
+        # Persist to search_analytics table
+        from src.core.database import AsyncSessionLocal
+        from src.models.search_analytics import SearchAnalyticsEvent
+
+        async with AsyncSessionLocal() as db:
+            event = SearchAnalyticsEvent(
+                search_id=search_id,
+                query=query,
+                organization_id=organization_id,
+                user_id=user_id,
+                search_type=search_type,
+                result_count=result_count,
+                search_time_ms=search_time_ms,
+            )
+            db.add(event)
+            await db.commit()
+    except Exception as db_err:
+        # DB persistence is best-effort; fall back to event log only
+        logger.debug(f"Search analytics DB write failed (non-critical): {db_err}")
+
+    try:
         await event_logger.log_event(
             event_type="search_analytics_stored",
             event_data={

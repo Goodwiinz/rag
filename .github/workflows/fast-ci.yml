@@ -25,14 +25,14 @@ jobs:
       NPM_CONFIG_CACHE: ${{ github.workspace }}/.npm-cache
       PIP_CACHE_DIR: ${{ github.workspace }}/.pip-cache
     steps:
-      - uses: actions/checkout@v6
-      
+      - uses: actions/checkout@v4
+
       - name: Setup Python
         run: |
           python3 --version
           pip3 install ruff black isort --quiet --user
           export PATH="$HOME/.local/bin:$PATH"
-      
+
       - name: Backend Lint
         working-directory: backend
         continue-on-error: true
@@ -40,7 +40,7 @@ jobs:
           export PATH="$HOME/.local/bin:$PATH"
           echo "Running ruff..."
           ruff check src/ --output-format=concise 2>/dev/null || echo "Ruff found issues"
-          
+
       - name: Frontend Lint
         working-directory: frontend
         continue-on-error: true
@@ -56,14 +56,14 @@ jobs:
       NPM_CONFIG_CACHE: ${{ github.workspace }}/.npm-cache
       PIP_CACHE_DIR: ${{ github.workspace }}/.pip-cache
     steps:
-      - uses: actions/checkout@v6
-      
+      - uses: actions/checkout@v4
+
       - name: Install Dependencies
         working-directory: backend
         run: |
           pip3 install -r requirements.txt --quiet --user 2>/dev/null || true
           pip3 install pytest pytest-cov --quiet --user
-          
+
       - name: Run Tests
         working-directory: backend
         continue-on-error: true
@@ -79,8 +79,8 @@ jobs:
       NPM_CONFIG_CACHE: ${{ github.workspace }}/.npm-cache
       PIP_CACHE_DIR: ${{ github.workspace }}/.pip-cache
     steps:
-      - uses: actions/checkout@v6
-      
+      - uses: actions/checkout@v4
+
       - name: Install & Test
         working-directory: frontend
         continue-on-error: true

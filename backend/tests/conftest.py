@@ -32,10 +32,43 @@ os.environ.setdefault("ENVIRONMENT", "testing")
 # Force DEBUG in tests so TrustedHostMiddleware is not enabled for TestClient host.
 os.environ["DEBUG"] = "true"
 os.environ.setdefault("LOG_LEVEL", "WARNING")
-os.environ.setdefault("DATABASE_URL", "sqlite:///:memory:")
+os.environ.setdefault("DATABASE_URL", "postgresql://test:test@localhost:5432/test_db")
 os.environ.setdefault("REDIS_URL", "redis://localhost:6379/15")
 os.environ.setdefault("NEO4J_URI", "bolt://localhost:7687")
 os.environ.setdefault("QDRANT_URL", "http://localhost:6333")
+
+# ============================================================================
+# Test Auth Helper — Supabase-compatible JWT generation
+# ============================================================================
+
+def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
+    """Create a Supabase-compatible HS256 JWT for testing.
+
+    Replaces the removed src.core.security.create_access_token.
+    Accepts the same {sub, email, organization_id, role} dict for backward compat.
+    """
+    from jose import jwt as jose_jwt
+
+    if expires_delta is None:
+        expires_delta = timedelta(hours=1)
+
+    sub = data.get("sub", data.get("user_id", "test-user-id"))
+    email = data.get("email", "test@test.com")
+    role = data.get("role", "USER")
+
+    payload = {
+        "sub": sub,
+        "email": email,
+        "exp": datetime.utcnow() + expires_delta,
+        "iat": datetime.utcnow(),
+        "iss": "supabase",
+        "role": "authenticated",
+        "app_metadata": {"role": role},
+    }
+
+    secret = os.environ.get("SUPABASE_JWT_SECRET", "super-secret-jwt-token-with-at-least-32-characters-long")
+    return jose_jwt.encode(payload, secret, algorithm="HS256")
+
 
 # ============================================================================
 # Pytest Configuration

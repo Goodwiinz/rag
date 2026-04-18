@@ -5,6 +5,7 @@ Redis caching utilities for microservices
 import hashlib
 import json
 import logging
+import random
 from typing import Any, Dict, List, Optional
 
 import redis.asyncio as redis
@@ -80,7 +81,9 @@ async def cache_set(
         else:
             serialized_value = str(value)
 
-        result = await client.setex(key, ttl, serialized_value)
+        jitter = int(ttl * 0.15)
+        effective_ttl = ttl + random.randint(-jitter, jitter)
+        result = await client.setex(key, effective_ttl, serialized_value)
         return result is True
 
     except Exception as e:

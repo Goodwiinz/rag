@@ -61,10 +61,43 @@ spec:
           envFrom:
             - secretRef:
                 name: database-credentials
+        {{- if .Values.backend.initContainers.runMigrations }}
+        - name: run-migrations
+          image: "{{ .Values.backend.image.repository }}:{{ .Values.backend.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.backend.image.pullPolicy }}
+          workingDir: /app
+          command:
+            - sh
+            - -c
+            - |
+              echo "[init] Running alembic upgrade head..."
+              alembic upgrade head
+              echo "[init] Migrations complete."
+          envFrom:
+            {{- if .Values.backend.envFrom }}
+            {{- toYaml .Values.backend.envFrom | nindent 12 }}
+            {{- end }}
+          env:
+            {{- if .Values.backend.env }}
+            {{- toYaml .Values.backend.env | nindent 12 }}
+            {{- end }}
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+        {{- end }}
       containers:
         - name: backend
           image: "{{ .Values.backend.image.repository }}:{{ .Values.backend.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.backend.image.pullPolicy }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
           ports:
             - name: http
               containerPort: {{ .Values.backend.service.targetPort }}
@@ -75,9 +108,6 @@ spec:
             httpGet:
               path: {{ .Values.backend.healthCheck.path }}
               port: http
-              httpHeaders:
-                - name: Host
-                  value: localhost
             initialDelaySeconds: {{ .Values.backend.healthCheck.startupProbe.initialDelaySeconds | default 10 }}
             periodSeconds: {{ .Values.backend.healthCheck.startupProbe.periodSeconds | default 10 }}
             timeoutSeconds: {{ .Values.backend.healthCheck.startupProbe.timeoutSeconds | default 5 }}
@@ -87,9 +117,6 @@ spec:
             httpGet:
               path: {{ .Values.backend.healthCheck.path }}
               port: http
-              httpHeaders:
-                - name: Host
-                  value: localhost
             initialDelaySeconds: {{ .Values.backend.healthCheck.initialDelaySeconds }}
             periodSeconds: {{ .Values.backend.healthCheck.periodSeconds }}
             timeoutSeconds: {{ .Values.backend.healthCheck.timeoutSeconds }}
@@ -99,9 +126,6 @@ spec:
             httpGet:
               path: {{ .Values.backend.healthCheck.path }}
               port: http
-              httpHeaders:
-                - name: Host
-                  value: localhost
             initialDelaySeconds: {{ .Values.backend.healthCheck.readinessInitialDelaySeconds | default 5 }}
             periodSeconds: {{ .Values.backend.healthCheck.readinessPeriodSeconds | default 10 }}
             timeoutSeconds: {{ .Values.backend.healthCheck.readinessTimeoutSeconds | default 3 }}
