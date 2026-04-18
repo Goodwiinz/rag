@@ -61,6 +61,34 @@ spec:
           envFrom:
             - secretRef:
                 name: database-credentials
+        {{- if .Values.backend.initContainers.runMigrations }}
+        - name: run-migrations
+          image: "{{ .Values.backend.image.repository }}:{{ .Values.backend.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.backend.image.pullPolicy }}
+          workingDir: /app
+          command:
+            - sh
+            - -c
+            - |
+              echo "[init] Running alembic upgrade head..."
+              alembic upgrade head
+              echo "[init] Migrations complete."
+          envFrom:
+            {{- if .Values.backend.envFrom }}
+            {{- toYaml .Values.backend.envFrom | nindent 12 }}
+            {{- end }}
+          env:
+            {{- if .Values.backend.env }}
+            {{- toYaml .Values.backend.env | nindent 12 }}
+            {{- end }}
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+        {{- end }}
       containers:
         - name: backend
           image: "{{ .Values.backend.image.repository }}:{{ .Values.backend.image.tag | default .Chart.AppVersion }}"

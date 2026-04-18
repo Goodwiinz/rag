@@ -617,7 +617,8 @@ def health_check():
     try:
         db = SessionLocal()
 
-        # Check database connectivity
+        # Check database connectivity. Wrap in text() so SQLAlchemy 2.x accepts
+        # the literal SQL — passing a raw string here used to fail every minute.
         db.execute(text("SELECT 1"))
 
         # Check Redis connectivity
