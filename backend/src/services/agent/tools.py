@@ -403,6 +403,65 @@ async def execute_code(
 
 
 # ---------------------------------------------------------------------------
+# External database connectors
+# ---------------------------------------------------------------------------
+
+
+@tool
+async def search_external_database(
+    query: str,
+    connector: Optional[str] = None,
+    domain: Optional[str] = None,
+    max_results: int = 10,
+    filters: Optional[Dict[str, Any]] = None,
+    config: RunnableConfig | None = None,
+) -> Dict[str, Any]:
+    """Search external databases (PubMed, UniProt, ChEMBL, PubChem, FRED, SEC EDGAR, etc.).
+
+    Provides a single entry point to 250+ external scientific and financial
+    data sources. Supply ``connector`` to target one (e.g. ``"pubmed"``),
+    ``domain`` to fan out across a category (``biomedical``, ``chemistry``,
+    ``finance``, ``clinical``, ``genomics``, ``economic``, ``literature``),
+    or omit both to search every available connector concurrently.
+
+    Use when the user asks for proteins, compounds, mutations, clinical trials,
+    economic time series, SEC filings, or any other domain-specific data not
+    available in the local document store.
+    """
+    config = config or {}
+    from src.api.agent.execute import _tool_search_external_database
+
+    args: Dict[str, Any] = {"query": query, "max_results": max_results}
+    if connector:
+        args["connector"] = connector
+    if domain:
+        args["domain"] = domain
+    if filters:
+        args["filters"] = filters
+    return await _tool_search_external_database(args)
+
+
+@tool
+async def list_external_databases(
+    domain: Optional[str] = None,
+    config: RunnableConfig | None = None,
+) -> Dict[str, Any]:
+    """List the external database connectors available to the agent.
+
+    Use when the user asks "what databases can you search", or before invoking
+    ``search_external_database`` to discover the right connector name. Pass
+    ``domain`` to filter by category.
+    """
+    config = config or {}
+    from src.api.agent.execute import _tool_list_external_databases
+
+    args: Dict[str, Any] = {}
+    if domain:
+        args["domain"] = domain
+    return await _tool_list_external_databases(args)
+
+
+# ---------------------------------------------------------------------------
 # Exported list
 # ---------------------------------------------------------------------------
 
@@ -420,4 +479,6 @@ ALL_TOOLS = [
     create_draft,
     export_bibliography,
     execute_code,
+    search_external_database,
+    list_external_databases,
 ]

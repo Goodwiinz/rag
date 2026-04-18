@@ -254,8 +254,11 @@ async def authenticate_service(api_key: str, db: Session) -> Optional[Dict[str, 
         # Hash the provided API key for comparison
         api_key_hash = hashlib.sha256(api_key.encode()).hexdigest()
 
-        # Look up API key in database (assuming api_keys table)
-        # This would be implemented based on your API key storage strategy
+        # Look up API key in database using the exact hash
+        # This prevents fetching thousands of keys for comparison in memory.
+        # Although string comparison in DB isn't constant-time, hashes mitigate
+        # the impact of timing attacks as they leak information about the hash,
+        # not the raw key.
         api_key_record = (
             db.query(ApiKey)
             .filter(ApiKey.key_hash == api_key_hash, ApiKey.is_active == True)
@@ -263,6 +266,11 @@ async def authenticate_service(api_key: str, db: Session) -> Optional[Dict[str, 
         )
 
         if not api_key_record:
+            return None
+
+        # Double check using constant-time comparison in Python
+        # to ensure the hash absolutely matches the DB record
+        if not secrets.compare_digest(api_key_record.key_hash, api_key_hash):
             return None
 
         # Check if API key has expired
@@ -730,7 +738,6 @@ class ABTestingSecurityMiddleware:
             raise HTTPException(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                 detail="Rate limit exceeded",
-                headers={"Retry-After": "60"},
             )
 
         # Process request

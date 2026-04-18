@@ -23,7 +23,7 @@ frontend:
 
   image:
     repository: registry.digitalocean.com/ragsystemregistry/frontend
-    tag: "5c2ca1f"
+    tag: "4ed4d16"
     pullPolicy: Always
 
   service:
@@ -81,7 +81,7 @@ backend:
 
   image:
     repository: registry.digitalocean.com/ragsystemregistry/backend
-    tag: "5c2ca1f"
+    tag: "4ed4d16"
     pullPolicy: Always
 
   service:
@@ -210,6 +210,7 @@ backend:
     waitForRedis: false
     waitForNeo4j: false
     waitForQdrant: false
+    runMigrations: true
 
 # ──────────────────────────────────────────────
 # All databases are external (DO Managed)

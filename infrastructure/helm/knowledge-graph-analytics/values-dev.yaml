@@ -217,6 +217,9 @@ backend:
   initContainers:
     waitForPostgres: true
     waitForRedis: false
+    # Run `alembic upgrade head` before starting the app. Prevents schema drift
+    # like the chat_messages.tool_executions UndefinedColumnError seen in dev.
+    runMigrations: true
     waitForNeo4j: false
     waitForQdrant: false
 
