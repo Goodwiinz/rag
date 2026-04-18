@@ -293,22 +293,32 @@ class FieldLevelEncryption:
             return value
 
     def decrypt_generic(self, encrypted_value: str) -> str:
-        """Generic decryption for any field.
-
-        Stored values are produced by encrypt_generic:
-            base64( cipher.encrypt( b"encrypted:" + plaintext ) )
-        """
-        if not encrypted_value:
+        """Generic decryption for any field"""
+        if not encrypted_value or not encrypted_value.startswith("encrypted:"):
             return encrypted_value
 
         try:
-            encrypted_bytes = base64.b64decode(encrypted_value)
-            decrypted_bytes = self.cipher.decrypt(encrypted_bytes)
-            decrypted_str = decrypted_bytes.decode("utf-8")
-            # Strip the "encrypted:" prefix that encrypt_generic prepends.
-            if decrypted_str.startswith("encrypted:"):
-                return decrypted_str[len("encrypted:"):]
-            return decrypted_str
+            # Remove prefix if it exists (for legacy compatibility)
+            if ":" in encrypted_value and not encrypted_value.startswith("encrypted:"):
+                # Legacy format without prefix
+                encrypted_bytes = base64.b64decode(encrypted_value)
+                decrypted_bytes = self.cipher.decrypt(encrypted_bytes)
+                return decrypted_bytes.decode("utf-8")
+            else:
+                # New format with prefix - remove base64 part first
+                if encrypted_value.startswith("encrypted:"):
+                    # This shouldn't happen in normal flow
+                    return encrypted_value
+
+                encrypted_bytes = base64.b64decode(encrypted_value)
+                decrypted_bytes = self.cipher.decrypt(encrypted_bytes)
+                decrypted_str = decrypted_bytes.decode("utf-8")
+
+                # Remove prefix if present
+                if decrypted_str.startswith("encrypted:"):
+                    return decrypted_str[10:]  # Remove 'encrypted:' prefix
+
+                return decrypted_str
         except Exception as e:
             logger.error(f"Failed to decrypt value: {e}")
             return encrypted_value

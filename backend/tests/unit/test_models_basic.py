@@ -19,21 +19,19 @@ from src.models.evidence import StanceClassificationModel
 @pytest.fixture(autouse=True, scope="module")
 def _init_encryption():
     """Initialize encryption for model tests that use encrypted fields."""
+    import base64
     import os
     from unittest.mock import patch as _patch
 
-    # Use a valid 32-byte Fernet key (same format as integration conftest)
-    test_key = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+    # Generate a deterministic test key
+    test_key = base64.urlsafe_b64encode(b"test-encryption-key-32-bytes!!").decode()
 
     with _patch.dict(os.environ, {"ENCRYPTION_MASTER_KEY": test_key}):
+        from src.core.encryption import initialize_encryption
         try:
-            from src.core.encryption import EncryptionKeyType, get_key_manager, initialize_encryption
             initialize_encryption()
-            km = get_key_manager()
-            if km.get_active_key(EncryptionKeyType.DATA) is None:
-                km.generate_key(EncryptionKeyType.DATA)
         except Exception:
-            pass
+            pass  # Already initialized
         yield
 
 

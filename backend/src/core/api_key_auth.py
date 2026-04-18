@@ -274,16 +274,10 @@ async def get_api_key_data(
         # Check rate limit
         if not await api_key_auth.check_rate_limit(api_key_record.id, api_key_record.rate_limit_per_hour):
             current_usage = await api_key_auth.get_current_usage(api_key_record.id)
-            # Window is an hourly bucket keyed on the current hour; clients can retry
-            # once the next bucket starts. Clamp to at least 1s per RFC 9110.
-            now = datetime.utcnow()
-            next_hour = (now + timedelta(hours=1)).replace(minute=0, second=0, microsecond=0)
-            retry_after = max(1, int((next_hour - now).total_seconds()))
             logger.warning(f"Rate limit exceeded for API key {api_key_record.key_prefix}*** (usage: {current_usage}/{api_key_record.rate_limit_per_hour})")
             raise HTTPException(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                detail=f"Rate limit exceeded. Limit: {api_key_record.rate_limit_per_hour} requests per hour",
-                headers={"Retry-After": str(retry_after)},
+                detail=f"Rate limit exceeded. Limit: {api_key_record.rate_limit_per_hour} requests per hour"
             )
         
         # Track usage

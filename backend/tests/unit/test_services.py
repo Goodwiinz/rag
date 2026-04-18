@@ -83,7 +83,6 @@ def sample_organization():
     return org
 
 
-@pytest.mark.skip(reason="Tests reference removed constructor API; HybridSearchService no longer accepts 'db' keyword argument")
 class TestHybridSearchService:
     """Test HybridSearchService functionality"""
 
@@ -182,7 +181,6 @@ class TestHybridSearchService:
             assert "Vector search failed" in str(exc_info.value)
 
 
-@pytest.mark.skip(reason="Tests reference removed constructor API; FullTextSearchService no longer accepts 'db' keyword argument")
 class TestFullTextSearchService:
     """Test FullTextSearchService functionality"""
 
@@ -252,14 +250,13 @@ class TestFullTextSearchService:
         assert results == []
 
 
-@pytest.mark.skip(reason="Tests reference removed internal methods (_get_user_by_email, _check_rate_limit); needs rewrite for Supabase auth")
 class TestAuthService:
     """Test AuthService functionality"""
 
     @pytest.fixture
     def service(self, mock_db_session):
         """Create service instance"""
-        return AuthService(db=mock_db_session)
+        return AuthService()
     
     @pytest.mark.asyncio
     async def test_authenticate_user_success(self, service, sample_user):
@@ -367,7 +364,6 @@ class TestAuthService:
     # token creation is now handled by Supabase, not the backend auth service
 
 
-@pytest.mark.skip(reason="Tests reference removed API (check_permission, check_resource_permission); needs rewrite for user_has_permission")
 class TestRBACService:
     """Test Role-Based Access Control Service"""
 

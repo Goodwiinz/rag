@@ -405,9 +405,9 @@ class TestResumePersistence:
                 return_value=("thread-1", "conv-1"),
             ) as mock_persist,
         ):
-            mock_graph = AsyncMock()
+            mock_graph = MagicMock()
             mock_graph.ainvoke = AsyncMock(return_value=mock_final_state)
-            mock_graph.aget_state = AsyncMock(return_value=MagicMock(values=mock_final_state))
+            mock_graph.aget_state = AsyncMock(return_value=None)
             mock_compile.return_value = mock_graph
 
             await _resume_agent_graph(job_id, True, user, db)
@@ -468,9 +468,9 @@ class TestResumePersistence:
                 return_value=("thread-1", "conv-1"),
             ),
         ):
-            mock_graph = AsyncMock()
+            mock_graph = MagicMock()
             mock_graph.ainvoke = AsyncMock(return_value=mock_final_state)
-            mock_graph.aget_state = AsyncMock(return_value=MagicMock(values=mock_final_state))
+            mock_graph.aget_state = AsyncMock(return_value=None)
             mock_compile.return_value = mock_graph
 
             await _resume_agent_graph(job_id, True, user, db)
@@ -523,9 +523,9 @@ class TestResumePersistence:
                 return_value=("thread-99", "conv-77"),
             ),
         ):
-            mock_graph = AsyncMock()
+            mock_graph = MagicMock()
             mock_graph.ainvoke = AsyncMock(return_value=mock_final_state)
-            mock_graph.aget_state = AsyncMock(return_value=MagicMock(values=mock_final_state))
+            mock_graph.aget_state = AsyncMock(return_value=None)
             mock_compile.return_value = mock_graph
 
             await _resume_agent_graph(job_id, True, user, db)

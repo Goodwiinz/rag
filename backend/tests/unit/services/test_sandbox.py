@@ -20,11 +20,20 @@ pytestmark = [pytest.mark.asyncio, pytest.mark.unit]
 
 # ---------------------------------------------------------------------------
 # Stub heavy imports so tools_impl can be imported in a minimal test env.
-# Save originals so we can restore them after this module loads — prevents
-# empty stubs from leaking into other test files.
+# These stubs are only applied when the real packages are absent.
 # ---------------------------------------------------------------------------
 
-_STUB_MODULES = [
+def _stub_if_missing(name: str) -> None:
+    """Insert a MagicMock stub for *name* (and each prefix) if not installed."""
+    if name not in sys.modules:
+        parts = name.split(".")
+        for i in range(1, len(parts) + 1):
+            key = ".".join(parts[:i])
+            if key not in sys.modules:
+                sys.modules[key] = ModuleType(key)
+
+
+for _mod in [
     "langchain_core",
     "langchain_core.runnables",
     "langchain_core.tools",
@@ -38,31 +47,9 @@ _STUB_MODULES = [
     "qdrant_client",
     "neo4j",
     "structlog",
-]
-
-_saved_modules: dict[str, object] = {}
-_added_stubs: list[str] = []
-
-
-def _stub_if_missing(name: str) -> None:
-    """Insert an empty stub for *name* (and each prefix) if not installed."""
-    parts = name.split(".")
-    for i in range(1, len(parts) + 1):
-        key = ".".join(parts[:i])
-        if key in sys.modules:
-            continue
-        _added_stubs.append(key)
-        sys.modules[key] = ModuleType(key)
-
-
-for _mod in _STUB_MODULES:
+]:
     _stub_if_missing(_mod)
 
-
-# Restore sys.modules so other test files get real implementations.
-for _key in _added_stubs:
-    sys.modules.pop(_key, None)
-del _saved_modules, _added_stubs
 
 # ---------------------------------------------------------------------------
 # Helpers
