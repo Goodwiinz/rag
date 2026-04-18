@@ -5,8 +5,8 @@ Covers:
 - _load_mock_flags: JSON config and hardcoded defaults
 - is_enabled, get_variation, get_all_flags in mock and LD modes
 - identify_user, track_event, flush, close
-- _create_ld_user with optional fields
-- Module-level feature_flag_service singleton
+- _create_ld_context with optional fields (LaunchDarkly SDK v9+ Context API)
+- Module-level get_feature_flag_service() singleton
 - All convenience functions
 
 Note: the module is imported directly (bypassing the package __init__.py) so
@@ -84,7 +84,13 @@ def ld_service():
 
     mock_ld.LDClient.return_value = mock_client
     mock_ld.Config.return_value = mock_config
-    mock_ld.User.return_value = mock_user
+
+    mock_builder = MagicMock()
+    mock_builder.set.return_value = mock_builder
+    mock_builder.name.return_value = mock_builder
+    mock_builder.anonymous.return_value = mock_builder
+    mock_builder.build.return_value = mock_user
+    mock_ld.Context.builder.return_value = mock_builder
 
     with (
         patch.dict(os.environ, {"LAUNCHDARKLY_SDK_KEY": "sdk-test-key"}),
@@ -515,34 +521,36 @@ def test_close_noop_in_mock_mode():
     FeatureFlagService().close()  # must not raise
 
 
-# ── _create_ld_user ───────────────────────────────────────────────────────────
+# ── _create_ld_context ────────────────────────────────────────────────────────
 
 
 @pytest.mark.unit
-def test_create_ld_user_sets_user_id_email_and_name():
-    """`ld.User` is constructed with the user_id; email and name are set."""
+def test_create_ld_context_sets_user_id_email_and_name():
+    """`ld.Context.builder` is called with user_id; email and name are set."""
     mock_ld = MagicMock()
-    mock_user = MagicMock()
-    mock_user.custom = {}
-    mock_ld.User.return_value = mock_user
+    mock_builder = MagicMock()
+    mock_builder.set.return_value = mock_builder
+    mock_builder.name.return_value = mock_builder
+    mock_ld.Context.builder.return_value = mock_builder
 
     service = FeatureFlagService()
     ctx = UserContext(user_id="u1", email="u1@test.com", name="Alice")
 
     with patch.object(ff_module, "ld", mock_ld, create=True):
-        service._create_ld_user(ctx)
+        service._create_ld_context(ctx)
 
-    mock_ld.User.assert_called_once_with("u1")
-    assert mock_user.email == "u1@test.com"
-    assert mock_user.name == "Alice"
+    mock_ld.Context.builder.assert_called_once_with("u1")
+    mock_builder.set.assert_any_call("email", "u1@test.com")
+    mock_builder.name.assert_called_once_with("Alice")
+    mock_builder.build.assert_called_once()
 
 
 @pytest.mark.unit
-def test_create_ld_user_sets_custom_attributes():
+def test_create_ld_context_sets_custom_attributes():
     mock_ld = MagicMock()
-    mock_user = MagicMock()
-    mock_user.custom = {}
-    mock_ld.User.return_value = mock_user
+    mock_builder = MagicMock()
+    mock_builder.set.return_value = mock_builder
+    mock_ld.Context.builder.return_value = mock_builder
 
     service = FeatureFlagService()
     ctx = UserContext(
@@ -552,43 +560,45 @@ def test_create_ld_user_sets_custom_attributes():
     )
 
     with patch.object(ff_module, "ld", mock_ld, create=True):
-        service._create_ld_user(ctx)
+        service._create_ld_context(ctx)
 
-    assert mock_user.custom["role"] == "admin"
-    assert mock_user.custom["tier"] == "premium"
+    mock_builder.set.assert_any_call("role", "admin")
+    mock_builder.set.assert_any_call("tier", "premium")
 
 
 @pytest.mark.unit
-def test_create_ld_user_skips_name_assignment_when_none():
+def test_create_ld_context_skips_name_when_none():
     mock_ld = MagicMock()
-    mock_user = MagicMock(spec=["email", "custom"])
-    mock_user.custom = {}
-    mock_ld.User.return_value = mock_user
+    mock_builder = MagicMock()
+    mock_builder.set.return_value = mock_builder
+    mock_ld.Context.builder.return_value = mock_builder
 
     service = FeatureFlagService()
     ctx = UserContext(user_id="u1", email="u1@test.com")  # name=None
 
     with patch.object(ff_module, "ld", mock_ld, create=True):
-        service._create_ld_user(ctx)
+        service._create_ld_context(ctx)
 
-    assert not hasattr(mock_user, "name") or mock_user.name != "u1"
+    mock_builder.name.assert_not_called()
 
 
 @pytest.mark.unit
-def test_create_ld_user_skips_custom_attrs_when_none():
+def test_create_ld_context_skips_custom_attrs_when_none():
     mock_ld = MagicMock()
-    mock_user = MagicMock()
-    custom_dict: dict = {}
-    mock_user.custom = custom_dict
-    mock_ld.User.return_value = mock_user
+    mock_builder = MagicMock()
+    mock_builder.set.return_value = mock_builder
+    mock_ld.Context.builder.return_value = mock_builder
 
     service = FeatureFlagService()
     ctx = UserContext(user_id="u1", email="u1@test.com")  # custom_attributes=None
 
     with patch.object(ff_module, "ld", mock_ld, create=True):
-        service._create_ld_user(ctx)
+        service._create_ld_context(ctx)
 
-    assert custom_dict == {}
+    # Only "email" should have been set — no custom attrs
+    calls = [c for c in mock_builder.set.call_args_list]
+    assert len(calls) == 1
+    assert calls[0] == (("email", "u1@test.com"),)
 
 
 # ── UserContext dataclass ──────────────────────────────────────────────────────
@@ -620,14 +630,15 @@ def test_user_context_optional_fields_default_to_none():
 
 @pytest.mark.unit
 def test_module_level_feature_flag_service_is_instance_of_service():
-    assert isinstance(ff_module.feature_flag_service, FeatureFlagService)
+    svc = ff_module.get_feature_flag_service()
+    assert isinstance(svc, FeatureFlagService)
 
 
 @pytest.mark.unit
 def test_module_level_feature_flag_service_is_same_object_each_access():
-    """The module-level instance must be stable (not re-created on each access)."""
-    svc1 = ff_module.feature_flag_service
-    svc2 = ff_module.feature_flag_service
+    """The getter must return the same instance on repeated calls."""
+    svc1 = ff_module.get_feature_flag_service()
+    svc2 = ff_module.get_feature_flag_service()
     assert svc1 is svc2
 
 
@@ -682,12 +693,12 @@ def test_convenience_functions_accept_user_context_without_raising(user_ctx):
 
 @pytest.mark.unit
 def test_convenience_functions_delegate_to_module_singleton():
-    """Convenience functions must use the module-level feature_flag_service."""
+    """Convenience functions must use the shared service via get_feature_flag_service()."""
     mock_service = MagicMock()
     mock_service.is_enabled.return_value = True
     mock_service.get_variation.return_value = 999
 
-    with patch.object(ff_module, "feature_flag_service", mock_service):
+    with patch.object(ff_module, "get_feature_flag_service", return_value=mock_service):
         assert is_multimodal_processing_enabled() is True
         assert get_file_upload_limit() == 999
 
