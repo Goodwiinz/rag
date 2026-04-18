@@ -30,10 +30,12 @@ Object.defineProperty(window, 'navigator', {
   writable: true,
 });
 
-// jsdom defines location as non-configurable; delete first to avoid
-// "Cannot redefine property" when running under jest-environment-jsdom >=30.
-delete (window as any).location;
-(window as any).location = { href: 'http://localhost:3000' };
+Object.defineProperty(window, 'location', {
+  value: {
+    href: 'http://localhost:3000',
+  },
+  writable: true,
+});
 
 describe('ErrorTracker', () => {
   beforeEach(() => {
@@ -154,9 +156,7 @@ describe('ErrorTracker', () => {
     expect(errorTracker.getLogs()).toHaveLength(0);
     expect(errorTracker.getMetrics()).toHaveLength(0);
     expect(mockLocalStorage.removeItem).toHaveBeenCalledWith('errorLogs');
-    expect(mockLocalStorage.removeItem).toHaveBeenCalledWith(
-      'performanceMetrics'
-    );
+    expect(mockLocalStorage.removeItem).toHaveBeenCalledWith('performanceMetrics');
   });
 
   it('exports logs and metrics to JSON', () => {

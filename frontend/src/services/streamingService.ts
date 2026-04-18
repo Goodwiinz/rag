@@ -102,17 +102,21 @@ export async function* streamChatMessage(
   options?: StreamChatOptions,
   signal?: AbortSignal
 ): AsyncGenerator<StreamEvent> {
-  // Read auth token from Supabase session
+  // Read auth token from Zustand persisted storage, falling back to legacy keys
   let token: string | null = null;
   try {
-    const { createClient } = await import('@/lib/supabase/client');
-    const supabase = createClient();
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-    token = session?.access_token ?? null;
+    const authStorage = localStorage.getItem('auth-storage');
+    if (authStorage) {
+      const auth = JSON.parse(authStorage);
+      token = auth.state?.token ?? null;
+    }
   } catch {
-    // ignore errors
+    // ignore parse errors
+  }
+  if (!token) {
+    token =
+      localStorage.getItem('access_token') ||
+      localStorage.getItem('auth-token');
   }
 
   const headers: Record<string, string> = {

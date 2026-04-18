@@ -1,16 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Progress } from '@/components/ui/progress';
-import { Badge } from '@/components/ui/badge';
-import { CheckCircle, AlertCircle, Loader2, Zap } from 'lucide-react';
-import { apiClient } from '@/services/apiClient';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
+import { Badge } from "@/components/ui/badge";
+import { CheckCircle, AlertCircle, Loader2, Zap } from "lucide-react";
+import { apiClient } from "@/services/apiClient";
 
 interface ExtractionProgress {
   status: 'idle' | 'running' | 'completed' | 'error';
@@ -29,7 +23,7 @@ export function ArxivStreamingExtraction() {
     message: '',
     progress: 0,
     processed: 0,
-    total: 0,
+    total: 0
   });
 
   const [options, setOptions] = useState({
@@ -38,7 +32,7 @@ export function ArxivStreamingExtraction() {
     extract_keyphrases: true,
     extract_summaries: true,
     update_knowledge_graph: true,
-    batch_size: 3,
+    batch_size: 3
   });
 
   const handleStreamExtraction = async () => {
@@ -49,46 +43,27 @@ export function ArxivStreamingExtraction() {
       message: 'Initializing extraction...',
       progress: 0,
       processed: 0,
-      total: 0,
+      total: 0
     });
 
     try {
-      // Get auth from Supabase session
-      const { createClient } = await import('@/lib/supabase/client');
-      const supabase = createClient();
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      const token = session?.access_token ?? null;
-      const orgId = session?.user?.user_metadata?.organization_id || 'default';
+      // Create EventSource for streaming
+      const token = localStorage.getItem('auth-token');
+      const orgId = localStorage.getItem('organization-id') || 'default';
 
-      const url = new URL(
-        'http://localhost:8000/api/v1/arxiv/batch/stream-extraction'
-      );
-      url.searchParams.set(
-        'extract_entities',
-        String(options.extract_entities)
-      );
+      const url = new URL('http://localhost:8000/api/v1/arxiv/batch/stream-extraction');
+      url.searchParams.set('extract_entities', String(options.extract_entities));
       url.searchParams.set('extract_topics', String(options.extract_topics));
-      url.searchParams.set(
-        'extract_keyphrases',
-        String(options.extract_keyphrases)
-      );
-      url.searchParams.set(
-        'extract_summaries',
-        String(options.extract_summaries)
-      );
-      url.searchParams.set(
-        'update_knowledge_graph',
-        String(options.update_knowledge_graph)
-      );
+      url.searchParams.set('extract_keyphrases', String(options.extract_keyphrases));
+      url.searchParams.set('extract_summaries', String(options.extract_summaries));
+      url.searchParams.set('update_knowledge_graph', String(options.update_knowledge_graph));
       url.searchParams.set('batch_size', String(options.batch_size));
 
       const eventSource = new EventSource(url.toString(), {
         headers: {
-          Authorization: `Bearer ${token}`,
-          'X-Organization-ID': orgId,
-        },
+          'Authorization': `Bearer ${token}`,
+          'X-Organization-ID': orgId
+        }
       } as any);
 
       eventSource.onmessage = (event) => {
@@ -96,27 +71,27 @@ export function ArxivStreamingExtraction() {
 
         switch (data.status) {
           case 'started':
-            setProgress((prev) => ({
+            setProgress(prev => ({
               ...prev,
               status: 'running',
               message: data.message,
-              total: data.total_files,
+              total: data.total_files
             }));
             break;
 
           case 'batch_processing':
-            setProgress((prev) => ({
+            setProgress(prev => ({
               ...prev,
-              message: data.message,
+              message: data.message
             }));
             break;
 
           case 'progress':
-            setProgress((prev) => ({
+            setProgress(prev => ({
               ...prev,
               processed: data.processed,
               progress: data.progress_percent,
-              currentFile: data.current_file,
+              currentFile: data.current_file
             }));
             break;
 
@@ -127,7 +102,7 @@ export function ArxivStreamingExtraction() {
               message: data.message,
               progress: 100,
               processed: data.total_processed,
-              total: data.total_processed,
+              total: data.total_processed
             });
             break;
 
@@ -139,7 +114,7 @@ export function ArxivStreamingExtraction() {
               progress: 0,
               processed: 0,
               total: 0,
-              error: data.message,
+              error: data.message
             });
             break;
         }
@@ -154,7 +129,7 @@ export function ArxivStreamingExtraction() {
           progress: 0,
           processed: 0,
           total: 0,
-          error: 'Failed to connect to streaming endpoint',
+          error: 'Failed to connect to streaming endpoint'
         });
       };
 
@@ -168,10 +143,11 @@ export function ArxivStreamingExtraction() {
             progress: progress.progress,
             processed: progress.processed,
             total: progress.total,
-            error: 'The operation timed out after 5 minutes',
+            error: 'The operation timed out after 5 minutes'
           });
         }
       }, 300000); // 5 minutes
+
     } catch (error: any) {
       setProgress({
         status: 'error',
@@ -179,7 +155,7 @@ export function ArxivStreamingExtraction() {
         progress: 0,
         processed: 0,
         total: 0,
-        error: error.message,
+        error: error.message
       });
     }
   };
@@ -189,7 +165,7 @@ export function ArxivStreamingExtraction() {
       setProgress({
         ...progress,
         status: 'idle',
-        message: 'Extraction stopped by user',
+        message: 'Extraction stopped by user'
       });
     }
   };
@@ -202,8 +178,7 @@ export function ArxivStreamingExtraction() {
           Streaming PDF Extraction
         </CardTitle>
         <CardDescription>
-          Process local PDF files with real-time progress updates and no
-          timeouts
+          Process local PDF files with real-time progress updates and no timeouts
         </CardDescription>
       </CardHeader>
 
@@ -214,9 +189,7 @@ export function ArxivStreamingExtraction() {
             <input
               type="checkbox"
               checked={options.extract_topics}
-              onChange={(e) =>
-                setOptions({ ...options, extract_topics: e.target.checked })
-              }
+              onChange={(e) => setOptions({...options, extract_topics: e.target.checked})}
               className="rounded"
             />
             <span className="text-sm">Extract Topics</span>
@@ -225,9 +198,7 @@ export function ArxivStreamingExtraction() {
             <input
               type="checkbox"
               checked={options.extract_keyphrases}
-              onChange={(e) =>
-                setOptions({ ...options, extract_keyphrases: e.target.checked })
-              }
+              onChange={(e) => setOptions({...options, extract_keyphrases: e.target.checked})}
               className="rounded"
             />
             <span className="text-sm">Extract Keyphrases</span>
@@ -236,12 +207,7 @@ export function ArxivStreamingExtraction() {
             <input
               type="checkbox"
               checked={options.update_knowledge_graph}
-              onChange={(e) =>
-                setOptions({
-                  ...options,
-                  update_knowledge_graph: e.target.checked,
-                })
-              }
+              onChange={(e) => setOptions({...options, update_knowledge_graph: e.target.checked})}
               className="rounded"
             />
             <span className="text-sm">Update Knowledge Graph</span>
@@ -253,9 +219,7 @@ export function ArxivStreamingExtraction() {
           <label className="text-sm font-medium">Batch Size:</label>
           <select
             value={options.batch_size}
-            onChange={(e) =>
-              setOptions({ ...options, batch_size: parseInt(e.target.value) })
-            }
+            onChange={(e) => setOptions({...options, batch_size: parseInt(e.target.value)})}
             className="px-3 py-1 border rounded-md"
           >
             <option value="1">1 file at a time</option>
@@ -270,17 +234,9 @@ export function ArxivStreamingExtraction() {
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <Badge
-                  variant={
-                    progress.status === 'running'
-                      ? 'default'
-                      : progress.status === 'completed'
-                        ? 'default'
-                        : progress.status === 'error'
-                          ? 'destructive'
-                          : 'secondary'
-                  }
-                >
+                <Badge variant={progress.status === 'running' ? 'default' :
+                            progress.status === 'completed' ? 'default' :
+                            progress.status === 'error' ? 'destructive' : 'secondary'}>
                   {progress.status.toUpperCase()}
                 </Badge>
                 <span className="text-sm font-medium">{progress.message}</span>
@@ -295,17 +251,12 @@ export function ArxivStreamingExtraction() {
             <div className="space-y-2">
               <Progress value={progress.progress} className="w-full" />
               <div className="flex justify-between text-sm text-muted-foreground">
-                <span>
-                  Progress: {progress.processed} / {progress.total}
-                </span>
+                <span>Progress: {progress.processed} / {progress.total}</span>
                 <span>{progress.progress.toFixed(1)}%</span>
               </div>
               {progress.currentFile && (
                 <div className="text-sm text-muted-foreground">
-                  Currently processing:{' '}
-                  <code className="bg-muted px-2 py-1 rounded">
-                    {progress.currentFile}
-                  </code>
+                  Currently processing: <code className="bg-muted px-2 py-1 rounded">{progress.currentFile}</code>
                 </div>
               )}
             </div>
@@ -321,12 +272,12 @@ export function ArxivStreamingExtraction() {
             )}
 
             {progress.status === 'completed' && (
-              <div className="p-3 bg-amber-50 border border-amber-200 rounded-md">
-                <div className="flex items-center gap-2 text-amber-700">
+              <div className="p-3 bg-green-50 border border-green-200 rounded-md">
+                <div className="flex items-center gap-2 text-green-700">
                   <CheckCircle className="h-4 w-4" />
                   <span className="text-sm font-medium">Success!</span>
                 </div>
-                <p className="text-sm mt-1 text-amber-600">
+                <p className="text-sm mt-1 text-green-600">
                   Successfully processed {progress.processed} PDF files
                 </p>
               </div>

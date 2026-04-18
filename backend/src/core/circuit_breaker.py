@@ -234,12 +234,6 @@ circuit_breakers: dict[str, ServiceCircuitBreaker] = {
         recovery_timeout=60.0,  # Longer recovery for external API
         half_open_max_calls=2,
     ),
-    "cohere_embed": ServiceCircuitBreaker(
-        "cohere_embed",
-        failure_threshold=3,
-        recovery_timeout=60.0,
-        half_open_max_calls=2,
-    ),
 }
 
 

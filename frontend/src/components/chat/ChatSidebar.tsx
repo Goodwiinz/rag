@@ -52,7 +52,7 @@ export const ChatSidebar = memo(function ChatSidebar({
   return (
     <div
       className={cn(
-        'flex flex-col w-64 border-r border-[var(--terminal-border)] bg-[var(--terminal-bg)] h-full',
+        'flex flex-col w-64 border-r border-[var(--terminal-border)] bg-[#0A0A0A] h-full',
         className
       )}
     >
@@ -121,14 +121,15 @@ export const ChatSidebar = memo(function ChatSidebar({
               }).replace('about ', '');
               const lastMessage = conv.messages[conv.messages.length - 1];
               const messageCount = conv.messageCount ?? conv.messages.length;
-              const previewText = lastMessage
+              const previewText =
+                (lastMessage
                 ? lastMessage.content.length > 30
                   ? lastMessage.content.substring(0, 30) + '...'
                   : lastMessage.content || 'No messages yet'
                 : conv.previewText ||
                   (messageCount > 0
                     ? `${messageCount} message${messageCount === 1 ? '' : 's'}`
-                    : 'No messages yet');
+                    : 'No messages yet'));
 
               return (
                 <button

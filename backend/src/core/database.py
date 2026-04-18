@@ -30,11 +30,11 @@ DATABASE_URL = _supabase_db_url or os.getenv(
     "postgresql://postgres:postgres@localhost:5432/multimodal_rag_dev",
 )
 
-# Async variant — asyncpg uses ssl= instead of sslmode=
+# Async variant
 if "asyncpg" not in DATABASE_URL:
     ASYNC_DATABASE_URL = DATABASE_URL.replace(
         "postgresql://", "postgresql+asyncpg://"
-    ).replace("?sslmode=require", "?ssl=require").replace("&sslmode=require", "&ssl=require")
+    )
 else:
     ASYNC_DATABASE_URL = DATABASE_URL
 

@@ -33,7 +33,7 @@ export const ChatHeader = memo(function ChatHeader({
   }, []);
 
   return (
-    <div className="flex h-14 shrink-0 items-center justify-between gap-4 border-b border-[var(--terminal-border)] bg-[var(--terminal-bg)]/95 px-4 z-40">
+    <div className="flex h-14 shrink-0 items-center justify-between gap-4 border-b border-[var(--terminal-border)] bg-[#0A0A0A]/95 px-4 z-40">
       {/* Left section: Breadcrumbs and Workspace Selector */}
       <div className="flex items-center gap-4">
         <SidebarTrigger className="h-7 w-7 text-[var(--terminal-text-dim)] hover:text-[var(--phosphor-green)] hover:bg-[var(--terminal-elevated)] transition-all rounded" />

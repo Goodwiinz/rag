@@ -1,3 +1,4 @@
+import type { SearchResult } from '@/types/search';
 import type { Citation } from '@/utils/citationParser';
 
 export interface ChatMessageViewModel {
@@ -7,10 +8,6 @@ export interface ChatMessageViewModel {
   timestamp: number;
   citations?: Citation[];
   modelName?: string;
-  claims?: string[];
-  confidence?: number;
-  coverage?: number;
-  decisionTraceId?: string;
   isStreaming?: boolean;
   streamingContent?: string;
   diagnosticsTraceId?: string;
@@ -26,39 +23,10 @@ export interface ChatRouteMessageInput {
   diagnosticsTraceId?: string;
 }
 
-export interface SearchResultChatMessageInput {
-  query: string;
-  answer: {
-    text: string;
-    sources: Array<{
-      document_id: string;
-      document_title: string;
-      snippet: string;
-      confidence: number;
-      file_type?: string;
-    }>;
-    claims?: string[];
-    confidence?: number;
-    coverage?: number;
-    decisionTraceId?: string;
-    decision_trace_id?: string;
-  };
-}
-
 export function mapChatMessageToViewModel(
   input: ChatRouteMessageInput
 ): ChatMessageViewModel {
   return { ...input };
-}
-
-function resolveDecisionTraceId(
-  answer: SearchResultChatMessageInput['answer']
-): string | undefined {
-  if (answer.decisionTraceId) {
-    return answer.decisionTraceId;
-  }
-
-  return answer.decision_trace_id;
 }
 
 function normalizeCitationTitle(
@@ -86,24 +54,18 @@ function normalizeCitationTitle(
 }
 
 export function mapSearchResultToChatMessages(
-  result: SearchResultChatMessageInput
+  result: SearchResult
 ): ChatMessageViewModel[] {
-  const timestamp = Date.now();
-
   const userMessage: ChatMessageViewModel = {
     role: 'user',
     content: result.query,
-    timestamp,
+    timestamp: Date.now(),
   };
 
   const assistantMessage: ChatMessageViewModel = {
     role: 'assistant',
     content: result.answer.text,
-    timestamp,
-    claims: result.answer.claims,
-    confidence: result.answer.confidence,
-    coverage: result.answer.coverage,
-    decisionTraceId: resolveDecisionTraceId(result.answer),
+    timestamp: Date.now(),
     citations: result.answer.sources.map((source, index) => ({
       documentId: source.document_id,
       title: normalizeCitationTitle(source.document_title, index),
@@ -111,6 +73,7 @@ export function mapSearchResultToChatMessages(
       content: source.snippet,
       source: source.file_type,
     })),
+    diagnosticsTraceId: result.answer.decisionTraceId,
   };
 
   return [userMessage, assistantMessage];

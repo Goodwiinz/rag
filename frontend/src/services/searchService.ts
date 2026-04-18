@@ -3,7 +3,6 @@ import { APIResponse } from '@/types/api';
 import {
   SearchRequest,
   SearchResult,
-  SourceReference,
   QueryHistory,
   QuerySuggestions,
   QueryProcessingSession,
@@ -12,123 +11,6 @@ import {
   GraphData,
   GraphFilters,
 } from '@/types/search';
-
-type BackendSearchResponse = {
-  search_id?: string;
-  query?: string;
-  results?: Array<{
-    document_id: string;
-    title: string;
-    content_preview?: string;
-    relevance_score?: number;
-    document_type?: string;
-  }>;
-  search_time_ms?: number;
-  total_results?: number;
-  synthesized_answer?: string;
-  confidence?: number;
-  coverage?: number;
-  decision_trace_id?: string;
-  deterministic_status?:
-    | 'SUPPORTED'
-    | 'INSUFFICIENT_EVIDENCE'
-    | 'CONFLICTING_EVIDENCE'
-    | 'NO_MATCH';
-  deterministic_message?: string;
-  suggestions?: string[];
-};
-
-type SearchError = {
-  message?: string;
-  error?: {
-    status_code?: number;
-    silent?: boolean;
-    message?: string;
-  };
-  response?: {
-    status?: number;
-    data?: {
-      message?: string;
-      detail?: string;
-    };
-  };
-};
-
-const SUPPORTED_FILE_TYPES: ReadonlySet<
-  NonNullable<SourceReference['file_type']>
-> = new Set([
-  'pdf',
-  'txt',
-  'jpg',
-  'png',
-  'mp3',
-  'mp4',
-  'text',
-  'image',
-  'audio',
-  'video',
-  'spreadsheet',
-  'presentation',
-]);
-
-const isSupportedFileType = (
-  value: string
-): value is NonNullable<SourceReference['file_type']> => {
-  return SUPPORTED_FILE_TYPES.has(
-    value as NonNullable<SourceReference['file_type']>
-  );
-};
-
-const isNotFoundSearchError = (error: unknown): error is SearchError => {
-  if (!error || typeof error !== 'object') {
-    return false;
-  }
-
-  const candidate = error as SearchError;
-  return (
-    candidate.error?.status_code === 404 || candidate.response?.status === 404
-  );
-};
-
-const mapDocumentTypeToFileType = (
-  documentType?: string
-): NonNullable<SourceReference['file_type']> => {
-  const normalized = documentType?.toLowerCase();
-  if (normalized && isSupportedFileType(normalized)) {
-    return normalized;
-  }
-
-  return 'txt';
-};
-
-const getErrorMessage = (error: unknown): string => {
-  if (error instanceof Error) {
-    return error.message;
-  }
-
-  if (
-    error &&
-    typeof error === 'object' &&
-    'message' in error &&
-    typeof error.message === 'string'
-  ) {
-    return error.message;
-  }
-
-  return 'Search failed';
-};
-
-const getResearchDocumentIds = (): string[] => {
-  const raw = process.env.NEXT_PUBLIC_RESEARCH_DOCUMENT_IDS;
-  if (!raw) {
-    return [];
-  }
-
-  return raw
-    .split(',')
-    .map((value) => value.trim())
-    .filter((value) => value.length > 0);
-};
 
 export class SearchService {
   private readonly basePath = '/search';
@@ -181,7 +63,20 @@ export class SearchService {
   }
 
   private transformSearchResponse(
-    response: BackendSearchResponse,
+    response: {
+      search_id?: string;
+      query?: string;
+      results?: Array<{
+        document_id: string;
+        title: string;
+        content_preview?: string;
+        relevance_score?: number;
+        document_type?: string;
+      }>;
+      search_time_ms?: number;
+      total_results?: number;
+      synthesized_answer?: string;
+    },
     request: SearchRequest
   ): APIResponse<SearchResult> {
     const transformedResult: SearchResult = {
@@ -197,17 +92,12 @@ export class SearchService {
             document_title: r.title,
             snippet: r.content_preview || '',
             confidence: r.relevance_score || 0,
-            file_type: mapDocumentTypeToFileType(r.document_type),
+            file_type: r.document_type?.toLowerCase() as any,
           })) || [],
-        confidence: response.confidence ?? 0,
-        coverage: response.coverage,
-        decisionTraceId: response.decision_trace_id,
+        confidence: 0,
         answer_type: 'factual' as const,
         language_detected: 'en',
       },
-      deterministicStatus: response.deterministic_status,
-      deterministicMessage: response.deterministic_message,
-      refinementSuggestions: response.suggestions,
       entities: [],
       relationships: [],
       metrics: {
@@ -240,13 +130,6 @@ export class SearchService {
     request: SearchRequest,
     signal?: AbortSignal
   ): Promise<APIResponse<SearchResult>> {
-    // Resolve document_ids: explicit filter > env var > none
-    const researchDocumentIds = getResearchDocumentIds();
-    const selectedDocumentIds =
-      request.filters?.document_ids && request.filters.document_ids.length > 0
-        ? request.filters.document_ids
-        : researchDocumentIds;
-
     // Transform request to match backend expectations
     const backendRequest = {
       query: request.query,
@@ -255,9 +138,9 @@ export class SearchService {
       offset: request.offset || 0,
       filters: request.filters
         ? {
-            document_ids:
-              selectedDocumentIds.length > 0 ? selectedDocumentIds : undefined,
+            // Transform filters if needed
             document_types: request.filters.modalities,
+            // tags: not in SearchRequest filters type
             file_size_min: undefined,
             file_size_max: undefined,
             date_from: request.filters.date_range?.start,
@@ -265,9 +148,7 @@ export class SearchService {
             is_public: undefined,
             uploaded_by_user_id: undefined,
           }
-        : selectedDocumentIds.length > 0
-          ? { document_ids: selectedDocumentIds }
-          : undefined,
+        : undefined,
       include_snippets: true,
       synthesize_answer: true,
     };
@@ -277,7 +158,20 @@ export class SearchService {
         this.searchPrimaryPath,
         backendRequest,
         signal ? { signal } : undefined
-      )) as BackendSearchResponse;
+      )) as {
+        search_id?: string;
+        query?: string;
+        results?: Array<{
+          document_id: string;
+          title: string;
+          content_preview?: string;
+          relevance_score?: number;
+          document_type?: string;
+        }>;
+        search_time_ms?: number;
+        total_results?: number;
+        synthesized_answer?: string;
+      };
 
       return this.transformSearchResponse(response, request);
     } catch (error: any) {
@@ -287,7 +181,20 @@ export class SearchService {
             this.searchFallbackPath,
             { ...backendRequest, search_type: 'fulltext' },
             signal ? { signal } : undefined
-          )) as BackendSearchResponse;
+          )) as {
+            search_id?: string;
+            query?: string;
+            results?: Array<{
+              document_id: string;
+              title: string;
+              content_preview?: string;
+              relevance_score?: number;
+              document_type?: string;
+            }>;
+            search_time_ms?: number;
+            total_results?: number;
+            synthesized_answer?: string;
+          };
 
           return this.transformSearchResponse(fallbackResponse, request);
         } catch (fallbackError: any) {
@@ -463,11 +370,11 @@ export class SearchService {
   /**
    * Get real-time search results via WebSocket
    */
-  async createSearchWebSocket(
+  createSearchWebSocket(
     sessionId: string,
     onMessage: (update: QueryProcessingUpdate) => void
-  ): Promise<WebSocket> {
-    const ws = await apiClient.createWebSocket(
+  ): WebSocket {
+    const ws = apiClient.createWebSocket(
       `${this.basePath}/stream/${sessionId}`
     );
 

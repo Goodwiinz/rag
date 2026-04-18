@@ -313,7 +313,6 @@ export const projectService = {
     filename?: string
   ): Promise<void> {
     const bibliography = await this.getProjectBibliography(projectId, format);
-    const extension = format === 'bibtex' ? 'bib' : format;
 
     // Create blob and download
     const blob = new Blob([bibliography.content], {
@@ -323,8 +322,7 @@ export const projectService = {
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download =
-      filename || `${bibliography.project_name}-bibliography.${extension}`;
+    link.download = filename || `${bibliography.project_name}-bibliography.${format}`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);

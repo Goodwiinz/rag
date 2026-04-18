@@ -7,7 +7,6 @@ import asyncio
 import hashlib
 import json
 import logging
-import random
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from functools import wraps
@@ -178,9 +177,7 @@ class AnalyticsCache:
                         logger.warning(f"Failed to serialize value for key {key}: {e}")
                         return False
 
-                    jitter = int(ttl * 0.15)
-                    effective_ttl = ttl + random.randint(-jitter, jitter)
-                    await self.redis_client.setex(key, effective_ttl, serialized)
+                    await self.redis_client.setex(key, ttl, serialized)
 
                     if use_fallback:
                         # Also set in fallback cache

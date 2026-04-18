@@ -1,7 +1,6 @@
 # Multi-stage production-ready Dockerfile for the Multimodal RAG System Backend
 # Stage 1: Python base with system dependencies
-ARG PYTHON_VERSION=3.11
-FROM python:${PYTHON_VERSION}-slim AS base
+FROM python:3.14-slim AS base
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
@@ -37,14 +36,12 @@ FROM base AS dependencies
 WORKDIR /app
 
 # Copy requirements files
-COPY backend/requirements.txt backend/requirements-minimal.txt ./
+COPY backend/requirements.txt backend/requirements-minimal.txt backend/requirements.dev.txt ./
 
-# Install Python dependencies while preserving pkg_resources for pybtex.
-RUN pip install --upgrade pip wheel "setuptools<72" && \
+# Install Python dependencies
+RUN pip install --upgrade pip setuptools wheel && \
     pip install -r requirements.txt && \
-    pip install -r requirements-minimal.txt && \
-    pip install "setuptools<72" && \
-    python -c "import pkg_resources"
+    pip install -r requirements-minimal.txt
 
 # Stage 3: Development
 FROM base AS development

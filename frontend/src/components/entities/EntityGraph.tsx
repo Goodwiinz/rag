@@ -8,15 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Entity, GraphEdge } from '@/types/entity';
 import { cn } from '@/lib/utils';
-import {
-  Activity,
-  Download,
-  RefreshCw,
-  ZoomIn,
-  ZoomOut,
-  Network,
-} from 'lucide-react';
-import { EmptyState } from '@/components/ui/EmptyState';
+import { Download, RefreshCw, ZoomIn, ZoomOut, Network } from 'lucide-react';
 import React, { useEffect, useRef, useState } from 'react';
 
 interface EntityGraphProps {
@@ -28,13 +20,13 @@ interface EntityGraphProps {
 
 // Terminal Theme Colors
 const TERMINAL_COLORS = {
-  text: 'var(--terminal-text)',
-  textDim: 'var(--terminal-text-muted)',
-  background: 'var(--terminal-bg)',
-  border: 'var(--terminal-border)',
-  primary: 'var(--phosphor-green)',
-  secondary: 'var(--cyan)',
-  accent: 'var(--amber-gold)',
+  text: '#e6edf3',
+  textDim: '#8b949e',
+  background: '#0d1117',
+  border: '#30363d',
+  primary: '#00ff9f', // Phosphor Green
+  secondary: '#00d4ff', // Cyan
+  accent: '#ffb700', // Amber
   error: '#ff4757',
 };
 
@@ -317,9 +309,7 @@ export const EntityGraph: React.FC<EntityGraphProps> = ({
       downloadLink.click();
     };
 
-    img.src =
-      'data:image/svg+xml;base64,' +
-      btoa(unescape(encodeURIComponent(svgData)));
+    img.src = 'data:image/svg+xml;base64,' + btoa(svgData);
   };
 
   useEffect(() => {
@@ -398,14 +388,12 @@ export const EntityGraph: React.FC<EntityGraphProps> = ({
           </div>
         </div>
       </CardHeader>
-      <CardContent className="p-0 bg-background">
+      <CardContent className="p-0 bg-[#0a0a0f]">
         {entities.length === 0 ? (
-          <EmptyState
-            icon={Activity}
-            title="NO_DATA_STREAM"
-            description="No entity graph data available. Extract entities from documents to populate the knowledge graph."
-            className="py-12"
-          />
+          <div className="flex flex-col items-center justify-center h-[600px] text-[var(--terminal-text-dim)] bg-[var(--terminal-bg)]">
+            <Network className="w-12 h-12 mb-4 opacity-20" />
+            <p className="font-mono text-sm">NO_DATA_STREAM</p>
+          </div>
         ) : (
           <div className="relative">
             {/* Legend Overlay */}

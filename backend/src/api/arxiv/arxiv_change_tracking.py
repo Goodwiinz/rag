@@ -11,15 +11,9 @@ from pydantic import BaseModel, Field
 
 from src.core.dependencies import get_current_user
 from src.services.arxiv.arxiv_change_tracker import change_tracker, track_arxiv_changes
-from src.services.arxiv.arxiv_service import IngestionError
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
-
-ARXIV_TRACKING_RETRY_MESSAGE = (
-    "ArXiv is temporarily rate limiting category scans. Retry in about a minute "
-    "or scan fewer categories."
-)
 
 
 class CategoryTrackingRequest(BaseModel):
@@ -64,21 +58,6 @@ async def track_category_changes(
             "result": result,
         }
 
-    except IngestionError as e:
-        logger.warning(f"ArXiv category scan unavailable: {e}")
-        detail = str(e).lower()
-
-        if "rate limit" in detail or "timed out" in detail:
-            raise HTTPException(
-                status_code=503,
-                detail=ARXIV_TRACKING_RETRY_MESSAGE,
-                headers={"Retry-After": "60"},
-            )
-
-        raise HTTPException(
-            status_code=502,
-            detail="Unable to complete the arXiv category scan right now. Retry shortly.",
-        )
     except Exception as e:
         logger.error(f"Failed to track category changes: {e}")
         raise HTTPException(status_code=500, detail=str(e))

@@ -7,7 +7,6 @@ Uses FastAPI TestClient with dependency overrides.
 
 import json
 from contextlib import asynccontextmanager
-from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 from uuid import uuid4
 
@@ -400,14 +399,13 @@ class TestResumePersistence:
                 "src.services.agent.graph.compile_agent_graph",
             ) as mock_compile,
             patch(
-                "src.api.agent.jobs._persist_thread_messages",
+                "src.api.agent.execute._persist_thread_messages",
                 new_callable=AsyncMock,
                 return_value=("thread-1", "conv-1"),
             ) as mock_persist,
         ):
-            mock_graph = AsyncMock()
+            mock_graph = MagicMock()
             mock_graph.ainvoke = AsyncMock(return_value=mock_final_state)
-            mock_graph.aget_state = AsyncMock(return_value=MagicMock(values=mock_final_state))
             mock_compile.return_value = mock_graph
 
             await _resume_agent_graph(job_id, True, user, db)
@@ -420,120 +418,6 @@ class TestResumePersistence:
         # The request should be reconstructed from the stored job
         assert isinstance(call_args[0][2], AgentExecuteRequest)
         assert call_args[0][3] == "Done, paper ingested."
-
-    async def test_resume_uses_original_thread_id_when_present(self):
-        """Resume should use the stored request thread_id, not the transient job id."""
-        from langchain_core.messages import AIMessage
-
-        from src.api.agent.execute import _resume_agent_graph
-
-        job_id = str(uuid4())
-        thread_id = str(uuid4())
-        user = _make_mock_user("user-222")
-        db = _make_mock_db()
-
-        _set_job(
-            job_id,
-            {
-                "status": "awaiting_confirmation",
-                "tool_executions": [],
-                "user_id": str(user.id),
-                "request": {
-                    "messages": [{"role": "user", "content": "confirm ingest"}],
-                    "page_context": {"type": "project", "project_id": "proj-1"},
-                    "model": "gpt-4o",
-                    "use_rag": True,
-                    "max_context_docs": 5,
-                    "thread_id": thread_id,
-                },
-            },
-        )
-
-        mock_final_state = {
-            "messages": [AIMessage(content="Confirmed.")],
-            "tool_executions": [],
-        }
-
-        with (
-            patch(
-                "src.services.agent.checkpointer.get_checkpointer",
-                new_callable=AsyncMock,
-            ),
-            patch(
-                "src.services.agent.graph.compile_agent_graph",
-            ) as mock_compile,
-            patch(
-                "src.api.agent.jobs._persist_thread_messages",
-                new_callable=AsyncMock,
-                return_value=("thread-1", "conv-1"),
-            ),
-        ):
-            mock_graph = AsyncMock()
-            mock_graph.ainvoke = AsyncMock(return_value=mock_final_state)
-            mock_graph.aget_state = AsyncMock(return_value=MagicMock(values=mock_final_state))
-            mock_compile.return_value = mock_graph
-
-            await _resume_agent_graph(job_id, True, user, db)
-
-        config = mock_graph.ainvoke.call_args.kwargs["config"]
-        assert config["configurable"]["thread_id"] == thread_id
-
-    async def test_resume_result_includes_persisted_thread_ids(self):
-        """Resume responses should return the thread and conversation IDs from persistence."""
-        from langchain_core.messages import AIMessage
-
-        from src.api.agent.execute import _resume_agent_graph
-
-        job_id = str(uuid4())
-        user = _make_mock_user("user-333")
-        db = _make_mock_db()
-
-        _set_job(
-            job_id,
-            {
-                "status": "awaiting_confirmation",
-                "tool_executions": [],
-                "user_id": str(user.id),
-                "request": {
-                    "messages": [{"role": "user", "content": "save this result"}],
-                    "page_context": {"type": "unknown"},
-                    "model": "gpt-4o",
-                    "use_rag": True,
-                    "max_context_docs": 5,
-                },
-            },
-        )
-
-        mock_final_state = {
-            "messages": [AIMessage(content="Saved.")],
-            "tool_executions": [],
-        }
-
-        with (
-            patch(
-                "src.services.agent.checkpointer.get_checkpointer",
-                new_callable=AsyncMock,
-            ),
-            patch(
-                "src.services.agent.graph.compile_agent_graph",
-            ) as mock_compile,
-            patch(
-                "src.api.agent.jobs._persist_thread_messages",
-                new_callable=AsyncMock,
-                return_value=("thread-99", "conv-77"),
-            ),
-        ):
-            mock_graph = AsyncMock()
-            mock_graph.ainvoke = AsyncMock(return_value=mock_final_state)
-            mock_graph.aget_state = AsyncMock(return_value=MagicMock(values=mock_final_state))
-            mock_compile.return_value = mock_graph
-
-            await _resume_agent_graph(job_id, True, user, db)
-
-        job = _get_job(job_id)
-        assert job["status"] == "completed"
-        assert job["result"]["thread_id"] == "thread-99"
-        assert job["result"]["conversation_id"] == "conv-77"
 
 
 # ---------------------------------------------------------------------------
@@ -553,9 +437,9 @@ class TestSSEStreamPersistence:
         # actually invoking the full SSE pipeline requires a real graph.
         import inspect
 
-        from src.api.agent.streaming import stream_event_generator
+        from src.api.agent.execute import stream_agent
 
-        source = inspect.getsource(stream_event_generator)
+        source = inspect.getsource(stream_agent)
         assert "_persist_thread_messages" in source
         assert "aget_state" in source
 
@@ -563,131 +447,7 @@ class TestSSEStreamPersistence:
         """event_generator should wrap astream_events with asyncio.timeout."""
         import inspect
 
-        from src.api.agent.streaming import stream_event_generator
+        from src.api.agent.execute import stream_agent
 
-        source = inspect.getsource(stream_event_generator)
+        source = inspect.getsource(stream_agent)
         assert "asyncio.timeout" in source
-
-    def test_stream_endpoint_passes_full_page_context(self, client):
-        """SSE /stream should pass the same page context fields as the polling flow."""
-        from langchain_core.messages import AIMessage
-
-        payload = {
-            "messages": [{"role": "user", "content": "summarize the project"}],
-            "page_context": {
-                "type": "project",
-                "project_id": "proj-123",
-                "project_name": "Atlas",
-                "label": "Notes",
-                "metadata": {"active_tab": "notes", "source": "sidebar"},
-            },
-            "model": "gpt-4o",
-            "use_rag": True,
-            "max_context_docs": 5,
-        }
-
-        async def _empty_events():
-            if False:
-                yield {}
-
-        snapshot = SimpleNamespace(
-            values={
-                "messages": [AIMessage(content="Project summary")],
-                "tool_executions": [],
-            },
-            tasks=(),
-        )
-
-        with (
-            patch(
-                "src.services.agent.checkpointer.get_checkpointer",
-                new_callable=AsyncMock,
-            ),
-            patch(
-                "src.services.agent.graph.compile_agent_graph",
-            ) as mock_compile,
-            patch(
-                "src.api.agent.streaming._persist_thread_messages",
-                new_callable=AsyncMock,
-                return_value=("thread-1", "conv-1"),
-            ),
-        ):
-            mock_graph = MagicMock()
-            mock_graph.astream_events = Mock(side_effect=lambda *args, **kwargs: _empty_events())
-            mock_graph.aget_state = AsyncMock(return_value=snapshot)
-            mock_compile.return_value = mock_graph
-
-            with client.stream("POST", "/api/v1/agent/stream", json=payload) as response:
-                body = "".join(response.iter_text())
-
-        assert response.status_code == 200
-        assert "event: done" in body
-
-        initial_state = mock_graph.astream_events.call_args.args[0]
-        config = mock_graph.astream_events.call_args.kwargs["config"]
-        expected_context = payload["page_context"]
-        assert initial_state["page_context"] == expected_context
-        assert config["configurable"]["page_context"] == expected_context
-
-    def test_stream_confirm_persists_resumed_messages(self, client):
-        """SSE /stream/confirm should persist the resumed assistant turn."""
-        from langchain_core.messages import AIMessage, HumanMessage
-
-        thread_id = str(uuid4())
-        payload = {"thread_id": thread_id, "confirmed": True}
-
-        async def _empty_events():
-            if False:
-                yield {}
-
-        snapshot = SimpleNamespace(
-            values={
-                "messages": [
-                    HumanMessage(content="ingest this paper"),
-                    AIMessage(content="The paper was ingested."),
-                ],
-                "tool_executions": [],
-                "page_context": {
-                    "type": "project",
-                    "project_id": "proj-9",
-                    "project_name": "Atlas",
-                    "label": "Documents",
-                    "metadata": {"active_tab": "documents"},
-                },
-            },
-            tasks=(),
-        )
-
-        with (
-            patch(
-                "src.services.agent.checkpointer.get_checkpointer",
-                new_callable=AsyncMock,
-            ),
-            patch(
-                "src.services.agent.graph.compile_agent_graph",
-            ) as mock_compile,
-            patch(
-                "src.api.agent.streaming._persist_thread_messages",
-                new_callable=AsyncMock,
-                return_value=("thread-9", "conv-9"),
-            ) as mock_persist,
-        ):
-            mock_graph = MagicMock()
-            mock_graph.astream_events = Mock(side_effect=lambda *args, **kwargs: _empty_events())
-            mock_graph.aget_state = AsyncMock(return_value=snapshot)
-            mock_compile.return_value = mock_graph
-
-            with client.stream("POST", "/api/v1/agent/stream/confirm", json=payload) as response:
-                body = "".join(response.iter_text())
-
-        assert response.status_code == 200
-        assert "event: done" in body
-        mock_persist.assert_called_once()
-
-        persisted_request = mock_persist.call_args.args[2]
-        assert isinstance(persisted_request, AgentExecuteRequest)
-        assert persisted_request.thread_id == thread_id
-        assert len(persisted_request.messages) == 1
-        assert persisted_request.messages[0].role == "user"
-        assert persisted_request.messages[0].content == "ingest this paper"
-        assert persisted_request.page_context.project_name == "Atlas"

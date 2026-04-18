@@ -3,22 +3,6 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import { GlobalAgentChat } from '../GlobalAgentChat';
 import { useAgentChatStore } from '@/store/agentChatStore';
 
-// Mock ESM-only dependencies that Jest cannot transform
-jest.mock('react-markdown', () => {
-  return {
-    __esModule: true,
-    default: ({ children }: { children: string }) =>
-      React.createElement('div', { 'data-testid': 'markdown' }, children),
-  };
-});
-jest.mock('react-syntax-highlighter', () => ({
-  Prism: ({ children }: { children: string }) =>
-    React.createElement('pre', null, children),
-}));
-jest.mock('react-syntax-highlighter/dist/esm/styles/prism', () => ({
-  oneDark: {},
-}));
-
 // Mock usePageContext
 jest.mock('@/hooks/usePageContext', () => ({
   usePageContext: () => ({ type: 'overview', label: 'Overview' }),
@@ -43,7 +27,7 @@ describe('GlobalAgentChat', () => {
   it('shows panel when opened', () => {
     useAgentChatStore.getState().openPanel();
     render(<GlobalAgentChat />);
-    expect(screen.getByLabelText('Agent chat sidebar')).toBeInTheDocument();
+    expect(screen.getByLabelText('Agent chat panel')).toBeInTheDocument();
   });
 
   it('shows sidebar when expanded', () => {

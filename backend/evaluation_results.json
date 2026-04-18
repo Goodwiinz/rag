@@ -1,0 +1,786 @@
+{
+  "evaluation_info": {
+    "timestamp": "2025-12-21T10:21:12.190483",
+    "api_base_url": "http://localhost:8000"
+  },
+  "test_cases": [
+    {
+      "paper_id": "2512.16920v1",
+      "paper_title": "EasyV2V: A High-quality Instruction-based Video Editing Framework",
+      "categories": [
+        "cs.AI",
+        "cs.CV"
+      ],
+      "question_results": [
+        {
+          "question": "What datasets were used to evaluate this approach?",
+          "question_id": "2512.16920v1_q_1",
+          "difficulty": "easy",
+          "expected_answer_type": "results",
+          "response_time_ms": 651.5352725982666,
+          "answer": "Title: Pairwise Comparison for Bias Identification and Quantification Authors: Fabian Haak, Philipp Schaer Categories: cs.IR Abstract: Linguistic bias in online news and social media is widespread but difficult to measure. Yet, its identification and quantification remain difficult due to subjectivi",
+          "retrieved_count": 10,
+          "retrieval_metrics": {
+            "precision_at_1": 0.0,
+            "precision_at_3": 0.0,
+            "precision_at_5": 0.0,
+            "precision_at_10": 0.0,
+            "mrr": 0.0,
+            "recall": 0.0
+          },
+          "answer_metrics": {
+            "answer_relevancy": 0.5,
+            "faithfulness": 1.0,
+            "contextual_precision": 0.0
+          },
+          "meets_thresholds": {
+            "response_time": true,
+            "precision_at_3": false,
+            "answer_relevancy": false,
+            "faithfulness": true
+          }
+        },
+        {
+          "question": "What is the main contribution of 'EasyV2V: A High-quality Instruction-based Video Editing Framework'?",
+          "question_id": "2512.16920v1_q_2",
+          "difficulty": "easy",
+          "expected_answer_type": "contribution",
+          "response_time_ms": 166.16487503051758,
+          "answer": "Title: EasyV2V: A High-quality Instruction-based Video Editing Framework Authors: Jinjie Mai, Chaoyang Wang, Guocheng Gordon Qian, Willi Menapace, Sergey Tulyakov, Bernard Ghanem, Peter Wonka, Ashkan Mirzaei Categories: cs.AI, cs.CV Abstract: While image editing has advanced rapidly, video editing r",
+          "retrieved_count": 10,
+          "retrieval_metrics": {
+            "precision_at_1": 1.0,
+            "precision_at_3": 0.3333333333333333,
+            "precision_at_5": 0.2,
+            "precision_at_10": 0.1,
+            "mrr": 1.0,
+            "recall": 1.0
+          },
+          "answer_metrics": {
+            "answer_relevancy": 0.9,
+            "faithfulness": 0.6666666666666666,
+            "contextual_precision": 0.4
+          },
+          "meets_thresholds": {
+            "response_time": true,
+            "precision_at_3": false,
+            "answer_relevancy": true,
+            "faithfulness": false
+          }
+        },
+        {
+          "question": "Describe the approach taken in this paper.",
+          "question_id": "2512.16920v1_q_3",
+          "difficulty": "hard",
+          "expected_answer_type": "methodology",
+          "response_time_ms": 76.72786712646484,
+          "answer": "Title: Non-Linear Strong Data-Processing for Quantum Hockey-Stick Divergences Authors: Theshani Nuradha, Ian George, Christoph Hirche Categories: cs.LG, quant-ph, cs.CR, cs.IT Abstract: Data-processing is a desired property of classical and quantum divergences and information measures. In informatio",
+          "retrieved_count": 10,
+          "retrieval_metrics": {
+            "precision_at_1": 0.0,
+            "precision_at_3": 0.0,
+            "precision_at_5": 0.0,
+            "precision_at_10": 0.0,
+            "mrr": 0.0,
+            "recall": 0.0
+          },
+          "answer_metrics": {
+            "answer_relevancy": 0.5,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.0
+          },
+          "meets_thresholds": {
+            "response_time": true,
+            "precision_at_3": false,
+            "answer_relevancy": false,
+            "faithfulness": false
+          }
+        },
+        {
+          "question": "What baselines were compared against in this research?",
+          "question_id": "2512.16920v1_q_4",
+          "difficulty": "medium",
+          "expected_answer_type": "comparison",
+          "response_time_ms": 91.39299392700195,
+          "answer": "Title: Pairwise Comparison for Bias Identification and Quantification Authors: Fabian Haak, Philipp Schaer Categories: cs.IR Abstract: Linguistic bias in online news and social media is widespread but difficult to measure. Yet, its identification and quantification remain difficult due to subjectivi",
+          "retrieved_count": 10,
+          "retrieval_metrics": {
+            "precision_at_1": 0.0,
+            "precision_at_3": 0.0,
+            "precision_at_5": 0.0,
+            "precision_at_10": 0.0,
+            "mrr": 0.0,
+            "recall": 0.0
+          },
+          "answer_metrics": {
+            "answer_relevancy": 0.5,
+            "faithfulness": 1.0,
+            "contextual_precision": 0.0
+          },
+          "meets_thresholds": {
+            "response_time": true,
+            "precision_at_3": false,
+            "answer_relevancy": false,
+            "faithfulness": true
+          }
+        },
+        {
+          "question": "Who are the authors of 'EasyV2V: A High-quality Instruction-based Video Editing Framework' and what institutions are they affiliated with?",
+          "question_id": "2512.16920v1_q_5",
+          "difficulty": "easy",
+          "expected_answer_type": "author",
+          "response_time_ms": 85.94202995300293,
+          "answer": "Title: EasyV2V: A High-quality Instruction-based Video Editing Framework Authors: Jinjie Mai, Chaoyang Wang, Guocheng Gordon Qian, Willi Menapace, Sergey Tulyakov, Bernard Ghanem, Peter Wonka, Ashkan Mirzaei Categories: cs.AI, cs.CV Abstract: While image editing has advanced rapidly, video editing r",
+          "retrieved_count": 10,
+          "retrieval_metrics": {
+            "precision_at_1": 1.0,
+            "precision_at_3": 0.3333333333333333,
+            "precision_at_5": 0.2,
+            "precision_at_10": 0.1,
+            "mrr": 1.0,
+            "recall": 1.0
+          },
+          "answer_metrics": {
+            "answer_relevancy": 0.75,
+            "faithfulness": 0.6666666666666666,
+            "contextual_precision": 0.4
+          },
+          "meets_thresholds": {
+            "response_time": true,
+            "precision_at_3": false,
+            "answer_relevancy": true,
+            "faithfulness": false
+          }
+        }
+      ]
+    },
+    {
+      "paper_id": "2512.16919v1",
+      "paper_title": "DVGT: Driving Visual Geometry Transformer",
+      "categories": [
+        "cs.AI",
+        "cs.CV",
+        "cs.RO"
+      ],
+      "question_results": [
+        {
+          "question": "Who are the authors of 'DVGT: Driving Visual Geometry Transformer' and what institutions are they affiliated with?",
+          "question_id": "2512.16919v1_q_1",
+          "difficulty": "medium",
+          "expected_answer_type": "author",
+          "response_time_ms": 83.79101753234863,
+          "answer": "Title: DVGT: Driving Visual Geometry Transformer Authors: Sicheng Zuo, Zixun Xie, Wenzhao Zheng, Shaoqing Xu, Fang Li, Shengyin Jiang, Long Chen, Zhi-Xin Yang, Jiwen Lu Categories: cs.AI, cs.CV, cs.RO Abstract: Perceiving and reconstructing 3D scene geometry from visual inputs is crucial for autonom",
+          "retrieved_count": 10,
+          "retrieval_metrics": {
+            "precision_at_1": 1.0,
+            "precision_at_3": 0.3333333333333333,
+            "precision_at_5": 0.2,
+            "precision_at_10": 0.1,
+            "mrr": 1.0,
+            "recall": 1.0
+          },
+          "answer_metrics": {
+            "answer_relevancy": 0.7666666666666666,
+            "faithfulness": 0.5,
+            "contextual_precision": 0.2
+          },
+          "meets_thresholds": {
+            "response_time": true,
+            "precision_at_3": false,
+            "answer_relevancy": true,
+            "faithfulness": false
+          }
+        },
+        {
+          "question": "What are the limitations of existing approaches that this paper addresses?",
+          "question_id": "2512.16919v1_q_2",
+          "difficulty": "medium",
+          "expected_answer_type": "problem",
+          "response_time_ms": 78.85217666625977,
+          "answer": "Title: Bridging the Reality Gap: Efficient Adaptation of ASR systems for Challenging Low-Resource Domains Authors: Darshil Chauhan, Adityasinh Solanki, Vansh Patel, Kanav Kapoor, Ritvik Jain, Aditya Bansal, Dhruv Kumar, Prateek Narang Categories: cs.CL Abstract: Automatic Speech Recognition (ASR) ho",
+          "retrieved_count": 10,
+          "retrieval_metrics": {
+            "precision_at_1": 0.0,
+            "precision_at_3": 0.0,
+            "precision_at_5": 0.0,
+            "precision_at_10": 0.0,
+            "mrr": 0.0,
+            "recall": 0.0
+          },
+          "answer_metrics": {
+            "answer_relevancy": 0.6,
+            "faithfulness": 1.0,
+            "contextual_precision": 0.0
+          },
+          "meets_thresholds": {
+            "response_time": true,
+            "precision_at_3": false,
+            "answer_relevancy": false,
+            "faithfulness": true
+          }
+        },
+        {
+          "question": "What domains could benefit from this work?",
+          "question_id": "2512.16919v1_q_3",
+          "difficulty": "easy",
+          "expected_answer_type": "application",
+          "response_time_ms": 170.66121101379395,
+          "answer": "Title: Bridging the Reality Gap: Efficient Adaptation of ASR systems for Challenging Low-Resource Domains Authors: Darshil Chauhan, Adityasinh Solanki, Vansh Patel, Kanav Kapoor, Ritvik Jain, Aditya Bansal, Dhruv Kumar, Prateek Narang Categories: cs.CL Abstract: Automatic Speech Recognition (ASR) ho",
+          "retrieved_count": 10,
+          "retrieval_metrics": {
+            "precision_at_1": 0.0,
+            "precision_at_3": 0.0,
+            "precision_at_5": 0.0,
+            "precision_at_10": 0.0,
+            "mrr": 0.0,
+            "recall": 0.0
+          },
+          "answer_metrics": {
+            "answer_relevancy": 0.6428571428571428,
+            "faithfulness": 1.0,
+            "contextual_precision": 0.0
+          },
+          "meets_thresholds": {
+            "response_time": true,
+            "precision_at_3": false,
+            "answer_relevancy": false,
+            "faithfulness": true
+          }
+        },
+        {
+          "question": "What improvements does this approach achieve over existing methods?",
+          "question_id": "2512.16919v1_q_4",
+          "difficulty": "easy",
+          "expected_answer_type": "comparison",
+          "response_time_ms": 78.31692695617676,
+          "answer": "Title: Constructive Circuit Amplification: Improving Math Reasoning in LLMs via Targeted Sub-Network Updates Authors: Nikhil Prakash, Donghao Ren, Dominik Moritz, Yannick Assogba Categories: cs.CL Abstract: Prior studies investigating the internal workings of LLMs have uncovered sparse subnetworks, ",
+          "retrieved_count": 10,
+          "retrieval_metrics": {
+            "precision_at_1": 0.0,
+            "precision_at_3": 0.0,
+            "precision_at_5": 0.0,
+            "precision_at_10": 0.0,
+            "mrr": 0.0,
+            "recall": 0.0
+          },
+          "answer_metrics": {
+            "answer_relevancy": 0.5,
+            "faithfulness": 1.0,
+            "contextual_precision": 0.0
+          },
+          "meets_thresholds": {
+            "response_time": true,
+            "precision_at_3": false,
+            "answer_relevancy": false,
+            "faithfulness": true
+          }
+        },
+        {
+          "question": "What are the limitations mentioned by the authors?",
+          "question_id": "2512.16919v1_q_5",
+          "difficulty": "medium",
+          "expected_answer_type": "future_work",
+          "response_time_ms": 84.2139720916748,
+          "answer": "Title: High-Dimensional Partial Least Squares: Spectral Analysis and Fundamental Limitations Authors: Victor L\u00e9ger, Florent Chatelain Categories: stat.ML, cs.LG Abstract: Partial Least Squares (PLS) is a widely used method for data integration, designed to extract latent components shared across pai",
+          "retrieved_count": 10,
+          "retrieval_metrics": {
+            "precision_at_1": 0.0,
+            "precision_at_3": 0.0,
+            "precision_at_5": 0.0,
+            "precision_at_10": 0.0,
+            "mrr": 0.0,
+            "recall": 0.0
+          },
+          "answer_metrics": {
+            "answer_relevancy": 0.6666666666666666,
+            "faithfulness": 0.6666666666666666,
+            "contextual_precision": 0.2
+          },
+          "meets_thresholds": {
+            "response_time": true,
+            "precision_at_3": false,
+            "answer_relevancy": false,
+            "faithfulness": false
+          }
+        }
+      ]
+    },
+    {
+      "paper_id": "2512.16921v1",
+      "paper_title": "Differences That Matter: Auditing Models for Capability Gap Discovery and Rectification",
+      "categories": [
+        "cs.AI",
+        "cs.CV"
+      ],
+      "question_results": [
+        {
+          "question": "What is the core algorithm or model proposed?",
+          "question_id": "2512.16921v1_q_1",
+          "difficulty": "medium",
+          "expected_answer_type": "methodology",
+          "response_time_ms": 81.71224594116211,
+          "answer": "Title: Constructive Circuit Amplification: Improving Math Reasoning in LLMs via Targeted Sub-Network Updates Authors: Nikhil Prakash, Donghao Ren, Dominik Moritz, Yannick Assogba Categories: cs.CL Abstract: Prior studies investigating the internal workings of LLMs have uncovered sparse subnetworks, ",
+          "retrieved_count": 10,
+          "retrieval_metrics": {
+            "precision_at_1": 0.0,
+            "precision_at_3": 0.0,
+            "precision_at_5": 0.0,
+            "precision_at_10": 0.0,
+            "mrr": 0.0,
+            "recall": 0.0
+          },
+          "answer_metrics": {
+            "answer_relevancy": 0.6666666666666666,
+            "faithfulness": 1.0,
+            "contextual_precision": 0.2
+          },
+          "meets_thresholds": {
+            "response_time": true,
+            "precision_at_3": false,
+            "answer_relevancy": false,
+            "faithfulness": true
+          }
+        },
+        {
+          "question": "What are the practical applications of this research?",
+          "question_id": "2512.16921v1_q_2",
+          "difficulty": "hard",
+          "expected_answer_type": "application",
+          "response_time_ms": 67.9619312286377,
+          "answer": "Title: Lifting Biomolecular Data Acquisition Authors: Eli N. Weinstein, Andrei Slabodkin, Mattia G. Gollub, Kerry Dobbs, Xiao-Bing Cui, Fang Zhang, Kristina Gurung, Elizabeth B. Wood Categories: stat.ML, q-bio.BM Abstract: One strategy to scale up ML-driven science is to increase wet lab experiments",
+          "retrieved_count": 10,
+          "retrieval_metrics": {
+            "precision_at_1": 0.0,
+            "precision_at_3": 0.0,
+            "precision_at_5": 0.0,
+            "precision_at_10": 0.0,
+            "mrr": 0.0,
+            "recall": 0.0
+          },
+          "answer_metrics": {
+            "answer_relevancy": 0.5,
+            "faithfulness": 0.8333333333333334,
+            "contextual_precision": 0.0
+          },
+          "meets_thresholds": {
+            "response_time": true,
+            "precision_at_3": false,
+            "answer_relevancy": false,
+            "faithfulness": true
+          }
+        },
+        {
+          "question": "What are the main experimental results of this paper?",
+          "question_id": "2512.16921v1_q_3",
+          "difficulty": "easy",
+          "expected_answer_type": "results",
+          "response_time_ms": 144.4418430328369,
+          "answer": "Title: Lifting Biomolecular Data Acquisition Authors: Eli N. Weinstein, Andrei Slabodkin, Mattia G. Gollub, Kerry Dobbs, Xiao-Bing Cui, Fang Zhang, Kristina Gurung, Elizabeth B. Wood Categories: stat.ML, q-bio.BM Abstract: One strategy to scale up ML-driven science is to increase wet lab experiments",
+          "retrieved_count": 10,
+          "retrieval_metrics": {
+            "precision_at_1": 0.0,
+            "precision_at_3": 0.0,
+            "precision_at_5": 0.0,
+            "precision_at_10": 0.0,
+            "mrr": 0.0,
+            "recall": 0.0
+          },
+          "answer_metrics": {
+            "answer_relevancy": 0.5,
+            "faithfulness": 0.8333333333333334,
+            "contextual_precision": 0.2
+          },
+          "meets_thresholds": {
+            "response_time": true,
+            "precision_at_3": false,
+            "answer_relevancy": false,
+            "faithfulness": true
+          }
+        },
+        {
+          "question": "What improvements does this approach achieve over existing methods?",
+          "question_id": "2512.16921v1_q_4",
+          "difficulty": "medium",
+          "expected_answer_type": "comparison",
+          "response_time_ms": 67.6119327545166,
+          "answer": "Title: Constructive Circuit Amplification: Improving Math Reasoning in LLMs via Targeted Sub-Network Updates Authors: Nikhil Prakash, Donghao Ren, Dominik Moritz, Yannick Assogba Categories: cs.CL Abstract: Prior studies investigating the internal workings of LLMs have uncovered sparse subnetworks, ",
+          "retrieved_count": 10,
+          "retrieval_metrics": {
+            "precision_at_1": 0.0,
+            "precision_at_3": 0.0,
+            "precision_at_5": 0.0,
+            "precision_at_10": 0.0,
+            "mrr": 0.0,
+            "recall": 0.0
+          },
+          "answer_metrics": {
+            "answer_relevancy": 0.5,
+            "faithfulness": 1.0,
+            "contextual_precision": 0.0
+          },
+          "meets_thresholds": {
+            "response_time": true,
+            "precision_at_3": false,
+            "answer_relevancy": false,
+            "faithfulness": true
+          }
+        },
+        {
+          "question": "What are the limitations mentioned by the authors?",
+          "question_id": "2512.16921v1_q_5",
+          "difficulty": "medium",
+          "expected_answer_type": "future_work",
+          "response_time_ms": 107.53393173217773,
+          "answer": "Title: High-Dimensional Partial Least Squares: Spectral Analysis and Fundamental Limitations Authors: Victor L\u00e9ger, Florent Chatelain Categories: stat.ML, cs.LG Abstract: Partial Least Squares (PLS) is a widely used method for data integration, designed to extract latent components shared across pai",
+          "retrieved_count": 10,
+          "retrieval_metrics": {
+            "precision_at_1": 0.0,
+            "precision_at_3": 0.0,
+            "precision_at_5": 0.0,
+            "precision_at_10": 0.0,
+            "mrr": 0.0,
+            "recall": 0.0
+          },
+          "answer_metrics": {
+            "answer_relevancy": 0.6666666666666666,
+            "faithfulness": 0.6666666666666666,
+            "contextual_precision": 0.2
+          },
+          "meets_thresholds": {
+            "response_time": true,
+            "precision_at_3": false,
+            "answer_relevancy": false,
+            "faithfulness": false
+          }
+        }
+      ]
+    },
+    {
+      "paper_id": "2512.16917v1",
+      "paper_title": "Generative Adversarial Reasoner: Enhancing LLM Reasoning with Adversarial Reinforcement Learning",
+      "categories": [
+        "cs.AI",
+        "cs.CL",
+        "cs.LG"
+      ],
+      "question_results": [
+        {
+          "question": "What is the research background of the authors?",
+          "question_id": "2512.16917v1_q_1",
+          "difficulty": "easy",
+          "expected_answer_type": "author",
+          "response_time_ms": 141.3099765777588,
+          "answer": "Title: Impacts of Racial Bias in Historical Training Data for News AI Authors: Rahul Bhargava, Malene Hornstrup Jespersen, Emily Boardman Ndulue, Vivica Dsouza Categories: cs.AI, cs.LG, cs.CL, cs.CY Abstract: AI technologies have rapidly moved into business and research applications that involve lar",
+          "retrieved_count": 10,
+          "retrieval_metrics": {
+            "precision_at_1": 0.0,
+            "precision_at_3": 0.0,
+            "precision_at_5": 0.0,
+            "precision_at_10": 0.0,
+            "mrr": 0.0,
+            "recall": 0.0
+          },
+          "answer_metrics": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.4,
+            "contextual_precision": 0.0
+          },
+          "meets_thresholds": {
+            "response_time": true,
+            "precision_at_3": false,
+            "answer_relevancy": false,
+            "faithfulness": false
+          }
+        },
+        {
+          "question": "What future work is suggested in this paper?",
+          "question_id": "2512.16917v1_q_2",
+          "difficulty": "medium",
+          "expected_answer_type": "future_work",
+          "response_time_ms": 210.63709259033203,
+          "answer": "Title: Phythesis: Physics-Guided Evolutionary Scene Synthesis for Energy-Efficient Data Center Design via LLMs Authors: Minghao LI, Ruihang Wang, Rui Tan, Yonggang Wen Categories: cs.NE, cs.AI Abstract: Data center (DC) infrastructure serves as the backbone to support the escalating demand for compu",
+          "retrieved_count": 10,
+          "retrieval_metrics": {
+            "precision_at_1": 0.0,
+            "precision_at_3": 0.0,
+            "precision_at_5": 0.0,
+            "precision_at_10": 0.0,
+            "mrr": 0.0,
+            "recall": 0.0
+          },
+          "answer_metrics": {
+            "answer_relevancy": 0.5,
+            "faithfulness": 0.6666666666666666,
+            "contextual_precision": 0.0
+          },
+          "meets_thresholds": {
+            "response_time": true,
+            "precision_at_3": false,
+            "answer_relevancy": false,
+            "faithfulness": false
+          }
+        },
+        {
+          "question": "How can the findings of 'Generative Adversarial Reasoner: Enhancing LLM Reasoning with Adversarial Reinforcement Learning' be applied in real-world scenarios?",
+          "question_id": "2512.16917v1_q_3",
+          "difficulty": "easy",
+          "expected_answer_type": "application",
+          "response_time_ms": 136.61789894104004,
+          "answer": "Title: Generative Adversarial Reasoner: Enhancing LLM Reasoning with Adversarial Reinforcement Learning Authors: Qihao Liu, Luoxin Ye, Wufei Ma, Yu-Cheng Chou, Alan Yuille Categories: cs.AI, cs.CL, cs.LG Abstract: Large language models (LLMs) with explicit reasoning capabilities excel at mathematica",
+          "retrieved_count": 10,
+          "retrieval_metrics": {
+            "precision_at_1": 1.0,
+            "precision_at_3": 0.3333333333333333,
+            "precision_at_5": 0.2,
+            "precision_at_10": 0.1,
+            "mrr": 1.0,
+            "recall": 1.0
+          },
+          "answer_metrics": {
+            "answer_relevancy": 0.9375,
+            "faithfulness": 0.5,
+            "contextual_precision": 0.2
+          },
+          "meets_thresholds": {
+            "response_time": true,
+            "precision_at_3": false,
+            "answer_relevancy": true,
+            "faithfulness": false
+          }
+        },
+        {
+          "question": "What are the limitations of existing approaches that this paper addresses?",
+          "question_id": "2512.16917v1_q_4",
+          "difficulty": "medium",
+          "expected_answer_type": "problem",
+          "response_time_ms": 111.38796806335449,
+          "answer": "Title: Bridging the Reality Gap: Efficient Adaptation of ASR systems for Challenging Low-Resource Domains Authors: Darshil Chauhan, Adityasinh Solanki, Vansh Patel, Kanav Kapoor, Ritvik Jain, Aditya Bansal, Dhruv Kumar, Prateek Narang Categories: cs.CL Abstract: Automatic Speech Recognition (ASR) ho",
+          "retrieved_count": 10,
+          "retrieval_metrics": {
+            "precision_at_1": 0.0,
+            "precision_at_3": 0.0,
+            "precision_at_5": 0.0,
+            "precision_at_10": 0.0,
+            "mrr": 0.0,
+            "recall": 0.0
+          },
+          "answer_metrics": {
+            "answer_relevancy": 0.6,
+            "faithfulness": 1.0,
+            "contextual_precision": 0.0
+          },
+          "meets_thresholds": {
+            "response_time": true,
+            "precision_at_3": false,
+            "answer_relevancy": false,
+            "faithfulness": true
+          }
+        },
+        {
+          "question": "What are the main experimental results of this paper?",
+          "question_id": "2512.16917v1_q_5",
+          "difficulty": "medium",
+          "expected_answer_type": "results",
+          "response_time_ms": 181.83493614196777,
+          "answer": "Title: Lifting Biomolecular Data Acquisition Authors: Eli N. Weinstein, Andrei Slabodkin, Mattia G. Gollub, Kerry Dobbs, Xiao-Bing Cui, Fang Zhang, Kristina Gurung, Elizabeth B. Wood Categories: stat.ML, q-bio.BM Abstract: One strategy to scale up ML-driven science is to increase wet lab experiments",
+          "retrieved_count": 10,
+          "retrieval_metrics": {
+            "precision_at_1": 0.0,
+            "precision_at_3": 0.0,
+            "precision_at_5": 0.0,
+            "precision_at_10": 0.0,
+            "mrr": 0.0,
+            "recall": 0.0
+          },
+          "answer_metrics": {
+            "answer_relevancy": 0.5,
+            "faithfulness": 0.8333333333333334,
+            "contextual_precision": 0.2
+          },
+          "meets_thresholds": {
+            "response_time": true,
+            "precision_at_3": false,
+            "answer_relevancy": false,
+            "faithfulness": true
+          }
+        }
+      ]
+    },
+    {
+      "paper_id": "2512.16912v1",
+      "paper_title": "Exploration v.s. Exploitation: Rethinking RLVR through Clipping, Entropy, and Spurious Reward",
+      "categories": [
+        "cs.AI",
+        "cs.LG",
+        "cs.CL"
+      ],
+      "question_results": [
+        {
+          "question": "Describe the approach taken in this paper.",
+          "question_id": "2512.16912v1_q_1",
+          "difficulty": "medium",
+          "expected_answer_type": "methodology",
+          "response_time_ms": 280.63011169433594,
+          "answer": "Title: Non-Linear Strong Data-Processing for Quantum Hockey-Stick Divergences Authors: Theshani Nuradha, Ian George, Christoph Hirche Categories: cs.LG, quant-ph, cs.CR, cs.IT Abstract: Data-processing is a desired property of classical and quantum divergences and information measures. In informatio",
+          "retrieved_count": 10,
+          "retrieval_metrics": {
+            "precision_at_1": 0.0,
+            "precision_at_3": 0.0,
+            "precision_at_5": 0.0,
+            "precision_at_10": 0.0,
+            "mrr": 0.0,
+            "recall": 0.0
+          },
+          "answer_metrics": {
+            "answer_relevancy": 0.5,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.0
+          },
+          "meets_thresholds": {
+            "response_time": true,
+            "precision_at_3": false,
+            "answer_relevancy": false,
+            "faithfulness": false
+          }
+        },
+        {
+          "question": "What is the research background of the authors?",
+          "question_id": "2512.16912v1_q_2",
+          "difficulty": "medium",
+          "expected_answer_type": "author",
+          "response_time_ms": 74.45693016052246,
+          "answer": "Title: Impacts of Racial Bias in Historical Training Data for News AI Authors: Rahul Bhargava, Malene Hornstrup Jespersen, Emily Boardman Ndulue, Vivica Dsouza Categories: cs.AI, cs.LG, cs.CL, cs.CY Abstract: AI technologies have rapidly moved into business and research applications that involve lar",
+          "retrieved_count": 10,
+          "retrieval_metrics": {
+            "precision_at_1": 0.0,
+            "precision_at_3": 0.0,
+            "precision_at_5": 0.0,
+            "precision_at_10": 0.1,
+            "mrr": 0.14285714285714285,
+            "recall": 1.0
+          },
+          "answer_metrics": {
+            "answer_relevancy": 0.7,
+            "faithfulness": 0.4,
+            "contextual_precision": 0.0
+          },
+          "meets_thresholds": {
+            "response_time": true,
+            "precision_at_3": false,
+            "answer_relevancy": false,
+            "faithfulness": false
+          }
+        },
+        {
+          "question": "What metrics were used to measure performance?",
+          "question_id": "2512.16912v1_q_3",
+          "difficulty": "medium",
+          "expected_answer_type": "results",
+          "response_time_ms": 74.60713386535645,
+          "answer": "Title: Plain language adaptations of biomedical text using LLMs: Comparision of evaluation metrics Authors: Primoz Kocbek, Leon Kopitar, Gregor Stiglic Categories: cs.CL, cs.AI Abstract: This study investigated the application of Large Language Models (LLMs) for simplifying biomedical texts to enhan",
+          "retrieved_count": 10,
+          "retrieval_metrics": {
+            "precision_at_1": 0.0,
+            "precision_at_3": 0.0,
+            "precision_at_5": 0.0,
+            "precision_at_10": 0.0,
+            "mrr": 0.0,
+            "recall": 0.0
+          },
+          "answer_metrics": {
+            "answer_relevancy": 0.6666666666666666,
+            "faithfulness": 0.6666666666666666,
+            "contextual_precision": 0.0
+          },
+          "meets_thresholds": {
+            "response_time": true,
+            "precision_at_3": false,
+            "answer_relevancy": false,
+            "faithfulness": false
+          }
+        },
+        {
+          "question": "What are the key innovations introduced in this paper?",
+          "question_id": "2512.16912v1_q_4",
+          "difficulty": "hard",
+          "expected_answer_type": "contribution",
+          "response_time_ms": 73.60100746154785,
+          "answer": "Title: Non-Linear Strong Data-Processing for Quantum Hockey-Stick Divergences Authors: Theshani Nuradha, Ian George, Christoph Hirche Categories: cs.LG, quant-ph, cs.CR, cs.IT Abstract: Data-processing is a desired property of classical and quantum divergences and information measures. In informatio",
+          "retrieved_count": 10,
+          "retrieval_metrics": {
+            "precision_at_1": 0.0,
+            "precision_at_3": 0.0,
+            "precision_at_5": 0.0,
+            "precision_at_10": 0.0,
+            "mrr": 0.0,
+            "recall": 0.0
+          },
+          "answer_metrics": {
+            "answer_relevancy": 0.5,
+            "faithfulness": 0.8,
+            "contextual_precision": 0.2
+          },
+          "meets_thresholds": {
+            "response_time": true,
+            "precision_at_3": false,
+            "answer_relevancy": false,
+            "faithfulness": false
+          }
+        },
+        {
+          "question": "What are the limitations mentioned by the authors?",
+          "question_id": "2512.16912v1_q_5",
+          "difficulty": "hard",
+          "expected_answer_type": "future_work",
+          "response_time_ms": 113.85512351989746,
+          "answer": "Title: High-Dimensional Partial Least Squares: Spectral Analysis and Fundamental Limitations Authors: Victor L\u00e9ger, Florent Chatelain Categories: stat.ML, cs.LG Abstract: Partial Least Squares (PLS) is a widely used method for data integration, designed to extract latent components shared across pai",
+          "retrieved_count": 10,
+          "retrieval_metrics": {
+            "precision_at_1": 0.0,
+            "precision_at_3": 0.0,
+            "precision_at_5": 0.0,
+            "precision_at_10": 0.0,
+            "mrr": 0.0,
+            "recall": 0.0
+          },
+          "answer_metrics": {
+            "answer_relevancy": 0.6666666666666666,
+            "faithfulness": 0.6666666666666666,
+            "contextual_precision": 0.2
+          },
+          "meets_thresholds": {
+            "response_time": true,
+            "precision_at_3": false,
+            "answer_relevancy": false,
+            "faithfulness": false
+          }
+        }
+      ]
+    }
+  ],
+  "aggregate_metrics": {
+    "total_questions": 25,
+    "overall_pass_rate": 0.0,
+    "average_response_time_ms": 137.4319362640381,
+    "median_response_time_ms": 91.39299392700195,
+    "threshold_pass_rates": {
+      "response_time": 1.0,
+      "precision_at_3": 0.0,
+      "answer_relevancy": 0.16,
+      "faithfulness": 0.44
+    },
+    "retrieval_metrics": {
+      "precision_at_3": 0.05333333333333333,
+      "precision_at_10": 0.02,
+      "precision_at_5": 0.032,
+      "precision_at_1": 0.16,
+      "recall": 0.2,
+      "mrr": 0.1657142857142857
+    },
+    "answer_metrics": {
+      "answer_relevancy": 0.6172142857142857,
+      "faithfulness": 0.7746666666666666,
+      "contextual_precision": 0.10400000000000001
+    }
+  }
+}

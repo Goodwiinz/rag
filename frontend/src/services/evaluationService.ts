@@ -1,8 +1,4 @@
 import { EvaluationMetrics } from '@/types/evaluation';
-import {
-  getPublicApiOrigin,
-  getPublicWebSocketOrigin,
-} from '@/utils/publicEndpoints';
 
 // Types for API requests/responses
 export interface EvaluationDataset {
@@ -75,7 +71,7 @@ export interface EvaluationAlert {
 }
 
 // Base API configuration
-const API_BASE_URL = getPublicApiOrigin() || 'http://localhost:8000';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 const DEFAULT_HEADERS = {
   'Content-Type': 'application/json',
 };
@@ -628,7 +624,7 @@ export class EvaluationWebSocket {
 
 // Create WebSocket instance
 export const evaluationWebSocket = new EvaluationWebSocket(
-  `${getPublicWebSocketOrigin()}/ws/evaluations`
+  `${process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8000'}/ws/evaluations`
 );
 
 // Main evaluation service export

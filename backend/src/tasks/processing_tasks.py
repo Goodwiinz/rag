@@ -9,13 +9,25 @@ import sys
 from datetime import datetime, timedelta
 from typing import Any, Dict
 
-from celery import Task, current_app
+from celery import Task
+
+# Add src directory to Python path
+sys.path.append(os.path.join(os.path.dirname(__file__), "..", ".."))
+
+from celery import Celery, current_app
+
+# Create Celery app
+celery_app = Celery(
+    "multimodal_rag",
+    broker="redis://redis:6379/0",
+    backend="redis://redis:6379/0",
+    include=["src.tasks.processing_tasks"],
+)
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from src.core.config import settings
 from src.core.database import get_db
-from src.tasks.celery_app import celery_app
 from src.models.document import Document, ProcessingStatus
 from src.models.entity import Entity
 from src.models.graph import (
@@ -91,17 +103,8 @@ def _map_processing_entity_type_to_graph(
 def _safe_relationship_type(raw_type: str) -> GraphRelationshipType:
     if not raw_type:
         return GraphRelationshipType.RELATED_TO
-
-    normalized = str(raw_type).strip().upper().replace("-", "_").replace(" ", "_")
-    if not normalized:
-        return GraphRelationshipType.RELATED_TO
-
-    # Backward-compatible alias for extractor outputs.
-    if normalized == "LEADS":
-        normalized = "MANAGES"
-
     try:
-        return GraphRelationshipType(normalized)
+        return GraphRelationshipType(raw_type)
     except ValueError:
         return GraphRelationshipType.RELATED_TO
 
@@ -182,34 +185,6 @@ def process_document_ingestion(self, job_id: str):
             for entity in entities:
                 db.add(entity)
             db.commit()
-
-            # Index entities into Neo4j knowledge graph
-            job.update_progress("Indexing knowledge graph", 60)
-            db.commit()
-
-            try:
-                from src.services.knowledge_graph.knowledge_graph_service import (
-                    knowledge_graph_service,
-                )
-
-                kg_indexed = 0
-                for entity in entities:
-                    entity_id = knowledge_graph_service.create_entity_node(
-                        entity_text=entity.name,
-                        entity_type=entity.entity_type.value if hasattr(entity.entity_type, 'value') else str(entity.entity_type),
-                        document_id=str(document.id),
-                        confidence=entity.confidence_score or 0.8,
-                    )
-                    if entity_id:
-                        kg_indexed += 1
-                logger.info(
-                    f"Indexed {kg_indexed}/{len(entities)} entities into Neo4j for document {document.id}"
-                )
-            except Exception as e:
-                logger.warning(
-                    f"Neo4j indexing failed for document {document.id}: {e}. "
-                    "Entities are still available in PostgreSQL."
-                )
 
         # Step 3: Embedding Generation
         job.update_progress("Generating embeddings", 75)
@@ -563,8 +538,6 @@ def kg_extract_entities_job(self, job_id: str):
 
         entities_found_total = 0
         entities_created_total = 0
-        relationships_found_total = 0
-        relationships_created_total = 0
         errors_total = 0
 
         total_docs = len(document_ids)
@@ -585,14 +558,11 @@ def kg_extract_entities_job(self, job_id: str):
             )
             db.commit()
 
-            extracted_entities, extracted_relationships = extractor.extract_entities_and_relationships_from_text(
-                document, content
-            )
-            entities_found_total += len(extracted_entities)
-            relationships_found_total += len(extracted_relationships)
+            extracted = extractor.extract_entities_from_text(document, content)
+            entities_found_total += len(extracted)
 
             create_requests = []
-            for ent in extracted_entities:
+            for ent in extracted:
                 create_requests.append(
                     CreateEntityRequest(
                         name=ent.name,
@@ -609,7 +579,7 @@ def kg_extract_entities_job(self, job_id: str):
                     )
                 )
 
-            entity_result = knowledge_graph_service.create_entities_batch(
+            result = knowledge_graph_service.create_entities_batch(
                 BatchEntityRequest(
                     entities=create_requests,
                     relationships=[],
@@ -617,70 +587,8 @@ def kg_extract_entities_job(self, job_id: str):
                     document_id=str(document.id),
                 )
             )
-
-            entities_created_total += len(entity_result.created_entities)
-            errors_total += len(entity_result.errors)
-
-            # Build a lookup from extracted entity signature to created graph node ID.
-            created_entity_id_by_key = {}
-            for created in entity_result.created_entities:
-                created_key = (
-                    created.entity_type.value,
-                    created.name.strip().lower(),
-                )
-                created_entity_id_by_key[created_key] = created.id
-
-            relationship_requests = []
-            for relationship in extracted_relationships:
-                source_entity = relationship.get("source_entity")
-                target_entity = relationship.get("target_entity")
-                if not source_entity or not target_entity:
-                    continue
-
-                source_graph_type = _map_processing_entity_type_to_graph(source_entity.entity_type)
-                target_graph_type = _map_processing_entity_type_to_graph(target_entity.entity_type)
-
-                source_key = (source_graph_type.value, (source_entity.name or "").strip().lower())
-                target_key = (target_graph_type.value, (target_entity.name or "").strip().lower())
-                source_entity_id = created_entity_id_by_key.get(source_key)
-                target_entity_id = created_entity_id_by_key.get(target_key)
-                if not source_entity_id or not target_entity_id:
-                    continue
-
-                confidence = float(relationship.get("confidence", 0.7))
-                confidence = min(1.0, max(0.0, confidence))
-                evidence = relationship.get("evidence")
-                relationship_requests.append(
-                    CreateRelationshipRequest(
-                        source_entity_id=source_entity_id,
-                        target_entity_id=target_entity_id,
-                        relationship_type=_safe_relationship_type(
-                            relationship.get("relationship_type", "")
-                        ),
-                        strength=confidence,
-                        confidence_score=confidence,
-                        context=evidence,
-                        evidence=[evidence] if evidence else [],
-                        metadata={
-                            "source": "background_extraction_job",
-                            "document_id": str(document.id),
-                            "pattern_matched": relationship.get("pattern_matched"),
-                        },
-                        source_document_id=str(document.id),
-                    )
-                )
-
-            if relationship_requests:
-                relationship_result = knowledge_graph_service.create_entities_batch(
-                    BatchEntityRequest(
-                        entities=[],
-                        relationships=relationship_requests,
-                        upsert=True,
-                        document_id=str(document.id),
-                    )
-                )
-                relationships_created_total += len(relationship_result.created_relationships)
-                errors_total += len(relationship_result.errors)
+            entities_created_total += len(result.created_entities)
+            errors_total += len(result.errors)
 
         job.update_progress("Finalizing extraction job", 90)
 
@@ -689,8 +597,6 @@ def kg_extract_entities_job(self, job_id: str):
                 "document_ids": document_ids,
                 "entities_found": entities_found_total,
                 "entities_created": entities_created_total,
-                "relationships_found": relationships_found_total,
-                "relationships_created": relationships_created_total,
                 "errors": errors_total,
             }
         )

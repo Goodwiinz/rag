@@ -18,7 +18,6 @@ from src.core.database import get_db
 from src.core.dependencies import get_current_user
 from src.models.chat_message import ChatMessage, MessageRole
 from src.models.citation import Citation
-from src.models.message_attachment import MessageAttachment
 from src.models.collection import Collection, CollectionDocument
 from src.models.conversation import Conversation
 from src.models.document import Document
@@ -129,9 +128,7 @@ async def list_workspaces(
         )
         .join(WorkspaceMember)
         .where(
-            WorkspaceMember.user_id == current_user.id,
-            WorkspaceMember.is_deleted == False,
-            Workspace.is_deleted == False,
+            WorkspaceMember.user_id == current_user.id, Workspace.is_deleted == False
         )
     )
 
@@ -766,7 +763,7 @@ async def create_message(
         select(ChatMessage)
         .options(
             selectinload(ChatMessage.citations).selectinload(Citation.document),
-            selectinload(ChatMessage.attachments).selectinload(MessageAttachment.document),
+            selectinload(ChatMessage.attachments),
         )
         .where(ChatMessage.id == message.id)
     )
@@ -807,7 +804,7 @@ async def list_messages(
         select(ChatMessage)
         .options(
             selectinload(ChatMessage.citations).selectinload(Citation.document),
-            selectinload(ChatMessage.attachments).selectinload(MessageAttachment.document),
+            selectinload(ChatMessage.attachments),
         )
         .where(ChatMessage.thread_id == thread_id, ChatMessage.is_deleted == False)
         .order_by(ChatMessage.created_at.asc())
@@ -1791,7 +1788,7 @@ async def list_messages_standalone(
         select(ChatMessage)
         .options(
             selectinload(ChatMessage.citations).selectinload(Citation.document),
-            selectinload(ChatMessage.attachments).selectinload(MessageAttachment.document),
+            selectinload(ChatMessage.attachments),
         )
         .where(ChatMessage.thread_id == thread_id, ChatMessage.is_deleted == False)
         .order_by(ChatMessage.created_at.asc())
@@ -1883,7 +1880,7 @@ async def create_message_standalone(
         select(ChatMessage)
         .options(
             selectinload(ChatMessage.citations).selectinload(Citation.document),
-            selectinload(ChatMessage.attachments).selectinload(MessageAttachment.document),
+            selectinload(ChatMessage.attachments),
         )
         .where(ChatMessage.id == message.id)
     )

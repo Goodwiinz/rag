@@ -24,6 +24,7 @@ jest.mock('framer-motion', () => ({
 }));
 
 import { ChatInput } from '../ChatInput';
+import { AVAILABLE_MODELS } from '../ModelSelector';
 
 // Default props for all tests
 const defaultProps = {
@@ -32,6 +33,10 @@ const defaultProps = {
   onSubmit: jest.fn(),
   onStop: jest.fn(),
   isLoading: false,
+  isModelLoading: false,
+  selectedModel: 'gpt-4o',
+  models: AVAILABLE_MODELS,
+  onModelChange: jest.fn(),
   enableRAG: true,
   onRAGToggle: jest.fn(),
 };
@@ -79,7 +84,7 @@ describe('ChatInput streaming behavior', () => {
       expect(haltButton).not.toBeInTheDocument();
     });
 
-    it('does not disable the textarea', () => {
+    it('does not disable the textarea when model is selected', () => {
       render(<ChatInput {...defaultProps} isLoading={false} />);
 
       const textarea = screen.getByRole('textbox');
@@ -87,11 +92,12 @@ describe('ChatInput streaming behavior', () => {
     });
   });
 
-  describe('shows NOUS AGENT label', () => {
-    it('displays the agent label in the input bar', () => {
-      render(<ChatInput {...defaultProps} />);
+  describe('when no model is selected', () => {
+    it('disables the textarea', () => {
+      render(<ChatInput {...defaultProps} selectedModel={undefined} />);
 
-      expect(screen.getByText('NOUS AGENT')).toBeInTheDocument();
+      const textarea = screen.getByRole('textbox');
+      expect(textarea).toBeDisabled();
     });
   });
 });

@@ -1,9 +1,9 @@
-"use client";
+'use client';
 
-import React from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { X, Command, Search, Upload, FileText, Home } from "lucide-react";
-import { IconButton } from "@/components/ui/icon-button";
+import React from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { X, Command, Search, Upload, FileText, Home } from 'lucide-react';
+import { IconButton } from '@/components/ui/icon-button';
 
 interface KeyboardShortcutsProps {
   isOpen: boolean;
@@ -18,28 +18,28 @@ interface Shortcut {
 
 const shortcuts: Shortcut[] = [
   {
-    keys: ["⌘", "K"],
-    description: "Quick search",
+    keys: ['⌘', 'K'],
+    description: 'Quick search',
     icon: <Search className="h-4 w-4" />,
   },
   {
-    keys: ["⌘", "U"],
-    description: "Upload document",
+    keys: ['⌘', 'U'],
+    description: 'Upload document',
     icon: <Upload className="h-4 w-4" />,
   },
   {
-    keys: ["⌘", "D"],
-    description: "Go to dashboard",
+    keys: ['⌘', 'D'],
+    description: 'Go to dashboard',
     icon: <Home className="h-4 w-4" />,
   },
   {
-    keys: ["⌘", "F"],
-    description: "Search documents",
+    keys: ['⌘', 'F'],
+    description: 'Search documents',
     icon: <FileText className="h-4 w-4" />,
   },
   {
-    keys: ["?"],
-    description: "Show shortcuts",
+    keys: ['?'],
+    description: 'Show shortcuts',
     icon: <Command className="h-4 w-4" />,
   },
 ];
@@ -50,17 +50,17 @@ export const KeyboardShortcuts: React.FC<KeyboardShortcutsProps> = ({
 }) => {
   React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "?" || (e.key === "/" && e.shiftKey)) {
+      if (e.key === '?' || (e.key === '/' && e.shiftKey)) {
         e.preventDefault();
         onClose();
       }
-      if (e.key === "Escape" && isOpen) {
+      if (e.key === 'Escape' && isOpen) {
         onClose();
       }
     };
 
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
 
   return (
@@ -79,7 +79,7 @@ export const KeyboardShortcuts: React.FC<KeyboardShortcutsProps> = ({
             initial={{ opacity: 0, scale: 0.9, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.9, y: 20 }}
-            transition={{ duration: 0.2, type: "spring" }}
+            transition={{ duration: 0.2, type: 'spring' }}
             className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-full max-w-md"
           >
             <div className="relative overflow-hidden rounded-2xl bg-white/95 backdrop-blur-xl border border-amber-200/20 shadow-2xl">
@@ -97,9 +97,8 @@ export const KeyboardShortcuts: React.FC<KeyboardShortcutsProps> = ({
                     className="p-1 hover:bg-gray-100/80 rounded-lg transition-colors h-auto w-auto"
                     variant="ghost"
                     label="Close shortcuts"
-                  >
-                    <X className="h-4 w-4 text-gray-500" />
-                  </IconButton>
+                    icon={<X className="h-4 w-4 text-gray-500" />}
+                  />
                 </div>
 
                 <div className="space-y-3">
@@ -137,7 +136,11 @@ export const KeyboardShortcuts: React.FC<KeyboardShortcutsProps> = ({
 
                 <div className="mt-6 pt-4 border-t border-gray-200">
                   <p className="text-xs text-center text-gray-500">
-                    Press <kbd className="px-1 py-0.5 text-xs font-mono rounded bg-gray-100">ESC</kbd> to close
+                    Press{' '}
+                    <kbd className="px-1 py-0.5 text-xs font-mono rounded bg-gray-100">
+                      ESC
+                    </kbd>{' '}
+                    to close
                   </p>
                 </div>
               </div>

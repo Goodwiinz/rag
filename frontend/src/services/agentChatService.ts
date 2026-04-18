@@ -1,27 +1,4 @@
 import { apiClient } from '@/services/apiClient';
-import { createClient } from '@/lib/supabase/client';
-
-async function getStreamAuthHeaders(): Promise<Record<string, string>> {
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-  };
-  try {
-    const supabase = createClient();
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-    if (session?.access_token) {
-      headers['Authorization'] = `Bearer ${session.access_token}`;
-    }
-    const orgId = session?.user?.user_metadata?.organization_id;
-    if (orgId) {
-      headers['X-Organization-ID'] = orgId;
-    }
-  } catch {
-    // Fall through without auth headers
-  }
-  return headers;
-}
 
 export interface AgentExecuteRequest {
   messages: Array<{ role: string; content: string }>;
@@ -151,21 +128,26 @@ class AgentChatService {
       onToolStart?: (tool: string, args: Record<string, unknown>) => void;
       onToolEnd?: (tool: string, result: string) => void;
       onRagContext?: (contexts: Array<Record<string, unknown>>) => void;
-      onPlan?: (
-        steps: Array<Record<string, unknown>>,
-        reasoning: string
-      ) => void;
-      onReflection?: (passed: boolean, issues: string[], round: number) => void;
-      onConfirmation?: (
-        threadId: string,
-        confirmation: Record<string, unknown>
-      ) => void;
-      onTrace?: (threadId: string) => void;
       onDone?: () => void;
       onError?: (error: string) => void;
     }
   ): Promise<void> {
-    const headers = await getStreamAuthHeaders();
+    // Get auth token from Zustand persistence (same as apiClient)
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    try {
+      const storageItem = localStorage.getItem('auth-storage');
+      if (storageItem) {
+        const parsed = JSON.parse(storageItem);
+        const token = parsed?.state?.token;
+        const orgId = parsed?.state?.organization?.id;
+        if (token) headers['Authorization'] = `Bearer ${token}`;
+        if (orgId) headers['X-Organization-ID'] = orgId;
+      }
+    } catch {
+      // Fall through without auth headers
+    }
 
     const response = await fetch('/api/v1/agent/stream', {
       method: 'POST',
@@ -210,105 +192,6 @@ class AgentChatService {
                   break;
                 case 'rag_context':
                   callbacks.onRagContext?.(data.contexts);
-                  break;
-                case 'plan':
-                  callbacks.onPlan?.(data.steps, data.reasoning);
-                  break;
-                case 'trace':
-                  if (data.thread_id) {
-                    callbacks.onTrace?.(data.thread_id);
-                  }
-                  break;
-                case 'reflection':
-                  callbacks.onReflection?.(
-                    data.passed,
-                    data.issues,
-                    data.round
-                  );
-                  break;
-                case 'confirmation':
-                  callbacks.onConfirmation?.(data.thread_id, data.confirmation);
-                  break;
-                case 'done':
-                  callbacks.onDone?.();
-                  break;
-                case 'error':
-                  callbacks.onError?.(data.error);
-                  break;
-              }
-            } catch {
-              // Skip malformed JSON
-            }
-            eventType = '';
-          }
-        }
-      }
-    } finally {
-      reader.releaseLock();
-    }
-  }
-
-  async streamConfirm(
-    request: { thread_id: string; confirmed: boolean },
-    callbacks: {
-      onToken?: (content: string) => void;
-      onToolStart?: (tool: string, args: Record<string, unknown>) => void;
-      onToolEnd?: (tool: string, result: string) => void;
-      onConfirmation?: (
-        threadId: string,
-        confirmation: Record<string, unknown>
-      ) => void;
-      onDone?: () => void;
-      onError?: (error: string) => void;
-    }
-  ): Promise<void> {
-    const headers = await getStreamAuthHeaders();
-
-    const response = await fetch('/api/v1/agent/stream/confirm', {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(request),
-    });
-
-    if (!response.ok || !response.body) {
-      callbacks.onError?.(`Stream confirm failed: ${response.status}`);
-      return;
-    }
-
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = '';
-
-    try {
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || '';
-
-        let eventType = '';
-        for (const line of lines) {
-          if (line.startsWith('event: ')) {
-            eventType = line.slice(7).trim();
-          } else if (line.startsWith('data: ') && eventType) {
-            try {
-              const data = JSON.parse(line.slice(6));
-              switch (eventType) {
-                case 'token':
-                  callbacks.onToken?.(data.content);
-                  break;
-                case 'tool_start':
-                  callbacks.onToolStart?.(data.tool, data.args);
-                  break;
-                case 'tool_end':
-                  callbacks.onToolEnd?.(data.tool, data.result);
-                  break;
-                case 'trace':
-                  break;
-                case 'confirmation':
-                  callbacks.onConfirmation?.(data.thread_id, data.confirmation);
                   break;
                 case 'done':
                   callbacks.onDone?.();

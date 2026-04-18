@@ -18,41 +18,6 @@
   animation: fade-in 0.3s ease-out;
 }
 
-@keyframes pulse-live {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.4;
-  }
-}
-
-.animate-pulse-live {
-  animation: pulse-live 2s ease-in-out infinite;
-}
-
-@keyframes scan-line {
-  0% {
-    transform: translateY(-100%);
-    opacity: 0;
-  }
-  10% {
-    opacity: 0.6;
-  }
-  90% {
-    opacity: 0.6;
-  }
-  100% {
-    transform: translateY(100%);
-    opacity: 0;
-  }
-}
-
-.animate-scan-line {
-  animation: scan-line 3s ease-in-out infinite;
-}
-
 /* Custom scrollbar styling */
 ::-webkit-scrollbar {
   width: 8px;
@@ -81,27 +46,25 @@
 }
 
 :root {
-  /* NOUS Light Mode — Selene surface, Erebus text, Sol accent */
-  /* Primary darkened to #996D1A for WCAG AA on white (5.2:1 contrast) */
-  --background: 40 14% 97%;
-  --foreground: 240 20% 4%;
-  --card: 0 0% 100%;
-  --card-foreground: 240 20% 4%;
-  --popover: 0 0% 100%;
-  --popover-foreground: 240 20% 4%;
-  --primary: 40 70% 35%;
-  --primary-foreground: 0 0% 100%;
-  --secondary: 40 10% 92%;
-  --secondary-foreground: 240 20% 10%;
-  --muted: 40 10% 92%;
-  --muted-foreground: 240 5% 42%;
-  --accent: 40 10% 92%;
-  --accent-foreground: 240 20% 10%;
+  --background: 240 20% 4%;
+  --foreground: 240 11% 90%;
+  --card: 240 22% 6%;
+  --card-foreground: 240 11% 90%;
+  --popover: 240 22% 6%;
+  --popover-foreground: 240 11% 90%;
+  --primary: 157 100% 50%;
+  --primary-foreground: 240 20% 4%;
+  --secondary: 240 21% 13%;
+  --secondary-foreground: 240 11% 95%;
+  --muted: 240 21% 13%;
+  --muted-foreground: 240 5% 60%;
+  --accent: 240 21% 13%;
+  --accent-foreground: 240 11% 95%;
   --destructive: 0 84% 60%;
   --destructive-foreground: 0 0% 100%;
-  --border: 40 8% 88%;
-  --input: 40 8% 88%;
-  --ring: 40 70% 35%;
+  --border: 240 21% 13%;
+  --input: 240 21% 13%;
+  --ring: 157 100% 50%;
   --chart-1: oklch(0.7686 0.1647 70.0804);
   --chart-2: oklch(0.6658 0.1574 58.3183);
   --chart-3: oklch(0.5553 0.1455 48.9975);
@@ -125,30 +88,6 @@
   --spacing: 0.25rem;
   --font-sans: 'Inter', system-ui, sans-serif;
 
-  /* NOUS brand accent — WCAG AA-safe values for light backgrounds */
-  --phosphor-green: #956f1b;
-  --phosphor-green-dim: #956f1b80;
-  --phosphor-green-muted: #956f1b33;
-  --phosphor-green-glow: rgba(149, 111, 27, 0.15);
-  --amber-gold: #7a5c14;
-  --amber-gold-dim: #7a5c1480;
-  --amber-gold-muted: #7a5c1433;
-  --cyan: #0891b2;
-  --cyan-dim: #0891b280;
-  --cyan-muted: #0891b233;
-
-  /* Terminal theme — light mode variants */
-  --terminal-bg: hsl(40 14% 97%);
-  --terminal-surface: hsl(0 0% 100%);
-  --terminal-surface-hover: hsl(40 10% 95%);
-  --terminal-elevated: hsl(40 10% 92%);
-  --terminal-border: hsl(40 8% 85%);
-  --terminal-border-muted: hsl(40 8% 88%);
-  --terminal-text: hsl(240 20% 4%);
-  --terminal-text-muted: hsl(240 5% 42%);
-  --terminal-text-subtle: hsl(240 5% 55%);
-  --terminal-text-dim: hsl(240 5% 55%);
-
   /* WebLLM specific variables (keeping existing ones) */
   --webllm-primary: oklch(0.7686 0.1647 70.0804);
   --webllm-second: oklch(0.967 0.0029 264.5419);
@@ -165,7 +104,7 @@
   --card-foreground: 240 11% 90%;
   --popover: 240 22% 6%;
   --popover-foreground: 240 11% 90%;
-  --primary: 43 66% 53%;
+  --primary: 157 100% 50%;
   --primary-foreground: 240 20% 4%;
   --secondary: 240 21% 13%;
   --secondary-foreground: 240 11% 95%;
@@ -177,40 +116,16 @@
   --destructive-foreground: 0 0% 100%;
   --border: 240 21% 13%;
   --input: 240 21% 13%;
-  --ring: 43 66% 53%;
-  --chart-1: 43 66% 53%;
-  --chart-2: 43 78% 60%;
+  --ring: 157 100% 50%;
+  --chart-1: 157 100% 50%;
+  --chart-2: 43 100% 50%;
   --chart-3: 199 100% 50%;
   --chart-4: 271 100% 50%;
   --chart-5: 340 75% 55%;
-
-  /* NOUS brand accent — full vibrancy on dark backgrounds */
-  --phosphor-green: #d4a039;
-  --phosphor-green-dim: #d4a03980;
-  --phosphor-green-muted: #d4a03933;
-  --phosphor-green-glow: rgba(212, 160, 57, 0.15);
-  --amber-gold: #ffb700;
-  --amber-gold-dim: #ffb70080;
-  --amber-gold-muted: #ffb70033;
-  --cyan: #00d4ff;
-  --cyan-dim: #00d4ff80;
-  --cyan-muted: #00d4ff33;
-
-  /* Terminal theme — dark mode */
-  --terminal-bg: #0a0a0f;
-  --terminal-surface: #0d0d12;
-  --terminal-surface-hover: #141419;
-  --terminal-elevated: #1a1a20;
-  --terminal-border: #30363d;
-  --terminal-border-muted: #21262d;
-  --terminal-text: #ffffff;
-  --terminal-text-muted: #8b949e;
-  --terminal-text-subtle: #484f58;
-  --terminal-text-dim: #484f58;
 }
 
 * {
-  border-color: hsl(var(--border));
+  border-color: var(--border);
 }
 
 body {
@@ -387,24 +302,24 @@ body {
 
 @layer base {
   :root {
-    --sidebar-background: #fafaf8;
-    --sidebar-foreground: #0a0a0e;
-    --sidebar-primary: var(--brand-sol);
-    --sidebar-primary-foreground: #ffffff;
-    --sidebar-accent: #f0ede6;
-    --sidebar-accent-foreground: var(--brand-sol);
-    --sidebar-border: #e2e0d8;
-    --sidebar-ring: var(--brand-sol);
+    --sidebar-background: var(--terminal-bg);
+    --sidebar-foreground: var(--terminal-text);
+    --sidebar-primary: var(--phosphor-green);
+    --sidebar-primary-foreground: var(--terminal-bg);
+    --sidebar-accent: var(--terminal-elevated);
+    --sidebar-accent-foreground: var(--phosphor-green);
+    --sidebar-border: var(--terminal-border);
+    --sidebar-ring: var(--phosphor-green);
   }
   .dark {
     --sidebar-background: var(--terminal-bg);
     --sidebar-foreground: var(--terminal-text);
-    --sidebar-primary: var(--brand-sol);
+    --sidebar-primary: var(--phosphor-green);
     --sidebar-primary-foreground: var(--terminal-bg);
     --sidebar-accent: var(--terminal-elevated);
-    --sidebar-accent-foreground: var(--brand-sol);
+    --sidebar-accent-foreground: var(--phosphor-green);
     --sidebar-border: var(--terminal-border);
-    --sidebar-ring: var(--brand-sol);
+    --sidebar-ring: var(--phosphor-green);
   }
 }
 
@@ -529,73 +444,38 @@ body {
   opacity: 0.6;
 }
 
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
 /* ============================================
    TERMINAL OBSERVATORY THEME
    A cosmic terminal aesthetic for LLM Chat
    ============================================ */
 
-/* ============================================
-   NOUS BRAND TOKENS (always available)
-   ============================================ */
+/* Terminal Observatory CSS Variables */
 :root {
-  --brand-sol: #d4a039;
-  --brand-helios: #e8b84a;
-  --brand-apollo: #f5d680;
-  --brand-erebus: #0a0a0e;
-  --brand-selene: #f7f7f5;
-}
-
-/* ============================================
-   TERMINAL THEME — Light Mode
-   ============================================ */
-:root {
-  --terminal-bg: #f7f7f5;
-  --terminal-surface: #ffffff;
-  --terminal-elevated: #f0ede6;
-  --terminal-border: #e2e0d8;
-  --terminal-border-glow: #d6d3ca;
-
-  --phosphor-green: #d4a039;
-  --phosphor-green-subtle: rgba(212, 160, 57, 0.08);
-  --phosphor-green-dim: #b8882f;
-  --phosphor-green-glow: rgba(212, 160, 57, 0.12);
-  --phosphor-green-intense: rgba(212, 160, 57, 0.3);
-  --phosphor-green-muted: rgba(212, 160, 57, 0.05);
-
-  --amber-gold: #e8b84a;
-  --amber-gold-dim: #d4a039;
-  --amber-gold-glow: rgba(232, 184, 74, 0.12);
-
-  --terminal-text: #0a0a0e;
-  --terminal-text-dim: #4a4a4e;
-  --terminal-text-muted: #9a9a9e;
-  --terminal-text-subtle: #6a6a6e;
-
-  --terminal-surface-hover: #ede9e0;
-
-  --scan-line-opacity: 0;
-}
-
-/* ============================================
-   TERMINAL THEME — Dark Mode
-   ============================================ */
-.dark {
   --terminal-bg: #0a0a0f;
   --terminal-surface: #0d0d14;
   --terminal-elevated: #12121a;
   --terminal-border: #1a1a28;
   --terminal-border-glow: #1f1f30;
 
-  --phosphor-green: #d4a039;
-  --phosphor-green-subtle: rgba(212, 160, 57, 0.1);
-  --phosphor-green-dim: #b8882f;
-  --phosphor-green-glow: rgba(212, 160, 57, 0.15);
-  --phosphor-green-intense: rgba(212, 160, 57, 0.4);
-  --phosphor-green-muted: rgba(212, 160, 57, 0.05);
+  --phosphor-green: #00ff9f;
+  --phosphor-green-subtle: rgba(0, 255, 159, 0.1);
+  --phosphor-green-dim: #00cc7a;
+  --phosphor-green-glow: rgba(0, 255, 159, 0.15);
+  --phosphor-green-intense: rgba(0, 255, 159, 0.4);
+  --phosphor-green-muted: rgba(0, 255, 159, 0.05);
 
-  --amber-gold: #e8b84a;
-  --amber-gold-dim: #d4a039;
-  --amber-gold-glow: rgba(232, 184, 74, 0.15);
+  --amber-gold: #ffb700;
+  --amber-gold-dim: #cc9200;
+  --amber-gold-glow: rgba(255, 183, 0, 0.15);
 
   --terminal-text: #e0e0e8;
   --terminal-text-dim: #6a6a7a;
@@ -973,41 +853,42 @@ body {
   background: linear-gradient(
     120deg,
     transparent 0%,
-    rgba(212, 160, 57, 0.1) 40%,
+    rgba(0, 255, 159, 0.1) 40%,
     rgba(255, 183, 0, 0.1) 50%,
-    rgba(212, 160, 57, 0.1) 60%,
+    rgba(0, 255, 159, 0.1) 60%,
     transparent 100%
   );
   background-size: 200% 100%;
   animation: holo-shimmer 4s linear infinite;
 }
 
-/* Chrome/Safari autofill override — dark mode */
-.dark input:-webkit-autofill,
-.dark input:-webkit-autofill:hover,
-.dark input:-webkit-autofill:focus,
-.dark input:-webkit-autofill:active {
+/* Chrome/Safari autofill override - keep dark Terminal Observatory theme */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+input:-webkit-autofill:active {
   -webkit-box-shadow: 0 0 0 1000px rgba(13, 13, 20, 0.98) inset !important;
   -webkit-text-fill-color: rgba(255, 255, 255, 0.9) !important;
   background-color: rgba(13, 13, 20, 0.98) !important;
   border-color: rgba(255, 255, 255, 0.1) !important;
-  caret-color: #d4a039 !important;
+  caret-color: #00ff9f !important;
   transition: background-color 5000s ease-in-out 0s;
 }
 
-.dark .relative:has(input:-webkit-autofill) svg {
+/* Keep lock/mail icons visible when autofill is active */
+.relative:has(input:-webkit-autofill) svg {
   color: rgba(255, 255, 255, 0.3) !important;
 }
 
-/* Ensure eye icon button stays brand accent with autofill */
+/* Ensure eye icon button stays phosphor green with autofill */
 input:-webkit-autofill + button,
 input:-webkit-autofill ~ button {
-  color: rgba(212, 160, 57, 0.5) !important;
+  color: rgba(0, 255, 159, 0.5) !important;
 }
 
 input:-webkit-autofill + button:hover,
 input:-webkit-autofill ~ button:hover {
-  color: #d4a039 !important;
+  color: #00ff9f !important;
 }
 
 input:-webkit-autofill + button svg,
@@ -1237,7 +1118,7 @@ input:-webkit-autofill ~ button svg {
 
 /* Hex grid pattern */
 .hex-grid-bg {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='49' viewBox='0 0 28 49'%3E%3Cg fill-rule='evenodd'%3E%3Cg fill='%23D4A039' fill-opacity='0.02'%3E%3Cpath d='M13.99 9.25l13 7.5v15l-13 7.5L1 31.75v-15l12.99-7.5zM3 17.9v12.7l10.99 6.34 11-6.35V17.9l-11-6.34L3 17.9zM0 15l12.98-7.5V0h-2v6.35L0 12.69v2.3zm0 18.5L12.98 41v8h-2v-6.85L0 35.81v-2.3zM15 0v7.5L27.99 15H28v-2.31h-.01L17 6.35V0h-2zm0 49v-8l12.99-7.5H28v2.31h-.01L17 42.15V49h-2z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='49' viewBox='0 0 28 49'%3E%3Cg fill-rule='evenodd'%3E%3Cg fill='%2300ff9f' fill-opacity='0.02'%3E%3Cpath d='M13.99 9.25l13 7.5v15l-13 7.5L1 31.75v-15l12.99-7.5zM3 17.9v12.7l10.99 6.34 11-6.35V17.9l-11-6.34L3 17.9zM0 15l12.98-7.5V0h-2v6.35L0 12.69v2.3zm0 18.5L12.98 41v8h-2v-6.85L0 35.81v-2.3zM15 0v7.5L27.99 15H28v-2.31h-.01L17 6.35V0h-2zm0 49v-8l12.99-7.5H28v2.31h-.01L17 42.15V49h-2z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
 }
 
 /* Orbital ring animation */
@@ -1272,15 +1153,15 @@ input:-webkit-autofill ~ button svg {
   0%,
   100% {
     box-shadow:
-      0 0 20px rgba(212, 160, 57, 0.2),
-      0 0 40px rgba(212, 160, 57, 0.1),
-      inset 0 0 20px rgba(212, 160, 57, 0.1);
+      0 0 20px rgba(0, 255, 159, 0.2),
+      0 0 40px rgba(0, 255, 159, 0.1),
+      inset 0 0 20px rgba(0, 255, 159, 0.1);
   }
   50% {
     box-shadow:
-      0 0 30px rgba(212, 160, 57, 0.4),
-      0 0 60px rgba(212, 160, 57, 0.2),
-      inset 0 0 30px rgba(212, 160, 57, 0.15);
+      0 0 30px rgba(0, 255, 159, 0.4),
+      0 0 60px rgba(0, 255, 159, 0.2),
+      inset 0 0 30px rgba(0, 255, 159, 0.15);
   }
 }
 
@@ -1295,10 +1176,10 @@ input:-webkit-autofill ~ button svg {
     box-shadow: none;
   }
   100% {
-    border-color: rgba(212, 160, 57, 0.4);
+    border-color: rgba(0, 255, 159, 0.4);
     box-shadow:
-      0 0 30px rgba(212, 160, 57, 0.1),
-      inset 0 1px 0 rgba(212, 160, 57, 0.1);
+      0 0 30px rgba(0, 255, 159, 0.1),
+      inset 0 1px 0 rgba(0, 255, 159, 0.1);
   }
 }
 
@@ -1308,11 +1189,11 @@ input:-webkit-autofill ~ button svg {
 
 .card-premium:hover {
   transform: translateY(-4px);
-  border-color: rgba(212, 160, 57, 0.4);
+  border-color: rgba(0, 255, 159, 0.4);
   box-shadow:
-    0 0 30px rgba(212, 160, 57, 0.15),
+    0 0 30px rgba(0, 255, 159, 0.15),
     0 20px 40px rgba(0, 0, 0, 0.3),
-    inset 0 1px 0 rgba(212, 160, 57, 0.1);
+    inset 0 1px 0 rgba(0, 255, 159, 0.1);
 }
 
 /* Status ring animation */
@@ -1356,11 +1237,11 @@ input:-webkit-autofill ~ button svg {
   0%,
   100% {
     opacity: 1;
-    text-shadow: 0 0 10px rgba(212, 160, 57, 0.8);
+    text-shadow: 0 0 10px rgba(0, 255, 159, 0.8);
   }
   50% {
     opacity: 0.3;
-    text-shadow: 0 0 5px rgba(212, 160, 57, 0.4);
+    text-shadow: 0 0 5px rgba(0, 255, 159, 0.4);
   }
 }
 
@@ -1405,11 +1286,11 @@ input:-webkit-autofill ~ button svg {
 .text-gradient-premium {
   background: linear-gradient(
     135deg,
-    #d4a039 0%,
-    #f5d680 25%,
-    #e8b84a 50%,
-    #d4a039 75%,
-    #f5d680 100%
+    #00ff9f 0%,
+    #00d4ff 25%,
+    #00ff9f 50%,
+    #ffb700 75%,
+    #00ff9f 100%
   );
   background-size: 200% auto;
   -webkit-background-clip: text;
@@ -1489,9 +1370,9 @@ input:-webkit-autofill ~ button svg {
   background: linear-gradient(
     90deg,
     transparent 0%,
-    rgba(212, 160, 57, 0.3) 20%,
-    rgba(212, 160, 57, 0.8) 50%,
-    rgba(212, 160, 57, 0.3) 80%,
+    rgba(0, 255, 159, 0.3) 20%,
+    rgba(0, 255, 159, 0.8) 50%,
+    rgba(0, 255, 159, 0.3) 80%,
     transparent 100%
   );
   animation: scan-beam 4s ease-in-out infinite;

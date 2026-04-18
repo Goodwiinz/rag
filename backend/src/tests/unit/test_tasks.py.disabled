@@ -1,0 +1,551 @@
+"""
+Unit tests for background tasks
+Tests Celery task execution with mocked dependencies
+"""
+
+import pytest
+import uuid
+from datetime import datetime, timedelta
+from unittest.mock import Mock, patch, AsyncMock, MagicMock, call
+from typing import List, Dict, Any
+import asyncio
+import json
+
+from sqlalchemy.orm import Session
+from celery import Celery
+from celery.exceptions import Retry
+
+# Import tasks to test
+from src.tasks.analytics_processor import (
+    AnalyticsJobProcessor,
+    AnalyticsJobType,
+    AnalyticsJobConfig,
+    AnalyticsDataAggregator,
+)
+from src.tasks.document_processing_tasks import (
+    process_document_upload,
+    process_high_priority_document,
+    batch_process_documents,
+    cleanup_processing_artifacts,
+    health_check as task_health_check,
+)
+
+# Models for testing
+from src.models.analytics_event import AnalyticsEvent, EventType
+from src.models.document import Document, ProcessingStatus
+from src.models.user import User, UserRole
+from src.models.organization import Organization
+
+
+@pytest.fixture
+def mock_celery_app():
+    """Mock Celery app for testing"""
+    app = Mock(spec=Celery)
+    app.task = Mock()
+    app.send_task = Mock()
+    return app
+
+
+@pytest.fixture
+def mock_db_session():
+    """Mock database session"""
+    session = Mock(spec=Session)
+    session.query.return_value = session
+    session.filter.return_value = session
+    session.filter_by.return_value = session
+    session.first.return_value = None
+    session.all.return_value = []
+    session.count.return_value = 0
+    session.add = Mock()
+    session.commit = Mock()
+    session.rollback = Mock()
+    session.refresh = Mock()
+    return session
+
+
+@pytest.fixture
+def sample_user():
+    """Sample user for testing"""
+    return User(
+        id=uuid.uuid4(),
+        email="test@example.com",
+        first_name="Test",
+        last_name="User",
+        role=UserRole.USER,
+        organization_id=uuid.uuid4()
+    )
+
+
+@pytest.fixture
+def sample_organization():
+    """Sample organization for testing"""
+    return Organization(
+        id=uuid.uuid4(),
+        name="Test Organization",
+        domain="test.com"
+    )
+
+
+@pytest.fixture
+def sample_document():
+    """Sample document for testing"""
+    return Document(
+        id=uuid.uuid4(),
+        title="Test Document",
+        content="This is test document content for processing.",
+        file_path="/test/documents/test.pdf",
+        file_size=1024,
+        mime_type="application/pdf",
+        processing_status=ProcessingStatus.PENDING,
+        organization_id=uuid.uuid4()
+    )
+
+
+class TestAnalyticsProcessor:
+    """Test AnalyticsProcessor class and related functions"""
+
+    @pytest.fixture
+    def processor(self, mock_db_session):
+        """Create processor instance with mocked dependencies"""
+        return AnalyticsProcessor(db_session=mock_db_session)
+
+    def test_analytics_processor_init(self, processor, mock_db_session):
+        """Test processor initialization"""
+        assert processor.db_session == mock_db_session
+        assert processor.logger is not None
+
+    @pytest.mark.asyncio
+    async def test_process_job_data_aggregation(self, processor, sample_organization):
+        """Test data aggregation job processing"""
+        job_config = AnalyticsJobConfig(
+            job_type=AnalyticsJobType.DATA_AGGREGATION,
+            organization_id=str(sample_organization.id),
+            date_range={
+                "start": datetime.now() - timedelta(days=1),
+                "end": datetime.now()
+            }
+        )
+
+        with patch.object(processor, '_process_data_aggregation') as mock_process:
+            mock_process.return_value = {"processed_events": 100, "status": "completed"}
+
+            result = await processor.process_job(job_config)
+
+            assert result["status"] == "completed"
+            assert result["processed_events"] == 100
+            mock_process.assert_called_once_with(job_config)
+
+    @pytest.mark.asyncio
+    async def test_process_job_daily_summary(self, processor, sample_organization):
+        """Test daily summary job processing"""
+        job_config = AnalyticsJobConfig(
+            job_type=AnalyticsJobType.DAILY_SUMMARY,
+            organization_id=str(sample_organization.id)
+        )
+
+        with patch.object(processor, '_generate_daily_summary') as mock_summary:
+            mock_summary.return_value = {
+                "total_queries": 150,
+                "total_users": 25,
+                "avg_response_time": 250
+            }
+
+            result = await processor.process_job(job_config)
+
+            assert "total_queries" in result
+            assert result["total_users"] == 25
+            mock_summary.assert_called_once_with(job_config)
+
+    @pytest.mark.asyncio
+    async def test_process_job_error_handling(self, processor):
+        """Test job processing error handling"""
+        job_config = AnalyticsJobConfig(
+            job_type=AnalyticsJobType.METRIC_COMPUTATION
+        )
+
+        with patch.object(processor, '_compute_metrics') as mock_compute:
+            mock_compute.side_effect = Exception("Processing error")
+
+            result = await processor.process_job(job_config)
+
+            assert result["status"] == "failed"
+            assert "error" in result
+            assert "Processing error" in result["error"]
+
+
+class TestAnalyticsTasks:
+    """Test analytics Celery tasks"""
+
+    @patch('src.tasks.analytics_processor.get_db')
+    @patch('src.tasks.analytics_processor.AnalyticsProcessor')
+    def test_process_analytics_job_task(self, mock_processor_class, mock_get_db, mock_db_session):
+        """Test process_analytics_job Celery task"""
+        # Setup mocks
+        mock_get_db.return_value = mock_db_session
+        mock_processor = Mock()
+        mock_processor.process_job = AsyncMock(return_value={"status": "completed"})
+        mock_processor_class.return_value = mock_processor
+
+        # Test data
+        job_data = {
+            "job_type": "data_aggregation",
+            "organization_id": str(uuid.uuid4()),
+            "date_range": {
+                "start": "2024-01-01T00:00:00",
+                "end": "2024-01-02T00:00:00"
+            }
+        }
+
+        # Execute task (mock the async call)
+        with patch('asyncio.run') as mock_asyncio_run:
+            mock_asyncio_run.return_value = {"status": "completed"}
+
+            result = process_analytics_job(job_data)
+
+            assert result["status"] == "completed"
+            mock_asyncio_run.assert_called_once()
+
+    @patch('src.tasks.analytics_processor.get_db')
+    def test_compute_daily_metrics_task(self, mock_get_db, mock_db_session):
+        """Test compute_daily_metrics Celery task"""
+        mock_get_db.return_value = mock_db_session
+
+        # Mock analytics events
+        mock_events = [
+            Mock(event_type=EventType.SEARCH_QUERY, created_at=datetime.now()),
+            Mock(event_type=EventType.DOCUMENT_VIEW, created_at=datetime.now()),
+            Mock(event_type=EventType.USER_LOGIN, created_at=datetime.now())
+        ]
+        mock_db_session.query.return_value.filter.return_value.all.return_value = mock_events
+
+        organization_id = str(uuid.uuid4())
+        target_date = datetime.now().date()
+
+        result = compute_daily_metrics(organization_id, str(target_date))
+
+        assert "total_events" in result
+        assert "event_breakdown" in result
+        assert result["organization_id"] == organization_id
+        mock_db_session.commit.assert_called_once()
+
+    @patch('src.tasks.analytics_processor.get_db')
+    def test_generate_user_behavior_report(self, mock_get_db, mock_db_session):
+        """Test generate_user_behavior_report task"""
+        mock_get_db.return_value = mock_db_session
+
+        # Mock user sessions and events
+        mock_sessions = [
+            Mock(
+                user_id=uuid.uuid4(),
+                session_duration=timedelta(minutes=30),
+                page_views=15,
+                search_queries=5
+            )
+        ]
+        mock_db_session.query.return_value.filter.return_value.all.return_value = mock_sessions
+
+        organization_id = str(uuid.uuid4())
+        start_date = datetime.now() - timedelta(days=7)
+        end_date = datetime.now()
+
+        result = generate_user_behavior_report(
+            organization_id,
+            str(start_date),
+            str(end_date)
+        )
+
+        assert "user_sessions" in result
+        assert "avg_session_duration" in result
+        assert "total_page_views" in result
+        assert result["organization_id"] == organization_id
+
+    @patch('src.tasks.analytics_processor.get_db')
+    def test_process_quality_metrics_update(self, mock_get_db, mock_db_session):
+        """Test process_quality_metrics_update task"""
+        mock_get_db.return_value = mock_db_session
+
+        # Mock search queries with feedback
+        mock_queries = [
+            Mock(
+                id=uuid.uuid4(),
+                query_text="test query",
+                result_count=10,
+                user_feedback_rating=4,
+                search_duration_ms=150
+            )
+        ]
+        mock_db_session.query.return_value.filter.return_value.all.return_value = mock_queries
+
+        organization_id = str(uuid.uuid4())
+
+        result = process_quality_metrics_update(organization_id)
+
+        assert "queries_processed" in result
+        assert "avg_user_satisfaction" in result
+        assert "avg_response_time" in result
+        mock_db_session.commit.assert_called_once()
+
+
+class TestDocumentProcessingTasks:
+    """Test document processing Celery tasks"""
+
+    @patch('src.tasks.document_processing_tasks.get_db')
+    def test_process_document_success(self, mock_get_db, mock_db_session, sample_document):
+        """Test successful document processing"""
+        mock_get_db.return_value = mock_db_session
+        mock_db_session.query.return_value.filter.return_value.first.return_value = sample_document
+
+        with patch('src.tasks.document_processing_tasks.extract_document_text.delay') as mock_extract:
+            with patch('src.tasks.document_processing_tasks.generate_embeddings.delay') as mock_embeddings:
+                with patch('src.tasks.document_processing_tasks.update_search_index.delay') as mock_index:
+
+                    mock_extract.return_value = Mock(id="extract_task_id")
+                    mock_embeddings.return_value = Mock(id="embeddings_task_id")
+                    mock_index.return_value = Mock(id="index_task_id")
+
+                    result = process_document(str(sample_document.id))
+
+                    assert result["status"] == "processing"
+                    assert result["document_id"] == str(sample_document.id)
+                    assert "tasks" in result
+
+                    # Verify document status updated
+                    assert sample_document.processing_status == ProcessingStatus.PROCESSING
+                    mock_db_session.commit.assert_called()
+
+    @patch('src.tasks.document_processing_tasks.get_db')
+    def test_process_document_not_found(self, mock_get_db, mock_db_session):
+        """Test processing non-existent document"""
+        mock_get_db.return_value = mock_db_session
+        mock_db_session.query.return_value.filter.return_value.first.return_value = None
+
+        result = process_document(str(uuid.uuid4()))
+
+        assert result["status"] == "error"
+        assert "not found" in result["error"]
+
+    @patch('src.tasks.document_processing_tasks.get_db')
+    @patch('src.tasks.document_processing_tasks.PDFProcessor')
+    def test_extract_document_text_pdf(self, mock_pdf_processor, mock_get_db, mock_db_session, sample_document):
+        """Test PDF text extraction"""
+        mock_get_db.return_value = mock_db_session
+        mock_db_session.query.return_value.filter.return_value.first.return_value = sample_document
+
+        # Mock PDF processor
+        mock_processor_instance = Mock()
+        mock_processor_instance.extract_text.return_value = "Extracted PDF text content"
+        mock_pdf_processor.return_value = mock_processor_instance
+
+        result = extract_document_text(str(sample_document.id))
+
+        assert result["status"] == "completed"
+        assert result["text_length"] > 0
+        assert sample_document.content == "Extracted PDF text content"
+        mock_db_session.commit.assert_called()
+
+    @patch('src.tasks.document_processing_tasks.get_db')
+    @patch('src.tasks.document_processing_tasks.EmbeddingService')
+    def test_generate_embeddings_success(self, mock_embedding_service, mock_get_db, mock_db_session, sample_document):
+        """Test successful embedding generation"""
+        mock_get_db.return_value = mock_db_session
+        mock_db_session.query.return_value.filter.return_value.first.return_value = sample_document
+
+        # Mock embedding service
+        mock_service_instance = Mock()
+        mock_service_instance.generate_embeddings = AsyncMock(
+            return_value=[0.1, 0.2, 0.3, 0.4, 0.5]
+        )
+        mock_embedding_service.return_value = mock_service_instance
+
+        with patch('asyncio.run') as mock_asyncio_run:
+            mock_asyncio_run.return_value = {"embeddings": [0.1, 0.2, 0.3, 0.4, 0.5]}
+
+            result = generate_embeddings(str(sample_document.id))
+
+            assert result["status"] == "completed"
+            assert "embeddings" in result
+            assert len(result["embeddings"]) == 5
+
+    @patch('src.tasks.document_processing_tasks.get_db')
+    @patch('src.tasks.document_processing_tasks.SearchIndexService')
+    def test_update_search_index_success(self, mock_index_service, mock_get_db, mock_db_session, sample_document):
+        """Test successful search index update"""
+        mock_get_db.return_value = mock_db_session
+        mock_db_session.query.return_value.filter.return_value.first.return_value = sample_document
+
+        # Mock search index service
+        mock_service_instance = Mock()
+        mock_service_instance.index_document = AsyncMock(return_value={"indexed": True})
+        mock_index_service.return_value = mock_service_instance
+
+        with patch('asyncio.run') as mock_asyncio_run:
+            mock_asyncio_run.return_value = {"indexed": True, "document_id": str(sample_document.id)}
+
+            result = update_search_index(str(sample_document.id))
+
+            assert result["status"] == "completed"
+            assert result["indexed"] is True
+
+    @patch('src.tasks.document_processing_tasks.get_db')
+    def test_process_document_batch(self, mock_get_db, mock_db_session):
+        """Test batch document processing"""
+        mock_get_db.return_value = mock_db_session
+
+        document_ids = [str(uuid.uuid4()) for _ in range(3)]
+
+        with patch('src.tasks.document_processing_tasks.process_document.delay') as mock_process:
+            mock_process.return_value = Mock(id="process_task_id")
+
+            result = process_document_batch(document_ids)
+
+            assert result["status"] == "batch_started"
+            assert len(result["tasks"]) == 3
+            assert mock_process.call_count == 3
+
+            # Verify all document IDs were processed
+            called_ids = [call.args[0] for call in mock_process.call_args_list]
+            assert set(called_ids) == set(document_ids)
+
+    @patch('src.tasks.document_processing_tasks.get_db')
+    def test_cleanup_failed_processing(self, mock_get_db, mock_db_session):
+        """Test cleanup of failed processing tasks"""
+        mock_get_db.return_value = mock_db_session
+
+        # Mock failed documents
+        failed_docs = [
+            Mock(
+                id=uuid.uuid4(),
+                processing_status=ProcessingStatus.FAILED,
+                updated_at=datetime.now() - timedelta(hours=2)
+            ),
+            Mock(
+                id=uuid.uuid4(),
+                processing_status=ProcessingStatus.FAILED,
+                updated_at=datetime.now() - timedelta(hours=1)
+            )
+        ]
+        mock_db_session.query.return_value.filter.return_value.all.return_value = failed_docs
+
+        result = cleanup_failed_processing(max_age_hours=1)
+
+        assert result["status"] == "completed"
+        assert result["cleaned_documents"] == 2
+
+        # Verify documents were reset to pending
+        for doc in failed_docs:
+            assert doc.processing_status == ProcessingStatus.PENDING
+
+        mock_db_session.commit.assert_called_once()
+
+
+class TestTaskErrorHandling:
+    """Test task error handling and retry logic"""
+
+    @patch('src.tasks.document_processing_tasks.get_db')
+    def test_document_processing_with_retry(self, mock_get_db, mock_db_session, sample_document):
+        """Test document processing with retry on failure"""
+        mock_get_db.return_value = mock_db_session
+        mock_db_session.query.return_value.filter.return_value.first.return_value = sample_document
+
+        with patch('src.tasks.document_processing_tasks.PDFProcessor') as mock_processor:
+            # First call fails, second succeeds
+            mock_processor.side_effect = [
+                Exception("Temporary processing error"),
+                Mock(extract_text=Mock(return_value="Extracted text"))
+            ]
+
+            # Mock the task retry mechanism
+            with patch('src.tasks.document_processing_tasks.extract_document_text.retry') as mock_retry:
+                mock_retry.side_effect = Retry("Retrying task")
+
+                with pytest.raises(Retry):
+                    extract_document_text(str(sample_document.id))
+
+    @patch('src.tasks.analytics_processor.get_db')
+    def test_analytics_processing_database_error(self, mock_get_db, mock_db_session):
+        """Test analytics processing with database errors"""
+        mock_get_db.return_value = mock_db_session
+        mock_db_session.commit.side_effect = Exception("Database connection lost")
+
+        organization_id = str(uuid.uuid4())
+
+        result = compute_daily_metrics(organization_id, str(datetime.now().date()))
+
+        assert result["status"] == "error"
+        assert "Database connection lost" in result["error"]
+        mock_db_session.rollback.assert_called_once()
+
+
+class TestTaskConfiguration:
+    """Test task configuration and Celery integration"""
+
+    def test_task_routing(self, mock_celery_app):
+        """Test task routing configuration"""
+        # This would test routing configuration in a real Celery setup
+        task_routes = {
+            'src.tasks.analytics_processor.*': {'queue': 'analytics'},
+            'src.tasks.document_processing_tasks.*': {'queue': 'processing'},
+        }
+
+        assert 'src.tasks.analytics_processor.*' in task_routes
+        assert task_routes['src.tasks.analytics_processor.*']['queue'] == 'analytics'
+
+    def test_task_retry_configuration(self):
+        """Test task retry configuration"""
+        # Test that tasks are configured with appropriate retry settings
+        retry_config = {
+            'autoretry_for': (Exception,),
+            'retry_kwargs': {'max_retries': 3, 'countdown': 60},
+            'retry_backoff': True
+        }
+
+        assert retry_config['max_retries'] == 3
+        assert retry_config['countdown'] == 60
+        assert retry_config['retry_backoff'] is True
+
+
+class TestTaskMonitoring:
+    """Test task monitoring and logging functionality"""
+
+    @patch('src.tasks.analytics_processor.logger')
+    def test_task_logging(self, mock_logger, mock_db_session):
+        """Test task logging functionality"""
+        with patch('src.tasks.analytics_processor.get_db') as mock_get_db:
+            mock_get_db.return_value = mock_db_session
+
+            organization_id = str(uuid.uuid4())
+            compute_daily_metrics(organization_id, str(datetime.now().date()))
+
+            # Verify logging calls
+            assert mock_logger.info.call_count >= 1
+
+            # Check that organization_id is in log messages
+            log_calls = [call.args[0] for call in mock_logger.info.call_args_list]
+            assert any(organization_id in msg for msg in log_calls)
+
+    def test_task_progress_tracking(self):
+        """Test task progress tracking"""
+        # Mock task progress updates
+        with patch('src.tasks.document_processing_tasks.current_task') as mock_task:
+            mock_task.update_state = Mock()
+
+            # Simulate progress update during document processing
+            progress_data = {
+                'current': 3,
+                'total': 10,
+                'status': 'Processing documents'
+            }
+
+            mock_task.update_state(
+                state='PROGRESS',
+                meta=progress_data
+            )
+
+            mock_task.update_state.assert_called_once_with(
+                state='PROGRESS',
+                meta=progress_data
+            )
+
+
+if __name__ == "__main__":
+    pytest.main([__file__, "-v"])

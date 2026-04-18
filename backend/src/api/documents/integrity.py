@@ -9,10 +9,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from structlog import get_logger
 
 from src.core.database import get_db
-from src.core.dependencies import get_current_organization
 from src.models.document import Document
 from src.models.integrity_score import IntegrityScore
-from src.models.organization import Organization
 from src.models.user import User
 from src.services.documents.integrity_detection_service import IntegrityDetectionService
 from src.services.security.user_management import get_current_user
@@ -33,7 +31,6 @@ _service = IntegrityDetectionService()
 async def trigger_integrity_check(
     document_id: UUID,
     current_user: User = Depends(get_current_user),
-    organization: Organization = Depends(get_current_organization),
     db: AsyncSession = Depends(get_db),
 ):
     """Trigger AI authorship detection for a document.
@@ -42,12 +39,12 @@ async def trigger_integrity_check(
     the resulting integrity score. Returns 202 Accepted since analysis may
     take time for large documents.
     """
-    # Verify document exists and belongs to current user's organization
+    # Verify document exists and belongs to current user
     doc_result = await db.execute(
         select(Document).where(
             and_(
                 Document.id == document_id,
-                Document.organization_id == organization.id,
+                Document.uploaded_by_user_id == current_user.id,
                 Document.is_deleted == False,
             )
         )
@@ -59,8 +56,8 @@ async def trigger_integrity_check(
             detail="Document not found",
         )
 
-    # Determine text to analyze (prefer content_text field, fall back to title)
-    text = document.content_text or document.title or ""
+    # Determine text to analyze (prefer content field, fall back to title)
+    text = getattr(document, "content", None) or getattr(document, "extracted_text", None) or document.title or ""
 
     if not text.strip():
         raise HTTPException(
@@ -137,7 +134,6 @@ async def trigger_integrity_check(
 async def get_integrity_score(
     document_id: UUID,
     current_user: User = Depends(get_current_user),
-    organization: Organization = Depends(get_current_organization),
     db: AsyncSession = Depends(get_db),
 ):
     """Retrieve the stored AI integrity score for a document.
@@ -145,12 +141,12 @@ async def get_integrity_score(
     Returns the most recent integrity analysis result. Returns 404 if no
     analysis has been run for this document yet.
     """
-    # Verify document exists and belongs to current user's organization
+    # Verify document exists and belongs to current user
     doc_result = await db.execute(
         select(Document).where(
             and_(
                 Document.id == document_id,
-                Document.organization_id == organization.id,
+                Document.uploaded_by_user_id == current_user.id,
                 Document.is_deleted == False,
             )
         )

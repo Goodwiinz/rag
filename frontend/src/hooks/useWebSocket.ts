@@ -1,7 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useAuth } from './useAuth';
-import { createClient } from '@/lib/supabase/client';
-import { getPublicWebSocketOrigin } from '@/utils/publicEndpoints';
 import {
   WebSocketManager,
   getWebSocketManager,
@@ -24,7 +22,7 @@ interface UseWebSocketReturn {
 }
 
 export const useWebSocket = (): UseWebSocketReturn => {
-  const { user, isAuthenticated } = useAuth();
+  const { token, user, isAuthenticated } = useAuth();
   const [status, setStatus] = useState<
     'connecting' | 'connected' | 'disconnected' | 'error'
   >('disconnected');
@@ -37,22 +35,12 @@ export const useWebSocket = (): UseWebSocketReturn => {
   }>({ connected: null, disconnected: null, error: null });
 
   const connect = useCallback(async () => {
-    if (!user || !isAuthenticated) {
+    if (!token || !user || !isAuthenticated) {
       return;
     }
 
     try {
-      // Get token from Supabase session
-      const supabase = createClient();
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      const token = session?.access_token;
-      if (!token) {
-        return;
-      }
-
-      const wsUrl = `${getPublicWebSocketOrigin()}/ws`;
+      const wsUrl = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8000/ws';
 
       // Initialize or get existing manager
       const manager =
@@ -99,7 +87,7 @@ export const useWebSocket = (): UseWebSocketReturn => {
       setError(errorMessage);
       setStatus('error');
     }
-  }, [user, isAuthenticated]);
+  }, [token, user, isAuthenticated]);
 
   const disconnect = useCallback(() => {
     if (managerRef.current) {
@@ -117,7 +105,7 @@ export const useWebSocket = (): UseWebSocketReturn => {
 
   // Auto-connect when authentication is available
   useEffect(() => {
-    if (isAuthenticated && user) {
+    if (isAuthenticated && token && user) {
       connect();
     } else {
       disconnect();
@@ -134,21 +122,15 @@ export const useWebSocket = (): UseWebSocketReturn => {
         if (handlers.error) manager.off('error', handlers.error);
       }
     };
-  }, [isAuthenticated, user, connect, disconnect]);
+  }, [isAuthenticated, token, user, connect, disconnect]);
 
-  // Update connection parameters when Supabase session changes
+  // Update connection parameters when token changes
   useEffect(() => {
     const manager = managerRef.current;
-    if (manager && user) {
-      const supabase = createClient();
-      supabase.auth.getSession().then(({ data: { session } }) => {
-        const accessToken = session?.access_token;
-        if (accessToken) {
-          manager.updateConnectionParams(accessToken, user.organization_id);
-        }
-      });
+    if (manager && token && user) {
+      manager.updateConnectionParams(token, user.organization_id);
     }
-  }, [user]);
+  }, [token, user]);
 
   return {
     isConnected: status === 'connected',

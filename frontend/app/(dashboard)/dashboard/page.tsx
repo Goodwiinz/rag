@@ -4,14 +4,6 @@ import { useAuth } from '@/hooks/useAuth';
 import { useDocuments } from '@/hooks/useDocuments';
 import { getAnalytics } from '@/lib/analytics';
 import { cn } from '@/lib/utils';
-import {
-  documentAnalyticsApi,
-  searchAnalyticsApi,
-  performanceApi,
-} from '@/services/documentAnalyticsApi';
-import type { FileTypeStats } from '@/services/documentAnalyticsApi';
-import analyticsService from '@/services/analyticsService';
-import type { ServiceStatus } from '@/services/analyticsService';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   Activity,
@@ -37,29 +29,12 @@ import {
   Zap,
 } from 'lucide-react';
 import Link from 'next/link';
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 
 // Import enhanced components
 import { KeyboardShortcuts } from '@/components/dashboard/KeyboardShortcuts';
 import { QuickSearch } from '@/components/dashboard/QuickSearch';
 import { COLORS } from '@/theme/constants';
-
-// Icon mapping for document types returned by the backend
-const DOC_TYPE_ICON_MAP: Record<string, typeof FileText> = {
-  pdf: FileText,
-  image: ImageIcon,
-  images: ImageIcon,
-  video: FileVideo,
-  audio: Music,
-};
-
-const DOC_TYPE_COLOR_MAP: Record<string, string> = {
-  pdf: COLORS.error,
-  image: COLORS.info,
-  images: COLORS.info,
-  video: COLORS.chart4,
-  audio: COLORS.amber,
-};
 
 export default function DashboardPage() {
   const { isAuthenticated, isLoading: authLoading, user } = useAuth();
@@ -73,18 +48,6 @@ export default function DashboardPage() {
   const [showKeyboardShortcuts, setShowKeyboardShortcuts] = useState(false);
   const [showQuickSearch, setShowQuickSearch] = useState(false);
   const [currentTime, setCurrentTime] = useState('');
-
-  // Live data state
-  const [totalSearches, setTotalSearches] = useState<number>(0);
-  const [totalChats, setTotalChats] = useState<number>(0);
-  const [processingCount, setProcessingCount] = useState<number>(0);
-  const [filesByType, setFilesByType] = useState<FileTypeStats[]>([]);
-  const [services, setServices] = useState<
-    Array<{ name: string; status: string; latency: string; load: number }>
-  >([]);
-  const [recentActivity, setRecentActivity] = useState<
-    Array<{ type: string; text: string; time: string }>
-  >([]);
 
   // Hydration-safe mounting
   useEffect(() => {
@@ -147,72 +110,12 @@ export default function DashboardPage() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  // Fetch dashboard data from backend APIs
-  const fetchDashboardData = useCallback(async () => {
-    if (!isAuthenticated || authLoading) return;
-
-    // Fetch search stats
-    searchAnalyticsApi
-      .getCombinedSearchAnalytics()
-      .then((data) => {
-        setTotalSearches(data.totalSearches ?? 0);
-      })
-      .catch(() => {
-        /* graceful fallback — keeps existing state */
-      });
-
-    // Fetch performance/realtime metrics (processing files + chat proxy)
-    performanceApi
-      .getDashboardOverview()
-      .then((data) => {
-        setTotalChats(data.totalSessions ?? 0);
-      })
-      .catch(() => {});
-
-    // Fetch file stats (type breakdown + processing counts)
-    documentAnalyticsApi
-      .getFileStats()
-      .then((data) => {
-        setFilesByType(data.files_by_type ?? []);
-        const pending = (data.processing_stats ?? [])
-          .filter((s) => s.status === 'pending' || s.status === 'processing')
-          .reduce((sum, s) => sum + s.count, 0);
-        setProcessingCount(pending);
-      })
-      .catch(() => {});
-
-    // Fetch service status via performance metrics (falls back to mock internally)
-    analyticsService
-      .getPerformanceMetrics()
-      .then((data) => {
-        const mappedServices = (data.services ?? []).map(
-          (svc: ServiceStatus) => ({
-            name: svc.name,
-            status: svc.status === 'healthy' ? 'online' : svc.status,
-            latency: `${svc.response_time}ms`,
-            load: Math.min(100, Math.round((svc.response_time / 500) * 100)),
-          })
-        );
-        if (mappedServices.length > 0) {
-          setServices(mappedServices);
-        }
-      })
-      .catch(() => {});
-
-    // TODO: wire to /activity or /events endpoint when available
-    // Recent activity has no backend endpoint yet — use empty or keep defaults
-  }, [isAuthenticated, authLoading]);
-
-  useEffect(() => {
-    fetchDashboardData();
-  }, [fetchDashboardData]);
-
-  // Stats — wired to real data, documents from useDocuments hook
+  // Stats
   const stats = {
-    documents: documents?.length ?? 0,
-    searches: totalSearches,
-    chats: totalChats,
-    processing: processingCount,
+    documents: documents?.length || 0,
+    searches: 42,
+    chats: 15,
+    processing: 2,
   };
 
   // Quick actions
@@ -238,69 +141,52 @@ export default function DashboardPage() {
     },
   ];
 
-  // System services — fallback to defaults when API hasn't responded yet
-  const displayServices =
-    services.length > 0
-      ? services
-      : [
-          // TODO: wire to /health endpoint when available
-          { name: 'API Gateway', status: 'online', latency: '—', load: 0 },
-          { name: 'PostgreSQL', status: 'online', latency: '—', load: 0 },
-          { name: 'Vector Store', status: 'online', latency: '—', load: 0 },
-          { name: 'Neo4j Graph', status: 'online', latency: '—', load: 0 },
-          { name: 'Redis Cache', status: 'online', latency: '—', load: 0 },
-          { name: 'AI Engine', status: 'online', latency: '—', load: 0 },
-        ];
+  // System services
+  const services = [
+    { name: 'API Gateway', status: 'online', latency: '12ms', load: 23 },
+    { name: 'PostgreSQL', status: 'online', latency: '8ms', load: 45 },
+    { name: 'Vector Store', status: 'online', latency: '15ms', load: 31 },
+    { name: 'Neo4j Graph', status: 'online', latency: '22ms', load: 18 },
+    { name: 'Redis Cache', status: 'online', latency: '3ms', load: 12 },
+    { name: 'AI Engine', status: 'online', latency: '156ms', load: 67 },
+  ];
 
-  // Recent activity — wired to state, with fallback placeholder
-  // TODO: wire to /activity or /events endpoint when available
-  const displayActivity =
-    recentActivity.length > 0
-      ? recentActivity
-      : [
-          {
-            type: 'process',
-            text: 'Waiting for activity data...',
-            time: 'just now',
-          },
-        ];
+  // Recent activity
+  const recentActivity = [
+    { type: 'process', text: 'Document parsed: attention_is_all_you_need.pdf', time: '2 mins ago' },
+    { type: 'upload', text: 'System scaling: +2 node instances', time: '14 mins ago' },
+    { type: 'search', text: 'Query resolved: 48ms latency', time: '1 hour ago' },
+    { type: 'process', text: 'Vector embeddings generation completed', time: '2 hours ago' },
+    { type: 'chat', text: 'Daily backup to cold storage', time: '5 hours ago' },
+  ];
 
-  // Document type breakdown — wired to real /files/stats data
-  const totalDocCount = filesByType.reduce((sum, ft) => sum + ft.count, 0);
-  const docTypes =
-    filesByType.length > 0
-      ? filesByType.map((ft) => ({
-          type: ft.type.toUpperCase(),
-          count: ft.count,
-          icon: DOC_TYPE_ICON_MAP[ft.type.toLowerCase()] ?? FileText,
-          color: DOC_TYPE_COLOR_MAP[ft.type.toLowerCase()] ?? COLORS.info,
-        }))
-      : [
-          {
-            type: 'PDF',
-            count: Math.floor(stats.documents * 0.4),
-            icon: FileText,
-            color: COLORS.error,
-          },
-          {
-            type: 'Images',
-            count: Math.floor(stats.documents * 0.3),
-            icon: ImageIcon,
-            color: COLORS.info,
-          },
-          {
-            type: 'Video',
-            count: Math.floor(stats.documents * 0.2),
-            icon: FileVideo,
-            color: COLORS.chart4,
-          },
-          {
-            type: 'Audio',
-            count: Math.floor(stats.documents * 0.1),
-            icon: Music,
-            color: COLORS.amber,
-          },
-        ];
+  // Document type breakdown
+  const docTypes = [
+    {
+      type: 'PDF',
+      count: Math.floor(stats.documents * 0.4),
+      icon: FileText,
+      color: COLORS.error,
+    },
+    {
+      type: 'Images',
+      count: Math.floor(stats.documents * 0.3),
+      icon: ImageIcon,
+      color: COLORS.info,
+    },
+    {
+      type: 'Video',
+      count: Math.floor(stats.documents * 0.2),
+      icon: FileVideo,
+      color: COLORS.chart4,
+    },
+    {
+      type: 'Audio',
+      count: Math.floor(stats.documents * 0.1),
+      icon: Music,
+      color: COLORS.amber,
+    },
+  ];
 
   return (
     <div className="min-h-screen bg-[var(--terminal-bg)] relative overflow-hidden flex flex-col">
@@ -369,7 +255,7 @@ export default function DashboardPage() {
                 whileHover={{ y: -4 }}
                 className={cn(
                   'group p-4 rounded-xl border border-[var(--terminal-border)] bg-[var(--terminal-surface)] shadow-lg',
-                  'hover:border-[var(--phosphor-green)]/30 hover:shadow-[0_0_15px_rgba(212,160,57,0.06)] transition-all duration-300 cursor-pointer'
+                  'hover:border-[var(--phosphor-green)]/30 hover:shadow-[0_0_15px_rgba(0,255,159,0.06)] transition-all duration-300 cursor-pointer'
                 )}
               >
                 <div className="flex items-center gap-3">
@@ -402,14 +288,14 @@ export default function DashboardPage() {
           {[
             {
               label: 'Active Documents',
-              value: stats.documents ?? '12,543',
+              value: stats.documents || '12,543',
               icon: FileText,
               change: '+12.5%',
               color: COLORS.phosphorGreen,
             },
             {
               label: 'Daily Queries',
-              value: stats.searches ?? '8,921',
+              value: stats.searches || '8,921',
               icon: Search,
               change: '+5.2%',
               color: COLORS.phosphorGreen,
@@ -491,7 +377,7 @@ export default function DashboardPage() {
 
             <div className="p-5">
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                {displayServices.map((service) => (
+                {services.map((service) => (
                   <div
                     key={service.name}
                     className="p-4 rounded-xl border border-[var(--terminal-border)] bg-[var(--terminal-bg)]/20 hover:border-[var(--phosphor-green)]/20 transition-all group"
@@ -551,7 +437,7 @@ export default function DashboardPage() {
 
             <div className="p-4">
               <div className="space-y-3">
-                {displayActivity.map((item, idx) => (
+                {recentActivity.map((item, idx) => (
                   <motion.div
                     key={idx}
                     initial={{ opacity: 0, x: 5 }}
@@ -565,8 +451,7 @@ export default function DashboardPage() {
                         item.type === 'upload' && 'bg-[var(--phosphor-green)]',
                         item.type === 'search' && 'bg-[var(--cyan)]',
                         item.type === 'chat' && 'bg-[var(--amber-gold)]',
-                        item.type === 'process' && 'bg-purple-500',
-                        idx === 0 && 'animate-pulse-live'
+                        item.type === 'process' && 'bg-purple-500'
                       )}
                     />
                     <div className="flex-1 min-w-0">
@@ -623,7 +508,7 @@ export default function DashboardPage() {
                         <motion.div
                           initial={{ width: 0 }}
                           animate={{
-                            width: `${(doc.count / (totalDocCount || stats.documents || 1)) * 100}%`,
+                            width: `${(doc.count / stats.documents) * 100 || 0}%`,
                           }}
                           transition={{ duration: 1, delay: 0.6 + idx * 0.1 }}
                           className="h-full rounded-full"

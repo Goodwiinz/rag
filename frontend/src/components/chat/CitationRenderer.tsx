@@ -91,7 +91,7 @@ export function CitationRenderer({
                       {String(children).replace(/\n$/, '')}
                     </SyntaxHighlighter>
                   ) : (
-                    <code className="rounded bg-[var(--terminal-elevated)] px-1.5 py-0.5 text-[11px] font-mono text-[var(--phosphor-green)]">
+                    <code className="rounded bg-[#1a1a1a] px-1.5 py-0.5 text-[11px] font-mono text-[#00ff9f]">
                       {children}
                     </code>
                   );
@@ -107,7 +107,7 @@ export function CitationRenderer({
                     href={href}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-[var(--phosphor-green)] hover:text-[var(--amber-gold)] underline"
+                    className="text-[#00d4ff] hover:text-[#00ff9f] underline"
                   >
                     {children}
                   </a>

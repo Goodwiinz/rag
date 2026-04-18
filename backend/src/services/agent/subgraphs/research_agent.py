@@ -11,9 +11,6 @@ from langchain_core.messages import AIMessage, SystemMessage
 from langchain_core.runnables import RunnableConfig
 from langgraph.graph import END, StateGraph
 
-from src.services.agent.compactor import make_compactor_node
-from src.services.agent.planner import make_planner_node
-from src.services.agent.reflection import make_reflection_gate
 from src.services.agent.state import AgentState
 from src.services.agent.tools import (
     add_document_to_project,
@@ -32,8 +29,6 @@ RESEARCH_TOOLS = [
     add_document_to_project,
     list_project_documents,
 ]
-
-RESEARCH_TOOL_NAMES_LIST = [t.name for t in RESEARCH_TOOLS]
 
 RESEARCH_SYSTEM_PROMPT = (
     "You are a specialized Research Agent focused on discovering, searching, "
@@ -68,7 +63,7 @@ async def research_llm_node(state: AgentState, config: RunnableConfig) -> dict:
 def research_should_continue(state: AgentState) -> str:
     """Decide whether to continue tool execution in research sub-graph."""
     if state.get("error_count", 0) >= 3:
-        return "research_reflection_gate"
+        return END
     last = state["messages"][-1] if state["messages"] else None
     if (
         isinstance(last, AIMessage)
@@ -76,73 +71,26 @@ def research_should_continue(state: AgentState) -> str:
         and state.get("tool_loop_count", 0) < 8
     ):
         return "research_tool_node"
-    return "research_reflection_gate"
-
-
-def _research_reflection_route(state: AgentState) -> str:
-    """Route after reflection: revise loops back to LLM, proceed exits."""
-    from src.services.agent.reflection import ReflectionResult
-
-    result: ReflectionResult | None = state.get("_reflection_result")  # type: ignore[arg-type]
-    if result is None or result.passed or result.severity == "minor":
-        return END
-    if result.severity == "major" and state.get("reflection_count", 0) < 2:
-        return "research_llm_node"
     return END
 
 
 def build_research_subgraph() -> StateGraph:
-    """Build the research agent sub-graph.
-
-    Flow:
-      research_planner_node -> research_llm_node -> research_should_continue ->
-        | research_tool_node -> research_compactor_node -> research_llm_node (loop)
-        | research_reflection_gate -> END (or revise -> research_llm_node)
-    """
+    """Build the research agent sub-graph."""
     from src.services.agent.graph import make_filtered_tool_node
 
     RESEARCH_TOOL_NAMES = {t.name for t in RESEARCH_TOOLS}
     filtered_tool = make_filtered_tool_node(RESEARCH_TOOL_NAMES)
 
-    # Create v2 nodes
-    planner = make_planner_node(RESEARCH_TOOL_NAMES_LIST)
-    compactor = make_compactor_node()
-    reflection_node, _reflection_route = make_reflection_gate(
-        intent_filter={"research"},
-    )
-
     graph = StateGraph(AgentState)
-
-    # Nodes
-    graph.add_node("research_planner_node", planner)
     graph.add_node("research_llm_node", research_llm_node)
     graph.add_node("research_tool_node", filtered_tool)
-    graph.add_node("research_compactor_node", compactor)
-    graph.add_node("research_reflection_gate", reflection_node)
 
-    # Edges
-    graph.set_entry_point("research_planner_node")
-    graph.add_edge("research_planner_node", "research_llm_node")
-
+    graph.set_entry_point("research_llm_node")
     graph.add_conditional_edges(
         "research_llm_node",
         research_should_continue,
-        {
-            "research_tool_node": "research_tool_node",
-            "research_reflection_gate": "research_reflection_gate",
-        },
+        {"research_tool_node": "research_tool_node", END: END},
     )
-
-    graph.add_edge("research_tool_node", "research_compactor_node")
-    graph.add_edge("research_compactor_node", "research_llm_node")
-
-    graph.add_conditional_edges(
-        "research_reflection_gate",
-        _research_reflection_route,
-        {
-            END: END,
-            "research_llm_node": "research_llm_node",
-        },
-    )
+    graph.add_edge("research_tool_node", "research_llm_node")
 
     return graph

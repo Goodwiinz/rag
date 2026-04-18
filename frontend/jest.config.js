@@ -67,9 +67,9 @@ const customJestConfig = {
   cache: true,
   cacheDirectory: '<rootDir>/node_modules/.cache/jest',
   maxWorkers: '50%',
-  detectOpenHandles: false,
+  detectOpenHandles: true,
   detectLeaks: false,
-  forceExit: true,
+  forceExit: false,
   watch: false,
   watchPathIgnorePatterns: [
     '<rootDir>/node_modules/',

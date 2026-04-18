@@ -244,7 +244,7 @@ function mapThreadToUIConversation(
 }
 
 export function useChatPersistence(): UseChatPersistenceReturn {
-  const { isAuthenticated } = useAuthStore();
+  const { isAuthenticated, token } = useAuthStore();
 
   // Prevent multiple initialization attempts
   const initializationRef = useRef<{ started: boolean; completed: boolean }>({
@@ -336,7 +336,7 @@ export function useChatPersistence(): UseChatPersistenceReturn {
       return;
     }
 
-    if (!isAuthenticated) {
+    if (!isAuthenticated || !token) {
       debugLog(
         '[useChatPersistence] Not authenticated, skipping initialization'
       );
@@ -433,6 +433,7 @@ export function useChatPersistence(): UseChatPersistenceReturn {
     }
   }, [
     isAuthenticated,
+    token,
     initializeDefaultWorkspace,
     loadConversations,
     loadThreads,

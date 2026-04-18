@@ -19,14 +19,14 @@ const levelColors: Record<
   { bg: string; text: string; border: string }
 > = {
   human: {
-    bg: 'bg-sol/10',
-    text: 'text-sol',
-    border: 'border-sol/30',
+    bg: 'bg-[#00ff9f]/10',
+    text: 'text-[#00ff9f]',
+    border: 'border-[#00ff9f]/30',
   },
   mixed: {
-    bg: 'bg-helios/10',
-    text: 'text-helios',
-    border: 'border-helios/30',
+    bg: 'bg-[#ffb700]/10',
+    text: 'text-[#ffb700]',
+    border: 'border-[#ffb700]/30',
   },
   ai: {
     bg: 'bg-red-500/10',

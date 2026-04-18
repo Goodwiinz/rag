@@ -22,7 +22,6 @@ export type EntityType =
   | 'OTHER';
 
 export type RelationshipType =
-  // General relationships
   | 'WORKS_FOR'
   | 'LOCATED_IN'
   | 'KNOWS'
@@ -30,56 +29,17 @@ export type RelationshipType =
   | 'PART_OF'
   | 'OWNS'
   | 'CREATED_BY'
+  | 'USES'
   | 'MANAGES'
   | 'COLLABORATES_WITH'
   | 'MEMBER_OF'
-  | 'MENTIONED_IN'
-  | 'APPEARS_WITH'
-  | 'REPORTS_TO'
-  | 'INSTANCE_OF'
-  | 'SUBCLASS_OF'
-  | 'HAS_PROPERTY'
-  | 'CREATED_AT'
-  // Business relationships
-  | 'CUSTOMER_OF'
-  | 'SUPPLIER_TO'
-  | 'PARTNER_OF'
-  | 'COMPETITOR_OF'
-  | 'SUBSIDIARY_OF'
-  | 'ACQUIRES'
-  | 'MERGES_WITH'
-  | 'INVESTS_IN'
-  // Temporal relationships
-  | 'ATTENDED'
-  | 'SPOKE_AT'
-  | 'PRECEDES'
-  | 'FOLLOWS'
-  | 'BEFORE'
-  | 'AFTER'
-  | 'DURING'
-  | 'OVERLAPS_WITH'
-  // Content relationships
-  | 'PUBLISHED_BY'
-  | 'CITED'
-  | 'REFERENCES'
-  | 'SIMILAR_TO'
-  | 'CONTAINS'
-  | 'INFLUENCES'
-  | 'MENTIONS'
-  | 'CITES'
-  | 'QUOTES'
-  | 'DESCRIBES'
-  | 'DEFINES'
+  | 'FOUND_IN'
   | 'EXAMPLE_OF'
-  // Technical relationships
-  | 'DEPENDS_ON'
-  | 'USES'
-  | 'IMPLEMENTS'
-  | 'REQUIRES'
+  | 'CAUSES'
   | 'ENABLES'
-  | 'INTEGRATES_WITH'
-  | 'INTERFACES_WITH'
-  | 'CUSTOM';
+  | 'REQUIRES'
+  | 'PRECEDES'
+  | 'FOLLOWS';
 
 export interface Entity {
   id: string;
@@ -88,7 +48,10 @@ export interface Entity {
   confidence?: number;
   confidence_score?: number;
   extraction_method?: string;
-  position?: [number, number] | null;
+  position?: {
+    start: number;
+    end: number;
+  };
   context?: string;
   metadata?: Record<string, any>;
   source_document_id?: string;
@@ -121,7 +84,10 @@ export interface EntityResponse {
   entity_type: EntityType;
   confidence_score: number;
   extraction_method: string;
-  position?: [number, number] | null;
+  position?: {
+    start: number;
+    end: number;
+  };
   context?: string;
   metadata: Record<string, any>;
   source_document_id?: string;

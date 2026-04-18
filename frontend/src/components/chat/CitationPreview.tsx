@@ -4,12 +4,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { THEME } from '@/theme/constants';
-import {
-  Citation,
-  getScoreColor,
-  getCitationIdentifier,
-  isNavigableCitation,
-} from '@/utils/citationParser';
+import { Citation, getScoreColor, getCitationIdentifier, isNavigableCitation } from '@/utils/citationParser';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   Check,
@@ -18,7 +13,7 @@ import {
   ExternalLink,
   FileText,
   TrendingUp,
-  X,
+  X
 } from 'lucide-react';
 import { useState } from 'react';
 
@@ -79,7 +74,7 @@ export function CitationPreview({
       exit={{ opacity: 0, y: -10 }}
       className={cn(
         'rounded-lg overflow-hidden',
-        'bg-card border border-border',
+        'bg-[#0a0a0a] border border-[#1a1a1a]',
         'hover:border-primary/30 transition-colors',
         className
       )}
@@ -88,21 +83,16 @@ export function CitationPreview({
       <div
         className={cn(
           'flex items-start gap-3 px-3 py-3',
-          'cursor-pointer hover:bg-muted transition-colors'
+          'cursor-pointer hover:bg-[#111] transition-colors'
         )}
         onClick={onToggle}
       >
         {/* Icon */}
-        <div
-          className={cn(
-            'flex items-center justify-center w-8 h-8 rounded-md shrink-0 mt-0.5',
-            'bg-primary/10 border border-primary/20'
-          )}
-        >
-          <FileText
-            className="w-4 h-4"
-            style={{ color: THEME.colors.primary }}
-          />
+        <div className={cn(
+          'flex items-center justify-center w-8 h-8 rounded-md shrink-0 mt-0.5',
+          'bg-primary/10 border border-primary/20'
+        )}>
+          <FileText className="w-4 h-4" style={{ color: THEME.colors.primary }} />
         </div>
 
         {/* Title and metadata */}
@@ -110,7 +100,7 @@ export function CitationPreview({
           {/* Main title */}
           <h4
             className="text-sm font-medium leading-tight line-clamp-2"
-            style={{ color: THEME.colors.primary }}
+                  style={{ color: THEME.colors.primary }}
           >
             {citation.title}
           </h4>
@@ -120,7 +110,7 @@ export function CitationPreview({
             {citation.source && (
               <Badge
                 variant="outline"
-                className="text-[9px] px-1.5 py-0 h-4 bg-muted text-muted-foreground border-border"
+                className="text-[9px] px-1.5 py-0 h-4 bg-[#1a1a1a] text-gray-400 border-[#2a2a2a]"
               >
                 {citation.source}
               </Badge>
@@ -132,7 +122,7 @@ export function CitationPreview({
                 style={{
                   backgroundColor: `${THEME.colors.accent}15`,
                   color: THEME.colors.accent,
-                  borderColor: `${THEME.colors.accent}30`,
+                  borderColor: `${THEME.colors.accent}30`
                 }}
               >
                 External
@@ -176,9 +166,9 @@ export function CitationPreview({
                 e.stopPropagation();
                 onClose();
               }}
-              className="p-1 rounded hover:bg-muted transition-colors"
+              className="p-1 rounded hover:bg-[#1a1a1a] transition-colors"
             >
-              <X className="w-4 h-4 text-muted-foreground hover:text-foreground" />
+              <X className="w-4 h-4 text-gray-500 hover:text-gray-300" />
             </button>
           )}
         </div>
@@ -195,7 +185,7 @@ export function CitationPreview({
           >
             {/* Content preview */}
             {citation.content && (
-              <div className="px-3 py-3 border-t border-border">
+              <div className="px-3 py-3 border-t border-[#1a1a1a]">
                 <div className="flex items-start justify-between gap-2 mb-2">
                   <span
                     className="text-[10px] font-mono uppercase tracking-wider"
@@ -205,27 +195,22 @@ export function CitationPreview({
                   </span>
                   <button
                     onClick={handleCopy}
-                    className="p-1 rounded hover:bg-muted transition-colors"
+                    className="p-1 rounded hover:bg-[#1a1a1a] transition-colors"
                     title="Copy content"
                   >
                     {copied ? (
-                      <Check
-                        className="w-3 h-3"
-                        style={{ color: THEME.colors.primary }}
-                      />
+                      <Check className="w-3 h-3" style={{ color: THEME.colors.primary }} />
                     ) : (
-                      <Copy className="w-3 h-3 text-muted-foreground hover:text-foreground" />
+                      <Copy className="w-3 h-3 text-gray-500 hover:text-gray-300" />
                     )}
                   </button>
                 </div>
-                <div
-                  className={cn(
-                    'p-3 rounded-md',
-                    'bg-background border border-border',
-                    'max-h-48 overflow-y-auto',
-                    'scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-transparent'
-                  )}
-                >
+                <div className={cn(
+                  'p-3 rounded-md',
+                  'bg-[#080808] border border-[#1a1a1a]',
+                  'max-h-48 overflow-y-auto',
+                  'scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-transparent'
+                )}>
                   <p className="text-xs text-gray-300 leading-relaxed whitespace-pre-wrap font-mono">
                     {citation.content}
                   </p>
@@ -234,10 +219,10 @@ export function CitationPreview({
             )}
 
             {/* Footer with ID and actions */}
-            <div className="px-3 py-2.5 flex items-center justify-between border-t border-border bg-background">
+            <div className="px-3 py-2.5 flex items-center justify-between border-t border-[#1a1a1a] bg-[#080808]">
               <div className="flex items-center gap-2 text-[10px] text-gray-600">
                 <span className="font-mono">REF:</span>
-                <code className="px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-mono">
+                <code className="px-1.5 py-0.5 rounded bg-[#111] text-gray-500 font-mono">
                   {getCitationIdentifier(citation).slice(0, 16)}
                 </code>
               </div>
@@ -248,16 +233,13 @@ export function CitationPreview({
                   size="sm"
                   onClick={handleNavigate}
                   className="h-6 text-[10px] px-2 hover:bg-primary/10"
-                  style={{ color: THEME.colors.primary }}
+            style={{ color: THEME.colors.primary }}
                 >
                   View Document
                   <ExternalLink className="w-3 h-3 ml-1" />
                 </Button>
               ) : (
-                <span
-                  className="text-[10px] font-mono"
-                  style={{ color: `${THEME.colors.accent}80` }}
-                >
+                <span className="text-[10px] font-mono" style={{ color: `${THEME.colors.accent}80` }}>
                   External source
                 </span>
               )}

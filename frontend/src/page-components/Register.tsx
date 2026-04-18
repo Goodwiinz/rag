@@ -103,10 +103,8 @@ export const Register: React.FC = () => {
         password,
       };
 
-      const result = await register(backendData as any);
-      if (!result.requiresEmailConfirmation) {
-        navigate('/dashboard');
-      }
+      await register(backendData as any);
+      navigate('/dashboard');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Registration failed');
     }

@@ -3,7 +3,7 @@
 # Multi-stage build with security hardening and performance optimization
 # Optimized for remote builds
 
-ARG PYTHON_VERSION=3.11
+ARG PYTHON_VERSION=3.14
 FROM python:${PYTHON_VERSION}-slim AS base
 
 # Install system dependencies with security updates
@@ -40,8 +40,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PATH="/app/.local/bin:$PATH"
 
 # Create non-root user
-RUN groupadd -g 1001 appuser && \
-    useradd -u 1001 -g appuser -s /bin/bash -d /app appuser
+RUN groupadd -r appuser && \
+    useradd -r -g appuser -s /bin/bash -d /app appuser
 
 # Set working directory
 WORKDIR /app
@@ -60,7 +60,7 @@ COPY backend/requirements.txt backend/requirements-minimal.txt ./
 # requirements.txt and install CPU-only variants separately. This prevents
 # pip from pulling ~5GB of NVIDIA CUDA packages that exhaust CI disk space.
 RUN \
-    pip install --upgrade pip wheel "setuptools<72" && \
+    pip install --upgrade pip setuptools wheel && \
     if [ "$TORCH_CPU_ONLY" = "true" ]; then \
         grep -viE '^(torch|torchvision|torchaudio)' requirements.txt > requirements-no-torch.txt && \
         pip install torch --index-url https://download.pytorch.org/whl/cpu && \
@@ -73,9 +73,7 @@ RUN \
             triton cuda-bindings cuda-pathfinder 2>/dev/null || true; \
     else \
         pip install -r requirements.txt; \
-    fi && \
-    pip install "setuptools<72" && \
-    python -c "import pkg_resources"
+    fi
 
 # Stage 3: Build with minimal dependencies
 FROM base AS production
@@ -84,12 +82,11 @@ FROM base AS production
 COPY --from=dependencies /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
 COPY --from=dependencies /usr/local/bin /usr/local/bin
 
-# Download spaCy model BEFORE copying source code so this layer is cached
-# across source-only changes (the model URL is static)
-RUN pip install --no-cache-dir https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.7.1/en_core_web_sm-3.7.1-py3-none-any.whl
-
 # Copy application code
 COPY backend/ .
+
+# Download spaCy model using pip (more reliable than spacy download)
+RUN pip install --no-cache-dir https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.7.1/en_core_web_sm-3.7.1-py3-none-any.whl
 
 # Create necessary directories
 RUN mkdir -p uploads logs models && \
@@ -99,9 +96,9 @@ RUN mkdir -p uploads logs models && \
 USER appuser
 
 # Set environment variables for production
-ENV GUNICORN_WORKERS=2 \
+ENV GUNICORN_WORKERS=4 \
     GUNICORN_THREADS=2 \
-    GUNICORN_TIMEOUT=300 \
+    GUNICORN_TIMEOUT=120 \
     GUNICORN_MAX_REQUESTS=1000 \
     GUNICORN_MAX_REQUESTS_JITTER=100
 
@@ -113,4 +110,4 @@ HEALTHCHECK --interval=30s --timeout=30s --start-period=60s --retries=3 \
     CMD curl -f http://localhost:8000/health || exit 1
 
 # Run with Gunicorn
-CMD ["gunicorn", "--bind", "0.0.0.0:8000", "-k", "uvicorn.workers.UvicornWorker", "--workers", "2", "--threads", "2", "--timeout", "300", "--max-requests", "1000", "--max-requests-jitter", "100", "--graceful-timeout", "30", "--access-logfile", "-", "--error-logfile", "-", "src.main:app"]
+CMD ["gunicorn", "--bind", "0.0.0.0:8000", "-k", "uvicorn.workers.UvicornWorker", "--workers", "4", "--threads", "2", "--timeout", "120", "--max-requests", "1000", "--max-requests-jitter", "100", "--access-logfile", "-", "--error-logfile", "-", "src.main:app"]

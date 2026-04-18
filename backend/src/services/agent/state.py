@@ -26,10 +26,3 @@ class AgentState(TypedDict):
     user_confirmed: bool
     intent: str
     user_memories: list
-    # --- v2 additions ---
-    plan: list                # [{step, tool, args_hint}] advisory plan
-    reflection_count: int     # Max 2 per turn, reset per user message
-    compaction_count: int     # Increments each compaction, reset per turn
-    intent_confidence: float  # LLM classifier confidence 0-1
-    last_error_info: dict     # {category, message, suggestion}
-    user_id: str              # Owner user ID for HITL ownership verification

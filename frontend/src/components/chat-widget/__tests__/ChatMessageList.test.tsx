@@ -50,9 +50,11 @@ const mockMessages: WidgetMessage[] = [
 describe('ChatMessageList', () => {
   it('renders empty state when no messages', () => {
     render(<ChatMessageList messages={[]} isStreaming={false} />);
-    expect(screen.getByText('AWAITING_INPUT')).toBeInTheDocument();
+    expect(screen.getByText('Start a conversation')).toBeInTheDocument();
     expect(
-      screen.getByText('Start a conversation to begin your research session.')
+      screen.getByText(
+        'Ask questions about your project documents, notes, and bibliography.'
+      )
     ).toBeInTheDocument();
   });
 
