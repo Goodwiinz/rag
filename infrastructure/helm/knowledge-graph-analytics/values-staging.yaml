@@ -210,6 +210,7 @@ backend:
     waitForRedis: false
     waitForNeo4j: false
     waitForQdrant: false
+    runMigrations: true
 
 # ──────────────────────────────────────────────
 # All databases are external (DO Managed)

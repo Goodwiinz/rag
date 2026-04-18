@@ -758,9 +758,19 @@ function ChatPageContent() {
         return;
       }
 
-      // Guard against empty content (no tokens received)
+      // Guard against empty content (no tokens received). Surface the failure
+      // to the user instead of leaving an empty bubble — every "agent broke
+      // upstream" failure (DNS, auth, model error) used to look identical from
+      // the UI side.
       const finalContent = assistantContent || lastStreamedContentRef.current;
       if (!finalContent.trim()) {
+        const emptyResponseMessage: Message = {
+          role: 'assistant',
+          content:
+            '⚠ No response received from the agent. The stream completed without any tokens — check backend logs.',
+          timestamp: Date.now(),
+        };
+        setMessages([...newMessages, emptyResponseMessage]);
         useChatStore.setState({
           isStreaming: false,
           streamingContent: '',
