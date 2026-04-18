@@ -74,19 +74,25 @@ def _override_diagnostics_auth(test_app, mock_admin_user):
 
 
 @pytest.mark.asyncio
-async def test_diagnostics_requires_auth_without_override(test_app) -> None:
+async def test_diagnostics_requires_auth_without_override() -> None:
     """Diagnostics endpoints should reject unauthenticated requests."""
-    test_app.dependency_overrides.pop(require_admin, None)
+    # We use a mocked FastAPI app rather than the full `test_app` to avoid triggering database startup
+    from fastapi import FastAPI, Depends
+    from src.api.diagnostics.retrieval_diagnostics import router
+    from fastapi.testclient import TestClient
+    from fastapi import HTTPException
+
+    app = FastAPI()
+    app.include_router(router)
 
     # We mock out require_admin to raise a 401 as it would if unauthenticated
-    from fastapi import HTTPException
     def _mock_require_admin():
         raise HTTPException(status_code=401, detail="Unauthorized")
 
-    test_app.dependency_overrides[require_admin] = _mock_require_admin
+    app.dependency_overrides[require_admin] = _mock_require_admin
 
-    with TestClient(test_app) as client:
-        response = client.get("/api/v1/diagnostics/traces")
+    with TestClient(app) as client:
+        response = client.get("/diagnostics/traces")
 
     assert response.status_code in (401, 403)
 
