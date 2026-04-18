@@ -85,6 +85,48 @@ async def test_get_api_key_data_invalid_key():
     assert excinfo.value.detail == "Invalid API key"
 
 @pytest.mark.asyncio
+async def test_get_api_key_data_rate_limited_sets_retry_after():
+    raw_key, key_hash = generate_api_key()
+    key_prefix = raw_key[:8]
+
+    mock_request = MagicMock(spec=Request)
+    mock_request.client.host = "127.0.0.1"
+    mock_request.url.path = "/test"
+
+    mock_credentials = MagicMock(spec=HTTPAuthorizationCredentials)
+    mock_credentials.credentials = raw_key
+
+    mock_db = AsyncMock(spec=AsyncSession)
+
+    api_key_record = APIKey(
+        id="test-id",
+        name="Test Key",
+        key_hash=key_hash,
+        key_prefix=key_prefix,
+        is_active=True,
+        rate_limit_per_hour=100,
+        usage_count=0,
+        organization_id="org-1",
+    )
+
+    mock_result = MagicMock()
+    mock_result.scalars.return_value.all.return_value = [api_key_record]
+    mock_db.execute.return_value = mock_result
+
+    with patch("src.core.api_key_auth.api_key_auth") as mock_auth_service:
+        mock_auth_service.check_rate_limit = AsyncMock(return_value=False)
+        mock_auth_service.get_current_usage = AsyncMock(return_value=100)
+
+        with pytest.raises(HTTPException) as excinfo:
+            await get_api_key_data(mock_request, mock_credentials, mock_db)
+
+    assert excinfo.value.status_code == status.HTTP_429_TOO_MANY_REQUESTS
+    assert "Retry-After" in excinfo.value.headers
+    retry_after = int(excinfo.value.headers["Retry-After"])
+    assert 1 <= retry_after <= 3600
+
+
+@pytest.mark.asyncio
 async def test_get_api_key_data_hash_mismatch():
     # Setup: Key with same prefix but different secret
     raw_key, key_hash = generate_api_key()
