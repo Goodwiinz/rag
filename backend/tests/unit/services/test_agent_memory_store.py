@@ -7,12 +7,38 @@ Tests cover:
 - extract_insights: LLM-based insight extraction from conversation
 """
 
+import sys
 from datetime import datetime, timezone
-from types import SimpleNamespace
+from types import ModuleType, SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 from uuid import UUID, uuid4
 
 import pytest
+
+# Ensure qdrant_client and qdrant_client.models are importable during the
+# inline `from qdrant_client.models import PointStruct` calls inside
+# memory_store.py, even when the real package isn't installed.
+_QDC_SAVED = {k: sys.modules[k] for k in ("qdrant_client", "qdrant_client.models") if k in sys.modules}
+
+if "qdrant_client" not in sys.modules or not hasattr(sys.modules["qdrant_client"], "__path__"):
+    _qdc_models = ModuleType("qdrant_client.models")
+
+    class _AnyKwargs:
+        def __init__(self, **kwargs):
+            for k, v in kwargs.items():
+                setattr(self, k, v)
+
+    _qdc_models.PointStruct = _AnyKwargs
+    _qdc_models.Filter = _AnyKwargs
+    _qdc_models.FieldCondition = _AnyKwargs
+    _qdc_models.MatchValue = _AnyKwargs
+
+    _qdc_pkg = ModuleType("qdrant_client")
+    _qdc_pkg.__path__ = []  # make it look like a package
+    _qdc_pkg.models = _qdc_models
+
+    sys.modules["qdrant_client"] = _qdc_pkg
+    sys.modules["qdrant_client.models"] = _qdc_models
 
 pytestmark = [pytest.mark.asyncio, pytest.mark.unit]
 

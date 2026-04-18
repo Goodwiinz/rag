@@ -41,11 +41,16 @@ async def start_cli_auth(
     store: InMemoryCLIAuthSessionStore = Depends(get_cli_auth_session_store),
 ) -> dict[str, Any]:
     client_ip = request.client.host if request.client else "unknown"
-    if not await auth_rate_limiter.is_allowed(client_ip, prefix="cli_start"):
+    allowed, retry_after = await auth_rate_limiter.check_rate_limit(
+        client_ip, prefix="cli_start"
+    )
+    if not allowed:
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail="Too many CLI auth requests. Try again later.",
+            headers={"Retry-After": str(max(1, retry_after))},
         )
+    await auth_rate_limiter.record_attempt(client_ip, prefix="cli_start")
     session = store.create_session()
     browser_url = (
         f"{_frontend_base_url()}/cli-auth"
