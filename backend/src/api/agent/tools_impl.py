@@ -366,6 +366,75 @@ AGENT_TOOLS = [
             },
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "search_external_database",
+            "description": (
+                "Search external scientific and financial databases (PubMed, "
+                "UniProt, ChEMBL, PubChem, ClinicalTrials.gov, SEC EDGAR, FRED, "
+                "Alpha Vantage, ZINC, COSMIC, and 70+ BioServices databases). "
+                "Use when the user needs data from domain-specific databases "
+                "beyond arXiv. Specify a connector name to target one database, "
+                "or a domain to search all databases in that category."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "Search query",
+                    },
+                    "connector": {
+                        "type": "string",
+                        "description": (
+                            "Specific connector name (e.g., 'pubmed', 'uniprot', "
+                            "'chembl', 'clinical_trials', 'sec_edgar', 'fred'). "
+                            "Optional — if omitted, searches all available connectors "
+                            "in the given domain."
+                        ),
+                    },
+                    "domain": {
+                        "type": "string",
+                        "description": (
+                            "Domain filter: 'biomedical', 'chemistry', 'genomics', "
+                            "'finance', 'economic', 'clinical', 'literature'. "
+                            "Optional — if omitted, searches all."
+                        ),
+                    },
+                    "max_results": {
+                        "type": "integer",
+                        "description": "Maximum results per connector (1-20)",
+                        "default": 5,
+                    },
+                },
+                "required": ["query"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "list_external_databases",
+            "description": (
+                "List all available external database connectors. Use when the "
+                "user asks what databases are available, or to discover data "
+                "sources for a specific domain."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "domain": {
+                        "type": "string",
+                        "description": (
+                            "Filter by domain: 'biomedical', 'chemistry', "
+                            "'genomics', 'finance', 'economic', 'clinical'"
+                        ),
+                    },
+                },
+            },
+        },
+    },
 ]
 
 
@@ -414,6 +483,10 @@ async def execute_tool(
         return await _tool_export_bibliography(args, db, current_user)
     if tool_name == "execute_code":
         return await _tool_execute_code(args, thread_id="", current_user=current_user)
+    if tool_name == "search_external_database":
+        return await _tool_search_external_database(args)
+    if tool_name == "list_external_databases":
+        return await _tool_list_external_databases(args)
     return {"error": f"Unknown tool: {tool_name}"}
 
 
@@ -1301,3 +1374,129 @@ async def _tool_execute_code(
         response["outputs"] = result.results
 
     return response
+
+
+# ---------------------------------------------------------------------------
+# External database connector tools
+# ---------------------------------------------------------------------------
+
+
+async def _tool_search_external_database(args: Dict[str, Any]) -> Dict[str, Any]:
+    """Search external databases via the connector registry."""
+    import asyncio
+
+    from src.services.connectors import connector_registry
+    from src.services.connectors.base import ConnectorDomain
+
+    query = args.get("query", "")
+    if not query:
+        return {"error": "query is required"}
+
+    connector_name = args.get("connector")
+    domain_name = args.get("domain")
+    max_results = min(args.get("max_results", 5), 20)
+
+    try:
+        if connector_name:
+            connector = connector_registry.get(connector_name)
+            if connector is None:
+                available = [c.info.name for c in connector_registry.list_all()]
+                return {
+                    "error": f"Unknown connector: {connector_name}",
+                    "available_connectors": available,
+                }
+            if not connector.is_available():
+                return {
+                    "error": (
+                        f"Connector '{connector_name}' requires API key "
+                        f"({connector.info.api_key_env_var})"
+                    )
+                }
+            targets = [connector]
+        elif domain_name:
+            try:
+                domain = ConnectorDomain(domain_name)
+            except ValueError:
+                return {
+                    "error": f"Invalid domain: {domain_name}",
+                    "valid_domains": [d.value for d in ConnectorDomain],
+                }
+            targets = connector_registry.search_by_domain(domain)
+        else:
+            targets = connector_registry.list_available()
+
+        if not targets:
+            return {"error": "No available connectors found for the given criteria"}
+
+        tasks = [c.search(query, max_results=max_results) for c in targets]
+        all_results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        results = []
+        connectors_searched = []
+        for connector, result in zip(targets, all_results):
+            connectors_searched.append(connector.info.name)
+            if isinstance(result, Exception):
+                logger.warning(
+                    "connector_search_failed",
+                    connector=connector.info.name,
+                    error=str(result),
+                )
+                continue
+            for r in result:
+                results.append({
+                    "id": r.id,
+                    "title": r.title,
+                    "source": r.source,
+                    "url": r.url,
+                    "content": r.content[:300],
+                    "authors": r.authors[:5],
+                    "published_date": r.published_date,
+                    "document_type": r.document_type,
+                })
+
+        return {
+            "query": query,
+            "total_results": len(results),
+            "results": results,
+            "connectors_searched": connectors_searched,
+        }
+    except Exception as exc:
+        logger.exception("external_db_search_failed")
+        return {"error": f"Search failed: {str(exc)}"}
+
+
+async def _tool_list_external_databases(args: Dict[str, Any]) -> Dict[str, Any]:
+    """List available external database connectors."""
+    from src.services.connectors import connector_registry
+    from src.services.connectors.base import ConnectorDomain
+
+    domain_name = args.get("domain")
+
+    if domain_name:
+        try:
+            domain = ConnectorDomain(domain_name)
+        except ValueError:
+            return {
+                "error": f"Invalid domain: {domain_name}",
+                "valid_domains": [d.value for d in ConnectorDomain],
+            }
+        connectors = connector_registry.search_by_domain(domain)
+    else:
+        connectors = connector_registry.list_all()
+
+    return {
+        "total": len(connectors),
+        "available": sum(1 for c in connectors if c.is_available()),
+        "connectors": [
+            {
+                "name": c.info.name,
+                "display_name": c.info.display_name,
+                "description": c.info.description,
+                "domains": [d.value for d in c.info.domains],
+                "capabilities": [cap.value for cap in c.info.capabilities],
+                "requires_api_key": c.info.requires_api_key,
+                "available": c.is_available(),
+            }
+            for c in connectors
+        ],
+    }

@@ -20,6 +20,7 @@ from fastapi.responses import JSONResponse
 logger = logging.getLogger(__name__)
 
 from src.api.agent import agent_router
+from src.api.connectors import connectors_router
 from src.api.arxiv import (
     arxiv_bulk_router,
     arxiv_change_router,
@@ -390,6 +391,7 @@ app.include_router(
 )  # LLM-powered bulk ingestion with embeddings
 app.include_router(chat_router, prefix="/api/v1")  # Chat completion endpoints
 app.include_router(agent_router)  # Agent execution endpoints
+app.include_router(connectors_router)  # External database connectors
 app.include_router(
     workspaces_router
 )  # Thread-centric workspace/conversation/thread/message API
