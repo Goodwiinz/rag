@@ -2,28 +2,30 @@
 Search API endpoints for hybrid search functionality
 """
 
+import logging
+import time
+from datetime import datetime
+from typing import Any, Dict, List, Optional
+
 from fastapi import (
     APIRouter,
-    HTTPException,
-    Depends,
-    Query,
     BackgroundTasks,
+    Depends,
+    HTTPException,
+    Query,
     Request,
     status,
 )
 from fastapi.responses import JSONResponse
-from typing import List, Dict, Any, Optional
-import logging
-from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
-from fastapi.responses import JSONResponse
-
+from src.api.research.chat import (
+    RAG_SYSTEM_PROMPT,
+    RetrievedContext,
+    build_context_prompt,
+)
+from src.core.api_key_auth import APIKeyData, APIKeyUsageLog, get_api_key_data
 from src.core.database import get_db, get_db_sync
 from src.core.dependencies import get_current_user
-from src.core.api_key_auth import get_api_key_data, APIKeyData, APIKeyUsageLog
-from src.services.search.fulltext_search_service import fulltext_search_service
-from src.services.search.hybrid_search_service import hybrid_search_service
 from src.models.search_schemas import (
     DeterministicTrace,
     SearchAnalytics,
@@ -36,14 +38,9 @@ from src.models.search_schemas import (
     SearchType,
 )
 from src.models.user import User
+from src.services.infrastructure.azure_openai_service import azure_openai_service
 from src.services.search.fulltext_search_service import fulltext_search_service
 from src.services.search.hybrid_search_service import hybrid_search_service
-from src.api.research.chat import (
-    RAG_SYSTEM_PROMPT,
-    RetrievedContext,
-    build_context_prompt,
-)
-from src.services.infrastructure.azure_openai_service import azure_openai_service
 
 logger = logging.getLogger(__name__)
 
@@ -1065,8 +1062,3 @@ async def log_authenticated_search_query(
 
     except Exception as e:
         logger.error(f"Error logging authenticated search query: {e}")
-
-
-# Import time for health check
-import time
-from datetime import datetime

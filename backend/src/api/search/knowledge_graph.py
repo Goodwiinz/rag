@@ -40,12 +40,25 @@ from src.models.graph import (
 from src.models.user import User, UserRole
 from src.models.processing import JobPriority, JobStatus, JobType, ProcessingJob
 from src.services.knowledge_graph.knowledge_graph_service import knowledge_graph_service
-from src.services.processing.entity_extraction_service import EntityExtractionService
+from src.services.processing.entity_extraction_service import (
+    EntityExtractionService,
+    EntityType as ProcessingEntityType,
+)
 from src.tasks.processing_tasks import kg_extract_entities_job, kg_merge_entities_job
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/knowledge-graph", tags=["knowledge-graph"])
+
+
+def _get_org_document_ids(db, organization_id) -> List[str]:
+    """Get all document IDs belonging to an organization for tenant scoping."""
+    return [
+        str(doc_id)
+        for (doc_id,) in db.query(Document.id)
+        .filter(Document.organization_id == organization_id)
+        .all()
+    ]
 
 
 def _is_neo4j_unavailable_error(error: Exception) -> bool:
@@ -73,6 +86,44 @@ class CreateExtractionJobRequest(BaseModel):
     document_ids: List[str] = Field(default_factory=list)
 
 
+def _map_processing_entity_type_to_graph(entity_type: ProcessingEntityType) -> EntityType:
+    mapping = {
+        "person": EntityType.PERSON,
+        "organization": EntityType.ORGANIZATION,
+        "location": EntityType.LOCATION,
+        "product": EntityType.PRODUCT,
+        "concept": EntityType.CONCEPT,
+        "date": EntityType.DATE,
+        "number": EntityType.OTHER,
+        "email": EntityType.EMAIL,
+        "phone": EntityType.PHONE,
+        "url": EntityType.URL,
+        "event": EntityType.EVENT,
+        "financial": EntityType.FINANCIAL,
+        "job_title": EntityType.JOB_TITLE,
+        "topic": EntityType.TOPIC,
+        "technology": EntityType.TECHNOLOGY,
+        "research": EntityType.RESEARCH,
+        "document": EntityType.DOCUMENT,
+        "custom": EntityType.OTHER,
+    }
+    return mapping.get(entity_type.value, EntityType.OTHER)
+
+
+def _safe_graph_relationship_type(raw_type: str) -> RelationshipType:
+    if not raw_type:
+        return RelationshipType.RELATED_TO
+
+    normalized = str(raw_type).strip().upper().replace("-", "_").replace(" ", "_")
+    if normalized == "LEADS":
+        normalized = "MANAGES"
+
+    try:
+        return RelationshipType(normalized)
+    except ValueError:
+        return RelationshipType.RELATED_TO
+
+
 # Entity Management Endpoints
 @router.post("/entities", response_model=EntityResponse)
 async def create_entity(
@@ -88,9 +139,14 @@ async def create_entity(
 
 
 @router.get("/entities/{entity_id}", response_model=EntityResponse)
-async def get_entity(entity_id: str, current_user: User = Depends(get_current_user)):
+async def get_entity(
+    entity_id: str,
+    current_user: User = Depends(get_current_user),
+    db=Depends(get_db_sync),
+):
     """Get an entity by ID"""
-    entity = knowledge_graph_service.get_entity(entity_id)
+    org_doc_ids = _get_org_document_ids(db, current_user.organization_id)
+    entity = knowledge_graph_service.get_entity(entity_id, source_document_ids=org_doc_ids)
     if not entity:
         raise HTTPException(status_code=404, detail="Entity not found")
     return entity
@@ -101,18 +157,27 @@ async def update_entity(
     entity_id: str,
     request: UpdateEntityRequest,
     current_user: User = Depends(get_current_user),
+    db=Depends(get_db_sync),
 ):
     """Update an existing entity"""
-    entity = knowledge_graph_service.update_entity(entity_id, request)
+    org_doc_ids = _get_org_document_ids(db, current_user.organization_id)
+    entity = knowledge_graph_service.update_entity(
+        entity_id, request, source_document_ids=org_doc_ids
+    )
     if not entity:
         raise HTTPException(status_code=404, detail="Entity not found")
     return entity
 
 
 @router.delete("/entities/{entity_id}")
-async def delete_entity(entity_id: str, current_user: User = Depends(get_current_user)):
+async def delete_entity(
+    entity_id: str,
+    current_user: User = Depends(get_current_user),
+    db=Depends(get_db_sync),
+):
     """Delete an entity and all its relationships"""
-    success = knowledge_graph_service.delete_entity(entity_id)
+    org_doc_ids = _get_org_document_ids(db, current_user.organization_id)
+    success = knowledge_graph_service.delete_entity(entity_id, source_document_ids=org_doc_ids)
     if not success:
         raise HTTPException(status_code=404, detail="Entity not found")
     return {"message": "Entity deleted successfully"}
@@ -135,13 +200,7 @@ async def get_all_entities(
 ):
     """Get all entities with pagination and optional filtering"""
     try:
-        # Get document IDs belonging to the current user's organization
-        org_doc_ids = [
-            str(doc_id)
-            for (doc_id,) in db.query(Document.id)
-            .filter(Document.organization_id == current_user.organization_id)
-            .all()
-        ]
+        org_doc_ids = _get_org_document_ids(db, current_user.organization_id)
 
         entities = knowledge_graph_service.get_all_entities(
             limit, offset, entity_types,
@@ -175,10 +234,14 @@ async def search_entities(
     ),
     limit: int = Query(default=50, ge=1, le=200, description="Maximum results"),
     current_user: User = Depends(get_current_user),
+    db=Depends(get_db_sync),
 ):
     """Search for entities by name or properties"""
     try:
-        entities = knowledge_graph_service.search_entities(query, entity_types, limit)
+        org_doc_ids = _get_org_document_ids(db, current_user.organization_id)
+        entities = knowledge_graph_service.search_entities(
+            query, entity_types, limit, source_document_ids=org_doc_ids
+        )
         return entities
     except Exception as e:
         logger.error(f"Error searching entities: {e}")
@@ -194,11 +257,13 @@ async def get_entity_relationships(
         None, description="Filter by relationship types"
     ),
     current_user: User = Depends(get_current_user),
+    db=Depends(get_db_sync),
 ):
     """Get all relationships for an entity"""
     try:
+        org_doc_ids = _get_org_document_ids(db, current_user.organization_id)
         relationships = knowledge_graph_service.get_relationships(
-            entity_id, relationship_types
+            entity_id, relationship_types, source_document_ids=org_doc_ids
         )
         return relationships
     except Exception as e:
@@ -217,11 +282,14 @@ async def get_related_entities(
     ),
     limit: int = Query(default=50, ge=1, le=200, description="Maximum results"),
     current_user: User = Depends(get_current_user),
+    db=Depends(get_db_sync),
 ):
     """Find entities related to a given entity"""
     try:
+        org_doc_ids = _get_org_document_ids(db, current_user.organization_id)
         entities = knowledge_graph_service.find_related_entities(
-            entity_id, max_depth, min_strength, limit
+            entity_id, max_depth, min_strength, limit,
+            source_document_ids=org_doc_ids,
         )
         return entities
     except Exception as e:
@@ -240,11 +308,14 @@ async def get_entity_neighborhood(
     ),
     limit: int = Query(default=50, ge=1, le=200, description="Maximum results"),
     current_user: User = Depends(get_current_user),
+    db=Depends(get_db_sync),
 ):
     """Get neighborhood entities and relationships in a single call"""
     try:
+        org_doc_ids = _get_org_document_ids(db, current_user.organization_id)
         data = knowledge_graph_service.get_neighborhood(
-            entity_id, max_depth, min_strength, limit
+            entity_id, max_depth, min_strength, limit,
+            source_document_ids=org_doc_ids,
         )
         return data
     except Exception as e:
@@ -267,12 +338,7 @@ async def get_all_relationships(
 ):
     """Get all relationships with pagination and optional filtering"""
     try:
-        org_doc_ids = [
-            str(doc_id)
-            for (doc_id,) in db.query(Document.id)
-            .filter(Document.organization_id == current_user.organization_id)
-            .all()
-        ]
+        org_doc_ids = _get_org_document_ids(db, current_user.organization_id)
         relationships = knowledge_graph_service.get_all_relationships(
             limit, offset, relationship_types, source_document_ids=org_doc_ids
         )
@@ -284,11 +350,16 @@ async def get_all_relationships(
 
 @router.post("/relationships", response_model=RelationshipResponse)
 async def create_relationship(
-    request: CreateRelationshipRequest, current_user: User = Depends(get_current_user)
+    request: CreateRelationshipRequest,
+    current_user: User = Depends(get_current_user),
+    db=Depends(get_db_sync),
 ):
     """Create a new relationship between entities"""
     try:
-        relationship = knowledge_graph_service.create_relationship(request)
+        org_doc_ids = _get_org_document_ids(db, current_user.organization_id)
+        relationship = knowledge_graph_service.create_relationship(
+            request, source_document_ids=org_doc_ids
+        )
         return relationship
     except Exception as e:
         logger.error(f"Error creating relationship: {e}")
@@ -297,11 +368,16 @@ async def create_relationship(
 
 @router.get("/relationships/{relationship_id}", response_model=RelationshipResponse)
 async def get_relationship(
-    relationship_id: str, current_user: User = Depends(get_current_user)
+    relationship_id: str,
+    current_user: User = Depends(get_current_user),
+    db=Depends(get_db_sync),
 ):
     """Get a relationship by ID"""
     try:
-        relationship = knowledge_graph_service.get_relationship(relationship_id)
+        org_doc_ids = _get_org_document_ids(db, current_user.organization_id)
+        relationship = knowledge_graph_service.get_relationship(
+            relationship_id, source_document_ids=org_doc_ids
+        )
         if not relationship:
             raise HTTPException(
                 status_code=404, detail=f"Relationship {relationship_id} not found"
@@ -318,11 +394,16 @@ async def get_relationship(
 
 @router.delete("/relationships/{relationship_id}")
 async def delete_relationship(
-    relationship_id: str, current_user: User = Depends(get_current_user)
+    relationship_id: str,
+    current_user: User = Depends(get_current_user),
+    db=Depends(get_db_sync),
 ):
     """Delete a relationship"""
     try:
-        success = knowledge_graph_service.delete_relationship(relationship_id)
+        org_doc_ids = _get_org_document_ids(db, current_user.organization_id)
+        success = knowledge_graph_service.delete_relationship(
+            relationship_id, source_document_ids=org_doc_ids
+        )
         if not success:
             raise HTTPException(status_code=404, detail="Relationship not found")
         return {"message": "Relationship deleted successfully"}
@@ -334,24 +415,29 @@ async def delete_relationship(
 # Graph Search and Traversal Endpoints
 @router.post("/search", response_model=GraphSearchResponse)
 async def search_graph(
-    request: GraphSearchRequest, current_user: User = Depends(get_current_user)
+    request: GraphSearchRequest,
+    current_user: User = Depends(get_current_user),
+    db=Depends(get_db_sync),
 ):
     """Perform a comprehensive graph search"""
     try:
         import time
 
         start_time = time.time()
+        org_doc_ids = _get_org_document_ids(db, current_user.organization_id)
 
         # Search entities
         entities = knowledge_graph_service.search_entities(
-            request.query, request.entity_types, request.max_results
+            request.query, request.entity_types, request.max_results,
+            source_document_ids=org_doc_ids,
         )
 
         # Find relationships for found entities
         relationships = []
         for entity in entities:
             entity_relationships = knowledge_graph_service.get_relationships(
-                entity.id, request.relationship_types
+                entity.id, request.relationship_types,
+                source_document_ids=org_doc_ids,
             )
             relationships.extend(entity_relationships)
 
@@ -365,6 +451,7 @@ async def search_graph(
                         entities[j].id,
                         request.max_depth,
                         request.min_strength,
+                        source_document_ids=org_doc_ids,
                     )
                     paths.extend(entity_paths)
 
@@ -394,11 +481,14 @@ async def find_paths(
         default=0.1, ge=0.0, le=1.0, description="Minimum relationship strength"
     ),
     current_user: User = Depends(get_current_user),
+    db=Depends(get_db_sync),
 ):
     """Find paths between two entities"""
     try:
+        org_doc_ids = _get_org_document_ids(db, current_user.organization_id)
         paths = knowledge_graph_service.find_paths(
-            source_id, target_id, max_depth, min_strength
+            source_id, target_id, max_depth, min_strength,
+            source_document_ids=org_doc_ids,
         )
         return paths
     except Exception as e:
@@ -409,11 +499,16 @@ async def find_paths(
 # Batch Operations Endpoints
 @router.post("/batch", response_model=BatchEntityResponse)
 async def batch_create_entities(
-    request: BatchEntityRequest, current_user: User = Depends(get_current_user)
+    request: BatchEntityRequest,
+    current_user: User = Depends(get_current_user),
+    db=Depends(get_db_sync),
 ):
     """Create multiple entities and relationships in a batch"""
     try:
-        result = knowledge_graph_service.create_entities_batch(request)
+        org_doc_ids = _get_org_document_ids(db, current_user.organization_id)
+        result = knowledge_graph_service.create_entities_batch(
+            request, source_document_ids=org_doc_ids
+        )
         return result
     except Exception as e:
         logger.error(f"Error in batch processing: {e}")
@@ -574,41 +669,131 @@ async def extract_entities_from_document(
         if not document:
             raise HTTPException(status_code=404, detail="Document not found")
 
-        # Extract entities using entity extraction service
-        entity_extractor = EntityExtractionService()
-        entities_data = entity_extractor.extract_entities(document.content)
+        content = (
+            getattr(document, "content_text", "")
+            or getattr(document, "content", "")
+            or ""
+        )
+        if not content.strip():
+            raise HTTPException(
+                status_code=400,
+                detail="Document has no text content available for entity extraction",
+            )
 
-        # Convert extracted entities to CreateEntityRequest objects
+        # Extract entities + relationships using entity extraction service
+        entity_extractor = EntityExtractionService()
+        entities_data, relationships_data = entity_extractor.extract_entities_and_relationships_from_text(
+            document, content
+        )
+
+        # Convert extracted entities to CreateEntityRequest objects.
         create_requests = []
         for entity_data in entities_data:
+            position = None
+            if entity_data.properties:
+                start = entity_data.properties.get("start_char")
+                end = entity_data.properties.get("end_char")
+                if isinstance(start, int) and isinstance(end, int):
+                    position = [start, end]
+
             create_requests.append(
                 CreateEntityRequest(
-                    name=entity_data["name"],
-                    entity_type=EntityType(entity_data["entity_type"]),
-                    confidence_score=entity_data["confidence_score"],
-                    extraction_method=ExtractionMethod(
-                        entity_data["extraction_method"]
-                    ),
-                    position=entity_data.get("position"),
-                    context=entity_data.get("context"),
-                    metadata=entity_data.get("metadata", {}),
+                    name=entity_data.name,
+                    entity_type=_map_processing_entity_type_to_graph(entity_data.entity_type),
+                    confidence_score=min(1.0, max(0.0, entity_data.confidence or 0.8)),
+                    extraction_method=ExtractionMethod.MANUAL,
+                    position=position,
+                    context=entity_data.properties.get("context_window")
+                    if entity_data.properties
+                    else None,
+                    metadata={
+                        "source": "document_extract_endpoint",
+                        "document_id": document_id,
+                    },
                     source_document_id=document_id,
                 )
             )
 
-        # Create entities in batch
-        batch_request = BatchEntityRequest(
+        # Create entities first.
+        entity_batch_request = BatchEntityRequest(
             entities=create_requests, upsert=True, document_id=document_id
         )
+        entity_result = knowledge_graph_service.create_entities_batch(entity_batch_request)
 
-        result = knowledge_graph_service.create_entities_batch(batch_request)
+        # Build lookup for relationship endpoint resolution.
+        created_entity_id_by_key = {}
+        for created in entity_result.created_entities:
+            created_key = (
+                created.entity_type.value,
+                created.name.strip().lower(),
+            )
+            created_entity_id_by_key[created_key] = created.id
+
+        relationship_requests = []
+        for relationship in relationships_data:
+            source_entity = relationship.get("source_entity")
+            target_entity = relationship.get("target_entity")
+            if not source_entity or not target_entity:
+                continue
+
+            source_key = (
+                _map_processing_entity_type_to_graph(source_entity.entity_type).value,
+                source_entity.name.strip().lower(),
+            )
+            target_key = (
+                _map_processing_entity_type_to_graph(target_entity.entity_type).value,
+                target_entity.name.strip().lower(),
+            )
+            source_entity_id = created_entity_id_by_key.get(source_key)
+            target_entity_id = created_entity_id_by_key.get(target_key)
+            if not source_entity_id or not target_entity_id:
+                continue
+
+            confidence = float(relationship.get("confidence", 0.7))
+            confidence = min(1.0, max(0.0, confidence))
+            evidence = relationship.get("evidence")
+            relationship_requests.append(
+                CreateRelationshipRequest(
+                    source_entity_id=source_entity_id,
+                    target_entity_id=target_entity_id,
+                    relationship_type=_safe_graph_relationship_type(
+                        relationship.get("relationship_type", "")
+                    ),
+                    strength=confidence,
+                    confidence_score=confidence,
+                    context=evidence,
+                    evidence=[evidence] if evidence else [],
+                    metadata={
+                        "source": "document_extract_endpoint",
+                        "document_id": document_id,
+                        "pattern_matched": relationship.get("pattern_matched"),
+                    },
+                    source_document_id=document_id,
+                )
+            )
+
+        relationship_result_count = 0
+        relationship_error_count = 0
+        if relationship_requests:
+            relationship_result = knowledge_graph_service.create_entities_batch(
+                BatchEntityRequest(
+                    entities=[],
+                    relationships=relationship_requests,
+                    upsert=True,
+                    document_id=document_id,
+                )
+            )
+            relationship_result_count = len(relationship_result.created_relationships)
+            relationship_error_count = len(relationship_result.errors)
 
         return {
             "document_id": document_id,
             "entities_found": len(entities_data),
-            "entities_created": len(result.created_entities),
-            "errors": len(result.errors),
-            "processing_time": result.processing_time,
+            "entities_created": len(entity_result.created_entities),
+            "relationships_found": len(relationships_data),
+            "relationships_created": relationship_result_count,
+            "errors": len(entity_result.errors) + relationship_error_count,
+            "processing_time": entity_result.processing_time,
         }
     except HTTPException:
         raise
@@ -619,13 +804,17 @@ async def extract_entities_from_document(
 
 @router.get("/documents/{document_id}/entities", response_model=List[EntityResponse])
 async def get_document_entities(
-    document_id: str, current_user: User = Depends(get_current_user)
+    document_id: str,
+    current_user: User = Depends(get_current_user),
+    db=Depends(get_db_sync),
 ):
     """Get all entities extracted from a specific document"""
     try:
+        org_doc_ids = _get_org_document_ids(db, current_user.organization_id)
         entities = knowledge_graph_service.search_entities(
             query="",  # Empty query to find all
             limit=1000,
+            source_document_ids=org_doc_ids,
         )
 
         # Filter by source document
@@ -641,10 +830,16 @@ async def get_document_entities(
 
 # Analytics and Statistics Endpoints
 @router.get("/analytics", response_model=GraphAnalytics)
-async def get_graph_analytics(current_user: User = Depends(get_current_user)):
+async def get_graph_analytics(
+    current_user: User = Depends(get_current_user),
+    db=Depends(get_db_sync),
+):
     """Get comprehensive graph analytics"""
     try:
-        analytics = knowledge_graph_service.get_graph_analytics()
+        org_doc_ids = _get_org_document_ids(db, current_user.organization_id)
+        analytics = knowledge_graph_service.get_graph_analytics(
+            source_document_ids=org_doc_ids
+        )
         return analytics
     except Exception as e:
         logger.error(f"Error getting graph analytics: {e}")
@@ -664,31 +859,39 @@ async def get_graph_health(current_user: User = Depends(get_current_user)):
 
 # Visualization Endpoints
 @router.get("/visualization/{entity_id}", response_model=GraphVisualizationData)
-async def get_entity_neighborhood(
+async def get_entity_visualization(
     entity_id: str,
     depth: int = Query(default=2, ge=1, le=3, description="Neighborhood depth"),
     max_nodes: int = Query(
         default=50, ge=1, le=200, description="Maximum nodes to include"
     ),
     current_user: User = Depends(get_current_user),
+    db=Depends(get_db_sync),
 ):
     """Get graph data for visualizing an entity's neighborhood"""
     try:
+        org_doc_ids = _get_org_document_ids(db, current_user.organization_id)
+
         # Get the central entity
-        central_entity = knowledge_graph_service.get_entity(entity_id)
+        central_entity = knowledge_graph_service.get_entity(
+            entity_id, source_document_ids=org_doc_ids
+        )
         if not central_entity:
             raise HTTPException(status_code=404, detail="Entity not found")
 
         # Get related entities
         related_entities = knowledge_graph_service.find_related_entities(
-            entity_id, max_depth=depth, limit=max_nodes - 1
+            entity_id, max_depth=depth, limit=max_nodes - 1,
+            source_document_ids=org_doc_ids,
         )
 
         # Get relationships
         all_entity_ids = [entity_id] + [e.id for e in related_entities]
         relationships = []
         for eid in all_entity_ids:
-            rels = knowledge_graph_service.get_relationships(eid)
+            rels = knowledge_graph_service.get_relationships(
+                eid, source_document_ids=org_doc_ids
+            )
             relationships.extend(rels)
 
         # Filter relationships to only include entities in our set

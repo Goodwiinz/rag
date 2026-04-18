@@ -1,11 +1,26 @@
 /**
  * Export service for thread/conversation export functionality.
- * 
+ *
  * Handles API calls for:
  * - Single thread export (Markdown, PDF, JSON, HTML)
  * - Batch thread export with ZIP packaging
  * - Export format metadata
  */
+
+import { createClient } from '@/lib/supabase/client';
+
+/** Get the current Supabase access token for API calls */
+async function getAccessToken(): Promise<string | null> {
+  try {
+    const supabase = createClient();
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    return session?.access_token ?? null;
+  } catch {
+    return null;
+  }
+}
 
 export type ExportFormat = 'markdown' | 'pdf' | 'json' | 'html';
 
@@ -57,12 +72,13 @@ export async function exportThread(
     include_feedback: String(options.includeFeedback ?? false),
   });
 
+  const token = await getAccessToken();
   const response = await fetch(
     `/api/v1/export/thread/${threadId}?${params.toString()}`,
     {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${localStorage.getItem('access_token')}`,
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
     }
   );
@@ -75,7 +91,9 @@ export async function exportThread(
   // Get filename from Content-Disposition header
   const disposition = response.headers.get('Content-Disposition');
   const filenameMatch = disposition?.match(/filename="(.+?)"/);
-  const filename = filenameMatch?.[1] || `thread_export.${format === 'markdown' ? 'md' : format}`;
+  const filename =
+    filenameMatch?.[1] ||
+    `thread_export.${format === 'markdown' ? 'md' : format}`;
 
   // Download the file
   const blob = await response.blob();
@@ -86,17 +104,19 @@ export async function exportThread(
  * Export multiple threads as a ZIP file.
  */
 export async function exportBatch(request: BatchExportRequest): Promise<void> {
+  const token = await getAccessToken();
   const response = await fetch('/api/v1/export/batch', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${localStorage.getItem('access_token')}`,
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
     body: JSON.stringify({
       thread_ids: request.threadIds,
       format: request.format,
       options: {
-        include_system_messages: request.options?.includeSystemMessages ?? false,
+        include_system_messages:
+          request.options?.includeSystemMessages ?? false,
         include_citations: request.options?.includeCitations ?? true,
         include_metadata: request.options?.includeMetadata ?? true,
         include_feedback: request.options?.includeFeedback ?? false,
@@ -126,10 +146,11 @@ export async function getExportFormats(): Promise<{
   options: Record<string, string>;
   limits: { maxBatchSize: number; maxThreadMessages: number };
 }> {
+  const token = await getAccessToken();
   const response = await fetch('/api/v1/export/formats', {
     method: 'GET',
     headers: {
-      Authorization: `Bearer ${localStorage.getItem('access_token')}`,
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
   });
 
@@ -157,13 +178,14 @@ export async function previewExport(
   threadId: string,
   format: ExportFormat = 'markdown'
 ): Promise<ExportPreview> {
+  const token = await getAccessToken();
   const response = await fetch(
     `/api/v1/export/preview/${threadId}?format=${format}`,
     {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${localStorage.getItem('access_token')}`,
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
     }
   );

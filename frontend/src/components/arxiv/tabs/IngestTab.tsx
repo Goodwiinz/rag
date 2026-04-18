@@ -3,7 +3,9 @@ import {
   Brain,
   CheckSquare,
   Database,
+  Lock,
   Loader2,
+  LogIn,
   Search,
   Square,
   Terminal,
@@ -15,6 +17,7 @@ import { CustomSlider, ToggleSwitch } from '../arxivControls';
 import { ArXivPaper, IngestionResult } from '../arxivTypes';
 
 interface IngestTabProps {
+  isAuthenticated: boolean;
   searchQuery: string;
   maxResults: number;
   useCategoryFilterForSearch: boolean;
@@ -43,6 +46,7 @@ interface IngestTabProps {
 }
 
 export function IngestTab({
+  isAuthenticated,
   searchQuery,
   maxResults,
   useCategoryFilterForSearch,
@@ -72,29 +76,59 @@ export function IngestTab({
   return (
     <div className="space-y-6">
       <div className="space-y-1">
-        <h3 className="flex items-center gap-2 text-sm font-mono font-bold uppercase tracking-tight text-[#E5E7EB]">
-          <Upload className="h-4 w-4 text-[#00D4FF]" aria-hidden="true" />
+        <h3 className="flex items-center gap-2 text-sm font-mono font-bold uppercase tracking-tight text-foreground">
+          <Upload className="h-4 w-4 text-[var(--cyan)]" aria-hidden="true" />
           Search and Queue Ingestion
         </h3>
-        <p className="text-[11px] font-mono leading-relaxed text-[#6B7280]">
+        <p className="text-[11px] font-mono leading-relaxed text-muted-foreground">
           Search by topic, select relevant papers, and queue ingestion in one
           flow.
         </p>
       </div>
 
+      {!isAuthenticated && (
+        <div className="rounded-xl border border-[var(--cyan)]/20 bg-[var(--cyan)]/5 p-4">
+          <div className="flex items-start gap-3">
+            <div className="rounded-lg border border-[var(--cyan)]/20 bg-[var(--terminal-bg)]/70 p-2">
+              <Lock
+                className="h-4 w-4 text-[var(--cyan)]"
+                aria-hidden="true"
+              />
+            </div>
+            <div className="space-y-2">
+              <p className="text-xs font-mono font-bold uppercase tracking-wider text-foreground">
+                Public search stays open
+              </p>
+              <p className="text-[11px] font-mono leading-relaxed text-muted-foreground">
+                Search papers and review results without signing in. Sign in to
+                queue ingestion, send IDs to extraction, and save work to your
+                workspace.
+              </p>
+              <a
+                href="/login"
+                className="inline-flex items-center gap-2 rounded-md border border-[var(--cyan)]/20 bg-[var(--terminal-bg)]/70 px-3 py-2 text-[10px] font-mono font-bold uppercase tracking-wider text-[var(--cyan)] transition-colors hover:bg-[var(--cyan)]/10"
+              >
+                <LogIn className="h-3.5 w-3.5" aria-hidden="true" />
+                Sign In To Queue Ingestion
+              </a>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-12">
         <div className="space-y-4 xl:col-span-5">
-          <div className="space-y-4 rounded-xl border border-[#1A1A1A] bg-[#0A0A0A]/50 p-4">
+          <div className="space-y-4 rounded-xl border border-[var(--terminal-border)] bg-[var(--terminal-bg)]/50 p-4">
             <div className="space-y-2">
               <label
                 htmlFor="arxiv-query"
-                className="text-[10px] font-mono font-bold uppercase tracking-widest text-[#9CA3AF]"
+                className="text-[10px] font-mono font-bold uppercase tracking-widest text-muted-foreground"
               >
                 Search Query
               </label>
               <div className="relative">
                 <Search
-                  className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#6B7280]"
+                  className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground"
                   aria-hidden="true"
                 />
                 <input
@@ -106,7 +140,7 @@ export function IngestTab({
                   onKeyDown={(e) => e.key === 'Enter' && onSearchPapers()}
                   placeholder="transformer interpretability…"
                   autoComplete="off"
-                  className="w-full rounded-lg border border-[#1A1A1A] bg-[#111111] py-2.5 pl-10 pr-3 font-mono text-xs text-[#E5E7EB] placeholder:text-[#6B7280] focus:border-[#00FF9F]/50 focus:outline-none"
+                  className="w-full rounded-lg border border-[var(--terminal-border)] bg-[var(--terminal-surface)] py-2.5 pl-10 pr-3 font-mono text-xs text-foreground placeholder:text-muted-foreground focus:border-primary/50 focus:outline-none"
                 />
               </div>
             </div>
@@ -120,7 +154,7 @@ export function IngestTab({
               step={1}
             />
 
-            <div className="space-y-2 rounded-lg border border-dashed border-[#1A1A1A] bg-[#0A0A0A]/40 p-3">
+            <div className="space-y-2 rounded-lg border border-dashed border-[var(--terminal-border)] bg-[var(--terminal-bg)]/40 p-3">
               <ToggleSwitch
                 checked={useCategoryFilterForSearch}
                 onCheckedChange={onUseCategoryFilterChange}
@@ -145,7 +179,7 @@ export function IngestTab({
                 disabled={isAnyOperationRunning || !searchQuery.trim()}
                 className={cn(
                   'inline-flex flex-1 items-center justify-center gap-2 rounded-lg border px-4 py-2.5 text-[11px] font-mono font-bold uppercase transition-colors',
-                  'border-[#00D4FF]/30 bg-[#00D4FF]/10 text-[#00D4FF] hover:bg-[#00D4FF]/20 disabled:cursor-not-allowed disabled:opacity-45'
+                  'border-[var(--cyan)]/30 bg-[var(--cyan)]/10 text-[var(--cyan)] hover:bg-[var(--cyan)]/20 disabled:cursor-not-allowed disabled:opacity-45'
                 )}
               >
                 {isSearching ? (
@@ -162,19 +196,19 @@ export function IngestTab({
                 type="button"
                 onClick={onClearSearch}
                 disabled={isAnyOperationRunning}
-                className="rounded-lg border border-[#1A1A1A] px-4 py-2.5 text-[11px] font-mono font-bold uppercase text-[#6B7280] hover:bg-[#151515] disabled:cursor-not-allowed disabled:opacity-45"
+                className="rounded-lg border border-[var(--terminal-border)] px-4 py-2.5 text-[11px] font-mono font-bold uppercase text-muted-foreground hover:bg-[var(--terminal-surface)] disabled:cursor-not-allowed disabled:opacity-45"
               >
                 Clear Search
               </button>
             </div>
           </div>
 
-          <div className="space-y-3 rounded-xl border border-[#1A1A1A] bg-[#0A0A0A]/50 p-4">
+          <div className="space-y-3 rounded-xl border border-[var(--terminal-border)] bg-[var(--terminal-bg)]/50 p-4">
             <div className="flex items-center justify-between">
-              <span className="text-[10px] font-mono uppercase tracking-widest text-[#9CA3AF]">
+              <span className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground">
                 Selected Papers
               </span>
-              <span className="text-xs font-mono font-bold text-[#00FF9F]">
+              <span className="text-xs font-mono font-bold text-primary">
                 {selectedPaperIds.length}
               </span>
             </div>
@@ -182,10 +216,14 @@ export function IngestTab({
             <button
               type="button"
               onClick={onIngestSelected}
-              disabled={isAnyOperationRunning || selectedPaperIds.length === 0}
+              disabled={
+                !isAuthenticated ||
+                isAnyOperationRunning ||
+                selectedPaperIds.length === 0
+              }
               className={cn(
                 'inline-flex w-full items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-[11px] font-mono font-bold uppercase transition-colors',
-                'bg-[#00FF9F] text-[#0A0A0A] hover:bg-[#00CC7F] disabled:cursor-not-allowed disabled:opacity-45'
+                'bg-primary text-background hover:bg-primary/80 disabled:cursor-not-allowed disabled:opacity-45'
               )}
             >
               {isIngesting ? (
@@ -199,15 +237,25 @@ export function IngestTab({
             <button
               type="button"
               onClick={onSendIdsToExtract}
-              disabled={isAnyOperationRunning || selectedPaperIds.length === 0}
-              className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-[#1A1A1A] px-4 py-2.5 text-[11px] font-mono font-bold uppercase text-[#6B7280] hover:bg-[#151515] disabled:cursor-not-allowed disabled:opacity-45"
+              disabled={
+                !isAuthenticated ||
+                isAnyOperationRunning ||
+                selectedPaperIds.length === 0
+              }
+              className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-[var(--terminal-border)] px-4 py-2.5 text-[11px] font-mono font-bold uppercase text-muted-foreground hover:bg-[var(--terminal-surface)] disabled:cursor-not-allowed disabled:opacity-45"
             >
               <Brain className="h-4 w-4" aria-hidden="true" />
               Send IDs to Extract
             </button>
 
+            {!isAuthenticated && (
+              <div className="rounded-lg border border-[var(--terminal-border)] bg-[var(--terminal-bg)]/40 p-3 text-[10px] font-mono leading-relaxed text-muted-foreground">
+                Sign in to queue ingestion and extraction.
+              </div>
+            )}
+
             {ingestionResult && (
-              <div className="rounded-lg border border-[#00FF9F]/25 bg-[#00FF9F]/5 p-3 text-[10px] font-mono leading-relaxed text-[#9CA3AF]">
+              <div className="rounded-lg border border-primary/25 bg-primary/5 p-3 text-[10px] font-mono leading-relaxed text-muted-foreground">
                 {ingestionResult.message} ({ingestionResult.paper_count} papers)
               </div>
             )}
@@ -215,9 +263,9 @@ export function IngestTab({
         </div>
 
         <div className="space-y-4 xl:col-span-7">
-          <div className="rounded-xl border border-[#1A1A1A] bg-[#0A0A0A]/40 p-4">
+          <div className="rounded-xl border border-[var(--terminal-border)] bg-[var(--terminal-bg)]/40 p-4">
             <div className="mb-3 flex items-center justify-between">
-              <h4 className="text-[10px] font-mono font-bold uppercase tracking-widest text-[#9CA3AF]">
+              <h4 className="text-[10px] font-mono font-bold uppercase tracking-widest text-muted-foreground">
                 Search Results
               </h4>
               {searchResults && searchResults.length > 0 && (
@@ -226,7 +274,7 @@ export function IngestTab({
                     type="button"
                     onClick={onSelectAllSearchResults}
                     disabled={!canSelectAllResults || isAnyOperationRunning}
-                    className="rounded-md border border-[#1A1A1A] px-2 py-1 text-[9px] font-mono uppercase tracking-wide text-[#9CA3AF] hover:bg-[#151515] disabled:cursor-not-allowed disabled:opacity-40"
+                    className="rounded-md border border-[var(--terminal-border)] px-2 py-1 text-[9px] font-mono uppercase tracking-wide text-muted-foreground hover:bg-[var(--terminal-surface)] disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     Select All
                   </button>
@@ -236,11 +284,11 @@ export function IngestTab({
                     disabled={
                       isAnyOperationRunning || selectedPaperIds.length === 0
                     }
-                    className="rounded-md border border-[#1A1A1A] px-2 py-1 text-[9px] font-mono uppercase tracking-wide text-[#9CA3AF] hover:bg-[#151515] disabled:cursor-not-allowed disabled:opacity-40"
+                    className="rounded-md border border-[var(--terminal-border)] px-2 py-1 text-[9px] font-mono uppercase tracking-wide text-muted-foreground hover:bg-[var(--terminal-surface)] disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     Clear
                   </button>
-                  <span className="text-[10px] font-mono text-[#6B7280]">
+                  <span className="text-[10px] font-mono text-muted-foreground">
                     {selectedPaperIds.length}/{searchResults.length}
                   </span>
                 </div>
@@ -261,10 +309,10 @@ export function IngestTab({
                         onClick={() => onTogglePaperSelection(paper.id)}
                         className={cn(
                           'w-full rounded-xl border p-4 text-left transition-colors touch-manipulation',
-                          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00FF9F]/60 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0A0A0A]',
+                          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background',
                           isSelected
-                            ? 'border-[#00FF9F]/45 bg-[#00FF9F]/10'
-                            : 'border-[#1A1A1A] bg-[#0A0A0A] hover:border-[#333333]'
+                            ? 'border-primary/45 bg-primary/10'
+                            : 'border-[var(--terminal-border)] bg-[var(--terminal-bg)] hover:border-[var(--terminal-border)]'
                         )}
                       >
                         <div className="flex items-start gap-3">
@@ -272,8 +320,8 @@ export function IngestTab({
                             className={cn(
                               'mt-0.5 rounded border p-1.5',
                               isSelected
-                                ? 'border-[#00FF9F]/45 text-[#00FF9F]'
-                                : 'border-[#1A1A1A] text-[#6B7280]'
+                                ? 'border-primary/45 text-primary'
+                                : 'border-[var(--terminal-border)] text-muted-foreground'
                             )}
                             aria-hidden="true"
                           >
@@ -285,26 +333,26 @@ export function IngestTab({
                           </div>
 
                           <div className="min-w-0 flex-1 space-y-2">
-                            <h5 className="line-clamp-2 text-xs font-mono font-bold text-[#E5E7EB]">
+                            <h5 className="line-clamp-2 text-xs font-mono font-bold text-foreground">
                               {paper.title}
                             </h5>
-                            <p className="line-clamp-2 text-[10px] font-mono leading-relaxed text-[#6B7280]">
+                            <p className="line-clamp-2 text-[10px] font-mono leading-relaxed text-muted-foreground">
                               {paper.abstract}
                             </p>
                             <div className="flex flex-wrap gap-1.5">
-                              <span className="rounded border border-[#1A1A1A] bg-[#111111] px-2 py-0.5 text-[9px] font-mono text-[#00D4FF]">
+                              <span className="rounded border border-[var(--terminal-border)] bg-[var(--terminal-surface)] px-2 py-0.5 text-[9px] font-mono text-[var(--cyan)]">
                                 {paper.id}
                               </span>
                               {paper.categories.slice(0, 3).map((category) => (
                                 <span
                                   key={category}
-                                  className="rounded border border-[#1A1A1A] bg-[#111111] px-2 py-0.5 text-[9px] font-mono text-[#FFB700]"
+                                  className="rounded border border-[var(--terminal-border)] bg-[var(--terminal-surface)] px-2 py-0.5 text-[9px] font-mono text-[var(--amber-gold)]"
                                 >
                                   {category}
                                 </span>
                               ))}
                               {paper.authors?.[0] && (
-                                <span className="rounded border border-[#1A1A1A] bg-[#111111] px-2 py-0.5 text-[9px] font-mono text-[#6B7280]">
+                                <span className="rounded border border-[var(--terminal-border)] bg-[var(--terminal-surface)] px-2 py-0.5 text-[9px] font-mono text-muted-foreground">
                                   {paper.authors[0]}
                                   {paper.authors.length > 1
                                     ? ` +${paper.authors.length - 1}`
@@ -319,17 +367,17 @@ export function IngestTab({
                   })}
                 </div>
               ) : (
-                <div className="rounded-lg border border-[#1A1A1A] bg-[#0A0A0A]/60 p-4 text-center text-[10px] font-mono text-[#6B7280]">
+                <div className="rounded-lg border border-[var(--terminal-border)] bg-[var(--terminal-bg)]/60 p-4 text-center text-[10px] font-mono text-muted-foreground">
                   No results found for this query.
                 </div>
               )
             ) : (
-              <div className="rounded-lg border border-[#1A1A1A] bg-[#0A0A0A]/60 p-6 text-center">
+              <div className="rounded-lg border border-[var(--terminal-border)] bg-[var(--terminal-bg)]/60 p-6 text-center">
                 <Terminal
-                  className="mx-auto mb-2 h-6 w-6 text-[#6B7280]"
+                  className="mx-auto mb-2 h-6 w-6 text-muted-foreground"
                   aria-hidden="true"
                 />
-                <p className="text-[10px] font-mono uppercase tracking-widest text-[#6B7280]">
+                <p className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground">
                   Run a search to build your ingestion list
                 </p>
               </div>

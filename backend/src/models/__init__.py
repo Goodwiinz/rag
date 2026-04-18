@@ -81,6 +81,18 @@ from .user import User, UserRole
 # Analytics models (import after base models to avoid circular dependencies)
 from .user_session import SessionStatus, UserSession
 
+# Evaluation models (import after User and Organization to avoid circular dependencies)
+from .evaluation import (
+    EvaluationComparison,
+    EvaluationDataset,
+    EvaluationJob,
+    EvaluationMetric,
+    EvaluationReport,
+    EvaluationStatus,
+    EvaluationThreshold,
+)
+
+
 # Research Engine models
 from .research_blueprint import ResearchBlueprint
 from .research_evidence import GroundingStatus, ResearchEvidence
@@ -219,4 +231,12 @@ __all__ = [
     "GroundingStatus",
     # Research Pipeline
     "ResearchPipeline",
+    # Evaluation models
+    "EvaluationJob",
+    "EvaluationMetric",
+    "EvaluationDataset",
+    "EvaluationThreshold",
+    "EvaluationComparison",
+    "EvaluationReport",
+    "EvaluationStatus",
 ]

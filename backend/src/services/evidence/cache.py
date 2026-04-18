@@ -7,6 +7,7 @@ Caches stance classifications and evidence meters for fast retrieval
 import hashlib
 import json
 import logging
+import random
 from typing import Dict, List, Optional
 from uuid import UUID
 
@@ -92,7 +93,9 @@ class EvidenceCacheService:
         
         try:
             data = self._serialize_data(classification)
-            result = self.redis_client.setex(cache_key, ttl, data)
+            jitter = int(ttl * 0.15)
+            effective_ttl = ttl + random.randint(-jitter, jitter)
+            result = self.redis_client.setex(cache_key, effective_ttl, data)
             logger.debug(f"Cached stance classification: {cache_key} (TTL: {ttl}s)")
             return bool(result)
         except Exception as e:

@@ -1,49 +1,17 @@
-# Knowledge Graph Analytics Dashboard - Helm Chart
+# NOUS Platform - Helm Chart
 apiVersion: v2
 name: knowledge-graph-analytics
-description: A Helm chart for Multimodal Enterprise RAG System with Knowledge Graph Analytics Dashboard
+description: Helm chart for NOUS Multimodal Intelligence Platform (backend + frontend)
 type: application
-version: 1.0.0
-appVersion: "1.0.0"
-home: https://github.com/your-org/multimodal-rag-system
-sources:
-  - https://github.com/your-org/multimodal-rag-system
+version: 2.0.0
+appVersion: "2.0.0"
+home: https://github.com/goodwiins/rag
 maintainers:
-  - name: DevOps Team
-    email: devops@yourcompany.com
+  - name: Abdel
+    email: allocs16@gmail.com
 keywords:
   - rag
+  - nous
   - knowledge-graph
-  - analytics
   - multimodal
-  - enterprise
-  - dashboard
-dependencies:
-  - name: postgresql
-    version: 12.x.x
-    repository: https://charts.bitnami.com/bitnami
-    condition: postgresql.enabled
-  - name: redis
-    version: 17.x.x
-    repository: https://charts.bitnami.com/bitnami
-    condition: redis.enabled
-  - name: neo4j
-    version: 5.x.x
-    repository: https://helm.neo4j.com/neo4j
-    condition: neo4j.enabled
-  - name: qdrant
-    version: 1.7.0
-    repository: https://github.com/qdrant/qdrant-helm
-    condition: qdrant.enabled
-  - name: prometheus
-    version: 23.x.x
-    repository: https://prometheus-community.github.io/helm-charts
-    condition: prometheus.enabled
-  - name: grafana
-    version: 6.x.x
-    repository: https://grafana.github.io/helm-charts
-    condition: grafana.enabled
-  - name: nginx-ingress-controller
-    version: 4.x.x
-    repository: https://kubernetes.github.io/ingress-nginx
-    condition: nginx-ingress-controller.enabled
+# All databases are external (DO Managed) — no subchart dependencies

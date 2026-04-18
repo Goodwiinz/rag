@@ -7,26 +7,23 @@ import {
 } from '@/components/ui/dialog';
 import { SearchMetrics, SearchResult, SourceReference } from '@/types/search';
 import {
-    ArrowDownTrayIcon,
-    ChartBarIcon,
-    CheckCircleIcon,
-    ClipboardDocumentIcon,
-    ClockIcon,
-    DocumentTextIcon,
-    EyeIcon,
-    MagnifyingGlassIcon,
-    MusicalNoteIcon,
-    PhotoIcon,
-    ShareIcon,
-    SparklesIcon,
-    StarIcon,
-    VideoCameraIcon,
-    XCircleIcon
+  ArrowDownTrayIcon,
+  ChartBarIcon,
+  CheckCircleIcon,
+  ClipboardDocumentIcon,
+  ClockIcon,
+  DocumentTextIcon,
+  EyeIcon,
+  MagnifyingGlassIcon,
+  MusicalNoteIcon,
+  PhotoIcon,
+  ShareIcon,
+  SparklesIcon,
+  StarIcon,
+  VideoCameraIcon,
+  XCircleIcon,
 } from '@heroicons/react/24/outline';
 import React, { useCallback, useEffect, useState } from 'react';
-
-// Terminal Observatory Theme Constants
-import { THEME } from '@/theme/constants';
 
 interface ResultsPanelProps {
   result: SearchResult | null;
@@ -46,7 +43,11 @@ interface FeedbackDialogProps {
   onSubmit: (rating: number, comment?: string) => void;
 }
 
-const FeedbackDialog: React.FC<FeedbackDialogProps> = ({ isOpen, onClose, onSubmit }) => {
+const FeedbackDialog: React.FC<FeedbackDialogProps> = ({
+  isOpen,
+  onClose,
+  onSubmit,
+}) => {
   const [rating, setRating] = useState<number>(0);
   const [comment, setComment] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -68,14 +69,7 @@ const FeedbackDialog: React.FC<FeedbackDialogProps> = ({ isOpen, onClose, onSubm
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent
-        className="max-w-md p-6 rounded-xl border-0"
-        style={{
-          background: THEME.colors.card,
-          border: `1px solid ${THEME.colors.border}`,
-          boxShadow: `0 0 60px ${THEME.colors.primary}10`,
-        }}
-      >
+      <DialogContent className="max-w-md p-6 rounded-xl bg-terminal-surface border border-terminal-border shadow-[0_0_60px_var(--phosphor-green-muted)]">
         <DialogHeader>
           <DialogTitle className="text-lg font-mono font-semibold text-white mb-4">
             Rate this answer
@@ -108,7 +102,10 @@ const FeedbackDialog: React.FC<FeedbackDialogProps> = ({ isOpen, onClose, onSubm
             </div>
           </div>
           <div>
-            <label htmlFor="feedback-comment" className="block text-sm font-mono text-gray-400 mb-2">
+            <label
+              htmlFor="feedback-comment"
+              className="block text-sm font-mono text-gray-400 mb-2"
+            >
               Additional feedback (optional)
             </label>
             <textarea
@@ -117,28 +114,21 @@ const FeedbackDialog: React.FC<FeedbackDialogProps> = ({ isOpen, onClose, onSubm
               onChange={(e) => setComment(e.target.value)}
               placeholder="Tell us more..."
               rows={3}
-              className="w-full px-3 py-2 rounded-lg font-mono text-sm text-white bg-transparent outline-none"
-              style={{ border: `1px solid ${THEME.colors.border}` }}
+              className="w-full px-3 py-2 rounded-lg font-mono text-sm text-white bg-transparent outline-none border border-terminal-border"
             />
           </div>
           <div className="flex justify-end space-x-2 pt-2">
             <button
               onClick={onClose}
               disabled={isSubmitting}
-              className="px-4 py-2 rounded-lg font-mono text-sm text-gray-400 hover:text-white transition-colors"
-              style={{ border: `1px solid ${THEME.colors.border}` }}
+              className="px-4 py-2 rounded-lg font-mono text-sm text-gray-400 hover:text-white transition-colors border border-terminal-border"
             >
               Cancel
             </button>
             <button
               onClick={handleSubmit}
               disabled={rating === 0 || isSubmitting}
-              className="px-4 py-2 rounded-lg font-mono text-sm transition-all disabled:opacity-40"
-              style={{
-                background: `${THEME.colors.primary}20`,
-                border: `1px solid ${THEME.colors.primary}50`,
-                color: THEME.colors.primary,
-              }}
+              className="px-4 py-2 rounded-lg font-mono text-sm transition-all disabled:opacity-40 bg-[var(--phosphor-green-muted)] border border-[var(--phosphor-green-dim)] text-sol"
             >
               {isSubmitting ? 'Submitting...' : 'Submit'}
             </button>
@@ -151,10 +141,10 @@ const FeedbackDialog: React.FC<FeedbackDialogProps> = ({ isOpen, onClose, onSubm
 
 const MetricsDisplay: React.FC<{ metrics: SearchMetrics }> = ({ metrics }) => {
   const getScoreColor = (score: number): string => {
-    if (score >= 90) return THEME.colors.primary;
-    if (score >= 80) return THEME.colors.accent;
+    if (score >= 90) return 'var(--phosphor-green)';
+    if (score >= 80) return 'var(--amber-gold)';
     if (score >= 70) return '#f97316';
-    return THEME.colors.error;
+    return '#ef4444';
   };
 
   const formatScore = (score: number): string => {
@@ -169,13 +159,7 @@ const MetricsDisplay: React.FC<{ metrics: SearchMetrics }> = ({ metrics }) => {
   ];
 
   return (
-    <div
-      className="rounded-xl p-4"
-      style={{
-        background: THEME.colors.card,
-        border: `1px solid ${THEME.colors.border}`,
-      }}
-    >
+    <div className="rounded-xl p-4 bg-terminal-surface border border-terminal-border">
       <div className="flex items-center space-x-2 mb-4">
         <ChartBarIcon className="h-4 w-4 text-gray-500" />
         <span className="text-sm font-mono text-gray-400">Quality Metrics</span>
@@ -185,7 +169,9 @@ const MetricsDisplay: React.FC<{ metrics: SearchMetrics }> = ({ metrics }) => {
         {metricItems.map((item) => (
           <div key={item.label} className="space-y-1.5">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-mono text-gray-500">{item.label}</span>
+              <span className="text-xs font-mono text-gray-500">
+                {item.label}
+              </span>
               <span
                 className="font-mono font-medium text-xs"
                 style={{ color: getScoreColor(item.value) }}
@@ -193,7 +179,7 @@ const MetricsDisplay: React.FC<{ metrics: SearchMetrics }> = ({ metrics }) => {
                 {formatScore(item.value)}
               </span>
             </div>
-            <div className="h-1.5 w-full rounded-full overflow-hidden" style={{ background: THEME.colors.border }}>
+            <div className="h-1.5 w-full rounded-full overflow-hidden bg-terminal-border">
               <div
                 className="h-full rounded-full transition-all duration-500"
                 style={{
@@ -206,7 +192,7 @@ const MetricsDisplay: React.FC<{ metrics: SearchMetrics }> = ({ metrics }) => {
         ))}
       </div>
 
-      <div className="border-t pt-4 mt-4" style={{ borderColor: THEME.colors.border }} />
+      <div className="border-t border-terminal-border pt-4 mt-4" />
 
       <div className="grid grid-cols-3 gap-3">
         {[
@@ -216,10 +202,11 @@ const MetricsDisplay: React.FC<{ metrics: SearchMetrics }> = ({ metrics }) => {
         ].map((stat) => (
           <div
             key={stat.label}
-            className="flex flex-col items-center p-3 rounded-lg"
-            style={{ background: '#161b22', border: `1px solid ${THEME.colors.border}` }}
+            className="flex flex-col items-center p-3 rounded-lg bg-terminal-bg border border-terminal-border"
           >
-            <span className="font-mono font-medium text-white">{stat.value}</span>
+            <span className="font-mono font-medium text-white">
+              {stat.value}
+            </span>
             <span className="text-[10px] font-mono uppercase tracking-wider mt-0.5 text-gray-500">
               {stat.label}
             </span>
@@ -237,13 +224,17 @@ interface TypewriterTextProps {
   className?: string;
 }
 
-const TypewriterText: React.FC<TypewriterTextProps> = ({ text, speed = 10, className }) => {
+const TypewriterText: React.FC<TypewriterTextProps> = ({
+  text,
+  speed = 10,
+  className,
+}) => {
   const [displayedText, setDisplayedText] = useState('');
-  
+
   useEffect(() => {
     let index = 0;
-    setDisplayedText(''); 
-    
+    setDisplayedText('');
+
     // Clear previous if text changes
     const interval = setInterval(() => {
       if (index < text.length) {
@@ -265,7 +256,6 @@ const TypewriterText: React.FC<TypewriterTextProps> = ({ text, speed = 10, class
   );
 };
 
-
 export const ResultsPanel: React.FC<ResultsPanelProps> = ({
   result,
   loading = false,
@@ -282,36 +272,56 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
   const [copiedAnswer, setCopiedAnswer] = useState(false);
 
   const getFileIcon = (fileType?: string) => {
-    const iconClass = "h-4 w-4";
+    const iconClass = 'h-4 w-4';
     switch (fileType) {
       case 'pdf':
-        return <DocumentTextIcon className={cn(iconClass)} style={{ color: '#ef4444' }} />;
+        return <DocumentTextIcon className={cn(iconClass, 'text-red-500')} />;
       case 'txt':
-        return <DocumentTextIcon className={cn(iconClass)} style={{ color: '#3b82f6' }} />;
+        return <DocumentTextIcon className={cn(iconClass, 'text-blue-500')} />;
       case 'jpg':
       case 'png':
-        return <PhotoIcon className={cn(iconClass)} style={{ color: THEME.colors.primary }} />;
+        return <PhotoIcon className={cn(iconClass, 'text-sol')} />;
       case 'mp3':
-        return <MusicalNoteIcon className={cn(iconClass)} style={{ color: '#a855f7' }} />;
+        return <MusicalNoteIcon className={cn(iconClass, 'text-purple-500')} />;
       case 'mp4':
-        return <VideoCameraIcon className={cn(iconClass)} style={{ color: THEME.colors.accent }} />;
+        return <VideoCameraIcon className={cn(iconClass, 'text-helios')} />;
       default:
-        return <DocumentTextIcon className={cn(iconClass)} style={{ color: '#6b7280' }} />;
+        return <DocumentTextIcon className={cn(iconClass, 'text-gray-500')} />;
     }
   };
 
   const getAnswerTypeConfig = (answerType: string) => {
     switch (answerType) {
       case 'factual':
-        return { color: THEME.colors.primary, bg: `${THEME.colors.primary}15`, border: `${THEME.colors.primary}30` };
+        return {
+          colorClass: 'text-sol',
+          bgClass: 'bg-sol-muted',
+          borderClass: 'border-sol-dim',
+        };
       case 'reasoning':
-        return { color: '#a855f7', bg: '#a855f715', border: '#a855f730' };
+        return {
+          colorClass: 'text-purple-500',
+          bgClass: 'bg-purple-500/10',
+          borderClass: 'border-purple-500/20',
+        };
       case 'summarization':
-        return { color: THEME.colors.secondary, bg: `${THEME.colors.secondary}15`, border: `${THEME.colors.secondary}30` };
+        return {
+          colorClass: 'text-brand-cyan',
+          bgClass: 'bg-brand-cyan-muted',
+          borderClass: 'border-brand-cyan-dim',
+        };
       case 'comparison':
-        return { color: THEME.colors.accent, bg: `${THEME.colors.accent}15`, border: `${THEME.colors.accent}30` };
+        return {
+          colorClass: 'text-helios',
+          bgClass: 'bg-helios-muted',
+          borderClass: 'border-helios-dim',
+        };
       default:
-        return { color: '#6b7280', bg: '#6b728015', border: '#6b728030' };
+        return {
+          colorClass: 'text-gray-500',
+          bgClass: 'bg-gray-500/10',
+          borderClass: 'border-gray-500/20',
+        };
     }
   };
 
@@ -322,44 +332,47 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
       case 'SUPPORTED':
         return {
           label: 'SUPPORTED',
-          color: THEME.colors.primary,
-          bg: `${THEME.colors.primary}15`,
-          border: `${THEME.colors.primary}30`,
+          colorClass: 'text-sol',
+          bgClass: 'bg-sol-muted',
+          borderClass: 'border-sol-dim',
         };
       case 'INSUFFICIENT_EVIDENCE':
         return {
           label: 'INSUFFICIENT EVIDENCE',
-          color: '#f59e0b',
-          bg: '#f59e0b15',
-          border: '#f59e0b40',
+          colorClass: 'text-amber-500',
+          bgClass: 'bg-amber-500/10',
+          borderClass: 'border-amber-500/25',
         };
       case 'CONFLICTING_EVIDENCE':
         return {
           label: 'CONFLICTING EVIDENCE',
-          color: '#f97316',
-          bg: '#f9731615',
-          border: '#f9731640',
+          colorClass: 'text-orange-500',
+          bgClass: 'bg-orange-500/10',
+          borderClass: 'border-orange-500/25',
         };
       case 'NO_MATCH':
         return {
           label: 'NO MATCH',
-          color: '#ef4444',
-          bg: '#ef444415',
-          border: '#ef444440',
+          colorClass: 'text-red-500',
+          bgClass: 'bg-red-500/10',
+          borderClass: 'border-red-500/25',
         };
       default:
         return {
           label: 'UNKNOWN',
-          color: '#6b7280',
-          bg: '#6b728015',
-          border: '#6b728030',
+          colorClass: 'text-gray-500',
+          bgClass: 'bg-gray-500/10',
+          borderClass: 'border-gray-500/20',
         };
     }
   };
 
-  const handleSourceClick = useCallback((source: SourceReference) => {
-    onSourceClick?.(source);
-  }, [onSourceClick]);
+  const handleSourceClick = useCallback(
+    (source: SourceReference) => {
+      onSourceClick?.(source);
+    },
+    [onSourceClick]
+  );
 
   const handleCopySource = useCallback((source: SourceReference) => {
     navigator.clipboard.writeText(source.snippet);
@@ -375,9 +388,12 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
     }
   }, [result]);
 
-  const handleDocumentPreview = useCallback((source: SourceReference) => {
-    onDocumentPreview?.(source.document_id);
-  }, [onDocumentPreview]);
+  const handleDocumentPreview = useCallback(
+    (source: SourceReference) => {
+      onDocumentPreview?.(source.document_id);
+    },
+    [onDocumentPreview]
+  );
 
   const handleShare = useCallback(() => {
     onShare?.(result!);
@@ -387,9 +403,12 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
     onExport?.(result!);
   }, [result, onExport]);
 
-  const handleFeedback = useCallback((rating: number, comment?: string) => {
-    onFeedback?.(result!, rating, comment);
-  }, [result, onFeedback]);
+  const handleFeedback = useCallback(
+    (rating: number, comment?: string) => {
+      onFeedback?.(result!, rating, comment);
+    },
+    [result, onFeedback]
+  );
 
   const formatDate = (dateString: string): string => {
     return new Date(dateString).toLocaleString('en-US', {
@@ -406,11 +425,7 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
         {[1, 2, 3].map((i) => (
           <div
             key={i}
-            className="h-16 rounded-lg animate-pulse"
-            style={{
-              background: `linear-gradient(90deg, ${THEME.colors.primary}05 0%, ${THEME.colors.primary}10 50%, ${THEME.colors.primary}05 100%)`,
-              border: `1px solid ${THEME.colors.primary}15`,
-            }}
+            className="h-16 rounded-lg animate-pulse bg-sol-muted/5 border border-sol-muted"
           />
         ))}
       </div>
@@ -419,9 +434,11 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
 
   if (error) {
     return (
-      <div className={cn("text-center py-8", className)}>
+      <div className={cn('text-center py-8', className)}>
         <XCircleIcon className="h-12 w-12 text-red-500 mx-auto mb-4" />
-        <h3 className="text-lg font-mono font-medium text-white mb-2">Search failed</h3>
+        <h3 className="text-lg font-mono font-medium text-white mb-2">
+          Search failed
+        </h3>
         <p className="text-gray-400 font-mono text-sm">{error}</p>
       </div>
     );
@@ -429,14 +446,13 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
 
   if (!result) {
     return (
-      <div className={cn("text-center py-8", className)}>
-        <div
-          className="h-12 w-12 rounded-full mx-auto mb-4 flex items-center justify-center"
-          style={{ background: '#161b22', border: `1px solid ${THEME.colors.border}` }}
-        >
+      <div className={cn('text-center py-8', className)}>
+        <div className="h-12 w-12 rounded-full mx-auto mb-4 flex items-center justify-center bg-terminal-bg border border-terminal-border">
           <MagnifyingGlassIcon className="h-6 w-6 text-gray-500" />
         </div>
-        <h3 className="text-lg font-mono font-medium text-white mb-2">Enter a search query</h3>
+        <h3 className="text-lg font-mono font-medium text-white mb-2">
+          Enter a search query
+        </h3>
         <p className="text-gray-500 font-mono text-sm">
           Search your documents using natural language queries
         </p>
@@ -445,10 +461,12 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
   }
 
   const answerTypeConfig = getAnswerTypeConfig(result.answer.answer_type);
-  const deterministicStatusConfig = getDeterministicStatusConfig(result.deterministicStatus);
+  const deterministicStatusConfig = getDeterministicStatusConfig(
+    result.deterministicStatus
+  );
 
   return (
-    <div className={cn("space-y-6", className)}>
+    <div className={cn('space-y-6', className)}>
       {/* Query and Answer Header */}
       <div className="space-y-4">
         <div className="flex items-start justify-between">
@@ -458,20 +476,22 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
             </h1>
             <div className="flex items-center flex-wrap gap-3 text-sm">
               <span
-                className="capitalize font-mono text-xs px-2 py-1 rounded"
-                style={{
-                  background: answerTypeConfig.bg,
-                  border: `1px solid ${answerTypeConfig.border}`,
-                  color: answerTypeConfig.color,
-                }}
+                className={cn(
+                  'capitalize font-mono text-xs px-2 py-1 rounded border',
+                  answerTypeConfig.bgClass,
+                  answerTypeConfig.borderClass,
+                  answerTypeConfig.colorClass
+                )}
               >
                 {result.answer.answer_type}
               </span>
               <span className="flex items-center text-gray-500 font-mono text-xs">
                 <ClockIcon className="h-3.5 w-3.5 mr-1" />
-                {result.created_at ? formatDate(result.created_at) : 'Unknown date'}
+                {result.created_at
+                  ? formatDate(result.created_at)
+                  : 'Unknown date'}
               </span>
-              <span className="flex items-center font-mono text-xs" style={{ color: THEME.colors.accent }}>
+              <span className="flex items-center font-mono text-xs text-helios">
                 <SparklesIcon className="h-3.5 w-3.5 mr-1" />
                 {Math.round(result.answer.confidence * 100)}% confidence
               </span>
@@ -481,12 +501,12 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
                 </span>
               )}
               <span
-                className="font-mono text-[10px] px-2 py-1 rounded"
-                style={{
-                  background: deterministicStatusConfig.bg,
-                  border: `1px solid ${deterministicStatusConfig.border}`,
-                  color: deterministicStatusConfig.color,
-                }}
+                className={cn(
+                  'font-mono text-[10px] px-2 py-1 rounded border',
+                  deterministicStatusConfig.bgClass,
+                  deterministicStatusConfig.borderClass,
+                  deterministicStatusConfig.colorClass
+                )}
               >
                 {deterministicStatusConfig.label}
               </span>
@@ -500,10 +520,22 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
 
           <div className="flex items-center space-x-1">
             {[
-              { icon: copiedAnswer ? CheckCircleIcon : ClipboardDocumentIcon, onClick: handleCopyAnswer, title: 'Copy' },
+              {
+                icon: copiedAnswer ? CheckCircleIcon : ClipboardDocumentIcon,
+                onClick: handleCopyAnswer,
+                title: 'Copy',
+              },
               { icon: ShareIcon, onClick: handleShare, title: 'Share' },
-              { icon: ArrowDownTrayIcon, onClick: handleExport, title: 'Export' },
-              { icon: StarIcon, onClick: () => setShowFeedbackDialog(true), title: 'Rate' },
+              {
+                icon: ArrowDownTrayIcon,
+                onClick: handleExport,
+                title: 'Export',
+              },
+              {
+                icon: StarIcon,
+                onClick: () => setShowFeedbackDialog(true),
+                title: 'Rate',
+              },
             ].map((action, i) => (
               <button
                 key={i}
@@ -512,7 +544,12 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
                 title={action.title}
                 aria-label={action.title}
               >
-                <action.icon className={cn("h-4 w-4", copiedAnswer && i === 0 && "text-green-500")} />
+                <action.icon
+                  className={cn(
+                    'h-4 w-4',
+                    copiedAnswer && i === 0 && 'text-green-500'
+                  )}
+                />
               </button>
             ))}
           </div>
@@ -523,25 +560,29 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
           <TypewriterText text={result.answer.text} speed={10} />
         </div>
 
-        {result.deterministicStatus && result.deterministicStatus !== 'SUPPORTED' && (
-          <div
-            className="rounded-lg px-3 py-2 text-xs font-mono"
-            style={{
-              background: deterministicStatusConfig.bg,
-              border: `1px solid ${deterministicStatusConfig.border}`,
-              color: deterministicStatusConfig.color,
-            }}
-          >
-            {result.deterministicMessage}
-            {result.refinementSuggestions && result.refinementSuggestions.length > 0 && (
-              <div className="mt-2 text-gray-300">
-                {result.refinementSuggestions.slice(0, 2).map((suggestion, index) => (
-                  <div key={`${suggestion}-${index}`}>- {suggestion}</div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
+        {result.deterministicStatus &&
+          result.deterministicStatus !== 'SUPPORTED' && (
+            <div
+              className={cn(
+                'rounded-lg px-3 py-2 text-xs font-mono border',
+                deterministicStatusConfig.bgClass,
+                deterministicStatusConfig.borderClass,
+                deterministicStatusConfig.colorClass
+              )}
+            >
+              {result.deterministicMessage}
+              {result.refinementSuggestions &&
+                result.refinementSuggestions.length > 0 && (
+                  <div className="mt-2 text-gray-300">
+                    {result.refinementSuggestions
+                      .slice(0, 2)
+                      .map((suggestion, index) => (
+                        <div key={`${suggestion}-${index}`}>- {suggestion}</div>
+                      ))}
+                  </div>
+                )}
+            </div>
+          )}
 
         {/* Metrics */}
         <div className="pt-4">
@@ -553,11 +594,10 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
       <div className="space-y-4">
         <div className="flex items-center space-x-2">
           <DocumentTextIcon className="h-5 w-5 text-gray-500" />
-          <h2 className="text-lg font-mono font-semibold text-gray-300">Sources</h2>
-          <span
-            className="rounded-full px-2 py-0.5 text-xs font-mono"
-            style={{ background: `${THEME.colors.secondary}15`, color: THEME.colors.secondary, border: `1px solid ${THEME.colors.secondary}30` }}
-          >
+          <h2 className="text-lg font-mono font-semibold text-gray-300">
+            Sources
+          </h2>
+          <span className="rounded-full px-2 py-0.5 text-xs font-mono bg-[var(--cyan-muted)] text-brand-cyan border border-[var(--cyan-dim)]">
             {result.answer.sources.length}
           </span>
         </div>
@@ -566,27 +606,21 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
           {result.answer.sources.map((source, index) => (
             <div
               key={`${source.document_id}-${index}`}
-              className="group rounded-xl p-4 cursor-pointer transition-all duration-200 hover:scale-[1.02]"
-              style={{
-                background: THEME.colors.card,
-                border: `1px solid ${THEME.colors.border}`,
-              }}
+              className="group rounded-xl p-4 cursor-pointer transition-all duration-200 hover:scale-[1.02] bg-terminal-surface border border-terminal-border"
               onClick={() => handleSourceClick(source)}
               onMouseEnter={(e) => {
-                e.currentTarget.style.borderColor = `${THEME.colors.primary}40`;
-                e.currentTarget.style.boxShadow = `0 0 20px ${THEME.colors.primary}10`;
+                e.currentTarget.style.borderColor = 'var(--phosphor-green-dim)';
+                e.currentTarget.style.boxShadow =
+                  '0 0 20px var(--phosphor-green-muted)';
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.borderColor = THEME.colors.border;
+                e.currentTarget.style.borderColor = 'var(--terminal-border)';
                 e.currentTarget.style.boxShadow = 'none';
               }}
             >
               <div className="flex items-start justify-between mb-3">
                 <div className="flex items-center space-x-3">
-                  <div
-                    className="p-2 rounded-lg"
-                    style={{ background: '#161b22' }}
-                  >
+                  <div className="p-2 rounded-lg bg-terminal-bg">
                     {getFileIcon(source.file_type || '')}
                   </div>
                   <div className="space-y-0.5 min-w-0">
@@ -597,10 +631,7 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
                       {source.document_title}
                     </h4>
                     <div className="flex items-center space-x-2">
-                      <span
-                        className="text-[10px] px-1.5 py-0.5 rounded uppercase font-mono"
-                        style={{ background: '#21262d', color: '#8b949e' }}
-                      >
+                      <span className="text-[10px] px-1.5 py-0.5 rounded uppercase font-mono bg-terminal-border-muted text-terminal-text-muted">
                         {source.file_type}
                       </span>
                       <span className="text-[10px] font-mono text-gray-500">
@@ -612,30 +643,27 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
               </div>
 
               {/* Source Snippet */}
-              <div
-                className="p-2 rounded-lg mb-3"
-                style={{ background: '#161b22', border: `1px solid ${THEME.colors.border}` }}
-              >
+              <div className="p-2 rounded-lg mb-3 bg-terminal-bg border border-terminal-border">
                 <p className="text-xs font-mono text-gray-400 leading-relaxed line-clamp-3">
                   &quot;{source.snippet}&quot;
                 </p>
               </div>
 
               {/* Footer Actions */}
-              <div className="flex items-center justify-between pt-2" style={{ borderTop: `1px solid ${THEME.colors.border}` }}>
+              <div className="flex items-center justify-between pt-2 border-t border-terminal-border">
                 <div className="flex items-center space-x-2 text-[10px] text-gray-500 font-mono">
                   {source.page_number && (
-                    <span
-                      className="px-1.5 py-0.5 rounded"
-                      style={{ background: '#21262d' }}
-                    >
+                    <span className="px-1.5 py-0.5 rounded bg-terminal-border-muted">
                       Page {source.page_number}
                     </span>
                   )}
                 </div>
                 <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
                   <button
-                    onClick={(e) => { e.stopPropagation(); handleDocumentPreview(source); }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDocumentPreview(source);
+                    }}
                     className="p-1.5 rounded text-gray-500 hover:text-white hover:bg-white/5 transition-colors"
                     title="Preview"
                     aria-label="Preview document"
@@ -643,7 +671,10 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
                     <EyeIcon className="h-3.5 w-3.5" />
                   </button>
                   <button
-                    onClick={(e) => { e.stopPropagation(); handleCopySource(source); }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleCopySource(source);
+                    }}
                     className="p-1.5 rounded text-gray-500 hover:text-white hover:bg-white/5 transition-colors"
                     title="Copy"
                     aria-label="Copy source snippet"
