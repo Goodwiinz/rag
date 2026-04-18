@@ -6,7 +6,6 @@ from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
 from .conftest import (
     MockChatModel,
-    _llm_patches,
     make_ai_response,
     make_tool_call_response,
     make_initial_state,
@@ -23,7 +22,7 @@ pytestmark = [pytest.mark.asyncio, pytest.mark.integration]
 # ---------------------------------------------------------------------------
 
 
-def _build(llm, tool_fn=None):
+def _build_and_invoke(llm, tool_fn=None):
     """Compile a graph with the given mock LLM and tool function."""
     return compile_graph_with_mocks(llm, tool_fn or make_mock_execute_tool())
 
@@ -36,20 +35,22 @@ def _build(llm, tool_fn=None):
 async def test_simple_query_no_tools():
     """Simple 'Hello' query returns an AIMessage, intent='general', and no tool_executions."""
     llm = MockChatModel([make_ai_response("Hi there!")])
-    tool_fn = make_mock_execute_tool()
-    graph = _build(llm)
+    graph = _build_and_invoke(llm)
 
     state = make_initial_state(message="Hello")
     config = make_graph_config()
 
-    with _llm_patches(llm, tool_fn):
-        result = await graph.ainvoke(state, config=config)
+    result = await graph.ainvoke(state, config=config)
 
+    # Last message should be from the assistant
     last_msg = result["messages"][-1]
     assert isinstance(last_msg, AIMessage)
-    assert last_msg.content
+    assert last_msg.content  # non-empty
 
+    # Intent should be general for a greeting
     assert result["intent"] == "general"
+
+    # No tool executions
     assert result["tool_executions"] == []
 
 
@@ -65,33 +66,33 @@ async def test_tool_call_flow():
     tool_fn = make_mock_execute_tool(
         {"search_arxiv": {"results": [{"title": "GNN Survey"}]}}
     )
-    graph = _build(llm, tool_fn)
+    graph = _build_and_invoke(llm, tool_fn)
 
     state = make_initial_state(message="Find arxiv papers on GNNs")
     config = make_graph_config()
 
-    with _llm_patches(llm, tool_fn):
-        result = await graph.ainvoke(state, config=config)
+    result = await graph.ainvoke(state, config=config)
 
+    # Should contain a ToolMessage somewhere in the message history
     tool_messages = [m for m in result["messages"] if isinstance(m, ToolMessage)]
     assert len(tool_messages) >= 1
 
 
 async def test_tool_loop_respects_max():
     """When the LLM always returns tool_calls, tool_loop_count must not exceed 10."""
+    # Create an LLM that always returns tool calls (up to a large number)
     responses = [
         make_tool_call_response("search_arxiv", {"query": f"query_{i}"})
         for i in range(20)
     ]
     llm = MockChatModel(responses)
     tool_fn = make_mock_execute_tool()
-    graph = _build(llm, tool_fn)
+    graph = _build_and_invoke(llm, tool_fn)
 
     state = make_initial_state(message="Search for everything about AI")
     config = make_graph_config()
 
-    with _llm_patches(llm, tool_fn):
-        result = await graph.ainvoke(state, config=config)
+    result = await graph.ainvoke(state, config=config)
 
     assert result["tool_loop_count"] <= 10
 
@@ -99,14 +100,12 @@ async def test_tool_loop_respects_max():
 async def test_research_intent():
     """'Find arxiv papers on GNNs' should be classified with intent='research'."""
     llm = MockChatModel([make_ai_response("Here are papers on GNNs.")])
-    tool_fn = make_mock_execute_tool()
-    graph = _build(llm)
+    graph = _build_and_invoke(llm)
 
     state = make_initial_state(message="Find arxiv papers on GNNs")
     config = make_graph_config()
 
-    with _llm_patches(llm, tool_fn):
-        result = await graph.ainvoke(state, config=config)
+    result = await graph.ainvoke(state, config=config)
 
     assert result["intent"] == "research"
 
@@ -114,14 +113,12 @@ async def test_research_intent():
 async def test_writing_intent():
     """'Write a summary' should be classified with intent='writing'."""
     llm = MockChatModel([make_ai_response("Here is your summary.")])
-    tool_fn = make_mock_execute_tool()
-    graph = _build(llm)
+    graph = _build_and_invoke(llm)
 
     state = make_initial_state(message="Write a summary")
     config = make_graph_config()
 
-    with _llm_patches(llm, tool_fn):
-        result = await graph.ainvoke(state, config=config)
+    result = await graph.ainvoke(state, config=config)
 
     assert result["intent"] == "writing"
 
@@ -129,14 +126,12 @@ async def test_writing_intent():
 async def test_knowledge_graph_intent():
     """'Extract entities' should be classified with intent='knowledge_graph'."""
     llm = MockChatModel([make_ai_response("Extracted entities: ...")])
-    tool_fn = make_mock_execute_tool()
-    graph = _build(llm)
+    graph = _build_and_invoke(llm)
 
     state = make_initial_state(message="Extract entities from the document")
     config = make_graph_config()
 
-    with _llm_patches(llm, tool_fn):
-        result = await graph.ainvoke(state, config=config)
+    result = await graph.ainvoke(state, config=config)
 
     assert result["intent"] == "knowledge_graph"
 
@@ -144,14 +139,12 @@ async def test_knowledge_graph_intent():
 async def test_general_intent():
     """'Hello what can you do' should be classified with intent='general'."""
     llm = MockChatModel([make_ai_response("I can help with research.")])
-    tool_fn = make_mock_execute_tool()
-    graph = _build(llm)
+    graph = _build_and_invoke(llm)
 
     state = make_initial_state(message="Hello what can you do")
     config = make_graph_config()
 
-    with _llm_patches(llm, tool_fn):
-        result = await graph.ainvoke(state, config=config)
+    result = await graph.ainvoke(state, config=config)
 
     assert result["intent"] == "general"
 
@@ -159,14 +152,12 @@ async def test_general_intent():
 async def test_v2_state_fields_present():
     """All v2 fields exist with correct types in the final state."""
     llm = MockChatModel([make_ai_response("Done.")])
-    tool_fn = make_mock_execute_tool()
-    graph = _build(llm)
+    graph = _build_and_invoke(llm)
 
     state = make_initial_state(message="Hello")
     config = make_graph_config()
 
-    with _llm_patches(llm, tool_fn):
-        result = await graph.ainvoke(state, config=config)
+    result = await graph.ainvoke(state, config=config)
 
     # v2 fields
     assert "plan" in result
