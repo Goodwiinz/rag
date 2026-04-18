@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { IconButton } from '@/components/ui/icon-button';
 import {
   DocumentIcon,
   EyeIcon,
@@ -201,46 +202,49 @@ const FileListItem: React.FC<FileListItemProps> = ({
 
             {/* Action Buttons */}
             <div className={cn(
-              "flex items-center space-x-1 opacity-0 transition-opacity",
+              "flex items-center space-x-1 opacity-0 transition-opacity focus-within:opacity-100",
               showActions && "opacity-100"
             )}>
               {onPreview && (
-                <button
+                <IconButton
+                  icon={<EyeIcon className="h-4 w-4" />}
+                  label="Preview"
                   onClick={(e) => {
                     e.stopPropagation();
                     onPreview();
                   }}
                   className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-accent rounded"
-                  title="Preview"
-                >
-                  <EyeIcon className="h-4 w-4" />
-                </button>
+                  variant="ghost"
+                  size="sm"
+                />
               )}
 
               {onDownload && (
-                <button
+                <IconButton
+                  icon={<ArrowDownTrayIcon className="h-4 w-4" />}
+                  label="Download"
                   onClick={(e) => {
                     e.stopPropagation();
                     onDownload();
                   }}
                   className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-accent rounded"
-                  title="Download"
-                >
-                  <ArrowDownTrayIcon className="h-4 w-4" />
-                </button>
+                  variant="ghost"
+                  size="sm"
+                />
               )}
 
               {onDelete && (
-                <button
+                <IconButton
+                  icon={<TrashIcon className="h-4 w-4" />}
+                  label="Delete"
                   onClick={(e) => {
                     e.stopPropagation();
                     onDelete();
                   }}
                   className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded"
-                  title="Delete"
-                >
-                  <TrashIcon className="h-4 w-4" />
-                </button>
+                  variant="ghost"
+                  size="sm"
+                />
               )}
             </div>
           </div>

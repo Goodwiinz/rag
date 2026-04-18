@@ -135,12 +135,11 @@ def pytest_collection_modifyitems(config, items):
         # Add markers based on test file names
         test_path = str(item.fspath)
 
-        # Tests under security/, evidence/, and contract/ import src.main and
-        # spin up TestClient(app) at module level, triggering the full app
-        # lifespan.  Mark them as integration so `-m unit` jobs skip them.
-        if any(
-            seg in test_path
-            for seg in ("/tests/security/", "/tests/evidence/", "/tests/contract/")
+        # Search security suites exercise full endpoint behavior and externalized
+        # security controls; treat them as integration tests so unit jobs stay stable.
+        if (
+            "/tests/security/search_security/" in test_path
+            or test_path.endswith("/tests/security/test_search_security.py")
         ):
             item.add_marker(pytest.mark.integration)
 

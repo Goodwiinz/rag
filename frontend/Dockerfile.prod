@@ -19,8 +19,8 @@ RUN addgroup -g 1001 -S nodejs && \
 # Stage 2: Install dependencies
 FROM base AS deps
 
-# Copy package files first (lockfile enables deterministic installs + better layer caching)
-COPY frontend/package.json frontend/pnpm-lock.yaml* ./
+# Copy package.json first
+COPY frontend/package.json ./
 
 # Install dependencies — force linux platform to avoid darwin-arm64 optional deps
 RUN npm install --force && npm cache clean --force
