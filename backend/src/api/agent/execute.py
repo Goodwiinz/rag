@@ -53,6 +53,8 @@ from .tools_impl import (  # noqa: F401
     _tool_create_draft,
     _tool_export_bibliography,
     _tool_execute_code,
+    _tool_search_external_database,
+    _tool_list_external_databases,
 )
 
 from .tool_helpers import (  # noqa: F401

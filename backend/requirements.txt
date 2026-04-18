@@ -125,5 +125,8 @@ testcontainers[postgres,redis]>=4.0.0
 aiosqlite>=0.19.0  # For async SQLite in tests
 PyJWT>=2.8.0
 
+# External Database Connectors (optional)
+bioservices>=1.11.0  # Bridge to 70+ biological web services
+
 # Code Execution Sandbox
 e2b-code-interpreter==2.6.0
