@@ -20,9 +20,6 @@ importers:
       '@mlc-ai/web-llm':
         specifier: ^0.2.80
         version: 0.2.81
-      '@next/swc-darwin-arm64':
-        specifier: ^16.2.2
-        version: 16.2.2
       '@radix-ui/react-alert-dialog':
         specifier: ^1.1.15
         version: 1.1.15(@types/react-dom@18.3.7(@types/react@18.3.28))(@types/react@18.3.28)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -32,6 +29,9 @@ importers:
       '@radix-ui/react-checkbox':
         specifier: ^1.3.3
         version: 1.3.3(@types/react-dom@18.3.7(@types/react@18.3.28))(@types/react@18.3.28)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      '@radix-ui/react-collapsible':
+        specifier: ^1.1.12
+        version: 1.1.12(@types/react-dom@18.3.7(@types/react@18.3.28))(@types/react@18.3.28)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@radix-ui/react-context-menu':
         specifier: ^2.2.16
         version: 2.2.16(@types/react-dom@18.3.7(@types/react@18.3.28))(@types/react@18.3.28)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -83,6 +83,9 @@ importers:
       '@radix-ui/react-use-controllable-state':
         specifier: ^1.2.2
         version: 1.2.2(@types/react@18.3.28)(react@18.3.1)
+      '@supabase/ssr':
+        specifier: ^0.10.0
+        version: 0.10.2(@supabase/supabase-js@2.98.0)
       '@supabase/supabase-js':
         specifier: ^2.98.0
         version: 2.98.0
@@ -1097,12 +1100,6 @@ packages:
     cpu: [arm64]
     os: [darwin]
 
-  '@next/swc-darwin-arm64@16.2.2':
-    resolution: {integrity: sha512-B92G3ulrwmkDSEJEp9+XzGLex5wC1knrmCSIylyVeiAtCIfvEJYiN3v5kXPlYt5R4RFlsfO/v++aKV63Acrugg==}
-    engines: {node: '>= 10'}
-    cpu: [arm64]
-    os: [darwin]
-
   '@next/swc-darwin-x64@15.5.12':
     resolution: {integrity: sha512-nqa9/7iQlboF1EFtNhWxQA0rQstmYRSBGxSM6g3GxvxHxcoeqVXfGNr9stJOme674m2V7r4E3+jEhhGvSQhJRA==}
     engines: {node: '>= 10'}
@@ -2039,6 +2036,11 @@ packages:
   '@supabase/realtime-js@2.98.0':
     resolution: {integrity: sha512-rOWt28uGyFipWOSd+n0WVMr9kUXiWaa7J4hvyLCIHjRFqWm1z9CaaKAoYyfYMC1Exn3WT8WePCgiVhlAtWC2yw==}
     engines: {node: '>=20.0.0'}
+
+  '@supabase/ssr@0.10.2':
+    resolution: {integrity: sha512-JFbchN63CXLFHJRNT7udec4/RoD9PmXkSGko3QSO6vUuqGBtSzdmxR7FPfQNr7SuFd65I7Xv46q66ALjEN1cgQ==}
+    peerDependencies:
+      '@supabase/supabase-js': ^2.102.1
 
   '@supabase/storage-js@2.98.0':
     resolution: {integrity: sha512-tzr2mG+v7ILSAZSfZMSL9OPyIH4z1ikgQ8EcQTKfMRz4EwmlFt3UnJaGzSOxyvF5b+fc9So7qdSUWTqGgeLokQ==}
@@ -7606,8 +7608,6 @@ snapshots:
   '@next/swc-darwin-arm64@15.5.12':
     optional: true
 
-  '@next/swc-darwin-arm64@16.2.2': {}
-
   '@next/swc-darwin-x64@15.5.12':
     optional: true
 
@@ -8557,6 +8557,11 @@ snapshots:
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
+
+  '@supabase/ssr@0.10.2(@supabase/supabase-js@2.98.0)':
+    dependencies:
+      '@supabase/supabase-js': 2.98.0
+      cookie: 1.1.1
 
   '@supabase/storage-js@2.98.0':
     dependencies:
