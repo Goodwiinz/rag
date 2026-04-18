@@ -2,6 +2,7 @@
 
 import { Edit2, Pin, PinOff, StickyNote, Trash2 } from 'lucide-react';
 import type { ProjectNote } from '@/services/projectService';
+import { IconButton } from '@/components/ui/icon-button';
 
 export interface NoteListProps {
   notes: ProjectNote[];
@@ -89,31 +90,28 @@ export function NoteList({
                 </h3>
               </div>
               <div className="flex items-center gap-1 shrink-0">
-                <button
+                <IconButton
                   onClick={() => onTogglePin(note.id)}
-                  className="p-1.5 text-gray-500 hover:text-helios transition-colors"
-                  title={note.is_pinned ? 'Unpin' : 'Pin'}
-                >
-                  {note.is_pinned ? (
+                  className="p-1.5 text-gray-500 hover:text-helios hover:bg-transparent transition-colors h-8 w-8"
+                  label={note.is_pinned ? 'Unpin note' : 'Pin note'}
+                  icon={note.is_pinned ? (
                     <PinOff className="h-4 w-4" />
                   ) : (
                     <Pin className="h-4 w-4" />
                   )}
-                </button>
-                <button
+                />
+                <IconButton
                   onClick={() => onEdit(note)}
-                  className="p-1.5 text-gray-500 hover:text-sol transition-colors"
-                  title="Edit note"
-                >
-                  <Edit2 className="h-4 w-4" />
-                </button>
-                <button
+                  className="p-1.5 text-gray-500 hover:text-sol hover:bg-transparent transition-colors h-8 w-8"
+                  label="Edit note"
+                  icon={<Edit2 className="h-4 w-4" />}
+                />
+                <IconButton
                   onClick={() => onDelete(note.id)}
-                  className="p-1.5 text-gray-500 hover:text-red-400 transition-colors"
-                  title="Delete note"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
+                  className="p-1.5 text-gray-500 hover:text-red-400 hover:bg-transparent transition-colors h-8 w-8"
+                  label="Delete note"
+                  icon={<Trash2 className="h-4 w-4" />}
+                />
               </div>
             </div>
 
