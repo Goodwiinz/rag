@@ -12,7 +12,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from src.core.database import get_db, get_db_sync
+from src.core.database import get_db
 from src.core.dependencies import get_current_user
 from src.models.user import User
 from src.schemas.quality_metrics import (
@@ -29,14 +29,14 @@ router = APIRouter()
 
 
 @router.post("/sessions", response_model=dict)
-def create_search_session(
-    session_data: Dict[str, Any],
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db_sync),
+async def create_search_session(
+    session_data: Dict[str, Any], current_user: User = Depends(get_current_user)
 ):
     """Create a new search session for tracking"""
     try:
         from src.models.quality_metrics import SearchSession
+
+        db = next(get_db())
 
         # Check if session already exists
         existing_session = (
@@ -73,6 +73,8 @@ def create_search_session(
     except Exception as e:
         logger.error(f"Failed to create search session: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        db.close()
 
 
 @router.post("/events")
@@ -163,26 +165,16 @@ async def get_user_behavior_analytics(
     user_id: str,
     days_back: int = Query(30, ge=1, le=365, description="Days of history to analyze"),
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db_sync),
 ):
     """Get behavior analytics for a specific user (admin/org manager only)"""
     try:
         # Check permissions (admin or same organization)
         from src.models.user import UserRole
 
-        if current_user.role not in [UserRole.ADMIN]:
-            # Must look up target user to compare orgs
-            from src.models.user import User as UserModel
-
-            target_user = (
-                db.query(UserModel).filter(UserModel.id == user_id).first()
-            )
-            if not target_user or str(target_user.organization_id) != str(
-                current_user.organization_id
-            ):
-                raise HTTPException(
-                    status_code=403, detail="Insufficient permissions"
-                )
+        if current_user.role not in [UserRole.ADMIN] and str(
+            current_user.organization_id
+        ) != str(current_user.organization_id):
+            raise HTTPException(status_code=403, detail="Insufficient permissions")
 
         metrics = await user_behavior_service.analyze_user_behavior(
             user_id=user_id, days_back=days_back
@@ -218,7 +210,7 @@ async def get_session_analysis(
         if (
             analysis.user_id
             and str(current_user.id) != analysis.user_id
-            and current_user.role.value not in ["admin"]
+            and current_user.role.value not in ["ADMIN"]
         ):
             raise HTTPException(status_code=403, detail="Insufficient permissions")
 
@@ -364,7 +356,6 @@ async def get_organization_user_behavior(
     ),
     order: str = Query("desc", regex="^(asc|desc)$"),
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db_sync),
 ):
     """Get behavior analytics for all users in the organization"""
     try:
@@ -375,6 +366,7 @@ async def get_organization_user_behavior(
             raise HTTPException(status_code=403, detail="Insufficient permissions")
 
         # Get all users in the organization
+        db = next(get_db())
 
         users = db.execute(
             text(
@@ -446,6 +438,8 @@ async def get_organization_user_behavior(
     except Exception as e:
         logger.error(f"Failed to get organization user behavior: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        db.close()
 
 
 @router.get("/content-usage")
@@ -453,7 +447,6 @@ async def get_content_usage_analytics(
     days_back: int = Query(30, ge=1, le=365, description="Days of history to analyze"),
     limit: int = Query(50, ge=1, le=200, description="Maximum documents to return"),
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db_sync),
 ):
     """Get content usage analytics for the organization"""
     try:
@@ -462,6 +455,8 @@ async def get_content_usage_analytics(
 
         if current_user.role not in [UserRole.ADMIN]:
             raise HTTPException(status_code=403, detail="Insufficient permissions")
+
+        db = next(get_db())
 
         # Query content usage from search events
         content_usage = db.execute(
@@ -531,6 +526,8 @@ async def get_content_usage_analytics(
     except Exception as e:
         logger.error(f"Failed to get content usage analytics: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        db.close()
 
 
 @router.post("/reports/generate")

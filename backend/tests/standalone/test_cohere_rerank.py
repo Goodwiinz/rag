@@ -14,7 +14,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Set environment variables for testing
 os.environ['COHERE_RERANK_ENDPOINT'] = 'https://goodwiinzapi.services.ai.azure.com/providers/cohere/v2/rerank'
-os.environ['COHERE_RERANK_API_KEY'] = os.environ.get('COHERE_RERANK_API_KEY', 'your_cohere_api_key')
+os.environ['COHERE_RERANK_API_KEY'] = '7awsW9wUrULKH9CLPkeh1oeaeeGmKvIotw8HSYjVtjMcIgj0NqyLJQQJ99BIACYeBjFXJ3w3AAABACOG5UHM'
 os.environ['COHERE_RERANK_MODEL'] = 'Cohere-rerank-v4.0-pro'
 
 

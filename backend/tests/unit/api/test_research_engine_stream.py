@@ -431,7 +431,7 @@ class TestStreamEndpointErrors:
 
         assert response.status_code == 200
         body = response.json()
-        assert body["status"] == "running"
+        assert body["status"] == "paused"
         stream_app.dependency_overrides.pop(get_db, None)
 
     def test_stream_returns_409_for_failed_run(self, stream_app, stream_client):

@@ -71,7 +71,6 @@ graph TB
 ## Key Directories and Their Purposes
 
 ### Root Level
-
 ```
 /home/clawdbot/clawd/rag/
 ├── backend/              # FastAPI backend application
@@ -88,7 +87,6 @@ graph TB
 ```
 
 ### Backend Structure (`/backend/src/`)
-
 ```
 backend/src/
 ├── api/                  # FastAPI route handlers organized by domain
@@ -110,7 +108,6 @@ backend/src/
 ```
 
 ### Frontend Structure (`/frontend/src/`)
-
 ```
 frontend/src/
 ├── page-components/     # Page-level components organized by feature
@@ -131,7 +128,6 @@ frontend/src/
 ## Tech Stack Summary
 
 ### Frontend Stack
-
 - **Framework**: Next.js 15.1.3 (App Router)
 - **UI Framework**: React 18 with TypeScript
 - **Styling**: Tailwind CSS with shadcn/ui and Radix UI primitives
@@ -145,7 +141,6 @@ frontend/src/
 - **Testing**: Jest, React Testing Library, Playwright E2E
 
 ### Backend Stack
-
 - **Framework**: FastAPI 0.104.1 with Python 3.11
 - **Web Server**: Uvicorn/Gunicorn
 - **Background Jobs**: Celery with Redis broker
@@ -158,14 +153,12 @@ frontend/src/
 - **Testing**: pytest, FastAPI TestClient
 
 ### Database Architecture
-
 - **Primary Database**: PostgreSQL (user data, documents, metadata)
 - **Vector Database**: Qdrant (semantic embeddings)
 - **Graph Database**: Neo4j 5.15 (knowledge graph, relationships)
 - **Cache/Sessions**: Redis (caching, Celery broker, session storage)
 
 ### Infrastructure
-
 - **Containerization**: Docker with multi-stage builds
 - **Orchestration**: Kubernetes with Helm charts
 - **IaC**: Terraform for AWS resources
@@ -175,7 +168,6 @@ frontend/src/
 ## Database Schema Overview
 
 ### PostgreSQL Schema
-
 - **Users & Authentication**: User accounts, roles, permissions
 - **Documents**: Document metadata, upload tracking, processing status
 - **Search**: Query logs, search analytics, quality metrics
@@ -184,19 +176,16 @@ frontend/src/
 - **Analytics**: User behavior, system performance metrics
 
 ### Neo4j Graph Schema
-
 - **Entities**: Documents, concepts, people, organizations
 - **Relationships**: Citations, references, semantic relationships
 - **Knowledge Graph**: Hierarchical knowledge structure with typed relationships
 
 ### Qdrant Vector Collections
-
 - **Document Embeddings**: Semantic vectors for document chunks
 - **Query Embeddings**: Search query vectors for similarity matching
 - **Multimodal Embeddings**: Image and audio content vectors
 
 ### Redis Data Structures
-
 - **Sessions**: User session data and WebSocket connections
 - **Cache**: API response caching with TTL
 - **Background Jobs**: Celery task queues and results
@@ -204,7 +193,6 @@ frontend/src/
 ## API Endpoints Summary
 
 ### Core API Groups
-
 ```
 /api/v1/
 ├── auth/              # Authentication and user management
@@ -218,7 +206,6 @@ frontend/src/
 ```
 
 ### Key WebSocket Endpoints
-
 - `/ws/document-processing` - Real-time document processing status
 - `/ws/search-results` - Streaming search results
 - `/ws/system-monitoring` - Live system metrics
@@ -226,14 +213,12 @@ frontend/src/
 ## Development Workflow Notes
 
 ### Local Development Setup
-
 1. **Prerequisites**: Node.js 18.17+, Python 3.11+, Docker 24.0+, 16GB RAM
 2. **Quick Start**: `docker-compose -f docker-compose.development.yml up -d`
 3. **Frontend Dev**: `cd frontend && npm run dev` (http://localhost:3000)
 4. **Backend Dev**: `uvicorn src.main:app --reload` (http://localhost:8000)
 
 ### Testing Strategy
-
 - **Frontend**: Unit tests with Jest, integration tests with React Testing Library
 - **E2E Tests**: Playwright with multiple browser configurations
 - **Backend**: Unit tests with pytest, integration tests with TestClient
@@ -241,13 +226,11 @@ frontend/src/
 - **Load Tests**: Performance testing with custom load test suite
 
 ### Code Quality Tools
-
 - **Frontend**: ESLint, Prettier, TypeScript strict mode
 - **Backend**: Black (formatting), isort (imports), mypy (type checking), ruff (linting)
 - **Pre-commit Hooks**: Automated formatting and linting
 
 ### Deployment Environments
-
 - **Development**: Local Docker Compose setup
 - **Staging**: Kubernetes cluster with Helm
 - **Production**: Multi-region Kubernetes with auto-scaling
@@ -255,27 +238,23 @@ frontend/src/
 ## Key Features
 
 ### Multimodal Processing
-
 - **Text Processing**: PDF and TXT with OCR capabilities
 - **Image Analysis**: Object detection, scene recognition, text extraction
 - **Audio Processing**: Speech-to-text with speaker diarization
 - **Video Processing**: Frame extraction and audio transcription
 
 ### AI-Powered Search
-
 - **Hybrid Search**: Vector + keyword + graph search with reranking
 - **Cross-Modal Discovery**: Find related content across different media types
 - **Entity Navigation**: Interactive knowledge graph exploration
 - **Real-time Results**: Sub-second search response times
 
 ### Multi-Agent System
-
 - **CrewAI Integration**: Specialized agents for different tasks
 - **Agent Types**: Orchestrator, retrieval, graph, vector, QA, synthesis
 - **Workflow Types**: Factual lookup, reasoning, multimodal analysis
 
 ### Enterprise Security
-
 - **Authentication**: JWT with secure WebSocket token handling
 - **Authorization**: Role-based access control with fine-grained permissions
 - **Data Protection**: Encryption at rest and in transit
@@ -284,7 +263,6 @@ frontend/src/
 ## Performance Metrics
 
 ### RAG Quality (RAG Triad)
-
 - **Answer Relevancy**: >70% (response relevance to query)
 - **Faithfulness**: >90% (grounding in retrieved context)
 - **Contextual Relevancy**: >70% (retrieved context relevance)
@@ -292,7 +270,6 @@ frontend/src/
 - **Hallucination Rate**: <10% threshold
 
 ### System Performance
-
 - **WebSocket Connections**: Supports 10,000+ concurrent connections
 - **Search Response Time**: Sub-second for most queries
 - **Document Processing**: Parallel processing with status tracking
@@ -301,7 +278,6 @@ frontend/src/
 ## Notable Dependencies
 
 ### Frontend Key Dependencies
-
 - `@tanstack/react-query@5.90.5` - Server state management
 - `@radix-ui/*` - Accessible UI primitives
 - `cytoscape@3.28.1` - Knowledge graph visualization
@@ -310,7 +286,6 @@ frontend/src/
 - `zustand@5.0.8` - Client state management
 
 ### Backend Key Dependencies
-
 - `fastapi@0.104.1` - Web framework
 - `celery` - Background task processing
 - `crewai` - Multi-agent AI framework
@@ -321,46 +296,27 @@ frontend/src/
 
 This codebase represents a mature, enterprise-ready RAG system with comprehensive testing, monitoring, and deployment infrastructure. The modular architecture supports independent scaling of components and provides clear separation of concerns across the stack.
 
-## Recent Updates & Current Status (April 2026)
+## Recent Updates & Current Status (January 2025)
 
-### Infrastructure — Kubernetes Hardening
+### Latest Enhancements
+- **Enhanced WebSocket Infrastructure**: Real-time document processing with improved connection handling
+- **Advanced RAG Quality Metrics**: Comprehensive evaluation framework with RAG Triad metrics
+- **Multi-Agent CrewAI System**: Specialized agents for orchestration, retrieval, synthesis, and QA
+- **Cross-Modal Search Capabilities**: Search across text, images, audio, and video content
+- **Performance Optimizations**: Achieved sub-second search response times
+- **Enterprise Security**: Enhanced RBAC, audit logging, and data protection features
 
-- **Neo4j credentials**: moved from plaintext values to K8s Secret (`neo4j-secret.yaml`)
-- **Redis credentials**: added missing `redis-credentials` to backend `envFrom` — was silently disabling all 7 cache layers in production
-- **Qdrant URL**: fixed `localhost:6333` → cluster-internal DNS in `values-production.yaml`
-- **HPA**: backend (2–6 replicas, 70% CPU/80% mem), frontend (2–4), celery-worker (1–6) with stabilization policies
-- **PDB**: added for frontend and celery-worker alongside existing backend PDB
-- **Security**: container-level `securityContext` (`allowPrivilegeEscalation: false`, `capabilities.drop: ALL`) on backend and frontend
-- **ArgoCD staging**: removed automated sync — staging now requires explicit `argocd app sync nous-staging`
+### Development Focus Areas
+- **API Standardization**: Consistent REST API patterns across all endpoints
+- **Testing Infrastructure**: Comprehensive Jest, Playwright, and pytest coverage
+- **Documentation**: Active maintenance of technical documentation and developer guides
+- **Monitoring & Observability**: Prometheus metrics, OpenTelemetry, and Sentry integration
+- **Deployment Automation**: Docker, Kubernetes, and Terraform infrastructure as code
 
-### Caching System — Hardened (7 layers)
-
-- **Stampede protection**: Redis NX distributed lock in `@cached` decorator (30s TTL, 500ms poll, double-check pattern)
-- **TTL jitter**: ±15% on every `setex()` call across all cache backends to prevent synchronised expiry waves
-- **gzip compression**: payloads >1 KB auto-compressed with `gz:` prefix (`core/caching.py`)
-- **Prometheus metrics**: `cache_hits_total`, `cache_misses_total`, `cache_errors_total`, `cache_hit_rate` exported per namespace
-- **Search key hash**: truncation 16 → 32 hex chars (closed birthday-paradox collision risk)
-- **Cache warmup**: `backend/src/core/cache_warmup.py` — `warm_critical_caches()` runs as background task on pod startup
-
-### CI/CD — Self-Hosted Runner + Spaces Cache
-
-- Docker build jobs (`build-backend`, `build-frontend`) now run on self-hosted ARC runner inside the DO K8s cluster
-- Docker layer cache migrated from GitHub Actions cache (10 GB cap) to DO Spaces `rag-system-storage` (persistent, unlimited)
-- ARC manifest: `infrastructure/arc/runner-deployment.yaml` — 1–3 ephemeral pods, DinD, 4 CPU / 8 GB
-
-### Infrastructure Details
-
-- **Cloud**: DigitalOcean — NYC3 cluster, 16 GB RAM / 320 GB disk node
-- **Registry**: `registry.digitalocean.com/ragsystemregistry`
-- **Storage**: DO Spaces `rag-system-storage` (S3-compatible, NYC3)
-- **Domain**: `gen-text.app`
-
-### Earlier Enhancements
-
-- Enhanced WebSocket infrastructure with improved connection handling
-- Advanced RAG quality metrics with trend analysis (improving/declining/stable)
-- LangGraph-based multi-agent system replacing CrewAI
-- Cross-modal search across text, images, audio, video
-- Prometheus + LangSmith observability stack
+### Key Integrations
+- **AI Providers**: OpenAI GPT models and Anthropic Claude integration
+- **Vector Database**: Qdrant for semantic similarity search
+- **Graph Database**: Neo4j for knowledge graph navigation and entity relationships
+- **Real-time Features**: WebSocket-based live updates for processing and search
 
 This system is actively maintained and represents current best practices for enterprise RAG implementations.

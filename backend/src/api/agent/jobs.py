@@ -7,7 +7,6 @@ Manages the async job lifecycle for agent execution:
 """
 
 import logging
-import time
 import uuid as _uuid
 from collections import OrderedDict
 from datetime import datetime, timezone
@@ -31,23 +30,15 @@ MAX_JOBS = 500
 
 
 def _cleanup_jobs():
-    """Remove expired jobs (>1 hour) and evict oldest when over MAX_JOBS.
-
-    Must be called while holding ``_jobs_lock``.
-    """
-    now = time.time()
-    expired = [k for k, v in _jobs.items() if now - v.get("created_at", now) > 3600]
-    for k in expired:
-        del _jobs[k]
-    while len(_jobs) > MAX_JOBS:
-        _jobs.popitem(last=False)
+    with _jobs_lock:
+        while len(_jobs) > MAX_JOBS:
+            _jobs.popitem(last=False)
 
 
 def _set_job(job_id: str, data: dict):
     with _jobs_lock:
-        data["created_at"] = time.time()
         _jobs[job_id] = data
-        _cleanup_jobs()
+    _cleanup_jobs()
 
 
 def _get_job(job_id: str) -> dict | None:
@@ -297,7 +288,6 @@ async def _run_agent_graph(
             "compaction_count": 0,
             "intent_confidence": 0.0,
             "last_error_info": {},
-            "user_id": str(current_user.id),
         }
 
         config = {
@@ -412,15 +402,13 @@ async def _resume_agent_graph(
         if job and job.get("request"):
             original_request = AgentExecuteRequest(**job["request"])
 
-        resume_thread_id = (
-            original_request.thread_id
-            if original_request and original_request.thread_id
-            else job_id
-        )
-
         config = {
             "configurable": {
-                "thread_id": resume_thread_id,
+                "thread_id": (
+                    original_request.thread_id
+                    if original_request and original_request.thread_id
+                    else job_id
+                ),
                 "db": db,
                 "current_user": current_user,
                 "page_context": (
@@ -430,23 +418,6 @@ async def _resume_agent_graph(
                 ),
             }
         }
-
-        # Verify thread ownership before resuming
-        snapshot = await graph.aget_state(config)
-        if snapshot and snapshot.values:
-            snapshot_user_id = snapshot.values.get("user_id", "")
-            if snapshot_user_id and snapshot_user_id != str(current_user.id):
-                logger.warning(
-                    "HITL ownership mismatch: job %s thread owned by %s, requested by %s",
-                    job_id,
-                    snapshot_user_id,
-                    current_user.id,
-                )
-                _set_job(job_id, {
-                    "status": "error",
-                    "error": "Thread not found",
-                })
-                return
 
         final_state = await graph.ainvoke(
             Command(resume={"confirmed": confirmed}),

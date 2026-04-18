@@ -15,7 +15,11 @@
  * - Token refresh and auth management
  */
 
-import { API_CONFIG, APIErrorClass, DEFAULT_HEADERS } from '@/types/api';
+import {
+    API_CONFIG,
+    APIErrorClass,
+    DEFAULT_HEADERS,
+} from '@/types/api';
 import { ZodSchema } from 'zod';
 
 // ============================================================================
@@ -53,6 +57,7 @@ export class APIClient {
   constructor(baseURL: string = API_CONFIG.BASE_URL) {
     this.baseURL = baseURL;
     this.defaultTimeout = API_CONFIG.TIMEOUT_MS || 30000;
+    this.loadAuthFromStorage();
   }
 
   // --------------------------------------------------------------------------
@@ -69,24 +74,20 @@ export class APIClient {
     this.organizationId = null;
   }
 
-  /** Load auth from Supabase session (used before each request if no token set) */
-  private async ensureAuth(): Promise<void> {
-    if (this.token) return;
+  private loadAuthFromStorage(): void {
     if (typeof window === 'undefined') return;
 
     try {
-      const { createClient } = await import('@/lib/supabase/client');
-      const supabase = createClient();
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      if (session?.access_token) {
-        this.token = session.access_token;
-        this.organizationId =
-          session.user?.user_metadata?.organization_id ?? null;
+      const authStorage = localStorage.getItem('auth-storage');
+      if (authStorage) {
+        const parsed = JSON.parse(authStorage);
+        if (parsed?.state?.token && parsed?.state?.organization?.id) {
+          this.token = parsed.state.token;
+          this.organizationId = parsed.state.organization.id;
+        }
       }
     } catch (error) {
-      console.warn('Failed to load auth from Supabase session:', error);
+      console.warn('Failed to load auth from storage:', error);
     }
   }
 
@@ -109,10 +110,10 @@ export class APIClient {
   // Core Request Methods
   // --------------------------------------------------------------------------
 
-  async request<T>(endpoint: string, options: RequestConfig = {}): Promise<T> {
-    // Ensure we have auth from Supabase session before making requests
-    await this.ensureAuth();
-
+  async request<T>(
+    endpoint: string,
+    options: RequestConfig = {}
+  ): Promise<T> {
     const {
       retries = API_CONFIG.RETRY_ATTEMPTS || 3,
       retryDelay = 1000,
@@ -120,9 +121,7 @@ export class APIClient {
       ...fetchOptions
     } = options;
 
-    const url = endpoint.startsWith('http')
-      ? endpoint
-      : `${this.baseURL}${endpoint}`;
+    const url = endpoint.startsWith('http') ? endpoint : `${this.baseURL}${endpoint}`;
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeout);
@@ -160,7 +159,7 @@ export class APIClient {
           message: 'Request timeout',
           status_code: 408,
           type: 'http_error',
-          details: { timeout },
+          details: { timeout }
         });
       }
 
@@ -208,7 +207,7 @@ export class APIClient {
           message: 'Response validation failed',
           status_code: 500,
           type: 'validation_error',
-          details: { errors: result.error.issues },
+          details: { errors: result.error.issues }
         });
       }
       return {
@@ -233,11 +232,7 @@ export class APIClient {
     return this.request<T>(endpoint, { ...options, method: 'GET' });
   }
 
-  async post<T>(
-    endpoint: string,
-    data?: unknown,
-    options: RequestConfig = {}
-  ): Promise<T> {
+  async post<T>(endpoint: string, data?: unknown, options: RequestConfig = {}): Promise<T> {
     return this.request<T>(endpoint, {
       ...options,
       method: 'POST',
@@ -249,11 +244,7 @@ export class APIClient {
     });
   }
 
-  async put<T>(
-    endpoint: string,
-    data?: unknown,
-    options: RequestConfig = {}
-  ): Promise<T> {
+  async put<T>(endpoint: string, data?: unknown, options: RequestConfig = {}): Promise<T> {
     return this.request<T>(endpoint, {
       ...options,
       method: 'PUT',
@@ -265,11 +256,7 @@ export class APIClient {
     });
   }
 
-  async patch<T>(
-    endpoint: string,
-    data?: unknown,
-    options: RequestConfig = {}
-  ): Promise<T> {
+  async patch<T>(endpoint: string, data?: unknown, options: RequestConfig = {}): Promise<T> {
     return this.request<T>(endpoint, {
       ...options,
       method: 'PATCH',
@@ -325,9 +312,7 @@ export class APIClient {
   ): Promise<T> {
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
-      const url = endpoint.startsWith('http')
-        ? endpoint
-        : `${this.baseURL}${endpoint}`;
+      const url = endpoint.startsWith('http') ? endpoint : `${this.baseURL}${endpoint}`;
 
       xhr.open('POST', url);
 
@@ -358,20 +343,14 @@ export class APIClient {
             new APIErrorClass({
               message: xhr.statusText || 'Upload failed',
               status_code: xhr.status,
-              type: 'http_error',
+              type: 'http_error'
             })
           );
         }
       };
 
       xhr.onerror = () => {
-        reject(
-          new APIErrorClass({
-            message: 'Network error during upload',
-            status_code: 0,
-            type: 'http_error',
-          })
-        );
+        reject(new APIErrorClass({ message: 'Network error during upload', status_code: 0, type: 'http_error' }));
       };
 
       xhr.send(formData);
@@ -405,9 +384,7 @@ export class APIClient {
   // Helper Methods
   // --------------------------------------------------------------------------
 
-  private async handleErrorResponse(
-    response: Response
-  ): Promise<APIErrorClass> {
+  private async handleErrorResponse(response: Response): Promise<APIErrorClass> {
     let errorData: Record<string, unknown> = {};
 
     try {
@@ -417,13 +394,10 @@ export class APIClient {
     }
 
     return new APIErrorClass({
-      message:
-        (errorData.detail as string) ||
-        (errorData.message as string) ||
-        response.statusText,
+      message: (errorData.detail as string) || (errorData.message as string) || response.statusText,
       status_code: response.status,
       type: 'http_error',
-      details: errorData as Record<string, unknown>,
+      details: errorData as Record<string, unknown>
     });
   }
 

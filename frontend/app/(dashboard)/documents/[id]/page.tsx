@@ -11,8 +11,12 @@ import { useAuthStore } from '@/stores/authStore';
 import { apiClient } from '@/services/apiClient';
 import { Document, APIErrorClass } from '@/types';
 import { cn } from '@/lib/utils';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowLeft,
+  Calendar,
+  CheckCircle,
+  Clock,
   Download,
   FileText,
   HardDrive,
@@ -84,15 +88,7 @@ export default function DocumentDetailPage() {
         `/documents/${documentId}`
       );
       if (response) {
-        // Normalize: backend detail API returns document_type, not file_type
-        const doc =
-          response.document_type && !response.file_type
-            ? {
-                ...response,
-                file_type: response.document_type as Document['file_type'],
-              }
-            : response;
-        setDocument(doc);
+        setDocument(response);
       } else {
         setError('Document not found');
       }
@@ -136,7 +132,7 @@ export default function DocumentDetailPage() {
     if (!document) return;
 
     try {
-      await apiClient.post(`/documents/${document.id}/reprocess`);
+      await apiClient.post(`/documents/${document.id}/retry`);
       fetchDocument();
     } catch (err) {
       console.error('Failed to retry processing:', err);
@@ -528,9 +524,7 @@ export default function DocumentDetailPage() {
                       Content Summary
                     </h3>
                     <p className="text-sm leading-relaxed text-gray-300">
-                      {document.content_summary ||
-                        document.content_preview ||
-                        document.description ||
+                      {document.description ||
                         'No description available for this document.'}
                     </p>
 
@@ -659,108 +653,90 @@ export default function DocumentDetailPage() {
                       <Table2 className="w-4 h-4 text-[#00d4ff]" />
                       Extracted Tables & Formulas
                     </h3>
-                    {(document.document_type === 'pdf' ||
-                      document.file_type === 'pdf') && (
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => setCropActive(true)}
-                          className="px-3 py-1.5 rounded-lg text-xs font-mono font-bold bg-[#00d4ff]/10 border border-[#00d4ff]/30 text-[#00d4ff] hover:bg-[#00d4ff]/20 transition-all flex items-center gap-2"
-                        >
-                          <Crop className="w-3.5 h-3.5" />
-                          CROP EXTRACT
-                        </button>
-                        <button
-                          onClick={handleFetchTables}
-                          disabled={
-                            tablesLoading ||
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setCropActive(true)}
+                        className="px-3 py-1.5 rounded-lg text-xs font-mono font-bold bg-[#00d4ff]/10 border border-[#00d4ff]/30 text-[#00d4ff] hover:bg-[#00d4ff]/20 transition-all flex items-center gap-2"
+                      >
+                        <Crop className="w-3.5 h-3.5" />
+                        CROP EXTRACT
+                      </button>
+                      <button
+                        onClick={handleFetchTables}
+                        disabled={
+                          tablesLoading ||
+                          document.processing_status !== 'indexed'
+                        }
+                        className={cn(
+                          'px-3 py-1.5 rounded-lg text-xs font-mono font-bold flex items-center gap-2 transition-all',
+                          tablesLoading ||
                             document.processing_status !== 'indexed'
-                          }
-                          className={cn(
-                            'px-3 py-1.5 rounded-lg text-xs font-mono font-bold flex items-center gap-2 transition-all',
-                            tablesLoading ||
-                              document.processing_status !== 'indexed'
-                              ? 'bg-gray-800 text-gray-500 cursor-not-allowed'
-                              : 'bg-[#D4A039]/10 border border-[#D4A039]/30 text-[#D4A039] hover:bg-[#D4A039]/20'
-                          )}
-                        >
-                          {tablesLoading ? (
-                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                          ) : (
-                            <Table2 className="w-3.5 h-3.5" />
-                          )}
-                          {tablesLoading ? 'EXTRACTING...' : 'EXTRACT TABLES'}
-                        </button>
-                      </div>
-                    )}
+                            ? 'bg-gray-800 text-gray-500 cursor-not-allowed'
+                            : 'bg-[#D4A039]/10 border border-[#D4A039]/30 text-[#D4A039] hover:bg-[#D4A039]/20'
+                        )}
+                      >
+                        {tablesLoading ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <Table2 className="w-3.5 h-3.5" />
+                        )}
+                        {tablesLoading ? 'EXTRACTING...' : 'EXTRACT TABLES'}
+                      </button>
+                    </div>
                   </div>
 
-                  {document.document_type === 'pdf' ||
-                  document.file_type === 'pdf' ? (
-                    <>
-                      {regionResult && (
-                        <div>
-                          <h4 className="text-xs font-mono text-gray-400 mb-2">
-                            Crop Extraction Result
-                          </h4>
-                          <ExtractedTablePreview
-                            documentId={documentId}
-                            regionResult={regionResult}
-                            onClose={() => setRegionResult(null)}
-                          />
-                        </div>
-                      )}
-
-                      {tables.length > 0 ? (
-                        <div className="space-y-4">
-                          {tables.map((table, idx) => (
-                            <ExtractedTablePreview
-                              key={idx}
-                              documentId={documentId}
-                              table={table}
-                              onClose={() =>
-                                setTables((prev) =>
-                                  prev.filter((_, i) => i !== idx)
-                                )
-                              }
-                            />
-                          ))}
-                        </div>
-                      ) : !tablesLoading ? (
-                        <div className="text-center py-12 rounded-xl border border-[#1a1a28] border-dashed bg-[#0d0d14]/50">
-                          <Table2 className="w-12 h-12 text-gray-600 mx-auto mb-4" />
-                          <p className="font-mono text-sm text-gray-500">
-                            No tables extracted yet
-                          </p>
-                          <p className="font-mono text-xs text-gray-600 mt-2">
-                            Click &quot;Extract Tables&quot; to find tables in
-                            this document
-                          </p>
-                        </div>
-                      ) : null}
-
-                      <CropExtractOverlay
-                        active={cropActive}
-                        pageNumber={1}
+                  {regionResult && (
+                    <div>
+                      <h4 className="text-xs font-mono text-gray-400 mb-2">
+                        Crop Extraction Result
+                      </h4>
+                      <ExtractedTablePreview
                         documentId={documentId}
-                        containerRef={tablesContainerRef}
-                        onCancel={() => setCropActive(false)}
-                        onExtracted={(data) => {
-                          setRegionResult(data);
-                          setCropActive(false);
-                        }}
+                        regionResult={regionResult}
+                        onClose={() => setRegionResult(null)}
                       />
-                    </>
-                  ) : (
+                    </div>
+                  )}
+
+                  {tables.length > 0 ? (
+                    <div className="space-y-4">
+                      {tables.map((table, idx) => (
+                        <ExtractedTablePreview
+                          key={idx}
+                          documentId={documentId}
+                          table={table}
+                          onClose={() =>
+                            setTables((prev) =>
+                              prev.filter((_, i) => i !== idx)
+                            )
+                          }
+                        />
+                      ))}
+                    </div>
+                  ) : !tablesLoading ? (
                     <div className="text-center py-12 rounded-xl border border-[#1a1a28] border-dashed bg-[#0d0d14]/50">
                       <Table2 className="w-12 h-12 text-gray-600 mx-auto mb-4" />
                       <p className="font-mono text-sm text-gray-500">
-                        Table extraction is only available for PDF documents
+                        No tables extracted yet
                       </p>
                       <p className="font-mono text-xs text-gray-600 mt-2">
-                        Upload a PDF to use this feature
+                        Click &quot;Extract Tables&quot; to find tables in this
+                        document
                       </p>
                     </div>
-                  )}
+                  ) : null}
+
+                  <CropExtractOverlay
+                    active={cropActive}
+                    pageNumber={1}
+                    documentId={documentId}
+                    containerRef={tablesContainerRef}
+                    onCancel={() => setCropActive(false)}
+                    onExtracted={(data) => {
+                      setRegionResult(data);
+                      setCropActive(false);
+                    }}
+                  />
                 </div>
               )}
             </div>
@@ -788,8 +764,7 @@ export default function DocumentDetailPage() {
                 <div className="flex justify-between items-center border-b border-[#1a1a28] pb-2">
                   <span className="text-gray-500">Type</span>
                   <span className="text-[#D4A039] bg-[#D4A039]/10 px-2 py-0.5 rounded">
-                    {document.document_type?.toUpperCase() ||
-                      document.file_type?.toUpperCase() ||
+                    {document.file_type?.toUpperCase() ||
                       document.mime_type?.toUpperCase() ||
                       'UNKNOWN'}
                   </span>
@@ -797,27 +772,19 @@ export default function DocumentDetailPage() {
                 <div className="flex justify-between items-center border-b border-[#1a1a28] pb-2">
                   <span className="text-gray-500">Size</span>
                   <span className="text-white">
-                    {formatFileSize(
-                      document.file_size_bytes || document.file_size
-                    )}
+                    {formatFileSize(document.file_size)}
                   </span>
                 </div>
                 <div className="flex justify-between items-center border-b border-[#1a1a28] pb-2">
                   <span className="text-gray-500">Uploaded</span>
                   <span className="text-white">
-                    {formatDate(
-                      document.created_at || document.upload_timestamp
-                    )}
+                    {formatDate(document.upload_timestamp)}
                   </span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-gray-500">Last Modified</span>
                   <span className="text-white">
-                    {formatDate(
-                      document.updated_at ||
-                        document.created_at ||
-                        document.upload_timestamp
-                    )}
+                    {formatDate(document.upload_timestamp)}
                   </span>
                 </div>
               </div>

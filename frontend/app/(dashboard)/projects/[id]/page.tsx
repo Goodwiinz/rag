@@ -42,7 +42,6 @@ import {
 import { useProjectStore } from '@/store/projectStore';
 import { useAgentChatStore } from '@/store/agentChatStore';
 import { useAuthStore } from '@/stores/authStore';
-import { APIErrorClass } from '@/types/api';
 import type { ProjectNote, ProjectNoteCreate } from '@/services/projectService';
 
 type TabType =
@@ -121,10 +120,6 @@ export default function ProjectDetailPage() {
   const [selectedNoteTag, setSelectedNoteTag] = useState('');
   const [matrixId, setMatrixId] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
-  const [projectError, setProjectError] = useState<{
-    status: number;
-    message: string;
-  } | null>(null);
 
   useEffect(() => {
     setMounted(true);
@@ -134,16 +129,7 @@ export default function ProjectDetailPage() {
 
   useEffect(() => {
     if (mounted && isAuthenticated && projectId) {
-      fetchProject(projectId)
-        .then(() => setProjectError(null))
-        .catch((err: unknown) => {
-          const status =
-            err instanceof APIErrorClass ? err.error.status_code : 500;
-          const message =
-            err instanceof Error ? err.message : 'Failed to load project';
-          setProjectError({ status, message });
-        })
-        .finally(() => setInitialLoading(false));
+      fetchProject(projectId).finally(() => setInitialLoading(false));
       fetchProjectDocuments(projectId);
       fetchProjectNotes(projectId);
     }
@@ -425,25 +411,6 @@ export default function ProjectDetailPage() {
     return (
       <div className="flex items-center justify-center h-full">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
-  }
-
-  if (projectError) {
-    const isNotFound = projectError.status === 404;
-    return (
-      <div className="p-6 text-center">
-        <p className="text-muted-foreground">
-          {isNotFound
-            ? 'Project not found'
-            : `Failed to load project: ${projectError.message}`}
-        </p>
-        <button
-          onClick={() => router.push('/projects')}
-          className="mt-4 text-primary underline text-sm"
-        >
-          Back to projects
-        </button>
       </div>
     );
   }

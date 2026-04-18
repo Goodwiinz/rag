@@ -400,7 +400,7 @@ class TestHealthEndpoint:
     def test_health_check_healthy(self, mock_classifier, mock_consensus, mock_cache, test_client):
         """Test healthy service status"""
         # Mock healthy components
-        mock_cache._ensure_connected = Mock(return_value=True)
+        mock_cache._ensure_connected = AsyncMock(return_value=True)
         mock_consensus._generate_claim_hash.return_value = "test_hash"
         mock_classifier.model_version = "gpt-4o-mini-2024-07-18"
         
@@ -418,7 +418,7 @@ class TestHealthEndpoint:
     @patch('src.api.evidence.router.cache_service')
     def test_health_check_cache_disconnected(self, mock_cache, test_client):
         """Test service status with cache disconnected"""
-        mock_cache._ensure_connected = Mock(return_value=False)
+        mock_cache._ensure_connected = AsyncMock(return_value=False)
         
         response = test_client.get("/api/v1/evidence/health")
         

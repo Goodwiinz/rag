@@ -2,7 +2,7 @@
 
 import { useAuthStore } from '@/stores/authStore';
 import { useDocuments } from '@/hooks/useDocuments';
-import { Upload, RefreshCw, Folder, AlertTriangle } from 'lucide-react';
+import { Upload, RefreshCw, Folder } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useState, useMemo } from 'react';
 import { Pagination } from '../../components/Pagination';
@@ -168,14 +168,6 @@ export default function DocumentsPage() {
           onBulkDelete={handleBulkDelete}
           isBulkDeleting={isBulkDeleting}
         />
-
-        {/* Error Banner */}
-        {error && (
-          <div className="flex items-center gap-3 px-4 py-3 rounded-lg border border-red-500/30 bg-red-500/5">
-            <AlertTriangle className="w-4 h-4 text-red-400 shrink-0" />
-            <p className="text-red-400 font-mono text-sm">{error}</p>
-          </div>
-        )}
 
         {/* Document List */}
         <DocumentList

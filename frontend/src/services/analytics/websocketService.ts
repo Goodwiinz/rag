@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useRealtimeStore } from '@/stores/analytics';
 import { AnalyticsMetric, TimeSeriesData } from '@/stores/analytics';
-import { getPublicWebSocketOrigin } from '@/utils/publicEndpoints';
 
 // WebSocket Configuration
 interface WebSocketConfig {
@@ -550,7 +549,7 @@ export const createWebSocketService = (config: WebSocketConfig): WebSocketServic
 
 // Default WebSocket service
 export const analyticsWebSocket = createWebSocketService({
-  url: `${getPublicWebSocketOrigin()}/ws/analytics`,
+  url: process.env.NEXT_PUBLIC_WEBSOCKET_URL || 'ws://localhost:8000/ws/analytics',
 });
 
 // React Hook for WebSocket

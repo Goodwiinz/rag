@@ -303,7 +303,8 @@ async def resume_run(
             status_code=status.HTTP_409_CONFLICT,
             detail="Run is not currently paused",
         )
-    run.status = RunStatus.RUNNING.value
+    # Keep resumed runs in PAUSED; SSE stream computes start_from for PAUSED runs.
+    run.status = RunStatus.PAUSED.value
     await db.commit()
     await db.refresh(run)
     return RunResponse.model_validate(run)

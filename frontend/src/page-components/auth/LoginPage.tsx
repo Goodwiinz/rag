@@ -1,13 +1,11 @@
 import React, { useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
-import { downloadStoredNousCliAuth } from '@/services/nousCliAuth';
 import { Navigate, Link } from 'react-router-dom';
 
 interface LoginFormData {
   email: string;
   password: string;
   rememberMe: boolean;
-  downloadCliAuth: boolean;
 }
 
 export const LoginPage: React.FC = () => {
@@ -16,7 +14,6 @@ export const LoginPage: React.FC = () => {
     email: '',
     password: '',
     rememberMe: false,
-    downloadCliAuth: false,
   });
   const [error, setError] = useState<string>('');
 
@@ -38,13 +35,6 @@ export const LoginPage: React.FC = () => {
 
     try {
       await login(formData.email, formData.password, formData.rememberMe);
-      if (formData.downloadCliAuth) {
-        try {
-          downloadStoredNousCliAuth();
-        } catch (downloadError) {
-          console.error('Failed to export NOUS CLI auth:', downloadError);
-        }
-      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed');
     }
@@ -116,36 +106,18 @@ export const LoginPage: React.FC = () => {
           </div>
 
           <div className="flex items-center justify-between">
-            <div className="space-y-3">
-              <div className="flex items-center">
-                <input
-                  id="rememberMe"
-                  name="rememberMe"
-                  type="checkbox"
-                  checked={formData.rememberMe}
-                  onChange={handleChange}
-                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                />
-                <label htmlFor="rememberMe" className="ml-2 block text-sm text-gray-900">
-                  Remember me for 30 days
-                </label>
-              </div>
-              <div className="flex items-center">
-                <input
-                  id="downloadCliAuth"
-                  name="downloadCliAuth"
-                  type="checkbox"
-                  checked={formData.downloadCliAuth}
-                  onChange={handleChange}
-                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                />
-                <label
-                  htmlFor="downloadCliAuth"
-                  className="ml-2 block text-sm text-gray-900"
-                >
-                  Download NOUS CLI auth after sign in
-                </label>
-              </div>
+            <div className="flex items-center">
+              <input
+                id="rememberMe"
+                name="rememberMe"
+                type="checkbox"
+                checked={formData.rememberMe}
+                onChange={handleChange}
+                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+              />
+              <label htmlFor="rememberMe" className="ml-2 block text-sm text-gray-900">
+                Remember me for 30 days
+              </label>
             </div>
 
             <div className="text-sm">

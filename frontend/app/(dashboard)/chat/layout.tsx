@@ -523,11 +523,7 @@ function ContextPanel({
     async (lastAssistantContent: string, lastCitations: CitationItem[]) => {
       setLoadingSuggestions(true);
       try {
-        const supabase = (await import('@/lib/supabase/client')).createClient();
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
-        const token = session?.access_token;
+        const token = useAuthStore.getState().token;
         if (!token) {
           setSuggestions([]);
           setLoadingSuggestions(false);

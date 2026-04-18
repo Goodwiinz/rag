@@ -129,7 +129,7 @@ class TestRESOURCE_NAMEAuthentication:
     def test_expired_token_rejected(self, client):
         """Expired tokens are rejected."""
         # Generate expired token
-        from tests.conftest import create_access_token
+        from src.core.security import create_access_token
         from datetime import timedelta
 
         expired_token = create_access_token(

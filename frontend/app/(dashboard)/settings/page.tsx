@@ -45,49 +45,38 @@ type SettingsCardItem = {
   accent: string;
 };
 
-function buildStatusItems(
-  role: string,
-  workspace: string
-): SettingsStatusItem[] {
-  const roleHints: Record<string, string> = {
-    admin: 'Full governance access',
-    user: 'Standard workspace access',
-    viewer: 'Read-only access',
-  };
-
-  return [
-    {
-      label: 'Workspace',
-      value: workspace,
-      hint: 'Active tenant context',
-      icon: BriefcaseBusiness,
-    },
-    {
-      label: 'Role',
-      value: role.charAt(0).toUpperCase() + role.slice(1),
-      hint: roleHints[role] ?? 'Workspace member',
-      icon: UserCog,
-    },
-    {
-      label: 'Plan',
-      value: 'Research Pro',
-      hint: '428 credits remain this cycle',
-      icon: Sparkles,
-    },
-    {
-      label: 'Security',
-      value: 'Protected',
-      hint: 'Audit and encryption active',
-      icon: ShieldCheck,
-    },
-    {
-      label: 'API Access',
-      value: '2 tokens',
-      hint: 'OpenAI and Anthropic ready',
-      icon: KeyRound,
-    },
-  ];
-}
+const STATUS_ITEMS: SettingsStatusItem[] = [
+  {
+    label: 'Workspace',
+    value: 'Default Research Workspace',
+    hint: 'Active tenant context',
+    icon: BriefcaseBusiness,
+  },
+  {
+    label: 'Role',
+    value: 'Admin',
+    hint: 'Full governance access',
+    icon: UserCog,
+  },
+  {
+    label: 'Plan',
+    value: 'Research Pro',
+    hint: '428 credits remain this cycle',
+    icon: Sparkles,
+  },
+  {
+    label: 'Security',
+    value: 'Protected',
+    hint: 'Audit and encryption active',
+    icon: ShieldCheck,
+  },
+  {
+    label: 'API Access',
+    value: '2 tokens',
+    hint: 'OpenAI and Anthropic ready',
+    icon: KeyRound,
+  },
+];
 
 const SETTINGS_CARDS: SettingsCardItem[] = [
   {
@@ -181,11 +170,6 @@ export default function SettingsPage(): ReactElement {
   const primaryEmail = user?.email ?? 'Not provided';
   const operatorName =
     primaryEmail === 'Not provided' ? 'Operator' : primaryEmail.split('@')[0];
-
-  const STATUS_ITEMS = buildStatusItems(
-    user?.role || 'user',
-    'Default Workspace'
-  );
   const operatorInitial = operatorName.charAt(0).toUpperCase();
 
   const togglePreference = (key: PreferenceKey, checked: boolean): void => {

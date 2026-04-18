@@ -9,7 +9,6 @@ import asyncio
 import hashlib
 import json
 import logging
-import random
 import time
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
@@ -520,10 +519,8 @@ class LLMResponseCache:
             redis = await self._get_redis()
             if redis:
                 try:
-                    jitter = int(effective_ttl * 0.15)
-                    jittered_ttl = effective_ttl + random.randint(-jitter, jitter)
                     await redis.setex(
-                        cache_key, jittered_ttl, json.dumps(entry.to_dict())
+                        cache_key, effective_ttl, json.dumps(entry.to_dict())
                     )
                 except Exception as e:
                     logger.warning(f"Redis set error: {e}")

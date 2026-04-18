@@ -48,10 +48,9 @@ class Document(BaseModel):
     mime_type = Column(String(100), nullable=False)
     document_type = Column(Enum(DocumentType), nullable=False, index=True)
 
-    # Storage
+    # Supabase Storage
     storage_path = Column(String(2000), nullable=True)  # Storage key (bucket/key)
     storage_backend = Column(String(20), nullable=False, server_default="local")
-    checksum_sha256 = Column(String(64), nullable=True, index=True)  # SHA-256 content hash
 
     # Content
     content_text = Column(Text, nullable=True)  # Extracted text content
@@ -82,8 +81,8 @@ class Document(BaseModel):
     tags = Column(StringArray, nullable=True)
 
     # Organization
-    organization_id = Column(GUID(), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False)
-    uploaded_by_user_id = Column(GUID(), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    organization_id = Column(GUID(), ForeignKey("organizations.id"), nullable=False)
+    uploaded_by_user_id = Column(GUID(), ForeignKey("users.id"), nullable=False)
 
     # Relationships
     organization = relationship("Organization", back_populates="documents")
@@ -287,7 +286,6 @@ class Document(BaseModel):
             "processing": "processing",
             "completed": "indexed",
             "failed": "failed",
-            "retrying": "processing",
         }
         backend_status = (
             self.processing_status.value if self.processing_status else None

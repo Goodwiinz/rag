@@ -56,20 +56,7 @@ type SearchError = {
 
 const SUPPORTED_FILE_TYPES: ReadonlySet<
   NonNullable<SourceReference['file_type']>
-> = new Set([
-  'pdf',
-  'txt',
-  'jpg',
-  'png',
-  'mp3',
-  'mp4',
-  'text',
-  'image',
-  'audio',
-  'video',
-  'spreadsheet',
-  'presentation',
-]);
+> = new Set(['pdf', 'txt', 'jpg', 'png', 'mp3', 'mp4']);
 
 const isSupportedFileType = (
   value: string
@@ -463,11 +450,11 @@ export class SearchService {
   /**
    * Get real-time search results via WebSocket
    */
-  async createSearchWebSocket(
+  createSearchWebSocket(
     sessionId: string,
     onMessage: (update: QueryProcessingUpdate) => void
-  ): Promise<WebSocket> {
-    const ws = await apiClient.createWebSocket(
+  ): WebSocket {
+    const ws = apiClient.createWebSocket(
       `${this.basePath}/stream/${sessionId}`
     );
 

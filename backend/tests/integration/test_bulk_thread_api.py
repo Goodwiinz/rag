@@ -82,7 +82,7 @@ class TestBulkResolveEndpoint:
     @pytest.fixture
     def auth_headers(self, test_user):
         """Create authentication headers"""
-        from tests.conftest import create_access_token
+        from src.core.security import create_access_token
 
         token = create_access_token(data={"sub": str(test_user.id)})
         return {"Authorization": f"Bearer {token}"}
@@ -302,7 +302,7 @@ class TestBulkArchiveEndpoint:
     @pytest.fixture
     def auth_headers(self, test_user):
         """Create authentication headers"""
-        from tests.conftest import create_access_token
+        from src.core.security import create_access_token
 
         token = create_access_token(data={"sub": str(test_user.id)})
         return {"Authorization": f"Bearer {token}"}
@@ -401,7 +401,7 @@ class TestBulkDeleteEndpoint:
     @pytest.fixture
     def auth_headers(self, test_user):
         """Create authentication headers"""
-        from tests.conftest import create_access_token
+        from src.core.security import create_access_token
 
         token = create_access_token(data={"sub": str(test_user.id)})
         return {"Authorization": f"Bearer {token}"}
@@ -554,7 +554,7 @@ class TestBulkOperationsResponseSchema:
     @pytest.fixture
     def auth_headers(self, test_user):
         """Create authentication headers"""
-        from tests.conftest import create_access_token
+        from src.core.security import create_access_token
 
         token = create_access_token(data={"sub": str(test_user.id)})
         return {"Authorization": f"Bearer {token}"}

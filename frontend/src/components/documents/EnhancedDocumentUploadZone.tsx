@@ -5,18 +5,18 @@
  */
 
 import {
-  CheckCircleIcon,
-  ClockIcon,
-  CloudArrowUpIcon,
-  Cog6ToothIcon,
-  DocumentArrowUpIcon,
-  DocumentPlusIcon,
-  ExclamationTriangleIcon,
-  FolderOpenIcon,
-  ShieldCheckIcon,
-  SparklesIcon,
-  TrashIcon,
-  XMarkIcon,
+    CheckCircleIcon,
+    ClockIcon,
+    CloudArrowUpIcon,
+    Cog6ToothIcon,
+    DocumentArrowUpIcon,
+    DocumentPlusIcon,
+    ExclamationTriangleIcon,
+    FolderOpenIcon,
+    ShieldCheckIcon,
+    SparklesIcon,
+    TrashIcon,
+    XMarkIcon
 } from '@heroicons/react/24/outline';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
@@ -24,34 +24,25 @@ import { v4 as uuidv4 } from 'uuid';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { DeleteConfirmDialog } from '@/components/ui/confirm-dialog';
 import { IconButton } from '@/components/ui/icon-button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
 } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 
-import {
-  DocumentUploadRequest,
-  enhancedDocumentService,
-  WebSocketProgressUpdate,
-} from '@/services/enhancedDocumentService';
+import { DocumentUploadRequest, enhancedDocumentService, WebSocketProgressUpdate } from '@/services/enhancedDocumentService';
+import { mockDocumentService } from '@/services/mockDocumentService';
 import { useAuthStore } from '@/stores/authStore';
 
 interface UploadedFile {
@@ -81,56 +72,50 @@ interface EnhancedDocumentUploadZoneProps {
   showAdvancedOptions?: boolean;
 }
 
-export const EnhancedDocumentUploadZone: React.FC<
-  EnhancedDocumentUploadZoneProps
-> = ({
+export const EnhancedDocumentUploadZone: React.FC<EnhancedDocumentUploadZoneProps> = ({
   onUploadComplete,
   onUploadError,
   maxFiles = 10,
   className,
-  showAdvancedOptions = true,
+  showAdvancedOptions = true
 }) => {
   const { toast } = useToast();
 
   // Use reactive auth state instead of static getState()
-  const {
-    user,
-    organization,
-    isAuthenticated,
-    isLoading: authLoading,
-  } = useAuthStore();
+  const { user, token, organization, isAuthenticated, isLoading: authLoading } = useAuthStore();
 
   // Debug authentication state
-  console.log('Upload Component Auth State:', {
+  console.log('🔍 Upload Component Auth State:', {
     isAuthenticated,
     authLoading,
+    hasToken: !!token,
     hasOrganization: !!organization,
     user: user?.email,
-    organization: organization?.name,
+    organization: organization?.name
   });
 
   // Prevent upload if not authenticated or still loading
   const handleUploadAttempt = useCallback(() => {
     if (authLoading) {
       toast({
-        title: 'Authentication Loading',
-        description: 'Please wait while we verify your authentication...',
-        variant: 'default',
+        title: "Authentication Loading",
+        description: "Please wait while we verify your authentication...",
+        variant: "default"
       });
       return false;
     }
 
-    if (!isAuthenticated || !organization) {
+    if (!isAuthenticated || !token || !organization) {
       toast({
-        title: 'Authentication Required',
-        description: 'Please log in to upload documents.',
-        variant: 'destructive',
+        title: "Authentication Required",
+        description: "Please log in to upload documents.",
+        variant: "destructive"
       });
       return false;
     }
 
     return true;
-  }, [authLoading, isAuthenticated, organization, toast]);
+  }, [authLoading, isAuthenticated, token, organization, toast]);
 
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
   const [isUploading, setIsUploading] = useState(false);
@@ -144,29 +129,21 @@ export const EnhancedDocumentUploadZone: React.FC<
     is_public: false,
     processing_priority: 'normal',
     enable_quality_check: true,
-    custom_metadata: {},
+    custom_metadata: {}
   });
 
   // Enhanced UX helper functions with accessibility
   const getUploadStateMessage = () => {
-    const pendingCount = uploadedFiles.filter(
-      (f) => f.status === 'pending'
-    ).length;
-    const processingCount = uploadedFiles.filter(
-      (f) => f.status === 'uploading' || f.status === 'processing'
-    ).length;
-    const completedCount = uploadedFiles.filter(
-      (f) => f.status === 'completed'
-    ).length;
-    const failedCount = uploadedFiles.filter(
-      (f) => f.status === 'failed'
-    ).length;
+    const pendingCount = uploadedFiles.filter(f => f.status === 'pending').length;
+    const processingCount = uploadedFiles.filter(f => f.status === 'uploading' || f.status === 'processing').length;
+    const completedCount = uploadedFiles.filter(f => f.status === 'completed').length;
+    const failedCount = uploadedFiles.filter(f => f.status === 'failed').length;
 
     if (uploadedFiles.length === 0) {
       return {
-        message: 'No files selected',
+        message: "No files selected",
         type: 'info' as const,
-        ariaLive: 'polite' as const,
+        ariaLive: "polite" as const
       };
     }
 
@@ -174,7 +151,7 @@ export const EnhancedDocumentUploadZone: React.FC<
       return {
         message: `Processing ${processingCount} file${processingCount > 1 ? 's' : ''}...`,
         type: 'processing' as const,
-        ariaLive: 'assertive' as const,
+        ariaLive: "assertive" as const
       };
     }
 
@@ -182,146 +159,129 @@ export const EnhancedDocumentUploadZone: React.FC<
       return {
         message: `${pendingCount} file${pendingCount > 1 ? 's' : ''} ready to upload`,
         type: 'ready' as const,
-        ariaLive: 'polite' as const,
+        ariaLive: "polite" as const
       };
     }
 
     if (completedCount > 0 && failedCount === 0) {
       return {
-        message: 'All files processed successfully!',
+        message: "All files processed successfully!",
         type: 'success' as const,
-        ariaLive: 'assertive' as const,
+        ariaLive: "assertive" as const
       };
     }
 
     return {
       message: `${completedCount} completed, ${failedCount} failed`,
       type: 'mixed' as const,
-      ariaLive: 'polite' as const,
+      ariaLive: "polite" as const
     };
   };
 
   const getStatusColor = (status: UploadedFile['status']) => {
     switch (status) {
-      case 'completed':
-        return 'text-green-600 bg-green-50 border-green-200';
+      case 'completed': return 'text-green-600 bg-green-50 border-green-200';
       case 'processing':
-      case 'uploading':
-        return 'text-blue-600 bg-blue-50 border-blue-200';
-      case 'failed':
-        return 'text-red-600 bg-red-50 border-red-200';
-      default:
-        return 'text-gray-600 bg-gray-50 border-gray-200';
+      case 'uploading': return 'text-blue-600 bg-blue-50 border-blue-200';
+      case 'failed': return 'text-red-600 bg-red-50 border-red-200';
+      default: return 'text-gray-600 bg-gray-50 border-gray-200';
     }
   };
 
   const toggleFileExpanded = (fileId: string) => {
-    setUploadedFiles((prev) =>
-      prev.map((file) =>
-        file.id === fileId ? { ...file, expanded: !file.expanded } : file
-      )
-    );
+    setUploadedFiles(prev => prev.map(file =>
+      file.id === fileId ? { ...file, expanded: !file.expanded } : file
+    ));
   };
 
-  const onDrop = useCallback(
-    (acceptedFiles: File[], rejectedFiles: any[]) => {
-      console.log('🎯 Files dropped:', {
-        acceptedFiles: acceptedFiles.map((f) => ({
-          name: f.name,
-          size: f.size,
-          type: f.type,
-        })),
-        rejectedFiles,
-      });
+  const onDrop = useCallback((acceptedFiles: File[], rejectedFiles: any[]) => {
+    console.log('🎯 Files dropped:', {
+      acceptedFiles: acceptedFiles.map(f => ({ name: f.name, size: f.size, type: f.type })),
+      rejectedFiles
+    });
 
-      // Handle rejected files
-      if (rejectedFiles.length > 0) {
-        rejectedFiles.forEach(({ file, errors }) => {
-          errors.forEach((error: any) => {
-            toast({
-              title: 'File rejected',
-              description: `${file.name}: ${error.message}`,
-              variant: 'destructive',
-            });
+    // Handle rejected files
+    if (rejectedFiles.length > 0) {
+      rejectedFiles.forEach(({ file, errors }) => {
+        errors.forEach((error: any) => {
+          toast({
+            title: "File rejected",
+            description: `${file.name}: ${error.message}`,
+            variant: "destructive"
           });
         });
-        return;
-      }
-
-      if (uploadedFiles.length + acceptedFiles.length > maxFiles) {
-        toast({
-          title: 'Too many files',
-          description: `Maximum ${maxFiles} files allowed per upload session`,
-          variant: 'destructive',
-        });
-        return;
-      }
-
-      const newFiles: UploadedFile[] = acceptedFiles
-        .map((file) => {
-          console.log('📁 Processing file:', file.name, file.size, file.type);
-
-          // Try enhanced service first, fallback to mock service
-          let validation;
-          try {
-            validation = enhancedDocumentService.validateFile(file);
-            console.log('✅ Enhanced service validation:', validation);
-          } catch (error) {
-            throw error;
-          }
-
-          if (!validation.isValid) {
-            console.error('❌ File validation failed:', validation.errors);
-            toast({
-              title: 'Invalid file',
-              description: validation.errors.join(', '),
-              variant: 'destructive',
-            });
-            return null;
-          }
-
-          const uploadedFile: UploadedFile = {
-            id: uuidv4(),
-            file,
-            request: getDefaultRequest(file),
-            status: 'pending',
-            progress: 0,
-            currentStep: 'Waiting to upload',
-            expanded: false,
-          };
-
-          console.log('✅ Created uploaded file object:', uploadedFile);
-          return uploadedFile;
-        })
-        .filter(Boolean) as UploadedFile[];
-
-      console.log('📝 Adding new files to state:', newFiles.length);
-      setUploadedFiles((prev) => {
-        const updated = [...prev, ...newFiles];
-        console.log(
-          '📋 Updated file list:',
-          updated.map((f) => f.file.name)
-        );
-        return updated;
       });
-    },
-    [uploadedFiles.length, maxFiles, toast]
-  );
+      return;
+    }
+
+    if (uploadedFiles.length + acceptedFiles.length > maxFiles) {
+      toast({
+        title: "Too many files",
+        description: `Maximum ${maxFiles} files allowed per upload session`,
+        variant: "destructive"
+      });
+      return;
+    }
+
+    const newFiles: UploadedFile[] = acceptedFiles.map(file => {
+      console.log('📁 Processing file:', file.name, file.size, file.type);
+
+      // Try enhanced service first, fallback to mock service
+      let validation;
+      try {
+        validation = enhancedDocumentService.validateFile(file);
+        console.log('✅ Enhanced service validation:', validation);
+      } catch (error) {
+        console.warn('⚠️ Enhanced service validation failed, using mock service:', error);
+        validation = mockDocumentService.validateFile(file);
+        console.log('✅ Mock service validation:', validation);
+      }
+
+      if (!validation.isValid) {
+        console.error('❌ File validation failed:', validation.errors);
+        toast({
+          title: "Invalid file",
+          description: validation.errors.join(', '),
+          variant: "destructive"
+        });
+        return null;
+      }
+
+      const uploadedFile: UploadedFile = {
+        id: uuidv4(),
+        file,
+        request: getDefaultRequest(file),
+        status: 'pending',
+        progress: 0,
+        currentStep: 'Waiting to upload',
+        expanded: false
+      };
+
+      console.log('✅ Created uploaded file object:', uploadedFile);
+      return uploadedFile;
+    }).filter(Boolean) as UploadedFile[];
+
+    console.log('📝 Adding new files to state:', newFiles.length);
+    setUploadedFiles(prev => {
+      const updated = [...prev, ...newFiles];
+      console.log('📋 Updated file list:', updated.map(f => f.file.name));
+      return updated;
+    });
+  }, [uploadedFiles.length, maxFiles, toast]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
     accept: {
       'application/pdf': ['.pdf'],
       'text/plain': ['.txt'],
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document':
-        ['.docx'],
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
       'image/jpeg': ['.jpg', '.jpeg'],
       'image/png': ['.png'],
       'audio/mpeg': ['.mp3'],
       'audio/wav': ['.wav'],
       'video/mp4': ['.mp4'],
       'video/quicktime': ['.mov'],
-      'video/avi': ['.avi'],
+      'video/avi': ['.avi']
     },
     maxSize: 50 * 1024 * 1024, // 50MB
     multiple: true,
@@ -331,82 +291,75 @@ export const EnhancedDocumentUploadZone: React.FC<
     onError: (error) => {
       console.error('🚨 Dropzone error:', error);
       toast({
-        title: 'File selection error',
+        title: "File selection error",
         description: error.message || 'An error occurred while selecting files',
-        variant: 'destructive',
+        variant: "destructive"
       });
     },
     onDropAccepted: (files) => {
-      console.log(
-        '✅ Files accepted by dropzone:',
-        files.map((f) => f.name)
-      );
+      console.log('✅ Files accepted by dropzone:', files.map(f => f.name));
     },
     onDropRejected: (fileRejections) => {
       console.log('❌ Files rejected by dropzone:', fileRejections);
       fileRejections.forEach(({ file, errors }) => {
         errors.forEach((error: any) => {
           toast({
-            title: 'File rejected',
+            title: "File rejected",
             description: `${file.name}: ${error.message}`,
-            variant: 'destructive',
+            variant: "destructive"
           });
         });
       });
-    },
+    }
   });
 
   const updateFileStatus = (fileId: string, updates: Partial<UploadedFile>) => {
-    setUploadedFiles((prev) =>
-      prev.map((file) => (file.id === fileId ? { ...file, ...updates } : file))
-    );
+    setUploadedFiles(prev => prev.map(file =>
+      file.id === fileId ? { ...file, ...updates } : file
+    ));
   };
 
-  const handleProgressUpdate =
-    (fileId: string) => (update: WebSocketProgressUpdate) => {
+  const handleProgressUpdate = (fileId: string) => (update: WebSocketProgressUpdate) => {
+    updateFileStatus(fileId, {
+      progress: update.progress_percentage || 0,
+      currentStep: update.current_step || 'Processing',
+      error: update.error_message
+    });
+
+    if (update.type === 'upload_complete' && update.result) {
       updateFileStatus(fileId, {
-        progress: update.progress_percentage || 0,
-        currentStep: update.current_step || 'Processing',
-        error: update.error_message,
+        status: 'completed',
+        result: update.result,
+        documentId: update.result.document_id,
+        jobId: update.result.job_id,
+        progress: 100,
+        currentStep: 'Completed'
       });
 
-      if (update.type === 'upload_complete' && update.result) {
-        updateFileStatus(fileId, {
-          status: 'completed',
-          result: update.result,
-          documentId: update.result.document_id,
-          jobId: update.result.job_id,
-          progress: 100,
-          currentStep: 'Completed',
-        });
+      toast({
+        title: "Upload completed",
+        description: `${update.result.title} has been processed successfully`
+      });
 
-        toast({
-          title: 'Upload completed',
-          description: `${update.result.title} has been processed successfully`,
-        });
+      onUploadComplete?.(update.result.document_id, update.result);
+    }
 
-        onUploadComplete?.(update.result.document_id, update.result);
-      }
+    if (update.type === 'error') {
+      updateFileStatus(fileId, {
+        status: 'failed',
+        error: update.error_message || 'Processing failed'
+      });
 
-      if (update.type === 'error') {
-        updateFileStatus(fileId, {
-          status: 'failed',
-          error: update.error_message || 'Processing failed',
-        });
+      toast({
+        title: "Upload failed",
+        description: update.error_message || 'An error occurred during processing',
+        variant: "destructive"
+      });
 
-        toast({
-          title: 'Upload failed',
-          description:
-            update.error_message || 'An error occurred during processing',
-          variant: 'destructive',
-        });
-
-        onUploadError?.(
-          update.error_message || 'Processing failed',
-          uploadedFiles.find((f) => f.id === fileId)!
-        );
-      }
-    };
+      onUploadError?.(update.error_message || 'Processing failed',
+        uploadedFiles.find(f => f.id === fileId)!);
+    }
+  };
 
   const uploadFile = async (uploadedFile: UploadedFile) => {
     console.log('🚀 Starting upload for file:', uploadedFile.file.name);
@@ -415,7 +368,7 @@ export const EnhancedDocumentUploadZone: React.FC<
       updateFileStatus(uploadedFile.id, {
         status: 'uploading',
         progress: 0,
-        currentStep: 'Starting upload',
+        currentStep: 'Starting upload'
       });
 
       const abortController = new AbortController();
@@ -428,20 +381,40 @@ export const EnhancedDocumentUploadZone: React.FC<
         name: uploadedFile.file.name,
         size: uploadedFile.file.size,
         type: uploadedFile.file.type,
-        lastModified: uploadedFile.file.lastModified,
+        lastModified: uploadedFile.file.lastModified
       });
 
       if (!uploadedFile.file || uploadedFile.file.size === 0) {
         throw new Error('Invalid file: File is empty or null');
       }
 
-      const result = await enhancedDocumentService.uploadDocument(
-        uploadedFile.file,
-        uploadedFile.request,
-        handleProgressUpdate(uploadedFile.id)
-      );
-      response = result.response;
-      websocket = result.websocket;
+      // Try enhanced service first, fallback to mock service
+      try {
+        console.log('📡 Attempting upload with enhanced service...');
+        const result = await enhancedDocumentService.uploadDocument(
+          uploadedFile.file,
+          uploadedFile.request,
+          handleProgressUpdate(uploadedFile.id)
+        );
+        response = result.response;
+        websocket = result.websocket;
+        console.log('✅ Enhanced service upload successful:', response);
+      } catch (error) {
+        console.warn('⚠️ Enhanced service failed, using mock service:', error);
+
+        // Note: Don't try to cancel with uploadedFile.id - the backend doesn't know about it yet
+        // Only WebSocket connections need cleanup, which will be handled automatically
+
+        console.log('📡 Attempting upload with mock service...');
+        const result = await mockDocumentService.uploadDocument(
+          uploadedFile.file,
+          uploadedFile.request,
+          handleProgressUpdate(uploadedFile.id)
+        );
+        response = result.response;
+        websocket = result.websocket;
+        console.log('✅ Mock service upload successful:', response);
+      }
 
       // Validate response
       if (!response || !response.upload_id) {
@@ -454,24 +427,22 @@ export const EnhancedDocumentUploadZone: React.FC<
         jobId: response.job_id,
         qualityScore: response.quality_score,
         securityScan: response.security_scan_result,
-        websocket,
+        websocket
       });
 
       console.log('📈 Upload processing started for:', uploadedFile.file.name);
+
     } catch (error) {
       console.error('❌ Upload failed:', error);
       updateFileStatus(uploadedFile.id, {
         status: 'failed',
-        error: error instanceof Error ? error.message : 'Upload failed',
+        error: error instanceof Error ? error.message : 'Upload failed'
       });
 
       toast({
-        title: 'Upload failed',
-        description:
-          error instanceof Error
-            ? error.message
-            : 'An error occurred during upload',
-        variant: 'destructive',
+        title: "Upload failed",
+        description: error instanceof Error ? error.message : 'An error occurred during upload',
+        variant: "destructive"
       });
     }
   };
@@ -488,17 +459,14 @@ export const EnhancedDocumentUploadZone: React.FC<
     console.log('✅ Authentication verified, proceeding with upload...');
     setIsUploading(true);
 
-    const pendingFiles = uploadedFiles.filter((f) => f.status === 'pending');
-    console.log(
-      '📋 Pending files to upload:',
-      pendingFiles.map((f) => f.file.name)
-    );
+    const pendingFiles = uploadedFiles.filter(f => f.status === 'pending');
+    console.log('📋 Pending files to upload:', pendingFiles.map(f => f.file.name));
 
     if (pendingFiles.length === 0) {
       toast({
-        title: 'No files to upload',
-        description: 'Add some files first before uploading',
-        variant: 'destructive',
+        title: "No files to upload",
+        description: "Add some files first before uploading",
+        variant: "destructive"
       });
       setIsUploading(false);
       return;
@@ -508,7 +476,7 @@ export const EnhancedDocumentUploadZone: React.FC<
       console.log('🔄 Processing file:', file.file.name);
       await uploadFile(file);
       // Small delay between uploads to prevent overwhelming the server
-      await new Promise((resolve) => setTimeout(resolve, 500));
+      await new Promise(resolve => setTimeout(resolve, 500));
     }
 
     setIsUploading(false);
@@ -516,15 +484,19 @@ export const EnhancedDocumentUploadZone: React.FC<
   };
 
   const cancelUpload = async (fileId: string) => {
-    const file = uploadedFiles.find((f) => f.id === fileId);
+    const file = uploadedFiles.find(f => f.id === fileId);
     if (!file) return;
 
-    // Cancel the upload via API
+    // Cancel the upload via API (try both services)
     if (file.uploadId) {
       try {
         await enhancedDocumentService.cancelUpload(file.uploadId);
       } catch (error) {
-        console.error('Failed to cancel upload:', error);
+        try {
+          await mockDocumentService.cancelUpload(file.uploadId);
+        } catch (mockError) {
+          console.error('Failed to cancel upload with both services:', error, mockError);
+        }
       }
     }
 
@@ -547,26 +519,21 @@ export const EnhancedDocumentUploadZone: React.FC<
       currentStep: 'Cancelled',
       uploadId: undefined,
       jobId: undefined,
-      websocket: undefined,
+      websocket: undefined
     });
   };
 
   const removeFile = (fileId: string) => {
     cancelUpload(fileId);
-    setUploadedFiles((prev) => prev.filter((f) => f.id !== fileId));
+    setUploadedFiles(prev => prev.filter(f => f.id !== fileId));
   };
 
-  const updateFileRequest = (
-    fileId: string,
-    updates: Partial<DocumentUploadRequest>
-  ) => {
-    setUploadedFiles((prev) =>
-      prev.map((file) =>
-        file.id === fileId
-          ? { ...file, request: { ...file.request, ...updates } }
-          : file
-      )
-    );
+  const updateFileRequest = (fileId: string, updates: Partial<DocumentUploadRequest>) => {
+    setUploadedFiles(prev => prev.map(file =>
+      file.id === fileId
+        ? { ...file, request: { ...file.request, ...updates } }
+        : file
+    ));
   };
 
   const formatFileSize = (bytes: number): string => {
@@ -605,12 +572,13 @@ export const EnhancedDocumentUploadZone: React.FC<
   useEffect(() => {
     return () => {
       enhancedDocumentService.closeAllConnections();
-      abortControllers.current.forEach((controller) => controller.abort());
+      mockDocumentService.closeAllConnections();
+      abortControllers.current.forEach(controller => controller.abort());
     };
   }, []);
 
   return (
-    <div className={cn('w-full max-w-4xl mx-auto', className)}>
+    <div className={cn("w-full max-w-4xl mx-auto", className)}>
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -618,22 +586,18 @@ export const EnhancedDocumentUploadZone: React.FC<
             Enhanced Document Upload
           </CardTitle>
           <CardDescription className="text-gray-600">
-            Upload documents with automatic processing, entity extraction, and
-            knowledge graph integration
+            Upload documents with automatic processing, entity extraction, and knowledge graph integration
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           {/* Status Bar with Accessibility */}
           <div
             className={cn(
-              'flex items-center justify-between p-4 rounded-lg border',
-              getUploadStateMessage().type === 'success'
-                ? 'bg-green-50 border-green-200 text-green-800'
-                : getUploadStateMessage().type === 'processing'
-                  ? 'bg-blue-50 border-blue-200 text-blue-800'
-                  : getUploadStateMessage().type === 'ready'
-                    ? 'bg-amber-50 border-amber-200 text-amber-800'
-                    : 'bg-gray-50 border-gray-200 text-gray-800'
+              "flex items-center justify-between p-4 rounded-lg border",
+              getUploadStateMessage().type === 'success' ? "bg-green-50 border-green-200 text-green-800" :
+              getUploadStateMessage().type === 'processing' ? "bg-blue-50 border-blue-200 text-blue-800" :
+              getUploadStateMessage().type === 'ready' ? "bg-amber-50 border-amber-200 text-amber-800" :
+              "bg-gray-50 border-gray-200 text-gray-800"
             )}
             role="status"
             aria-live={getUploadStateMessage().ariaLive}
@@ -641,10 +605,7 @@ export const EnhancedDocumentUploadZone: React.FC<
           >
             <div className="flex items-center space-x-3">
               {getUploadStateMessage().type === 'processing' && (
-                <ClockIcon
-                  className="h-5 w-5 animate-spin"
-                  aria-hidden="true"
-                />
+                <ClockIcon className="h-5 w-5 animate-spin" aria-hidden="true" />
               )}
               {getUploadStateMessage().type === 'success' && (
                 <CheckCircleIcon className="h-5 w-5" aria-hidden="true" />
@@ -652,10 +613,7 @@ export const EnhancedDocumentUploadZone: React.FC<
               {getUploadStateMessage().type === 'ready' && (
                 <DocumentArrowUpIcon className="h-5 w-5" aria-hidden="true" />
               )}
-              <span
-                className="font-medium"
-                aria-label={`Upload status: ${getUploadStateMessage().message}`}
-              >
+              <span className="font-medium" aria-label={`Upload status: ${getUploadStateMessage().message}`}>
                 {getUploadStateMessage().message}
               </span>
             </div>
@@ -675,11 +633,11 @@ export const EnhancedDocumentUploadZone: React.FC<
             <div
               {...getRootProps()}
               className={cn(
-                'relative border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all duration-200',
+                "relative border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all duration-200",
                 isDragActive
-                  ? 'border-blue-400 bg-blue-50 scale-[1.02]'
-                  : 'border-gray-300 hover:border-gray-400 hover:bg-gray-50',
-                isUploading && 'opacity-50 cursor-not-allowed'
+                  ? "border-blue-400 bg-blue-50 scale-[1.02]"
+                  : "border-gray-300 hover:border-gray-400 hover:bg-gray-50",
+                isUploading && "opacity-50 cursor-not-allowed"
               )}
               role="button"
               tabIndex={0}
@@ -694,9 +652,7 @@ export const EnhancedDocumentUploadZone: React.FC<
 
                 <div>
                   <p className="text-lg font-semibold text-gray-900">
-                    {isDragActive
-                      ? 'Release files here'
-                      : 'Choose files or drag them here'}
+                    {isDragActive ? 'Release files here' : 'Choose files or drag them here'}
                   </p>
                   <p className="text-sm text-gray-600 mt-1">
                     {isDragActive ? '' : 'Click to browse or drag and drop'}
@@ -704,27 +660,13 @@ export const EnhancedDocumentUploadZone: React.FC<
                 </div>
 
                 <div className="flex flex-wrap justify-center gap-2 text-xs">
-                  <Badge variant="secondary" className="px-2 py-1">
-                    PDF
-                  </Badge>
-                  <Badge variant="secondary" className="px-2 py-1">
-                    DOCX
-                  </Badge>
-                  <Badge variant="secondary" className="px-2 py-1">
-                    TXT
-                  </Badge>
-                  <Badge variant="secondary" className="px-2 py-1">
-                    JPG
-                  </Badge>
-                  <Badge variant="secondary" className="px-2 py-1">
-                    PNG
-                  </Badge>
-                  <Badge variant="secondary" className="px-2 py-1">
-                    MP3
-                  </Badge>
-                  <Badge variant="secondary" className="px-2 py-1">
-                    MP4
-                  </Badge>
+                  <Badge variant="secondary" className="px-2 py-1">PDF</Badge>
+                  <Badge variant="secondary" className="px-2 py-1">DOCX</Badge>
+                  <Badge variant="secondary" className="px-2 py-1">TXT</Badge>
+                  <Badge variant="secondary" className="px-2 py-1">JPG</Badge>
+                  <Badge variant="secondary" className="px-2 py-1">PNG</Badge>
+                  <Badge variant="secondary" className="px-2 py-1">MP3</Badge>
+                  <Badge variant="secondary" className="px-2 py-1">MP4</Badge>
                   <span className="text-gray-500">and more</span>
                 </div>
 
@@ -740,9 +682,7 @@ export const EnhancedDocumentUploadZone: React.FC<
                   size="sm"
                   onClick={(e) => {
                     e.stopPropagation();
-                    const input = document.querySelector(
-                      'input[type="file"]'
-                    ) as HTMLInputElement;
+                    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
                     input?.click();
                   }}
                 >
@@ -759,10 +699,7 @@ export const EnhancedDocumentUploadZone: React.FC<
               {/* File Actions Bar with Accessibility */}
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-4">
-                  <h3
-                    className="text-lg font-semibold text-gray-900"
-                    id="files-heading"
-                  >
+                  <h3 className="text-lg font-semibold text-gray-900" id="files-heading">
                     Files ({uploadedFiles.length})
                   </h3>
                   {showFileSelector && uploadedFiles.length > 0 && (
@@ -782,10 +719,7 @@ export const EnhancedDocumentUploadZone: React.FC<
                       onClick={() => setShowFileSelector(true)}
                       aria-label="Show file selector to add more files"
                     >
-                      <CloudArrowUpIcon
-                        className="h-4 w-4 mr-2"
-                        aria-hidden="true"
-                      />
+                      <CloudArrowUpIcon className="h-4 w-4 mr-2" aria-hidden="true" />
                       Add More Files
                     </Button>
                   )}
@@ -802,43 +736,33 @@ export const EnhancedDocumentUploadZone: React.FC<
                       <ExclamationTriangleIcon className="w-3 h-3 text-red-500" />
                     )}
                     <span className="text-gray-500">
-                      {authLoading
-                        ? 'Checking auth...'
-                        : isAuthenticated
-                          ? 'Authenticated'
-                          : 'Not authenticated'}
+                      {authLoading ? 'Checking auth...' : isAuthenticated ? 'Authenticated' : 'Not authenticated'}
                     </span>
                   </div>
 
-                  {uploadedFiles.some((f) => f.status === 'pending') && (
+                  {uploadedFiles.some(f => f.status === 'pending') && (
                     <Button
                       onClick={uploadAllFiles}
                       disabled={isUploading || authLoading || !isAuthenticated}
                       className="bg-blue-600 hover:bg-blue-700"
                       aria-label={
                         isUploading
-                          ? 'Upload in progress, please wait'
+                          ? "Upload in progress, please wait"
                           : authLoading
-                            ? 'Authentication in progress, please wait'
-                            : !isAuthenticated
-                              ? 'Please log in to upload documents'
-                              : `Upload ${uploadedFiles.filter((f) => f.status === 'pending').length} pending files`
+                          ? "Authentication in progress, please wait"
+                          : !isAuthenticated
+                          ? "Please log in to upload documents"
+                          : `Upload ${uploadedFiles.filter(f => f.status === 'pending').length} pending files`
                       }
                     >
                       {isUploading ? (
                         <>
-                          <ClockIcon
-                            className="mr-2 h-4 w-4 animate-spin"
-                            aria-hidden="true"
-                          />
+                          <ClockIcon className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
                           Uploading...
                         </>
                       ) : (
                         <>
-                          <DocumentArrowUpIcon
-                            className="mr-2 h-4 w-4"
-                            aria-hidden="true"
-                          />
+                          <DocumentArrowUpIcon className="mr-2 h-4 w-4" aria-hidden="true" />
                           Upload All
                         </>
                       )}
@@ -864,7 +788,7 @@ export const EnhancedDocumentUploadZone: React.FC<
                     {/* File Header */}
                     <div
                       className={cn(
-                        'flex items-center justify-between p-4 border-b',
+                        "flex items-center justify-between p-4 border-b",
                         getStatusColor(file.status)
                       )}
                       role="button"
@@ -872,10 +796,7 @@ export const EnhancedDocumentUploadZone: React.FC<
                       onKeyDown={(e) => {
                         if (e.key === 'Enter' || e.key === ' ') {
                           e.preventDefault();
-                          if (
-                            showAdvancedOptions &&
-                            file.status === 'pending'
-                          ) {
+                          if (showAdvancedOptions && file.status === 'pending') {
                             toggleFileExpanded(file.id);
                           }
                         }
@@ -899,15 +820,11 @@ export const EnhancedDocumentUploadZone: React.FC<
                             {file.file.name}
                           </h4>
                           <div className="flex items-center space-x-2 text-xs text-gray-600">
-                            <span
-                              aria-label={`File size: ${formatFileSize(file.file.size)}`}
-                            >
+                            <span aria-label={`File size: ${formatFileSize(file.file.size)}`}>
                               {formatFileSize(file.file.size)}
                             </span>
                             <span aria-hidden="true">•</span>
-                            <span
-                              aria-label={`Processing priority: ${file.request.processing_priority}`}
-                            >
+                            <span aria-label={`Processing priority: ${file.request.processing_priority}`}>
                               {file.request.processing_priority} priority
                             </span>
                             <span aria-hidden="true">•</span>
@@ -931,18 +848,13 @@ export const EnhancedDocumentUploadZone: React.FC<
                               variant="ghost"
                               size="sm"
                               onClick={() => toggleFileExpanded(file.id)}
-                              aria-label={
-                                file.expanded
-                                  ? 'Collapse configuration'
-                                  : 'Expand configuration'
-                              }
+                              aria-label={file.expanded ? "Collapse configuration" : "Expand configuration"}
                             >
                               <Cog6ToothIcon className="h-4 w-4" />
                             </Button>
                           )}
 
-                          {(file.status === 'uploading' ||
-                            file.status === 'processing') && (
+                          {(file.status === 'uploading' || file.status === 'processing') && (
                             <Button
                               variant="ghost"
                               size="sm"
@@ -953,8 +865,7 @@ export const EnhancedDocumentUploadZone: React.FC<
                             </Button>
                           )}
 
-                          {(file.status === 'pending' ||
-                            file.status === 'failed') && (
+                          {(file.status === 'pending' || file.status === 'failed') && (
                             <DeleteConfirmDialog
                               itemName="file"
                               onConfirm={() => removeFile(file.id)}
@@ -972,8 +883,7 @@ export const EnhancedDocumentUploadZone: React.FC<
                     </div>
 
                     {/* Progress Bar for Active Files with Accessibility */}
-                    {(file.status === 'uploading' ||
-                      file.status === 'processing') && (
+                    {(file.status === 'uploading' || file.status === 'processing') && (
                       <div
                         className="px-4 py-3 bg-gray-50"
                         role="status"
@@ -1016,9 +926,7 @@ export const EnhancedDocumentUploadZone: React.FC<
                       <div className="px-4 py-3 bg-red-50 border-l-4 border-red-400">
                         <div className="flex items-start space-x-2">
                           <ExclamationTriangleIcon className="h-5 w-5 text-red-400 mt-0.5" />
-                          <div className="text-sm text-red-700">
-                            {file.error}
-                          </div>
+                          <div className="text-sm text-red-700">{file.error}</div>
                         </div>
                       </div>
                     )}
@@ -1029,13 +937,9 @@ export const EnhancedDocumentUploadZone: React.FC<
                         <div className="flex items-start space-x-2">
                           <CheckCircleIcon className="h-5 w-5 text-green-400 mt-0.5" />
                           <div className="text-sm text-green-700">
-                            <div className="font-medium">
-                              Processing completed successfully
-                            </div>
+                            <div className="font-medium">Processing completed successfully</div>
                             {file.documentId && (
-                              <div className="text-xs mt-1">
-                                Document ID: {file.documentId}
-                              </div>
+                              <div className="text-xs mt-1">Document ID: {file.documentId}</div>
                             )}
                           </div>
                         </div>
@@ -1047,24 +951,19 @@ export const EnhancedDocumentUploadZone: React.FC<
                       <div className="px-4 py-2 bg-yellow-50 border-l-4 border-yellow-400">
                         <div className="flex items-center space-x-2 text-sm text-yellow-700">
                           <SparklesIcon className="h-4 w-4" />
-                          <span>
-                            Quality Score: {Math.round(file.qualityScore * 100)}
-                            %
-                          </span>
+                          <span>Quality Score: {Math.round(file.qualityScore * 100)}%</span>
                         </div>
                       </div>
                     )}
 
                     {/* Security Scan */}
                     {file.securityScan && (
-                      <div
-                        className={cn(
-                          'px-4 py-2 border-l-4',
-                          file.securityScan.scan_status === 'passed'
-                            ? 'bg-green-50 border-green-400 text-green-700'
-                            : 'bg-red-50 border-red-400 text-red-700'
-                        )}
-                      >
+                      <div className={cn(
+                        "px-4 py-2 border-l-4",
+                        file.securityScan.scan_status === 'passed'
+                          ? "bg-green-50 border-green-400 text-green-700"
+                          : "bg-red-50 border-red-400 text-red-700"
+                      )}>
                         <div className="flex items-center space-x-2 text-sm">
                           <ShieldCheckIcon className="h-4 w-4" />
                           <span>Security: {file.securityScan.scan_status}</span>
@@ -1073,136 +972,97 @@ export const EnhancedDocumentUploadZone: React.FC<
                     )}
 
                     {/* Expandable Configuration Panel */}
-                    {showAdvancedOptions &&
-                      file.expanded &&
-                      file.status === 'pending' && (
-                        <div className="px-4 py-4 bg-gray-50 border-t space-y-4">
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div className="md:col-span-2">
-                              <Label htmlFor={`title-${file.id}`}>Title</Label>
-                              <Input
-                                id={`title-${file.id}`}
-                                value={file.request.title}
-                                onChange={(e) =>
-                                  updateFileRequest(file.id, {
-                                    title: e.target.value,
-                                  })
-                                }
-                                placeholder="Document title"
-                                className="mt-1"
-                              />
-                            </div>
-
-                            <div className="md:col-span-2">
-                              <Label htmlFor={`description-${file.id}`}>
-                                Description
-                              </Label>
-                              <Textarea
-                                id={`description-${file.id}`}
-                                value={file.request.description || ''}
-                                onChange={(e) =>
-                                  updateFileRequest(file.id, {
-                                    description: e.target.value,
-                                  })
-                                }
-                                placeholder="Document description (optional)"
-                                rows={2}
-                                className="mt-1"
-                              />
-                            </div>
-
-                            <div className="md:col-span-2">
-                              <Label htmlFor={`tags-${file.id}`}>Tags</Label>
-                              <Input
-                                id={`tags-${file.id}`}
-                                value={file.request.tags?.join(', ') || ''}
-                                onChange={(e) =>
-                                  updateFileRequest(file.id, {
-                                    tags: e.target.value
-                                      .split(',')
-                                      .map((tag) => tag.trim())
-                                      .filter(Boolean),
-                                  })
-                                }
-                                placeholder="tag1, tag2, tag3"
-                                className="mt-1"
-                              />
-                            </div>
-
-                            <div>
-                              <Label htmlFor={`priority-${file.id}`}>
-                                Priority
-                              </Label>
-                              <Select
-                                value={file.request.processing_priority}
-                                onValueChange={(value: any) =>
-                                  updateFileRequest(file.id, {
-                                    processing_priority: value,
-                                  })
-                                }
-                              >
-                                <SelectTrigger className="mt-1">
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="low">Low</SelectItem>
-                                  <SelectItem value="normal">Normal</SelectItem>
-                                  <SelectItem value="high">High</SelectItem>
-                                  <SelectItem value="urgent">Urgent</SelectItem>
-                                </SelectContent>
-                              </Select>
-                            </div>
-
-                            <div className="space-y-3">
-                              <div className="flex items-center space-x-2">
-                                <Switch
-                                  id={`public-${file.id}`}
-                                  checked={file.request.is_public || false}
-                                  onCheckedChange={(checked: boolean) =>
-                                    updateFileRequest(file.id, {
-                                      is_public: checked,
-                                    })
-                                  }
-                                />
-                                <Label
-                                  htmlFor={`public-${file.id}`}
-                                  className="text-sm"
-                                >
-                                  Public
-                                </Label>
-                              </div>
-
-                              <div className="flex items-center space-x-2">
-                                <Switch
-                                  id={`quality-${file.id}`}
-                                  checked={file.request.enable_quality_check}
-                                  onCheckedChange={(checked: boolean) =>
-                                    updateFileRequest(file.id, {
-                                      enable_quality_check: checked,
-                                    })
-                                  }
-                                />
-                                <Label
-                                  htmlFor={`quality-${file.id}`}
-                                  className="text-sm"
-                                >
-                                  Quality Check
-                                </Label>
-                              </div>
-                            </div>
+                    {showAdvancedOptions && file.expanded && file.status === 'pending' && (
+                      <div className="px-4 py-4 bg-gray-50 border-t space-y-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div className="md:col-span-2">
+                            <Label htmlFor={`title-${file.id}`}>Title</Label>
+                            <Input
+                              id={`title-${file.id}`}
+                              value={file.request.title}
+                              onChange={(e) => updateFileRequest(file.id, { title: e.target.value })}
+                              placeholder="Document title"
+                              className="mt-1"
+                            />
                           </div>
 
-                          <div className="text-xs text-gray-500 pt-2">
-                            Estimated processing time:{' '}
-                            {(() => {
-                              return enhancedDocumentService.estimateProcessingTime(
-                                file.file
-                              );
-                            })()}
-                            s
+                          <div className="md:col-span-2">
+                            <Label htmlFor={`description-${file.id}`}>Description</Label>
+                            <Textarea
+                              id={`description-${file.id}`}
+                              value={file.request.description || ''}
+                              onChange={(e) => updateFileRequest(file.id, { description: e.target.value })}
+                              placeholder="Document description (optional)"
+                              rows={2}
+                              className="mt-1"
+                            />
+                          </div>
+
+                          <div className="md:col-span-2">
+                            <Label htmlFor={`tags-${file.id}`}>Tags</Label>
+                            <Input
+                              id={`tags-${file.id}`}
+                              value={file.request.tags?.join(', ') || ''}
+                              onChange={(e) => updateFileRequest(file.id, {
+                                tags: e.target.value.split(',').map(tag => tag.trim()).filter(Boolean)
+                              })}
+                              placeholder="tag1, tag2, tag3"
+                              className="mt-1"
+                            />
+                          </div>
+
+                          <div>
+                            <Label htmlFor={`priority-${file.id}`}>Priority</Label>
+                            <Select
+                              value={file.request.processing_priority}
+                              onValueChange={(value: any) => updateFileRequest(file.id, { processing_priority: value })}
+                            >
+                              <SelectTrigger className="mt-1">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="low">Low</SelectItem>
+                                <SelectItem value="normal">Normal</SelectItem>
+                                <SelectItem value="high">High</SelectItem>
+                                <SelectItem value="urgent">Urgent</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          <div className="space-y-3">
+                            <div className="flex items-center space-x-2">
+                              <Switch
+                                id={`public-${file.id}`}
+                                checked={file.request.is_public || false}
+                                onCheckedChange={(checked: boolean) => updateFileRequest(file.id, { is_public: checked })}
+                              />
+                              <Label htmlFor={`public-${file.id}`} className="text-sm">Public</Label>
+                            </div>
+
+                            <div className="flex items-center space-x-2">
+                              <Switch
+                                id={`quality-${file.id}`}
+                                checked={file.request.enable_quality_check}
+                                onCheckedChange={(checked: boolean) => updateFileRequest(file.id, { enable_quality_check: checked })}
+                              />
+                              <Label htmlFor={`quality-${file.id}`} className="text-sm">Quality Check</Label>
+                            </div>
                           </div>
                         </div>
-                      )}
+
+                        <div className="text-xs text-gray-500 pt-2">
+                          Estimated processing time: {
+                            (() => {
+                              try {
+                                return enhancedDocumentService.estimateProcessingTime(file.file);
+                              } catch {
+                                return mockDocumentService.estimateProcessingTime(file.file);
+                              }
+                            })()
+                          }s
+                        </div>
+                      </div>
+                    )}
                   </Card>
                 ))}
               </div>

@@ -1,3 +1,4 @@
+
 /**
  * Enhanced Document Service
  * Integrates with the advanced document upload API with real-time progress tracking,
@@ -77,16 +78,6 @@ export interface UploadProgressResponse {
   error_message?: string;
 }
 
-export interface DocumentProcessingStatusResponse {
-  document_id: string;
-  processing_status: string;
-  progress_percentage: number;
-  current_step?: string;
-  processing_started_at?: string;
-  estimated_completion?: string;
-  error_message?: string;
-}
-
 export interface ProcessingJobStatus {
   job_id: string;
   document_id: string;
@@ -146,11 +137,8 @@ export interface WebSocketProgressUpdate {
 }
 
 export class EnhancedDocumentService {
-  private readonly basePath = '/api/v1/files'; // Using v1 API for now
+  private readonly basePath = '/api/v1/files';  // Using v1 API for now
   private websocketConnections: Map<string, WebSocket> = new Map();
-  private statusPollers: Map<string, ReturnType<typeof setTimeout>> = new Map();
-  private readonly statusPollIntervalMs = 2000;
-  private readonly maxStatusPollAttempts = 60;
 
   /**
    * Upload a single document with enhanced processing
@@ -167,71 +155,27 @@ export class EnhancedDocumentService {
 
     // Add form fields
     formData.append('title', request.title);
-    if (request.description)
-      formData.append('description', request.description);
+    if (request.description) formData.append('description', request.description);
     if (request.tags) formData.append('tags', request.tags.join(','));
-    if (request.is_public !== undefined)
-      formData.append('is_public', request.is_public.toString());
+    if (request.is_public !== undefined) formData.append('is_public', request.is_public.toString());
 
     // Ensure processing_priority is always sent (backend requires it)
-    formData.append(
-      'processing_priority',
-      request.processing_priority || 'normal'
-    );
+    formData.append('processing_priority', request.processing_priority || 'normal');
 
-    if (request.enable_quality_check !== undefined)
-      formData.append(
-        'enable_quality_check',
-        request.enable_quality_check.toString()
-      );
-    if (request.custom_metadata)
-      formData.append(
-        'custom_metadata',
-        JSON.stringify(request.custom_metadata)
-      );
+    if (request.enable_quality_check !== undefined) formData.append('enable_quality_check', request.enable_quality_check.toString());
+    if (request.custom_metadata) formData.append('custom_metadata', JSON.stringify(request.custom_metadata));
 
     // Make the upload request using the correct v1 endpoint
     // DON'T set Content-Type header manually - Axios will set it correctly for FormData
-    const response = await apiClient.post<DocumentUploadResponse>(
-      '/files/upload',
-      formData
-    );
+    const response = await apiClient.post<DocumentUploadResponse>('/files/upload', formData);
 
     // Note: WebSocket progress tracking not yet implemented in backend
     // Return null websocket for now
     // TODO: Implement WebSocket progress tracking when backend supports it
 
-    if (onProgress) {
-      if (this.isTerminalProcessingStatus(response.processing_status)) {
-        onProgress({
-          type:
-            response.processing_status === 'failed'
-              ? 'error'
-              : 'upload_complete',
-          upload_id: response.upload_id,
-          error_message:
-            response.processing_status === 'failed'
-              ? response.message
-              : undefined,
-          result:
-            response.processing_status === 'failed'
-              ? undefined
-              : {
-                  document_id: response.document_id,
-                  job_id: response.job_id,
-                  title: response.title,
-                  status: response.processing_status,
-                },
-          timestamp: new Date().toISOString(),
-        });
-      } else {
-        void this.pollDocumentStatus(response, onProgress);
-      }
-    }
-
     return {
       response: response,
-      websocket: null as any, // Placeholder until WebSocket is implemented
+      websocket: null as any // Placeholder until WebSocket is implemented
     };
   }
 
@@ -243,9 +187,7 @@ export class EnhancedDocumentService {
     onProgress?: (update: WebSocketProgressUpdate) => void
   ): Promise<WebSocket> {
     return new Promise((resolve, reject) => {
-      const wsUrl = this.getWebSocketUrl(
-        `/api/v2/documents/upload/progress/${uploadId}/ws`
-      );
+      const wsUrl = this.getWebSocketUrl(`/api/v2/documents/upload/progress/${uploadId}/ws`);
       const websocket = new WebSocket(wsUrl);
 
       websocket.onopen = () => {
@@ -282,9 +224,7 @@ export class EnhancedDocumentService {
    * Get upload progress via HTTP (fallback)
    * Note: v1 API doesn't have progress tracking, so we'll use the document status endpoint
    */
-  async getUploadProgress(
-    uploadId: string
-  ): Promise<APIResponse<UploadProgressResponse>> {
+  async getUploadProgress(uploadId: string): Promise<APIResponse<UploadProgressResponse>> {
     // For v1 API, we need to get document status instead of upload progress
     // This is a limitation of the v1 API
     return apiClient.get(`/documents/status`);
@@ -293,11 +233,7 @@ export class EnhancedDocumentService {
   /**
    * Cancel an ongoing upload
    */
-  async cancelUpload(
-    uploadId: string
-  ): Promise<APIResponse<{ message: string }>> {
-    this.clearStatusPolling(uploadId);
-
+  async cancelUpload(uploadId: string): Promise<APIResponse<{ message: string }>> {
     // Close WebSocket connection if exists
     const websocket = this.websocketConnections.get(uploadId);
     if (websocket) {
@@ -311,69 +247,57 @@ export class EnhancedDocumentService {
   /**
    * Get comprehensive quality assessment for a document
    */
-  async getDocumentQuality(
-    documentId: string
-  ): Promise<APIResponse<QualityAssessmentResponse>> {
+  async getDocumentQuality(documentId: string): Promise<APIResponse<QualityAssessmentResponse>> {
     return apiClient.get(`${this.basePath}/${documentId}/quality`);
   }
 
   /**
    * Rescan document for security threats
    */
-  async rescanDocumentSecurity(documentId: string): Promise<
-    APIResponse<{
-      message: string;
-      document_id: string;
-      scan_result: SecurityScanResult;
-      scanned_at: string;
-    }>
-  > {
+  async rescanDocumentSecurity(documentId: string): Promise<APIResponse<{
+    message: string;
+    document_id: string;
+    scan_result: SecurityScanResult;
+    scanned_at: string;
+  }>> {
     return apiClient.post(`${this.basePath}/${documentId}/rescan`);
   }
 
   /**
    * Get processing job status with detailed results
    */
-  async getProcessingJobStatus(
-    jobId: string
-  ): Promise<APIResponse<ProcessingJobStatus>> {
+  async getProcessingJobStatus(jobId: string): Promise<APIResponse<ProcessingJobStatus>> {
     return apiClient.get(`/processing/jobs/${jobId}`);
   }
 
   /**
    * Get extracted entities and relationships for a document
    */
-  async getDocumentEntities(
-    documentId: string
-  ): Promise<APIResponse<EntityExtractionResult>> {
+  async getDocumentEntities(documentId: string): Promise<APIResponse<EntityExtractionResult>> {
     return apiClient.get(`/documents/${documentId}/entities`);
   }
 
   /**
    * Get document processing status with all job details
    */
-  async getDocumentProcessingStatus(documentId: string): Promise<
-    APIResponse<{
-      document_id: string;
-      status: string;
-      progress_percentage: number;
-      total_jobs: number;
-      completed_jobs: number;
-      failed_jobs: number;
-      running_jobs: number;
-      jobs: ProcessingJobStatus[];
-    }>
-  > {
+  async getDocumentProcessingStatus(documentId: string): Promise<APIResponse<{
+    document_id: string;
+    status: string;
+    progress_percentage: number;
+    total_jobs: number;
+    completed_jobs: number;
+    failed_jobs: number;
+    running_jobs: number;
+    jobs: ProcessingJobStatus[];
+  }>> {
     return apiClient.get(`/documents/${documentId}/status`);
   }
 
   /**
    * Retry failed processing for a document
    */
-  async retryDocumentProcessing(
-    documentId: string
-  ): Promise<APIResponse<{ job_id: string }>> {
-    return apiClient.post(`/documents/${documentId}/reprocess`);
+  async retryDocumentProcessing(documentId: string): Promise<APIResponse<{ job_id: string }>> {
+    return apiClient.post(`/documents/${documentId}/retry-processing`);
   }
 
   /**
@@ -394,30 +318,22 @@ export class EnhancedDocumentService {
     // Add metadata for each file
     formData.append('upload_requests', JSON.stringify(requests));
 
-    const response = await apiClient.post<{
-      responses: DocumentUploadResponse[];
-    }>(`${this.basePath}/batch`, formData);
+    const response = await apiClient.post<{ responses: DocumentUploadResponse[] }>(`${this.basePath}/batch`, formData);
 
     // Connect to WebSocket for each upload
     const websockets: WebSocket[] = [];
     for (const uploadResponse of response.responses) {
       try {
-        const websocket = await this.connectProgressWebSocket(
-          uploadResponse.upload_id,
-          onProgress
-        );
+        const websocket = await this.connectProgressWebSocket(uploadResponse.upload_id, onProgress);
         websockets.push(websocket);
       } catch (error) {
-        console.error(
-          `Failed to connect WebSocket for upload ${uploadResponse.upload_id}:`,
-          error
-        );
+        console.error(`Failed to connect WebSocket for upload ${uploadResponse.upload_id}:`, error);
       }
     }
 
     return {
       responses: response.responses,
-      websockets,
+      websockets
     };
   }
 
@@ -435,11 +351,6 @@ export class EnhancedDocumentService {
    * Close all WebSocket connections
    */
   closeAllConnections(): void {
-    this.statusPollers.forEach((poller) => {
-      clearTimeout(poller);
-    });
-    this.statusPollers.clear();
-
     this.websocketConnections.forEach((websocket, uploadId) => {
       websocket.close();
       console.log(`Closed WebSocket connection for upload ${uploadId}`);
@@ -490,7 +401,7 @@ export class EnhancedDocumentService {
 
     return {
       isValid: errors.length === 0,
-      errors,
+      errors
     };
   }
 
@@ -506,139 +417,20 @@ export class EnhancedDocumentService {
 
     // Add time based on file type
     const typeMultipliers = {
-      'application/pdf': 2.0, // PDF requires OCR
-      'image/jpeg': 1.5, // Images require OCR
+      'application/pdf': 2.0,      // PDF requires OCR
+      'image/jpeg': 1.5,           // Images require OCR
       'image/png': 1.5,
-      'audio/mpeg': 3.0, // Audio requires transcription
+      'audio/mpeg': 3.0,           // Audio requires transcription
       'audio/wav': 3.0,
-      'video/mp4': 5.0, // Video requires frame extraction + audio transcription
+      'video/mp4': 5.0,            // Video requires frame extraction + audio transcription
       'video/quicktime': 5.0,
-      'text/plain': 0.5, // Text is fastest
+      'text/plain': 0.5,           // Text is fastest
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 1.0,
     };
 
-    const multiplier =
-      typeMultipliers[file.type as keyof typeof typeMultipliers] || 1.0;
+    const multiplier = typeMultipliers[file.type as keyof typeof typeMultipliers] || 1.0;
 
     return Math.ceil((baseTime + sizeTime) * multiplier);
-  }
-
-  private async pollDocumentStatus(
-    response: DocumentUploadResponse,
-    onProgress: (update: WebSocketProgressUpdate) => void,
-    attempt: number = 0
-  ): Promise<void> {
-    if (attempt >= this.maxStatusPollAttempts) {
-      this.clearStatusPolling(response.upload_id);
-      onProgress({
-        type: 'error',
-        upload_id: response.upload_id,
-        error_message: 'Timed out waiting for document processing to complete',
-        timestamp: new Date().toISOString(),
-      });
-      return;
-    }
-
-    try {
-      const status = await apiClient.get<DocumentProcessingStatusResponse>(
-        `/documents/${response.document_id}/status`
-      );
-
-      onProgress({
-        type: 'progress_update',
-        upload_id: response.upload_id,
-        progress_percentage: status.progress_percentage,
-        current_step:
-          status.current_step ||
-          this.getFallbackStepLabel(status.processing_status),
-        error_message: status.error_message,
-        timestamp: new Date().toISOString(),
-      });
-
-      if (status.processing_status === 'failed') {
-        this.clearStatusPolling(response.upload_id);
-        onProgress({
-          type: 'error',
-          upload_id: response.upload_id,
-          error_message: status.error_message || 'Document processing failed',
-          timestamp: new Date().toISOString(),
-        });
-        return;
-      }
-
-      if (this.isCompletedProcessingStatus(status.processing_status)) {
-        this.clearStatusPolling(response.upload_id);
-        onProgress({
-          type: 'upload_complete',
-          upload_id: response.upload_id,
-          result: {
-            document_id: response.document_id,
-            job_id: response.job_id,
-            title: response.title,
-            status: status.processing_status,
-          },
-          timestamp: new Date().toISOString(),
-        });
-        return;
-      }
-
-      this.scheduleStatusPolling(response, onProgress, attempt + 1);
-    } catch (error) {
-      console.error(
-        `Failed to poll document status for ${response.document_id}:`,
-        error
-      );
-      this.scheduleStatusPolling(response, onProgress, attempt + 1);
-    }
-  }
-
-  private scheduleStatusPolling(
-    response: DocumentUploadResponse,
-    onProgress: (update: WebSocketProgressUpdate) => void,
-    attempt: number
-  ): void {
-    this.clearStatusPolling(response.upload_id);
-
-    const poller = setTimeout(() => {
-      void this.pollDocumentStatus(response, onProgress, attempt);
-    }, this.statusPollIntervalMs);
-
-    this.statusPollers.set(response.upload_id, poller);
-  }
-
-  private clearStatusPolling(uploadId: string): void {
-    const poller = this.statusPollers.get(uploadId);
-    if (!poller) {
-      return;
-    }
-
-    clearTimeout(poller);
-    this.statusPollers.delete(uploadId);
-  }
-
-  private isCompletedProcessingStatus(status?: string): boolean {
-    return status === 'indexed' || status === 'completed';
-  }
-
-  private isTerminalProcessingStatus(status?: string): boolean {
-    return this.isCompletedProcessingStatus(status) || status === 'failed';
-  }
-
-  private getFallbackStepLabel(status?: string): string {
-    switch (status) {
-      case 'queued':
-      case 'pending':
-        return 'Queued for processing';
-      case 'processing':
-        return 'Processing';
-      case 'indexed':
-      case 'completed':
-        return 'Completed';
-      case 'failed':
-        return 'Failed';
-      default:
-        return 'Processing';
-    }
   }
 }
 
@@ -646,22 +438,9 @@ export class EnhancedDocumentService {
 export const enhancedDocumentService = new EnhancedDocumentService();
 
 // Export convenience functions
-export const uploadDocument = enhancedDocumentService.uploadDocument.bind(
-  enhancedDocumentService
-);
-export const connectProgressWebSocket =
-  enhancedDocumentService.connectProgressWebSocket.bind(
-    enhancedDocumentService
-  );
-export const getUploadProgress = enhancedDocumentService.getUploadProgress.bind(
-  enhancedDocumentService
-);
-export const cancelUpload = enhancedDocumentService.cancelUpload.bind(
-  enhancedDocumentService
-);
-export const getDocumentQuality =
-  enhancedDocumentService.getDocumentQuality.bind(enhancedDocumentService);
-export const getDocumentProcessingStatus =
-  enhancedDocumentService.getDocumentProcessingStatus.bind(
-    enhancedDocumentService
-  );
+export const uploadDocument = enhancedDocumentService.uploadDocument.bind(enhancedDocumentService);
+export const connectProgressWebSocket = enhancedDocumentService.connectProgressWebSocket.bind(enhancedDocumentService);
+export const getUploadProgress = enhancedDocumentService.getUploadProgress.bind(enhancedDocumentService);
+export const cancelUpload = enhancedDocumentService.cancelUpload.bind(enhancedDocumentService);
+export const getDocumentQuality = enhancedDocumentService.getDocumentQuality.bind(enhancedDocumentService);
+export const getDocumentProcessingStatus = enhancedDocumentService.getDocumentProcessingStatus.bind(enhancedDocumentService);

@@ -16,7 +16,6 @@ import {
   DocumentProcessingState,
   WebSocketConnectionState,
 } from '@/types/realtime-processing';
-import { getPublicWebSocketOrigin } from '@/utils/publicEndpoints';
 
 export interface WebSocketConfig {
   url: string;
@@ -76,7 +75,9 @@ export class RealtimeWebSocketService {
 
   constructor(config: Partial<WebSocketConfig> = {}) {
     this.config = {
-      url: `${getPublicWebSocketOrigin()}/ws/document-processing`,
+      url:
+        process.env.NEXT_PUBLIC_WS_URL ||
+        'ws://localhost:8000/ws/document-processing',
       reconnectAttempts: 5,
       reconnectInterval: 2000,
       heartbeatInterval: 30000,

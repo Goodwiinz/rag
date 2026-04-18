@@ -2,8 +2,10 @@
 
 import { cn } from '@/lib/utils';
 import { RAGToggle } from './RAGToggle';
+import { ModelSelector } from './ModelSelector';
+import type { ExtendedModel } from './ModelSelector';
 import { motion } from 'framer-motion';
-import { ArrowUp, Bot, Mic, Paperclip, Square } from 'lucide-react';
+import { ArrowUp, Mic, Paperclip, Square } from 'lucide-react';
 import React, { useEffect, useRef, useState } from 'react';
 import {
   Tooltip,
@@ -18,6 +20,10 @@ interface ChatInputProps {
   onSubmit: () => void;
   onStop: () => void;
   isLoading: boolean;
+  isModelLoading: boolean;
+  selectedModel?: string;
+  models: ExtendedModel[];
+  onModelChange: (id: string) => void;
   enableRAG: boolean;
   onRAGToggle: (enabled: boolean) => void;
   isRAGLoading?: boolean;
@@ -30,6 +36,10 @@ export function ChatInput({
   onSubmit,
   onStop,
   isLoading,
+  isModelLoading,
+  selectedModel,
+  models,
+  onModelChange,
   enableRAG,
   onRAGToggle,
   isRAGLoading,
@@ -50,13 +60,13 @@ export function ChatInput({
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      if (!isLoading && value.trim()) {
+      if (!isLoading && !isModelLoading && value.trim() && selectedModel) {
         onSubmit();
       }
     }
   };
 
-  const isDisabled = isLoading;
+  const isDisabled = !selectedModel || isModelLoading;
   const charCount = value.length;
   const maxChars = 4000;
   const isNearLimit = charCount > maxChars * 0.8;
@@ -72,27 +82,24 @@ export function ChatInput({
               'border-[var(--phosphor-green)]/30 ring-1 ring-[var(--phosphor-green)]/10 shadow-[0_0_15px_-5px_rgba(212,160,57,0.1)]'
           )}
         >
-          {/* Top Bar: Agent Label, RAG Toggle & Status */}
+          {/* Top Bar: Model Selector, RAG Toggle & Status */}
           <div className="flex items-center justify-between px-4 py-1.5 bg-[var(--terminal-elevated)]/50 border-b border-[var(--terminal-border)] rounded-t-xl">
             <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg border bg-[var(--terminal-surface)] border-[var(--terminal-border)]">
-                <Bot className="w-3.5 h-3.5 text-[var(--phosphor-green)]" />
-                <span
-                  className="text-[var(--terminal-text)] text-xs"
-                  style={{ fontFamily: "'JetBrains Mono', monospace" }}
-                >
-                  NOUS AGENT
-                </span>
-                <span className="px-1 py-0.5 rounded bg-[var(--phosphor-green)]/20 text-[var(--phosphor-green)] text-[8px] uppercase">
-                  Agent
-                </span>
-              </div>
-              <RAGToggle
-                enabled={enableRAG}
-                onToggle={onRAGToggle}
-                isLoading={isRAGLoading}
-                disabled={isLoading}
+              <ModelSelector
+                models={models}
+                selectedModelId={selectedModel}
+                onModelChange={onModelChange}
+                isLoading={isModelLoading}
               />
+              {/* RAG Toggle - Show for all models */}
+              {selectedModel && (
+                <RAGToggle
+                  enabled={enableRAG}
+                  onToggle={onRAGToggle}
+                  isLoading={isRAGLoading}
+                  disabled={isLoading}
+                />
+              )}
             </div>
             <div className="flex items-center gap-3">
               {/* RAG loading indicator */}

@@ -1,6 +1,6 @@
 'use client';
 
-import { createClient } from '@/lib/supabase/client';
+import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
 import { motion } from 'framer-motion';
 import { ArrowLeft, ArrowRight, Lock, Mail, RefreshCw } from 'lucide-react';
@@ -24,7 +24,6 @@ export default function ForgotPasswordPage() {
     setIsSubmitting(true);
 
     try {
-      const supabase = createClient();
       const { error: resetError } = await supabase.auth.resetPasswordForEmail(
         email,
         { redirectTo: `${window.location.origin}/reset-password` }

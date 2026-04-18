@@ -4,9 +4,7 @@
 # Namespace: rag-staging
 
 global:
-  imageRegistry: "registry.digitalocean.com/ragsystemregistry"
-  imagePullSecrets:
-    - name: do-registry
+  imageRegistry: "ghcr.io"
   environment: "staging"
 
 commonLabels:
@@ -22,8 +20,8 @@ frontend:
   replicaCount: 1
 
   image:
-    repository: registry.digitalocean.com/ragsystemregistry/frontend
-    tag: "4ed4d16"
+    repository: ghcr.io/goodwiinz/rag/frontend
+    tag: "latest"
     pullPolicy: Always
 
   service:
@@ -80,8 +78,8 @@ backend:
   replicaCount: 1
 
   image:
-    repository: registry.digitalocean.com/ragsystemregistry/backend
-    tag: "4ed4d16"
+    repository: ghcr.io/goodwiinz/rag/backend
+    tag: "latest"
     pullPolicy: Always
 
   service:
@@ -127,10 +125,6 @@ backend:
         name: database-credentials
     - secretRef:
         name: app-secrets
-    - secretRef:
-        name: supabase-credentials
-    - secretRef:
-        name: spaces-credentials
 
   env:
     - name: ENVIRONMENT
@@ -145,48 +139,6 @@ backend:
       value: "300"
     - name: CORS_ORIGINS
       value: "https://staging-app.gen-text.app"
-    # S3-Compatible Object Storage (DigitalOcean Spaces)
-    - name: STORAGE_BACKEND
-      value: "s3"
-    - name: S3_ENDPOINT_URL
-      value: "https://nyc3.digitaloceanspaces.com"
-    - name: S3_BUCKET_NAME
-      value: "rag-system-storage"
-    - name: S3_REGION
-      value: "nyc3"
-    - name: S3_CDN_ENDPOINT
-      value: "https://rag-system-storage.nyc3.cdn.digitaloceanspaces.com"
-    - name: S3_ACCESS_KEY
-      valueFrom:
-        secretKeyRef:
-          name: spaces-credentials
-          key: S3_ACCESS_KEY
-    - name: S3_SECRET_KEY
-      valueFrom:
-        secretKeyRef:
-          name: spaces-credentials
-          key: S3_SECRET_KEY
-    # Azure OpenAI (Chat / Agent)
-    - name: AZURE_OPENAI_CHAT_ENDPOINT
-      valueFrom:
-        secretKeyRef:
-          name: azure-openai-credentials
-          key: AZURE_OPENAI_CHAT_ENDPOINT
-    - name: AZURE_OPENAI_CHAT_API_KEY
-      valueFrom:
-        secretKeyRef:
-          name: azure-openai-credentials
-          key: AZURE_OPENAI_CHAT_API_KEY
-    - name: AZURE_OPENAI_CHAT_DEPLOYMENT_NAME
-      valueFrom:
-        secretKeyRef:
-          name: azure-openai-credentials
-          key: AZURE_OPENAI_CHAT_DEPLOYMENT_NAME
-    - name: AZURE_OPENAI_CHAT_API_VERSION
-      valueFrom:
-        secretKeyRef:
-          name: azure-openai-credentials
-          key: AZURE_OPENAI_CHAT_API_VERSION
 
   healthCheck:
     enabled: true
@@ -210,7 +162,6 @@ backend:
     waitForRedis: false
     waitForNeo4j: false
     waitForQdrant: false
-    runMigrations: true
 
 # ──────────────────────────────────────────────
 # All databases are external (DO Managed)

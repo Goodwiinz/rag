@@ -4,17 +4,12 @@ Metrics API routes
 
 import logging
 import uuid
-from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
-from sqlalchemy import and_, or_, select
 
 from src.auth.dependencies import get_current_user
-from src.core.database import get_async_session
 from src.models.analytics.analytics_models import (
-    AnalyticsKPI,
-    AnalyticsMetric,
     KPICreate,
     KPIResponse,
     MetricCreate,
@@ -29,11 +24,6 @@ from src.services.analytics.metrics_service import metrics_service
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/metrics", tags=["analytics-metrics"])
-
-
-def _escape_like(value: str) -> str:
-    """Escape SQL LIKE special characters."""
-    return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
 
 # Metric endpoints
@@ -81,11 +71,10 @@ async def list_metrics(
             if is_public is not None:
                 query = query.where(AnalyticsMetric.is_public == is_public)
             if search:
-                escaped_search = _escape_like(search)
                 query = query.where(
                     or_(
-                        AnalyticsMetric.name.ilike(f"%{escaped_search}%"),
-                        AnalyticsMetric.display_name.ilike(f"%{escaped_search}%"),
+                        AnalyticsMetric.name.ilike(f"%{search}%"),
+                        AnalyticsMetric.display_name.ilike(f"%{search}%"),
                     )
                 )
 
@@ -241,11 +230,6 @@ async def ingest_batch_values(
     values: List[Dict[str, Any]], current_user: User = Depends(get_current_user)
 ):
     """Ingest multiple metric values in batch"""
-    if len(values) > 1000:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Batch size limited to 1000",
-        )
     try:
         success_count = await metrics_service.ingest_batch_values(values)
         return {
@@ -363,7 +347,7 @@ async def list_kpis(
             kpi_responses = []
             for kpi in kpis:
                 current_value = await metrics_service._calculate_kpi_value(kpi)
-                kpi_status = metrics_service._determine_kpi_status(current_value, kpi)
+                status = metrics_service._determine_kpi_status(current_value, kpi)
 
                 kpi_response = KPIResponse(
                     id=kpi.id,
@@ -383,7 +367,7 @@ async def list_kpis(
                     created_at=kpi.created_at,
                     updated_at=kpi.updated_at,
                     current_value=current_value,
-                    status=kpi_status,
+                    status=status,
                 )
                 kpi_responses.append(kpi_response)
 
@@ -414,7 +398,7 @@ async def get_kpi(kpi_id: uuid.UUID, current_user: User = Depends(get_current_us
                 )
 
             current_value = await metrics_service._calculate_kpi_value(kpi)
-            kpi_status = metrics_service._determine_kpi_status(current_value, kpi)
+            status = metrics_service._determine_kpi_status(current_value, kpi)
 
             return KPIResponse(
                 id=kpi.id,
@@ -434,7 +418,7 @@ async def get_kpi(kpi_id: uuid.UUID, current_user: User = Depends(get_current_us
                 created_at=kpi.created_at,
                 updated_at=kpi.updated_at,
                 current_value=current_value,
-                status=kpi_status,
+                status=status,
             )
 
     except HTTPException:

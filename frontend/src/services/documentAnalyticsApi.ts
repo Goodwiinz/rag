@@ -103,21 +103,18 @@ class DocumentAnalyticsApiService {
   /**
    * Get paginated list of documents
    */
-  async getDocuments(
-    params: DocumentListParams = {}
-  ): Promise<DocumentListResponse> {
+  async getDocuments(params: DocumentListParams = {}): Promise<DocumentListResponse> {
     const queryParams = new URLSearchParams();
 
     if (params.page) queryParams.append('page', params.page.toString());
     if (params.size) queryParams.append('size', params.size.toString());
     if (params.status) queryParams.append('status', params.status);
-    if (params.document_type)
-      queryParams.append('document_type', params.document_type);
+    if (params.document_type) queryParams.append('document_type', params.document_type);
     if (params.search) queryParams.append('search', params.search);
     if (params.sort_by) queryParams.append('sort_by', params.sort_by);
     if (params.sort_order) queryParams.append('sort_order', params.sort_order);
     if (params.tags?.length) {
-      params.tags.forEach((tag) => queryParams.append('tags', tag));
+      params.tags.forEach(tag => queryParams.append('tags', tag));
     }
 
     const queryString = queryParams.toString();
@@ -133,18 +130,14 @@ class DocumentAnalyticsApiService {
    * Get single document details
    */
   async getDocument(documentId: string): Promise<DocumentResponse> {
-    return apiClient.get<DocumentResponse>(
-      `${this.documentsPath}/${documentId}`
-    );
+    return apiClient.get<DocumentResponse>(`${this.documentsPath}/${documentId}`);
   }
 
   /**
    * Get document processing status
    */
   async getDocumentStatus(documentId: string): Promise<DocumentStatusResponse> {
-    return apiClient.get<DocumentStatusResponse>(
-      `${this.documentsPath}/${documentId}/status`
-    );
+    return apiClient.get<DocumentStatusResponse>(`${this.documentsPath}/${documentId}/status`);
   }
 
   /**
@@ -157,30 +150,23 @@ class DocumentAnalyticsApiService {
       const fileStats = await this.getFileStats();
 
       // Calculate totals
-      const totalDocuments = fileStats.files_by_type.reduce(
-        (sum, item) => sum + item.count,
-        0
-      );
-      const totalStorageMb = fileStats.files_by_type.reduce(
-        (sum, item) => sum + item.total_size_mb,
-        0
-      );
+      const totalDocuments = fileStats.files_by_type.reduce((sum, item) => sum + item.count, 0);
+      const totalStorageMb = fileStats.files_by_type.reduce((sum, item) => sum + item.total_size_mb, 0);
 
       // Transform file types
       const documentsByType: Record<string, number> = {};
-      fileStats.files_by_type.forEach((item) => {
+      fileStats.files_by_type.forEach(item => {
         documentsByType[item.type] = item.count;
       });
 
       // Transform processing status
       const processingStatusCounts: Record<string, number> = {};
-      fileStats.processing_stats.forEach((item) => {
+      fileStats.processing_stats.forEach(item => {
         processingStatusCounts[item.status] = item.count;
       });
 
       // Calculate average file size
-      const averageFileSizeMb =
-        totalDocuments > 0 ? totalStorageMb / totalDocuments : 0;
+      const averageFileSizeMb = totalDocuments > 0 ? totalStorageMb / totalDocuments : 0;
 
       // Get recent uploads (last 24 hours would require a separate endpoint, using completed as proxy)
       const recentUploadsCount = processingStatusCounts['pending'] || 0;
@@ -202,11 +188,9 @@ class DocumentAnalyticsApiService {
   /**
    * Get chart-ready file type distribution data
    */
-  async getFileTypeDistribution(): Promise<
-    Array<{ name: string; value: number }>
-  > {
+  async getFileTypeDistribution(): Promise<Array<{ name: string; value: number }>> {
     const stats = await this.getFileStats();
-    return stats.files_by_type.map((item) => ({
+    return stats.files_by_type.map(item => ({
       name: item.type.toUpperCase(),
       value: item.count,
     }));
@@ -215,11 +199,9 @@ class DocumentAnalyticsApiService {
   /**
    * Get chart-ready processing status data
    */
-  async getProcessingStatusDistribution(): Promise<
-    Array<{ status: string; count: number }>
-  > {
+  async getProcessingStatusDistribution(): Promise<Array<{ status: string; count: number }>> {
     const stats = await this.getFileStats();
-    return stats.processing_stats.map((item) => ({
+    return stats.processing_stats.map(item => ({
       status: item.status,
       count: item.count,
     }));
@@ -272,46 +254,29 @@ class SearchAnalyticsApiService {
   /**
    * Get search analytics from the search service
    */
-  async getSearchAnalytics(
-    days: number = 30
-  ): Promise<SearchAnalyticsResponse> {
-    return apiClient.get<SearchAnalyticsResponse>(
-      `${this.searchPath}/analytics?days=${days}`
-    );
+  async getSearchAnalytics(days: number = 30): Promise<SearchAnalyticsResponse> {
+    return apiClient.get<SearchAnalyticsResponse>(`${this.searchPath}/analytics?days=${days}`);
   }
 
   /**
    * Get search analytics from quality metrics service
    */
   async getQualitySearchAnalytics(): Promise<SearchAnalyticsResponse> {
-    return apiClient.get<SearchAnalyticsResponse>(
-      `${this.qualityPath}/analytics/search`
-    );
+    return apiClient.get<SearchAnalyticsResponse>(`${this.qualityPath}/analytics/search`);
   }
 
   /**
    * Get search performance metrics
    */
-  async getSearchPerformance(
-    timeRange: string = 'LAST_7D'
-  ): Promise<SearchPerformanceResponse> {
-    return apiClient.get<SearchPerformanceResponse>(
-      `${this.performancePath}/search-performance?time_range=${timeRange}`
-    );
+  async getSearchPerformance(timeRange: string = 'LAST_7D'): Promise<SearchPerformanceResponse> {
+    return apiClient.get<SearchPerformanceResponse>(`${this.performancePath}/search-performance?time_range=${timeRange}`);
   }
 
   /**
    * Get combined search analytics - tries multiple endpoints with fallbacks
    */
   async getCombinedSearchAnalytics(): Promise<{
-    topQueries: Array<{
-      id: string;
-      query: string;
-      type: string;
-      results: number;
-      clickRate: number;
-      lastSearched: string;
-    }>;
+    topQueries: Array<{ id: string; query: string; type: string; results: number; clickRate: number; lastSearched: string }>;
     searchTypes: Array<{ name: string; value: number }>;
     totalSearches: number;
     avgResponseTime: number;
@@ -330,7 +295,7 @@ class SearchAnalyticsApiService {
             clickRate: q.click_rate || Math.random(),
             lastSearched: new Date().toISOString(),
           })),
-          searchTypes: (performance.search_types || []).map((s) => ({
+          searchTypes: (performance.search_types || []).map(s => ({
             name: s.type.charAt(0).toUpperCase() + s.type.slice(1),
             value: s.count,
           })),
@@ -352,7 +317,7 @@ class SearchAnalyticsApiService {
             clickRate: q.click_rate || Math.random(),
             lastSearched: new Date().toISOString(),
           })),
-          searchTypes: (analytics.search_types || []).map((s) => ({
+          searchTypes: (analytics.search_types || []).map(s => ({
             name: s.type.charAt(0).toUpperCase() + s.type.slice(1),
             value: s.count,
           })),
@@ -432,7 +397,7 @@ export interface SystemHealthMetrics {
  * User Behavior Analytics API Service
  */
 class UserBehaviorApiService {
-  private readonly basePath = '/analytics/behavior';
+  private readonly basePath = '/user-behavior';
 
   /**
    * Get organization-level user behavior trends
@@ -442,9 +407,7 @@ class UserBehaviorApiService {
     trendData: TrendDataPoint[];
   }> {
     try {
-      const response = await apiClient.get<any>(
-        `${this.basePath}/organization/trends?days=${days}`
-      );
+      const response = await apiClient.get<any>(`${this.basePath}/organization/trends?days=${days}`);
 
       return {
         stats: {
@@ -493,9 +456,7 @@ class UserBehaviorApiService {
     newUsersThisWeek: number;
   }> {
     try {
-      const response = await apiClient.get<any>(
-        `${this.basePath}/organization/users`
-      );
+      const response = await apiClient.get<any>(`${this.basePath}/organization/users`);
       return {
         totalUsers: response.total_users || response.total || 0,
         activeUsers: response.active_users || 0,
@@ -512,7 +473,7 @@ class UserBehaviorApiService {
  * Performance Dashboard API Service
  */
 class PerformanceApiService {
-  private readonly basePath = '/analytics/performance';
+  private readonly basePath = '/performance-dashboard';
 
   /**
    * Get dashboard overview data
@@ -540,14 +501,7 @@ class PerformanceApiService {
       if (!error?.error?.silent) {
         console.error('Failed to fetch dashboard overview:', error);
       }
-      return {
-        totalUsers: 0,
-        activeUsers: 0,
-        totalSessions: 0,
-        totalSearches: 0,
-        avgResponseTime: 0,
-        errorRate: 0,
-      };
+      return { totalUsers: 0, activeUsers: 0, totalSessions: 0, totalSearches: 0, avgResponseTime: 0, errorRate: 0 };
     }
   }
 
@@ -556,9 +510,7 @@ class PerformanceApiService {
    */
   async getSystemHealth(): Promise<SystemHealthMetrics> {
     try {
-      const response = await apiClient.get<any>(
-        `${this.basePath}/system-health`
-      );
+      const response = await apiClient.get<any>(`${this.basePath}/system-health`);
       return {
         cpu_usage: response.cpu_usage || 0,
         memory_usage: response.memory_usage || 0,
@@ -572,15 +524,7 @@ class PerformanceApiService {
       if (!error?.error?.silent) {
         console.error('Failed to fetch system health:', error);
       }
-      return {
-        cpu_usage: 0,
-        memory_usage: 0,
-        disk_usage: 0,
-        active_connections: 0,
-        request_rate: 0,
-        error_rate: 0,
-        response_time: 0,
-      };
+      return { cpu_usage: 0, memory_usage: 0, disk_usage: 0, active_connections: 0, request_rate: 0, error_rate: 0, response_time: 0 };
     }
   }
 
@@ -595,9 +539,7 @@ class PerformanceApiService {
     pageViews: number;
   }> {
     try {
-      const response = await apiClient.get<any>(
-        `${this.basePath}/user-engagement`
-      );
+      const response = await apiClient.get<any>(`${this.basePath}/user-engagement`);
       return {
         dailyActiveUsers: response.daily_active_users || 0,
         weeklyActiveUsers: response.weekly_active_users || 0,
@@ -609,13 +551,7 @@ class PerformanceApiService {
       if (!error?.error?.silent) {
         console.error('Failed to fetch user engagement:', error);
       }
-      return {
-        dailyActiveUsers: 0,
-        weeklyActiveUsers: 0,
-        avgSessionDuration: 0,
-        bounceRate: 0,
-        pageViews: 0,
-      };
+      return { dailyActiveUsers: 0, weeklyActiveUsers: 0, avgSessionDuration: 0, bounceRate: 0, pageViews: 0 };
     }
   }
 
@@ -631,27 +567,16 @@ class PerformanceApiService {
     try {
       const response = await apiClient.get<any>(`${this.basePath}/dashboard`);
       return {
-        activeUsers:
-          response.active_users || response.realtime?.active_users || 0,
-        currentSearches:
-          response.current_searches || response.realtime?.current_searches || 0,
-        processingFiles:
-          response.processing_files || response.realtime?.processing_files || 0,
-        requestsPerMinute:
-          response.requests_per_minute ||
-          response.realtime?.requests_per_minute ||
-          0,
+        activeUsers: response.active_users || response.realtime?.active_users || 0,
+        currentSearches: response.current_searches || response.realtime?.current_searches || 0,
+        processingFiles: response.processing_files || response.realtime?.processing_files || 0,
+        requestsPerMinute: response.requests_per_minute || response.realtime?.requests_per_minute || 0,
       };
     } catch (error: any) {
       if (!error?.error?.silent) {
         console.error('Failed to fetch realtime metrics:', error);
       }
-      return {
-        activeUsers: 0,
-        currentSearches: 0,
-        processingFiles: 0,
-        requestsPerMinute: 0,
-      };
+      return { activeUsers: 0, currentSearches: 0, processingFiles: 0, requestsPerMinute: 0 };
     }
   }
 
@@ -660,9 +585,7 @@ class PerformanceApiService {
    */
   async getTrendData(days: number = 30): Promise<TrendDataPoint[]> {
     try {
-      const response = await apiClient.get<any>(
-        `${this.basePath}/charts/overview?days=${days}`
-      );
+      const response = await apiClient.get<any>(`${this.basePath}/charts/overview?days=${days}`);
 
       if (Array.isArray(response)) {
         return response.map((point: any) => ({
@@ -670,10 +593,8 @@ class PerformanceApiService {
           name: point.date || point.timestamp,
           pageViews: point.page_views || point.pageViews || 0,
           uniqueVisitors: point.unique_visitors || point.uniqueVisitors || 0,
-          documentsUploaded:
-            point.documents_uploaded || point.documentsUploaded || 0,
-          searchesPerformed:
-            point.searches_performed || point.searchesPerformed || 0,
+          documentsUploaded: point.documents_uploaded || point.documentsUploaded || 0,
+          searchesPerformed: point.searches_performed || point.searchesPerformed || 0,
           chatsInitiated: point.chats_initiated || point.chatsInitiated || 0,
         }));
       }

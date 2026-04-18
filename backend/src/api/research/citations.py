@@ -25,7 +25,6 @@ from src.models import (
     Collection,
     CollectionDocument,
     Conversation,
-    Document,
     Thread,
     User,
     Workspace,
@@ -132,21 +131,6 @@ async def create_citation(
         Created citation
     """
     try:
-        # Verify the referenced document belongs to the user's organization
-        if citation_data.document_id:
-            doc_check = await db.execute(
-                select(Document.id).where(
-                    Document.id == citation_data.document_id,
-                    Document.organization_id == current_user.organization_id,
-                    Document.is_deleted == False,
-                )
-            )
-            if doc_check.scalar_one_or_none() is None:
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Document not found or not accessible",
-                )
-
         # Create citation instance
         citation = Citation(
             message_id=citation_data.message_id,

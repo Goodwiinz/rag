@@ -13,7 +13,7 @@ spec:
 
   source:
     repoURL: https://github.com/Goodwiinz/rag.git
-    targetRevision: staging
+    targetRevision: develop
     path: infrastructure/helm/knowledge-graph-analytics
     helm:
       valueFiles:
@@ -24,10 +24,12 @@ spec:
     server: https://kubernetes.default.svc
     namespace: rag-staging
 
-  # Manual sync: staging requires an explicit ArgoCD sync trigger.
-  # selfHeal ensures in-cluster manual changes are reverted but new git commits
-  # must be promoted explicitly (argocd app sync nous-staging).
+  # Auto-sync: staging deploys automatically when develop branch changes
   syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+      allowEmpty: false
     syncOptions:
       - CreateNamespace=true
       - PrunePropagationPolicy=foreground

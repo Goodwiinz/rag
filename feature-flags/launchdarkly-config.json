@@ -31,7 +31,7 @@
               {
                 "attribute": "email",
                 "op": "endsWith",
-                "values": ["nous.app"]
+                "values": ["yourcompany.com"]
               }
             ],
             "variation": 0
@@ -194,14 +194,14 @@
     "internal_users": {
       "key": "internal-users",
       "name": "Internal Users",
-      "description": "Users from nous.app domain",
+      "description": "Users from yourcompany.com domain",
       "rules": [
         {
           "clauses": [
             {
               "attribute": "email",
               "op": "endsWith",
-              "values": ["nous.app"]
+              "values": ["yourcompany.com"]
             }
           ]
         }

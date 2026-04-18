@@ -13,7 +13,6 @@ from typing import Any, Dict, List, Optional, Union
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Path, Query
 from fastapi.responses import JSONResponse
-from sqlalchemy import text
 
 from src.core.database import get_db
 from src.core.dependencies import get_current_user
@@ -1041,7 +1040,7 @@ async def ab_testing_health_check(
 
         # Check database connectivity
         try:
-            db.execute(text("SELECT 1"))
+            db.execute("SELECT 1")
             health_status["components"]["database"] = {
                 "status": "healthy",
                 "message": "Database connection successful",

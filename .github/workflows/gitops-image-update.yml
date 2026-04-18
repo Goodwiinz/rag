@@ -67,23 +67,17 @@ jobs:
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "Image tag: $TAG"
 
-      - name: Install yq
-        run: |
-          YQ_VERSION="v4.44.6"
-          curl -sL "https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_linux_amd64" -o /usr/local/bin/yq
-          chmod +x /usr/local/bin/yq
-
       - name: Update staging values
         env:
           TAG: ${{ steps.tag.outputs.tag }}
         run: |
           VALUES_FILE="infrastructure/helm/knowledge-graph-analytics/values-staging.yaml"
 
-          yq -i '.frontend.image.tag = strenv(TAG)' "$VALUES_FILE"
-          yq -i '.backend.image.tag = strenv(TAG)' "$VALUES_FILE"
+          # Update backend image tag
+          sed -i "s|^\(\s*tag:\s*\)\".*\"|\1\"$TAG\"|" "$VALUES_FILE"
 
           echo "Updated $VALUES_FILE with tag: $TAG"
-          yq '.frontend.image, .backend.image' "$VALUES_FILE"
+          grep -A1 "repository:" "$VALUES_FILE" | head -8
 
       - name: Commit and push
         env:
@@ -121,23 +115,17 @@ jobs:
           ref: main
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Install yq
-        run: |
-          YQ_VERSION="v4.44.6"
-          curl -sL "https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_linux_amd64" -o /usr/local/bin/yq
-          chmod +x /usr/local/bin/yq
-
       - name: Update production values
         env:
           TAG: ${{ github.event.inputs.image_tag }}
         run: |
           VALUES_FILE="infrastructure/helm/knowledge-graph-analytics/values-production.yaml"
 
-          yq -i '.frontend.image.tag = strenv(TAG)' "$VALUES_FILE"
-          yq -i '.backend.image.tag = strenv(TAG)' "$VALUES_FILE"
+          # Update image tags for both backend and frontend
+          sed -i "s|^\(\s*tag:\s*\)\".*\"|\1\"$TAG\"|" "$VALUES_FILE"
 
           echo "Updated $VALUES_FILE with tag: $TAG"
-          yq '.frontend.image, .backend.image' "$VALUES_FILE"
+          grep -A1 "repository:" "$VALUES_FILE" | head -8
 
       - name: Commit and push
         env:

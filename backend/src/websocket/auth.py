@@ -307,17 +307,13 @@ class WebSocketAuthenticator:
     # Private methods
 
     async def _validate_jwt_token(self, token: str) -> Optional[Dict[str, Any]]:
-        """Validate Supabase JWT token and return payload."""
+        """Validate JWT token and return payload"""
         try:
-            if not settings.SUPABASE_JWT_SECRET:
-                logger.error("SUPABASE_JWT_SECRET not configured for WebSocket auth")
-                return None
-
             payload = jwt.decode(
                 token,
-                settings.SUPABASE_JWT_SECRET,
-                algorithms=["HS256"],
-                audience="authenticated",
+                settings.JWT_SECRET_KEY,
+                algorithms=[settings.JWT_ALGORITHM],
+                options={"verify_aud": False, "verify_iss": False, "verify_sub": True},
             )
 
             # Check required claims
@@ -325,10 +321,10 @@ class WebSocketAuthenticator:
             if not user_id:
                 return None
 
-            # Map Supabase app_metadata role to top-level
-            app_metadata = payload.get("app_metadata", {})
-            if "role" not in payload:
-                payload["role"] = app_metadata.get("role", "USER")
+            # Check expiration
+            exp = payload.get("exp")
+            if exp and time.time() > exp:
+                return None
 
             return payload
 

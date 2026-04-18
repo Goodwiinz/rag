@@ -20,7 +20,6 @@ from .jobs import (
     _page_context_to_dict,
     _persist_thread_messages,
 )
-from .trace_context import build_trace_payload
 
 logger = logging.getLogger(__name__)
 
@@ -29,24 +28,6 @@ _SSE_HEADERS = {
     "Connection": "keep-alive",
     "X-Accel-Buffering": "no",
 }
-
-
-def _bootstrap_langsmith() -> None:
-    """Enable LangSmith tracing when the API key is configured."""
-    try:
-        from src.services.agent.observability import configure_langsmith
-
-        configure_langsmith()
-    except Exception:
-        logger.warning(
-            "Failed to configure LangSmith tracing; continuing without tracing",
-            exc_info=True,
-        )
-
-
-def _format_sse_event(event_type: str, data: Dict[str, Any]) -> str:
-    """Format a single SSE event frame."""
-    return f"event: {event_type}\ndata: {_json.dumps(data)}\n\n"
 
 
 async def stream_event_generator(
@@ -73,10 +54,7 @@ async def stream_event_generator(
         ToolExecutionResponse,
     )
 
-    stream_thread_id = request_body.thread_id or "unknown"
-    config: Dict[str, Any] = {}  # Initialize before try block for safe access in except handlers
     try:
-        _bootstrap_langsmith()
         checkpointer = await get_checkpointer()
         graph = compile_agent_graph(checkpointer=checkpointer)
 
@@ -104,27 +82,16 @@ async def stream_event_generator(
             "compaction_count": 0,
             "intent_confidence": 0.0,
             "last_error_info": {},
-            "user_id": str(current_user.id),
         }
 
-        stream_thread_id = request_body.thread_id or str(_uuid.uuid4())
         config = {
             "configurable": {
-                "thread_id": stream_thread_id,
+                "thread_id": request_body.thread_id or str(_uuid.uuid4()),
                 "db": db,
                 "current_user": current_user,
                 "page_context": _page_context_to_dict(request_body.page_context),
             }
         }
-
-        yield _format_sse_event(
-            "trace",
-            build_trace_payload(
-                thread_id=config["configurable"]["thread_id"],
-                cli_session_id="",
-                langsmith_run_id="",
-            ),
-        )
 
         async with asyncio.timeout(300):  # 5 minutes
             async for event in graph.astream_events(
@@ -222,15 +189,12 @@ async def stream_event_generator(
         confirmation_details = {}
         if interrupts:
             confirmation_details = getattr(interrupts[0], "value", {})
-        thread_id = config["configurable"]["thread_id"] if config else stream_thread_id
+        thread_id = config["configurable"]["thread_id"]
         yield f"event: confirmation\ndata: {_json.dumps({'thread_id': thread_id, 'confirmation': confirmation_details})}\n\n"
 
     except Exception as e:
         logger.error("SSE stream error", exc_info=e)
         yield f"event: error\ndata: {_json.dumps({'error': str(e)})}\n\n"
-
-    finally:
-        logger.info("SSE stream ended for thread %s", stream_thread_id)
 
 
 async def stream_confirm_event_generator(
@@ -257,7 +221,6 @@ async def stream_confirm_event_generator(
     )
 
     try:
-        _bootstrap_langsmith()
         checkpointer = await get_checkpointer()
         graph = compile_agent_graph(checkpointer=checkpointer)
 
@@ -270,20 +233,8 @@ async def stream_confirm_event_generator(
         }
         current_snapshot = await graph.aget_state(snapshot_config)
 
-        # Verify thread exists
-        if not current_snapshot or not current_snapshot.values:
-            yield f"event: error\ndata: {_json.dumps({'error': 'Thread not found'})}\n\n"
-            return
-
         # Verify thread ownership — prevent users from resuming others' graphs
-        snapshot_user_id = current_snapshot.values.get("user_id", "")
-        if snapshot_user_id and snapshot_user_id != str(current_user.id):
-            logger.warning(
-                "HITL ownership mismatch: thread %s owned by %s, requested by %s",
-                request_body.thread_id,
-                snapshot_user_id,
-                current_user.id,
-            )
+        if not current_snapshot or not current_snapshot.values:
             yield f"event: error\ndata: {_json.dumps({'error': 'Thread not found'})}\n\n"
             return
 
@@ -301,15 +252,6 @@ async def stream_confirm_event_generator(
         }
 
         resume_input = Command(resume={"confirmed": request_body.confirmed})
-
-        yield _format_sse_event(
-            "trace",
-            build_trace_payload(
-                thread_id=request_body.thread_id,
-                cli_session_id="",
-                langsmith_run_id="",
-            ),
-        )
 
         async with asyncio.timeout(300):
             async for event in graph.astream_events(
@@ -413,6 +355,3 @@ async def stream_confirm_event_generator(
     except Exception as e:
         logger.error("SSE stream confirm error", exc_info=e)
         yield f"event: error\ndata: {_json.dumps({'error': str(e)})}\n\n"
-
-    finally:
-        logger.info("SSE confirm stream ended for thread %s", request_body.thread_id)

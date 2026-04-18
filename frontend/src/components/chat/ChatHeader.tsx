@@ -1,6 +1,5 @@
 'use client';
 
-import { IconButton } from '@/components/ui/icon-button';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { Workspace } from '@/types/workspace';
 import {
@@ -110,16 +109,18 @@ export const ChatHeader = memo(function ChatHeader({
           </span>
         </div>
 
-        <IconButton
-          label="Terminal"
-          icon={<TerminalSquare className="w-4 h-4" />}
+        <button
+          aria-label="Terminal"
           className="p-1.5 text-[var(--terminal-text-dim)] hover:text-[var(--terminal-text)] transition-colors"
-        />
-        <IconButton
-          label="Settings"
-          icon={<Settings2 className="w-4 h-4" />}
+        >
+          <TerminalSquare className="w-4 h-4" />
+        </button>
+        <button
+          aria-label="Settings"
           className="p-1.5 text-[var(--terminal-text-dim)] hover:text-[var(--terminal-text)] transition-colors"
-        />
+        >
+          <Settings2 className="w-4 h-4" />
+        </button>
       </div>
     </div>
   );

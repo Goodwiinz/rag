@@ -129,23 +129,25 @@ export interface WeightExperimentResult {
 
 const API_PREFIX = '/api/v1';
 
-const getAuthContext = async (): Promise<{
+const getAuthContext = (): {
   token: string | null;
   organizationId: string | null;
-}> => {
+} => {
   if (typeof window === 'undefined') {
     return { token: null, organizationId: null };
   }
   try {
-    const { createClient } = await import('@/lib/supabase/client');
-    const supabase = createClient();
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-    return {
-      token: session?.access_token ?? null,
-      organizationId: session?.user?.user_metadata?.organization_id ?? null,
-    };
+    const authStorage = localStorage.getItem('auth-storage');
+    if (authStorage) {
+      const auth = JSON.parse(authStorage);
+      return {
+        token: auth.state?.token || null,
+        organizationId:
+          auth.state?.organization?.id ||
+          auth.state?.user?.organization_id ||
+          null,
+      };
+    }
   } catch {
     // Fall through
   }
@@ -158,9 +160,9 @@ const diagClient: AxiosInstance = axios.create({
   headers: { 'Content-Type': 'application/json' },
 });
 
-diagClient.interceptors.request.use(async (config) => {
+diagClient.interceptors.request.use((config) => {
   if (typeof window === 'undefined') return config;
-  const { token, organizationId } = await getAuthContext();
+  const { token, organizationId } = getAuthContext();
   if (token) config.headers.Authorization = `Bearer ${token}`;
   if (organizationId) config.headers['X-Organization-ID'] = organizationId;
   return config;

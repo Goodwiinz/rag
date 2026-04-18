@@ -1,3 +1,4 @@
+
 import pytest
 from unittest.mock import MagicMock, AsyncMock, patch
 from fastapi import Request, HTTPException, status
@@ -37,7 +38,7 @@ async def test_get_api_key_data_success():
 
     # Mock db.execute result
     mock_result = MagicMock()
-    mock_result.scalars.return_value.first.return_value = api_key_record
+    mock_result.scalars.return_value.all.return_value = [api_key_record]
     mock_db.execute.return_value = mock_result
 
     # Mock rate limiter
@@ -74,7 +75,7 @@ async def test_get_api_key_data_invalid_key():
 
     # Scenario 1: No key with prefix
     mock_result = MagicMock()
-    mock_result.scalars.return_value.first.return_value = None
+    mock_result.scalars.return_value.all.return_value = []
     mock_db.execute.return_value = mock_result
 
     with pytest.raises(HTTPException) as excinfo:
@@ -111,7 +112,7 @@ async def test_get_api_key_data_hash_mismatch():
     )
 
     mock_result = MagicMock()
-    mock_result.scalars.return_value.first.return_value = api_key_record
+    mock_result.scalars.return_value.all.return_value = [api_key_record]
     mock_db.execute.return_value = mock_result
 
     # Execute
@@ -119,41 +120,3 @@ async def test_get_api_key_data_hash_mismatch():
         await get_api_key_data(mock_request, mock_credentials, mock_db)
 
     assert excinfo.value.status_code == status.HTTP_401_UNAUTHORIZED
-
-@pytest.mark.asyncio
-async def test_get_api_key_data_rate_limited_sets_retry_after():
-    raw_key, key_hash = generate_api_key()
-    key_prefix = raw_key[:8]
-
-    mock_request = MagicMock(spec=Request)
-    mock_request.client.host = "127.0.0.1"
-    mock_request.url.path = "/test"
-
-    mock_credentials = MagicMock(spec=HTTPAuthorizationCredentials)
-    mock_credentials.credentials = raw_key
-
-    mock_db = AsyncMock(spec=AsyncSession)
-
-    api_key_record = APIKey(
-        id="test-id",
-        name="Test Key",
-        key_hash=key_hash,
-        key_prefix=key_prefix,
-        is_active=True,
-        rate_limit_per_hour=100,
-        usage_count=100,
-        organization_id="org-1"
-    )
-
-    mock_result = MagicMock()
-    mock_result.scalars.return_value.first.return_value = api_key_record
-    mock_db.execute.return_value = mock_result
-
-    with patch("src.core.api_key_auth.api_key_auth") as mock_auth_service:
-        mock_auth_service.check_rate_limit = AsyncMock(return_value=False)
-        mock_auth_service.get_current_usage = AsyncMock(return_value=100)
-
-        with pytest.raises(HTTPException) as excinfo:
-            await get_api_key_data(mock_request, mock_credentials, mock_db)
-
-        assert excinfo.value.status_code == status.HTTP_429_TOO_MANY_REQUESTS

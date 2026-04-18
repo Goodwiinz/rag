@@ -27,11 +27,6 @@ from src.services.documents.file_service import FileService, get_file_service
 router = APIRouter(prefix="/files", tags=["files"])
 
 
-def _escape_like(value: str) -> str:
-    """Escape SQL LIKE special characters."""
-    return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-
-
 # Request/Response Models
 class FileUploadResponse(BaseModel):
     document_id: str
@@ -212,11 +207,10 @@ async def list_files(
             conditions.append(Document.processing_status == processing_status)
 
         if search:
-            escaped_search = _escape_like(search)
             conditions.append(
                 or_(
-                    Document.title.ilike(f"%{escaped_search}%"),
-                    Document.filename.ilike(f"%{escaped_search}%"),
+                    Document.title.ilike(f"%{search}%"),
+                    Document.filename.ilike(f"%{search}%"),
                 )
             )
 
@@ -248,21 +242,24 @@ async def list_files(
 async def get_file_info(
     file_id: str,
     current_user: User = Depends(get_current_user),
-    organization: Organization = Depends(get_current_organization),
     db: AsyncSession = Depends(get_db),
 ):
     """Get detailed information about a specific file"""
-    stmt = select(Document).where(
-        Document.id == file_id,
-        Document.organization_id == organization.id,
-        Document.is_deleted == False,
-    )
+    stmt = select(Document).where(Document.id == file_id, Document.is_deleted == False)
     result = await db.execute(stmt)
     document = result.scalars().first()
 
     if not document:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="File not found"
+        )
+
+    # Check permissions
+    if document.organization_id != current_user.organization_id or (
+        not document.is_public and not current_user.has_permission(UserRole.USER)
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Access denied to this file"
         )
 
     return {"file": document.to_dict(include_content=True)}
@@ -272,21 +269,24 @@ async def get_file_info(
 async def download_file(
     file_id: str,
     current_user: User = Depends(get_current_user),
-    organization: Organization = Depends(get_current_organization),
     db: AsyncSession = Depends(get_db),
 ):
     """Download a file"""
-    stmt = select(Document).where(
-        Document.id == file_id,
-        Document.organization_id == organization.id,
-        Document.is_deleted == False,
-    )
+    stmt = select(Document).where(Document.id == file_id, Document.is_deleted == False)
     result = await db.execute(stmt)
     document = result.scalars().first()
 
     if not document:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="File not found"
+        )
+
+    # Check permissions
+    if document.organization_id != current_user.organization_id or (
+        not document.is_public and not current_user.has_permission(UserRole.USER)
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Access denied to this file"
         )
 
     # Branch on storage backend
@@ -318,15 +318,10 @@ async def update_file_metadata(
     tags: Optional[List[str]] = None,
     is_public: Optional[bool] = None,
     current_user: User = Depends(get_current_user),
-    organization: Organization = Depends(get_current_organization),
     db: AsyncSession = Depends(get_db),
 ):
     """Update file metadata"""
-    stmt = select(Document).where(
-        Document.id == file_id,
-        Document.organization_id == organization.id,
-        Document.is_deleted == False,
-    )
+    stmt = select(Document).where(Document.id == file_id, Document.is_deleted == False)
     result = await db.execute(stmt)
     document = result.scalars().first()
 
@@ -373,16 +368,13 @@ async def update_file_metadata(
 async def delete_file(
     file_id: str,
     current_user: User = Depends(get_current_user),
-    organization: Organization = Depends(get_current_organization),
-    db: AsyncSession = Depends(get_db),
     file_service: FileService = Depends(get_file_service),
 ):
     """Delete a file"""
-    stmt = select(Document).where(
-        Document.id == file_id,
-        Document.organization_id == organization.id,
-        Document.is_deleted == False,
-    )
+    # Get document
+    from src.models.document import Document
+
+    stmt = select(Document).where(Document.id == file_id, Document.is_deleted == False)
     result = await db.execute(stmt)
     document = result.scalars().first()
 
@@ -410,21 +402,24 @@ async def delete_file(
 async def get_file_content(
     file_id: str,
     current_user: User = Depends(get_current_user),
-    organization: Organization = Depends(get_current_organization),
     db: AsyncSession = Depends(get_db),
 ):
     """Get extracted text content of a file"""
-    stmt = select(Document).where(
-        Document.id == file_id,
-        Document.organization_id == organization.id,
-        Document.is_deleted == False,
-    )
+    stmt = select(Document).where(Document.id == file_id, Document.is_deleted == False)
     result = await db.execute(stmt)
     document = result.scalars().first()
 
     if not document:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="File not found"
+        )
+
+    # Check permissions
+    if document.organization_id != current_user.organization_id or (
+        not document.is_public and not current_user.has_permission(UserRole.USER)
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Access denied to this file"
         )
 
     return {
@@ -438,21 +433,24 @@ async def get_file_content(
 async def get_file_metadata(
     file_id: str,
     current_user: User = Depends(get_current_user),
-    organization: Organization = Depends(get_current_organization),
     db: AsyncSession = Depends(get_db),
 ):
     """Get file metadata"""
-    stmt = select(Document).where(
-        Document.id == file_id,
-        Document.organization_id == organization.id,
-        Document.is_deleted == False,
-    )
+    stmt = select(Document).where(Document.id == file_id, Document.is_deleted == False)
     result = await db.execute(stmt)
     document = result.scalars().first()
 
     if not document:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="File not found"
+        )
+
+    # Check permissions
+    if document.organization_id != current_user.organization_id or (
+        not document.is_public and not current_user.has_permission(UserRole.USER)
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Access denied to this file"
         )
 
     return {
@@ -574,6 +572,30 @@ async def cancel_upload(
         )
 
 
+@router.get("/debug-auth")
+async def debug_auth(
+    current_user: User = Depends(get_current_user),
+    organization: Organization = Depends(get_current_organization),
+):
+    """Debug endpoint to check authentication state"""
+    return {
+        "user_id": str(current_user.id),
+        "user_email": current_user.email,
+        "user_role": current_user.role.value if current_user.role else None,
+        "user_active": current_user.is_active,
+        "organization_id": str(organization.id) if organization else None,
+        "organization_name": organization.name if organization else None,
+        "can_upload_documents": current_user.can_upload_documents(),
+        "user_permissions": {
+            "has_user_role": current_user.has_permission(UserRole.USER),
+            "has_admin_role": current_user.has_permission(UserRole.ADMIN),
+            "has_content_manager_role": current_user.has_permission(
+                UserRole.CONTENT_MANAGER
+            ),
+            "has_analyst_role": current_user.has_permission(UserRole.ANALYST),
+        },
+    }
+
 
 @router.get("/stats", response_model=FileStatsResponse)
 async def get_file_statistics(
@@ -595,15 +617,10 @@ async def get_file_statistics(
 async def reprocess_file(
     file_id: str,
     current_user: User = Depends(get_current_user),
-    organization: Organization = Depends(get_current_organization),
     db: AsyncSession = Depends(get_db),
 ):
     """Trigger reprocessing of a file"""
-    stmt = select(Document).where(
-        Document.id == file_id,
-        Document.organization_id == organization.id,
-        Document.is_deleted == False,
-    )
+    stmt = select(Document).where(Document.id == file_id, Document.is_deleted == False)
     result = await db.execute(stmt)
     document = result.scalars().first()
 

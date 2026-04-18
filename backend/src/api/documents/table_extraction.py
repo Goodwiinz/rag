@@ -9,9 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from structlog import get_logger
 
 from src.core.database import get_db
-from src.core.dependencies import get_current_organization
 from src.models.document import Document
-from src.models.organization import Organization
 from src.models.user import User
 from src.services.processing.table_extraction_service import TableExtractionService
 from src.services.security.user_management import get_current_user
@@ -44,7 +42,6 @@ class ExtractRegionRequest(BaseModel):
 async def extract_tables(
     document_id: UUID,
     current_user: User = Depends(get_current_user),
-    organization: Organization = Depends(get_current_organization),
     db: AsyncSession = Depends(get_db),
 ):
     """Extract all tables from a PDF document using Camelot.
@@ -56,7 +53,7 @@ async def extract_tables(
         select(Document).where(
             and_(
                 Document.id == document_id,
-                Document.organization_id == organization.id,
+                Document.uploaded_by_user_id == current_user.id,
                 Document.is_deleted == False,
             )
         )
@@ -104,7 +101,6 @@ async def extract_region(
     document_id: UUID,
     body: ExtractRegionRequest,
     current_user: User = Depends(get_current_user),
-    organization: Organization = Depends(get_current_organization),
     db: AsyncSession = Depends(get_db),
 ):
     """Extract content from a specific bounding-box region of a PDF page.
@@ -116,7 +112,7 @@ async def extract_region(
         select(Document).where(
             and_(
                 Document.id == document_id,
-                Document.organization_id == organization.id,
+                Document.uploaded_by_user_id == current_user.id,
                 Document.is_deleted == False,
             )
         )

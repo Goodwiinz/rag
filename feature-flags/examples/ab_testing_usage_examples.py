@@ -6,8 +6,6 @@ Examples include experiment setup, query routing, metrics collection, and analys
 """
 
 import asyncio
-import math
-import random
 import time
 from datetime import datetime, timedelta
 from typing import Dict, Any, List
@@ -388,7 +386,7 @@ class ExperimentAnalyzer:
 
         print(f"\n💰 Business Impact Analysis:")
         print(f"   Estimated Revenue Impact: {business_impact['revenue_impact']:+.1%}")
-        print(f"   User Satisfaction Impact: {business_impact['satisfaction_improvement']:+.1%}")
+        print(f"   User Satisfaction Impact: {business_impact['satisfaction_impact']:+.1%}")
         print(f"   Recommendation: {business_impact['recommendation']}")
 
         # Step 4: Generate visualization data
@@ -441,6 +439,8 @@ class ExperimentAnalyzer:
         treatment = variant_data[variants[1]]
 
         # Calculate two-sample t-test for relevance scores
+        import math
+
         n1, n2 = control["sample_size"], treatment["sample_size"]
         mean1, mean2 = control["mean_relevance"], treatment["mean_relevance"]
         std1, std2 = control["std_relevance"], treatment["std_relevance"]
@@ -591,6 +591,7 @@ def run_complete_ab_test_example():
                     )
 
             # Simulate user feedback (randomly)
+            import random
             if random.random() < 0.3:  # 30% of users provide feedback
                 satisfaction = random.randint(3, 5)  # 3-5 stars
                 metrics_collector.record_user_feedback(

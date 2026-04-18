@@ -31,28 +31,14 @@ from src.models.document import Document
 @pytest.fixture
 def mock_db_session():
     """Mock database session"""
-    session = Mock()
-
-    # Create a chainable query mock
-    query_mock = Mock()
-    query_mock.filter.return_value = query_mock
-    query_mock.filter_by.return_value = query_mock
-    query_mock.first.return_value = None
-    query_mock.all.return_value = []
-    query_mock.one_or_none.return_value = None
-    query_mock.count.return_value = 0
-    query_mock.order_by.return_value = query_mock
-    query_mock.limit.return_value = query_mock
-    query_mock.offset.return_value = query_mock
-    query_mock.join.return_value = query_mock
-    query_mock.options.return_value = query_mock
-
-    session.query.return_value = query_mock
+    session = Mock(spec=Session)
+    session.query.return_value = session
+    session.filter.return_value = session
+    session.first.return_value = None
+    session.all.return_value = []
     session.add = Mock()
     session.commit = Mock()
     session.refresh = Mock()
-    session.rollback = Mock()
-    session.close = Mock()
     return session
 
 
@@ -360,11 +346,37 @@ class TestAuthService:
             
             assert "Email already exists" in str(exc_info.value)
     
-    # test_generate_tokens and test_refresh_access_token removed —
-    # token creation is now handled by Supabase, not the backend auth service
+    @pytest.mark.asyncio
+    async def test_generate_tokens(self, service, sample_user):
+        """Test token generation"""
+        with patch('src.core.security.create_access_token') as mock_access:
+            with patch('src.core.security.create_refresh_token') as mock_refresh:
+
+                mock_access.return_value = "access_token_123"
+                mock_refresh.return_value = "refresh_token_456"
+
+                tokens = await service.generate_tokens(sample_user)
+
+                assert tokens["access_token"] == "access_token_123"
+                assert tokens["refresh_token"] == "refresh_token_456"
+                assert tokens["token_type"] == "bearer"
+
+    @pytest.mark.asyncio
+    async def test_refresh_access_token(self, service, sample_user):
+        """Test access token refresh"""
+        with patch('src.core.security.verify_refresh_token') as mock_verify:
+            with patch.object(service, '_get_user_by_id') as mock_get_user:
+                with patch('src.core.security.create_access_token') as mock_create:
+
+                    mock_verify.return_value = {"sub": str(sample_user.id)}
+                    mock_get_user.return_value = sample_user
+                    mock_create.return_value = "new_access_token"
+
+                    new_token = await service.refresh_access_token("valid_refresh_token")
+
+                    assert new_token == "new_access_token"
 
 
-@pytest.mark.skip(reason="Tests reference removed API (check_permission, check_resource_permission); needs rewrite for user_has_permission")
 class TestRBACService:
     """Test Role-Based Access Control Service"""
 
@@ -374,33 +386,91 @@ class TestRBACService:
         return RBACService(db=mock_db_session)
 
     def test_check_permission_admin(self, service, sample_user):
-        pass
+        """Test admin permission checking"""
+        sample_user.role = UserRole.ADMIN
         
+        assert service.check_permission(sample_user, "admin") is True
+        assert service.check_permission(sample_user, "user") is True
+        assert service.check_permission(sample_user, "analyst") is True
+
     def test_check_permission_user(self, service, sample_user):
-        pass
+        """Test user permission checking"""
+        sample_user.role = UserRole.USER
+
+        assert service.check_permission(sample_user, "user") is True
+        assert service.check_permission(sample_user, "admin") is False
+        assert service.check_permission(sample_user, "analyst") is False
 
     def test_check_resource_permission_owner(self, service, sample_user):
-        pass
+        """Test resource permission for owner"""
+        resource = Mock()
+        resource.owner_id = sample_user.id
+        resource.organization_id = sample_user.organization_id
+
+        assert service.check_resource_permission(sample_user, resource, "read") is True
+        assert service.check_resource_permission(sample_user, resource, "write") is True
 
     def test_check_resource_permission_different_org(self, service, sample_user):
-        pass
+        """Test resource permission for different organization"""
+        resource = Mock()
+        resource.owner_id = uuid.uuid4()  # Different owner
+        resource.organization_id = uuid.uuid4()  # Different org
+
+        assert service.check_resource_permission(sample_user, resource, "read") is False
+        assert service.check_resource_permission(sample_user, resource, "write") is False
 
     def test_check_organization_permission(self, service, sample_user):
-        pass
+        """Test organization-level permissions"""
+        assert service.check_organization_permission(sample_user, sample_user.organization_id) is True
+        assert service.check_organization_permission(sample_user, uuid.uuid4()) is False
 
     def test_get_user_permissions(self, service, sample_user):
-        pass
+        """Test getting user permissions list"""
+        sample_user.role = UserRole.ANALYST
+
+        permissions = service.get_user_permissions(sample_user)
+
+        assert "user" in permissions
+        assert "analyst" in permissions
+        assert "admin" not in permissions
 
     @pytest.mark.asyncio
     async def test_authorize_action_success(self, service, sample_user):
-        pass
+        """Test successful action authorization"""
+        sample_user.role = UserRole.ADMIN
+
+        with patch.object(service, 'check_permission') as mock_check:
+            mock_check.return_value = True
+
+            result = await service.authorize_action(sample_user, "admin", "manage_users")
+
+            assert result is True
+            mock_check.assert_called_once_with(sample_user, "admin")
 
     @pytest.mark.asyncio
     async def test_authorize_action_failure(self, service, sample_user):
-        pass
+        """Test failed action authorization"""
+        sample_user.role = UserRole.USER
+
+        with patch.object(service, 'check_permission') as mock_check:
+            mock_check.return_value = False
+
+            with pytest.raises(AuthorizationError):
+                await service.authorize_action(sample_user, "admin", "manage_users")
 
     def test_filter_accessible_resources(self, service, sample_user):
-        pass
+        """Test filtering resources by access permissions"""
+        resources = [
+            Mock(owner_id=sample_user.id, organization_id=sample_user.organization_id),
+            Mock(owner_id=uuid.uuid4(), organization_id=sample_user.organization_id),
+            Mock(owner_id=uuid.uuid4(), organization_id=uuid.uuid4())
+        ]
+
+        accessible = service.filter_accessible_resources(sample_user, resources)
+
+        # User should only access resources from their organization
+        assert len(accessible) == 2
+        assert all(r.organization_id == sample_user.organization_id for r in accessible)
 
 
 class TestAsyncServiceMethods:
