@@ -14,7 +14,6 @@ from uuid import UUID
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
 from sqlalchemy import and_, select
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from structlog import get_logger
@@ -69,71 +68,6 @@ def _citation_is_accessible(citation: Citation, current_user: User) -> bool:
     return _document_is_accessible(
         getattr(citation, "document", None), current_user
     ) or _message_is_accessible(getattr(citation, "message", None), current_user)
-
-
-async def _find_existing_extracted_citation(
-    *,
-    db: AsyncSession,
-    document_id: Optional[UUID],
-    doi: Optional[str],
-    arxiv_id: Optional[str],
-    scope_to_document: bool = True,
-) -> Optional["Citation"]:
-    """Return the first Citation matching the given identifiers.
-
-    When *scope_to_document* is True the lookup is scoped to the same document
-    so deduplication stays per-document.  Pass False to find the record
-    regardless of which document it belongs to (used in the IntegrityError
-    recovery path).
-    """
-    if not doi and not arxiv_id:
-        return None
-
-    filters = []
-    if doi:
-        filters.append(Citation.doi == doi)
-    elif arxiv_id:
-        filters.append(Citation.arxiv_id == arxiv_id)
-
-    if scope_to_document:
-        if document_id is None:
-            return None  # cannot scope without a document_id
-        filters.append(Citation.document_id == document_id)
-
-    result = await db.execute(select(Citation).where(and_(*filters)).limit(1))
-    return result.scalar_one_or_none()
-
-
-def _apply_extracted_citation_data(
-    citation: "Citation",
-    citation_data: "CitationCreate",
-    source: str,
-    document_id: Optional[UUID],
-    *,
-    is_new: bool = False,
-) -> "Citation":
-    """Merge *citation_data* into *citation*.
-
-    For update operations (*is_new=False*) nullable fields are only overwritten
-    when the incoming value is non-None so existing verified data is preserved.
-    """
-    citation.document_id = document_id or citation_data.document_id or citation.document_id
-    citation.document_type = citation_data.document_type or citation.document_type or "paper"
-    citation.doi = citation_data.doi or citation.doi
-    citation.arxiv_id = citation_data.arxiv_id or citation.arxiv_id
-    citation.metadata_source = source or citation_data.metadata_source or citation.metadata_source
-    citation.needs_review = bool(citation_data.needs_review)
-    if is_new or citation_data.document_title is not None:
-        citation.document_title = citation_data.document_title
-    if is_new or citation_data.authors:
-        citation.authors = citation_data.authors if citation_data.authors else citation.authors
-    if is_new or citation_data.year is not None:
-        citation.year = citation_data.year
-    if is_new or citation_data.venue is not None:
-        citation.venue = citation_data.venue
-    if is_new or citation_data.abstract is not None:
-        citation.abstract = citation_data.abstract
-    return citation
 
 
 async def _ensure_project_access(
@@ -458,9 +392,6 @@ async def extract_citation(
             detail="Must provide at least one of: document_id, arxiv_id, doi, or title",
         )
 
-    citation_data: Optional[CitationCreate] = None
-    citation_document_id: Optional[UUID] = None
-
     try:
         extraction_service = CitationExtractionService(db)
 
@@ -484,36 +415,20 @@ async def extract_citation(
                 detail="Could not extract citation metadata from any source",
             )
 
-        citation_document_id = resolved_document_id or citation_data.document_id
-
-        # Deduplicate: reuse an existing record for the same document + identifier.
-        existing = await _find_existing_extracted_citation(
-            db=db,
-            document_id=citation_document_id,
+        # Create citation in database
+        citation = Citation(
+            document_id=resolved_document_id or citation_data.document_id,
+            document_title=citation_data.document_title,
+            authors=citation_data.authors,
+            year=citation_data.year,
+            venue=citation_data.venue,
             doi=citation_data.doi,
             arxiv_id=citation_data.arxiv_id,
-            scope_to_document=True,
+            abstract=citation_data.abstract,
+            metadata_source=source,
+            needs_review=bool(citation_data.needs_review),
         )
 
-        if existing:
-            _apply_extracted_citation_data(
-                existing, citation_data, source, citation_document_id, is_new=False
-            )
-            await db.commit()
-            await db.refresh(existing)
-            logger.info(
-                "citation_updated",
-                citation_id=str(existing.id),
-                source=source,
-                document_id=str(citation_document_id) if citation_document_id else None,
-            )
-            return CitationResponse.model_validate(existing)
-
-        # No existing record — create a new one.
-        citation = Citation()
-        _apply_extracted_citation_data(
-            citation, citation_data, source, citation_document_id, is_new=True
-        )
         db.add(citation)
         await db.commit()
         await db.refresh(citation)
@@ -523,7 +438,7 @@ async def extract_citation(
             citation_id=str(citation.id),
             source=source,
             strategy=resolved_strategy,
-            document_id=str(citation_document_id) if citation_document_id else None,
+            document_id=str(resolved_document_id) if resolved_document_id else None,
             arxiv_id=resolved_arxiv_id,
             doi=resolved_doi,
         )
@@ -532,29 +447,6 @@ async def extract_citation(
 
     except HTTPException:
         raise
-    except IntegrityError:
-        await db.rollback()
-        # Race condition: another request inserted the same record first.
-        # Re-fetch to find the winner and return it if the current user can access it.
-        recovery_citation = await _find_existing_extracted_citation(
-            db=db,
-            document_id=citation_document_id,
-            doi=citation_data.doi if citation_data else None,
-            arxiv_id=citation_data.arxiv_id if citation_data else None,
-            scope_to_document=citation_document_id is not None,
-        )
-        if recovery_citation is not None:
-            await db.refresh(recovery_citation, attribute_names=["document", "message"])
-            if _citation_is_accessible(recovery_citation, current_user):
-                return CitationResponse.model_validate(recovery_citation)
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="Citation already exists but belongs to a different user",
-            )
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Citation insert failed due to a conflict",
-        )
     except Exception as e:
         await db.rollback()
         logger.error("citation_extraction_failed", error=str(e))
@@ -822,19 +714,8 @@ async def list_citation_relationships(
     """
     from src.models import CitationRelationship
 
-    _access_chain = (
-        selectinload(Citation.document),
-        selectinload(Citation.message)
-        .selectinload(ChatMessage.thread)
-        .selectinload(Thread.conversation)
-        .selectinload(Conversation.workspace),
-    )
-
     try:
-        query = select(CitationRelationship).options(
-            selectinload(CitationRelationship.source_citation).options(*_access_chain),
-            selectinload(CitationRelationship.target_citation).options(*_access_chain),
-        )
+        query = select(CitationRelationship)
 
         filters = []
         if source_id:
@@ -848,14 +729,7 @@ async def list_citation_relationships(
             query = query.where(and_(*filters))
 
         result = await db.execute(query)
-        relationships = [
-            r
-            for r in result.scalars().all()
-            if (
-                _citation_is_accessible(r.source_citation, current_user)
-                or _citation_is_accessible(r.target_citation, current_user)
-            )
-        ]
+        relationships = result.scalars().all()
 
         return {
             "relationships": [
@@ -914,32 +788,23 @@ async def create_citation_relationship(
             detail="Source and target citations cannot be the same",
         )
 
-    _access_opts = [
-        selectinload(Citation.document),
-        selectinload(Citation.message)
-        .selectinload(ChatMessage.thread)
-        .selectinload(Thread.conversation)
-        .selectinload(Conversation.workspace),
-    ]
-
     try:
-        # Verify both citations exist and are accessible to the current user.
-        source_result = await db.execute(
-            select(Citation).options(*_access_opts).where(Citation.id == source_citation_id)
-        )
-        target_result = await db.execute(
-            select(Citation).options(*_access_opts).where(Citation.id == target_citation_id)
-        )
+        # Verify both citations exist
+        source_query = select(Citation).where(Citation.id == source_citation_id)
+        target_query = select(Citation).where(Citation.id == target_citation_id)
+
+        source_result = await db.execute(source_query)
+        target_result = await db.execute(target_query)
 
         source_citation = source_result.scalar_one_or_none()
         target_citation = target_result.scalar_one_or_none()
 
-        if not source_citation or not _citation_is_accessible(source_citation, current_user):
+        if not source_citation:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Source citation {source_citation_id} not found",
             )
-        if not target_citation or not _citation_is_accessible(target_citation, current_user):
+        if not target_citation:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Target citation {target_citation_id} not found",
