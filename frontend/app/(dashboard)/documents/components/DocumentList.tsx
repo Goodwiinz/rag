@@ -1,7 +1,17 @@
 import { motion } from 'framer-motion';
 import {
-  FileText, CheckSquare, Square, Search, Sparkles, CheckCircle,
-  RefreshCw, AlertTriangle, Clock, RotateCcw, Eye, Trash2
+  FileText,
+  CheckSquare,
+  Square,
+  Search,
+  Sparkles,
+  CheckCircle,
+  RefreshCw,
+  AlertTriangle,
+  Clock,
+  RotateCcw,
+  Eye,
+  Trash2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
@@ -31,17 +41,17 @@ interface DocumentListProps {
   onRetry: (id: string, e: React.MouseEvent) => void;
 }
 
-export function DocumentList({ 
-  documents, 
-  loading, 
-  selectedDocuments, 
-  onSelect, 
-  onSelectAll, 
-  onDelete, 
-  onRetry 
+export function DocumentList({
+  documents,
+  loading,
+  selectedDocuments,
+  onSelect,
+  onSelectAll,
+  onDelete,
+  onRetry,
 }: DocumentListProps) {
   const router = useRouter();
-  
+
   const formatFileSize = (bytes: number): string => {
     if (bytes === 0) return '0 B';
     const k = 1024;
@@ -57,16 +67,20 @@ export function DocumentList({
       day: 'numeric',
       year: 'numeric',
       hour: '2-digit',
-      minute: '2-digit'
+      minute: '2-digit',
     });
   };
 
   const getFileTypeIcon = (type: string) => {
-    if (!type) return { icon: <FileText className="w-4 h-4" />, color: '#6b7280' };
+    if (!type)
+      return { icon: <FileText className="w-4 h-4" />, color: '#6b7280' };
     const t = type.toLowerCase();
-    if (t.includes('pdf')) return { icon: <FileText className="w-4 h-4" />, color: '#ff4757' };
-    if (t.includes('document') || t.includes('docx')) return { icon: <FileText className="w-4 h-4" />, color: '#3b82f6' };
-    if (t.includes('text')) return { icon: <FileText className="w-4 h-4" />, color: '#6b7280' };
+    if (t.includes('pdf'))
+      return { icon: <FileText className="w-4 h-4" />, color: '#ff4757' };
+    if (t.includes('document') || t.includes('docx'))
+      return { icon: <FileText className="w-4 h-4" />, color: '#3b82f6' };
+    if (t.includes('text'))
+      return { icon: <FileText className="w-4 h-4" />, color: '#6b7280' };
     return { icon: <FileText className="w-4 h-4" />, color: '#6b7280' };
   };
 
@@ -74,16 +88,41 @@ export function DocumentList({
     switch (status) {
       case 'indexed':
       case 'completed':
-        return { color: 'var(--phosphor-green)', label: 'INDEXED', icon: CheckCircle, canRetry: false };
+        return {
+          color: 'var(--phosphor-green)',
+          label: 'INDEXED',
+          icon: CheckCircle,
+          canRetry: false,
+        };
       case 'processing':
-        return { color: 'var(--cyan)', label: 'PROCESSING', icon: RefreshCw, canRetry: false };
+        return {
+          color: 'var(--cyan)',
+          label: 'PROCESSING',
+          icon: RefreshCw,
+          canRetry: false,
+        };
       case 'failed':
-        return { color: '#ff4757', label: 'FAILED', icon: AlertTriangle, canRetry: true };
+        return {
+          color: '#ff4757',
+          label: 'FAILED',
+          icon: AlertTriangle,
+          canRetry: true,
+        };
       case 'queued':
       case 'pending':
-        return { color: 'var(--amber-gold)', label: 'QUEUED', icon: Clock, canRetry: false };
+        return {
+          color: 'var(--amber-gold)',
+          label: 'QUEUED',
+          icon: Clock,
+          canRetry: false,
+        };
       default:
-        return { color: '#6b7280', label: status.toUpperCase(), icon: Clock, canRetry: false };
+        return {
+          color: '#6b7280',
+          label: status.toUpperCase(),
+          icon: Clock,
+          canRetry: false,
+        };
     }
   };
 
@@ -93,8 +132,12 @@ export function DocumentList({
         {/* List Header */}
         <div className="px-4 py-2 grid grid-cols-[20px_40px_1fr_128px_112px_96px] items-center gap-4 text-[10px] font-mono text-[var(--terminal-text-dim)] uppercase tracking-widest">
           <div className="w-5 flex justify-center">
-            <button onClick={onSelectAll} className="hover:text-[var(--terminal-text)] transition-colors">
-              {selectedDocuments.size > 0 && selectedDocuments.size === documents.length ? (
+            <button
+              onClick={onSelectAll}
+              className="hover:text-[var(--terminal-text)] transition-colors"
+            >
+              {selectedDocuments.size > 0 &&
+              selectedDocuments.size === documents.length ? (
                 <CheckSquare className="w-4 h-4 text-[var(--phosphor-green)]" />
               ) : (
                 <Square className="w-4 h-4" />
@@ -111,7 +154,10 @@ export function DocumentList({
         {loading && documents.length === 0 ? (
           <div className="space-y-3">
             {[1, 2, 3, 4].map((i) => (
-              <div key={i} className="h-20 rounded-xl border border-[var(--terminal-border)] bg-[var(--terminal-surface)] animate-pulse" />
+              <div
+                key={i}
+                className="h-20 rounded-xl border border-[var(--terminal-border)] bg-[var(--terminal-surface)] animate-pulse"
+              />
             ))}
           </div>
         ) : documents.length === 0 ? (
@@ -119,11 +165,14 @@ export function DocumentList({
             <div className="w-16 h-16 rounded-2xl bg-[var(--terminal-elevated)] flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300">
               <Search className="w-8 h-8 text-[var(--terminal-text-muted)]" />
             </div>
-            <h3 className="text-[var(--terminal-text)] font-mono font-bold mb-2">NO DOCUMENTS FOUND</h3>
+            <h3 className="text-[var(--terminal-text)] font-mono font-bold mb-2">
+              NO_DOCUMENTS_INDEXED
+            </h3>
             <p className="text-[var(--terminal-text-dim)] font-mono text-xs max-w-sm text-center mb-6">
-              No documents match your current filters. Try adjusting your search criteria or upload new files.
+              Upload your first document to initialize the knowledge base.
+              Supported formats: PDF, DOCX, TXT, images, audio, and video.
             </p>
-            <Link 
+            <Link
               href="/documents/upload"
               className="px-4 py-2 rounded-lg bg-[var(--terminal-elevated)] border border-[var(--terminal-border)] text-[var(--terminal-text)] font-mono text-xs hover:border-[var(--phosphor-green)] hover:text-[var(--phosphor-green)] transition-all"
             >
@@ -145,19 +194,31 @@ export function DocumentList({
                 transition={{ delay: index * 0.03 }}
                 onClick={() => onSelect(doc.id)}
                 className={cn(
-                  "group relative rounded-xl border bg-[var(--terminal-surface)] px-4 py-3 transition-all cursor-pointer mb-2 grid grid-cols-[20px_40px_1fr_128px_112px_96px] items-center gap-4",
-                  isSelected 
-                    ? "border-[var(--phosphor-green)] bg-[var(--phosphor-green)]/5" 
-                    : "border-[var(--terminal-border)] hover:border-[var(--terminal-border-glow)] hover:shadow-lg hover:shadow-[var(--terminal-border-glow)]/10"
+                  'group relative rounded-xl border bg-[var(--terminal-surface)] px-4 py-3 transition-all cursor-pointer mb-2 grid grid-cols-[20px_40px_1fr_128px_112px_96px] items-center gap-4',
+                  isSelected
+                    ? 'border-[var(--phosphor-green)] bg-[var(--phosphor-green)]/5'
+                    : 'border-[var(--terminal-border)] hover:border-[var(--terminal-border-glow)] hover:shadow-lg hover:shadow-[var(--terminal-border-glow)]/10'
                 )}
               >
                 {/* Checkbox */}
-                <div className="w-5 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
-                  <button 
+                <div
+                  className="w-5 flex-shrink-0"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <button
                     onClick={() => onSelect(doc.id)}
-                    className={cn("transition-colors", isSelected ? "text-[var(--phosphor-green)]" : "text-[var(--terminal-text-muted)] hover:text-[var(--terminal-text)]")}
+                    className={cn(
+                      'transition-colors',
+                      isSelected
+                        ? 'text-[var(--phosphor-green)]'
+                        : 'text-[var(--terminal-text-muted)] hover:text-[var(--terminal-text)]'
+                    )}
                   >
-                    {isSelected ? <CheckSquare className="w-4 h-4" /> : <Square className="w-4 h-4" />}
+                    {isSelected ? (
+                      <CheckSquare className="w-4 h-4" />
+                    ) : (
+                      <Square className="w-4 h-4" />
+                    )}
                   </button>
                 </div>
 
@@ -180,7 +241,9 @@ export function DocumentList({
                     )}
                   </div>
                   <div className="flex items-center gap-2 mt-1 text-[10px] font-mono text-[var(--terminal-text-dim)]">
-                    <span className="uppercase tracking-tighter">{doc.file_type || 'Unknown'}</span>
+                    <span className="uppercase tracking-tighter">
+                      {doc.file_type || 'Unknown'}
+                    </span>
                     <span className="w-1 h-1 rounded-full bg-[var(--terminal-border)]" />
                     <span>{formatFileSize(doc.file_size)}</span>
                   </div>
@@ -195,52 +258,63 @@ export function DocumentList({
                 <div className="w-28 flex-shrink-0">
                   <div
                     className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md border border-transparent font-mono text-[9px] font-bold"
-                    style={{ color: status.color, backgroundColor: `${status.color}10` }}
+                    style={{
+                      color: status.color,
+                      backgroundColor: `${status.color}10`,
+                    }}
                   >
-                    <StatusIcon className={cn("w-3 h-3", doc.processing_status === 'processing' && "animate-spin")} />
+                    <StatusIcon
+                      className={cn(
+                        'w-3 h-3',
+                        doc.processing_status === 'processing' && 'animate-spin'
+                      )}
+                    />
                     {status.label}
                   </div>
                 </div>
 
                 {/* Actions */}
-                <div className="w-24 flex items-center justify-end gap-1 opacity-60 group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
-                   {status.canRetry && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={(e) => onRetry(doc.id, e)}
-                        className="h-8 w-8 hover:bg-[var(--terminal-elevated)] text-[var(--terminal-text-dim)] hover:text-[var(--cyan)]"
-                        title="Retry Processing"
-                      >
-                        <RotateCcw className="w-3.5 h-3.5" />
-                      </Button>
-                    )}
+                <div
+                  className="w-24 flex items-center justify-end gap-1 opacity-60 group-hover:opacity-100 transition-opacity"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {status.canRetry && (
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-8 w-8 hover:bg-[var(--terminal-elevated)] text-[var(--terminal-text-dim)] hover:text-[var(--phosphor-green)]"
-                      title="View Details"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        router.push(`/documents/${doc.id}`);
-                      }}
+                      onClick={(e) => onRetry(doc.id, e)}
+                      className="h-8 w-8 hover:bg-[var(--terminal-elevated)] text-[var(--terminal-text-dim)] hover:text-[var(--cyan)]"
+                      title="Retry Processing"
                     >
-                      <Eye className="w-3.5 h-3.5" />
+                      <RotateCcw className="w-3.5 h-3.5" />
                     </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={(e) => onDelete(doc.id, e)}
-                      className="h-8 w-8 hover:bg-red-500/10 text-[var(--terminal-text-dim)] hover:text-red-400"
-                      title="Delete"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </Button>
+                  )}
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 hover:bg-[var(--terminal-elevated)] text-[var(--terminal-text-dim)] hover:text-[var(--phosphor-green)]"
+                    title="View Details"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      router.push(`/documents/${doc.id}`);
+                    }}
+                  >
+                    <Eye className="w-3.5 h-3.5" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={(e) => onDelete(doc.id, e)}
+                    className="h-8 w-8 hover:bg-red-500/10 text-[var(--terminal-text-dim)] hover:text-red-400"
+                    title="Delete"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </Button>
                 </div>
               </motion.div>
             );
-        })
-      )}
+          })
+        )}
       </div>
     </div>
   );

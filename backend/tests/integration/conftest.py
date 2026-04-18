@@ -51,8 +51,8 @@ try:
     key_manager = get_key_manager()
     if key_manager.get_active_key(EncryptionKeyType.DATA) is None:
         key_manager.generate_key(EncryptionKeyType.DATA)
-except ImportError:
-    pass  # Encryption module not installed in this environment
+except Exception:
+    pass  # Encryption module may not be available in all test envs
 
 
 @pytest.fixture(autouse=True)

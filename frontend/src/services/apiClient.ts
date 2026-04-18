@@ -1,24 +1,21 @@
 /**
  * @deprecated This file is deprecated. Please migrate to the new unified API client.
  * Import from '@/services/api-client' instead.
- * 
+ *
  * Migration guide:
  * - Replace `apiClient` imports with `getAPIClient()` or `api` from api-client
  * - The new client has similar methods (get, post, put, patch, delete, upload)
  * - Includes retry logic, timeout handling, and better error types
  */
 
-import { API_CONFIG, APIErrorClass, DEFAULT_HEADERS, getAuthHeaders } from '@/types/api';
+import { createClient } from '@/lib/supabase/client';
+import {
+  API_CONFIG,
+  APIErrorClass,
+  DEFAULT_HEADERS,
+  getAuthHeaders,
+} from '@/types/api';
 import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios';
-
-// Define minimal AuthState interface for localStorage parsing
-interface AuthState {
-  state: {
-    token: string | null;
-    organization: { id: string } | null;
-    isAuthenticated: boolean;
-  };
-}
 
 class ApiClient {
   public client: AxiosInstance;
@@ -42,168 +39,102 @@ class ApiClient {
     this.setupLongTimeoutInterceptors();
   }
 
-  private getAuthFromStorage() {
+  private async getAuthFromSession() {
     try {
-      // Try to get from Zustand persistence first
-      const storageItem = localStorage.getItem('auth-storage');
-      if (storageItem) {
-        const parsed = JSON.parse(storageItem) as AuthState;
-        return {
-          token: parsed.state?.token,
-          organizationId: parsed.state?.organization?.id,
-          isAuthenticated: parsed.state?.isAuthenticated
-        };
-      }
-      
-      // Fallback to legacy items if needed
+      const supabase = createClient();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const { useAuthStore } = await import('@/stores/authStore');
+      const organizationId = useAuthStore.getState().organization?.id;
+
       return {
-        token: localStorage.getItem('access_token'),
-        organizationId: null,
-        isAuthenticated: !!localStorage.getItem('access_token')
+        token: session?.access_token ?? null,
+        organizationId: organizationId ?? null,
+        isAuthenticated: !!session,
       };
-    } catch (e) {
+    } catch {
       return { token: null, organizationId: null, isAuthenticated: false };
     }
   }
 
   private setupInterceptors() {
-    // Request interceptor
+    // Request interceptor — get token from Supabase session
     this.client.interceptors.request.use(
-      (config) => {
-        // Check if we're sending FormData - if so, delete Content-Type to let browser set it
+      async (config) => {
         if (config.data instanceof FormData) {
-          console.debug('📤 FormData detected, removing Content-Type header');
           delete config.headers['Content-Type'];
         }
 
-        // Add auth headers if available
-        const { token, organizationId, isAuthenticated } = this.getAuthFromStorage();
-
-        // Debug logging
-        console.debug('🔐 Auth Debug:', {
-          url: config.url,
-          method: config.method,
-          hasToken: !!token,
-          hasOrganizationId: !!organizationId,
-          isAuthenticated,
-          tokenPreview: token ? `${token.substring(0, 20)}...` : null,
-          organizationId,
-          currentHeaders: config.headers
-        });
+        const { token, organizationId } = await this.getAuthFromSession();
 
         if (token) {
-          const authHeaders = getAuthHeaders(token, organizationId || 'default');
+          const authHeaders = getAuthHeaders(
+            token,
+            organizationId || 'default'
+          );
           Object.entries(authHeaders).forEach(([key, value]) => {
             config.headers.set(key, value);
           });
-          console.debug('✅ Auth headers added:', authHeaders, {
-            hasOrganizationId: !!organizationId
-          });
-        } else {
-          console.warn('⚠️ Missing auth data:', {
-            hasToken: !!token,
-            hasOrganizationId: !!organizationId,
-            isAuthenticated
-          });
         }
 
-        // Add request timestamp
         config.metadata = { startTime: new Date() };
-
         return config;
       },
       (error) => Promise.reject(error)
     );
 
-    // Response interceptor
+    // Response interceptor — on 401, sign out (Supabase middleware handles refresh)
     this.client.interceptors.response.use(
-      (response: AxiosResponse) => {
-        // Log request duration
-        const startTime = response.config.metadata?.startTime;
-        if (startTime) {
-          const duration = new Date().getTime() - startTime.getTime();
-          console.debug(`API request to ${response.config.url} took ${duration}ms`);
-        }
-
-        return response;
-      },
+      (response: AxiosResponse) => response,
       async (error) => {
-        const originalRequest = error.config;
-
-        // Don't retry if this IS the refresh token request itself
-        const isRefreshRequest = originalRequest.url?.includes('/auth/refresh');
-
-        // Handle 401 Unauthorized
-        if (error.response?.status === 401 && !originalRequest._retry && !isRefreshRequest) {
-          originalRequest._retry = true;
-
-          try {
-            // Dynamically import store to avoid circular dependency
-            // This is only called when a refresh is needed, so the module should be loaded by then
-            const { useAuthStore } = await import('@/stores/authStore');
-            
-            // Attempt to refresh token
-            await useAuthStore.getState().refreshToken();
-
-            // Retry original request with new token from updated storage
-            const { token, organizationId } = this.getAuthFromStorage();
-
-            if (token && organizationId) {
-              originalRequest.headers = {
-                ...originalRequest.headers,
-                ...getAuthHeaders(token, organizationId),
-              };
-            }
-
-            return this.client(originalRequest);
-          } catch (refreshError) {
-            // Refresh failed, logout user
-            console.warn('Token refresh failed, logging out');
-            const { useAuthStore } = await import('@/stores/authStore');
-            useAuthStore.getState().logout();
-            return Promise.reject(refreshError);
-          }
-        }
-
-        // If this is the refresh endpoint failing, logout immediately
-        if (isRefreshRequest && error.response?.status === 401) {
-          console.warn('Refresh token expired, logging out');
+        if (error.response?.status === 401 && !error.config?._retry) {
+          error.config._retry = true;
           const { useAuthStore } = await import('@/stores/authStore');
-          useAuthStore.getState().logout();
+          useAuthStore.getState().signOut();
         }
 
         // Convert to APIErrorClass
         if (error.response?.data) {
-          // Check if the response data has the expected error structure
           const errorData = error.response.data;
 
-          // If it has the nested error property, use it directly
-          if (errorData.error && typeof errorData.error === 'object' && !Array.isArray(errorData.error)) {
-            const normalizedMessage = (errorData.error.message || error.message || '').toLowerCase();
+          if (
+            errorData.error &&
+            typeof errorData.error === 'object' &&
+            !Array.isArray(errorData.error)
+          ) {
+            const normalizedMessage = (
+              errorData.error.message ||
+              error.message ||
+              ''
+            ).toLowerCase();
             const isServiceUnavailable =
-              (errorData.error.status_code || error.response.status || 500) === 503 ||
+              (errorData.error.status_code || error.response.status || 500) ===
+                503 ||
               normalizedMessage.includes('service unavailable') ||
               normalizedMessage.includes('circuit breaker');
-            // Ensure mandatory fields are present
             const errorPayload = {
               message: errorData.error.message || 'An error occurred',
-              status_code: errorData.error.status_code || error.response.status || 500,
+              status_code:
+                errorData.error.status_code || error.response.status || 500,
               type: errorData.error.type || 'http_error',
               details: errorData.error.details,
               timestamp: errorData.error.timestamp,
-              silent: errorData.error.silent ?? isServiceUnavailable
+              silent: errorData.error.silent ?? isServiceUnavailable,
             };
             return Promise.reject(new APIErrorClass(errorPayload));
           }
 
-          // Otherwise, construct the error object
           const errorObj = {
-            message: errorData.message || errorData.detail || error.message || 'An error occurred',
+            message:
+              errorData.message ||
+              errorData.detail ||
+              error.message ||
+              'An error occurred',
             status_code: error.response.status || 500,
             type: 'http_error' as const,
             details: errorData,
             timestamp: new Date().toISOString(),
-            // Mark 404 errors as silent since many optional endpoints don't exist
             silent: error.response.status === 404,
           };
 
@@ -216,48 +147,19 @@ class ApiClient {
   }
 
   private setupLongTimeoutInterceptors(): void {
-    // Request interceptor for long timeout client
+    // Request interceptor — same Supabase session logic as main client
     this.longTimeoutClient.interceptors.request.use(
-      (config) => {
-        // Try to get auth token from multiple sources
-        let token = null;
-        let organizationId = null;
-
-        // Try Zustand storage first
-        try {
-          const authStorage = localStorage.getItem('auth-storage');
-          if (authStorage) {
-            const auth = JSON.parse(authStorage);
-            token = auth.state?.token;
-            organizationId = auth.state?.organization?.id;
-          }
-        } catch (e) {
-          console.warn('Failed to parse auth storage:', e);
-        }
-
-        // Fallback to individual items
-        if (!token) {
-          token = localStorage.getItem('auth-token');
-          organizationId = localStorage.getItem('organization-id');
-        }
+      async (config) => {
+        const { token, organizationId } = await this.getAuthFromSession();
 
         if (token) {
-          console.debug('Adding auth to long timeout client:', {
-            hasToken: !!token,
-            tokenPreview: token.substring(0, 20) + '...',
-            hasOrgId: !!organizationId
+          const authHeaders = getAuthHeaders(
+            token,
+            organizationId || 'default'
+          );
+          Object.entries(authHeaders).forEach(([key, value]) => {
+            config.headers.set(key, value);
           });
-
-          if (!config.headers) {
-            config.headers = {} as any;
-          }
-          config.headers['Authorization'] = `Bearer ${token}`;
-
-          if (organizationId) {
-            config.headers['X-Organization-ID'] = organizationId;
-          }
-        } else {
-          console.warn('No auth token found for long timeout request');
         }
 
         return config;
@@ -265,63 +167,52 @@ class ApiClient {
       (error) => Promise.reject(error)
     );
 
-    // Response interceptor for long timeout client
+    // Response interceptor — on 401, sign out
     this.longTimeoutClient.interceptors.response.use(
       (response: AxiosResponse) => response,
       async (error) => {
-        // Simplified error handling for long timeout client
-        if (error.response?.status === 401 && !error.config._retry) {
+        if (error.response?.status === 401 && !error.config?._retry) {
           error.config._retry = true;
-          try {
-            const { useAuthStore } = await import('@/stores/authStore');
-            const authState = useAuthStore.getState();
-            // Use specific refresh token if available, otherwise fallback to access token
-            const refreshTokenToSend = authState.refreshTokenValue || authState.token;
-
-            const refreshResponse = await this.client.post('/auth/refresh', {
-              refresh_token: refreshTokenToSend
-            }, {
-              withCredentials: true
-            });
-            const newToken = refreshResponse.data.access_token;
-            const authStore = useAuthStore.getState();
-            // Update token via Zustand's set - access organization.id instead of organizationId
-            const organizationId = authStore.organization?.id || 'default';
-            const authHeaders = getAuthHeaders(newToken, organizationId);
-            Object.entries(authHeaders).forEach(([key, value]) => {
-              error.config.headers.set(key, value);
-            });
-            return this.longTimeoutClient.request(error.config);
-          } catch (refreshError) {
-            const { useAuthStore } = await import('@/stores/authStore');
-            useAuthStore.getState().logout();
-          }
+          const { useAuthStore } = await import('@/stores/authStore');
+          useAuthStore.getState().signOut();
         }
 
         if (error.response?.data) {
           const errorData = error.response.data;
-          
-          // If it has the nested error property, use it directly (matching main client logic)
-          if (errorData.error && typeof errorData.error === 'object' && !Array.isArray(errorData.error)) {
-            const normalizedMessage = (errorData.error.message || error.message || '').toLowerCase();
+
+          if (
+            errorData.error &&
+            typeof errorData.error === 'object' &&
+            !Array.isArray(errorData.error)
+          ) {
+            const normalizedMessage = (
+              errorData.error.message ||
+              error.message ||
+              ''
+            ).toLowerCase();
             const isServiceUnavailable =
-              (errorData.error.status_code || error.response.status || 500) === 503 ||
+              (errorData.error.status_code || error.response.status || 500) ===
+                503 ||
               normalizedMessage.includes('service unavailable') ||
               normalizedMessage.includes('circuit breaker');
             const errorPayload = {
               message: errorData.error.message || 'An error occurred',
-              status_code: errorData.error.status_code || error.response.status || 500,
+              status_code:
+                errorData.error.status_code || error.response.status || 500,
               type: errorData.error.type || 'http_error',
               details: errorData.error.details,
               timestamp: errorData.error.timestamp,
-              silent: errorData.error.silent ?? isServiceUnavailable
+              silent: errorData.error.silent ?? isServiceUnavailable,
             };
             return Promise.reject(new APIErrorClass(errorPayload));
           }
 
-          // Otherwise, construct the error object
           const errorObj = {
-            message: errorData.message || errorData.detail || error.message || 'An error occurred',
+            message:
+              errorData.message ||
+              errorData.detail ||
+              error.message ||
+              'An error occurred',
             status_code: error.response.status || 500,
             type: 'http_error' as const,
             details: errorData,
@@ -336,7 +227,11 @@ class ApiClient {
   }
 
   // Method for long timeout requests
-  async postWithLongTimeout<T>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> {
+  async postWithLongTimeout<T>(
+    url: string,
+    data?: any,
+    config?: AxiosRequestConfig
+  ): Promise<T> {
     const response = await this.longTimeoutClient.post<T>(url, data, config);
     return response.data;
   }
@@ -347,17 +242,29 @@ class ApiClient {
     return response.data;
   }
 
-  async post<T>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> {
+  async post<T>(
+    url: string,
+    data?: any,
+    config?: AxiosRequestConfig
+  ): Promise<T> {
     const response = await this.client.post<T>(url, data, config);
     return response.data;
   }
 
-  async put<T>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> {
+  async put<T>(
+    url: string,
+    data?: any,
+    config?: AxiosRequestConfig
+  ): Promise<T> {
     const response = await this.client.put<T>(url, data, config);
     return response.data;
   }
 
-  async patch<T>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> {
+  async patch<T>(
+    url: string,
+    data?: any,
+    config?: AxiosRequestConfig
+  ): Promise<T> {
     const response = await this.client.patch<T>(url, data, config);
     return response.data;
   }
@@ -368,7 +275,11 @@ class ApiClient {
   }
 
   // File upload
-  async upload<T>(url: string, file: File, onProgress?: (progress: number) => void): Promise<T> {
+  async upload<T>(
+    url: string,
+    file: File,
+    onProgress?: (progress: number) => void
+  ): Promise<T> {
     const formData = new FormData();
     formData.append('file', file);
 
@@ -376,7 +287,9 @@ class ApiClient {
       // Don't set Content-Type header manually - Axios will set it correctly for FormData
       onUploadProgress: (progressEvent) => {
         if (onProgress && progressEvent.total) {
-          const progress = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+          const progress = Math.round(
+            (progressEvent.loaded * 100) / progressEvent.total
+          );
           onProgress(progress);
         }
       },
@@ -403,22 +316,9 @@ class ApiClient {
     window.URL.revokeObjectURL(downloadUrl);
   }
 
-  // WebSocket connection helper
-  createWebSocket(url: string): WebSocket {
-    // Get token from localStorage as fallback for WebSocket connections
-    const authStateStr = localStorage.getItem('auth-storage');
-    let token = null;
-    let organizationId = null;
-
-    if (authStateStr) {
-      try {
-        const authState: AuthState = JSON.parse(authStateStr);
-        token = authState.state.token;
-        organizationId = authState.state.organization?.id;
-      } catch (e) {
-        console.error('Error parsing auth state:', e);
-      }
-    }
+  // WebSocket connection helper — gets token from Supabase session
+  async createWebSocket(url: string): Promise<WebSocket> {
+    const { token, organizationId } = await this.getAuthFromSession();
 
     const wsUrl = new URL(url, API_CONFIG.BASE_URL.replace('http', 'ws'));
     if (token) {

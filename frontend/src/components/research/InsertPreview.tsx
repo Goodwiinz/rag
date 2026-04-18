@@ -23,18 +23,18 @@ const sectionLabels: Record<
 > = {
   introduction: {
     label: 'Introduction',
-    color: 'text-[#00d4ff]',
-    bg: 'bg-[#00d4ff]/10 border-[#00d4ff]/30',
+    color: 'text-brand-cyan',
+    bg: 'bg-brand-cyan/10 border-brand-cyan/30',
   },
   methodology: {
     label: 'Methodology',
-    color: 'text-[#ffb700]',
-    bg: 'bg-[#ffb700]/10 border-[#ffb700]/30',
+    color: 'text-helios',
+    bg: 'bg-helios/10 border-helios/30',
   },
   results: {
     label: 'Results',
-    color: 'text-[#00ff9f]',
-    bg: 'bg-[#00ff9f]/10 border-[#00ff9f]/30',
+    color: 'text-sol',
+    bg: 'bg-sol/10 border-sol/30',
   },
   discussion: {
     label: 'Discussion',
@@ -43,13 +43,13 @@ const sectionLabels: Record<
   },
   conclusion: {
     label: 'Conclusion',
-    color: 'text-[#00d4ff]',
-    bg: 'bg-[#00d4ff]/10 border-[#00d4ff]/30',
+    color: 'text-brand-cyan',
+    bg: 'bg-brand-cyan/10 border-brand-cyan/30',
   },
   abstract: {
     label: 'Abstract',
-    color: 'text-[#ffb700]',
-    bg: 'bg-[#ffb700]/10 border-[#ffb700]/30',
+    color: 'text-helios',
+    bg: 'bg-helios/10 border-helios/30',
   },
   custom: {
     label: 'Custom',
@@ -59,8 +59,8 @@ const sectionLabels: Record<
 };
 
 function getConfidenceColor(confidence: number): string {
-  if (confidence >= 0.8) return 'text-[#00ff9f]';
-  if (confidence >= 0.6) return 'text-[#ffb700]';
+  if (confidence >= 0.8) return 'text-sol';
+  if (confidence >= 0.6) return 'text-helios';
   return 'text-red-400';
 }
 
@@ -133,7 +133,7 @@ export const InsertPreview: React.FC<InsertPreviewProps> = ({
         <Button
           variant="ghost"
           size="sm"
-          className="gap-1.5 text-[#ffb700] hover:bg-[#ffb700]/10 hover:text-[#ffb700]"
+          className="gap-1.5 text-helios hover:bg-helios/10 hover:text-helios"
           onClick={() => onEditFirst(generated)}
           aria-label="Edit before inserting"
         >
@@ -142,7 +142,7 @@ export const InsertPreview: React.FC<InsertPreviewProps> = ({
         </Button>
         <Button
           size="sm"
-          className="gap-1.5 bg-[#00ff9f]/10 text-[#00ff9f] hover:bg-[#00ff9f]/20"
+          className="gap-1.5 bg-sol/10 text-sol hover:bg-sol/20"
           onClick={() => onAccept(generated)}
           aria-label="Accept and insert"
         >

@@ -313,7 +313,7 @@ function CommandPalette({
 // ============================================
 
 // Terminal Observatory theme colors
-const PHOSPHOR_GREEN = '#00ff9f';
+const PHOSPHOR_GREEN = '#D4A039';
 const AMBER = '#ffb700';
 
 interface CitationItem {
@@ -523,7 +523,11 @@ function ContextPanel({
     async (lastAssistantContent: string, lastCitations: CitationItem[]) => {
       setLoadingSuggestions(true);
       try {
-        const token = useAuthStore.getState().token;
+        const supabase = (await import('@/lib/supabase/client')).createClient();
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+        const token = session?.access_token;
         if (!token) {
           setSuggestions([]);
           setLoadingSuggestions(false);

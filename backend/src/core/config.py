@@ -105,6 +105,18 @@ class Settings(BaseSettings):
         """Override DATABASE_URL when SUPABASE_DB_URL is set."""
         if self.SUPABASE_DB_URL:
             self.DATABASE_URL = self.SUPABASE_DB_URL
+        # Validate final DATABASE_URL (allow sqlite in testing)
+        allowed_prefixes = ("postgresql://", "postgresql+asyncpg://")
+        if self.ENVIRONMENT == "testing":
+            allowed_prefixes = ("postgresql://", "postgresql+asyncpg://", "sqlite://")
+        if not self.DATABASE_URL.startswith(allowed_prefixes):
+            raise ValueError(
+                "DATABASE_URL must start with postgresql:// or postgresql+asyncpg://"
+            )
+        if self.ENVIRONMENT in ("production", "staging") and "localhost" in self.DATABASE_URL:
+            raise ValueError(
+                "DATABASE_URL must not point to localhost in production/staging"
+            )
         return self
 
     @field_validator("SECRET_KEY", mode="before")
@@ -181,7 +193,19 @@ class Settings(BaseSettings):
     MAX_FILE_SIZE_MB: int = 10
     FREE_TIER_STORAGE_GB: int = 10
 
-    # Supabase Storage
+    # Storage Backend: "local", "s3", or "supabase"
+    STORAGE_BACKEND: str = "local"
+
+    # S3-Compatible Object Storage (DigitalOcean Spaces)
+    S3_ENDPOINT_URL: Optional[str] = None  # https://nyc3.digitaloceanspaces.com
+    S3_ACCESS_KEY: Optional[str] = None
+    S3_SECRET_KEY: Optional[str] = None
+    S3_BUCKET_NAME: str = "rag-system-storage"
+    S3_REGION: str = "nyc3"
+    S3_CDN_ENDPOINT: Optional[str] = None  # https://rag-system-storage.nyc3.cdn.digitaloceanspaces.com
+    S3_STORAGE_TEMP_DIR: str = "/tmp/rag_s3_storage"
+
+    # Supabase Storage (legacy)
     SUPABASE_STORAGE_ENABLED: bool = False
     SUPABASE_STORAGE_TEMP_DIR: str = "/tmp/rag_storage"
 
@@ -226,6 +250,13 @@ class Settings(BaseSettings):
     COHERE_RERANK_MODEL: str = "Cohere-rerank-v4.0-pro"
     COHERE_RERANK_TOP_N: int = 10
 
+    # Cohere Embedding Configuration
+    COHERE_EMBED_ENDPOINT: Optional[str] = None  # https://api.cohere.com/v2/embed
+    COHERE_EMBED_API_KEY: Optional[str] = None  # Falls back to COHERE_RERANK_API_KEY
+    COHERE_EMBED_MODEL: str = "embed-v-4-0"  # Azure AI deployment name
+    COHERE_EMBED_DIMENSIONS: int = 1024
+    COHERE_EMBED_BATCH_SIZE: int = 96
+
     # Processing Configuration
     MAX_CONCURRENT_JOBS: int = 5
     JOB_RETRY_MAX: int = 3
@@ -238,7 +269,7 @@ class Settings(BaseSettings):
 
     # Embedding Provider Configuration
     EMBEDDING_PROVIDER: str = (
-        "sentence_transformers"  # sentence_transformers, azure_openai, auto
+        "sentence_transformers"  # cohere, sentence_transformers, azure_openai, auto
     )
 
     # LLM Response Cache Configuration

@@ -88,10 +88,11 @@ export function TerminalChatComposer({
                 <button
                   onClick={onSubmit}
                   disabled={!value.trim() || isDisabled}
+                  title="Send message (Enter)"
                   className={cn(
                     'flex items-center gap-2 rounded-lg px-5 py-2 text-[10px] font-bold tracking-widest transition-all duration-300',
                     value.trim() && !isDisabled
-                      ? 'bg-[var(--phosphor-green)] text-[var(--terminal-bg)] shadow-[0_0_18px_rgba(0,255,159,0.25)] hover:scale-[1.02] hover:shadow-[0_0_24px_rgba(0,255,159,0.35)] active:scale-95'
+                      ? 'bg-[var(--phosphor-green)] text-[var(--terminal-bg)] shadow-[0_0_18px_rgba(212,160,57,0.25)] hover:scale-[1.02] hover:shadow-[0_0_24px_rgba(212,160,57,0.35)] active:scale-95'
                       : 'cursor-not-allowed border border-[var(--terminal-border)] bg-[var(--terminal-elevated)] text-[var(--terminal-text-dim)]/80'
                   )}
                   style={{ fontFamily: "'JetBrains Mono', monospace" }}

@@ -98,7 +98,7 @@ from src.models.processing import ProcessingJob, JobType, JobStatus
 # Using Entity from models/entity as fallback
 from src.models.entity import Entity as ExtractedEntity
 ExtractedRelationship = None  # Not defined yet
-from src.services.knowledge_graph import KnowledgeGraphService
+from src.services.knowledge_graph.knowledge_graph_service import knowledge_graph_service as _kg_service_instance
 from src.services.search.vector_service import VectorService as VectorStoreService
 from src.core.database import get_db
 
@@ -560,7 +560,7 @@ class EnhancedDocumentProcessingService:
         self.minio_client = self._init_minio_client()
         self.multimodal_processor = MultimodalProcessor(self.minio_client)
         self.entity_extractor = EntityExtractor()
-        self.knowledge_graph_service = KnowledgeGraphService(db)
+        self.knowledge_graph_service = _kg_service_instance
         self.vector_store_service = VectorStoreService(db)
 
     def _init_minio_client(self) -> Minio:
@@ -818,7 +818,7 @@ class EnhancedDocumentProcessingService:
 
             # Create nodes for entities
             for entity_data in entities:
-                node_id = await self.knowledge_graph_service.create_entity_node(
+                node_id = self.knowledge_graph_service.create_entity_node(
                     entity_text=entity_data["text"],
                     entity_type=entity_data["label"],
                     document_id=str(document.id),
@@ -832,23 +832,35 @@ class EnhancedDocumentProcessingService:
             # Create relationships
             for rel_data in relationships:
                 # Find corresponding nodes in Neo4j
-                source_node = await self.knowledge_graph_service.find_entity_node(
+                source_node = self.knowledge_graph_service.find_entity_node(
                     rel_data["source"], rel_data.get("source_type", "UNKNOWN")
                 )
-                target_node = await self.knowledge_graph_service.find_entity_node(
+                target_node = self.knowledge_graph_service.find_entity_node(
                     rel_data["target"], rel_data.get("target_type", "UNKNOWN")
                 )
 
                 if source_node and target_node:
-                    rel_id = await self.knowledge_graph_service.create_relationship(
-                        source_node["id"],
-                        target_node["id"],
-                        rel_data["type"],
-                        confidence=rel_data.get("confidence", 0.8),
-                        document_id=str(document.id)
+                    from src.models.graph import (
+                        CreateRelationshipRequest,
+                        RelationshipType as GraphRelType,
                     )
 
-                    if rel_id:
+                    raw_type = str(rel_data["type"]).upper().replace(" ", "_")
+                    try:
+                        rel_type = GraphRelType(raw_type)
+                    except ValueError:
+                        rel_type = GraphRelType.RELATED_TO
+
+                    rel_request = CreateRelationshipRequest(
+                        source_entity_id=source_node["id"],
+                        target_entity_id=target_node["id"],
+                        relationship_type=rel_type,
+                        confidence_score=rel_data.get("confidence", 0.8),
+                        source_document_id=str(document.id),
+                    )
+                    rel_result = self.knowledge_graph_service.create_relationship(rel_request)
+
+                    if rel_result:
                         relationships_created += 1
 
             processing_time = (datetime.now() - start_time).total_seconds() * 1000
@@ -890,13 +902,10 @@ class EnhancedDocumentProcessingService:
                     embedding = self.multimodal_processor.sentence_model.encode(chunk)
                     embeddings.append(embedding.tolist())
             else:
-                # Fallback: use a simple hash-based embedding
-                import hashlib
-                for chunk in chunks:
-                    # Use MD5 for non-security embedding fallback (usedforsecurity=False)
-                    hash_obj = hashlib.md5(chunk.encode(), usedforsecurity=False)
-                    embedding = [float(ord(c)) for c in hash_obj.hexdigest()[:384]]  # 384 dimensions
-                    embeddings.append(embedding)
+                logger.warning(
+                    "No embedding model available — skipping vector embeddings. "
+                    "Document will not be searchable via semantic search."
+                )
 
             # Store in vector database
             embedding_ids = []

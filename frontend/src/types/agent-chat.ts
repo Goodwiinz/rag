@@ -97,6 +97,14 @@ export interface PendingConfirmation {
   message: string;
 }
 
+export interface PlanStep {
+  step: number;
+  description: string;
+  tool: string;
+  args_hint: Record<string, unknown>;
+  depends_on: number[];
+}
+
 export interface AgentChatState {
   /** Current UI mode */
   uiMode: AgentUIMode;
@@ -121,6 +129,10 @@ export interface AgentChatState {
   pendingConfirmation: PendingConfirmation | null;
   /** Whether a confirmation action is in progress */
   isConfirming: boolean;
+  /** Incremented when agent tools mutate project data (documents, notes, etc.) */
+  projectDataVersion: number;
+  /** Current execution plan from the planner node */
+  currentPlan: PlanStep[] | null;
 }
 
 export interface AgentChatActions {

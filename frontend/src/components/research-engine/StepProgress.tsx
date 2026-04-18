@@ -52,9 +52,9 @@ export function StepProgress({ step }: StepProgressProps) {
       case 'pending':
         return <Clock className="h-4 w-4 text-gray-500" />;
       case 'running':
-        return <Loader2 className="h-4 w-4 animate-spin text-[#00d4ff]" />;
+        return <Loader2 className="h-4 w-4 animate-spin text-brand-cyan" />;
       case 'complete':
-        return <Check className="h-4 w-4 text-[#00ff9f]" />;
+        return <Check className="h-4 w-4 text-sol" />;
       case 'error':
         return <AlertCircle className="h-4 w-4 text-red-400" />;
     }
@@ -65,9 +65,9 @@ export function StepProgress({ step }: StepProgressProps) {
       case 'pending':
         return 'border-gray-700';
       case 'running':
-        return 'border-[#00d4ff]/50';
+        return 'border-brand-cyan/50';
       case 'complete':
-        return 'border-[#00ff9f]/50';
+        return 'border-sol/50';
       case 'error':
         return 'border-red-500/50';
     }
@@ -105,8 +105,8 @@ export function StepProgress({ step }: StepProgressProps) {
           <span
             className={`flex items-center gap-1 px-2 py-0.5 text-xs font-mono rounded border ${
               step.mode === 'deterministic'
-                ? 'bg-[#00ff9f]/10 text-[#00ff9f] border-[#00ff9f]/20'
-                : 'bg-[#ffb700]/10 text-[#ffb700] border-[#ffb700]/20'
+                ? 'bg-sol/10 text-sol border-sol/20'
+                : 'bg-helios/10 text-helios border-helios/20'
             }`}
           >
             {step.mode === 'deterministic' ? (
@@ -127,7 +127,7 @@ export function StepProgress({ step }: StepProgressProps) {
                 title={`${mark.check_type}: ${mark.passed ? 'passed' : 'failed'}${mark.details ? ` - ${mark.details}` : ''}`}
               >
                 {mark.passed ? (
-                  <Check className="h-3.5 w-3.5 text-[#00ff9f]" />
+                  <Check className="h-3.5 w-3.5 text-sol" />
                 ) : (
                   <X className="h-3.5 w-3.5 text-red-400" />
                 )}
@@ -182,7 +182,7 @@ export function StepProgress({ step }: StepProgressProps) {
                 {step.sources.map((source, i) => (
                   <span
                     key={i}
-                    className="px-2 py-0.5 text-xs font-mono bg-[#ffb700]/10 text-[#ffb700] rounded border border-[#ffb700]/20"
+                    className="px-2 py-0.5 text-xs font-mono bg-helios/10 text-helios rounded border border-helios/20"
                   >
                     {source}
                   </span>
@@ -207,7 +207,7 @@ export function StepProgress({ step }: StepProgressProps) {
                     className="flex items-center gap-2 text-xs font-mono"
                   >
                     {mark.passed ? (
-                      <Check className="h-3 w-3 text-[#00ff9f]" />
+                      <Check className="h-3 w-3 text-sol" />
                     ) : (
                       <X className="h-3 w-3 text-red-400" />
                     )}
