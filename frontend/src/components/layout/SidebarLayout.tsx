@@ -18,6 +18,7 @@ import { usePathname } from 'next/navigation';
 import * as React from 'react';
 import dynamic from 'next/dynamic';
 import { GlobalJobCenter } from './GlobalJobCenter';
+import { ThemeToggle } from '@/components/ui/theme-toggle';
 import { useProjectStore } from '@/store/projectStore';
 
 const AppSidebar = dynamic(
@@ -97,12 +98,6 @@ export function SidebarLayout({
     return { path, name, isLast };
   });
 
-  // Get current page title
-  const currentPage =
-    breadcrumbItems.length > 0
-      ? breadcrumbItems[breadcrumbItems.length - 1].name
-      : 'Dashboard';
-
   return (
     <SidebarProvider defaultOpen={true} className="h-svh overflow-hidden">
       <AppSidebar />
@@ -162,14 +157,9 @@ export function SidebarLayout({
                   </Breadcrumb>
                 )}
 
-                {/* Page Title (mobile) */}
                 <div className="ml-auto flex items-center gap-2">
+                  <ThemeToggle />
                   <GlobalJobCenter />
-                  <div className="md:hidden">
-                    <span className="text-sm text-foreground">
-                      {currentPage}
-                    </span>
-                  </div>
                 </div>
               </header>
             )}

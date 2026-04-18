@@ -46,12 +46,25 @@ class EmbeddingService:
             self._ensure_initialized()
 
     def _ensure_initialized(self):
-        """Lazily initialize the model and Azure availability check"""
+        """Lazily initialize the model and provider availability checks"""
         if self._initialized:
             return
         self._load_model()
-        self._check_azure_availability()
+        # Priority: cohere > azure_openai > sentence_transformers > fallback
+        if not self._check_cohere_availability():
+            self._check_azure_availability()
         self._initialized = True
+
+    def _check_cohere_availability(self) -> bool:
+        """Check if Cohere embed service is available and set as preferred provider"""
+        from src.services.embedding.cohere_embed_service import cohere_embed_service
+
+        if cohere_embed_service.is_enabled:
+            self.embedding_provider = "cohere"
+            self.embedding_dimension = settings.COHERE_EMBED_DIMENSIONS
+            logger.info("Using Cohere embed-v4.0 as preferred embedding provider")
+            return True
+        return False
 
     def _load_model(self):
         """Load the embedding model"""
@@ -121,8 +134,15 @@ class EmbeddingService:
             )
 
     def set_provider(self, provider: str):
-        """Set the embedding provider ('sentence_transformers', 'azure_openai', or 'auto')"""
-        if (
+        """Set the embedding provider ('cohere', 'sentence_transformers', 'azure_openai', or 'auto')"""
+        if provider == "cohere":
+            from src.services.embedding.cohere_embed_service import cohere_embed_service
+
+            if not cohere_embed_service.is_enabled:
+                raise ValueError(
+                    "Cohere embedding provider requested but not available"
+                )
+        elif (
             provider == "azure_openai"
             and not azure_openai_service.is_embedding_available()
         ):
@@ -133,7 +153,7 @@ class EmbeddingService:
             raise ValueError(
                 "Sentence transformers provider requested but not available"
             )
-        elif provider not in ["sentence_transformers", "azure_openai", "auto"]:
+        elif provider not in ["cohere", "sentence_transformers", "azure_openai", "auto"]:
             raise ValueError(f"Invalid provider: {provider}")
 
         self.embedding_provider = provider
@@ -222,6 +242,67 @@ class EmbeddingService:
                 provider="azure_openai",
             )
 
+    async def generate_embedding_cohere(
+        self, text: str, input_type: str = "search_query"
+    ) -> EmbeddingResponse:
+        """Generate embedding using Cohere embed-v4.0"""
+        from src.services.embedding.cohere_embed_service import cohere_embed_service
+
+        start_time = time.time()
+        embedding = await cohere_embed_service.embed_text_single(text, input_type)
+        return EmbeddingResponse(
+            embedding=embedding,
+            model=settings.COHERE_EMBED_MODEL,
+            dimension=len(embedding),
+            processing_time=time.time() - start_time,
+            provider="cohere",
+        )
+
+    async def generate_batch_embeddings_cohere(
+        self, texts: List[str], input_type: str = "search_document"
+    ) -> BatchEmbeddingResponse:
+        """Generate batch embeddings using Cohere embed-v4.0"""
+        from src.services.embedding.cohere_embed_service import cohere_embed_service
+
+        start_time = time.time()
+
+        valid_texts = []
+        valid_indices = []
+        errors = []
+        for i, text in enumerate(texts):
+            if text and text.strip():
+                valid_texts.append(text.strip())
+                valid_indices.append(i)
+            else:
+                errors.append({"index": i, "text": text, "error": "Empty or invalid text"})
+
+        if not valid_texts:
+            return BatchEmbeddingResponse(
+                embeddings=[],
+                model=settings.COHERE_EMBED_MODEL,
+                dimension=settings.COHERE_EMBED_DIMENSIONS,
+                processing_time=time.time() - start_time,
+                failed_count=len(texts),
+                errors=errors,
+                provider="cohere",
+            )
+
+        embeddings = await cohere_embed_service.embed_texts(valid_texts, input_type)
+
+        all_embeddings = [None] * len(texts)
+        for i, idx in enumerate(valid_indices):
+            all_embeddings[idx] = embeddings[i]
+
+        return BatchEmbeddingResponse(
+            embeddings=all_embeddings,
+            model=settings.COHERE_EMBED_MODEL,
+            dimension=settings.COHERE_EMBED_DIMENSIONS,
+            processing_time=time.time() - start_time,
+            failed_count=len(errors),
+            errors=errors,
+            provider="cohere",
+        )
+
     async def generate_embedding(self, request: EmbeddingRequest) -> EmbeddingResponse:
         """Generate embedding for a single text"""
         self._ensure_initialized()
@@ -230,6 +311,13 @@ class EmbeddingService:
         try:
             # Determine provider based on request or current setting
             provider = getattr(request, "provider", self.embedding_provider)
+
+            # Use Cohere if requested or if it's the preferred provider
+            if provider == "cohere":
+                from src.services.embedding.cohere_embed_service import cohere_embed_service
+
+                if cohere_embed_service.is_enabled:
+                    return await self.generate_embedding_cohere(request.text)
 
             # Use Azure OpenAI if requested or if it's the preferred provider
             if (
@@ -292,6 +380,13 @@ class EmbeddingService:
         try:
             # Determine provider based on request or current setting
             provider = getattr(request, "provider", self.embedding_provider)
+
+            # Use Cohere if requested or if it's the preferred provider
+            if provider == "cohere":
+                from src.services.embedding.cohere_embed_service import cohere_embed_service
+
+                if cohere_embed_service.is_enabled:
+                    return await self.generate_batch_embeddings_cohere(request.texts)
 
             # Use Azure OpenAI if requested or if it's the preferred provider
             if (
@@ -446,20 +541,47 @@ class EmbeddingService:
             return {"success": False, "error": str(e)}
 
     def chunk_text(
-        self, text: str, chunk_size: int = 500, overlap: int = 150
+        self, text: str, chunk_size: int = 500, overlap: int = 100
     ) -> List[str]:
-        """Split text into chunks for embedding"""
+        """Split text into chunks for embedding using sentence-aware boundaries.
+
+        Splits on paragraph/sentence boundaries first, then merges into
+        chunks of approximately chunk_size words with overlap.
+        """
         if not text or not text.strip():
             return []
 
-        # Simple word-based chunking
-        words = text.split()
-        chunks = []
+        # Split into sentences/paragraphs (prefer paragraph breaks)
+        import re
 
-        for i in range(0, len(words), chunk_size - overlap):
-            chunk = " ".join(words[i : i + chunk_size])
-            if chunk.strip():
-                chunks.append(chunk.strip())
+        segments = re.split(r"\n\n+", text.strip())
+        # Further split long paragraphs on sentence boundaries
+        sentences: list[str] = []
+        for seg in segments:
+            seg = seg.strip()
+            if not seg:
+                continue
+            # Split on sentence endings followed by space/newline
+            parts = re.split(r"(?<=[.!?])\s+", seg)
+            sentences.extend(p.strip() for p in parts if p.strip())
+
+        if not sentences:
+            return []
+
+        # Merge sentences into chunks of ~chunk_size words
+        chunks: list[str] = []
+        current_words: list[str] = []
+
+        for sentence in sentences:
+            s_words = sentence.split()
+            if current_words and len(current_words) + len(s_words) > chunk_size:
+                chunks.append(" ".join(current_words))
+                # Keep overlap words from the end
+                current_words = current_words[-overlap:] if overlap > 0 else []
+            current_words.extend(s_words)
+
+        if current_words:
+            chunks.append(" ".join(current_words))
 
         return chunks
 
@@ -480,9 +602,8 @@ class EmbeddingService:
             if not chunks:
                 return []
 
-            # Generate embeddings for all chunks - force Azure OpenAI for 1536d vectors
-            chunk_texts = [chunk for chunk in chunks]
-            request = BatchEmbeddingRequest(texts=chunk_texts, provider="azure_openai")
+            # Generate embeddings for all chunks using the configured provider
+            request = BatchEmbeddingRequest(texts=chunks, provider=self.embedding_provider)
             response = await self.generate_batch_embeddings(request)
 
             # Combine embeddings with metadata

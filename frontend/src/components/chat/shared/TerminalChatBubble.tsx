@@ -1,10 +1,7 @@
 'use client';
 
 import { cn } from '@/lib/utils';
-import {
-  getReferencedCitations,
-  type Citation,
-} from '@/utils/citationParser';
+import { getReferencedCitations, type Citation } from '@/utils/citationParser';
 import { Activity, Check, Copy, RefreshCw } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { CitationRenderer } from '../CitationRenderer';
@@ -156,7 +153,7 @@ export function TerminalChatBubble({
       >
         <div className="pointer-events-none absolute inset-0 z-0 bg-[linear-gradient(rgba(18,18,18,0)_50%,rgba(0,0,0,0.2)_50%)] bg-[length:100%_2px] opacity-10" />
 
-        <div className="relative z-10 p-4 sm:p-5">
+        <div className="relative z-10 p-4 sm:p-5 overflow-hidden break-words">
           {isStreaming && !streamingContent ? (
             <div
               className="text-[14px] leading-relaxed text-[var(--terminal-text)]"
@@ -205,7 +202,9 @@ export function TerminalChatBubble({
             <div
               className={cn(
                 'text-[14px] leading-relaxed',
-                isUser ? 'text-[#e8d5b5]' : 'text-[var(--terminal-text)]'
+                isUser
+                  ? 'text-[var(--phosphor-green)]'
+                  : 'text-[var(--terminal-text)]'
               )}
               style={{ fontFamily: "'JetBrains Mono', monospace" }}
             >
