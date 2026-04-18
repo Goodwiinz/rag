@@ -42,7 +42,7 @@ class User(BaseModel):
     is_active = Column(Boolean, default=True, nullable=False)
 
     # Organization
-    organization_id = Column(GUID(), ForeignKey("organizations.id"), nullable=False)
+    organization_id = Column(GUID(), ForeignKey("organizations.id", ondelete="SET NULL"), nullable=True)
 
     # Authentication tracking
     last_login = Column(DateTime(timezone=True), nullable=True)

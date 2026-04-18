@@ -2,11 +2,21 @@ import ArxivManagement from '@/components/arxiv/ArxivManagement';
 import { apiClient } from '@/services/apiClient';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 
+let mockAuthStoreState = {
+  isAuthenticated: true,
+  isLoading: false,
+};
+
 jest.mock('@/services/apiClient', () => ({
   apiClient: {
     get: jest.fn(),
     postWithLongTimeout: jest.fn(),
   },
+}));
+
+jest.mock('@/stores/authStore', () => ({
+  useAuthStore: (selector: (state: typeof mockAuthStoreState) => unknown) =>
+    selector(mockAuthStoreState),
 }));
 
 jest.mock('framer-motion', () => {
@@ -61,6 +71,10 @@ const statsResponse = {
 describe('ArxivManagement', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockAuthStoreState = {
+      isAuthenticated: true,
+      isLoading: false,
+    };
     mockApiClient.get.mockResolvedValue(statsResponse as never);
   });
 
@@ -165,6 +179,70 @@ describe('ArxivManagement', () => {
         })
       );
     });
+  });
+
+  it('defaults guests into public search mode and keeps ingestion locked', async () => {
+    const searchResult = [
+      {
+        id: '1706.03762',
+        title: 'Attention Is All You Need',
+        authors: ['Ashish Vaswani'],
+        abstract: 'Transformer architecture paper.',
+        published: '2017-06-12T00:00:00Z',
+        updated: '2017-06-12T00:00:00Z',
+        categories: ['cs.CL', 'cs.LG'],
+      },
+    ];
+
+    mockAuthStoreState = {
+      isAuthenticated: false,
+      isLoading: false,
+    };
+    mockApiClient.postWithLongTimeout.mockResolvedValue(searchResult as never);
+
+    render(<ArxivManagement />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('tab', { name: 'Ingest Papers' })).toHaveAttribute(
+        'aria-selected',
+        'true'
+      );
+    });
+
+    expect(
+      screen.getByText(/public search and live stats stay available/i)
+    ).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText('Search Query'), {
+      target: { value: 'transformer interpretability' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Search Papers' }));
+
+    expect(
+      await screen.findByText('Attention Is All You Need')
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Queue Ingestion' })
+    ).toBeDisabled();
+    expect(
+      screen.getByRole('link', { name: /sign in to queue ingestion/i })
+    ).toBeInTheDocument();
+  });
+
+  it('replaces raw tracking transport errors with retry guidance', async () => {
+    mockApiClient.postWithLongTimeout.mockRejectedValue(
+      new Error('Request failed with status code 500')
+    );
+
+    render(<ArxivManagement />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Run Change Scan' }));
+
+    const errorMessages = await screen.findAllByText(
+      'ERROR: ArXiv scan failed because the upstream arXiv service is temporarily unavailable or rate limiting requests. Retry in about a minute or scan fewer categories.'
+    );
+
+    expect(errorMessages.length).toBeGreaterThan(0);
   });
 
   it('extracts features from paper IDs in the extract tab', async () => {

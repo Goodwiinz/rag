@@ -1,0 +1,36 @@
+name: extend-error-hints
+description: |
+  Add error hints for the execute_code tool and the new summarize_thread tool.
+  Tests whether an agent can extend the error recovery system safely.
+repo: .
+commit: "98a17bb"
+files:
+  - backend/src/services/agent/error_recovery.py
+  - backend/tests/unit/services/test_agent_error_recovery.py
+context:
+  - backend/src/services/agent/error_recovery.py
+  - backend/tests/unit/services/test_agent_error_recovery.py
+prompt: |
+  Extend the TOOL_ERROR_HINTS in error_recovery.py with hints for two tools:
+
+  1. execute_code tool:
+     - ("execute_code", "sandbox"): transient, "Sandbox initialization failed. Retrying..."
+     - ("execute_code", "timeout"): transient, "Code execution timed out. Try simpler code or reduce data size."
+     - ("execute_code", "syntax error"): recoverable, "The code has a syntax error. Check the code and try again."
+     - ("execute_code", "import"): recoverable, "Module not available in sandbox. Only numpy, pandas, matplotlib, scipy, scikit-learn, seaborn are pre-installed."
+
+  2. summarize_thread tool:
+     - ("summarize_thread", "not found"): recoverable, "Thread not found. Check the thread_id."
+     - ("summarize_thread", "empty"): recoverable, "Thread has no messages to summarize."
+
+  Add tests for each new hint in test_agent_error_recovery.py.
+  All existing error recovery tests must still pass.
+judge:
+  - type: pytest
+    command: cd backend && .venv/bin/python -m pytest tests/unit/services/test_agent_error_recovery.py -v
+  - type: grep
+    pattern: "execute_code"
+    files: backend/src/services/agent/error_recovery.py
+  - type: grep
+    pattern: "summarize_thread"
+    files: backend/src/services/agent/error_recovery.py

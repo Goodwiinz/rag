@@ -1,38 +1,40 @@
 import pytest
-from fastapi import FastAPI, Request
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.testclient import TestClient
+from pydantic import BaseModel
 from unittest.mock import AsyncMock, Mock, patch
-from src.services.security.auth_service import AuthService, get_auth_service
 from src.core.security import auth_rate_limiter, get_client_ip
 from src.core.rate_limit import InMemoryRateLimiter
-from src.api.auth.auth import router as auth_router
 
-# Create a minimal app for testing to avoid importing src.main and its heavy dependencies
+# Create a minimal app with a stub /login endpoint to test rate limiting
+# without importing the full auth router (which has no login route since
+# Supabase handles authentication externally).
 app = FastAPI()
-app.include_router(auth_router, prefix="/api/v1")
 
-client = TestClient(app)
 
-# Mock AuthService
-async def mock_login_user(email, password, remember_me=False):
+class _LoginRequest(BaseModel):
+    email: str
+    password: str
+
+
+@app.post("/api/v1/auth/login")
+async def _stub_login(body: _LoginRequest, request: Request):
+    client_ip = request.client.host if request.client else "unknown"
+    if not await auth_rate_limiter.is_allowed(client_ip, prefix="login"):
+        raise HTTPException(status_code=429, detail="Too many requests")
     return {
         "access_token": "fake_token",
         "refresh_token": "fake_refresh",
         "token_type": "bearer",
         "expires_in": 3600,
         "refresh_expires_in": 86400,
-        "remember_me": remember_me,
-        "user": {"id": "123", "email": email},
-        "organization": None
+        "remember_me": False,
+        "user": {"id": "123", "email": body.email},
+        "organization": None,
     }
 
-mock_auth_service = AsyncMock(spec=AuthService)
-mock_auth_service.login_user = AsyncMock(side_effect=mock_login_user)
 
-def get_mock_auth_service():
-    return mock_auth_service
-
-app.dependency_overrides[get_auth_service] = get_mock_auth_service
+client = TestClient(app)
 
 @pytest.fixture
 def mock_rate_limiter():
@@ -40,8 +42,8 @@ def mock_rate_limiter():
     # and ensure deterministic behavior.
     limiter = InMemoryRateLimiter(max_attempts=50, window_minutes=15)
 
-    # We need to patch where it is USED, which is src.api.auth.auth
-    with patch("src.api.auth.auth.auth_rate_limiter", limiter):
+    # Patch where the rate limiter is used by the stub login endpoint
+    with patch("tests.security.test_auth_rate_limit.auth_rate_limiter", limiter):
         yield limiter
 
 def test_login_rate_limit_enforces_ip_check(mock_rate_limiter):

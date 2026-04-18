@@ -5,6 +5,7 @@ import {
   EvaluationConfig,
 } from '@/types/evaluation';
 import { PerformanceAnalytics, UsageAnalytics } from '@/types/analytics';
+import { getPublicApiOrigin } from '@/utils/publicEndpoints';
 
 // API Types
 interface CreateEvaluationRequest {
@@ -47,7 +48,7 @@ interface EvaluationComparison {
 }
 
 // Base API URL
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+const API_BASE_URL = getPublicApiOrigin() || 'http://localhost:8000';
 
 // API client functions
 const evaluationApi = {

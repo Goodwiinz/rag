@@ -199,8 +199,11 @@ browser-sessions/
 browser-data/
 browser-temp/
 
-# Playwright and E2E test browser artifacts
+# Playwright and E2E test artifacts
 playwright/.brv/
+playwright-report/
+playwright-*-report/
+playwright-*-junit.xml
 test-results/*.brv
 test-results/**/*.brv
 playwright-report/*.brv
@@ -219,6 +222,8 @@ debug-browser-cache/
 # Frontend/E2E specific browser artifacts
 frontend/test-results/**/*.brv
 frontend/playwright-report/**/*.brv
+frontend/playwright-nous-report/
+frontend/playwright-nous-junit.xml
 tests/e2e/**/*.brv
 tests/integration/**/*.brv
 backend/browser-test-cache/
@@ -242,3 +247,29 @@ backend/.langgraph_api/
 
 # Arxiv downloaded PDFs
 backend/data/arxiv/
+
+# Backend build/test artifacts
+backend/.build-timestamp
+backend/MagicMock
+backend/celerybeat/
+backend/coverage_html/
+backend/evaluation_results/
+backend/evaluation_results.json
+backend/test_env/
+*.disabled
+
+# Duplicate lock files (using npm)
+pnpm-lock.yaml
+
+# Supabase CLI temp state
+supabase/.temp/
+
+# Security keys
+**/master.key
+*.key.bak
+
+# Backend data artifacts (state files, logs)
+backend/data/*.json
+backend/data/*.log
+graphify-out/
+backend/graphify-out/

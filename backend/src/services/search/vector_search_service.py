@@ -222,10 +222,19 @@ class VectorSearchService:
     ) -> VectorSearchResponse:
         """Search for similar documents"""
         try:
-            # Generate embedding synchronously via Azure OpenAI client (avoids asyncio.run issues in thread pool)
+            # Generate query embedding using the best available provider
+            from src.services.embedding.cohere_embed_service import cohere_embed_service
             from src.services.infrastructure.azure_openai_service import azure_openai_service
 
-            if azure_openai_service.is_embedding_available():
+            if cohere_embed_service.is_enabled:
+                # Cohere requires async
+                embedding_response = asyncio.run(
+                    self.embedding_service.generate_embedding_cohere(
+                        query, input_type="search_query"
+                    )
+                )
+                query_embedding = embedding_response.embedding
+            elif azure_openai_service.is_embedding_available():
                 deployment = azure_openai_service.get_embedding_deployment()
                 response = azure_openai_service.embedding_client.embeddings.create(
                     input=[query],
@@ -234,7 +243,7 @@ class VectorSearchService:
                 query_embedding = response.data[0].embedding
             else:
                 # Fallback to async path
-                embedding_request = EmbeddingRequest(text=query, provider="azure_openai")
+                embedding_request = EmbeddingRequest(text=query)
                 embedding_response = asyncio.run(
                     self.embedding_service.generate_embedding(embedding_request)
                 )

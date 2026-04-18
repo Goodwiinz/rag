@@ -7,6 +7,7 @@
 
 import { useEffect, useCallback, useRef, useState } from 'react';
 import { useAuth } from './useAuth';
+import { createClient } from '@/lib/supabase/client';
 import { useRealtimeProcessingStore } from '@/store/realtimeProcessingStore';
 import { getRealtimeWebSocketService } from '@/services/realtimeWebSocketService';
 import {
@@ -17,7 +18,7 @@ import {
   NotificationMessage,
   DocumentProcessingState,
   PerformanceMetrics,
-  WebSocketConnectionState
+  WebSocketConnectionState,
 } from '@/types/realtime-processing';
 
 interface UseRealtimeProcessingOptions {
@@ -74,10 +75,10 @@ export const useRealtimeProcessing = (
     documentIds = [],
     enablePerformanceMonitoring = true,
     maxRetries = 5,
-    reconnectInterval = 2000
+    reconnectInterval = 2000,
   } = options;
 
-  const { token, isAuthenticated } = useAuth();
+  const { isAuthenticated } = useAuth();
   const store = useRealtimeProcessingStore();
   const wsServiceRef = useRef(getRealtimeWebSocketService());
   const [connectionLatency, setConnectionLatency] = useState(0);
@@ -85,66 +86,81 @@ export const useRealtimeProcessing = (
   const [error, setError] = useState<string | null>(null);
 
   // Message handlers
-  const handleDocumentUpdate = useCallback((message: DocumentUpdateMessage) => {
-    const { payload } = message;
+  const handleDocumentUpdate = useCallback(
+    (message: DocumentUpdateMessage) => {
+      const { payload } = message;
 
-    // Update document in store
-    if (payload.progress !== undefined) {
-      store.updateDocument(payload.documentId, {
-        overallProgress: payload.progress,
-        currentStage: payload.currentStage,
-        status: payload.status,
-        error: payload.error
-      });
-    }
+      // Update document in store
+      if (payload.progress !== undefined) {
+        store.updateDocument(payload.documentId, {
+          overallProgress: payload.progress,
+          currentStage: payload.currentStage,
+          status: payload.status,
+          error: payload.error,
+        });
+      }
 
-    // Show notification for status changes
-    if (payload.status === 'completed') {
-      store.addNotification({
-        type: 'success',
-        title: 'Document Processed',
-        message: `Document has been successfully processed`,
-        documentId: payload.documentId,
-        autoHide: true,
-        autoHideDelay: 5000
-      });
-    } else if (payload.status === 'failed' && payload.error) {
-      store.addNotification({
-        type: 'error',
-        title: 'Processing Failed',
-        message: payload.error,
-        documentId: payload.documentId,
-        autoHide: false
-      });
-    }
-  }, [store]);
+      // Show notification for status changes
+      if (payload.status === 'completed') {
+        store.addNotification({
+          type: 'success',
+          title: 'Document Processed',
+          message: `Document has been successfully processed`,
+          documentId: payload.documentId,
+          autoHide: true,
+          autoHideDelay: 5000,
+        });
+      } else if (payload.status === 'failed' && payload.error) {
+        store.addNotification({
+          type: 'error',
+          title: 'Processing Failed',
+          message: payload.error,
+          documentId: payload.documentId,
+          autoHide: false,
+        });
+      }
+    },
+    [store]
+  );
 
-  const handleQueueUpdate = useCallback((message: QueueUpdateMessage) => {
-    const { payload } = message;
+  const handleQueueUpdate = useCallback(
+    (message: QueueUpdateMessage) => {
+      const { payload } = message;
 
-    // Update queue summary and metrics
-    store.setQueueSummary(payload.summary);
-    store.setQueueMetrics(payload.metrics);
-  }, [store]);
+      // Update queue summary and metrics
+      store.setQueueSummary(payload.summary);
+      store.setQueueMetrics(payload.metrics);
+    },
+    [store]
+  );
 
-  const handleSystemMetrics = useCallback((message: SystemMetricsMessage) => {
-    store.updateSystemMetrics(message.payload);
-  }, [store]);
+  const handleSystemMetrics = useCallback(
+    (message: SystemMetricsMessage) => {
+      store.updateSystemMetrics(message.payload);
+    },
+    [store]
+  );
 
-  const handleNotification = useCallback((message: NotificationMessage) => {
-    store.addNotification(message.payload);
-  }, [store]);
+  const handleNotification = useCallback(
+    (message: NotificationMessage) => {
+      store.addNotification(message.payload);
+    },
+    [store]
+  );
 
-  const handleConnectionChange = useCallback((connectionState: WebSocketConnectionState) => {
-    store.setConnectionStatus(connectionState.status);
-    store.updateConnectionState(connectionState);
+  const handleConnectionChange = useCallback(
+    (connectionState: WebSocketConnectionState) => {
+      store.setConnectionStatus(connectionState.status);
+      store.updateConnectionState(connectionState);
 
-    if (connectionState.status === 'error' && connectionState.lastError) {
-      setError(connectionState.lastError);
-    } else {
-      setError(null);
-    }
-  }, [store]);
+      if (connectionState.status === 'error' && connectionState.lastError) {
+        setError(connectionState.lastError);
+      } else {
+        setError(null);
+      }
+    },
+    [store]
+  );
 
   const handlePerformanceUpdate = useCallback((metrics: PerformanceMetrics) => {
     setConnectionLatency(metrics.connectionLatency);
@@ -153,15 +169,22 @@ export const useRealtimeProcessing = (
 
   // Connection management
   const connect = useCallback(async () => {
-    if (!token || !isAuthenticated) {
-      console.warn('Cannot connect: Not authenticated');
+    if (!isAuthenticated) {
       return;
     }
+
+    // Get token from Supabase session
+    const supabase = createClient();
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    const accessToken = session?.access_token;
+    if (!accessToken) return;
 
     const wsService = wsServiceRef.current;
 
     try {
-      await wsService.connect(token);
+      await wsService.connect(accessToken);
 
       // Set up message handlers
       wsService.subscribe('document_update', handleDocumentUpdate);
@@ -175,13 +198,22 @@ export const useRealtimeProcessing = (
       if (documentIds.length > 0) {
         wsService.requestDocumentUpdates(documentIds);
       }
-
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to connect';
+      const errorMessage =
+        err instanceof Error ? err.message : 'Failed to connect';
       setError(errorMessage);
       console.error('WebSocket connection failed:', err);
     }
-  }, [token, isAuthenticated, documentIds, handleDocumentUpdate, handleQueueUpdate, handleSystemMetrics, handleNotification, handleConnectionChange, handlePerformanceUpdate]);
+  }, [
+    isAuthenticated,
+    documentIds,
+    handleDocumentUpdate,
+    handleQueueUpdate,
+    handleSystemMetrics,
+    handleNotification,
+    handleConnectionChange,
+    handlePerformanceUpdate,
+  ]);
 
   const disconnect = useCallback(() => {
     const wsService = wsServiceRef.current;
@@ -190,7 +222,7 @@ export const useRealtimeProcessing = (
 
   const reconnect = useCallback(async () => {
     disconnect();
-    await new Promise(resolve => setTimeout(resolve, 1000)); // Brief delay
+    await new Promise((resolve) => setTimeout(resolve, 1000)); // Brief delay
     await connect();
   }, [disconnect, connect]);
 
@@ -205,7 +237,7 @@ export const useRealtimeProcessing = (
     wsService.send({
       type: 'unsubscribe_documents',
       payload: { document_ids: documentIds },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }, []);
 
@@ -214,7 +246,7 @@ export const useRealtimeProcessing = (
     wsService.send({
       type: 'pause_document',
       payload: { document_id: documentId },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }, []);
 
@@ -223,7 +255,7 @@ export const useRealtimeProcessing = (
     wsService.send({
       type: 'resume_document',
       payload: { document_id: documentId },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }, []);
 
@@ -232,7 +264,7 @@ export const useRealtimeProcessing = (
     wsService.send({
       type: 'cancel_document',
       payload: { document_id: documentId },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }, []);
 
@@ -241,7 +273,7 @@ export const useRealtimeProcessing = (
     wsService.send({
       type: 'retry_document',
       payload: { document_id: documentId },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }, []);
 
@@ -274,7 +306,7 @@ export const useRealtimeProcessing = (
 
   // Auto-connect when authenticated
   useEffect(() => {
-    if (autoConnect && isAuthenticated && token) {
+    if (autoConnect && isAuthenticated) {
       connect();
     }
 
@@ -283,7 +315,7 @@ export const useRealtimeProcessing = (
         disconnect();
       }
     };
-  }, [autoConnect, isAuthenticated, token, connect, disconnect]);
+  }, [autoConnect, isAuthenticated, connect, disconnect]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -295,9 +327,15 @@ export const useRealtimeProcessing = (
   }, []);
 
   // Get data from store
-  const connectionStatus = useRealtimeProcessingStore(state => state.connection.status);
-  const documents = useRealtimeProcessingStore(state => state.queue.documents);
-  const systemMetrics = useRealtimeProcessingStore(state => state.systemMetrics);
+  const connectionStatus = useRealtimeProcessingStore(
+    (state) => state.connection.status
+  );
+  const documents = useRealtimeProcessingStore(
+    (state) => state.queue.documents
+  );
+  const systemMetrics = useRealtimeProcessingStore(
+    (state) => state.systemMetrics
+  );
 
   return {
     // Connection state
@@ -340,8 +378,8 @@ export const useRealtimeProcessing = (
 
 // Hook for document-specific updates
 export const useDocumentStatus = (documentId: string) => {
-  const documents = useRealtimeProcessingStore(state =>
-    state.queue.documents.filter(doc => doc.id === documentId)
+  const documents = useRealtimeProcessingStore((state) =>
+    state.queue.documents.filter((doc) => doc.id === documentId)
   );
 
   const document = documents[0];
@@ -351,7 +389,7 @@ export const useDocumentStatus = (documentId: string) => {
     wsService.send({
       type: 'pause_document',
       payload: { document_id: documentId },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }, [documentId]);
 
@@ -360,7 +398,7 @@ export const useDocumentStatus = (documentId: string) => {
     wsService.send({
       type: 'resume_document',
       payload: { document_id: documentId },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }, [documentId]);
 
@@ -369,7 +407,7 @@ export const useDocumentStatus = (documentId: string) => {
     wsService.send({
       type: 'cancel_document',
       payload: { document_id: documentId },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }, [documentId]);
 
@@ -378,7 +416,7 @@ export const useDocumentStatus = (documentId: string) => {
     wsService.send({
       type: 'retry_document',
       payload: { document_id: documentId },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }, [documentId]);
 
@@ -393,15 +431,24 @@ export const useDocumentStatus = (documentId: string) => {
 
 // Hook for connection status
 export const useConnectionStatus = () => {
-  const connectionStatus = useRealtimeProcessingStore(state => state.connection.status);
-  const reconnectionAttempts = useRealtimeProcessingStore(state => state.connection.reconnectionAttempts);
-  const maxReconnectionAttempts = useRealtimeProcessingStore(state => state.connection.maxReconnectionAttempts);
-  const lastError = useRealtimeProcessingStore(state => state.connection.lastError);
+  const connectionStatus = useRealtimeProcessingStore(
+    (state) => state.connection.status
+  );
+  const reconnectionAttempts = useRealtimeProcessingStore(
+    (state) => state.connection.reconnectionAttempts
+  );
+  const maxReconnectionAttempts = useRealtimeProcessingStore(
+    (state) => state.connection.maxReconnectionAttempts
+  );
+  const lastError = useRealtimeProcessingStore(
+    (state) => state.connection.lastError
+  );
 
   return {
     status: connectionStatus,
     isConnected: connectionStatus === 'connected',
-    isConnecting: connectionStatus === 'connecting' || connectionStatus === 'reconnecting',
+    isConnecting:
+      connectionStatus === 'connecting' || connectionStatus === 'reconnecting',
     isDisconnected: connectionStatus === 'disconnected',
     hasError: connectionStatus === 'error',
     reconnectionAttempts,
