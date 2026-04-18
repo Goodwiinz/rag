@@ -22,22 +22,12 @@ FROM base AS deps
 # Copy package.json first
 COPY frontend/package.json ./
 
-# Install dependencies — force linux platform to avoid darwin-arm64 optional deps
-RUN npm install --force && npm cache clean --force
+# Install dependencies (no lockfile in this monorepo setup)
+# This will generate a lockfile during install
+RUN npm install && npm cache clean --force
 
 # Stage 3: Build application
 FROM base AS builder
-
-# Build-time env vars (NEXT_PUBLIC_* are baked into client JS by Next.js)
-ARG NEXT_PUBLIC_SUPABASE_URL
-ARG NEXT_PUBLIC_SUPABASE_ANON_KEY
-ARG NEXT_PUBLIC_API_BASE_URL
-ARG BACKEND_URL
-
-ENV NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL
-ENV NEXT_PUBLIC_SUPABASE_ANON_KEY=$NEXT_PUBLIC_SUPABASE_ANON_KEY
-ENV NEXT_PUBLIC_API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL
-ENV BACKEND_URL=$BACKEND_URL
 
 # Copy installed dependencies
 COPY --from=deps /app/node_modules /app/node_modules
@@ -46,11 +36,7 @@ COPY --from=deps /app/node_modules /app/node_modules
 COPY frontend/ .
 
 # Build the application
-RUN if [ -z "$NEXT_PUBLIC_SUPABASE_URL" ] || [ -z "$NEXT_PUBLIC_SUPABASE_ANON_KEY" ]; then \
-      echo "NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY must be set at build time." >&2; \
-      exit 1; \
-    fi && \
-    npm run build
+RUN npm run build
 
 # Stage 4: Production image
 FROM base AS runner

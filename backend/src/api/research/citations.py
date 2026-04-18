@@ -15,21 +15,10 @@ from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 from structlog import get_logger
 
 from src.core.database import get_db
-from src.models import (
-    ChatMessage,
-    Citation,
-    Collection,
-    CollectionDocument,
-    Conversation,
-    Document,
-    Thread,
-    User,
-    Workspace,
-)
+from src.models import Citation, CollectionDocument, User
 from src.services.research.bibliography_service import BibliographyService
 from src.services.research.citation_extraction_service import CitationExtractionService
 from src.services.security.user_management import get_current_user
@@ -42,49 +31,6 @@ from src.shared.research_schemas import (
 
 logger = get_logger()
 router = APIRouter(prefix="/api/v1/citations", tags=["citations"])
-
-
-def _document_is_accessible(document: object, current_user: User) -> bool:
-    if document is None:
-        return False
-
-    return bool(
-        getattr(document, "is_public", False)
-        or getattr(document, "uploaded_by_user_id", None) == current_user.id
-    )
-
-
-def _message_is_accessible(message: object, current_user: User) -> bool:
-    if message is None:
-        return False
-
-    thread = getattr(message, "thread", None)
-    conversation = getattr(thread, "conversation", None) if thread else None
-    workspace = getattr(conversation, "workspace", None) if conversation else None
-    return getattr(workspace, "owner_id", None) == current_user.id
-
-
-def _citation_is_accessible(citation: Citation, current_user: User) -> bool:
-    return _document_is_accessible(
-        getattr(citation, "document", None), current_user
-    ) or _message_is_accessible(getattr(citation, "message", None), current_user)
-
-
-async def _ensure_project_access(
-    project_id: UUID,
-    current_user: User,
-    db: AsyncSession,
-) -> None:
-    result = await db.execute(
-        select(Collection.id)
-        .join(Workspace, Collection.workspace_id == Workspace.id)
-        .where(and_(Collection.id == project_id, Workspace.owner_id == current_user.id))
-    )
-    if result.scalar_one_or_none() is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Project not found",
-        )
 
 
 class CitationExtractRequest(BaseModel):
@@ -132,21 +78,6 @@ async def create_citation(
         Created citation
     """
     try:
-        # Verify the referenced document belongs to the user's organization
-        if citation_data.document_id:
-            doc_check = await db.execute(
-                select(Document.id).where(
-                    Document.id == citation_data.document_id,
-                    Document.organization_id == current_user.organization_id,
-                    Document.is_deleted == False,
-                )
-            )
-            if doc_check.scalar_one_or_none() is None:
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Document not found or not accessible",
-                )
-
         # Create citation instance
         citation = Citation(
             message_id=citation_data.message_id,
@@ -222,20 +153,9 @@ async def list_citations(
     Returns:
         List of citations with pagination metadata
     """
-    if not isinstance(skip, int):
-        skip = 0
-    if not isinstance(limit, int):
-        limit = 50
-
     try:
         # Build query with filters
-        query = select(Citation).options(
-            selectinload(Citation.document),
-            selectinload(Citation.message)
-            .selectinload(ChatMessage.thread)
-            .selectinload(Thread.conversation)
-            .selectinload(Conversation.workspace),
-        )
+        query = select(Citation)
 
         filters = []
         if message_id:
@@ -258,20 +178,17 @@ async def list_citations(
             if filters
             else select(Citation.id)
         )
-        await db.execute(count_query)
+        total_result = await db.execute(count_query)
+        total = len(total_result.all())
 
-        query = query.order_by(Citation.created_at.desc())
+        # Execute paginated query
+        query = query.offset(skip).limit(limit).order_by(Citation.created_at.desc())
         result = await db.execute(query)
-        accessible_citations = [
-            citation
-            for citation in result.scalars().all()
-            if _citation_is_accessible(citation, current_user)
-        ]
-        citations = accessible_citations[skip : skip + limit]
+        citations = result.scalars().all()
 
         return CitationListResponse(
             citations=[CitationResponse.model_validate(c) for c in citations],
-            total=len(accessible_citations),
+            total=total,
             skip=skip,
             limit=limit,
         )
@@ -301,21 +218,11 @@ async def get_citation(
         Citation details
     """
     try:
-        query = (
-            select(Citation)
-            .options(
-                selectinload(Citation.document),
-                selectinload(Citation.message)
-                .selectinload(ChatMessage.thread)
-                .selectinload(Thread.conversation)
-                .selectinload(Conversation.workspace),
-            )
-            .where(Citation.id == citation_id)
-        )
+        query = select(Citation).where(Citation.id == citation_id)
         result = await db.execute(query)
         citation = result.scalar_one_or_none()
 
-        if not citation or not _citation_is_accessible(citation, current_user):
+        if not citation:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Citation {citation_id} not found",
@@ -581,9 +488,6 @@ async def export_bibliography(
     Returns:
         Formatted bibliography as plain text
     """
-    if not isinstance(request, BibliographyExportRequest):
-        request = None
-
     request_format = request.format if request and request.format else None
     request_citation_ids = request.citation_ids if request else None
     request_project_id = request.project_id if request else None
@@ -601,17 +505,8 @@ async def export_bibliography(
         )
 
     try:
-        if resolved_project_id:
-            await _ensure_project_access(resolved_project_id, current_user, db)
-
         # Fetch citations
-        query = select(Citation).options(
-            selectinload(Citation.document),
-            selectinload(Citation.message)
-            .selectinload(ChatMessage.thread)
-            .selectinload(Thread.conversation)
-            .selectinload(Conversation.workspace),
-        )
+        query = select(Citation)
 
         if resolved_citation_ids:
             query = query.where(Citation.id.in_(resolved_citation_ids))
@@ -633,11 +528,7 @@ async def export_bibliography(
             query = query.where(Citation.document_id.in_(document_ids))
 
         result = await db.execute(query)
-        citations = [
-            citation
-            for citation in result.scalars().all()
-            if _citation_is_accessible(citation, current_user)
-        ]
+        citations = result.scalars().all()
 
         if not citations:
             raise HTTPException(

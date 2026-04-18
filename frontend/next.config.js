@@ -19,13 +19,6 @@ const nextConfig = {
     ignoreBuildErrors: process.env.NODE_ENV !== 'production',
   },
 
-  // Next.js build lint integration still passes legacy CLI options that do not
-  // work with the flat ESLint config used by this app. Keep linting in the
-  // dedicated npm script instead.
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
-
   // Experimental features for better performance
   experimental: {
     // Optimize CSS
@@ -92,16 +85,10 @@ const nextConfig = {
   },
 
   // Environment variables
-  // Do NOT set localhost fallbacks here — they get baked into the production
-  // JS bundle and cause CORS/mixed-content errors in K8s deployments.
-  // The frontend uses Next.js rewrites (/api/v1/* → backend) when these are unset.
   env: {
-    ...(process.env.NEXT_PUBLIC_API_URL
-      ? { NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL }
-      : {}),
-    ...(process.env.NEXT_PUBLIC_WS_URL
-      ? { NEXT_PUBLIC_WS_URL: process.env.NEXT_PUBLIC_WS_URL }
-      : {}),
+    NEXT_PUBLIC_API_URL:
+      process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000',
+    NEXT_PUBLIC_WS_URL: process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8000',
   },
 
   // Combined CORS and Security headers

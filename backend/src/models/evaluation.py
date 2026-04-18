@@ -66,7 +66,6 @@ class EvaluationJob(BaseModel):
     """
 
     __tablename__ = "evaluation_jobs"
-    __table_args__ = {"extend_existing": True}
 
     # Basic information
     name = Column(String(255), nullable=False, index=True)
@@ -160,7 +159,6 @@ class EvaluationMetric(BaseModel):
     """
 
     __tablename__ = "evaluation_metrics"
-    __table_args__ = {"extend_existing": True}
 
     # Job association
     job_id = Column(
@@ -229,7 +227,6 @@ class EvaluationDataset(BaseModel):
     """
 
     __tablename__ = "evaluation_datasets"
-    __table_args__ = {"extend_existing": True}
 
     # Job association
     job_id = Column(
@@ -266,7 +263,6 @@ class EvaluationThreshold(BaseModel):
     """
 
     __tablename__ = "evaluation_thresholds"
-    __table_args__ = {"extend_existing": True}
 
     # Threshold configuration
     metric_type = Column(String(100), nullable=False, index=True)
@@ -299,7 +295,6 @@ class EvaluationComparison(BaseModel):
     """
 
     __tablename__ = "evaluation_comparisons"
-    __table_args__ = {"extend_existing": True}
 
     # Comparison information
     name = Column(String(255), nullable=False)
@@ -339,7 +334,6 @@ class EvaluationReport(BaseModel):
     """
 
     __tablename__ = "evaluation_reports"
-    __table_args__ = {"extend_existing": True}
 
     # Report information
     title = Column(String(255), nullable=False)
@@ -378,11 +372,11 @@ class EvaluationReport(BaseModel):
 
 
 from .organization import Organization
+
+# Update User and Organization models to include relationships
 from .user import User
 
-# Add back-populates relationships to User and Organization.
-# These must be set here (not in user.py/organization.py) to avoid
-# circular import issues — evaluation.py depends on both models.
+# Add relationships to existing models if they don't exist
 User.evaluation_jobs = relationship("EvaluationJob", back_populates="user")
 Organization.evaluation_jobs = relationship(
     "EvaluationJob", back_populates="organization"

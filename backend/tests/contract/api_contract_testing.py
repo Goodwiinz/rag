@@ -444,7 +444,7 @@ def api_contract_runner():
 @pytest.fixture
 def admin_auth_headers(test_admin_user):
     """Create admin authentication headers for API testing"""
-    from tests.conftest import create_access_token
+    from src.core.security import create_access_token
     token = create_access_token(data={"sub": str(test_admin_user.id)})
     return {"Authorization": f"Bearer {token}"}
 
@@ -452,6 +452,6 @@ def admin_auth_headers(test_admin_user):
 @pytest.fixture
 def user_auth_headers(test_regular_user):
     """Create user authentication headers for API testing"""
-    from tests.conftest import create_access_token
+    from src.core.security import create_access_token
     token = create_access_token(data={"sub": str(test_regular_user.id)})
     return {"Authorization": f"Bearer {token}"}

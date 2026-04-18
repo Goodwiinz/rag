@@ -110,7 +110,7 @@ export function HeroAgentCard({ className }: { className?: string }) {
         }}
         className={cn(
           "terminal-window terminal-scanlines w-80 p-0 overflow-hidden border border-[var(--terminal-border)] shadow-[0_20px_50px_rgba(0,0,0,0.5)] bg-[var(--terminal-bg)]/95 backdrop-blur-2xl relative transition-shadow duration-500",
-          "group-hover:shadow-[0_30px_60px_rgba(212,160,57,0.15)] group-hover:border-[var(--phosphor-green-dim)]",
+          "group-hover:shadow-[0_30px_60px_rgba(0,255,159,0.15)] group-hover:border-[var(--phosphor-green-dim)]",
           className
         )}
       >

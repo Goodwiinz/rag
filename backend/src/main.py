@@ -2,7 +2,6 @@
 Main FastAPI application for the multimodal RAG system
 """
 
-import asyncio
 import logging
 import os
 import time
@@ -20,7 +19,6 @@ from fastapi.responses import JSONResponse
 logger = logging.getLogger(__name__)
 
 from src.api.agent import agent_router
-from src.api.connectors import connectors_router
 from src.api.arxiv import (
     arxiv_bulk_router,
     arxiv_change_router,
@@ -30,7 +28,7 @@ from src.api.arxiv import (
     arxiv_local_router,
     arxiv_router,
 )
-from src.api.auth import auth_router, cli_auth_router
+from src.api.auth import auth_router
 from src.api.auth.api_keys import router as api_keys_router
 from src.api.documents import documents_router, files_router, integrity_router, processing_router, table_extraction_router
 from src.api.evidence.router import router as evidence_router
@@ -142,20 +140,19 @@ async def lifespan(app: FastAPI):
     # Startup
     logger.info("Starting up Multimodal RAG System...")
 
-    # Create database tables (skip in production — migrations handle schema)
-    environment = os.environ.get("ENVIRONMENT", "development")
-    if environment not in ("production", "staging"):
-        try:
-            Base.metadata.create_all(bind=engine)
-            logger.info("Database tables created successfully")
-        except Exception as e:
-            if "already exists" in str(e):
-                logger.info("Database tables already exist")
-            else:
-                logger.error(f"Failed to create database tables: {e}")
-                raise
-    else:
-        logger.info(f"Skipping create_all in {environment} (managed by migrations)")
+    # Create database tables
+    # Note: With multiple Gunicorn workers, create_all may race on PostgreSQL
+    # ENUM type creation. We catch IntegrityError from duplicate types and
+    # retry, since the first worker will have created them successfully.
+    try:
+        Base.metadata.create_all(bind=engine)
+        logger.info("Database tables created successfully")
+    except Exception as e:
+        if "already exists" in str(e):
+            logger.info("Database tables already created by another worker")
+        else:
+            logger.error(f"Failed to create database tables: {e}")
+            raise
 
     # Check Redis connection
     if redis_client:
@@ -179,35 +176,6 @@ async def lifespan(app: FastAPI):
         logger.error(f"Failed to initialize WebSocket services: {e}")
         # Continue startup even if WebSocket services fail
 
-    # Validate S3 storage backend if configured
-    from src.core.config import settings as app_settings
-
-    if app_settings.STORAGE_BACKEND == "s3":
-        missing = []
-        if not app_settings.S3_ENDPOINT_URL:
-            missing.append("S3_ENDPOINT_URL")
-        if not app_settings.S3_ACCESS_KEY:
-            missing.append("S3_ACCESS_KEY")
-        if not app_settings.S3_SECRET_KEY:
-            missing.append("S3_SECRET_KEY")
-        if missing:
-            raise RuntimeError(
-                f"STORAGE_BACKEND=s3 but missing required env vars: {', '.join(missing)}"
-            )
-        try:
-            from src.core.s3_client import S3StorageHelper
-
-            helper = S3StorageHelper()
-            if not helper.check_health():
-                logger.warning("S3 storage health check failed — uploads may fail")
-            else:
-                logger.info(
-                    "S3 storage backend verified",
-                    extra={"bucket": app_settings.S3_BUCKET_NAME},
-                )
-        except Exception as e:
-            raise RuntimeError(f"S3 storage backend initialization failed: {e}")
-
     # Configure LangSmith tracing for agent observability
     try:
         from src.services.agent.observability import configure_langsmith
@@ -215,14 +183,6 @@ async def lifespan(app: FastAPI):
         configure_langsmith()
     except Exception as e:
         logger.debug(f"LangSmith configuration skipped: {e}")
-
-    # Pre-populate critical caches in the background (non-blocking)
-    try:
-        from src.core.cache_warmup import warm_critical_caches
-
-        asyncio.create_task(warm_critical_caches())
-    except Exception as e:
-        logger.debug(f"Cache warm-up skipped: {e}")
 
     logger.info("Application startup complete")
 
@@ -301,7 +261,7 @@ app.add_middleware(AnalyticsRateLimitMiddleware, redis_client=redis_client)
 if not settings.DEBUG:
     app.add_middleware(
         TrustedHostMiddleware,
-        allowed_hosts=["localhost", "127.0.0.1", "*.gen-text.app"],
+        allowed_hosts=["localhost", "127.0.0.1", "*.yourdomain.com"],
     )
 
 
@@ -339,7 +299,6 @@ async def log_requests(request: Request, call_next):
 
 # Include routers
 app.include_router(auth_router, prefix="/api/v1")
-app.include_router(cli_auth_router, prefix="/api/v1")
 app.include_router(api_keys_router, prefix="/api/v1")
 app.include_router(files_router, prefix="/api/v1")
 app.include_router(documents_router, prefix="/api/v1")
@@ -391,7 +350,6 @@ app.include_router(
 )  # LLM-powered bulk ingestion with embeddings
 app.include_router(chat_router, prefix="/api/v1")  # Chat completion endpoints
 app.include_router(agent_router)  # Agent execution endpoints
-app.include_router(connectors_router)  # External database connectors
 app.include_router(
     workspaces_router
 )  # Thread-centric workspace/conversation/thread/message API

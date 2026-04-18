@@ -1,4 +1,3 @@
-{{- if .Values.backend.enabled }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -6,15 +5,14 @@ metadata:
   labels:
     {{- include "knowledge-graph-analytics.labels" . | nindent 4 }}
     app.kubernetes.io/component: backend
+  annotations:
+    {{- if .Values.commonAnnotations }}
+    {{- toYaml .Values.commonAnnotations | nindent 4 }}
+    {{- end }}
 spec:
   {{- if not .Values.backend.autoscaling.enabled }}
   replicas: {{ .Values.backend.replicaCount }}
   {{- end }}
-  strategy:
-    type: RollingUpdate
-    rollingUpdate:
-      maxSurge: 1
-      maxUnavailable: 0
   selector:
     matchLabels:
       {{- include "knowledge-graph-analytics.selectorLabels" . | nindent 6 }}
@@ -24,11 +22,14 @@ spec:
       annotations:
         checksum/config: {{ include (print $.Template.BasePath "/backend-configmap.yaml") . | sha256sum }}
         checksum/secret: {{ include (print $.Template.BasePath "/backend-secret.yaml") . | sha256sum }}
+        {{- if .Values.backend.podAnnotations }}
+        {{- toYaml .Values.backend.podAnnotations | nindent 8 }}
+        {{- end }}
         prometheus.io/scrape: "true"
-        prometheus.io/port: "{{ .Values.backend.service.targetPort }}"
+        prometheus.io/port: "{{ .Values.backend.service.port }}"
         prometheus.io/path: "/metrics"
       labels:
-        {{- include "knowledge-graph-analytics.selectorLabels" . | nindent 8 }}
+        {{- include "knowledge-graph-analytics.labels" . | nindent 8 }}
         app.kubernetes.io/component: backend
     spec:
       {{- with .Values.global.imagePullSecrets }}
@@ -39,80 +40,81 @@ spec:
       securityContext:
         {{- toYaml .Values.securityContext | nindent 8 }}
       initContainers:
-        - name: wait-for-postgres
+        - name: wait-for-databases
           image: postgres:15-alpine
           command:
             - sh
             - -c
             - |
               echo "Waiting for PostgreSQL..."
-              until pg_isready -h "$POSTGRES_HOST" -p "$POSTGRES_PORT" -U "$POSTGRES_USER" 2>/dev/null; do
+              until pg_isready -h $POSTGRES_HOST -p $POSTGRES_PORT -U $POSTGRES_USER; do
                 echo "PostgreSQL is unavailable - sleeping"
-                sleep 3
+                sleep 2
               done
               echo "PostgreSQL is ready!"
-          resources:
-            requests:
-              cpu: 25m
-              memory: 32Mi
-            limits:
-              cpu: 50m
-              memory: 64Mi
-          envFrom:
-            - secretRef:
-                name: database-credentials
-        {{- if .Values.backend.initContainers.runMigrations }}
-        - name: run-migrations
-          image: "{{ .Values.backend.image.repository }}:{{ .Values.backend.image.tag | default .Chart.AppVersion }}"
-          imagePullPolicy: {{ .Values.backend.image.pullPolicy }}
-          workingDir: /app
-          command:
-            - sh
-            - -c
-            - |
-              echo "[init] Running alembic upgrade head..."
-              alembic upgrade head
-              echo "[init] Migrations complete."
-          envFrom:
-            {{- if .Values.backend.envFrom }}
-            {{- toYaml .Values.backend.envFrom | nindent 12 }}
-            {{- end }}
+
+              echo "Waiting for Redis..."
+              until redis-cli -h $REDIS_HOST -p $REDIS_PORT ping; do
+                echo "Redis is unavailable - sleeping"
+                sleep 2
+              done
+              echo "Redis is ready!"
+
+              echo "Waiting for Neo4j..."
+              until cypher-shell -a $NEO4J_URI -u $NEO4J_USER -p $NEO4J_PASSWORD "RETURN 1"; do
+                echo "Neo4j is unavailable - sleeping"
+                sleep 5
+              done
+              echo "Neo4j is ready!"
+
+              echo "Waiting for Qdrant..."
+              until curl -f $QDRANT_URL/health; do
+                echo "Qdrant is unavailable - sleeping"
+                sleep 2
+              done
+              echo "Qdrant is ready!"
           env:
-            {{- if .Values.backend.env }}
-            {{- toYaml .Values.backend.env | nindent 12 }}
-            {{- end }}
-          resources:
-            requests:
-              cpu: 100m
-              memory: 256Mi
-            limits:
-              cpu: 500m
-              memory: 512Mi
-        {{- end }}
+            - name: POSTGRES_HOST
+              value: postgresql
+            - name: POSTGRES_PORT
+              value: "5432"
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: postgresql-credentials
+                  key: username
+            - name: REDIS_HOST
+              value: redis-master
+            - name: REDIS_PORT
+              value: "6379"
+            - name: NEO4J_URI
+              value: "bolt://neo4j:7687"
+            - name: NEO4J_USER
+              valueFrom:
+                secretKeyRef:
+                  name: neo4j-credentials
+                  key: username
+            - name: NEO4J_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: neo4j-credentials
+                  key: password
+            - name: QDRANT_URL
+              value: "http://qdrant:6333"
       containers:
         - name: backend
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
           image: "{{ .Values.backend.image.repository }}:{{ .Values.backend.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.backend.image.pullPolicy }}
-          securityContext:
-            allowPrivilegeEscalation: false
-            capabilities:
-              drop:
-                - ALL
           ports:
             - name: http
               containerPort: {{ .Values.backend.service.targetPort }}
               protocol: TCP
+            - name: ws
+              containerPort: 8001
+              protocol: TCP
           {{- if .Values.backend.healthCheck.enabled }}
-          # Startup probe: generous time for ML model loading
-          startupProbe:
-            httpGet:
-              path: {{ .Values.backend.healthCheck.path }}
-              port: http
-            initialDelaySeconds: {{ .Values.backend.healthCheck.startupProbe.initialDelaySeconds | default 10 }}
-            periodSeconds: {{ .Values.backend.healthCheck.startupProbe.periodSeconds | default 10 }}
-            timeoutSeconds: {{ .Values.backend.healthCheck.startupProbe.timeoutSeconds | default 5 }}
-            failureThreshold: {{ .Values.backend.healthCheck.startupProbe.failureThreshold | default 18 }}
-          # Liveness: is the process alive?
           livenessProbe:
             httpGet:
               path: {{ .Values.backend.healthCheck.path }}
@@ -121,24 +123,17 @@ spec:
             periodSeconds: {{ .Values.backend.healthCheck.periodSeconds }}
             timeoutSeconds: {{ .Values.backend.healthCheck.timeoutSeconds }}
             failureThreshold: {{ .Values.backend.healthCheck.failureThreshold }}
-          # Readiness: can it serve traffic?
           readinessProbe:
             httpGet:
               path: {{ .Values.backend.healthCheck.path }}
               port: http
-            initialDelaySeconds: {{ .Values.backend.healthCheck.readinessInitialDelaySeconds | default 5 }}
-            periodSeconds: {{ .Values.backend.healthCheck.readinessPeriodSeconds | default 10 }}
-            timeoutSeconds: {{ .Values.backend.healthCheck.readinessTimeoutSeconds | default 3 }}
-            failureThreshold: {{ .Values.backend.healthCheck.readinessFailureThreshold | default 2 }}
+            initialDelaySeconds: {{ .Values.backend.healthCheck.initialDelaySeconds }}
+            periodSeconds: {{ .Values.backend.healthCheck.periodSeconds }}
+            timeoutSeconds: {{ .Values.backend.healthCheck.timeoutSeconds }}
+            failureThreshold: {{ .Values.backend.healthCheck.failureThreshold }}
           {{- end }}
-          envFrom:
-            {{- if .Values.backend.envFrom }}
-            {{- toYaml .Values.backend.envFrom | nindent 12 }}
-            {{- end }}
           env:
-            {{- if .Values.backend.env }}
             {{- toYaml .Values.backend.env | nindent 12 }}
-            {{- end }}
           resources:
             {{- toYaml .Values.backend.resources | nindent 12 }}
           volumeMounts:
@@ -148,26 +143,31 @@ spec:
               mountPath: /app/logs
             - name: models
               mountPath: /app/models
+            - name: config
+              mountPath: /app/config
+              readOnly: true
       volumes:
         - name: uploads
-          emptyDir:
-            sizeLimit: 5Gi
+          persistentVolumeClaim:
+            claimName: {{ include "knowledge-graph-analytics.fullname" . }}-uploads
         - name: logs
-          emptyDir:
-            sizeLimit: 1Gi
+          persistentVolumeClaim:
+            claimName: {{ include "knowledge-graph-analytics.fullname" . }}-logs
         - name: models
-          emptyDir:
-            sizeLimit: 2Gi
-      {{- with .Values.nodeSelector }}
+          persistentVolumeClaim:
+            claimName: {{ include "knowledge-graph-analytics.fullname" . }}-models
+        - name: config
+          configMap:
+            name: {{ include "knowledge-graph-analytics.fullname" . }}-backend-config
+      {{- with .Values.backend.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.affinity }}
+      {{- with .Values.backend.affinity }}
       affinity:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.tolerations }}
+      {{- with .Values.backend.tolerations }}
       tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-{{- end }}

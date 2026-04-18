@@ -52,11 +52,11 @@ export function SourceSelector({
           className={cn(
             'flex items-center gap-2 px-3 py-1.5 rounded border text-xs font-mono transition-colors',
             'bg-black/30 border-[#1a1a1a] text-gray-300',
-            'hover:bg-white/5 hover:border-brand-cyan/40',
+            'hover:bg-white/5 hover:border-[#00d4ff]/40',
             'disabled:opacity-50 disabled:cursor-not-allowed'
           )}
         >
-          <Database className="h-3.5 w-3.5 text-brand-cyan" />
+          <Database className="h-3.5 w-3.5 text-[#00d4ff]" />
           <span>Sources ({selected.length})</span>
         </button>
       </PopoverTrigger>
@@ -89,7 +89,7 @@ export function SourceSelector({
                   className={cn(
                     'h-3.5 w-3.5 rounded-sm border',
                     isSelected
-                      ? 'border-brand-cyan data-[state=checked]:bg-brand-cyan data-[state=checked]:text-black'
+                      ? 'border-[#00d4ff] data-[state=checked]:bg-[#00d4ff] data-[state=checked]:text-black'
                       : 'border-[#333]'
                   )}
                   onClick={(e) => e.stopPropagation()}
@@ -97,7 +97,7 @@ export function SourceSelector({
                 <source.icon
                   className={cn(
                     'h-3.5 w-3.5 shrink-0',
-                    isSelected ? 'text-brand-cyan' : 'text-gray-600'
+                    isSelected ? 'text-[#00d4ff]' : 'text-gray-600'
                   )}
                 />
                 <span className="truncate">{source.label}</span>

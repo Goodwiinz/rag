@@ -5,7 +5,7 @@ Workspace model for project containers in Terminal Observatory
 from datetime import datetime
 from enum import Enum as PyEnum
 
-from sqlalchemy import Boolean, Column, DateTime, Enum, ForeignKey, Index, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, Column, DateTime, Enum, ForeignKey, String, Text
 from sqlalchemy.orm import relationship
 
 from .base import GUID, BaseModel
@@ -43,11 +43,6 @@ class Workspace(BaseModel):
 
     # Organization scope (optional - workspaces can be org-scoped or personal)
     organization_id = Column(GUID(), ForeignKey("organizations.id"), nullable=True)
-
-    # Database indexes for performance optimization
-    __table_args__ = (
-        Index('idx_workspace_owner_archived', 'owner_id', 'is_archived'),
-    )
 
     # Relationships
     owner = relationship("User", foreign_keys=[owner_id])
@@ -133,11 +128,6 @@ class WorkspaceMember(BaseModel):
     joined_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
     invited_by_id = Column(GUID(), ForeignKey("users.id"), nullable=True)
 
-    # Database indexes and constraints
-    __table_args__ = (
-        UniqueConstraint('workspace_id', 'user_id', name='uq_workspace_member'),
-    )
-
     # Relationships
     workspace = relationship("Workspace", back_populates="members")
     user = relationship("User", foreign_keys=[user_id])
@@ -151,3 +141,6 @@ class WorkspaceMember(BaseModel):
         data = super().to_dict()
         data["role"] = self.role.value if self.role else None
         return data
+
+    class Meta:
+        unique_together = [("workspace_id", "user_id")]

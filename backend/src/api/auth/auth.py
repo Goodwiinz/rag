@@ -1,30 +1,31 @@
 """
-Authentication API endpoints.
-
-Supabase handles registration, login, token refresh, and password reset.
-This module provides profile management, session info, password change,
-admin user management, and API key endpoints.
+Authentication API endpoints
 """
 
 import logging
+from datetime import timedelta
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel, EmailStr
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.config import settings
 from src.core.database import get_db
-from src.core.dependencies import get_current_user, require_admin
+from src.core.dependencies import get_current_user, is_self_or_admin, require_admin
 from src.core.security import (
     auth_rate_limiter,
+    extract_refresh_token_user_id,
     get_client_ip,
     get_current_user_token,
 )
 from src.models.user import User, UserRole
 from src.services.security.auth_service import (
+    AuthenticationError,
     AuthService,
+    RegistrationError,
     get_auth_service,
 )
 
@@ -34,9 +35,41 @@ router = APIRouter(prefix="/auth", tags=["authentication"])
 
 
 # Request/Response Models
+class TokenResponse(BaseModel):
+    access_token: str
+    refresh_token: str
+    token_type: str
+    expires_in: int
+    refresh_expires_in: Optional[int] = None  # Refresh token expiration in seconds
+    remember_me: bool = False  # Indicates if this is an extended 30-day session
+    user: dict
+
+
+class RefreshTokenRequest(BaseModel):
+    refresh_token: str
+
+
+class UserRegistration(BaseModel):
+    email: EmailStr
+    password: str
+    first_name: str
+    last_name: str
+    organization_name: Optional[str] = None
+
+
+class UserLogin(BaseModel):
+    email: EmailStr
+    password: str
+    remember_me: bool = False  # If True, session persists for 30 days instead of 7
+
+
 class PasswordChange(BaseModel):
     current_password: str
     new_password: str
+
+
+class PasswordReset(BaseModel):
+    email: EmailStr
 
 
 class ProfileUpdate(BaseModel):
@@ -49,14 +82,154 @@ class RoleUpdate(BaseModel):
     role: UserRole
 
 
+@router.post("/register", response_model=dict)
+async def register(
+    user_data: UserRegistration,
+    request: Request,
+    auth_service: AuthService = Depends(get_auth_service),
+):
+    """Register a new user"""
+    # Get client IP for rate limiting
+    client_ip = get_client_ip(request)
+
+    if not await auth_rate_limiter.is_allowed(client_ip):
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many registration attempts. Please try again later.",
+        )
+
+    try:
+        user = await auth_service.register_user(
+            email=user_data.email,
+            password=user_data.password,
+            first_name=user_data.first_name,
+            last_name=user_data.last_name,
+            organization_name=user_data.organization_name,
+        )
+
+        return {
+            "message": "User registered successfully",
+            "user": user.to_dict(exclude_sensitive=True),
+        }
+
+    except RegistrationError as e:
+        # Return specific error for registration issues (e.g. weak password)
+        # Note: This may leak "user exists" but is needed for UX
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except Exception as e:
+        logger.error(f"Registration error: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error",
+        )
+
+
+@router.post("/login", response_model=TokenResponse)
+async def login(
+    user_credentials: UserLogin,
+    request: Request,
+    auth_service: AuthService = Depends(get_auth_service),
+):
+    """Login user and return tokens
+
+    Args:
+        user_credentials: Email, password, and optional remember_me flag
+            - remember_me=True: Session persists for 30 days
+            - remember_me=False (default): Session persists for 7 days
+    """
+    # Dual-layer rate limiting: IP + email
+    client_ip = get_client_ip(request)
+
+    if not await auth_rate_limiter.is_allowed(client_ip, prefix="ip"):
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many login attempts from this IP. Please try again later."
+        )
+
+    if not await auth_rate_limiter.is_allowed(user_credentials.email, prefix="email"):
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many login attempts for this account. Please try again later."
+        )
+
+    try:
+        token_data = await auth_service.login_user(
+            email=user_credentials.email,
+            password=user_credentials.password,
+            remember_me=user_credentials.remember_me,
+        )
+
+        return token_data
+
+    except AuthenticationError:
+        # Return generic error message to prevent enumeration/leakage
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid email or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    except Exception as e:
+        logger.error(f"Login error: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error",
+        )
+
+
+@router.post("/refresh", response_model=dict)
+async def refresh_token(
+    token_request: RefreshTokenRequest,
+    request: Request,
+    auth_service: AuthService = Depends(get_auth_service),
+):
+    """Refresh access token"""
+    client_ip = get_client_ip(request)
+
+    # IP-layer rate check (read-only)
+    ip_allowed, ip_retry = await auth_rate_limiter.check_rate_limit(client_ip, prefix="refresh_ip")
+    if not ip_allowed:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many refresh attempts. Please try again later.",
+            headers={"Retry-After": str(ip_retry)},
+        )
+
+    # User-layer rate check (read-only)
+    user_id = extract_refresh_token_user_id(token_request.refresh_token)
+    if user_id:
+        user_allowed, user_retry = await auth_rate_limiter.check_rate_limit(user_id, prefix="refresh_user")
+        if not user_allowed:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Too many refresh attempts for this account. Please try again later.",
+                headers={"Retry-After": str(user_retry)},
+            )
+
+    try:
+        token_data = await auth_service.refresh_access_token(
+            refresh_token=token_request.refresh_token
+        )
+
+        # Success: no recording — legitimate refreshes don't consume quota
+        return token_data
+
+    except Exception as e:
+        # Failure: record attempts for both layers
+        await auth_rate_limiter.record_attempt(client_ip, prefix="refresh_ip")
+        if user_id:
+            await auth_rate_limiter.record_attempt(user_id, prefix="refresh_user")
+
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=str(e),
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+
 @router.get("/me")
 async def get_current_user_info(current_user: User = Depends(get_current_user)):
     """Get current user information"""
-    org = current_user.organization
-    return {
-        "user": current_user.to_dict(exclude_sensitive=True),
-        "organization": org.to_dict() if org else None,
-    }
+    return {"user": current_user.to_dict(exclude_sensitive=True)}
 
 
 @router.get("/session")
@@ -147,6 +320,38 @@ async def change_password(
         await auth_rate_limiter.record_attempt(current_user.email, prefix="chpw_email")
 
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@router.post("/reset-password")
+async def request_password_reset(
+    reset_data: PasswordReset,
+    request: Request,
+    auth_service: AuthService = Depends(get_auth_service),
+):
+    """Request password reset"""
+    # Get client IP for rate limiting
+    client_ip = get_client_ip(request)
+
+    if not await auth_rate_limiter.is_allowed(client_ip):
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many password reset attempts. Please try again later.",
+        )
+
+    try:
+        reset_token = await auth_service.initiate_password_reset(email=reset_data.email)
+
+        # In production, you would email the reset token
+        # For now, we'll just return a success message
+        return {
+            "message": "If an account with this email exists, a password reset link has been sent"
+        }
+
+    except Exception as e:
+        # Always return success to prevent email enumeration
+        return {
+            "message": "If an account with this email exists, a password reset link has been sent"
+        }
 
 
 @router.get("/users")

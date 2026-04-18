@@ -19,7 +19,6 @@ export function AgentMessageList({
   const containerRef = useRef<HTMLDivElement>(null);
   const pendingConfirmation = useAgentChatStore((s) => s.pendingConfirmation);
   const confirmAction = useAgentChatStore((s) => s.confirmAction);
-  const isConfirming = useAgentChatStore((s) => s.isConfirming);
   const retryLastMessage = useAgentChatStore((s) => s.retryLastMessage);
 
   useEffect(() => {
@@ -100,7 +99,6 @@ export function AgentMessageList({
             message={pendingConfirmation.message}
             onConfirm={() => void confirmAction(true)}
             onCancel={() => void confirmAction(false)}
-            isLoading={isConfirming}
           />
         </div>
       )}

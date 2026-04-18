@@ -30,9 +30,9 @@ concurrency:
   cancel-in-progress: false  # Don't cancel ongoing deploys
 
 env:
-  REGISTRY: registry.digitalocean.com/ragsystemregistry
+  REGISTRY: ghcr.io
   HELM_CHART_PATH: infrastructure/helm/knowledge-graph-analytics
-  CLUSTER_NAME: rag-cluster
+  CLUSTER_NAME: rag-cluster  # Update with your cluster name
 
 jobs:
   # Gate: Only deploy if Docker build succeeded
@@ -82,7 +82,7 @@ jobs:
       packages: read
     environment:
       name: staging
-      url: https://staging.gen-text.app
+      url: https://staging.yourdomain.com
 
     steps:
       - name: Checkout repository
@@ -106,7 +106,8 @@ jobs:
           version: "3.13.0"
 
       - name: Log in to Container Registry
-        run: doctl registry login
+        run: |
+          echo ${{ secrets.GITHUB_TOKEN }} | helm registry login ghcr.io -u ${{ github.actor }} --password-stdin
 
       - name: Deploy with Helm
         env:
@@ -116,9 +117,9 @@ jobs:
             --namespace rag-staging \
             --create-namespace \
             --set global.environment=staging \
-            --set frontend.image.repository=${{ env.REGISTRY }}/frontend \
+            --set frontend.image.repository=${{ env.REGISTRY }}/${{ github.repository }}/frontend \
             --set frontend.image.tag=$IMAGE_TAG \
-            --set backend.image.repository=${{ env.REGISTRY }}/backend \
+            --set backend.image.repository=${{ env.REGISTRY }}/${{ github.repository }}/backend \
             --set backend.image.tag=$IMAGE_TAG \
             --set frontend.replicaCount=1 \
             --set backend.replicaCount=1 \
@@ -157,7 +158,7 @@ jobs:
       packages: read
     environment:
       name: production
-      url: https://gen-text.app
+      url: https://yourdomain.com
 
     steps:
       - name: Checkout repository
@@ -193,9 +194,9 @@ jobs:
             --namespace rag-production \
             --create-namespace \
             --set global.environment=production \
-            --set frontend.image.repository=${{ env.REGISTRY }}/frontend \
+            --set frontend.image.repository=${{ env.REGISTRY }}/${{ github.repository }}/frontend \
             --set frontend.image.tag=$IMAGE_TAG \
-            --set backend.image.repository=${{ env.REGISTRY }}/backend \
+            --set backend.image.repository=${{ env.REGISTRY }}/${{ github.repository }}/backend \
             --set backend.image.tag=$IMAGE_TAG \
             --set frontend.replicaCount=3 \
             --set backend.replicaCount=3 \
@@ -269,7 +270,7 @@ jobs:
   deploy-summary:
     name: Deploy Summary
     runs-on: ubuntu-latest
-    needs: [check-build, deploy-staging, deploy-production]
+    needs: [deploy-staging, deploy-production]
     if: always()
     permissions:
       contents: read

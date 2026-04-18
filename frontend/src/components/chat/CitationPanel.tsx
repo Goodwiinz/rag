@@ -2,7 +2,14 @@
 
 import React, { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { BookOpen, FileText, Search, SortAsc, SortDesc, X } from 'lucide-react';
+import {
+  BookOpen,
+  FileText,
+  Search,
+  SortAsc,
+  SortDesc,
+  X,
+} from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { IconButton } from '@/components/ui/icon-button';
@@ -43,9 +50,7 @@ export function CitationPanel({
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<SortBy>('relevance');
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
-  const [expandedCitationId, setExpandedCitationId] = useState<string | null>(
-    null
-  );
+  const [expandedCitationId, setExpandedCitationId] = useState<string | null>(null);
 
   // Filter and sort citations
   const filteredCitations = useMemo(() => {
@@ -101,25 +106,22 @@ export function CitationPanel({
           className={cn(
             'fixed right-0 top-0 bottom-0 z-50',
             'w-[400px] max-w-[90vw]',
-            'bg-background border-l border-border',
+            'bg-[#050505] border-l border-[#1a1a1a]',
             'flex flex-col',
             className
           )}
           style={{
-            boxShadow: `-20px 0 60px rgba(212, 160, 57, 0.03)`,
+            boxShadow: `-20px 0 60px rgba(0, 255, 159, 0.03)`
           }}
         >
           {/* Header */}
-          <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-card">
+          <div
+            className="flex items-center justify-between px-4 py-3 border-b border-[#1a1a1a]"
+            style={{ backgroundColor: '#0a0a0a' }}
+          >
             <div className="flex items-center gap-2">
-              <BookOpen
-                className="w-5 h-5"
-                style={{ color: THEME.colors.primary }}
-              />
-              <h2
-                className="text-sm font-medium"
-                style={{ color: THEME.colors.primary }}
-              >
+              <BookOpen className="w-5 h-5" style={{ color: THEME.colors.primary }} />
+              <h2 className="text-sm font-medium" style={{ color: THEME.colors.primary }}>
                 Sources
               </h2>
               <Badge
@@ -127,7 +129,7 @@ export function CitationPanel({
                 className="text-[10px] px-1.5 py-0 h-5 border-0"
                 style={{
                   backgroundColor: `${THEME.colors.primary}15`,
-                  color: THEME.colors.primary,
+                  color: THEME.colors.primary
                 }}
               >
                 {citations.length}
@@ -137,12 +139,12 @@ export function CitationPanel({
               icon={<X className="w-4 h-4" />}
               label="Close citations panel"
               onClick={onClose}
-              className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-muted"
+              className="h-8 w-8 text-gray-500 hover:text-white hover:bg-[#1a1a1a]"
             />
           </div>
 
           {/* Search and Sort */}
-          <div className="px-4 py-3 border-b border-border space-y-3 bg-background">
+          <div className="px-4 py-3 border-b border-[#1a1a1a] space-y-3" style={{ backgroundColor: '#080808' }}>
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-600" />
               <Input
@@ -152,7 +154,7 @@ export function CitationPanel({
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className={cn(
                   'pl-9 h-9 text-sm font-mono',
-                  'bg-card border-border',
+                  'bg-[#0a0a0a] border-[#1a1a1a]',
                   'text-gray-300 placeholder:text-gray-600',
                   'focus:border-primary/30 focus:ring-primary/10'
                 )}
@@ -167,7 +169,7 @@ export function CitationPanel({
                 variant="ghost"
                 size="sm"
                 onClick={toggleSort}
-                className="h-7 text-[10px] text-muted-foreground hover:text-foreground hover:bg-muted font-mono"
+                className="h-7 text-[10px] text-gray-500 hover:text-white hover:bg-[#1a1a1a] font-mono"
               >
                 {sortBy === 'relevance' ? 'By Relevance' : 'By Title'}
                 {sortOrder === 'desc' ? (
@@ -180,14 +182,12 @@ export function CitationPanel({
           </div>
 
           {/* Citations List */}
-          <div className="flex-1 overflow-y-auto p-3 space-y-2 scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent">
+          <div className="flex-1 overflow-y-auto p-3 space-y-2 scrollbar-thin scrollbar-thumb-[#1a1a1a] scrollbar-track-transparent">
             {filteredCitations.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-40 text-center">
                 <FileText className="w-10 h-10 text-gray-700 mb-2" />
                 <p className="text-xs text-gray-600 font-mono">
-                  {searchQuery
-                    ? 'No sources match your search'
-                    : 'No sources available'}
+                  {searchQuery ? 'No sources match your search' : 'No sources available'}
                 </p>
               </div>
             ) : (
@@ -211,7 +211,7 @@ export function CitationPanel({
           </div>
 
           {/* Footer */}
-          <div className="px-4 py-2.5 border-t border-border bg-background">
+          <div className="px-4 py-2.5 border-t border-[#1a1a1a]" style={{ backgroundColor: '#050505' }}>
             <p
               className="text-[9px] text-center font-mono uppercase tracking-widest"
               style={{ color: `${THEME.colors.primary}40` }}

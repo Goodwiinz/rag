@@ -5,9 +5,9 @@ import { useRouter } from 'next/navigation';
 import type { ResearchProject } from '@/store/research-engine-store';
 
 const statusStyles: Record<string, string> = {
-  active: 'bg-sol/10 text-sol border-sol/30',
-  paused: 'bg-helios/10 text-helios border-helios/30',
-  completed: 'bg-brand-cyan/10 text-brand-cyan border-brand-cyan/30',
+  active: 'bg-[#00ff9f]/10 text-[#00ff9f] border-[#00ff9f]/30',
+  paused: 'bg-[#ffb700]/10 text-[#ffb700] border-[#ffb700]/30',
+  completed: 'bg-[#00d4ff]/10 text-[#00d4ff] border-[#00d4ff]/30',
   archived: 'bg-gray-500/10 text-gray-400 border-gray-500/30',
 };
 
@@ -29,13 +29,13 @@ export function ProjectCard({ project }: ProjectCardProps) {
       onClick={() =>
         router.push(`/research-engine/projects/${project.id}/blueprint`)
       }
-      className="group bg-card border border-border rounded-lg p-4 cursor-pointer hover:border-primary/50 transition-colors"
+      className="group bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg p-4 cursor-pointer hover:border-[#00ff9f]/50 transition-colors"
     >
       <div className="flex items-start justify-between gap-3 mb-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <FolderKanban className="h-5 w-5 text-sol shrink-0" />
-            <h3 className="font-mono font-medium text-gray-200 truncate group-hover:text-sol transition-colors">
+            <FolderKanban className="h-5 w-5 text-[#00ff9f] shrink-0" />
+            <h3 className="font-mono font-medium text-gray-200 truncate group-hover:text-[#00ff9f] transition-colors">
               {project.name}
             </h3>
           </div>

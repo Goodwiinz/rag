@@ -38,10 +38,10 @@ interface EvidenceMapProps {
 // --------------------------------------------------------------------------
 
 const NODE_COLORS: Record<EvidenceNode['type'], string> = {
-  research_question: 'var(--cyan)',
-  sub_question: 'var(--cyan)',
-  evidence: 'var(--phosphor-green)',
-  source: 'var(--amber-gold)',
+  research_question: '#00d4ff', // CYAN
+  sub_question: '#00d4ff',
+  evidence: '#00ff9f', // PHOSPHOR_GREEN
+  source: '#ffb700', // AMBER
 };
 
 const NODE_RADII: Record<EvidenceNode['type'], number> = {
@@ -203,7 +203,7 @@ export function EvidenceMap({ projectId }: EvidenceMapProps) {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <Loader2 className="h-6 w-6 animate-spin text-sol" />
+        <Loader2 className="h-6 w-6 animate-spin text-[#00ff9f]" />
         <span className="ml-2 font-mono text-sm text-gray-500">
           Loading evidence map...
         </span>
@@ -234,7 +234,9 @@ export function EvidenceMap({ projectId }: EvidenceMapProps) {
           <ArrowLeft className="h-5 w-5" />
         </button>
         <div className="flex-1">
-          <h1 className="text-xl font-mono font-bold text-sol">Evidence Map</h1>
+          <h1 className="text-xl font-mono font-bold text-[#00ff9f]">
+            Evidence Map
+          </h1>
           {projectName && (
             <p className="text-xs font-mono text-gray-500 mt-0.5">
               {projectName}

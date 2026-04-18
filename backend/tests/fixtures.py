@@ -113,7 +113,7 @@ def test_regular_user(db_session, test_organization):
 @pytest.fixture
 def auth_headers_admin(test_admin_user):
     """Get authentication headers for admin user"""
-    from tests.conftest import create_access_token
+    from src.core.security import create_access_token
     token = create_access_token(data={"sub": str(test_admin_user.id)})
     return {"Authorization": f"Bearer {token}"}
 
@@ -121,7 +121,7 @@ def auth_headers_admin(test_admin_user):
 @pytest.fixture
 def auth_headers_user(test_regular_user):
     """Get authentication headers for regular user"""
-    from tests.conftest import create_access_token
+    from src.core.security import create_access_token
     token = create_access_token(data={"sub": str(test_regular_user.id)})
     return {"Authorization": f"Bearer {token}"}
 

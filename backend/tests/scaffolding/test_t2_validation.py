@@ -216,7 +216,7 @@ class TestT2_002_KnowledgeGraph:
     def test_knowledge_graph_service_initialization(self):
         """Test that knowledge graph service initializes properly"""
         assert knowledge_graph_service is not None
-        assert hasattr(knowledge_graph_service, 'driver')
+        assert hasattr(knowledge_graph_service, 'neo4j_driver')
 
     @patch('src.services.knowledge_graph_service.neo4j_driver')
     def test_entity_extraction_and_storage(self, mock_neo4j):

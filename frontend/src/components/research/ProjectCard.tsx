@@ -1,12 +1,6 @@
 'use client';
 
-import {
-  Calendar,
-  FileText,
-  FolderKanban,
-  MoreHorizontal,
-  Trash2,
-} from 'lucide-react';
+import { Calendar, FileText, FolderKanban, MoreHorizontal, Trash2 } from 'lucide-react';
 import type { Project } from '@/services/projectService';
 
 export interface ProjectCardProps {
@@ -18,10 +12,9 @@ export interface ProjectCardProps {
 }
 
 const statusStyles: Record<string, string> = {
-  active: 'bg-primary/10 text-primary border-primary/30',
-  paused:
-    'bg-[var(--amber-gold)]/10 text-[var(--amber-gold)] border-[var(--amber-gold)]/30',
-  completed: 'bg-[var(--cyan)]/10 text-[var(--cyan)] border-[var(--cyan)]/30',
+  active: 'bg-[#00ff9f]/10 text-[#00ff9f] border-[#00ff9f]/30',
+  paused: 'bg-[#ffb700]/10 text-[#ffb700] border-[#ffb700]/30',
+  completed: 'bg-[#00d4ff]/10 text-[#00d4ff] border-[#00d4ff]/30',
   archived: 'bg-gray-500/10 text-gray-400 border-gray-500/30',
 };
 
@@ -41,20 +34,18 @@ export function ProjectCard({
   return (
     <div
       onClick={() => onOpen(project.id)}
-      className="group bg-card border border-border rounded-lg p-4 cursor-pointer hover:border-primary/50 transition-colors"
+      className="group bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg p-4 cursor-pointer hover:border-[#00ff9f]/50 transition-colors"
     >
       <div className="flex items-start justify-between gap-3 mb-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <FolderKanban className="h-5 w-5 text-primary shrink-0" />
-            <h3 className="font-mono font-medium text-foreground truncate group-hover:text-primary transition-colors">
+            <FolderKanban className="h-5 w-5 text-[#00ff9f] shrink-0" />
+            <h3 className="font-mono font-medium text-gray-200 truncate group-hover:text-[#00ff9f] transition-colors">
               {project.name}
             </h3>
           </div>
           <div className="mt-2">
-            <span
-              className={`px-2 py-0.5 border rounded text-[11px] uppercase font-mono ${statusClass}`}
-            >
+            <span className={`px-2 py-0.5 border rounded text-[11px] uppercase font-mono ${statusClass}`}>
               {status}
             </span>
           </div>
@@ -68,7 +59,7 @@ export function ProjectCard({
             {onArchive && (
               <button
                 onClick={() => onArchive(project.id)}
-                className="p-1 text-muted-foreground hover:text-[var(--amber-gold)] transition-colors"
+                className="p-1 text-gray-500 hover:text-[#ffb700] transition-colors"
                 title="Archive project"
               >
                 <MoreHorizontal className="h-4 w-4" />
@@ -88,9 +79,7 @@ export function ProjectCard({
       </div>
 
       {project.description && (
-        <p
-          className={`text-sm text-gray-500 mb-3 ${compact ? 'line-clamp-1' : 'line-clamp-2'}`}
-        >
+        <p className={`text-sm text-gray-500 mb-3 ${compact ? 'line-clamp-1' : 'line-clamp-2'}`}>
           {project.description}
         </p>
       )}
@@ -113,22 +102,18 @@ export function ProjectCard({
           {project.tags.slice(0, 3).map((tag) => (
             <span
               key={tag}
-              className="px-1.5 py-0.5 rounded bg-muted text-muted-foreground text-[11px] font-mono"
+              className="px-1.5 py-0.5 rounded bg-[#1a1a1a] text-gray-400 text-[11px] font-mono"
             >
               {tag}
             </span>
           ))}
           {project.tags.length > 3 && (
-            <span className="text-[11px] text-gray-500 font-mono">
-              +{project.tags.length - 3}
-            </span>
+            <span className="text-[11px] text-gray-500 font-mono">+{project.tags.length - 3}</span>
           )}
         </div>
       )}
 
-      <div className="mt-3 text-xs text-gray-600 font-mono">
-        Updated {createdLabel}
-      </div>
+      <div className="mt-3 text-xs text-gray-600 font-mono">Updated {createdLabel}</div>
     </div>
   );
 }

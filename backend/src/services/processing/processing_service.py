@@ -12,7 +12,6 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from celery import Celery
 from fastapi import Depends
-from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from src.core.config import settings
@@ -28,8 +27,6 @@ from src.services.processing.video_processing_service import VideoProcessingServ
 logger = logging.getLogger(__name__)
 
 # Celery configuration
-import ssl as _ssl
-
 celery_app = Celery(
     "rag_processing",
     broker=settings.REDIS_URL,
@@ -37,11 +34,7 @@ celery_app = Celery(
     include=["src.tasks.processing_tasks"],
 )
 
-_redis_tls = settings.REDIS_URL.startswith("rediss://")
-_ssl_opts = {"ssl_cert_reqs": _ssl.CERT_NONE} if _redis_tls else None
-
 celery_app.conf.update(
-    **({"broker_use_ssl": _ssl_opts, "redis_backend_use_ssl": _ssl_opts} if _redis_tls else {}),
     task_serializer="json",
     accept_content=["json"],
     result_serializer="json",
@@ -71,10 +64,11 @@ class ProcessingPipeline:
 
     async def process_document(self, document_id: str, user_id: str) -> ProcessingJob:
         """Start processing for a document"""
-        stmt = select(Document).where(
-            Document.id == document_id, Document.is_deleted == False
-        ).with_for_update()
-        document = self.db.execute(stmt).scalar_one_or_none()
+        document = (
+            self.db.query(Document)
+            .filter(Document.id == document_id, Document.is_deleted == False)
+            .first()
+        )
 
         if not document:
             raise ValueError(f"Document {document_id} not found")
@@ -84,9 +78,6 @@ class ProcessingPipeline:
             ProcessingStatus.FAILED,
         ]:
             raise ValueError(f"Document {document_id} is not in a processable state")
-
-        if document.processing_status == ProcessingStatus.PROCESSING:
-            raise ValueError(f"Document {document_id} is already being processed")
 
         # Create processing job
         job = ProcessingJob(
@@ -158,36 +149,27 @@ class ProcessingPipeline:
         except Exception as e:
             logger.error(f"Failed to queue job {job_id}: {str(e)}")
             job.fail_job(f"Failed to queue job: {str(e)}")
-            # Also fail the associated document so it doesn't stay PENDING forever
-            if job.document_id:
-                document = self.db.query(Document).filter(Document.id == job.document_id).first()
-                if document:
-                    document.processing_status = ProcessingStatus.FAILED
-                    document.processing_error = f"Failed to queue: {str(e)}"
             self.db.commit()
 
     async def process_text_extraction(self, document: Document) -> Dict[str, Any]:
         """Extract text content from document"""
-        from src.services.documents.storage_utils import local_file_for_document
-
         try:
-            with local_file_for_document(document) as file_path:
-                if document.document_type == DocumentType.TEXT:
-                    text = self._extract_text_from_text_file(file_path)
-                elif document.document_type == DocumentType.PDF:
-                    text = self._extract_text_from_pdf(file_path)
-                elif document.document_type == DocumentType.SPREADSHEET:
-                    text = self._extract_text_from_spreadsheet(file_path)
-                elif document.document_type == DocumentType.PRESENTATION:
-                    text = self._extract_text_from_presentation(file_path)
-                elif document.document_type == DocumentType.IMAGE:
-                    text = await self._extract_text_from_image(document)
-                elif document.document_type == DocumentType.AUDIO:
-                    text = await self._extract_text_from_audio(document)
-                elif document.document_type == DocumentType.VIDEO:
-                    text = await self._extract_text_from_video(document)
-                else:
-                    text = ""
+            if document.document_type == DocumentType.TEXT:
+                text = self._extract_text_from_text_file(document.file_path)
+            elif document.document_type == DocumentType.PDF:
+                text = self._extract_text_from_pdf(document.file_path)
+            elif document.document_type == DocumentType.SPREADSHEET:
+                text = self._extract_text_from_spreadsheet(document.file_path)
+            elif document.document_type == DocumentType.PRESENTATION:
+                text = self._extract_text_from_presentation(document.file_path)
+            elif document.document_type == DocumentType.IMAGE:
+                text = await self._extract_text_from_image(document)
+            elif document.document_type == DocumentType.AUDIO:
+                text = await self._extract_text_from_audio(document)
+            elif document.document_type == DocumentType.VIDEO:
+                text = await self._extract_text_from_video(document)
+            else:
+                text = ""
 
             # Generate summary using AI
             summary = await self._generate_text_summary(text) if text else ""
@@ -270,15 +252,16 @@ class ProcessingPipeline:
                     f"Direct PDF extraction failed, trying OCR: {str(pdf_error)}"
                 )
                 # Fallback: Convert all pages to images and OCR them
-                with fitz.open(file_path) as doc:
-                    for page_num in range(len(doc)):
-                        page = doc.load_page(page_num)
-                        pix = page.get_pixmap()
-                        img_data = pix.tobytes("png")
-                        img = Image.open(io.BytesIO(img_data))
-                        ocr_text = pytesseract.image_to_string(img)
-                        if ocr_text.strip():
-                            text.append(f"[OCR Page {page_num + 1}]\n{ocr_text}")
+                doc = fitz.open(file_path)
+                for page_num in range(len(doc)):
+                    page = doc.load_page(page_num)
+                    pix = page.get_pixmap()
+                    img_data = pix.tobytes("png")
+                    img = Image.open(io.BytesIO(img_data))
+                    ocr_text = pytesseract.image_to_string(img)
+                    if ocr_text.strip():
+                        text.append(f"[OCR Page {page_num + 1}]\n{ocr_text}")
+                doc.close()
 
             extracted_text = "\n".join(text)
 

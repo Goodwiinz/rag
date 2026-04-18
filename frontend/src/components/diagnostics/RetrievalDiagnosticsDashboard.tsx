@@ -9,8 +9,6 @@ import { Input } from '@/components/ui/input';
 import { Slider } from '@/components/ui/slider';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
-import { Activity } from 'lucide-react';
-import { EmptyState } from '@/components/ui/EmptyState';
 import {
   AggregateStats,
   BottleneckReport,
@@ -43,9 +41,9 @@ function HealthBadge({ health }: { health: string }) {
 function StageHealth({ stage, health }: { stage: string; health: string }) {
   const color =
     health === 'green'
-      ? 'bg-primary'
+      ? 'bg-[#00ff9f]'
       : health === 'yellow'
-        ? 'bg-[var(--amber-gold)]'
+        ? 'bg-[#ffb700]'
         : 'bg-red-500';
   return (
     <div className="flex items-center gap-2">
@@ -107,12 +105,9 @@ function QueryExplorer() {
         </CardHeader>
         <CardContent className="max-h-[600px] space-y-1 overflow-y-auto">
           {traces.length === 0 && (
-            <EmptyState
-              icon={Activity}
-              title="NO_TRACES_CAPTURED"
-              description="Send a RAG query to start recording pipeline diagnostics and performance traces."
-              action={{ label: 'OPEN_SEARCH', href: '/search' }}
-            />
+            <p className="text-muted-foreground text-sm">
+              No traces yet. Send a RAG query to start capturing diagnostics.
+            </p>
           )}
           {traces.map((t) => (
             <button
@@ -120,7 +115,7 @@ function QueryExplorer() {
               className={cn(
                 'w-full rounded-md border p-2 text-left text-sm transition-colors',
                 selectedTrace?.trace_id === t.trace_id
-                  ? 'border-primary/50 bg-primary/10'
+                  ? 'border-[#00ff9f]/50 bg-[#00ff9f]/10'
                   : 'hover:bg-muted/50'
               )}
               onClick={() => selectTrace(t.trace_id)}
@@ -276,7 +271,7 @@ function QueryExplorer() {
                                     className={cn(
                                       'text-right',
                                       d.delta > 0
-                                        ? 'text-primary'
+                                        ? 'text-[#00ff9f]'
                                         : 'text-red-400'
                                     )}
                                   >
@@ -356,7 +351,7 @@ function FindingCard({ finding }: { finding: Finding }) {
     finding.severity === 'high'
       ? 'border-red-500/50'
       : finding.severity === 'medium'
-        ? 'border-[var(--amber-gold)]/50'
+        ? 'border-[#ffb700]/50'
         : 'border-border';
 
   return (
@@ -377,7 +372,7 @@ function FindingCard({ finding }: { finding: Finding }) {
         <span className="text-sm font-medium">{finding.title}</span>
       </div>
       <p className="text-muted-foreground mt-1 text-xs">{finding.detail}</p>
-      <p className="mt-1 text-xs text-brand-cyan">{finding.recommendation}</p>
+      <p className="mt-1 text-xs text-[#00d4ff]">{finding.recommendation}</p>
     </div>
   );
 }
@@ -846,7 +841,7 @@ function BottleneckAnalysis() {
                 <p className="text-muted-foreground text-xs">
                   {finding.detail}
                 </p>
-                <p className="mt-1 text-xs text-brand-cyan">
+                <p className="mt-1 text-xs text-[#00d4ff]">
                   {finding.recommendation}
                 </p>
               </div>
@@ -870,10 +865,8 @@ export function RetrievalDiagnosticsDashboard({
   return (
     <div className={cn('space-y-6', className)}>
       <div>
-        <h1 className="text-2xl font-mono font-bold text-[var(--terminal-text)] tracking-wider">
-          RETRIEVAL_DIAGNOSTICS
-        </h1>
-        <p className="text-xs font-mono text-muted-foreground mt-0.5 uppercase tracking-widest">
+        <h2 className="text-lg font-semibold">Retrieval Diagnostics</h2>
+        <p className="text-muted-foreground text-sm">
           Inspect the RAG retrieval pipeline, identify bottlenecks, and tune
           search weights.
         </p>

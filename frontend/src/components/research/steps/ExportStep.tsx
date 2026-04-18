@@ -63,7 +63,7 @@ export const ExportStep: React.FC<ExportStepProps> = ({
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-6 w-6 animate-spin text-sol" />
+        <Loader2 className="h-6 w-6 animate-spin text-[#00ff9f]" />
       </div>
     );
   }
@@ -81,10 +81,10 @@ export const ExportStep: React.FC<ExportStepProps> = ({
       </div>
 
       {/* Success banner */}
-      <div className="flex items-center gap-3 p-4 bg-sol/5 border border-sol/20 rounded-lg">
-        <CheckCircle className="h-5 w-5 text-sol flex-shrink-0" />
+      <div className="flex items-center gap-3 p-4 bg-[#00ff9f]/5 border border-[#00ff9f]/20 rounded-lg">
+        <CheckCircle className="h-5 w-5 text-[#00ff9f] flex-shrink-0" />
         <div>
-          <p className="text-sm font-mono text-sol">Pipeline Complete</p>
+          <p className="text-sm font-mono text-[#00ff9f]">Pipeline Complete</p>
           <p className="text-xs text-gray-400 mt-0.5">
             Your research workflow is finished. Choose your export format below.
           </p>
@@ -100,10 +100,10 @@ export const ExportStep: React.FC<ExportStepProps> = ({
             setShowExportModal(true);
           }}
           disabled={!currentDraft}
-          className="flex items-center gap-4 p-4 bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg hover:border-sol/30 transition-colors text-left disabled:opacity-50 disabled:cursor-not-allowed"
+          className="flex items-center gap-4 p-4 bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg hover:border-[#00ff9f]/30 transition-colors text-left disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          <div className="p-3 bg-sol/10 rounded-lg">
-            <FileText className="h-5 w-5 text-sol" />
+          <div className="p-3 bg-[#00ff9f]/10 rounded-lg">
+            <FileText className="h-5 w-5 text-[#00ff9f]" />
           </div>
           <div>
             <p className="font-mono text-sm text-white">Export Draft</p>
@@ -120,10 +120,10 @@ export const ExportStep: React.FC<ExportStepProps> = ({
             setShowExportModal(true);
           }}
           disabled={!currentDraft}
-          className="flex items-center gap-4 p-4 bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg hover:border-brand-cyan/30 transition-colors text-left disabled:opacity-50 disabled:cursor-not-allowed"
+          className="flex items-center gap-4 p-4 bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg hover:border-[#00d4ff]/30 transition-colors text-left disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          <div className="p-3 bg-brand-cyan/10 rounded-lg">
-            <Download className="h-5 w-5 text-brand-cyan" />
+          <div className="p-3 bg-[#00d4ff]/10 rounded-lg">
+            <Download className="h-5 w-5 text-[#00d4ff]" />
           </div>
           <div>
             <p className="font-mono text-sm text-white">Export as LaTeX</p>

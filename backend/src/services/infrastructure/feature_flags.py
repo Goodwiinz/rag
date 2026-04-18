@@ -69,7 +69,8 @@ class FeatureFlagService:
         if not sdk_key:
             raise ValueError("LAUNCHDARKLY_SDK_KEY environment variable not set")
 
-        config = ld.Config(sdk_key=sdk_key, offline=os.getenv("ENVIRONMENT") == "development")
+        config = ld.Config(sdk_key)
+        config.offline = os.getenv("ENVIRONMENT") == "development"
 
         self._client = ld.LDClient(config)
         self._initialized = True
@@ -136,12 +137,12 @@ class FeatureFlagService:
 
         if self._initialized and self._client:
             try:
-                ld_context = (
-                    self._create_ld_context(user_context)
+                ld_user = (
+                    self._create_ld_user(user_context)
                     if user_context
-                    else ld.Context.builder("anonymous").anonymous(True).build()
+                    else ld.User("anonymous")
                 )
-                result = self._client.variation(flag_key, ld_context, default_value)
+                result = self._client.variation(flag_key, ld_user, default_value)
                 return bool(result)
             except Exception as e:
                 logger.error(f"Error evaluating LaunchDarkly flag {flag_key}: {e}")
@@ -170,30 +171,32 @@ class FeatureFlagService:
 
         if self._initialized and self._client:
             try:
-                ld_context = (
-                    self._create_ld_context(user_context)
+                ld_user = (
+                    self._create_ld_user(user_context)
                     if user_context
-                    else ld.Context.builder("anonymous").anonymous(True).build()
+                    else ld.User("anonymous")
                 )
-                return self._client.variation(flag_key, ld_context, default_value)
+                return self._client.variation(flag_key, ld_user, default_value)
             except Exception as e:
                 logger.error(f"Error evaluating LaunchDarkly flag {flag_key}: {e}")
                 return self._mock_flags.get(flag_key, default_value)
         else:
             return self._mock_flags.get(flag_key, default_value)
 
-    def _create_ld_context(
+    def _create_ld_user(
         self, user_context: UserContext
-    ) -> Any:  # Returns ld.Context when available
-        """Create LaunchDarkly Context object from UserContext"""
-        builder = ld.Context.builder(user_context.user_id)
-        builder.set("email", user_context.email)
+    ) -> Any:  # Returns ld.User when available
+        """Create LaunchDarkly user object from UserContext"""
+        ld_user = ld.User(user_context.user_id)
+        ld_user.email = user_context.email
         if user_context.name:
-            builder.name(user_context.name)
+            ld_user.name = user_context.name
+
         if user_context.custom_attributes:
             for key, value in user_context.custom_attributes.items():
-                builder.set(key, value)
-        return builder.build()
+                ld_user.custom[key] = value
+
+        return ld_user
 
     def get_all_flags(
         self, user_context: Optional[UserContext] = None
@@ -209,12 +212,12 @@ class FeatureFlagService:
         """
         if self._initialized and self._client:
             try:
-                ld_context = (
-                    self._create_ld_context(user_context)
+                ld_user = (
+                    self._create_ld_user(user_context)
                     if user_context
-                    else ld.Context.builder("anonymous").anonymous(True).build()
+                    else ld.User("anonymous")
                 )
-                all_flags = self._client.all_flags_state(ld_context)
+                all_flags = self._client.all_flags_state(ld_user)
                 return {
                     flag_key: flag_value.value
                     for flag_key, flag_value in all_flags.to_values_map().items()
@@ -234,8 +237,8 @@ class FeatureFlagService:
         """
         if self._initialized and self._client:
             try:
-                ld_context = self._create_ld_context(user_context)
-                self._client.identify(ld_context)
+                ld_user = self._create_ld_user(user_context)
+                self._client.identify(ld_user)
                 logger.info(f"Identified user: {user_context.user_id}")
             except Exception as e:
                 logger.error(f"Error identifying user in LaunchDarkly: {e}")
@@ -256,12 +259,12 @@ class FeatureFlagService:
         """
         if self._initialized and self._client:
             try:
-                ld_context = (
-                    self._create_ld_context(user_context)
+                ld_user = (
+                    self._create_ld_user(user_context)
                     if user_context
-                    else ld.Context.builder("anonymous").anonymous(True).build()
+                    else ld.User("anonymous")
                 )
-                self._client.track(event_name, ld_context, data or {})
+                self._client.track(event_name, ld_user, data or {})
                 logger.debug(f"Tracked event: {event_name}")
             except Exception as e:
                 logger.error(f"Error tracking event in LaunchDarkly: {e}")
@@ -283,15 +286,8 @@ class FeatureFlagService:
                 logger.error(f"Error closing LaunchDarkly client: {e}")
 
 
-_feature_flag_service: Optional[FeatureFlagService] = None
-
-
-def get_feature_flag_service() -> FeatureFlagService:
-    """Return the shared FeatureFlagService, initializing it on first call."""
-    global _feature_flag_service
-    if _feature_flag_service is None:
-        _feature_flag_service = FeatureFlagService()
-    return _feature_flag_service
+# Global feature flag service instance
+feature_flag_service = FeatureFlagService()
 
 
 # Convenience functions
@@ -299,44 +295,44 @@ def is_multimodal_processing_enabled(
     user_context: Optional[UserContext] = None,
 ) -> bool:
     """Check if multimodal processing is enabled"""
-    return get_feature_flag_service().is_enabled(
+    return feature_flag_service.is_enabled(
         FeatureFlag.MULTIMODAL_PROCESSING, user_context
     )
 
 
 def is_advanced_analytics_enabled(user_context: Optional[UserContext] = None) -> bool:
     """Check if advanced analytics is enabled"""
-    return get_feature_flag_service().is_enabled(FeatureFlag.ADVANCED_ANALYTICS, user_context)
+    return feature_flag_service.is_enabled(FeatureFlag.ADVANCED_ANALYTICS, user_context)
 
 
 def is_evaluation_metrics_enabled(user_context: Optional[UserContext] = None) -> bool:
     """Check if evaluation metrics are enabled"""
-    return get_feature_flag_service().is_enabled(FeatureFlag.EVALUATION_METRICS, user_context)
+    return feature_flag_service.is_enabled(FeatureFlag.EVALUATION_METRICS, user_context)
 
 
 def is_real_time_processing_enabled(user_context: Optional[UserContext] = None) -> bool:
     """Check if real-time processing is enabled"""
-    return get_feature_flag_service().is_enabled(
+    return feature_flag_service.is_enabled(
         FeatureFlag.REAL_TIME_PROCESSING, user_context
     )
 
 
 def get_file_upload_limit(user_context: Optional[UserContext] = None) -> int:
     """Get the file upload limit in MB"""
-    return get_feature_flag_service().get_variation(
+    return feature_flag_service.get_variation(
         FeatureFlag.FILE_UPLOAD_LIMITS, user_context, 100
     )
 
 
 def get_search_result_count(user_context: Optional[UserContext] = None) -> int:
     """Get the search result count"""
-    return get_feature_flag_service().get_variation(
+    return feature_flag_service.get_variation(
         FeatureFlag.SEARCH_RESULT_COUNT, user_context, 10
     )
 
 
 def get_ai_model_type(user_context: Optional[UserContext] = None) -> str:
     """Get the AI model type to use"""
-    return get_feature_flag_service().get_variation(
+    return feature_flag_service.get_variation(
         FeatureFlag.AI_MODEL_OPTIMIZATION, user_context, "standard"
     )

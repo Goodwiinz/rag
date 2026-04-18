@@ -22,7 +22,7 @@ def test_gpt4o_mini():
         # Initialize client
         # Use the specific API key for the goodwiinzapi endpoint
         client = AzureOpenAI(
-            api_key=os.environ.get("AZURE_OPENAI_API_KEY", "your_azure_openai_key_here"),
+            api_key="7awsW9wUrULKH9CLPkeh1oeaeeGmKvIotw8HSYjVtjMcIgj0NqyLJQQJ99BIACYeBjFXJ3w3AAABACOG5UHM",
             azure_endpoint="https://goodwiinzapi.cognitiveservices.azure.com/",
             api_version="2025-01-01-preview"
         )

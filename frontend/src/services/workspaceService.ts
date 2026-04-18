@@ -30,39 +30,52 @@ import {
   WorkspaceDetail,
   WorkspaceUpdate,
 } from '@/types/workspace';
-import { getPublicApiOrigin } from '@/utils/publicEndpoints';
 import axios, { AxiosInstance } from 'axios';
 
-const getAuthContext = async (): Promise<{
+const getAuthContext = (): {
   token: string | null;
   organizationId: string | null;
-}> => {
+} => {
   if (typeof window === 'undefined') {
     return { token: null, organizationId: null };
   }
 
+  let token: string | null = null;
+  let organizationId: string | null = null;
+
   try {
-    const { createClient } = await import('@/lib/supabase/client');
-    const supabase = createClient();
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-    const token = session?.access_token ?? null;
-    const organizationId =
-      session?.user?.user_metadata?.organization_id ?? null;
-    return { token, organizationId };
+    const authStorage = localStorage.getItem('auth-storage');
+    if (authStorage) {
+      const auth = JSON.parse(authStorage);
+      token = auth.state?.token || null;
+      organizationId =
+        auth.state?.organization?.id ||
+        auth.state?.user?.organization_id ||
+        null;
+    }
+
+    if (!token) {
+      token = localStorage.getItem('access_token');
+    }
+
+    if (!organizationId) {
+      const userData = localStorage.getItem('user_data');
+      if (userData) {
+        const user = JSON.parse(userData);
+        organizationId = user?.organization_id || null;
+      }
+    }
   } catch (e) {
-    console.warn(
-      '[WorkspaceService] Failed to get auth context from Supabase:',
-      e
-    );
-    return { token: null, organizationId: null };
+    console.warn('[WorkspaceService] Failed to parse auth context:', e);
   }
+
+  return { token, organizationId };
 };
 
 const getDirectApiBaseUrl = (): string | null => {
-  const configured = getPublicApiOrigin();
-  return configured || null;
+  const configured = process.env.NEXT_PUBLIC_API_URL?.trim();
+  if (!configured) return null;
+  return configured.replace(/\/$/, '');
 };
 
 // Create a dedicated axios instance for v2 API
@@ -77,14 +90,14 @@ const v2Client: AxiosInstance = axios.create({
 });
 
 // Add auth interceptor for v2 client
-v2Client.interceptors.request.use(async (config) => {
-  // Only access Supabase on client-side
+v2Client.interceptors.request.use((config) => {
+  // Only access localStorage on client-side
   if (typeof window === 'undefined') {
     return config;
   }
 
   try {
-    const { token, organizationId } = await getAuthContext();
+    const { token, organizationId } = getAuthContext();
 
     console.debug(
       '[WorkspaceService] Token:',
@@ -99,7 +112,7 @@ v2Client.interceptors.request.use(async (config) => {
       config.headers['X-Organization-ID'] = organizationId;
     }
   } catch (e) {
-    console.warn('[WorkspaceService] Failed to get auth context:', e);
+    console.warn('[WorkspaceService] Failed to parse auth storage:', e);
   }
   return config;
 });
@@ -169,7 +182,7 @@ v2Client.interceptors.response.use(
       console.warn('[WorkspaceService] Authentication error - logging out');
       // Dynamic import to avoid circular dependencies
       import('@/stores/authStore').then(({ useAuthStore }) => {
-        useAuthStore.getState().signOut();
+        useAuthStore.getState().logout();
       });
     }
 
@@ -193,7 +206,7 @@ export const workspaceService = {
   },
 
   async createWorkspace(data: WorkspaceCreate): Promise<Workspace> {
-    const { organizationId } = await getAuthContext();
+    const { organizationId } = getAuthContext();
     const payload: WorkspaceCreate = {
       ...data,
       organization_id: data.organization_id || organizationId || undefined,

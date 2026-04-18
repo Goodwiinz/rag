@@ -1,6 +1,5 @@
 'use client';
 
-import { IconButton } from '@/components/ui/icon-button';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { Workspace } from '@/types/workspace';
 import {
@@ -34,7 +33,7 @@ export const ChatHeader = memo(function ChatHeader({
   }, []);
 
   return (
-    <div className="flex h-14 shrink-0 items-center justify-between gap-4 border-b border-[var(--terminal-border)] bg-[var(--terminal-bg)]/95 px-4 z-40">
+    <div className="flex h-14 shrink-0 items-center justify-between gap-4 border-b border-[var(--terminal-border)] bg-[#0A0A0A]/95 px-4 z-40">
       {/* Left section: Breadcrumbs and Workspace Selector */}
       <div className="flex items-center gap-4">
         <SidebarTrigger className="h-7 w-7 text-[var(--terminal-text-dim)] hover:text-[var(--phosphor-green)] hover:bg-[var(--terminal-elevated)] transition-all rounded" />
@@ -110,16 +109,18 @@ export const ChatHeader = memo(function ChatHeader({
           </span>
         </div>
 
-        <IconButton
-          label="Terminal"
-          icon={<TerminalSquare className="w-4 h-4" />}
+        <button
+          aria-label="Terminal"
           className="p-1.5 text-[var(--terminal-text-dim)] hover:text-[var(--terminal-text)] transition-colors"
-        />
-        <IconButton
-          label="Settings"
-          icon={<Settings2 className="w-4 h-4" />}
+        >
+          <TerminalSquare className="w-4 h-4" />
+        </button>
+        <button
+          aria-label="Settings"
           className="p-1.5 text-[var(--terminal-text-dim)] hover:text-[var(--terminal-text)] transition-colors"
-        />
+        >
+          <Settings2 className="w-4 h-4" />
+        </button>
       </div>
     </div>
   );

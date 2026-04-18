@@ -25,14 +25,6 @@ import {
   BarChart3,
   PieChart,
   Loader2,
-  List,
-  Route,
-  Search,
-  Layers,
-  FileSearch,
-  GitMerge,
-  HeartPulse,
-  AlertTriangle,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -114,7 +106,6 @@ function EntityManagementContent() {
   const [selectedEntity, setSelectedEntity] = useState<Entity | null>(null);
   const [loading, setLoading] = useState(true);
   const [relationshipsLoading, setRelationshipsLoading] = useState(false);
-  const [serviceUnavailable, setServiceUnavailable] = useState(false);
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -192,11 +183,7 @@ function EntityManagementContent() {
         setTypeCounts(analytics.entity_type_counts || {});
       } catch (error) {
         logEntityPageError('Error fetching types and analytics', error);
-        if (isServiceUnavailableError(error)) {
-          setServiceUnavailable(true);
-        } else {
-          toast.error('Failed to load entity types and analytics');
-        }
+        toast.error('Failed to load entity types and analytics');
       }
     };
     fetchTypesAndAnalytics();
@@ -236,14 +223,9 @@ function EntityManagementContent() {
 
       setEntities(convertedEntities);
       setTotalEntities(paginatedResponse.total);
-      setServiceUnavailable(false);
     } catch (error) {
       logEntityPageError('Error fetching entities', error);
-      if (isServiceUnavailableError(error)) {
-        setServiceUnavailable(true);
-      } else {
-        toast.error('Failed to fetch entities');
-      }
+      toast.error('Failed to fetch entities');
       setEntities([]);
       setTotalEntities(0);
     } finally {
@@ -256,8 +238,8 @@ function EntityManagementContent() {
     try {
       setRelationshipsLoading(true);
       const [rels, connectedResponse] = await Promise.all([
-        entityService.getAllRelationships(200),
-        entityService.getEntities(200, 0, undefined, true),
+        entityService.getAllRelationships(500),
+        entityService.getEntities(500, 0, undefined, true),
       ]);
       setRelationships(rels);
 
@@ -279,9 +261,6 @@ function EntityManagementContent() {
       setGraphEntities(converted);
     } catch (error) {
       logEntityPageError('Error fetching relationships', error);
-      if (isServiceUnavailableError(error)) {
-        setServiceUnavailable(true);
-      }
       setRelationships([]);
       setGraphEntities([]);
     } finally {
@@ -604,8 +583,8 @@ function EntityManagementContent() {
                 <Network className="w-6 h-6 text-[var(--phosphor-green)]" />
               </div>
               <div>
-                <h1 className="text-2xl font-mono font-bold text-[var(--terminal-text)] tracking-wider">
-                  NEURAL_ENTITY_REGISTRY
+                <h1 className="text-xl font-mono font-bold text-[var(--terminal-text)] tracking-wider">
+                  Neural Entity Registry
                 </h1>
                 <p className="text-xs font-mono text-[var(--terminal-text-dim)] mt-0.5 uppercase tracking-widest">
                   Knowledge Graph Nodes Management
@@ -657,37 +636,6 @@ function EntityManagementContent() {
           </div>
         </motion.div>
 
-        {/* Service Unavailable Banner */}
-        {serviceUnavailable && (
-          <Card className="border-amber-500/30 bg-amber-500/5">
-            <CardContent className="p-4 flex items-center gap-3">
-              <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0" />
-              <div>
-                <p className="font-mono text-sm text-amber-400 font-bold">
-                  Knowledge Graph Unavailable
-                </p>
-                <p className="font-mono text-xs text-[var(--terminal-text-dim)] mt-1">
-                  The graph database is currently unreachable. Entity data
-                  cannot be loaded.
-                </p>
-              </div>
-              <Button
-                onClick={() => {
-                  setServiceUnavailable(false);
-                  fetchEntities();
-                  if (activeTab === 'graph') fetchRelationships();
-                }}
-                variant="outline"
-                size="sm"
-                className="ml-auto shrink-0 font-mono text-xs border-amber-500/30 hover:bg-amber-500/10"
-              >
-                <RefreshCw className="w-3 h-3 mr-1" />
-                RETRY
-              </Button>
-            </CardContent>
-          </Card>
-        )}
-
         {/* Filters */}
         <Card className="border-[var(--terminal-border)] bg-[var(--terminal-surface)] shadow-lg">
           <CardContent className="p-4">
@@ -716,102 +664,68 @@ function EntityManagementContent() {
 
         {/* Workspace Area */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <div className="mb-4 space-y-2">
-            {/* View group */}
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="font-mono text-[9px] text-primary uppercase tracking-wider w-14 shrink-0">
-                {'// View'}
-              </span>
-              <TabsList className="bg-[var(--terminal-bg)] border border-[var(--terminal-border)] p-1 rounded-lg">
-                <TabsTrigger
-                  value="list"
-                  className="rounded-md data-[state=active]:bg-primary/15 data-[state=active]:text-primary font-mono text-xs gap-1.5"
-                >
-                  <List className="h-3.5 w-3.5" />
-                  List
-                </TabsTrigger>
-                <TabsTrigger
-                  value="graph"
-                  className="rounded-md data-[state=active]:bg-primary/15 data-[state=active]:text-primary font-mono text-xs gap-1.5"
-                >
-                  <Network className="h-3.5 w-3.5" />
-                  Graph
-                </TabsTrigger>
-                <TabsTrigger
-                  value="pathfinder"
-                  className="rounded-md data-[state=active]:bg-primary/15 data-[state=active]:text-primary font-mono text-xs gap-1.5"
-                >
-                  <Route className="h-3.5 w-3.5" />
-                  Path Finder
-                </TabsTrigger>
-                <TabsTrigger
-                  value="search"
-                  className="rounded-md data-[state=active]:bg-primary/15 data-[state=active]:text-primary font-mono text-xs gap-1.5"
-                >
-                  <Search className="h-3.5 w-3.5" />
-                  Search
-                </TabsTrigger>
-              </TabsList>
-
-              {/* Actions group */}
-              <span className="font-mono text-[9px] text-primary uppercase tracking-wider w-14 shrink-0 ml-2">
-                {'// Actions'}
-              </span>
-              <TabsList className="bg-[var(--terminal-bg)] border border-[var(--terminal-border)] p-1 rounded-lg">
-                <TabsTrigger
-                  value="bulk"
-                  className="rounded-md data-[state=active]:bg-primary/15 data-[state=active]:text-primary font-mono text-xs gap-1.5"
-                >
-                  <Layers className="h-3.5 w-3.5" />
-                  Bulk Ops
-                </TabsTrigger>
-                <TabsTrigger
-                  value="extractor"
-                  className="rounded-md data-[state=active]:bg-primary/15 data-[state=active]:text-primary font-mono text-xs gap-1.5"
-                >
-                  <FileSearch className="h-3.5 w-3.5" />
-                  Extract
-                </TabsTrigger>
-                <TabsTrigger
-                  value="merge"
-                  className="rounded-md data-[state=active]:bg-primary/15 data-[state=active]:text-primary font-mono text-xs gap-1.5"
-                >
-                  <GitMerge className="h-3.5 w-3.5" />
-                  Merge
-                </TabsTrigger>
-              </TabsList>
-            </div>
-
-            {/* Monitor group */}
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="font-mono text-[9px] text-primary uppercase tracking-wider w-14 shrink-0">
-                {'// Monitor'}
-              </span>
-              <TabsList className="bg-[var(--terminal-bg)] border border-[var(--terminal-border)] p-1 rounded-lg">
-                <TabsTrigger
-                  value="statistics"
-                  className="rounded-md data-[state=active]:bg-primary/15 data-[state=active]:text-primary font-mono text-xs gap-1.5"
-                >
-                  <TrendingUp className="h-3.5 w-3.5" />
-                  Metrics
-                </TabsTrigger>
-                <TabsTrigger
-                  value="analytics"
-                  className="rounded-md data-[state=active]:bg-primary/15 data-[state=active]:text-primary font-mono text-xs gap-1.5"
-                >
-                  <BarChart3 className="h-3.5 w-3.5" />
-                  Analytics
-                </TabsTrigger>
-                <TabsTrigger
-                  value="health"
-                  className="rounded-md data-[state=active]:bg-primary/15 data-[state=active]:text-primary font-mono text-xs gap-1.5"
-                >
-                  <HeartPulse className="h-3.5 w-3.5" />
-                  Health
-                </TabsTrigger>
-              </TabsList>
-            </div>
-          </div>
+          <TabsList className="bg-[var(--terminal-bg)] border border-[var(--terminal-border)] p-1 rounded-xl mb-4 flex-wrap">
+            <TabsTrigger
+              value="list"
+              className="rounded-lg data-[state=active]:bg-[var(--terminal-elevated)] data-[state=active]:text-[var(--phosphor-green)] font-mono text-xs font-bold"
+            >
+              LIST_LOG
+            </TabsTrigger>
+            <TabsTrigger
+              value="graph"
+              className="rounded-lg data-[state=active]:bg-[var(--terminal-elevated)] data-[state=active]:text-[var(--phosphor-green)] font-mono text-xs font-bold"
+            >
+              GRAPH_VIZ
+            </TabsTrigger>
+            <TabsTrigger
+              value="statistics"
+              className="rounded-lg data-[state=active]:bg-[var(--terminal-elevated)] data-[state=active]:text-[var(--phosphor-green)] font-mono text-xs font-bold"
+            >
+              METRICS
+            </TabsTrigger>
+            <TabsTrigger
+              value="pathfinder"
+              className="rounded-lg data-[state=active]:bg-[var(--terminal-elevated)] data-[state=active]:text-[var(--phosphor-green)] font-mono text-xs font-bold"
+            >
+              PATH_FINDER
+            </TabsTrigger>
+            <TabsTrigger
+              value="search"
+              className="rounded-lg data-[state=active]:bg-[var(--terminal-elevated)] data-[state=active]:text-[var(--phosphor-green)] font-mono text-xs font-bold"
+            >
+              SEARCH
+            </TabsTrigger>
+            <TabsTrigger
+              value="analytics"
+              className="rounded-lg data-[state=active]:bg-[var(--terminal-elevated)] data-[state=active]:text-[var(--phosphor-green)] font-mono text-xs font-bold"
+            >
+              ANALYTICS
+            </TabsTrigger>
+            <TabsTrigger
+              value="bulk"
+              className="rounded-lg data-[state=active]:bg-[var(--terminal-elevated)] data-[state=active]:text-[var(--phosphor-green)] font-mono text-xs font-bold"
+            >
+              BULK_OPS
+            </TabsTrigger>
+            <TabsTrigger
+              value="extractor"
+              className="rounded-lg data-[state=active]:bg-[var(--terminal-elevated)] data-[state=active]:text-[var(--phosphor-green)] font-mono text-xs font-bold"
+            >
+              EXTRACTOR
+            </TabsTrigger>
+            <TabsTrigger
+              value="merge"
+              className="rounded-lg data-[state=active]:bg-[var(--terminal-elevated)] data-[state=active]:text-[var(--phosphor-green)] font-mono text-xs font-bold"
+            >
+              MERGE
+            </TabsTrigger>
+            <TabsTrigger
+              value="health"
+              className="rounded-lg data-[state=active]:bg-[var(--terminal-elevated)] data-[state=active]:text-[var(--phosphor-green)] font-mono text-xs font-bold"
+            >
+              HEALTH
+            </TabsTrigger>
+          </TabsList>
 
           <TabsContent value="list" className="mt-0 outline-none">
             <div className="rounded-xl border border-[var(--terminal-border)] bg-[var(--terminal-surface)] overflow-hidden shadow-xl">

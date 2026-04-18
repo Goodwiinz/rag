@@ -50,11 +50,6 @@ The Multimodal Enterprise RAG System employs a microservices architecture with c
 │  │   Pipeline    │ │   Services    │ │  Management   │ │   Communications    │ │
 │  │               │ │               │ │   Services    │ │   (WebSocket)       │ │
 │  └───────────────┘ └───────────────┘ └───────────────┘ └─────────────────────┘ │
-│  ┌───────────────────────────────────────────────────────────────────────────┐ │
-│  │  Agent Service (LangGraph)                                                │ │
-│  │  Intent Routing → Research | Writing | Data | General Subgraphs          │ │
-│  │  12 Tools, Human-in-the-Loop, Checkpointing, SSE Streaming              │ │
-│  └───────────────────────────────────────────────────────────────────────────┘ │
 └─────────────────────────┬───────────────────────────────────────────────────────┘
                           │
 ┌─────────────────────────┴───────────────────────────────────────────────────────┐
@@ -70,10 +65,8 @@ The Multimodal Enterprise RAG System employs a microservices architecture with c
 ## Service Architecture
 
 ### 1. API Gateway Service
-
 **Port**: 8080
 **Responsibilities**:
-
 - Request routing and load balancing
 - Authentication and authorization
 - Rate limiting and throttling
@@ -83,7 +76,6 @@ The Multimodal Enterprise RAG System employs a microservices architecture with c
 - SSL termination
 
 **Key Endpoints**:
-
 ```
 /api/v1/*  → Route to appropriate microservice
 /auth/*    → Authentication service
@@ -92,10 +84,8 @@ The Multimodal Enterprise RAG System employs a microservices architecture with c
 ```
 
 ### 2. Document Management Service
-
 **Port**: 8001
 **Responsibilities**:
-
 - File upload and validation
 - Document metadata management
 - Storage quota enforcement
@@ -104,7 +94,6 @@ The Multimodal Enterprise RAG System employs a microservices architecture with c
 - Content extraction and indexing
 
 **API Endpoints**:
-
 ```yaml
 openapi: 3.0.3
 info:
@@ -126,11 +115,11 @@ paths:
                     type: string
                     format: binary
       responses:
-        "201":
+        '201':
           description: Documents uploaded successfully
-        "400":
+        '400':
           description: Invalid file format or size
-        "409":
+        '409':
           description: Storage quota exceeded
 
     get:
@@ -157,7 +146,7 @@ paths:
             type: string
             enum: [queued, processing, indexed, failed]
       responses:
-        "200":
+        '200':
           description: List of documents
           content:
             application/json:
@@ -167,9 +156,9 @@ paths:
                   documents:
                     type: array
                     items:
-                      $ref: "#/components/schemas/Document"
+                      $ref: '#/components/schemas/Document'
                   pagination:
-                    $ref: "#/components/schemas/Pagination"
+                    $ref: '#/components/schemas/Pagination'
 
   /api/v1/documents/{document_id}:
     get:
@@ -181,13 +170,13 @@ paths:
           schema:
             type: string
       responses:
-        "200":
+        '200':
           description: Document details
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/DocumentDetail"
-        "404":
+                $ref: '#/components/schemas/DocumentDetail'
+        '404':
           description: Document not found
 
     delete:
@@ -199,9 +188,9 @@ paths:
           schema:
             type: string
       responses:
-        "204":
+        '204':
           description: Document deleted
-        "404":
+        '404':
           description: Document not found
 
   /api/v1/documents/{document_id}/processing-status:
@@ -214,12 +203,12 @@ paths:
           schema:
             type: string
       responses:
-        "200":
+        '200':
           description: Processing status
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ProcessingStatus"
+                $ref: '#/components/schemas/ProcessingStatus'
 
 components:
   schemas:
@@ -260,7 +249,7 @@ components:
 
     DocumentDetail:
       allOf:
-        - $ref: "#/components/schemas/Document"
+        - $ref: '#/components/schemas/Document'
         - type: object
           properties:
             content_text:
@@ -288,16 +277,7 @@ components:
           enum: [queued, processing, indexed, failed]
         current_stage:
           type: string
-          enum:
-            [
-              uploading,
-              extracting,
-              analyzing,
-              embedding,
-              indexing,
-              completed,
-              failed,
-            ]
+          enum: [uploading, extracting, analyzing, embedding, indexing, completed, failed]
         progress_percentage:
           type: number
           minimum: 0
@@ -324,10 +304,8 @@ components:
 ```
 
 ### 3. Search Service
-
 **Port**: 8002
 **Responsibilities**:
-
 - Hybrid search orchestration (vector + graph + keyword)
 - Query parsing and intent detection
 - Result ranking and relevance scoring
@@ -335,7 +313,6 @@ components:
 - Faceted search and filtering
 
 **API Endpoints**:
-
 ```yaml
 openapi: 3.0.3
 info:
@@ -350,14 +327,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/SearchQuery"
+              $ref: '#/components/schemas/SearchQuery'
       responses:
-        "200":
+        '200':
           description: Search results
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/SearchResponse"
+                $ref: '#/components/schemas/SearchResponse'
 
   /api/v1/search/suggestions:
     get:
@@ -374,14 +351,14 @@ paths:
             type: integer
             default: 5
       responses:
-        "200":
+        '200':
           description: Search suggestions
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/SearchSuggestion"
+                  $ref: '#/components/schemas/SearchSuggestion'
 
 components:
   schemas:
@@ -396,7 +373,7 @@ components:
           enum: [hybrid, vector, graph, keyword]
           default: hybrid
         filters:
-          $ref: "#/components/schemas/SearchFilters"
+          $ref: '#/components/schemas/SearchFilters'
         limit:
           type: integer
           default: 10
@@ -456,11 +433,11 @@ components:
         results:
           type: array
           items:
-            $ref: "#/components/schemas/SearchResult"
+            $ref: '#/components/schemas/SearchResult'
         facets:
           type: object
         query_classification:
-          $ref: "#/components/schemas/QueryClassification"
+          $ref: '#/components/schemas/QueryClassification'
 
     SearchResult:
       type: object
@@ -526,10 +503,8 @@ components:
 ```
 
 ### 4. Knowledge Graph Service
-
 **Port**: 8003
 **Responsibilities**:
-
 - Entity extraction and relationship mapping
 - Graph algorithms (centrality, pathfinding, clustering)
 - Knowledge graph visualization data
@@ -537,7 +512,6 @@ components:
 - Graph analytics and insights
 
 **API Endpoints**:
-
 ```yaml
 openapi: 3.0.3
 info:
@@ -563,14 +537,14 @@ paths:
             type: integer
             default: 1
       responses:
-        "200":
+        '200':
           description: List of entities
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/Entity"
+                  $ref: '#/components/schemas/Entity'
 
   /api/v1/knowledge-graph/graph:
     get:
@@ -599,12 +573,12 @@ paths:
             items:
               type: string
       responses:
-        "200":
+        '200':
           description: Graph data
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/GraphData"
+                $ref: '#/components/schemas/GraphData'
 
   /api/v1/knowledge-graph/entities/{entity_id}:
     get:
@@ -616,12 +590,12 @@ paths:
           schema:
             type: string
       responses:
-        "200":
+        '200':
           description: Entity details
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/EntityDetail"
+                $ref: '#/components/schemas/EntityDetail'
 
   /api/v1/knowledge-graph/analytics:
     get:
@@ -639,12 +613,12 @@ paths:
             items:
               type: string
       responses:
-        "200":
+        '200':
           description: Graph analytics
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/GraphAnalytics"
+                $ref: '#/components/schemas/GraphAnalytics'
 
 components:
   schemas:
@@ -671,7 +645,7 @@ components:
 
     EntityDetail:
       allOf:
-        - $ref: "#/components/schemas/Entity"
+        - $ref: '#/components/schemas/Entity'
         - type: object
           properties:
             description:
@@ -685,7 +659,7 @@ components:
             related_entities:
               type: array
               items:
-                $ref: "#/components/schemas/RelatedEntity"
+                $ref: '#/components/schemas/RelatedEntity'
             temporal_data:
               type: object
               properties:
@@ -702,7 +676,7 @@ components:
       type: object
       properties:
         entity:
-          $ref: "#/components/schemas/Entity"
+          $ref: '#/components/schemas/Entity'
         relationship_type:
           type: string
         relationship_strength:
@@ -757,7 +731,7 @@ components:
             positions:
               type: object
         statistics:
-          $ref: "#/components/schemas/GraphStatistics"
+          $ref: '#/components/schemas/GraphStatistics'
 
     GraphStatistics:
       type: object
@@ -790,10 +764,8 @@ components:
 ```
 
 ### 5. Evaluation Service
-
 **Port**: 8004
 **Responsibilities**:
-
 - RAG Triad metrics calculation (Answer Relevancy, Faithfulness, Contextual Relevancy)
 - Query performance evaluation
 - Quality trend analysis
@@ -801,7 +773,6 @@ components:
 - A/B testing framework
 
 **API Endpoints**:
-
 ```yaml
 openapi: 3.0.3
 info:
@@ -816,14 +787,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/EvaluationRequest"
+              $ref: '#/components/schemas/EvaluationRequest'
       responses:
-        "200":
+        '200':
           description: Evaluation metrics
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/EvaluationMetrics"
+                $ref: '#/components/schemas/EvaluationMetrics'
 
   /api/v1/evaluation/performance:
     get:
@@ -843,12 +814,12 @@ paths:
               type: string
               enum: [latency, accuracy, relevance, throughput]
       responses:
-        "200":
+        '200':
           description: Performance metrics
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/PerformanceMetrics"
+                $ref: '#/components/schemas/PerformanceMetrics'
 
   /api/v1/evaluation/benchmarks:
     post:
@@ -858,9 +829,9 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/BenchmarkRequest"
+              $ref: '#/components/schemas/BenchmarkRequest'
       responses:
-        "202":
+        '202':
           description: Benchmark started
           content:
             application/json:
@@ -908,11 +879,11 @@ components:
           type: string
           format: uuid
         rag_triad:
-          $ref: "#/components/schemas/RAGTriadMetrics"
+          $ref: '#/components/schemas/RAGTriadMetrics'
         quality_metrics:
-          $ref: "#/components/schemas/QualityMetrics"
+          $ref: '#/components/schemas/QualityMetrics'
         performance_metrics:
-          $ref: "#/components/schemas/QueryPerformanceMetrics"
+          $ref: '#/components/schemas/QueryPerformanceMetrics'
         generated_at:
           type: string
           format: date-time
@@ -1065,10 +1036,8 @@ components:
 ```
 
 ### 6. Processing Pipeline Service
-
 **Port**: 8005
 **Responsibilities**:
-
 - Multi-modal file processing orchestration
 - OCR, transcription, and content extraction
 - Entity extraction and relationship mapping
@@ -1077,7 +1046,6 @@ components:
 - Retry logic with exponential backoff
 
 **API Endpoints**:
-
 ```yaml
 openapi: 3.0.3
 info:
@@ -1092,14 +1060,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/ProcessingJobRequest"
+              $ref: '#/components/schemas/ProcessingJobRequest'
       responses:
-        "201":
+        '201':
           description: Job submitted successfully
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ProcessingJob"
+                $ref: '#/components/schemas/ProcessingJob'
 
     get:
       summary: List processing jobs
@@ -1119,7 +1087,7 @@ paths:
             type: integer
             default: 20
       responses:
-        "200":
+        '200':
           description: List of processing jobs
 
   /api/v1/processing/jobs/{job_id}:
@@ -1132,12 +1100,12 @@ paths:
           schema:
             type: string
       responses:
-        "200":
+        '200':
           description: Job details
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ProcessingJobDetail"
+                $ref: '#/components/schemas/ProcessingJobDetail'
 
   /api/v1/processing/jobs/{job_id}/retry:
     post:
@@ -1149,7 +1117,7 @@ paths:
           schema:
             type: string
       responses:
-        "202":
+        '202':
           description: Job retry initiated
 
 components:
@@ -1210,13 +1178,13 @@ components:
 
     ProcessingJobDetail:
       allOf:
-        - $ref: "#/components/schemas/ProcessingJob"
+        - $ref: '#/components/schemas/ProcessingJob'
         - type: object
           properties:
             stages:
               type: array
               items:
-                $ref: "#/components/schemas/ProcessingStage"
+                $ref: '#/components/schemas/ProcessingStage'
             error_message:
               type: string
             retry_count:
@@ -1249,10 +1217,8 @@ components:
 ```
 
 ### 7. Analytics Service
-
 **Port**: 8006
 **Responsibilities**:
-
 - User behavior analytics
 - System performance monitoring
 - Usage statistics and trends
@@ -1260,7 +1226,6 @@ components:
 - Real-time dashboard data
 
 **API Endpoints**:
-
 ```yaml
 openapi: 3.0.3
 info:
@@ -1291,12 +1256,12 @@ paths:
               type: string
               enum: [searches, uploads, users, storage, processing_time]
       responses:
-        "200":
+        '200':
           description: Usage statistics
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/UsageStatistics"
+                $ref: '#/components/schemas/UsageStatistics'
 
   /api/v1/analytics/performance:
     get:
@@ -1313,12 +1278,12 @@ paths:
           schema:
             type: string
       responses:
-        "200":
+        '200':
           description: Performance metrics
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/PerformanceAnalytics"
+                $ref: '#/components/schemas/PerformanceAnalytics'
 
   /api/v1/analytics/dashboards:
     get:
@@ -1334,12 +1299,12 @@ paths:
             type: boolean
             default: false
       responses:
-        "200":
+        '200':
           description: Dashboard data
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/DashboardData"
+                $ref: '#/components/schemas/DashboardData'
 
 components:
   schemas:
@@ -1405,7 +1370,7 @@ components:
         alerts:
           type: array
           items:
-            $ref: "#/components/schemas/PerformanceAlert"
+            $ref: '#/components/schemas/PerformanceAlert'
 
     PerformanceAlert:
       type: object
@@ -1435,7 +1400,7 @@ components:
         widgets:
           type: array
           items:
-            $ref: "#/components/schemas/DashboardWidget"
+            $ref: '#/components/schemas/DashboardWidget'
         last_updated:
           type: string
           format: date-time
@@ -1466,10 +1431,8 @@ components:
 ```
 
 ### 8. User Management Service
-
 **Port**: 8007
 **Responsibilities**:
-
 - User authentication and authorization
 - Organization management
 - Role-based access control (RBAC)
@@ -1477,7 +1440,6 @@ components:
 - User preferences and settings
 
 **API Endpoints**:
-
 ```yaml
 openapi: 3.0.3
 info:
@@ -1500,13 +1462,13 @@ paths:
                 password:
                   type: string
       responses:
-        "200":
+        '200':
           description: Login successful
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/LoginResponse"
-        "401":
+                $ref: '#/components/schemas/LoginResponse'
+        '401':
           description: Invalid credentials
 
   /api/v1/auth/logout:
@@ -1515,7 +1477,7 @@ paths:
       security:
         - bearerAuth: []
       responses:
-        "200":
+        '200':
           description: Logout successful
 
   /api/v1/auth/refresh:
@@ -1531,12 +1493,12 @@ paths:
                 refresh_token:
                   type: string
       responses:
-        "200":
+        '200':
           description: Token refreshed
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/TokenResponse"
+                $ref: '#/components/schemas/TokenResponse'
 
   /api/v1/users:
     get:
@@ -1564,14 +1526,14 @@ paths:
             type: integer
             default: 20
       responses:
-        "200":
+        '200':
           description: List of users
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/User"
+                  $ref: '#/components/schemas/User'
 
     post:
       summary: Create new user
@@ -1582,14 +1544,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/CreateUserRequest"
+              $ref: '#/components/schemas/CreateUserRequest'
       responses:
-        "201":
+        '201':
           description: User created successfully
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/User"
+                $ref: '#/components/schemas/User'
 
   /api/v1/users/{user_id}:
     get:
@@ -1603,12 +1565,12 @@ paths:
           schema:
             type: string
       responses:
-        "200":
+        '200':
           description: User details
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/UserDetail"
+                $ref: '#/components/schemas/UserDetail'
 
     put:
       summary: Update user
@@ -1625,9 +1587,9 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/UpdateUserRequest"
+              $ref: '#/components/schemas/UpdateUserRequest'
       responses:
-        "200":
+        '200':
           description: User updated
 
     delete:
@@ -1641,7 +1603,7 @@ paths:
           schema:
             type: string
       responses:
-        "204":
+        '204':
           description: User deleted
 
 components:
@@ -1659,7 +1621,7 @@ components:
         expires_in:
           type: integer
         user:
-          $ref: "#/components/schemas/User"
+          $ref: '#/components/schemas/User'
 
     TokenResponse:
       type: object
@@ -1701,7 +1663,7 @@ components:
 
     UserDetail:
       allOf:
-        - $ref: "#/components/schemas/User"
+        - $ref: '#/components/schemas/User'
         - type: object
           properties:
             storage_quota_mb:
@@ -1757,10 +1719,8 @@ components:
 ```
 
 ### 9. Real-time Communications Service
-
 **Port**: 8008
 **Responsibilities**:
-
 - WebSocket connection management
 - Real-time status updates
 - Live notifications
@@ -1768,7 +1728,6 @@ components:
 - Connection authentication
 
 **WebSocket Events**:
-
 ```yaml
 WebSocket Events:
 
@@ -1901,80 +1860,9 @@ error_occurred:
         type: string
 ```
 
-## Agent Service (LangGraph)
-
-### Overview
-
-The Agent Service provides an AI research assistant powered by LangGraph StateGraph with intent-based routing to specialized subgraphs. It integrates with the existing RAG, knowledge graph, and document management services.
-
-### Architecture
-
-```
-┌─────────────────────────────────────────────────────────┐
-│                     Agent Service                        │
-│                                                         │
-│  ┌─────────────────────────────────────────────────┐   │
-│  │              LangGraph StateGraph                │   │
-│  │                                                  │   │
-│  │  rag_node → intent_classifier → memory_retrieval│   │
-│  │       ↓                                         │   │
-│  │  ┌──────────┬──────────┬──────────┬──────────┐  │   │
-│  │  │ Research │ Writing  │  Data    │ General  │  │   │
-│  │  │ Subgraph │ Subgraph │ Subgraph │  (LLM)  │  │   │
-│  │  └──────────┴──────────┴──────────┴──────────┘  │   │
-│  │       ↓                                         │   │
-│  │  tool_node → interrupt_node → memory_save       │   │
-│  └─────────────────────────────────────────────────┘   │
-│                                                         │
-│  Persistence:                                           │
-│  ├── AsyncPostgresSaver (checkpoint persistence)       │
-│  ├── InMemoryStore (cross-conversation memory)         │
-│  └── Thread/ChatMessage (message persistence)          │
-│                                                         │
-│  Observability:                                         │
-│  ├── LangSmith tracing (if LANGCHAIN_API_KEY set)     │
-│  └── Prometheus metrics (execution, tools, errors)     │
-└─────────────────────────────────────────────────────────┘
-```
-
-### Key Patterns
-
-- **Intent Routing**: Weighted keyword classification routes to research, writing, data, or general subgraphs
-- **Tool Filtering**: Each subgraph uses `make_filtered_tool_node()` with disjoint tool sets
-- **Human-in-the-Loop**: `interrupt()` pauses graph for destructive tool confirmation, `Command(resume=...)` resumes
-- **Dual Execution**: Job-based polling (`/execute` + `/jobs/{id}`) and SSE streaming (`/stream`)
-- **Checkpointing**: AsyncPostgresSaver for graph state persistence, MemorySaver fallback
-- **Error Budgets**: Max 3 errors, max 10 tool loops, 30s tool timeout
-
-### Integration Points
-
-| Service             | Integration                                                                   |
-| ------------------- | ----------------------------------------------------------------------------- |
-| Hybrid Search       | RAG retrieval in `rag_node` (keyword + semantic, 5 docs)                      |
-| Knowledge Graph     | `search_knowledge_graph` tool via KnowledgeGraphService (Neo4j)               |
-| Entity Extraction   | `extract_entities` tool via EntityExtractor (transformer NER)                 |
-| Document Management | `search_documents`, `add_document_to_project`, `list_project_documents` tools |
-| ArXiv Service       | `search_arxiv`, `ingest_arxiv_papers` tools                                   |
-| Draft Generation    | `create_draft` tool via DraftGenerationService                                |
-| Bibliography        | `export_bibliography` tool via BibliographyService                            |
-| Auth                | `Depends(get_current_user)` on all endpoints                                  |
-
-### Files
-
-- `backend/src/services/agent/graph.py` — Main StateGraph
-- `backend/src/services/agent/state.py` — AgentState TypedDict
-- `backend/src/services/agent/tools.py` — 12 tool definitions
-- `backend/src/services/agent/memory.py` — Cross-conversation memory
-- `backend/src/services/agent/checkpointer.py` — Checkpoint management
-- `backend/src/services/agent/observability.py` — LangSmith + Prometheus
-- `backend/src/services/agent/subgraphs/` — Research, writing, data subgraphs
-- `backend/src/api/agent/execute.py` — API endpoints
-- `backend/langgraph.json` — LangGraph CLI config
-
 ## Authentication & Authorization
 
 ### JWT Token Structure
-
 ```json
 {
   "header": {
@@ -1997,14 +1885,12 @@ The Agent Service provides an AI research assistant powered by LangGraph StateGr
 ### Role-Based Access Control (RBAC)
 
 **Roles**:
-
 - **Super Admin**: System-wide access to all resources
 - **Organization Admin**: Full access within organization
 - **User**: Standard user access to own resources
 - **Viewer**: Read-only access to shared resources
 
 **Permissions**:
-
 ```
 Document Management:
   - read:documents (own documents)
@@ -2035,7 +1921,6 @@ System:
 ### Multi-Tenant Data Isolation
 
 **Row-Level Security**:
-
 ```sql
 -- PostgreSQL Row Level Security Policy
 CREATE POLICY user_document_isolation ON documents
@@ -2049,7 +1934,6 @@ CREATE POLICY user_document_isolation ON documents
 ```
 
 **Neo4j Database Isolation**:
-
 ```cypher
 // Node labels with organization prefix
 (:Document {organization_id: $org_id})
@@ -2067,7 +1951,6 @@ RETURN d
 ### Message Queue Design
 
 **Redis Streams Configuration**:
-
 ```yaml
 streams:
   document_processing:
@@ -2096,7 +1979,6 @@ streams:
 ```
 
 **Event Schema**:
-
 ```json
 {
   "event_id": "uuid",
@@ -2126,24 +2008,23 @@ streams:
 ### Redis Caching Layers
 
 **Application-Level Caching**:
-
 ```yaml
 cache_configuration:
   user_sessions:
-    ttl: 1800 # 30 minutes
+    ttl: 1800  # 30 minutes
     pattern: "session:{user_id}"
 
   search_results:
-    ttl: 300 # 5 minutes
+    ttl: 300   # 5 minutes
     pattern: "search:{query_hash}"
     max_size: 1000
 
   document_metadata:
-    ttl: 3600 # 1 hour
+    ttl: 3600  # 1 hour
     pattern: "doc:meta:{doc_id}"
 
   knowledge_graph_nodes:
-    ttl: 7200 # 2 hours
+    ttl: 7200  # 2 hours
     pattern: "graph:node:{node_id}"
 
   evaluation_metrics:
@@ -2151,12 +2032,11 @@ cache_configuration:
     pattern: "eval:metrics:{query_id}"
 
   api_rate_limits:
-    ttl: 3600 # 1 hour
+    ttl: 3600  # 1 hour
     pattern: "rate_limit:{user_id}:{endpoint}"
 ```
 
 **Cache Invalidation Strategy**:
-
 ```python
 # Cache invalidation on document update
 def invalidate_document_cache(document_id: str, user_id: str):
@@ -2174,7 +2054,6 @@ def invalidate_document_cache(document_id: str, user_id: str):
 ## Error Handling & Resilience
 
 ### Circuit Breaker Pattern
-
 ```yaml
 circuit_breaker_config:
   default:
@@ -2194,7 +2073,6 @@ circuit_breaker_config:
 ```
 
 ### Retry Strategy
-
 ```python
 retry_config = {
     'max_attempts': 3,
@@ -2211,7 +2089,6 @@ retry_config = {
 ```
 
 ### Error Response Format
-
 ```json
 {
   "error": {
@@ -2242,7 +2119,6 @@ retry_config = {
 ### Database Optimization
 
 **PostgreSQL Indexes**:
-
 ```sql
 -- Document search indexes
 CREATE INDEX CONCURRENTLY idx_documents_org_user
@@ -2267,7 +2143,6 @@ ON analytics_events(event_type, timestamp DESC);
 ```
 
 **Neo4j Indexes**:
-
 ```cypher
 // Entity name search
 CREATE INDEX entity_name_index FOR (e:Entity) ON (e.name);
@@ -2283,7 +2158,6 @@ CREATE FULLTEXT INDEX entity_fulltext FOR (e:Entity) ON EACH [e.name, e.descript
 ```
 
 **Qdrant Optimization**:
-
 ```python
 # Collection configuration
 collection_config = {
@@ -2308,7 +2182,6 @@ collection_config = {
 ### Load Balancing Strategy
 
 **Service Load Balancing**:
-
 ```yaml
 load_balancing:
   algorithm: round_robin
@@ -2341,7 +2214,6 @@ load_balancing:
 ### Metrics Collection
 
 **Prometheus Metrics**:
-
 ```yaml
 metrics:
   system_metrics:
@@ -2367,11 +2239,10 @@ metrics:
 ```
 
 **Distributed Tracing**:
-
 ```yaml
 tracing:
   provider: jaeger
-  sampling_rate: 0.1 # 10% sampling
+  sampling_rate: 0.1  # 10% sampling
   service_name: multimodal-rag
 
   spans:
@@ -2388,7 +2259,6 @@ tracing:
 ### Alerting Rules
 
 **Prometheus Alert Rules**:
-
 ```yaml
 groups:
   - name: system_health
@@ -2441,14 +2311,12 @@ groups:
 ### Security Layers
 
 **Network Security**:
-
 - TLS 1.3 encryption for all communications
 - VPN/Private network for service-to-service communication
 - Web Application Firewall (WAF) at edge
 - DDoS protection and rate limiting
 
 **Application Security**:
-
 - JWT-based authentication with short-lived tokens
 - Role-based access control (RBAC)
 - Input validation and sanitization
@@ -2456,14 +2324,12 @@ groups:
 - XSS protection
 
 **Data Security**:
-
 - Encryption at rest (AES-256)
 - Encryption in transit (TLS 1.3)
 - Data anonymization for analytics
 - Regular security scans and penetration testing
 
 **Compliance**:
-
 - GDPR compliance for EU users
 - Data retention policies
 - Audit logging for all sensitive operations
@@ -2472,7 +2338,6 @@ groups:
 ## Deployment Architecture
 
 ### Container Orchestration
-
 ```yaml
 kubernetes_deployment:
   api_version: apps/v1
@@ -2491,94 +2356,92 @@ kubernetes_deployment:
 
       spec:
         containers:
-          - name: document-service
-            image: multimodal-rag/document-service:1.0.0
-            ports:
-              - containerPort: 8001
+        - name: document-service
+          image: multimodal-rag/document-service:1.0.0
+          ports:
+          - containerPort: 8001
 
-            resources:
-              requests:
-                cpu: 500m
-                memory: 1Gi
-              limits:
-                cpu: 1000m
-                memory: 2Gi
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              cpu: 1000m
+              memory: 2Gi
 
-            env:
-              - name: DATABASE_URL
-                valueFrom:
-                  secretKeyRef:
-                    name: db-credentials
-                    key: url
-              - name: REDIS_URL
-                valueFrom:
-                  configMapKeyRef:
-                    name: infrastructure
-                    key: redis-url
+          env:
+          - name: DATABASE_URL
+            valueFrom:
+              secretKeyRef:
+                name: db-credentials
+                key: url
+          - name: REDIS_URL
+            valueFrom:
+              configMapKeyRef:
+                name: infrastructure
+                key: redis-url
 
-            livenessProbe:
-              httpGet:
-                path: /health
-                port: 8001
-              initialDelaySeconds: 30
-              periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8001
+            initialDelaySeconds: 30
+            periodSeconds: 10
 
-            readinessProbe:
-              httpGet:
-                path: /ready
-                port: 8001
-              initialDelaySeconds: 5
-              periodSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 8001
+            initialDelaySeconds: 5
+            periodSeconds: 5
 ```
 
 ### Infrastructure as Code
-
 ```yaml
 # Terraform configuration
 resource "aws_eks_cluster" "rag_cluster" {
-name     = "multimodal-rag-cluster"
-role_arn = aws_iam_role.cluster_role.arn
-version  = "1.28"
+  name     = "multimodal-rag-cluster"
+  role_arn = aws_iam_role.cluster_role.arn
+  version  = "1.28"
 
-vpc_config {
-subnet_ids = aws_subnet.private[*].id
-}
+  vpc_config {
+    subnet_ids = aws_subnet.private[*].id
+  }
 }
 
 resource "aws_rds_cluster" "postgres" {
-engine         = "aurora-postgresql"
-engine_version = "15.4"
-instance_class = "db.r6g.large"
+  engine         = "aurora-postgresql"
+  engine_version = "15.4"
+  instance_class = "db.r6g.large"
 
-database_name = "multimodal_rag"
-username     = "postgres"
+  database_name = "multimodal_rag"
+  username     = "postgres"
 
-skip_final_snapshot = false
-final_snapshot_identifier = "final-snapshot"
+  skip_final_snapshot = false
+  final_snapshot_identifier = "final-snapshot"
 }
 
 resource "aws_elasticache_cluster" "redis" {
-cluster_id           = "rag-redis"
-engine               = "redis"
-node_type            = "cache.r6g.large"
-num_cache_nodes      = 3
-parameter_group_name = "default.redis7"
+  cluster_id           = "rag-redis"
+  engine               = "redis"
+  node_type            = "cache.r6g.large"
+  num_cache_nodes      = 3
+  parameter_group_name = "default.redis7"
 }
 
 resource "aws_neptune_cluster" "graph_db" {
-cluster_identifier = "rag-neptune"
-engine_version     = "1.3.0.0"
+  cluster_identifier = "rag-neptune"
+  engine_version     = "1.3.0.0"
 
-backup_retention_period = 7
-preferred_backup_window = "03:00-04:00"
-skip_final_snapshot     = false
+  backup_retention_period = 7
+  preferred_backup_window = "03:00-04:00"
+  skip_final_snapshot     = false
 }
 ```
 
 ## Implementation Timeline
 
 ### Phase 1: Foundation (4 weeks)
-
 - API Gateway implementation
 - Authentication service development
 - Basic document management service
@@ -2586,7 +2449,6 @@ skip_final_snapshot     = false
 - CI/CD pipeline setup
 
 ### Phase 2: Core Services (6 weeks)
-
 - Search service implementation
 - Knowledge graph service development
 - Processing pipeline service
@@ -2594,7 +2456,6 @@ skip_final_snapshot     = false
 - Real-time communications
 
 ### Phase 3: Advanced Features (4 weeks)
-
 - Advanced analytics service
 - Comprehensive evaluation framework
 - Performance optimization
@@ -2602,7 +2463,6 @@ skip_final_snapshot     = false
 - Monitoring and alerting
 
 ### Phase 4: Production Readiness (2 weeks)
-
 - Load testing and optimization
 - Security audit and penetration testing
 - Documentation completion
@@ -2611,7 +2471,6 @@ skip_final_snapshot     = false
 ## Success Metrics
 
 ### Technical Metrics
-
 - **API Response Time**: <200ms (95th percentile)
 - **System Availability**: >99.9%
 - **Error Rate**: <0.1%
@@ -2619,7 +2478,6 @@ skip_final_snapshot     = false
 - **Document Processing**: <5 minutes for 10MB file
 
 ### Business Metrics
-
 - **User Satisfaction Score**: >4.5/5
 - **Query Success Rate**: >85%
 - **Document Processing Success Rate**: >95%

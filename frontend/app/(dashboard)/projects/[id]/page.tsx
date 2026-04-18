@@ -16,7 +16,6 @@ import {
   Plus,
   Download,
   Loader2,
-  RefreshCw,
   MessageSquare,
   Grid3X3,
   GitBranch,
@@ -40,9 +39,7 @@ import {
   type GenerationStatus,
 } from '@/services/projectService';
 import { useProjectStore } from '@/store/projectStore';
-import { useAgentChatStore } from '@/store/agentChatStore';
 import { useAuthStore } from '@/stores/authStore';
-import { APIErrorClass } from '@/types/api';
 import type { ProjectNote, ProjectNoteCreate } from '@/services/projectService';
 
 type TabType =
@@ -120,51 +117,20 @@ export default function ProjectDetailPage() {
   const [showNoteEditor, setShowNoteEditor] = useState(false);
   const [selectedNoteTag, setSelectedNoteTag] = useState('');
   const [matrixId, setMatrixId] = useState<string | null>(null);
-  const [refreshing, setRefreshing] = useState(false);
-  const [projectError, setProjectError] = useState<{
-    status: number;
-    message: string;
-  } | null>(null);
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  const projectDataVersion = useAgentChatStore((s) => s.projectDataVersion);
-
   useEffect(() => {
     if (mounted && isAuthenticated && projectId) {
-      fetchProject(projectId)
-        .then(() => setProjectError(null))
-        .catch((err: unknown) => {
-          const status =
-            err instanceof APIErrorClass ? err.error.status_code : 500;
-          const message =
-            err instanceof Error ? err.message : 'Failed to load project';
-          setProjectError({ status, message });
-        })
-        .finally(() => setInitialLoading(false));
+      fetchProject(projectId).finally(() => setInitialLoading(false));
       fetchProjectDocuments(projectId);
       fetchProjectNotes(projectId);
     }
   }, [
     mounted,
     isAuthenticated,
-    projectId,
-    fetchProject,
-    fetchProjectDocuments,
-    fetchProjectNotes,
-  ]);
-
-  // Refetch project data when agent tools mutate it (e.g. add_document_to_project)
-  useEffect(() => {
-    if (projectDataVersion > 0 && projectId) {
-      fetchProject(projectId);
-      fetchProjectDocuments(projectId);
-      fetchProjectNotes(projectId);
-    }
-  }, [
-    projectDataVersion,
     projectId,
     fetchProject,
     fetchProjectDocuments,
@@ -247,25 +213,6 @@ export default function ProjectDetailPage() {
       void loadDrafts();
     }
   }, [activeTab, mounted, isAuthenticated, projectId, loadDrafts]);
-
-  useEffect(() => {
-    if (
-      projectDataVersion > 0 &&
-      activeTab === 'drafts' &&
-      mounted &&
-      isAuthenticated &&
-      projectId
-    ) {
-      void loadDrafts();
-    }
-  }, [
-    activeTab,
-    isAuthenticated,
-    loadDrafts,
-    mounted,
-    projectDataVersion,
-    projectId,
-  ]);
 
   const handleDraftVersionChange = useCallback(
     async (version: number) => {
@@ -389,61 +336,10 @@ export default function ProjectDetailPage() {
     }
   };
 
-  const handleRefresh = useCallback(async () => {
-    setRefreshing(true);
-    try {
-      const refreshTasks: Array<Promise<unknown>> = [
-        fetchProject(projectId),
-        fetchProjectDocuments(projectId),
-        fetchProjectNotes(projectId),
-      ];
-
-      if (activeTab === 'bibliography') {
-        refreshTasks.push(fetchBibliography(projectId, bibFormat));
-      }
-
-      if (activeTab === 'drafts') {
-        refreshTasks.push(loadDrafts());
-      }
-
-      await Promise.allSettled(refreshTasks);
-    } finally {
-      setRefreshing(false);
-    }
-  }, [
-    activeTab,
-    bibFormat,
-    fetchBibliography,
-    fetchProject,
-    fetchProjectDocuments,
-    fetchProjectNotes,
-    loadDrafts,
-    projectId,
-  ]);
-
   if (!mounted || initialLoading) {
     return (
       <div className="flex items-center justify-center h-full">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
-  }
-
-  if (projectError) {
-    const isNotFound = projectError.status === 404;
-    return (
-      <div className="p-6 text-center">
-        <p className="text-muted-foreground">
-          {isNotFound
-            ? 'Project not found'
-            : `Failed to load project: ${projectError.message}`}
-        </p>
-        <button
-          onClick={() => router.push('/projects')}
-          className="mt-4 text-primary underline text-sm"
-        >
-          Back to projects
-        </button>
       </div>
     );
   }
@@ -511,52 +407,34 @@ export default function ProjectDetailPage() {
       )}
 
       {/* Tabs */}
-      <div className="mb-6 flex items-end gap-3 border-b border-border pb-2">
-        <div className="flex-1 min-w-0 overflow-x-auto">
-          <div className="flex items-center gap-1 whitespace-nowrap">
-            {tabs.map((tab, index) => (
-              <React.Fragment key={tab.id}>
-                {index === 3 && (
-                  <div className="w-px h-5 bg-border mx-1 shrink-0" />
-                )}
-                <button
-                  onClick={() => handleTabChange(tab.id)}
-                  className={`relative flex items-center gap-2 px-3 py-2.5 text-sm rounded-t-md transition-colors shrink-0 ${
+      <div className="flex items-center gap-1 mb-6 border-b border-border">
+        {tabs.map((tab, index) => (
+          <React.Fragment key={tab.id}>
+            {index === 3 && <div className="w-px h-5 bg-border mx-1" />}
+            <button
+              onClick={() => handleTabChange(tab.id)}
+              className={`relative flex items-center gap-2 px-3 py-2.5 text-sm rounded-t-md transition-colors ${
+                activeTab === tab.id
+                  ? 'text-foreground bg-muted/60 border-b-2 border-primary'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-muted/30'
+              }`}
+            >
+              <tab.icon className="h-4 w-4" />
+              {tab.label}
+              {tab.count !== undefined && tab.count > 0 && (
+                <span
+                  className={`ml-1 text-xs rounded-full px-1.5 py-0.5 ${
                     activeTab === tab.id
-                      ? 'text-foreground bg-muted/60 border-b-2 border-primary'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-muted/30'
+                      ? 'bg-primary/15 text-primary'
+                      : 'bg-muted text-muted-foreground'
                   }`}
                 >
-                  <tab.icon className="h-4 w-4" />
-                  {tab.label}
-                  {tab.count !== undefined && tab.count > 0 && (
-                    <span
-                      className={`ml-1 text-xs rounded-full px-1.5 py-0.5 ${
-                        activeTab === tab.id
-                          ? 'bg-primary/15 text-primary'
-                          : 'bg-muted text-muted-foreground'
-                      }`}
-                    >
-                      {tab.count}
-                    </span>
-                  )}
-                </button>
-              </React.Fragment>
-            ))}
-          </div>
-        </div>
-        <button
-          onClick={() => {
-            void handleRefresh();
-          }}
-          disabled={refreshing}
-          className="inline-flex items-center justify-center gap-2 shrink-0 rounded-md border border-border bg-card px-3 py-2 text-sm text-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          <RefreshCw
-            className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`}
-          />
-          Refresh
-        </button>
+                  {tab.count}
+                </span>
+              )}
+            </button>
+          </React.Fragment>
+        ))}
       </div>
 
       {/* Tab Content */}

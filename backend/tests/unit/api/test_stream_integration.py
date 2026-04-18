@@ -550,7 +550,7 @@ class TestStreamPipelinePersistence:
             retrieve_context_fn=retrieve_fn,
             build_context_prompt_fn=MagicMock(return_value="ctx text"),
             rag_system_prompt="Use these sources.",
-            tokens=["cited [1]"],
+            tokens=["cited"],
         )
 
         await _collect_events(

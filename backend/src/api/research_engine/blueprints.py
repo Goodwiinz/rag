@@ -82,18 +82,24 @@ async def get_blueprint(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> BlueprintResponse:
-    """Get a single blueprint with ownership verification in one query."""
-    query = (
-        select(ResearchBlueprint)
-        .join(ResearchProject, ResearchProject.id == ResearchBlueprint.project_id)
-        .where(
-            ResearchBlueprint.id == blueprint_id,
-            ResearchProject.owner_id == current_user.id,
-        )
+    """Get a single blueprint."""
+    query = select(ResearchBlueprint).where(
+        ResearchBlueprint.id == blueprint_id,
     )
     result = await db.execute(query)
     blueprint = result.scalars().first()
     if not blueprint:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Blueprint not found",
+        )
+    # Verify ownership through project
+    proj_query = select(ResearchProject).where(
+        ResearchProject.id == blueprint.project_id,
+        ResearchProject.owner_id == current_user.id,
+    )
+    proj_result = await db.execute(proj_query)
+    if not proj_result.scalars().first():
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Blueprint not found",

@@ -7,37 +7,33 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
 import {
-  documentAnalyticsApi,
-  DocumentResponse,
-  FileTypeStats,
-  performanceApi,
-  ProcessingStats,
-  searchAnalyticsApi,
-  TrendDataPoint,
-  userBehaviorApi,
+    documentAnalyticsApi,
+    DocumentResponse,
+    FileTypeStats,
+    performanceApi,
+    ProcessingStats,
+    searchAnalyticsApi,
+    TrendDataPoint,
+    userBehaviorApi
 } from '@/services/documentAnalyticsApi';
 import {
-  Activity,
-  AlertTriangle,
-  BarChart3,
-  CheckCircle,
-  Clock,
-  Download,
-  FileText,
-  MessageSquare,
-  RefreshCw,
-  Search,
-  TrendingUp,
-  Users,
+    Activity,
+    AlertTriangle,
+    BarChart3,
+    CheckCircle,
+    Clock,
+    Download,
+    FileText,
+    MessageSquare,
+    RefreshCw,
+    Search,
+    TrendingUp,
+    Users
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { AnalyticsChart } from './AnalyticsChart';
 import { AnalyticsOverview } from './AnalyticsOverview';
-import {
-  AnalyticsTable,
-  createDocumentAnalyticsTable,
-  createSearchAnalyticsTable,
-} from './AnalyticsTable';
+import { AnalyticsTable, createDocumentAnalyticsTable, createSearchAnalyticsTable } from './AnalyticsTable';
 
 interface AnalyticsDashboardProps {
   className?: string;
@@ -76,7 +72,7 @@ const transformDocumentToTableRow = (doc: DocumentResponse) => ({
 
 // Transform file type stats for pie chart
 const transformFileTypeForChart = (stats: FileTypeStats[]) =>
-  stats.map((item) => ({
+  stats.map(item => ({
     name: item.type.toUpperCase(),
     value: item.count,
   }));
@@ -90,7 +86,7 @@ const transformProcessingStats = (stats: ProcessingStats[]) => {
     pending: { icon: Clock, color: 'text-muted-foreground' },
   };
 
-  return stats.map((item) => ({
+  return stats.map(item => ({
     status: item.status.charAt(0).toUpperCase() + item.status.slice(1),
     count: item.count,
     icon: statusConfig[item.status]?.icon || Clock,
@@ -126,7 +122,7 @@ export function AnalyticsDashboard({ className }: AnalyticsDashboardProps) {
         userTrends,
         dashboardOverview,
         realtimeMetrics,
-        trendData,
+        trendData
       ] = await Promise.all([
         documentAnalyticsApi.getFileStats().catch(() => ({
           files_by_type: [],
@@ -134,14 +130,7 @@ export function AnalyticsDashboard({ className }: AnalyticsDashboardProps) {
         })),
         documentAnalyticsApi.getDocuments({ page: 1, size: 25 }).catch(() => ({
           documents: [],
-          pagination: {
-            page: 1,
-            page_size: 25,
-            total: 0,
-            total_pages: 0,
-            has_next: false,
-            has_prev: false,
-          },
+          pagination: { page: 1, page_size: 25, total: 0, total_pages: 0, has_next: false, has_prev: false },
         })),
         searchAnalyticsApi.getCombinedSearchAnalytics().catch(() => ({
           topQueries: [],
@@ -183,66 +172,38 @@ export function AnalyticsDashboard({ className }: AnalyticsDashboardProps) {
       ]);
 
       // Transform API data
-      const documentTableData = documentsResponse.documents.map(
-        transformDocumentToTableRow
-      );
-      const fileTypeDistribution = transformFileTypeForChart(
-        fileStats.files_by_type
-      );
-      const processingStats = transformProcessingStats(
-        fileStats.processing_stats
-      );
+      const documentTableData = documentsResponse.documents.map(transformDocumentToTableRow);
+      const fileTypeDistribution = transformFileTypeForChart(fileStats.files_by_type);
+      const processingStats = transformProcessingStats(fileStats.processing_stats);
 
       // Use API trend data or fallback
-      const chartData =
-        trendData.length > 0
-          ? trendData
-          : userTrends.trendData.length > 0
-            ? userTrends.trendData
-            : generateFallbackTrendData();
+      const chartData = trendData.length > 0
+        ? trendData
+        : (userTrends.trendData.length > 0 ? userTrends.trendData : generateFallbackTrendData());
 
       // Calculate totals from real data
       let totalDocuments = 0;
-      fileStats.files_by_type.forEach((item) => {
-        totalDocuments += item.count;
-      });
-      const completedDocs =
-        fileStats.processing_stats.find((s) => s.status === 'completed')
-          ?.count || 0;
+      fileStats.files_by_type.forEach(item => { totalDocuments += item.count; });
+      const completedDocs = fileStats.processing_stats.find(s => s.status === 'completed')?.count || 0;
 
       // Use real data from APIs, with fallbacks
-      const totalUsers =
-        dashboardOverview.totalUsers || userTrends.stats.total_users || 0;
-      const activeUsers =
-        dashboardOverview.activeUsers ||
-        userTrends.stats.active_users_today ||
-        0;
-      const totalSessions =
-        dashboardOverview.totalSessions || userTrends.stats.total_sessions || 0;
-      const totalSearches =
-        searchAnalytics.totalSearches ||
-        dashboardOverview.totalSearches ||
-        userTrends.stats.search_volume_week ||
-        0;
+      const totalUsers = dashboardOverview.totalUsers || userTrends.stats.total_users || 0;
+      const activeUsers = dashboardOverview.activeUsers || userTrends.stats.active_users_today || 0;
+      const totalSessions = dashboardOverview.totalSessions || userTrends.stats.total_sessions || 0;
+      const totalSearches = searchAnalytics.totalSearches || dashboardOverview.totalSearches || userTrends.stats.search_volume_week || 0;
 
       setData({
         overview: {
           totalUsers,
           activeUsers,
           totalSessions,
-          totalPageViews: chartData.reduce(
-            (sum: number, d: TrendDataPoint) => sum + d.pageViews,
-            0
-          ),
+          totalPageViews: chartData.reduce((sum: number, d: TrendDataPoint) => sum + d.pageViews, 0),
           averageSessionDuration: userTrends.stats.avg_session_duration || 0,
           bounceRate: userTrends.stats.bounce_rate || 0,
           documentsUploaded: totalDocuments,
           documentsCompleted: completedDocs,
           searchesPerformed: totalSearches,
-          chatsInitiated: chartData.reduce(
-            (sum: number, d: TrendDataPoint) => sum + d.chatsInitiated,
-            0
-          ),
+          chatsInitiated: chartData.reduce((sum: number, d: TrendDataPoint) => sum + d.chatsInitiated, 0),
           errorRate: dashboardOverview.errorRate || 0,
         },
         chartData,
@@ -314,26 +275,18 @@ export function AnalyticsDashboard({ className }: AnalyticsDashboardProps) {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">
-            SYSTEM_METRICS_OBSERVATORY
-          </h1>
-          <p className="text-sm font-mono text-muted-foreground">
-            Real-time intelligence on pipeline throughput and operator activity
+          <h1 className="text-2xl font-bold tracking-tight">Analytics Dashboard</h1>
+          <p className="text-muted-foreground">
+            Comprehensive insights into your RAG system performance
           </p>
         </div>
 
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" onClick={handleRefresh}>
-            <RefreshCw
-              className={cn('h-4 w-4 mr-2', loading && 'animate-spin')}
-            />
+            <RefreshCw className={cn('h-4 w-4 mr-2', loading && 'animate-spin')} />
             Refresh
           </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => handleExport('csv')}
-          >
+          <Button variant="outline" size="sm" onClick={() => handleExport('csv')}>
             <Download className="h-4 w-4 mr-2" />
             Export CSV
           </Button>
@@ -347,12 +300,8 @@ export function AnalyticsDashboard({ className }: AnalyticsDashboardProps) {
             <div className="flex items-center gap-3">
               <Users className="h-8 w-8 text-amber-500" />
               <div>
-                <p className="text-2xl font-bold">
-                  {data.overview?.totalUsers}
-                </p>
-                <p className="text-xs font-mono text-muted-foreground tracking-wider">
-                  ACTIVE_OPERATORS
-                </p>
+                <p className="text-2xl font-bold">{data.overview?.totalUsers}</p>
+                <p className="text-sm text-muted-foreground">Total Users</p>
               </div>
             </div>
           </CardContent>
@@ -363,12 +312,8 @@ export function AnalyticsDashboard({ className }: AnalyticsDashboardProps) {
             <div className="flex items-center gap-3">
               <FileText className="h-8 w-8 text-blue-500" />
               <div>
-                <p className="text-2xl font-bold">
-                  {data.overview?.documentsUploaded}
-                </p>
-                <p className="text-xs font-mono text-muted-foreground tracking-wider">
-                  CORPUS_SIZE
-                </p>
+                <p className="text-2xl font-bold">{data.overview?.documentsUploaded}</p>
+                <p className="text-sm text-muted-foreground">Documents</p>
               </div>
             </div>
           </CardContent>
@@ -379,12 +324,8 @@ export function AnalyticsDashboard({ className }: AnalyticsDashboardProps) {
             <div className="flex items-center gap-3">
               <Search className="h-8 w-8 text-purple-500" />
               <div>
-                <p className="text-2xl font-bold">
-                  {data.overview?.searchesPerformed}
-                </p>
-                <p className="text-xs font-mono text-muted-foreground tracking-wider">
-                  NEURAL_QUERIES
-                </p>
+                <p className="text-2xl font-bold">{data.overview?.searchesPerformed}</p>
+                <p className="text-sm text-muted-foreground">Searches</p>
               </div>
             </div>
           </CardContent>
@@ -395,12 +336,8 @@ export function AnalyticsDashboard({ className }: AnalyticsDashboardProps) {
             <div className="flex items-center gap-3">
               <MessageSquare className="h-8 w-8 text-green-500" />
               <div>
-                <p className="text-2xl font-bold">
-                  {data.overview?.chatsInitiated}
-                </p>
-                <p className="text-xs font-mono text-muted-foreground tracking-wider">
-                  AGENT_SESSIONS
-                </p>
+                <p className="text-2xl font-bold">{data.overview?.chatsInitiated}</p>
+                <p className="text-sm text-muted-foreground">AI Chats</p>
               </div>
             </div>
           </CardContent>
@@ -408,11 +345,7 @@ export function AnalyticsDashboard({ className }: AnalyticsDashboardProps) {
       </div>
 
       {/* Main Content Tabs */}
-      <Tabs
-        value={activeTab}
-        onValueChange={setActiveTab}
-        className="space-y-6"
-      >
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
         <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="overview" className="flex items-center gap-2">
             <BarChart3 className="h-4 w-4" />
@@ -506,9 +439,7 @@ export function AnalyticsDashboard({ className }: AnalyticsDashboardProps) {
             <div className="space-y-6">
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-lg">
-                    File Type Distribution
-                  </CardTitle>
+                  <CardTitle className="text-lg">File Type Distribution</CardTitle>
                 </CardHeader>
                 <CardContent>
                   {data.fileTypeDistribution.length > 0 ? (
@@ -535,15 +466,10 @@ export function AnalyticsDashboard({ className }: AnalyticsDashboardProps) {
                 <CardContent className="space-y-4">
                   {data.processingStats.length > 0 ? (
                     data.processingStats.map((item: any) => (
-                      <div
-                        key={item.status}
-                        className="flex items-center justify-between"
-                      >
+                      <div key={item.status} className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <item.icon className={cn('h-4 w-4', item.color)} />
-                          <span className="text-sm font-medium">
-                            {item.status}
-                          </span>
+                          <span className="text-sm font-medium">{item.status}</span>
                         </div>
                         <Badge variant="secondary">{item.count}</Badge>
                       </div>
@@ -650,33 +576,27 @@ export function AnalyticsDashboard({ className }: AnalyticsDashboardProps) {
             {[
               {
                 label: 'Active Users',
-                value:
-                  data.realtimeMetrics?.activeUsers ||
-                  data.overview?.activeUsers ||
-                  0,
+                value: data.realtimeMetrics?.activeUsers || data.overview?.activeUsers || 0,
                 change: data.realtimeMetrics?.activeUsers > 0 ? 'Live' : '-',
-                icon: Users,
+                icon: Users
               },
               {
                 label: 'Current Searches',
                 value: data.realtimeMetrics?.currentSearches || 0,
-                change:
-                  data.realtimeMetrics?.currentSearches > 0 ? 'Active' : '-',
-                icon: Search,
+                change: data.realtimeMetrics?.currentSearches > 0 ? 'Active' : '-',
+                icon: Search
               },
               {
                 label: 'Processing Files',
                 value: data.realtimeMetrics?.processingFiles || 0,
-                change:
-                  data.realtimeMetrics?.processingFiles > 0 ? 'In Queue' : '-',
-                icon: FileText,
+                change: data.realtimeMetrics?.processingFiles > 0 ? 'In Queue' : '-',
+                icon: FileText
               },
               {
                 label: 'API Requests/min',
                 value: data.realtimeMetrics?.requestsPerMinute || 0,
-                change:
-                  data.realtimeMetrics?.requestsPerMinute > 0 ? 'Active' : '-',
-                icon: Activity,
+                change: data.realtimeMetrics?.requestsPerMinute > 0 ? 'Active' : '-',
+                icon: Activity
               },
             ].map((metric) => (
               <Card key={metric.label}>
@@ -686,9 +606,7 @@ export function AnalyticsDashboard({ className }: AnalyticsDashboardProps) {
                     <Badge variant="secondary">{metric.change}</Badge>
                   </div>
                   <p className="text-2xl font-bold mt-2">{metric.value}</p>
-                  <p className="text-sm text-muted-foreground">
-                    {metric.label}
-                  </p>
+                  <p className="text-sm text-muted-foreground">{metric.label}</p>
                 </CardContent>
               </Card>
             ))}
@@ -702,45 +620,18 @@ export function AnalyticsDashboard({ className }: AnalyticsDashboardProps) {
               <ScrollArea className="h-[400px] pr-4">
                 <div className="space-y-3">
                   {[
-                    {
-                      action: 'User logged in',
-                      user: 'john@example.com',
-                      time: '2 seconds ago',
-                    },
-                    {
-                      action: 'Document uploaded',
-                      user: 'sarah@example.com',
-                      time: '15 seconds ago',
-                    },
-                    {
-                      action: 'Search performed',
-                      user: 'mike@example.com',
-                      time: '32 seconds ago',
-                    },
-                    {
-                      action: 'Chat session started',
-                      user: 'emma@example.com',
-                      time: '1 minute ago',
-                    },
-                    {
-                      action: 'Document processed',
-                      user: 'alex@example.com',
-                      time: '2 minutes ago',
-                    },
+                    { action: 'User logged in', user: 'john@example.com', time: '2 seconds ago' },
+                    { action: 'Document uploaded', user: 'sarah@example.com', time: '15 seconds ago' },
+                    { action: 'Search performed', user: 'mike@example.com', time: '32 seconds ago' },
+                    { action: 'Chat session started', user: 'emma@example.com', time: '1 minute ago' },
+                    { action: 'Document processed', user: 'alex@example.com', time: '2 minutes ago' },
                   ].map((activity, index) => (
-                    <div
-                      key={index}
-                      className="flex items-center justify-between p-3 rounded-lg border"
-                    >
+                    <div key={index} className="flex items-center justify-between p-3 rounded-lg border">
                       <div>
                         <p className="text-sm font-medium">{activity.action}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {activity.user}
-                        </p>
+                        <p className="text-xs text-muted-foreground">{activity.user}</p>
                       </div>
-                      <span className="text-xs text-muted-foreground">
-                        {activity.time}
-                      </span>
+                      <span className="text-xs text-muted-foreground">{activity.time}</span>
                     </div>
                   ))}
                 </div>

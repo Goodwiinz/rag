@@ -15,7 +15,6 @@ from sqlalchemy import (
     Enum,
     Float,
     ForeignKey,
-    Index,
     Integer,
     String,
     Table,
@@ -31,8 +30,8 @@ from .utils import StringArray
 entity_relationships = Table(
     "entity_relationships",
     BaseModel.metadata,
-    Column("source_entity_id", GUID(), ForeignKey("entities.id", ondelete="CASCADE"), primary_key=True),
-    Column("target_entity_id", GUID(), ForeignKey("entities.id", ondelete="CASCADE"), primary_key=True),
+    Column("source_entity_id", GUID(), ForeignKey("entities.id"), primary_key=True),
+    Column("target_entity_id", GUID(), ForeignKey("entities.id"), primary_key=True),
     Column("relationship_type", String(100), nullable=False),
     Column("confidence", Float, default=1.0, nullable=False),
     Column("relationship_metadata", JSON, nullable=True),
@@ -55,13 +54,6 @@ class EntityType(PyEnum):
     EMAIL = "email"
     PHONE = "phone"
     URL = "url"
-    EVENT = "event"
-    FINANCIAL = "financial"
-    JOB_TITLE = "job_title"
-    TOPIC = "topic"
-    TECHNOLOGY = "technology"
-    RESEARCH = "research"
-    DOCUMENT = "document"
     CUSTOM = "custom"
 
 
@@ -102,13 +94,8 @@ class Entity(BaseModel):
     is_in_knowledge_graph = Column(Boolean, default=False, nullable=False)
 
     # Relationships
-    document_id = Column(GUID(), ForeignKey("documents.id", ondelete="CASCADE"), nullable=False)
-    organization_id = Column(GUID(), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False)
-
-    # Database indexes for performance optimization
-    __table_args__ = (
-        Index('idx_entity_org_name', 'organization_id', 'name'),
-    )
+    document_id = Column(GUID(), ForeignKey("documents.id"), nullable=False)
+    organization_id = Column(GUID(), ForeignKey("organizations.id"), nullable=False)
 
     # Relationships
     document = relationship("Document", back_populates="entities")

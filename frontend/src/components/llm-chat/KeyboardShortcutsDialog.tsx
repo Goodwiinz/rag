@@ -1,11 +1,6 @@
 'use client';
 
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Keyboard } from 'lucide-react';
 import { getModifierKey } from '@/lib/markdown-utils';
 import type { KeyboardShortcut } from '@/types/llm-chat';
@@ -23,13 +18,10 @@ const SHORTCUTS: KeyboardShortcut[] = [
   { keys: ['Esc'], desc: 'Close dialogs' },
 ];
 
-export function KeyboardShortcutsDialog({
-  open,
-  onOpenChange,
-}: KeyboardShortcutsDialogProps) {
+export function KeyboardShortcutsDialog({ open, onOpenChange }: KeyboardShortcutsDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="bg-background border-border text-foreground">
+      <DialogContent className="bg-[#0E1015] border-[#27272A] text-white">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Keyboard className="w-5 h-5 text-purple-400" />
@@ -40,14 +32,14 @@ export function KeyboardShortcutsDialog({
           {SHORTCUTS.map((shortcut, i) => (
             <div
               key={i}
-              className="flex items-center justify-between py-2 px-3 rounded-lg bg-muted border border-border"
+              className="flex items-center justify-between py-2 px-3 rounded-lg bg-[#1A1A1A] border border-[#27272A]"
             >
               <span className="text-sm text-gray-400">{shortcut.desc}</span>
               <div className="flex gap-1">
                 {shortcut.keys.map((key, j) => (
                   <kbd
                     key={j}
-                    className="px-2 py-1 text-xs font-mono bg-muted rounded border border-border text-foreground"
+                    className="px-2 py-1 text-xs font-mono bg-[#27272A] rounded border border-[#3F3F46] text-white"
                   >
                     {key}
                   </kbd>

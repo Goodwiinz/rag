@@ -1,5 +1,3 @@
-import { getPublicApiBaseUrl } from '@/utils/publicEndpoints';
-
 // API Response Types
 export interface APIResponse<T> {
   data: T;
@@ -45,7 +43,7 @@ const normalizeApiBaseUrl = (rawBaseUrl?: string): string => {
   const trimmed = (rawBaseUrl || '').trim();
 
   // Default to Next.js rewrite path to avoid CORS/mixed-content issues.
-  if (!trimmed) return getPublicApiBaseUrl('/api/v1');
+  if (!trimmed) return '/api/v1';
 
   // If already versioned, keep as-is.
   if (/\/api\/v[0-9]+\/?$/.test(trimmed)) {

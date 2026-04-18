@@ -6,7 +6,6 @@ Provides optimized storage and querying for time-series analytics data
 import asyncio
 import json
 import logging
-import re
 from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta
 from enum import Enum
@@ -411,12 +410,10 @@ class PostgreSQLTimeSeriesStore:
         # Add tag filters
         if query.tags:
             tag_conditions = []
-            tag_idx = 0
             for key, value in query.tags.items():
                 if key != "organization_id":
-                    tag_conditions.append(f"tags::text LIKE :tag_{tag_idx}")
-                    params[f"tag_{tag_idx}"] = f'%"{key}": "{value}"%'
-                    tag_idx += 1
+                    tag_conditions.append("tags::text LIKE :tag_" + key)
+                    params[f"tag_{key}"] = f'%"{key}": "{value}"%'
 
             if tag_conditions:
                 sql += " AND " + " AND ".join(tag_conditions)
@@ -488,12 +485,10 @@ class PostgreSQLTimeSeriesStore:
         # Add tag filters
         if query.tags:
             tag_conditions = []
-            tag_idx = 0
             for key, value in query.tags.items():
                 if key != "organization_id":
-                    tag_conditions.append(f"tags::text LIKE :tag_{tag_idx}")
-                    params[f"tag_{tag_idx}"] = f'%"{key}": "{value}"%'
-                    tag_idx += 1
+                    tag_conditions.append("tags::text LIKE :tag_" + key)
+                    params[f"tag_{key}"] = f'%"{key}": "{value}"%'
 
             if tag_conditions:
                 sql += " AND " + " AND ".join(tag_conditions)
@@ -568,12 +563,10 @@ class PostgreSQLTimeSeriesStore:
         # Add tag filters
         if query.tags:
             tag_conditions = []
-            tag_idx = 0
             for key, value in query.tags.items():
                 if key != "organization_id":
-                    tag_conditions.append(f"tags::text LIKE :tag_{tag_idx}")
-                    params[f"tag_{tag_idx}"] = f'%"{key}": "{value}"%'
-                    tag_idx += 1
+                    tag_conditions.append("tags::text LIKE :tag_" + key)
+                    params[f"tag_{key}"] = f'%"{key}": "{value}"%'
 
             if tag_conditions:
                 sql += " AND " + " AND ".join(tag_conditions)
@@ -828,10 +821,6 @@ class InfluxDBTimeSeriesStore:
             query_api = self.client.query_api()
 
             # Build Flux query
-            # Validate and escape measurement
-            if not re.match(r'^[a-zA-Z0-9_-]+$', query_spec.measurement):
-                raise ValueError("Invalid measurement name format")
-
             flux_query = f"""
             from(bucket: "analytics")
                 |> range(start: {query_spec.start_time.isoformat()}, stop: {query_spec.end_time.isoformat()})
@@ -841,20 +830,13 @@ class InfluxDBTimeSeriesStore:
             # Add tag filters
             if query_spec.tags:
                 for key, value in query_spec.tags.items():
-                    if not re.match(r'^[a-zA-Z0-9_-]+$', key):
-                        raise ValueError(f"Invalid tag key format: {key}")
-                    escaped_value = str(value).replace('"', '\\"')
-                    flux_query += f'|> filter(fn: (r) => r.{key} == "{escaped_value}")\n'
+                    flux_query += f'|> filter(fn: (r) => r.{key} == "{value}")\n'
 
             # Add field filters
             if query_spec.fields:
-                escaped_fields = []
-                for field in query_spec.fields:
-                    if not re.match(r'^[a-zA-Z0-9_-]+$', field):
-                        raise ValueError(f"Invalid field name format: {field}")
-                    escaped_fields.append(f'r._field == "{field}"')
-
-                fields_filter = " or ".join(escaped_fields)
+                fields_filter = " or ".join(
+                    [f'r._field == "{field}"' for field in query_spec.fields]
+                )
                 flux_query += f"|> filter(fn: (r) => {fields_filter})\n"
 
             # Add aggregation

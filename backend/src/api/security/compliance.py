@@ -17,7 +17,6 @@ from fastapi import (
 )
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
-from sqlalchemy import and_, desc, func
 from sqlalchemy.orm import Session
 
 from src.core.database import get_db
@@ -349,7 +348,7 @@ async def create_compliance_report(
 @router.get("/reports", response_model=List[ComplianceReportResponse])
 async def get_compliance_reports(
     report_type: Optional[str] = Query(None, description="Filter by report type"),
-    compliance_status: Optional[str] = Query(None, alias="status", description="Filter by status"),
+    status: Optional[str] = Query(None, description="Filter by status"),
     limit: int = Query(50, ge=1, le=500, description="Maximum number of reports"),
     offset: int = Query(0, ge=0, description="Number of reports to skip"),
     audit_service: AuditService = Depends(get_audit_service),
@@ -370,8 +369,8 @@ async def get_compliance_reports(
 
         if report_type:
             query = query.filter(ComplianceReport.report_type == report_type)
-        if compliance_status:
-            query = query.filter(ComplianceReport.status == compliance_status)
+        if status:
+            query = query.filter(ComplianceReport.status == status)
 
         reports = (
             query.order_by(desc(ComplianceReport.created_at))
@@ -469,7 +468,7 @@ async def create_security_incident(
 
 @router.get("/security/incidents", response_model=List[SecurityIncidentResponse])
 async def get_security_incidents(
-    compliance_status: Optional[str] = Query(None, alias="status", description="Filter by status"),
+    status: Optional[str] = Query(None, description="Filter by status"),
     severity: Optional[str] = Query(None, description="Filter by severity"),
     category: Optional[str] = Query(None, description="Filter by category"),
     limit: int = Query(50, ge=1, le=500, description="Maximum number of incidents"),
@@ -488,7 +487,7 @@ async def get_security_incidents(
 
         incidents = audit_service.get_security_incidents(
             organization_id=organization_id,
-            status=compliance_status,
+            status=status,
             severity=severity,
             category=category,
             limit=limit,

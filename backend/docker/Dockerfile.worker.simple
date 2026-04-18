@@ -23,13 +23,11 @@ RUN apt-get update && apt-get install -y \
 # Copy development requirements first
 COPY requirements.dev.txt .
 
-# Upgrade pip and keep setuptools on a pybtex-compatible version.
-RUN pip install --no-cache-dir --upgrade pip wheel "setuptools<72"
+# Upgrade pip and install basic packages
+RUN pip install --no-cache-dir --upgrade pip setuptools wheel
 
 # Install basic requirements that won't cause compilation issues
-RUN pip install --no-cache-dir -r requirements.dev.txt && \
-    pip install --no-cache-dir "setuptools<72" && \
-    python -c "import pkg_resources"
+RUN pip install --no-cache-dir -r requirements.dev.txt
 
 # Copy application code
 COPY . .

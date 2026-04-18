@@ -6,19 +6,18 @@ interface AuthSyncProviderProps {
 }
 
 /**
- * Component to synchronize useAuthStore with Supabase session data.
- * Note: The AuthProvider in useAuth.tsx already calls store.initialize() on mount,
- * so this component is kept for any additional mount points that need auth sync.
+ * Component to synchronize useAuthStore with localStorage data
+ * This ensures that the Zustand store stays in sync with the useAuth context
  */
 export const AuthSyncProvider: React.FC<AuthSyncProviderProps> = ({
   children,
 }) => {
-  const initialize = useAuthStore((state) => state.initialize);
+  const { initializeFromStorage } = useAuthStore();
 
   useEffect(() => {
-    // Initialize auth state from Supabase session on component mount
-    initialize();
-  }, [initialize]);
+    // Initialize auth state from localStorage on component mount
+    initializeFromStorage();
+  }, [initializeFromStorage]);
 
   return <>{children}</>;
 };

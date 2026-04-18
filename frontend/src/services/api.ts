@@ -9,38 +9,28 @@
  */
 
 import {
-  APIErrorClass,
-  API_CONFIG,
-  DEFAULT_HEADERS,
-  Document,
-  DocumentListResponse,
-  EntityDetails,
-  EvaluationMetrics,
-  GraphData,
-  LoginRequest,
-  PerformanceAnalytics,
-  QueryHistory,
-  QuerySuggestions,
-  RegisterRequest,
-  SearchRequest,
-  SearchResult,
-  UploadProgress,
-  User,
-  UserFeedback,
-  getAuthHeaders,
+    APIErrorClass,
+    API_CONFIG,
+    AuthResponse,
+    DEFAULT_HEADERS,
+    Document,
+    DocumentListResponse,
+    EntityDetails,
+    EvaluationMetrics,
+    GraphData,
+    LoginRequest,
+    LoginResponse,
+    PerformanceAnalytics,
+    QueryHistory,
+    QuerySuggestions,
+    RegisterRequest,
+    SearchRequest,
+    SearchResult,
+    UploadProgress,
+    User,
+    UserFeedback,
+    getAuthHeaders
 } from '@/types';
-
-/** Inline response types for deprecated auth methods */
-interface LoginResponse {
-  access_token: string;
-  token_type: string;
-  user: User;
-}
-
-interface AuthResponse {
-  message: string;
-  user?: User;
-}
 
 export class RAGAPIClient {
   private baseURL: string;
@@ -78,9 +68,7 @@ export class RAGAPIClient {
 
     const headers = {
       ...DEFAULT_HEADERS,
-      ...(this.token &&
-        this.organizationId &&
-        getAuthHeaders(this.token, this.organizationId)),
+      ...(this.token && this.organizationId && getAuthHeaders(this.token, this.organizationId)),
       ...options.headers,
     };
 
@@ -89,14 +77,11 @@ export class RAGAPIClient {
       url,
       hasToken: !!this.token,
       hasOrgId: !!this.organizationId,
-      headers: Object.keys(headers),
+      headers: Object.keys(headers)
     });
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(
-      () => controller.abort(),
-      API_CONFIG.TIMEOUT_MS
-    );
+    const timeoutId = setTimeout(() => controller.abort(), API_CONFIG.TIMEOUT_MS);
 
     try {
       const response = await fetch(url, {
@@ -111,7 +96,7 @@ export class RAGAPIClient {
         status: response.status,
         statusText: response.statusText,
         ok: response.ok,
-        url: response.url,
+        url: response.url
       });
 
       if (!response.ok) {
@@ -128,14 +113,12 @@ export class RAGAPIClient {
           throw new APIErrorClass(errorData.error || authError);
         }
 
-        throw new APIErrorClass(
-          errorData.error || {
-            message: `HTTP ${response.status}: ${response.statusText}`,
-            status_code: response.status,
-            type: 'internal_error',
-            timestamp: new Date().toISOString(),
-          }
-        );
+        throw new APIErrorClass(errorData.error || {
+          message: `HTTP ${response.status}: ${response.statusText}`,
+          status_code: response.status,
+          type: 'internal_error',
+          timestamp: new Date().toISOString(),
+        });
       }
 
       const jsonResponse = await response.json();
@@ -189,9 +172,8 @@ export class RAGAPIClient {
         throw error;
       }
 
-      const delay =
-        API_CONFIG.RETRY_DELAY_MS * (API_CONFIG.RETRY_ATTEMPTS - attempts + 1);
-      await new Promise((resolve) => setTimeout(resolve, delay));
+      const delay = API_CONFIG.RETRY_DELAY_MS * (API_CONFIG.RETRY_ATTEMPTS - attempts + 1);
+      await new Promise(resolve => setTimeout(resolve, delay));
 
       return this.requestWithRetry<T>(endpoint, options, attempts - 1);
     }
@@ -203,12 +185,7 @@ export class RAGAPIClient {
   private isNonRetryableError(error: any): boolean {
     if (error instanceof APIErrorClass) {
       const { status_code } = error.error;
-      return (
-        status_code === 400 ||
-        status_code === 401 ||
-        status_code === 403 ||
-        status_code === 404
-      );
+      return status_code === 400 || status_code === 401 || status_code === 403 || status_code === 404;
     }
     return false;
   }
@@ -242,15 +219,7 @@ export class RAGAPIClient {
 
   // Document Management Methods
 
-  async uploadDocument(
-    file: File,
-    metadata?: Record<string, string>
-  ): Promise<{
-    job_id: string;
-    message: string;
-    estimated_processing_time_seconds: number;
-    file_info: any;
-  }> {
+  async uploadDocument(file: File, metadata?: Record<string, string>): Promise<{ job_id: string; message: string; estimated_processing_time_seconds: number; file_info: any }> {
     const formData = new FormData();
     formData.append('file', file);
 
@@ -300,10 +269,7 @@ export class RAGAPIClient {
       try {
         return await this.requestWithRetry<DocumentListResponse>(endpoint);
       } catch (backendError) {
-        console.warn(
-          'Backend also failed, no documents available:',
-          backendError
-        );
+        console.warn('Backend also failed, no documents available:', backendError);
         // Return empty result
         return {
           documents: [],
@@ -313,18 +279,14 @@ export class RAGAPIClient {
             total: 0,
             total_pages: 0,
             has_next: false,
-            has_prev: false,
-          },
+            has_prev: false
+          }
         };
       }
     }
   }
 
-  async getDocument(documentId: string): Promise<{
-    document: Document;
-    extracted_content: any;
-    processing_history: any[];
-  }> {
+  async getDocument(documentId: string): Promise<{ document: Document; extracted_content: any; processing_history: any[] }> {
     return this.requestWithRetry(`/documents/${documentId}`);
   }
 
@@ -338,10 +300,8 @@ export class RAGAPIClient {
     return this.requestWithRetry(`/processing/jobs/${jobId}`);
   }
 
-  async retryDocumentProcessing(
-    documentId: string
-  ): Promise<{ job_id: string; message: string }> {
-    return this.requestWithRetry(`/documents/${documentId}/reprocess`, {
+  async retryDocumentProcessing(documentId: string): Promise<{ job_id: string; message: string }> {
+    return this.requestWithRetry(`/processing/documents/${documentId}/retry`, {
       method: 'POST',
     });
   }
@@ -361,9 +321,7 @@ export class RAGAPIClient {
     include_history?: boolean;
   }): Promise<QuerySuggestions> {
     const queryParams = new URLSearchParams(params as any).toString();
-    return this.requestWithRetry<QuerySuggestions>(
-      `/search/suggestions?${queryParams}`
-    );
+    return this.requestWithRetry<QuerySuggestions>(`/search/suggestions?${queryParams}`);
   }
 
   async getQueryHistory(params?: {
@@ -394,18 +352,13 @@ export class RAGAPIClient {
     });
   }
 
-  async getEntityDetails(
-    entityId: string,
-    params?: {
-      include_relationships?: boolean;
-      include_documents?: boolean;
-      limit?: number;
-    }
-  ): Promise<EntityDetails> {
+  async getEntityDetails(entityId: string, params?: {
+    include_relationships?: boolean;
+    include_documents?: boolean;
+    limit?: number;
+  }): Promise<EntityDetails> {
     const queryParams = new URLSearchParams(params as any).toString();
-    return this.requestWithRetry<EntityDetails>(
-      `/knowledge_graph/entities/${entityId}?${queryParams}`
-    );
+    return this.requestWithRetry<EntityDetails>(`/knowledge_graph/entities/${entityId}?${queryParams}`);
   }
 
   async getRelationships(request: {
@@ -423,9 +376,7 @@ export class RAGAPIClient {
   // Evaluation and Analytics Methods
 
   async getQueryMetrics(queryId: string): Promise<EvaluationMetrics> {
-    return this.requestWithRetry<EvaluationMetrics>(
-      `/analytics/quality/query/${queryId}`
-    );
+    return this.requestWithRetry<EvaluationMetrics>(`/analytics/quality/query/${queryId}`);
   }
 
   async getDashboardData(params?: {
@@ -433,14 +384,10 @@ export class RAGAPIClient {
     granularity?: 'minute' | 'hour' | 'day';
   }): Promise<PerformanceAnalytics> {
     const queryParams = new URLSearchParams(params as any).toString();
-    return this.requestWithRetry<PerformanceAnalytics>(
-      `/analytics/performance/dashboard?${queryParams}`
-    );
+    return this.requestWithRetry<PerformanceAnalytics>(`/analytics/performance/dashboard?${queryParams}`);
   }
 
-  async submitFeedback(
-    feedback: UserFeedback
-  ): Promise<{ feedback_id: string; message: string }> {
+  async submitFeedback(feedback: UserFeedback): Promise<{ feedback_id: string; message: string }> {
     return this.requestWithRetry('/feedback', {
       method: 'POST',
       body: JSON.stringify(feedback),

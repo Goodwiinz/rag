@@ -52,15 +52,7 @@ export default function ProjectsPage() {
       project_type: typeFilter || undefined,
       tag: tagFilter || undefined,
     });
-  }, [
-    mounted,
-    isAuthenticated,
-    searchQuery,
-    statusFilter,
-    typeFilter,
-    tagFilter,
-    fetchProjects,
-  ]);
+  }, [mounted, isAuthenticated, searchQuery, statusFilter, typeFilter, tagFilter, fetchProjects]);
 
   const allTags = useMemo(() => {
     return Array.from(
@@ -99,7 +91,7 @@ export default function ProjectsPage() {
   if (!mounted) {
     return (
       <div className="flex items-center justify-center h-full">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <Loader2 className="h-8 w-8 animate-spin text-[#00ff9f]" />
       </div>
     );
   }
@@ -108,16 +100,14 @@ export default function ProjectsPage() {
     <div className="p-6 max-w-7xl mx-auto">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-mono font-bold text-primary">
-            RESEARCH_PROJECTS
-          </h1>
-          <p className="text-sm font-mono text-muted-foreground mt-1">
+          <h1 className="text-2xl font-mono font-bold text-[#00ff9f]">Research Projects</h1>
+          <p className="text-sm text-gray-500 mt-1">
             Organize documents, citations, and notes into research projects
           </p>
         </div>
         <button
           onClick={() => setShowCreateModal(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-primary/10 text-primary border border-primary/30 rounded-lg font-mono text-sm hover:bg-primary/20 transition-colors"
+          className="flex items-center gap-2 px-4 py-2 bg-[#00ff9f]/10 text-[#00ff9f] border border-[#00ff9f]/30 rounded-lg font-mono text-sm hover:bg-[#00ff9f]/20 transition-colors"
         >
           <Plus className="h-4 w-4" />
           Create Project
@@ -126,21 +116,19 @@ export default function ProjectsPage() {
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-6">
         <div className="md:col-span-2 relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search projects..."
-            className="w-full pl-10 pr-4 py-2 bg-muted border border-border rounded-lg text-sm font-mono text-foreground placeholder-muted-foreground focus:outline-none focus:border-primary"
+            className="w-full pl-10 pr-4 py-2 bg-[#1a1a1a] border border-[#333] rounded-lg text-sm font-mono text-gray-300 placeholder-gray-500 focus:outline-none focus:border-[#00ff9f]"
           />
         </div>
         <select
           value={statusFilter}
-          onChange={(e) =>
-            setStatusFilter(e.target.value as ProjectStatus | '')
-          }
-          className="px-3 py-2 bg-muted border border-border rounded text-sm font-mono text-foreground focus:outline-none focus:border-primary"
+          onChange={(e) => setStatusFilter(e.target.value as ProjectStatus | '')}
+          className="px-3 py-2 bg-[#1a1a1a] border border-[#333] rounded text-sm font-mono text-gray-300 focus:outline-none focus:border-[#00ff9f]"
         >
           <option value="">All statuses</option>
           <option value="active">Active</option>
@@ -151,7 +139,7 @@ export default function ProjectsPage() {
         <select
           value={typeFilter}
           onChange={(e) => setTypeFilter(e.target.value as ProjectType | '')}
-          className="px-3 py-2 bg-muted border border-border rounded text-sm font-mono text-foreground focus:outline-none focus:border-primary"
+          className="px-3 py-2 bg-[#1a1a1a] border border-[#333] rounded text-sm font-mono text-gray-300 focus:outline-none focus:border-[#00ff9f]"
         >
           <option value="">All types</option>
           <option value="research">Research</option>
@@ -163,13 +151,13 @@ export default function ProjectsPage() {
 
       {allTags.length > 0 && (
         <div className="mb-6 flex items-center flex-wrap gap-2">
-          <span className="text-xs text-muted-foreground font-mono">Tags:</span>
+          <span className="text-xs text-gray-500 font-mono">Tags:</span>
           <button
             onClick={() => setTagFilter('')}
             className={`px-2 py-1 border rounded text-xs font-mono ${
               tagFilter === ''
-                ? 'bg-primary/10 border-primary/30 text-primary'
-                : 'bg-muted border-border text-muted-foreground'
+                ? 'bg-[#00ff9f]/10 border-[#00ff9f]/30 text-[#00ff9f]'
+                : 'bg-[#1a1a1a] border-[#333] text-gray-400'
             }`}
           >
             All
@@ -180,8 +168,8 @@ export default function ProjectsPage() {
               onClick={() => setTagFilter(tag)}
               className={`px-2 py-1 border rounded text-xs font-mono ${
                 tagFilter === tag
-                  ? 'bg-primary/10 border-primary/30 text-primary'
-                  : 'bg-muted border-border text-muted-foreground'
+                  ? 'bg-[#00ff9f]/10 border-[#00ff9f]/30 text-[#00ff9f]'
+                  : 'bg-[#1a1a1a] border-[#333] text-gray-400'
               }`}
             >
               {tag}
@@ -193,10 +181,7 @@ export default function ProjectsPage() {
       {error && (
         <div className="mb-6 p-4 bg-red-500/10 border border-red-500/30 rounded-lg">
           <p className="text-red-400 font-mono text-sm">{error}</p>
-          <button
-            onClick={clearError}
-            className="mt-2 text-xs text-red-400 underline"
-          >
+          <button onClick={clearError} className="mt-2 text-xs text-red-400 underline">
             Dismiss
           </button>
         </div>
@@ -204,23 +189,20 @@ export default function ProjectsPage() {
 
       {loading && (
         <div className="flex items-center justify-center py-12">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <Loader2 className="h-8 w-8 animate-spin text-[#00ff9f]" />
         </div>
       )}
 
       {!loading && projects.length === 0 && (
-        <div className="text-center py-12 bg-card border border-border rounded-lg">
-          <FolderOpen className="h-12 w-12 text-muted-foreground/40 mx-auto mb-4" />
-          <h3 className="text-lg font-mono text-foreground mb-2">
-            NO_ACTIVE_RESEARCH
-          </h3>
-          <p className="text-sm font-mono text-muted-foreground mb-4">
-            Initialize your first research project to begin building your
-            knowledge graph.
+        <div className="text-center py-12 bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg">
+          <FolderOpen className="h-12 w-12 text-gray-600 mx-auto mb-4" />
+          <h3 className="text-lg font-mono text-gray-400 mb-2">No projects yet</h3>
+          <p className="text-sm text-gray-500 mb-4">
+            Create your first research project to get started
           </p>
           <button
             onClick={() => setShowCreateModal(true)}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-primary/10 text-primary border border-primary/30 rounded-lg font-mono text-sm hover:bg-primary/20 transition-colors"
+            className="inline-flex items-center gap-2 px-4 py-2 bg-[#00ff9f]/10 text-[#00ff9f] border border-[#00ff9f]/30 rounded-lg font-mono text-sm hover:bg-[#00ff9f]/20 transition-colors"
           >
             <Plus className="h-4 w-4" />
             Create Project
@@ -244,7 +226,7 @@ export default function ProjectsPage() {
       )}
 
       {!loading && total > 0 && (
-        <div className="mt-6 text-center text-sm text-muted-foreground font-mono">
+        <div className="mt-6 text-center text-sm text-gray-500 font-mono">
           Showing {projects.length} of {total} projects
         </div>
       )}

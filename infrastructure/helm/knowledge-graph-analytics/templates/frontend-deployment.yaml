@@ -1,4 +1,3 @@
-{{- if .Values.frontend.enabled }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -6,15 +5,14 @@ metadata:
   labels:
     {{- include "knowledge-graph-analytics.labels" . | nindent 4 }}
     app.kubernetes.io/component: frontend
+  annotations:
+    {{- if .Values.commonAnnotations }}
+    {{- toYaml .Values.commonAnnotations | nindent 4 }}
+    {{- end }}
 spec:
   {{- if not .Values.frontend.autoscaling.enabled }}
   replicas: {{ .Values.frontend.replicaCount }}
   {{- end }}
-  strategy:
-    type: RollingUpdate
-    rollingUpdate:
-      maxSurge: 1
-      maxUnavailable: 0
   selector:
     matchLabels:
       {{- include "knowledge-graph-analytics.selectorLabels" . | nindent 6 }}
@@ -24,8 +22,14 @@ spec:
       annotations:
         checksum/config: {{ include (print $.Template.BasePath "/frontend-configmap.yaml") . | sha256sum }}
         checksum/secret: {{ include (print $.Template.BasePath "/frontend-secret.yaml") . | sha256sum }}
+        {{- if .Values.frontend.podAnnotations }}
+        {{- toYaml .Values.frontend.podAnnotations | nindent 8 }}
+        {{- end }}
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "{{ .Values.frontend.service.port }}"
+        prometheus.io/path: "/metrics"
       labels:
-        {{- include "knowledge-graph-analytics.selectorLabels" . | nindent 8 }}
+        {{- include "knowledge-graph-analytics.labels" . | nindent 8 }}
         app.kubernetes.io/component: frontend
     spec:
       {{- with .Values.global.imagePullSecrets }}
@@ -37,6 +41,8 @@ spec:
         {{- toYaml .Values.securityContext | nindent 8 }}
       containers:
         - name: frontend
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
           image: "{{ .Values.frontend.image.repository }}:{{ .Values.frontend.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.frontend.image.pullPolicy }}
           ports:
@@ -44,14 +50,6 @@ spec:
               containerPort: {{ .Values.frontend.service.targetPort }}
               protocol: TCP
           {{- if .Values.frontend.healthCheck.enabled }}
-          startupProbe:
-            httpGet:
-              path: {{ .Values.frontend.healthCheck.path }}
-              port: http
-            initialDelaySeconds: 5
-            periodSeconds: 5
-            timeoutSeconds: 3
-            failureThreshold: 12
           livenessProbe:
             httpGet:
               path: {{ .Values.frontend.healthCheck.path }}
@@ -64,27 +62,32 @@ spec:
             httpGet:
               path: {{ .Values.frontend.healthCheck.path }}
               port: http
-            initialDelaySeconds: 5
-            periodSeconds: 5
-            timeoutSeconds: 3
-            failureThreshold: 2
+            initialDelaySeconds: {{ .Values.frontend.healthCheck.initialDelaySeconds }}
+            periodSeconds: {{ .Values.frontend.healthCheck.periodSeconds }}
+            timeoutSeconds: {{ .Values.frontend.healthCheck.timeoutSeconds }}
+            failureThreshold: {{ .Values.frontend.healthCheck.failureThreshold }}
           {{- end }}
           env:
-            {{- if .Values.frontend.env }}
             {{- toYaml .Values.frontend.env | nindent 12 }}
-            {{- end }}
           resources:
             {{- toYaml .Values.frontend.resources | nindent 12 }}
-      {{- with .Values.nodeSelector }}
+          volumeMounts:
+            - name: config
+              mountPath: /usr/share/nginx/html/config
+              readOnly: true
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "knowledge-graph-analytics.fullname" . }}-frontend-config
+      {{- with .Values.frontend.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.tolerations }}
-      tolerations:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
-      {{- with .Values.affinity }}
+      {{- with .Values.frontend.affinity }}
       affinity:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-{{- end }}
+      {{- with .Values.frontend.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

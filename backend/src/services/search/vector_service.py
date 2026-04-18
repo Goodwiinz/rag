@@ -166,22 +166,9 @@ class VectorService:
         collection_name = collection_type.value
 
         try:
-            info = self.client.get_collection(collection_name)
-            existing_size = info.config.params.vectors.size
-            if existing_size != vector_size:
-                logger.error(
-                    f"Collection {collection_name} has dimension {existing_size} "
-                    f"but embedding provider produces {vector_size}. "
-                    f"Delete the collection and reindex to switch providers."
-                )
-                raise ValueError(
-                    f"Dimension mismatch for {collection_name}: "
-                    f"existing={existing_size}, expected={vector_size}"
-                )
+            self.client.get_collection(collection_name)
             logger.debug(f"Collection {collection_name} already exists")
-        except (ValueError, KeyError, Exception) as e:
-            if isinstance(e, ValueError) and "Dimension mismatch" in str(e):
-                raise
+        except (ValueError, KeyError, Exception):
             # Create collection with improved config for better recall
             config = CollectionConfig(
                 name=collection_name,

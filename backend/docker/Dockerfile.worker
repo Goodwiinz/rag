@@ -40,8 +40,8 @@ RUN apt-get update && apt-get install -y \
 # Copy requirements first for better caching
 COPY requirements.txt .
 
-# Upgrade pip and keep setuptools on a pybtex-compatible version.
-RUN pip install --no-cache-dir --upgrade pip wheel "setuptools<72"
+# Upgrade pip and install build tools
+RUN pip install --no-cache-dir --upgrade pip setuptools wheel
 
 # Install problematic packages first with specific flags
 RUN pip install --no-cache-dir --prefer-binary grpcio==1.59.3 grpcio-tools==1.59.3 || \
@@ -62,9 +62,7 @@ RUN pip install --no-cache-dir --prefer-binary qdrant-client || \
     pip install --no-cache-dir qdrant-client
 
 # Install remaining packages
-RUN pip install --no-cache-dir -r requirements.txt && \
-    pip install --no-cache-dir "setuptools<72" && \
-    python -c "import pkg_resources"
+RUN pip install --no-cache-dir -r requirements.txt
 
 # Download spaCy model
 RUN python -m spacy download en_core_web_sm

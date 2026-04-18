@@ -91,14 +91,12 @@ class ArXivIngestionService:
         logger.info(f"Async request to: {url}")
 
         max_attempts = 5
-        saw_rate_limit = False
         for attempt in range(max_attempts):
             try:
                 async with httpx.AsyncClient(follow_redirects=True) as client:
                     response = await client.get(url, params=params, timeout=60.0)
 
                     if response.status_code == 429:
-                        saw_rate_limit = True
                         wait = 10 * (attempt + 1)  # 10s, 20s, 30s, 40s, 50s
                         logger.warning(
                             f"ArXiv rate limited (429), attempt {attempt + 1}/{max_attempts}, "
@@ -124,9 +122,6 @@ class ArXivIngestionService:
                 if attempt == max_attempts - 1:
                     raise
                 await asyncio.sleep(3)
-
-        if saw_rate_limit:
-            raise IngestionError("ArXiv rate limit reached after retries")
 
         raise IngestionError("ArXiv API request failed after retries")
 

@@ -2,7 +2,6 @@
 
 import React from 'react';
 import { Maximize2, Trash2, X, Plus } from 'lucide-react';
-import { IconButton } from '@/components/ui/icon-button';
 
 interface AgentPanelHeaderProps {
   onExpand: () => void;
@@ -28,35 +27,35 @@ export function AgentPanelHeader({
         Agent
       </h3>
       <div className="flex items-center gap-1">
-        <IconButton
-          icon={<Plus className="h-3.5 w-3.5" />}
+        <button
           onClick={onNewThread}
-          label="New conversation"
-          variant="ghost"
-          className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-        />
-        <IconButton
-          icon={<Trash2 className="h-3.5 w-3.5" />}
+          aria-label="New conversation"
+          className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+        >
+          <Plus className="h-3.5 w-3.5" />
+        </button>
+        <button
           onClick={onClear}
-          label="Clear chat messages"
+          aria-label="Clear chat messages"
           disabled={!hasMessages}
-          variant="ghost"
-          className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-        />
-        <IconButton
-          icon={<Maximize2 className="h-3.5 w-3.5" />}
+          className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+        </button>
+        <button
           onClick={onExpand}
-          label="Expand to sidebar"
-          variant="ghost"
-          className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-        />
-        <IconButton
-          icon={<X className="h-4 w-4" />}
+          aria-label="Expand to sidebar"
+          className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+        >
+          <Maximize2 className="h-3.5 w-3.5" />
+        </button>
+        <button
           onClick={onClose}
-          label="Close agent chat"
-          variant="ghost"
-          className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-        />
+          aria-label="Close agent chat"
+          className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+        >
+          <X className="h-4 w-4" />
+        </button>
       </div>
     </div>
   );

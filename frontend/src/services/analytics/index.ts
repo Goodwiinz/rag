@@ -1,5 +1,3 @@
-import { getPublicApiOrigin } from '@/utils/publicEndpoints';
-
 // API Services
 export {
   metricsApi,
@@ -193,7 +191,7 @@ export const getServiceStatus = () => {
       stats: ws.getConnectionStats(),
     },
     api: {
-      baseUrl: getPublicApiOrigin() || 'http://localhost:8000',
+      baseUrl: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000',
       authenticated: !!localStorage.getItem('authToken'),
     },
   };

@@ -30,9 +30,7 @@ export function NoteList({
 
   const sortedNotes = [...visibleNotes].sort((a, b) => {
     if (a.is_pinned === b.is_pinned) {
-      return (
-        new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
-      );
+      return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
     }
     return a.is_pinned ? -1 : 1;
   });
@@ -42,9 +40,7 @@ export function NoteList({
       <div className="text-center py-12 bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg">
         <StickyNote className="h-12 w-12 text-gray-600 mx-auto mb-4" />
         <p className="text-gray-400 font-mono">No notes yet</p>
-        <p className="text-sm text-gray-500 mt-2">
-          Create notes to organize your research
-        </p>
+        <p className="text-sm text-gray-500 mt-2">Create notes to organize your research</p>
       </div>
     );
   }
@@ -53,13 +49,11 @@ export function NoteList({
     <div>
       {availableTags.length > 0 && onTagChange && (
         <div className="mb-4 flex items-center gap-2">
-          <span className="text-xs text-gray-500 font-mono">
-            Filter by tag:
-          </span>
+          <span className="text-xs text-gray-500 font-mono">Filter by tag:</span>
           <select
             value={selectedTag || ''}
             onChange={(e) => onTagChange(e.target.value)}
-            className="px-3 py-1.5 bg-[#1a1a1a] border border-[#333] rounded text-xs font-mono text-gray-300 focus:outline-none focus:border-sol"
+            className="px-3 py-1.5 bg-[#1a1a1a] border border-[#333] rounded text-xs font-mono text-gray-300 focus:outline-none focus:border-[#00ff9f]"
           >
             <option value="">All</option>
             {availableTags.map((tag) => (
@@ -76,33 +70,25 @@ export function NoteList({
           <div
             key={note.id}
             className={`p-4 bg-[#0a0a0a] border rounded-lg ${
-              note.is_pinned ? 'border-helios/50' : 'border-[#1a1a1a]'
+              note.is_pinned ? 'border-[#ffb700]/50' : 'border-[#1a1a1a]'
             }`}
           >
             <div className="flex items-start justify-between mb-2 gap-3">
               <div className="flex items-center gap-2 min-w-0">
-                {note.is_pinned && (
-                  <Pin className="h-4 w-4 text-helios shrink-0" />
-                )}
-                <h3 className="font-mono font-medium text-gray-200 truncate">
-                  {note.title}
-                </h3>
+                {note.is_pinned && <Pin className="h-4 w-4 text-[#ffb700] shrink-0" />}
+                <h3 className="font-mono font-medium text-gray-200 truncate">{note.title}</h3>
               </div>
               <div className="flex items-center gap-1 shrink-0">
                 <button
                   onClick={() => onTogglePin(note.id)}
-                  className="p-1.5 text-gray-500 hover:text-helios transition-colors"
+                  className="p-1.5 text-gray-500 hover:text-[#ffb700] transition-colors"
                   title={note.is_pinned ? 'Unpin' : 'Pin'}
                 >
-                  {note.is_pinned ? (
-                    <PinOff className="h-4 w-4" />
-                  ) : (
-                    <Pin className="h-4 w-4" />
-                  )}
+                  {note.is_pinned ? <PinOff className="h-4 w-4" /> : <Pin className="h-4 w-4" />}
                 </button>
                 <button
                   onClick={() => onEdit(note)}
-                  className="p-1.5 text-gray-500 hover:text-sol transition-colors"
+                  className="p-1.5 text-gray-500 hover:text-[#00ff9f] transition-colors"
                   title="Edit note"
                 >
                   <Edit2 className="h-4 w-4" />

@@ -5,7 +5,7 @@ Comprehensive tests for analytics caching system
 import pytest
 import json
 import asyncio
-from unittest.mock import ANY, AsyncMock, Mock, patch
+from unittest.mock import Mock, patch, AsyncMock
 from datetime import datetime, timedelta
 
 from src.cache.analytics_cache import (
@@ -482,7 +482,7 @@ class TestCacheIntegration:
         with patch('pickle.dumps', return_value=serialized):
             result = await cache.set("test:key", test_value, ttl=60)
             assert result is True
-            mock_client.setex.assert_called_once_with("test:key", ANY, serialized)
+            mock_client.setex.assert_called_once_with("test:key", 60, serialized)
 
     @pytest.mark.asyncio
     async def test_cache_warming(self):

@@ -8,10 +8,9 @@ import {
   Report,
   AlertRule,
 } from '@/stores/analytics';
-import { getPublicApiOrigin } from '@/utils/publicEndpoints';
 
 // API Configuration
-const API_BASE_URL = getPublicApiOrigin() || 'http://localhost:8000';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 const ANALYTICS_API_PREFIX = '/analytics';
 
 // API Response Types
