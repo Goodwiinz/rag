@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useEffect, ReactNode } from 'react';
 import { useAnalyticsStore, useGraphVisualizationStore, useRealtimeStore } from '@/stores/analytics';
 import { useWebSocket } from '@/services/analytics';
+import { getPublicWebSocketOrigin } from '@/utils/publicEndpoints';
 
 interface AnalyticsContextType {
   // Store instances
@@ -37,7 +38,7 @@ export const AnalyticsProvider: React.FC<AnalyticsProviderProps> = ({
   const realtime = useRealtimeStore();
 
   const { ws, isConnected, error } = useWebSocket({
-    url: process.env.NEXT_PUBLIC_WEBSOCKET_URL || 'ws://localhost:8000/ws/analytics',
+    url: `${getPublicWebSocketOrigin()}/ws/analytics`,
     protocols: ['analytics-v1'],
     reconnectInterval: 3000,
     maxReconnectAttempts: 5,

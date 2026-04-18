@@ -1,0 +1,3 @@
+This is a sample test document for E2E testing.
+It contains basic text content to verify the upload flow.
+NOUS RAG System - End-to-End Test Fixture

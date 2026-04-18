@@ -35,16 +35,23 @@ class EntityExtractionService:
             raise
 
     def extract_entities_from_text(self, document: Document, text: str) -> List[Entity]:
-        """Extract entities from text using spaCy NER and custom patterns"""
+        """Extract entities from text using spaCy NER and custom patterns."""
+        entities, _ = self.extract_entities_and_relationships_from_text(document, text)
+        return entities
+
+    def extract_entities_and_relationships_from_text(
+        self, document: Document, text: str
+    ) -> Tuple[List[Entity], List[Dict[str, Any]]]:
+        """Extract entities and normalized relationships from text."""
         if not self.nlp:
             logger.error("spaCy model not loaded")
-            return []
+            return [], []
 
         if not text or len(text.strip()) < 10:
             logger.warning("Text too short for entity extraction")
-            return []
+            return [], []
 
-        entities = []
+        entities: List[Entity] = []
 
         # Process text with spaCy
         doc = self.nlp(text)
@@ -56,20 +63,22 @@ class EntityExtractionService:
                 entities.append(entity)
 
         # Extract custom entities using regex patterns
-        custom_entities = self._extract_custom_entities(document, text)
-        entities.extend(custom_entities)
+        entities.extend(self._extract_custom_entities(document, text))
 
         # Extract relationships between entities
         relationships = self._extract_relationships(doc, entities)
         logger.info(f"Extracted {len(relationships)} relationships")
 
-        # Deduplicate entities
+        # Deduplicate entities and reattach relationship endpoints to deduplicated entities.
         deduplicated_entities = self._deduplicate_entities(entities)
+        normalized_relationships = self._normalize_relationships(
+            relationships, deduplicated_entities
+        )
 
         logger.info(
             f"Extracted {len(deduplicated_entities)} unique entities from document"
         )
-        return deduplicated_entities
+        return deduplicated_entities, normalized_relationships
 
     def _create_entity_from_spacy(
         self, document: Document, spacy_entity
@@ -258,6 +267,60 @@ class EntityExtractionService:
                             relationships.append(relationship)
 
         return relationships
+
+    def _entity_dedup_key(self, entity: Entity) -> Tuple[str, str]:
+        canonical_name = (entity.canonical_name or entity.name or "").strip().lower()
+        entity_type = entity.entity_type.value if entity.entity_type else "custom"
+        return (entity_type, canonical_name)
+
+    def _normalize_relationships(
+        self,
+        relationships: List[Dict[str, Any]],
+        deduplicated_entities: List[Entity],
+    ) -> List[Dict[str, Any]]:
+        """Map relationship endpoints to deduplicated entity objects and remove duplicates."""
+        entities_by_key: Dict[Tuple[str, str], Entity] = {}
+        for entity in deduplicated_entities:
+            entities_by_key[self._entity_dedup_key(entity)] = entity
+
+        normalized: List[Dict[str, Any]] = []
+        seen: set[Tuple[Tuple[str, str], Tuple[str, str], str, str]] = set()
+
+        for relationship in relationships:
+            source_entity = relationship.get("source_entity")
+            target_entity = relationship.get("target_entity")
+            if not source_entity or not target_entity:
+                continue
+
+            source_key = self._entity_dedup_key(source_entity)
+            target_key = self._entity_dedup_key(target_entity)
+            if source_key == target_key:
+                continue
+
+            dedup_source = entities_by_key.get(source_key)
+            dedup_target = entities_by_key.get(target_key)
+            if not dedup_source or not dedup_target:
+                continue
+
+            relationship_type = str(relationship.get("relationship_type") or "related_to")
+            pattern_matched = str(relationship.get("pattern_matched") or "")
+            dedup_key = (source_key, target_key, relationship_type.lower(), pattern_matched)
+            if dedup_key in seen:
+                continue
+            seen.add(dedup_key)
+
+            normalized.append(
+                {
+                    "source_entity": dedup_source,
+                    "target_entity": dedup_target,
+                    "relationship_type": relationship_type,
+                    "confidence": relationship.get("confidence", 0.7),
+                    "evidence": relationship.get("evidence", ""),
+                    "pattern_matched": pattern_matched,
+                }
+            )
+
+        return normalized
 
     def _analyze_entity_relationship(
         self, sentence, entity1: Entity, entity2: Entity

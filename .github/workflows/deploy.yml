@@ -270,7 +270,7 @@ jobs:
   deploy-summary:
     name: Deploy Summary
     runs-on: ubuntu-latest
-    needs: [deploy-staging, deploy-production]
+    needs: [check-build, deploy-staging, deploy-production]
     if: always()
     permissions:
       contents: read

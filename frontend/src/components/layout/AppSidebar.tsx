@@ -39,10 +39,11 @@ import {
   Search,
   Settings,
   Sparkles,
-  Terminal,
   Upload,
 } from 'lucide-react';
+import Image from 'next/image';
 import Link from 'next/link';
+import { useTheme } from 'next-themes';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useRef } from 'react';
 
@@ -83,6 +84,7 @@ export function AppSidebar() {
   const router = useRouter();
   const { user, isAuthenticated, logout } = useAuth();
   const { setOpen } = useSidebar();
+  const { resolvedTheme } = useTheme();
 
   // Auto-collapse sidebar when navigating to /chat, but only on route change
   // so the user can still toggle it open manually
@@ -149,8 +151,8 @@ export function AppSidebar() {
             'group/nav font-mono text-xs transition-all duration-200 h-10 rounded-none border-l-2',
             'group-data-[collapsible=icon]:!h-9 group-data-[collapsible=icon]:!w-9 group-data-[collapsible=icon]:!p-0 group-data-[collapsible=icon]:rounded-md group-data-[collapsible=icon]:border-l-0',
             active
-              ? 'bg-[#00FF88]/10 text-[#fafafa] border-l-[#00FF88] group-data-[collapsible=icon]:bg-[#00FF88]/15'
-              : 'text-[#a1a1aa] border-l-transparent hover:text-[#fafafa] hover:bg-[#1A1A1A] hover:border-l-[#00FF88]/50 group-data-[collapsible=icon]:hover:bg-[#1A1A1A]'
+              ? 'bg-primary/10 text-sidebar-foreground border-l-primary group-data-[collapsible=icon]:bg-primary/15'
+              : 'text-muted-foreground border-l-transparent hover:text-sidebar-foreground hover:bg-sidebar-accent hover:border-l-primary/50 group-data-[collapsible=icon]:hover:bg-sidebar-accent'
           )}
         >
           <Link
@@ -164,8 +166,8 @@ export function AppSidebar() {
               className={cn(
                 'w-4 h-4 flex-shrink-0 transition-colors duration-200',
                 active
-                  ? 'text-[#00ff9f]'
-                  : 'text-[#a1a1aa] group-hover/nav:text-[#00ff9f]'
+                  ? 'text-primary'
+                  : 'text-muted-foreground group-hover/nav:text-primary'
               )}
             />
             <span className="truncate group-data-[collapsible=icon]:hidden font-medium">
@@ -179,7 +181,7 @@ export function AppSidebar() {
 
   // Section label component (// MAIN, // DOCUMENTS, etc.) - hidden when collapsed
   const SectionLabel = ({ children }: { children: string }) => (
-    <div className="px-5 py-2 font-mono text-[9px] font-medium tracking-wider text-[#00FF88] uppercase group-data-[collapsible=icon]:hidden">
+    <div className="px-5 py-2 font-mono text-[9px] font-medium tracking-wider text-primary uppercase group-data-[collapsible=icon]:hidden">
       {`// ${children}`}
     </div>
   );
@@ -187,25 +189,43 @@ export function AppSidebar() {
   return (
     <Sidebar
       collapsible="icon"
-      className="border-r border-[#1A1A1A] !bg-[#0A0A0A] z-50"
+      className="border-sidebar-border !bg-sidebar z-50"
     >
       {/* Header with Logo */}
-      <SidebarHeader className="border-b border-[#1A1A1A] px-5 py-4 group-data-[collapsible=icon]:px-1 group-data-[collapsible=icon]:py-2 bg-[#0A0A0A]">
+      <SidebarHeader className="border-b border-sidebar-border px-5 py-4 group-data-[collapsible=icon]:px-1 group-data-[collapsible=icon]:py-2 bg-sidebar">
         <Link
           href="/dashboard"
           className="flex items-center gap-2.5 group-data-[collapsible=icon]:justify-center"
         >
-          <Terminal className="w-8 h-8 text-[#00FF88] flex-shrink-0 group-data-[collapsible=icon]:w-5 group-data-[collapsible=icon]:h-5" />
-          <div className="flex flex-col gap-0.5 group-data-[collapsible=icon]:hidden">
-            <span className="font-mono font-semibold text-[13px] text-[#fafafa] tracking-wider">
-              RAG SYSTEM
-            </span>
-            <span className="font-mono text-[9px] text-[#a1a1aa]">v2.1.0</span>
-          </div>
+          {/* Collapsed: show icon only */}
+          <Image
+            src={
+              resolvedTheme === 'dark'
+                ? '/nous-logo-dark.svg'
+                : '/nous-logo.svg'
+            }
+            alt="NOUS"
+            width={28}
+            height={28}
+            className="flex-shrink-0 hidden group-data-[collapsible=icon]:block group-data-[collapsible=icon]:w-7 group-data-[collapsible=icon]:h-7"
+          />
+          {/* Expanded: show full logo */}
+          <Image
+            src={
+              resolvedTheme === 'dark'
+                ? '/nous-logo-dark.svg'
+                : '/nous-logo.svg'
+            }
+            alt="NOUS — Multimodal Intelligence"
+            width={160}
+            height={38}
+            className="h-[38px] w-auto group-data-[collapsible=icon]:hidden"
+            priority
+          />
         </Link>
       </SidebarHeader>
 
-      <SidebarContent className="flex flex-col justify-between py-6 group-data-[collapsible=icon]:py-2 bg-[#0A0A0A]">
+      <SidebarContent className="flex flex-col justify-between py-6 group-data-[collapsible=icon]:py-2 bg-sidebar">
         <div className="flex-1">
           {/* Main Navigation */}
           <SidebarGroup className="py-0 group-data-[collapsible=icon]:px-1">
@@ -258,38 +278,38 @@ export function AppSidebar() {
 
         {/* System Status Panel */}
         <div className="mt-8 group-data-[collapsible=icon]:hidden">
-          <div className="bg-[#0A0A0A] border-y border-[#1A1A1A] px-5 py-3">
+          <div className="bg-sidebar border-y border-sidebar-border px-5 py-3">
             <SectionLabel>SYSTEM STATUS</SectionLabel>
             <div className="space-y-2 mt-2">
               <div className="flex justify-between items-center">
-                <span className="font-mono text-[10px] text-[#a1a1aa]">
+                <span className="font-mono text-[10px] text-muted-foreground">
                   UPTIME
                 </span>
-                <span className="font-mono text-[10px] font-medium text-[#00ff9f]">
+                <span className="font-mono text-[10px] font-medium text-primary">
                   {metrics.uptime}
                 </span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="font-mono text-[10px] text-[#a1a1aa]">
+                <span className="font-mono text-[10px] text-muted-foreground">
                   CPU
                 </span>
-                <span className="font-mono text-[10px] font-medium text-[#fafafa]">
+                <span className="font-mono text-[10px] font-medium text-sidebar-foreground">
                   {metrics.cpu}
                 </span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="font-mono text-[10px] text-[#a1a1aa]">
+                <span className="font-mono text-[10px] text-muted-foreground">
                   MEMORY
                 </span>
-                <span className="font-mono text-[10px] font-medium text-[#ffb700]">
+                <span className="font-mono text-[10px] font-medium text-[var(--amber-gold)]">
                   {metrics.memory}
                 </span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="font-mono text-[10px] text-[#a1a1aa]">
+                <span className="font-mono text-[10px] text-muted-foreground">
                   QUERIES
                 </span>
-                <span className="font-mono text-[10px] font-medium text-[#00d4ff]">
+                <span className="font-mono text-[10px] font-medium text-[var(--cyan)]">
                   {metrics.queries}
                 </span>
               </div>
@@ -297,19 +317,19 @@ export function AppSidebar() {
           </div>
 
           {/* Premium Upgrade Card */}
-          <div className="mx-5 mt-4 p-4 border-2 border-[#00FF88]/25 rounded-none group-data-[collapsible=icon]:hidden">
+          <div className="mx-5 mt-4 p-4 border-2 border-primary/25 rounded-none group-data-[collapsible=icon]:hidden">
             <div className="flex items-center gap-2 mb-2">
-              <span className="bg-[#00ff9f]/15 text-[#00ff9f] font-mono text-[9px] font-semibold px-2 py-1 rounded">
+              <span className="bg-primary/15 text-primary font-mono text-[9px] font-semibold px-2 py-1 rounded">
                 PRO
               </span>
-              <span className="font-mono text-[11px] font-semibold text-[#00ff9f]">
+              <span className="font-mono text-[11px] font-semibold text-primary">
                 UNLOCK PREMIUM
               </span>
             </div>
-            <p className="font-mono text-[10px] text-[#a1a1aa] leading-relaxed mb-3">
+            <p className="font-mono text-[10px] text-muted-foreground leading-relaxed mb-3">
               Advanced RAG features, unlimited queries, and priority support.
             </p>
-            <button className="w-full bg-[#00FF88] text-[#050505] font-mono text-[9px] font-bold py-2.5 hover:bg-[#00FF88]/90 transition-colors flex items-center justify-center gap-1.5">
+            <button className="w-full bg-primary text-primary-foreground font-mono text-[9px] font-bold py-2.5 hover:bg-primary/90 transition-colors flex items-center justify-center gap-1.5">
               <Sparkles className="w-3 h-3" />
               UPGRADE NOW
             </button>
@@ -318,7 +338,7 @@ export function AppSidebar() {
       </SidebarContent>
 
       {/* Footer with User Menu */}
-      <SidebarFooter className="border-t border-[#1A1A1A] p-0 group-data-[collapsible=icon]:p-1.5 bg-[#0A0A0A]">
+      <SidebarFooter className="border-t border-sidebar-border p-0 group-data-[collapsible=icon]:p-1.5 bg-sidebar">
         <SidebarMenu>
           <SidebarMenuItem>
             {isAuthenticated ? (
@@ -327,50 +347,50 @@ export function AppSidebar() {
                   <SidebarMenuButton
                     size="lg"
                     data-testid="user-menu"
-                    className="h-auto px-5 py-3 hover:bg-[#0A0A0A] data-[state=open]:bg-[#0A0A0A] rounded-none group-data-[collapsible=icon]:!w-9 group-data-[collapsible=icon]:!h-9 group-data-[collapsible=icon]:!p-0 group-data-[collapsible=icon]:rounded-md group-data-[collapsible=icon]:mx-auto"
+                    className="h-auto px-5 py-3 hover:bg-sidebar data-[state=open]:bg-sidebar rounded-none group-data-[collapsible=icon]:!w-9 group-data-[collapsible=icon]:!h-9 group-data-[collapsible=icon]:!p-0 group-data-[collapsible=icon]:rounded-md group-data-[collapsible=icon]:mx-auto"
                   >
                     {/* Avatar */}
-                    <div className="flex items-center justify-center w-8 h-8 border border-[#00FF88]/30 rounded flex-shrink-0 bg-[#00FF88]/10">
-                      <span className="font-mono text-[10px] font-semibold text-[#00ff9f]">
+                    <div className="flex items-center justify-center w-8 h-8 border border-primary/30 rounded flex-shrink-0 bg-primary/10">
+                      <span className="font-mono text-[10px] font-semibold text-primary">
                         {getInitials(user?.email)}
                       </span>
                     </div>
                     {/* User Info */}
                     <div className="flex flex-col gap-0.5 leading-none text-left flex-1 group-data-[collapsible=icon]:hidden">
-                      <span className="font-mono text-[11px] font-medium text-[#fafafa] truncate">
+                      <span className="font-mono text-[11px] font-medium text-sidebar-foreground truncate">
                         {displayName}
                       </span>
-                      <span className="font-mono text-[9px] text-[#a1a1aa] truncate">
+                      <span className="font-mono text-[9px] text-muted-foreground truncate">
                         Administrator
                       </span>
                     </div>
-                    <ChevronsUpDown className="w-4 h-4 text-[#4A4A4A] flex-shrink-0 group-data-[collapsible=icon]:hidden" />
+                    <ChevronsUpDown className="w-4 h-4 text-muted-foreground flex-shrink-0 group-data-[collapsible=icon]:hidden" />
                   </SidebarMenuButton>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent
-                  className="w-56 bg-[#0A0A0A] border-[#1A1A1A] font-mono"
+                  className="w-56 bg-sidebar border-sidebar-border font-mono"
                   side="top"
                   align="start"
                   sideOffset={4}
                 >
-                  <DropdownMenuLabel className="text-[#a1a1aa] text-xs font-normal">
+                  <DropdownMenuLabel className="text-muted-foreground text-xs font-normal">
                     <div className="flex flex-col gap-1">
-                      <span className="text-[#fafafa] font-medium">
+                      <span className="text-sidebar-foreground font-medium">
                         {displayName}
                       </span>
-                      <span className="text-[#a1a1aa] text-[10px]">
+                      <span className="text-muted-foreground text-[10px]">
                         {user?.email || 'Not signed in'}
                       </span>
                     </div>
                   </DropdownMenuLabel>
-                  <DropdownMenuSeparator className="bg-[#1A1A1A]" />
+                  <DropdownMenuSeparator className="bg-sidebar-border" />
                   <DropdownMenuItem
                     asChild
-                    className="hover:bg-[#1A1A1A] focus:bg-[#1A1A1A] cursor-pointer"
+                    className="hover:bg-sidebar-accent focus:bg-sidebar-accent cursor-pointer"
                   >
                     <Link
                       href="/settings"
-                      className="flex items-center gap-2 text-[#a1a1aa] hover:text-[#fafafa]"
+                      className="flex items-center gap-2 text-muted-foreground hover:text-sidebar-foreground"
                     >
                       <Settings className="w-4 h-4" />
                       Settings
@@ -378,11 +398,11 @@ export function AppSidebar() {
                   </DropdownMenuItem>
                   <DropdownMenuItem
                     asChild
-                    className="hover:bg-[#1A1A1A] focus:bg-[#1A1A1A] cursor-pointer"
+                    className="hover:bg-sidebar-accent focus:bg-sidebar-accent cursor-pointer"
                   >
                     <Link
                       href="/notifications"
-                      className="flex items-center gap-2 text-[#a1a1aa] hover:text-[#fafafa]"
+                      className="flex items-center gap-2 text-muted-foreground hover:text-sidebar-foreground"
                     >
                       <Bell className="w-4 h-4" />
                       Notifications
@@ -390,17 +410,17 @@ export function AppSidebar() {
                   </DropdownMenuItem>
                   <DropdownMenuItem
                     asChild
-                    className="hover:bg-[#1A1A1A] focus:bg-[#1A1A1A] cursor-pointer"
+                    className="hover:bg-sidebar-accent focus:bg-sidebar-accent cursor-pointer"
                   >
                     <Link
                       href="/help"
-                      className="flex items-center gap-2 text-[#a1a1aa] hover:text-[#fafafa]"
+                      className="flex items-center gap-2 text-muted-foreground hover:text-sidebar-foreground"
                     >
                       <HelpCircle className="w-4 h-4" />
                       Help Center
                     </Link>
                   </DropdownMenuItem>
-                  <DropdownMenuSeparator className="bg-[#1A1A1A]" />
+                  <DropdownMenuSeparator className="bg-sidebar-border" />
                   <DropdownMenuItem
                     onClick={handleLogout}
                     data-testid="logout-button"
@@ -416,13 +436,13 @@ export function AppSidebar() {
                 asChild
                 size="lg"
                 tooltip="Sign In"
-                className="bg-[#0A0A0A] text-[#fafafa] border-t border-[#1A1A1A] hover:bg-[#1A1A1A] rounded-none h-auto px-5 py-4 group-data-[collapsible=icon]:!w-9 group-data-[collapsible=icon]:!h-9 group-data-[collapsible=icon]:!p-0 group-data-[collapsible=icon]:rounded-md group-data-[collapsible=icon]:border-t-0"
+                className="bg-sidebar text-sidebar-foreground border-t border-sidebar-border hover:bg-sidebar-accent rounded-none h-auto px-5 py-4 group-data-[collapsible=icon]:!w-9 group-data-[collapsible=icon]:!h-9 group-data-[collapsible=icon]:!p-0 group-data-[collapsible=icon]:rounded-md group-data-[collapsible=icon]:border-t-0"
               >
                 <Link
                   href="/login"
                   className="flex items-center gap-3 group-data-[collapsible=icon]:justify-center"
                 >
-                  <LogOut className="w-4 h-4 text-[#00FF88]" />
+                  <LogOut className="w-4 h-4 text-primary" />
                   <span className="font-mono text-[11px] group-data-[collapsible=icon]:hidden">
                     Sign In
                   </span>
@@ -433,7 +453,7 @@ export function AppSidebar() {
         </SidebarMenu>
       </SidebarFooter>
 
-      <SidebarRail className="hover:after:bg-[#00FF88]/30" />
+      <SidebarRail className="hover:after:bg-primary/30" />
     </Sidebar>
   );
 }

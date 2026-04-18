@@ -98,7 +98,7 @@ Read relevant memories before starting tasks:
 ## Brand
 
 - **Name**: NOUS (Greek: νοῦς — mind/intellect)
-- **Colors**: Ink `#0A0A0E`, Surface `#F7F7F5`, Accent `#6366F1`, Accent Soft `#818CF8`, Highlight `#A78BFA`
+- **Colors**: Erebus `#0A0A0E`, Selene `#F7F7F5`, Sol `#D4A039`, Helios `#E8B84A`, Apollo `#F5D680`
 - **Fonts**: Inter (headings/UI), Source Serif 4 (body), JetBrains Mono (code)
 - **Assets**: `brand/` directory — logos, guidelines, landing page
 

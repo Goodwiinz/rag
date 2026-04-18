@@ -430,8 +430,14 @@ async def broadcast_message(
     """
     Broadcast a message to WebSocket subscribers
 
-    Requires appropriate permissions based on the target audience.
+    Requires admin role.
     """
+    if current_user.role.value != "admin":
+        raise HTTPException(
+            status_code=403,
+            detail="Only administrators can broadcast messages",
+        )
+
     try:
         # Create WebSocket message
         message = WebSocketMessage(

@@ -34,7 +34,7 @@ from src.core.database import get_db
 from src.models.user import User, UserRole
 from src.models.organization import Organization
 from src.models.document import Document, DocumentType, ProcessingStatus
-from src.core.security import create_access_token
+from tests.conftest import create_access_token
 
 
 @dataclass

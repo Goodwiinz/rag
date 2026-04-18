@@ -1,29 +1,27 @@
 """
-Authentication service for user management and security
+Authentication service for user management and security.
+
+Supabase handles registration, login, token refresh, and password reset.
+This service provides profile management, password change, admin operations,
+and user statistics.
 """
 
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 
 from fastapi import Depends
-from sqlalchemy import and_, func, or_, select
+from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.core.config import settings
 from src.core.database import get_db
 from src.core.security import (
     check_password_strength,
-    create_access_token,
-    create_refresh_token,
-    generate_password_reset_token,
-    get_password_hash,
     verify_password,
-    verify_refresh_token,
-    verify_token,
 )
-from src.models.organization import Organization, StorageTier
-from src.models.search import SearchQuery
+from src.core.supabase_client import get_supabase_client
 from src.models.user import User, UserRole
+
+logger = __import__("logging").getLogger(__name__)
 
 
 class AuthenticationError(Exception):
@@ -39,260 +37,25 @@ class AuthorizationError(Exception):
 
 
 class RegistrationError(Exception):
-    """Registration related errors"""
+    """Registration related errors (used by password change validation)"""
 
     pass
 
 
-# Constant for timing attack mitigation
-# Valid bcrypt hash for "secret"
-DUMMY_PASSWORD_HASH = "$2b$12$EixZaYVK1fsbw1ZfbX3OXePaWxn96p36WQoeG6Lruj3vjPGga31lW"
-
-
 class AuthService:
-    """Authentication service for user management"""
+    """Authentication service for user management.
+
+    Supabase handles registration, login, and token lifecycle.
+    This service provides profile updates, password changes, and admin operations.
+    """
 
     def __init__(self, db: AsyncSession):
         self.db = db
 
-    async def authenticate_user(self, email: str, password: str) -> Optional[User]:
-        """Authenticate user with email and password.
-
-        Note: Rate limiting is handled at the endpoint layer (dual IP + email check).
-        """
-        # Eager load organization relationship
-        from sqlalchemy.orm import selectinload
-
-        stmt = (
-            select(User)
-            .options(selectinload(User.organization))
-            .where(
-                and_(
-                    User.email == email.lower(),
-                    User.is_active == True,
-                    User.is_deleted == False,
-                )
-            )
-        )
-
-        result = await self.db.execute(stmt)
-        user = result.scalar_one_or_none()
-
-        # Use dummy hash if user not found to prevent timing attacks
-        password_hash = user.password_hash if user else DUMMY_PASSWORD_HASH
-
-        # Always verify password (takes ~same time)
-        is_password_valid = verify_password(password, password_hash)
-
-        if not user or not is_password_valid:
-            raise AuthenticationError("Invalid email or password")
-
-        # Update last login
-        user.update_last_login()
-        await self.db.commit()
-
-        return user
-
-    async def login_user(
-        self, email: str, password: str, remember_me: bool = False
-    ) -> Dict[str, Any]:
-        """Login user and return tokens
-
-        Args:
-            email: User email
-            password: User password
-            remember_me: If True, creates a 30-day session instead of 7-day
-        """
-        user = await self.authenticate_user(email, password)
-
-        # Load organization relationship
-        if user.organization:
-            organization_data = user.organization.to_dict()
-        else:
-            organization_data = None
-
-        # Create access token
-        access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-        access_token = create_access_token(
-            data={
-                "sub": str(user.id),
-                "email": user.email,
-                "organization_id": str(user.organization_id),
-                "role": user.role.value,
-            },
-            expires_delta=access_token_expires,
-        )
-
-        # Create refresh token (30 days if remember_me, 7 days otherwise)
-        refresh_token = create_refresh_token(
-            data={"sub": str(user.id)}, remember_me=remember_me
-        )
-
-        # Calculate refresh token expiration for frontend
-        refresh_token_days = (
-            settings.REMEMBER_ME_REFRESH_TOKEN_DAYS
-            if remember_me
-            else settings.REFRESH_TOKEN_EXPIRE_DAYS
-        )
-
-        return {
-            "access_token": access_token,
-            "refresh_token": refresh_token,
-            "token_type": "bearer",
-            "expires_in": settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
-            "refresh_expires_in": refresh_token_days * 24 * 60 * 60,  # In seconds
-            "remember_me": remember_me,
-            "user": user.to_dict(exclude_sensitive=True),
-            "organization": organization_data,
-        }
-
-    async def refresh_access_token(
-        self, refresh_token: str, rotate_refresh: bool = True
-    ) -> Dict[str, Any]:
-        """Refresh access token using refresh token
-
-        Args:
-            refresh_token: The refresh token to validate
-            rotate_refresh: If True, also issue a new refresh token (recommended for security)
-        """
-        token_data = verify_refresh_token(refresh_token)
-
-        if not token_data:
-            raise AuthenticationError("Invalid refresh token")
-
-        stmt = select(User).where(
-            and_(
-                User.id == token_data.user_id,
-                User.is_active == True,
-                User.is_deleted == False,
-            )
-        )
-
-        result = await self.db.execute(stmt)
-        user = result.scalar_one_or_none()
-
-        if not user:
-            raise AuthenticationError("User not found or inactive")
-
-        # Create new access token
-        access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-        access_token = create_access_token(
-            data={
-                "sub": str(user.id),
-                "email": user.email,
-                "organization_id": str(user.organization_id),
-                "role": user.role.value,
-            },
-            expires_delta=access_token_expires,
-        )
-
-        # Preserve the remember_me setting from the original refresh token
-        remember_me = token_data.remember_me
-
-        result = {
-            "access_token": access_token,
-            "token_type": "bearer",
-            "expires_in": settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
-            "remember_me": remember_me,
-        }
-
-        # Optionally rotate refresh token (recommended for security)
-        if rotate_refresh:
-            new_refresh_token = create_refresh_token(
-                data={"sub": str(user.id)}, remember_me=remember_me
-            )
-            refresh_token_days = (
-                settings.REMEMBER_ME_REFRESH_TOKEN_DAYS
-                if remember_me
-                else settings.REFRESH_TOKEN_EXPIRE_DAYS
-            )
-            result["refresh_token"] = new_refresh_token
-            result["refresh_expires_in"] = refresh_token_days * 24 * 60 * 60
-
-        return result
-
-    async def register_user(
-        self,
-        email: str,
-        password: str,
-        first_name: str,
-        last_name: str,
-        organization_name: str = None,
-        role: UserRole = UserRole.USER,
-    ) -> User:
-        """Register a new user"""
-        # Check if user already exists
-        stmt = select(User).where(User.email == email.lower())
-        result = await self.db.execute(stmt)
-        existing_user = result.scalar_one_or_none()
-
-        if existing_user:
-            raise RegistrationError("User with this email already exists")
-
-        # Check password strength
-        password_check = check_password_strength(password)
-        if not password_check["is_valid"]:
-            raise RegistrationError(
-                f"Password does not meet security requirements: {', '.join(password_check['issues'])}"
-            )
-
-        # Handle organization
-        if organization_name:
-            # Check if organization already exists
-            stmt = select(Organization).where(
-                and_(
-                    Organization.name == organization_name,
-                    Organization.is_active == True,
-                    Organization.is_deleted == False,
-                )
-            )
-            result = await self.db.execute(stmt)
-            organization = result.scalar_one_or_none()
-
-            if organization:
-                raise RegistrationError("Organization name already taken")
-
-            # Create new organization
-            organization = Organization(
-                name=organization_name,
-                storage_tier=StorageTier.FREE,
-                storage_limit_bytes=Organization.get_default_storage_limit(
-                    StorageTier.FREE
-                ),
-                is_active=True,
-            )
-            self.db.add(organization)
-            await self.db.flush()  # Get the organization ID
-
-            # First user in organization becomes admin
-            role = UserRole.ADMIN
-
-        else:
-            raise RegistrationError(
-                "organization_name must be provided"
-            )
-
-        # Create user
-        user = User(
-            email=email.lower(),
-            first_name=first_name,
-            last_name=last_name,
-            role=role,
-            organization_id=organization.id,
-            is_active=True,
-        )
-        user.set_password(password)
-
-        self.db.add(user)
-        await self.db.commit()
-        await self.db.refresh(user)
-
-        return user
-
     async def change_password(
         self, user: User, current_password: str, new_password: str
     ) -> bool:
-        """Change user password"""
+        """Change user password in both public.users and Supabase auth.users."""
         # Verify current password
         if not verify_password(current_password, user.password_hash):
             raise AuthenticationError("Current password is incorrect")
@@ -304,41 +67,29 @@ class AuthService:
                 f"New password does not meet security requirements: {', '.join(password_check['issues'])}"
             )
 
-        # Update password
+        # Sync password to Supabase auth.users first (fail fast if Supabase is down)
+        supabase = get_supabase_client()
+        if not supabase:
+            logger.error("Supabase admin client unavailable for password change")
+            raise AuthenticationError(
+                "Password change unavailable: authentication service is not configured."
+            )
+
+        try:
+            supabase.auth.admin.update_user_by_id(
+                str(user.id), {"password": new_password}
+            )
+        except Exception as exc:
+            logger.error(f"Failed to update Supabase auth password: {exc}")
+            raise AuthenticationError(
+                "Password change failed. Please try again later."
+            )
+
+        # Update local password hash
         user.set_password(new_password)
         await self.db.commit()
 
         return True
-
-    async def initiate_password_reset(self, email: str) -> str:
-        """Initiate password reset process"""
-        stmt = select(User).where(
-            and_(
-                User.email == email.lower(),
-                User.is_active == True,
-                User.is_deleted == False,
-            )
-        )
-        result = await self.db.execute(stmt)
-        user = result.scalar_one_or_none()
-
-        if not user:
-            # Don't reveal if user exists or not
-            return ""
-
-        reset_token = generate_password_reset_token()
-
-        # Store reset token (you might want to add a reset_token field to User model)
-        # For now, we'll return it (in production, you'd email it)
-        return reset_token
-
-    def reset_password(self, reset_token: str, new_password: str) -> bool:
-        """Reset password using reset token"""
-        # In a real implementation, you'd verify the reset token
-        # For now, this is a placeholder
-        raise NotImplementedError(
-            "Password reset implementation requires database changes"
-        )
 
     async def update_user_profile(
         self,
