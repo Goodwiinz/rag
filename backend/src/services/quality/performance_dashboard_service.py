@@ -4,9 +4,14 @@ Performance metrics dashboard service for system monitoring and visualization
 
 import asyncio
 import logging
-import statistics
 import time
+import uuid
+from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta
+from enum import Enum
+from typing import Any, Dict, List, Optional
+
+from sqlalchemy import text
 
 # Try to import psutil, use fallback if not available
 try:
@@ -16,21 +21,9 @@ try:
 except ImportError:
     PSUTIL_AVAILABLE = False
     logging.warning("psutil not available, using fallback system monitoring")
-import json
-import uuid
-from dataclasses import asdict, dataclass
-from enum import Enum
-from typing import Any, Dict, List, Optional, Tuple
 
-from sqlalchemy import and_, asc, desc, func, or_, text
-from sqlalchemy.orm import Session
-
-from src.core.config import settings
-from src.core.database import get_db_sync
-from src.models.processing import ProcessingJob
-from src.models.quality import QualityMetric
-from src.models.quality_metrics import MetricAggregation, QualityAlert, SystemMetric
-from src.models.search import SearchQuery
+from src.cache.analytics_cache import CacheTTL, get_analytics_cache
+from src.core.database import get_async_session
 
 logger = logging.getLogger(__name__)
 
@@ -157,8 +150,6 @@ class PerformanceDashboardService:
     """
 
     def __init__(self):
-        self.metric_cache = {}
-        self.cache_ttl = 300  # 5 minutes
         self.system_monitor = SystemMonitor()
 
     async def get_dashboard_overview(
@@ -168,23 +159,31 @@ class PerformanceDashboardService:
     ) -> Dict[str, Any]:
         """Get comprehensive dashboard overview"""
 
-        cache_key = f"overview_{organization_id}_{time_range.value}"
-        if cache_key in self.metric_cache:
-            cached_data = self.metric_cache[cache_key]
-            if time.time() - cached_data["timestamp"] < self.cache_ttl:
-                return cached_data["data"]
+        cache = get_analytics_cache()
+        cache_key = f"perf_dashboard:overview:{organization_id}:{time_range.value}"
+
+        # Try Redis/in-memory cache first
+        try:
+            cached = await cache.get(cache_key)
+            if cached is not None:
+                return cached
+        except Exception:
+            pass  # cache miss or error — proceed to compute
 
         try:
-            # Get all dashboard components
-            system_health = await self.get_system_health_metrics()
-            search_performance = await self.get_search_performance_metrics(
-                organization_id, time_range
-            )
-            quality_metrics = await self.get_quality_metrics_summary(
-                organization_id, time_range
-            )
-            user_engagement = await self.get_user_engagement_metrics(
-                organization_id, time_range
+            # Fetch all dashboard components in parallel
+            (
+                system_health,
+                search_performance,
+                quality_metrics,
+                user_engagement,
+                alerts,
+            ) = await asyncio.gather(
+                self.get_system_health_metrics(),
+                self.get_search_performance_metrics(organization_id, time_range),
+                self.get_quality_metrics_summary(organization_id, time_range),
+                self.get_user_engagement_metrics(organization_id, time_range),
+                self.get_active_alerts(organization_id),
             )
 
             overview = {
@@ -194,11 +193,14 @@ class PerformanceDashboardService:
                 "search_performance": asdict(search_performance),
                 "quality_metrics": asdict(quality_metrics),
                 "user_engagement": asdict(user_engagement),
-                "alerts": await self.get_active_alerts(organization_id),
+                "alerts": alerts,
             }
 
-            # Cache the result
-            self.metric_cache[cache_key] = {"data": overview, "timestamp": time.time()}
+            # Cache in Redis (3 min TTL) with in-memory fallback
+            try:
+                await cache.set(cache_key, overview, ttl=CacheTTL.DASHBOARD_DATA)
+            except Exception:
+                pass  # non-fatal — cache write failure shouldn't break the endpoint
 
             return overview
 
@@ -210,21 +212,24 @@ class PerformanceDashboardService:
         """Get real-time system health metrics"""
         try:
             if PSUTIL_AVAILABLE:
-                # Get system metrics from psutil
-                cpu_percent = psutil.cpu_percent(interval=1)
+                # Non-blocking CPU check (returns since-last-call average)
+                cpu_percent = psutil.cpu_percent(interval=None)
                 memory = psutil.virtual_memory()
                 disk = psutil.disk_usage("/")
                 network = psutil.net_io_counters()
+
+                memory_percent = memory.percent
+                disk_percent = disk.percent
 
                 # Get uptime
                 boot_time = psutil.boot_time()
                 uptime = time.time() - boot_time
 
                 network_io = {
-                    "bytes_sent": network.bytes_sent,
-                    "bytes_recv": network.bytes_recv,
-                    "packets_sent": network.packets_sent,
-                    "packets_recv": network.packets_recv,
+                    "bytes_sent": float(network.bytes_sent),
+                    "bytes_recv": float(network.bytes_recv),
+                    "packets_sent": float(network.packets_sent),
+                    "packets_recv": float(network.packets_recv),
                 }
             else:
                 # Fallback metrics when psutil is not available
@@ -233,25 +238,23 @@ class PerformanceDashboardService:
                 disk_percent = 0.0
                 uptime = 0.0
                 network_io = {
-                    "bytes_sent": 0,
-                    "bytes_recv": 0,
-                    "packets_sent": 0,
-                    "packets_recv": 0,
+                    "bytes_sent": 0.0,
+                    "bytes_recv": 0.0,
+                    "packets_sent": 0.0,
+                    "packets_recv": 0.0,
                 }
 
-            # Get response time metrics from database
-            response_times = await self._get_response_time_metrics()
-
-            # Get error rate
-            error_rate = await self._get_error_rate()
-
-            # Get active connections (estimate)
-            active_connections = await self._get_active_connections()
+            # Get response time metrics, error rate, and active connections in parallel
+            response_times, error_rate, active_connections = await asyncio.gather(
+                self._get_response_time_metrics(),
+                self._get_error_rate(),
+                self._get_active_connections(),
+            )
 
             return SystemHealthMetrics(
                 cpu_usage=cpu_percent,
-                memory_usage=memory_percent if PSUTIL_AVAILABLE else 0.0,
-                disk_usage=disk_percent if PSUTIL_AVAILABLE else 0.0,
+                memory_usage=memory_percent,
+                disk_usage=disk_percent,
                 network_io=network_io,
                 response_time_p50=response_times["p50"],
                 response_time_p95=response_times["p95"],
@@ -269,10 +272,10 @@ class PerformanceDashboardService:
                 memory_usage=0.0,
                 disk_usage=0.0,
                 network_io={
-                    "bytes_sent": 0,
-                    "bytes_recv": 0,
-                    "packets_sent": 0,
-                    "packets_recv": 0,
+                    "bytes_sent": 0.0,
+                    "bytes_recv": 0.0,
+                    "packets_sent": 0.0,
+                    "packets_recv": 0.0,
                 },
                 response_time_p50=0.0,
                 response_time_p95=0.0,
@@ -287,344 +290,341 @@ class PerformanceDashboardService:
     ) -> SearchPerformanceMetrics:
         """Get search performance metrics"""
 
-        db = next(get_db_sync())
-        try:
-            # Calculate time range
-            cutoff_date = self._get_cutoff_date(time_range)
+        async with get_async_session() as db:
+            try:
+                # Calculate time range
+                cutoff_date = self._get_cutoff_date(time_range)
 
-            # Get search performance data
-            search_data = db.execute(
-                text(
-                    """
-                SELECT
-                    COUNT(*) as total_searches,
-                    AVG(search_duration_ms) as avg_response_time,
-                    COUNT(CASE WHEN total_results = 0 THEN 1 END) as no_results_count,
-                    0 as error_count
-                FROM search_queries
-                WHERE organization_id = CAST(:org_id AS UUID)
-                    AND created_at >= :cutoff_date
-            """
-                ),
-                {"org_id": organization_id, "cutoff_date": cutoff_date},
-            ).fetchone()
+                # Get search performance data
+                search_result = await db.execute(
+                    text(
+                        """
+                    SELECT
+                        COUNT(*) as total_searches,
+                        AVG(search_duration_ms) as avg_response_time,
+                        COUNT(CASE WHEN total_results = 0 THEN 1 END) as no_results_count,
+                        0 as error_count
+                    FROM search_queries
+                    WHERE organization_id = CAST(:org_id AS UUID)
+                        AND created_at >= :cutoff_date
+                """
+                    ),
+                    {"org_id": organization_id, "cutoff_date": cutoff_date},
+                )
+                search_data = search_result.fetchone()
 
-            # Get response time percentiles
-            response_times = db.execute(
-                text(
-                    """
-                SELECT search_duration_ms
-                FROM search_queries
-                WHERE organization_id = CAST(:org_id AS UUID)
-                    AND created_at >= :cutoff_date
-                    AND search_duration_ms IS NOT NULL
-                ORDER BY search_duration_ms
-                OFFSET (SELECT COUNT(*) * 95 / 100 FROM
-                    search_queries
-                    WHERE organization_id = CAST(:org_id AS UUID) AND created_at >= :cutoff_date)
-                LIMIT 1
-            """
-                ),
-                {"org_id": organization_id, "cutoff_date": cutoff_date},
-            ).scalar()
+                # Get response time percentiles using percentile_cont
+                p95_result = await db.execute(
+                    text(
+                        """
+                    SELECT
+                        percentile_cont(0.95) WITHIN GROUP (ORDER BY search_duration_ms) as p95
+                    FROM search_queries
+                    WHERE organization_id = CAST(:org_id AS UUID)
+                        AND created_at >= :cutoff_date
+                        AND search_duration_ms IS NOT NULL
+                """
+                    ),
+                    {"org_id": organization_id, "cutoff_date": cutoff_date},
+                )
+                p95_row = p95_result.fetchone()
+                response_times = p95_row.p95 if p95_row else None
 
-            # Get top queries
-            top_queries = db.execute(
-                text(
-                    """
-                SELECT
-                    query_text as query,
-                    COUNT(*) as search_count,
-                    AVG(search_duration_ms) as avg_response_time
-                FROM search_queries
-                WHERE organization_id = CAST(:org_id AS UUID)
-                    AND created_at >= :cutoff_date
-                GROUP BY query_text
-                ORDER BY search_count DESC
-                LIMIT 10
-            """
-                ),
-                {"org_id": organization_id, "cutoff_date": cutoff_date},
-            ).fetchall()
+                # Get top queries
+                top_result = await db.execute(
+                    text(
+                        """
+                    SELECT
+                        query_text as query,
+                        COUNT(*) as search_count,
+                        AVG(search_duration_ms) as avg_response_time
+                    FROM search_queries
+                    WHERE organization_id = CAST(:org_id AS UUID)
+                        AND created_at >= :cutoff_date
+                    GROUP BY query_text
+                    ORDER BY search_count DESC
+                    LIMIT 10
+                """
+                    ),
+                    {"org_id": organization_id, "cutoff_date": cutoff_date},
+                )
+                top_queries = top_result.fetchall()
 
-            # Get search types distribution
-            search_types = db.execute(
-                text(
-                    """
-                SELECT
-                    search_type,
-                    COUNT(*) as count
-                FROM search_queries
-                WHERE organization_id = CAST(:org_id AS UUID)
-                    AND created_at >= :cutoff_date
-                GROUP BY search_type
-                ORDER BY count DESC
-            """
-                ),
-                {"org_id": organization_id, "cutoff_date": cutoff_date},
-            ).fetchall()
+                # Get search types distribution
+                types_result = await db.execute(
+                    text(
+                        """
+                    SELECT
+                        search_type,
+                        COUNT(*) as count
+                    FROM search_queries
+                    WHERE organization_id = CAST(:org_id AS UUID)
+                        AND created_at >= :cutoff_date
+                    GROUP BY search_type
+                    ORDER BY count DESC
+                """
+                    ),
+                    {"org_id": organization_id, "cutoff_date": cutoff_date},
+                )
+                search_types = types_result.fetchall()
 
-            # Calculate metrics
-            total_searches = search_data.total_searches or 0
-            avg_response_time = float(search_data.avg_response_time or 0)
-            p95_response_time = float(response_times or 0)
-            no_results_rate = (
-                (search_data.no_results_count / total_searches)
-                if total_searches > 0
-                else 0
-            )
-            success_rate = (
-                1.0 - (search_data.error_count / total_searches)
-                if total_searches > 0
-                else 1.0
-            )
+                # Calculate metrics
+                total_searches = search_data.total_searches or 0
+                avg_response_time = float(search_data.avg_response_time or 0)
+                p95_response_time = float(response_times or 0)
+                no_results_rate = (
+                    (search_data.no_results_count / total_searches)
+                    if total_searches > 0
+                    else 0
+                )
+                success_rate = (
+                    1.0 - (search_data.error_count / total_searches)
+                    if total_searches > 0
+                    else 1.0
+                )
 
-            return SearchPerformanceMetrics(
-                total_searches=total_searches,
-                avg_response_time=avg_response_time,
-                p95_response_time=p95_response_time,
-                success_rate=success_rate,
-                no_results_rate=no_results_rate,
-                top_queries=[
-                    {
-                        "query": q.query,
-                        "count": q.search_count,
-                        "avg_response_time": float(q.avg_response_time or 0),
-                    }
-                    for q in top_queries
-                ],
-                search_types={st.search_type: st.count for st in search_types},
-                errors=[],  # TODO: Implement error tracking
-            )
+                return SearchPerformanceMetrics(
+                    total_searches=total_searches,
+                    avg_response_time=avg_response_time,
+                    p95_response_time=p95_response_time,
+                    success_rate=success_rate,
+                    no_results_rate=no_results_rate,
+                    top_queries=[
+                        {
+                            "query": q.query,
+                            "count": q.search_count,
+                            "avg_response_time": float(q.avg_response_time or 0),
+                        }
+                        for q in top_queries
+                    ],
+                    search_types={st.search_type: st.count for st in search_types},
+                    errors=[],
+                )
 
-        except Exception as e:
-            logger.error(f"Failed to get search performance metrics: {e}")
-            raise
-        finally:
-            db.close()
+            except Exception as e:
+                logger.error(f"Failed to get search performance metrics: {e}")
+                raise
 
     async def get_quality_metrics_summary(
         self, organization_id: str, time_range: MetricTimeRange
     ) -> QualityMetricsSummary:
         """Get quality metrics summary"""
 
-        db = next(get_db_sync())
-        try:
-            cutoff_date = self._get_cutoff_date(time_range)
+        async with get_async_session() as db:
+            try:
+                cutoff_date = self._get_cutoff_date(time_range)
 
-            # Get quality metrics
-            quality_data = db.execute(
-                text(
-                    """
-                SELECT
-                    AVG(qm.value) as avg_score,
-                    qm.metric_type,
-                    COUNT(*) as count
-                FROM quality_metrics qm
-                WHERE qm.organization_id = CAST(:org_id AS UUID)
-                    AND qm.created_at >= :cutoff_date
-                GROUP BY qm.metric_type
-            """
-                ),
-                {"org_id": organization_id, "cutoff_date": cutoff_date},
-            ).fetchall()
-
-            # Calculate averages by metric type
-            precision_avg = 0.0
-            recall_avg = 0.0
-            relevance_avg = 0.0
-            user_satisfaction = 0.0
-
-            for metric in quality_data:
-                if metric.metric_type == "precision":
-                    precision_avg = float(metric.avg_score or 0)
-                elif metric.metric_type == "recall":
-                    recall_avg = float(metric.avg_score or 0)
-                elif metric.metric_type == "relevance":
-                    relevance_avg = float(metric.avg_score or 0)
-                elif metric.metric_type == "user_satisfaction":
-                    user_satisfaction = float(metric.avg_score or 0)
-
-            # Calculate overall score (weighted average)
-            overall_score = (
-                precision_avg * 0.3
-                + recall_avg * 0.3
-                + relevance_avg * 0.2
-                + user_satisfaction * 0.2
-            )
-
-            # Get active alerts
-            active_alerts = (
-                db.execute(
+                # Get quality metrics
+                quality_result = await db.execute(
                     text(
                         """
-                SELECT COUNT(*) as count
-                FROM quality_alerts qa
-                WHERE qa.organization_id = CAST(:org_id AS UUID)
-                    AND qa.status = 'active'
-            """
+                    SELECT
+                        AVG(qm.value) as avg_score,
+                        qm.metric_type,
+                        COUNT(*) as count
+                    FROM quality_metrics qm
+                    WHERE qm.organization_id = CAST(:org_id AS UUID)
+                        AND qm.created_at >= :cutoff_date
+                    GROUP BY qm.metric_type
+                """
+                    ),
+                    {"org_id": organization_id, "cutoff_date": cutoff_date},
+                )
+                quality_data = quality_result.fetchall()
+
+                # Calculate averages by metric type
+                precision_avg = 0.0
+                recall_avg = 0.0
+                relevance_avg = 0.0
+                user_satisfaction = 0.0
+
+                for metric in quality_data:
+                    if metric.metric_type == "precision":
+                        precision_avg = float(metric.avg_score or 0)
+                    elif metric.metric_type == "recall":
+                        recall_avg = float(metric.avg_score or 0)
+                    elif metric.metric_type == "relevance":
+                        relevance_avg = float(metric.avg_score or 0)
+                    elif metric.metric_type == "user_satisfaction":
+                        user_satisfaction = float(metric.avg_score or 0)
+
+                # Calculate overall score (weighted average)
+                overall_score = (
+                    precision_avg * 0.3
+                    + recall_avg * 0.3
+                    + relevance_avg * 0.2
+                    + user_satisfaction * 0.2
+                )
+
+                # Get active alerts
+                alerts_result = await db.execute(
+                    text(
+                        """
+                    SELECT COUNT(*) as count
+                    FROM quality_alerts qa
+                    WHERE qa.organization_id = CAST(:org_id AS UUID)
+                        AND qa.status = 'active'
+                """
                     ),
                     {"org_id": organization_id},
-                ).scalar()
-                or 0
-            )
+                )
+                active_alerts = alerts_result.scalar() or 0
 
-            # Get trends (compare to previous period)
-            previous_cutoff = cutoff_date - timedelta(
-                days=self._get_days_for_range(time_range)
-            )
-            trends = await self._calculate_quality_trends(
-                organization_id, cutoff_date, previous_cutoff
-            )
+                # Get trends (compare to previous period)
+                previous_cutoff = cutoff_date - timedelta(
+                    days=self._get_days_for_range(time_range)
+                )
+                trends = await self._calculate_quality_trends(
+                    db, organization_id, cutoff_date, previous_cutoff
+                )
 
-            return QualityMetricsSummary(
-                overall_score=overall_score,
-                precision_avg=precision_avg,
-                recall_avg=recall_avg,
-                relevance_avg=relevance_avg,
-                user_satisfaction=user_satisfaction,
-                active_alerts=active_alerts,
-                trends=trends,
-                top_issues=[],  # TODO: Implement issue detection
-            )
+                return QualityMetricsSummary(
+                    overall_score=overall_score,
+                    precision_avg=precision_avg,
+                    recall_avg=recall_avg,
+                    relevance_avg=relevance_avg,
+                    user_satisfaction=user_satisfaction,
+                    active_alerts=active_alerts,
+                    trends=trends,
+                    top_issues=[],
+                )
 
-        except Exception as e:
-            logger.error(f"Failed to get quality metrics summary: {e}")
-            raise
-        finally:
-            db.close()
+            except Exception as e:
+                logger.error(f"Failed to get quality metrics summary: {e}")
+                raise
 
     async def get_user_engagement_metrics(
         self, organization_id: str, time_range: MetricTimeRange
     ) -> UserEngagementMetrics:
         """Get user engagement metrics"""
 
-        db = next(get_db_sync())
-        try:
-            cutoff_date = self._get_cutoff_date(time_range)
+        async with get_async_session() as db:
+            try:
+                cutoff_date = self._get_cutoff_date(time_range)
 
-            # Get user engagement data
-            engagement_data = db.execute(
-                text(
-                    """
-                SELECT
-                    COUNT(DISTINCT sq.user_id) as active_users,
-                    COUNT(DISTINCT sq.session_id) as total_sessions,
-                    0 as avg_duration,
-                    COUNT(sq.id) as total_searches
-                FROM search_queries sq
-                WHERE sq.organization_id = CAST(:org_id AS UUID)
-                    AND sq.created_at >= :cutoff_date
-            """
-                ),
-                {"org_id": organization_id, "cutoff_date": cutoff_date},
-            ).fetchone()
+                # Get user engagement data
+                engagement_result = await db.execute(
+                    text(
+                        """
+                    SELECT
+                        COUNT(DISTINCT sq.user_id) as active_users,
+                        COUNT(DISTINCT sq.session_id) as total_sessions,
+                        0 as avg_duration,
+                        COUNT(sq.id) as total_searches
+                    FROM search_queries sq
+                    WHERE sq.organization_id = CAST(:org_id AS UUID)
+                        AND sq.created_at >= :cutoff_date
+                """
+                    ),
+                    {"org_id": organization_id, "cutoff_date": cutoff_date},
+                )
+                engagement_data = engagement_result.fetchone()
 
-            # Get top users
-            top_users = db.execute(
-                text(
-                    """
-                SELECT
-                    u.id,
-                    u.first_name,
-                    u.last_name,
-                    COUNT(DISTINCT sq.session_id) as session_count,
-                    COUNT(sq.id) as search_count,
-                    AVG(sq.search_duration_ms) as avg_response_time
-                FROM users u
-                LEFT JOIN search_queries sq ON u.id = sq.user_id
-                WHERE u.organization_id = CAST(:org_id AS UUID)
-                    AND sq.created_at >= :cutoff_date
-                GROUP BY u.id, u.first_name, u.last_name
-                ORDER BY search_count DESC
-                LIMIT 10
-            """
-                ),
-                {"org_id": organization_id, "cutoff_date": cutoff_date},
-            ).fetchall()
+                # Get top users
+                top_result = await db.execute(
+                    text(
+                        """
+                    SELECT
+                        u.id,
+                        u.first_name,
+                        u.last_name,
+                        COUNT(DISTINCT sq.session_id) as session_count,
+                        COUNT(sq.id) as search_count,
+                        AVG(sq.search_duration_ms) as avg_response_time
+                    FROM users u
+                    LEFT JOIN search_queries sq ON u.id = sq.user_id
+                    WHERE u.organization_id = CAST(:org_id AS UUID)
+                        AND sq.created_at >= :cutoff_date
+                    GROUP BY u.id, u.first_name, u.last_name
+                    ORDER BY search_count DESC
+                    LIMIT 10
+                """
+                    ),
+                    {"org_id": organization_id, "cutoff_date": cutoff_date},
+                )
+                top_users = top_result.fetchall()
 
-            # Calculate metrics
-            active_users = engagement_data.active_users or 0
-            total_sessions = engagement_data.total_sessions or 0
-            avg_session_duration = float(engagement_data.avg_duration or 0)
-            total_searches = engagement_data.total_searches or 0
-            searches_per_user = total_searches / active_users if active_users > 0 else 0
+                # Calculate metrics
+                active_users = engagement_data.active_users or 0
+                total_sessions = engagement_data.total_sessions or 0
+                avg_session_duration = float(engagement_data.avg_duration or 0)
+                total_searches = engagement_data.total_searches or 0
+                searches_per_user = (
+                    total_searches / active_users if active_users > 0 else 0
+                )
 
-            # Determine engagement trend
-            engagement_trend = await self._calculate_engagement_trend(
-                organization_id, cutoff_date, time_range
-            )
+                # Determine engagement trend (reuse the same session)
+                engagement_trend = await self._calculate_engagement_trend(
+                    db, organization_id, cutoff_date, time_range
+                )
 
-            return UserEngagementMetrics(
-                active_users=active_users,
-                total_sessions=total_sessions,
-                avg_session_duration=avg_session_duration,
-                searches_per_user=searches_per_user,
-                top_users=[
-                    {
-                        "user_id": str(u.id),
-                        "name": f"{u.first_name} {u.last_name}",
-                        "session_count": u.session_count,
-                        "search_count": u.search_count,
-                        "avg_response_time": float(u.avg_response_time or 0),
-                    }
-                    for u in top_users
-                ],
-                engagement_trend=engagement_trend,
-            )
+                return UserEngagementMetrics(
+                    active_users=active_users,
+                    total_sessions=total_sessions,
+                    avg_session_duration=avg_session_duration,
+                    searches_per_user=searches_per_user,
+                    top_users=[
+                        {
+                            "user_id": str(u.id),
+                            "name": f"{u.first_name} {u.last_name}",
+                            "session_count": u.session_count,
+                            "search_count": u.search_count,
+                            "avg_response_time": float(u.avg_response_time or 0),
+                        }
+                        for u in top_users
+                    ],
+                    engagement_trend=engagement_trend,
+                )
 
-        except Exception as e:
-            logger.error(f"Failed to get user engagement metrics: {e}")
-            raise
-        finally:
-            db.close()
+            except Exception as e:
+                logger.error(f"Failed to get user engagement metrics: {e}")
+                raise
 
     async def get_active_alerts(self, organization_id: str) -> List[Dict[str, Any]]:
         """Get active alerts for the organization"""
 
-        db = next(get_db_sync())
-        try:
-            alerts = db.execute(
-                text(
-                    """
-                SELECT
-                    qa.id,
-                    qa.severity,
-                    qa.title,
-                    qa.message,
-                    qa.created_at,
-                    qa.metric_id,
-                    qm.metric_type,
-                    qm.value as current_value
-                FROM quality_alerts qa
-                LEFT JOIN quality_metrics qm ON qa.metric_id = qm.id
-                WHERE qa.organization_id = CAST(:org_id AS UUID)
-                    AND qa.status = 'active'
-                ORDER BY qa.severity DESC, qa.created_at DESC
-                LIMIT 50
-            """
-                ),
-                {"org_id": organization_id},
-            ).fetchall()
+        async with get_async_session() as db:
+            try:
+                result = await db.execute(
+                    text(
+                        """
+                    SELECT
+                        qa.id,
+                        qa.severity,
+                        qa.title,
+                        qa.message,
+                        qa.created_at,
+                        qa.metric_id,
+                        qm.metric_type,
+                        qm.value as current_value
+                    FROM quality_alerts qa
+                    LEFT JOIN quality_metrics qm ON qa.metric_id = qm.id
+                    WHERE qa.organization_id = CAST(:org_id AS UUID)
+                        AND qa.status = 'active'
+                    ORDER BY qa.severity DESC, qa.created_at DESC
+                    LIMIT 50
+                """
+                    ),
+                    {"org_id": organization_id},
+                )
+                alerts = result.fetchall()
 
-            return [
-                {
-                    "id": str(alert.id),
-                    "severity": alert.severity,
-                    "title": alert.title,
-                    "message": alert.message,
-                    "created_at": alert.created_at.isoformat(),
-                    "metric_type": alert.metric_type,
-                    "current_value": float(alert.current_value or 0),
-                }
-                for alert in alerts
-            ]
+                return [
+                    {
+                        "id": str(alert.id),
+                        "severity": alert.severity,
+                        "title": alert.title,
+                        "message": alert.message,
+                        "created_at": alert.created_at.isoformat(),
+                        "metric_type": alert.metric_type,
+                        "current_value": float(alert.current_value or 0),
+                    }
+                    for alert in alerts
+                ]
 
-        except Exception as e:
-            logger.error(f"Failed to get active alerts: {e}")
-            return []
-        finally:
-            db.close()
+            except Exception as e:
+                logger.error(f"Failed to get active alerts: {e}")
+                return []
 
     async def get_metric_chart_data(
         self,
@@ -635,102 +635,105 @@ class PerformanceDashboardService:
     ) -> List[Dict[str, Any]]:
         """Get time-series data for metric charts"""
 
-        db = next(get_db_sync())
-        try:
-            cutoff_date = self._get_cutoff_date(time_range)
+        async with get_async_session() as db:
+            try:
+                cutoff_date = self._get_cutoff_date(time_range)
 
-            # Determine granularity based on time range
-            if time_range in [MetricTimeRange.LAST_HOUR, MetricTimeRange.LAST_24H]:
-                granularity = "hour"
-            elif time_range == MetricTimeRange.LAST_7D:
-                granularity = "day"
-            else:
-                granularity = "week"
+                # Determine granularity based on time range
+                if time_range in [MetricTimeRange.LAST_HOUR, MetricTimeRange.LAST_24H]:
+                    granularity = "hour"
+                elif time_range == MetricTimeRange.LAST_7D:
+                    granularity = "day"
+                else:
+                    granularity = "week"
 
-            # Get aggregated metric data
-            if metric_name == "search_volume":
-                data = db.execute(
-                    text(  # nosec: B608 - granularity constrained to enum-derived literal values
-                        f"""
-                    SELECT
-                        DATE_TRUNC('{granularity}', created_at) as period,
-                        COUNT(id) as value
-                    FROM search_queries
-                    WHERE organization_id = CAST(:org_id AS UUID)
-                        AND created_at >= :cutoff_date
-                    GROUP BY period
-                    ORDER BY period
-                """
-                    ),
-                    {"org_id": organization_id, "cutoff_date": cutoff_date},
-                ).fetchall()
-            elif metric_name == "response_time":
-                data = db.execute(
-                    text(  # nosec: B608 - granularity constrained to enum-derived literal values
-                        f"""
-                    SELECT
-                        DATE_TRUNC('{granularity}', created_at) as period,
-                        AVG(search_duration_ms) as value
-                    FROM search_queries
-                    WHERE organization_id = CAST(:org_id AS UUID)
-                        AND created_at >= :cutoff_date
-                        AND search_duration_ms IS NOT NULL
-                    GROUP BY period
-                    ORDER BY period
-                """
-                    ),
-                    {"org_id": organization_id, "cutoff_date": cutoff_date},
-                ).fetchall()
-            elif metric_name == "quality_score":
-                data = db.execute(
-                    text(  # nosec: B608 - granularity constrained to enum-derived literal values
-                        f"""
-                    SELECT
-                        DATE_TRUNC('{granularity}', qm.created_at) as period,
-                        AVG(qm.value) as value
-                    FROM quality_metrics qm
-                    WHERE qm.organization_id = CAST(:org_id AS UUID)
-                        AND qm.created_at >= :cutoff_date
-                        AND qm.metric_type = 'relevance'
-                    GROUP BY period
-                    ORDER BY period
-                """
-                    ),
-                    {"org_id": organization_id, "cutoff_date": cutoff_date},
-                ).fetchall()
-            else:
-                # Default to system metrics
-                data = db.execute(
-                    text(  # nosec: B608 - granularity constrained to enum-derived literal values
-                        f"""
-                    SELECT
-                        DATE_TRUNC('{granularity}', sm.created_at) as period,
-                        AVG(sm.metric_value) as value
-                    FROM system_metrics sm
-                    WHERE sm.organization_id = CAST(:org_id AS UUID)
-                        AND sm.created_at >= :cutoff_date
-                        AND sm.metric_name = :metric_name
-                    GROUP BY period
-                    ORDER BY period
-                """
-                    ),
+                # Get aggregated metric data
+                if metric_name == "search_volume":
+                    result = await db.execute(
+                        text(  # nosec: B608 - granularity constrained to enum-derived literal values
+                            f"""
+                        SELECT
+                            DATE_TRUNC('{granularity}', created_at) as period,
+                            COUNT(id) as value
+                        FROM search_queries
+                        WHERE organization_id = CAST(:org_id AS UUID)
+                            AND created_at >= :cutoff_date
+                        GROUP BY period
+                        ORDER BY period
+                    """
+                        ),
+                        {"org_id": organization_id, "cutoff_date": cutoff_date},
+                    )
+                elif metric_name == "response_time":
+                    result = await db.execute(
+                        text(  # nosec: B608 - granularity constrained to enum-derived literal values
+                            f"""
+                        SELECT
+                            DATE_TRUNC('{granularity}', created_at) as period,
+                            AVG(search_duration_ms) as value
+                        FROM search_queries
+                        WHERE organization_id = CAST(:org_id AS UUID)
+                            AND created_at >= :cutoff_date
+                            AND search_duration_ms IS NOT NULL
+                        GROUP BY period
+                        ORDER BY period
+                    """
+                        ),
+                        {"org_id": organization_id, "cutoff_date": cutoff_date},
+                    )
+                elif metric_name == "quality_score":
+                    result = await db.execute(
+                        text(  # nosec: B608 - granularity constrained to enum-derived literal values
+                            f"""
+                        SELECT
+                            DATE_TRUNC('{granularity}', qm.created_at) as period,
+                            AVG(qm.value) as value
+                        FROM quality_metrics qm
+                        WHERE qm.organization_id = CAST(:org_id AS UUID)
+                            AND qm.created_at >= :cutoff_date
+                            AND qm.metric_type = 'relevance'
+                        GROUP BY period
+                        ORDER BY period
+                    """
+                        ),
+                        {"org_id": organization_id, "cutoff_date": cutoff_date},
+                    )
+                else:
+                    # Default to system metrics
+                    result = await db.execute(
+                        text(  # nosec: B608 - granularity constrained to enum-derived literal values
+                            f"""
+                        SELECT
+                            DATE_TRUNC('{granularity}', sm.created_at) as period,
+                            AVG(sm.metric_value) as value
+                        FROM system_metrics sm
+                        WHERE sm.organization_id = CAST(:org_id AS UUID)
+                            AND sm.created_at >= :cutoff_date
+                            AND sm.metric_name = :metric_name
+                        GROUP BY period
+                        ORDER BY period
+                    """
+                        ),
+                        {
+                            "org_id": organization_id,
+                            "cutoff_date": cutoff_date,
+                            "metric_name": metric_name,
+                        },
+                    )
+
+                data = result.fetchall()
+
+                return [
                     {
-                        "org_id": organization_id,
-                        "cutoff_date": cutoff_date,
-                        "metric_name": metric_name,
-                    },
-                ).fetchall()
+                        "timestamp": row.period.isoformat(),
+                        "value": float(row.value or 0),
+                    }
+                    for row in data
+                ]
 
-            return [
-                {"timestamp": row.period.isoformat(), "value": float(row.value or 0)}
-                for row in data
-            ]
-
-        except Exception as e:
-            logger.error(f"Failed to get metric chart data: {e}")
-            return []
-        finally:
-            db.close()
+            except Exception as e:
+                logger.error(f"Failed to get metric chart data: {e}")
+                return []
 
     async def create_dashboard_widgets(
         self, organization_id: str, widget_configs: List[Dict[str, Any]]
@@ -816,10 +819,9 @@ class PerformanceDashboardService:
         elif widget_type == "pie_chart":
             # Distribution data
             if metrics[0] == "search_types":
-                db = next(get_db_sync())
-                try:
+                async with get_async_session() as db:
                     cutoff_date = self._get_cutoff_date(time_range)
-                    data = db.execute(
+                    result = await db.execute(
                         text(
                             """
                         SELECT
@@ -833,14 +835,13 @@ class PerformanceDashboardService:
                     """
                         ),
                         {"org_id": organization_id, "cutoff_date": cutoff_date},
-                    ).fetchall()
+                    )
+                    data = result.fetchall()
 
                     return {
                         "labels": [row.search_type for row in data],
                         "values": [row.count for row in data],
                     }
-                finally:
-                    db.close()
 
         elif widget_type == "table":
             # Tabular data
@@ -883,103 +884,92 @@ class PerformanceDashboardService:
     async def _get_response_time_metrics(self) -> Dict[str, float]:
         """Get response time metrics from recent searches"""
 
-        db = next(get_db_sync())
-        try:
-            # Get recent response times
-            response_times = db.execute(
-                text(
-                    """
-                SELECT search_duration_ms
-                FROM search_queries
-                WHERE created_at >= NOW() - INTERVAL '1 hour'
-                    AND search_duration_ms IS NOT NULL
-                ORDER BY search_duration_ms
-            """
+        async with get_async_session() as db:
+            try:
+                result = await db.execute(
+                    text(
+                        """
+                    SELECT
+                        percentile_cont(0.5) WITHIN GROUP (ORDER BY search_duration_ms) as p50,
+                        percentile_cont(0.95) WITHIN GROUP (ORDER BY search_duration_ms) as p95
+                    FROM search_queries
+                    WHERE created_at >= NOW() - INTERVAL '1 hour'
+                        AND search_duration_ms IS NOT NULL
+                """
+                    )
                 )
-            ).fetchall()
+                row = result.fetchone()
 
-            if not response_times:
+                if not row or row.p50 is None:
+                    return {"p50": 0.0, "p95": 0.0}
+
+                return {
+                    "p50": float(row.p50),
+                    "p95": float(row.p95),
+                }
+
+            except Exception as e:
+                logger.error(f"Failed to get response time metrics: {e}")
                 return {"p50": 0.0, "p95": 0.0}
-
-            times = [row[0] for row in response_times]
-
-            # Calculate percentiles
-            p50_index = int(len(times) * 0.5)
-            p95_index = int(len(times) * 0.95)
-
-            return {
-                "p50": times[p50_index] if p50_index < len(times) else times[-1],
-                "p95": times[p95_index] if p95_index < len(times) else times[-1],
-            }
-
-        except Exception as e:
-            logger.error(f"Failed to get response time metrics: {e}")
-            return {"p50": 0.0, "p95": 0.0}
-        finally:
-            db.close()
 
     async def _get_error_rate(self) -> float:
         """Get current error rate - currently returns 0 as error tracking is not implemented"""
 
-        db = next(get_db_sync())
-        try:
-            result = db.execute(
-                text(
-                    """
-                SELECT
-                    0 as errors,
-                    COUNT(*) as total
-                FROM search_queries
-                WHERE created_at >= NOW() - INTERVAL '1 hour'
-            """
+        async with get_async_session() as db:
+            try:
+                result = await db.execute(
+                    text(
+                        """
+                    SELECT
+                        0 as errors,
+                        COUNT(*) as total
+                    FROM search_queries
+                    WHERE created_at >= NOW() - INTERVAL '1 hour'
+                """
+                    )
                 )
-            ).fetchone()
+                row = result.fetchone()
 
-            if result.total == 0:
+                if row.total == 0:
+                    return 0.0
+
+                return (row.errors / row.total) * 100
+
+            except Exception as e:
+                logger.error(f"Failed to get error rate: {e}")
                 return 0.0
-
-            return (result.errors / result.total) * 100
-
-        except Exception as e:
-            logger.error(f"Failed to get error rate: {e}")
-            return 0.0
-        finally:
-            db.close()
 
     async def _get_active_connections(self) -> int:
         """Get estimated active connections"""
 
-        # This is a simplified estimate - in production you'd use proper connection tracking
-        db = next(get_db_sync())
-        try:
-            result = db.execute(
-                text(
-                    """
-                SELECT COUNT(DISTINCT session_id) as active_sessions
-                FROM search_sessions
-                WHERE start_time >= NOW() - INTERVAL '30 minutes'
-                    AND end_time IS NULL
-            """
+        async with get_async_session() as db:
+            try:
+                result = await db.execute(
+                    text(
+                        """
+                    SELECT COUNT(DISTINCT session_id) as active_sessions
+                    FROM search_sessions
+                    WHERE start_time >= NOW() - INTERVAL '30 minutes'
+                        AND end_time IS NULL
+                """
+                    )
                 )
-            ).fetchone()
+                row = result.fetchone()
 
-            return result.active_sessions or 0
+                return row.active_sessions or 0
 
-        except Exception as e:
-            logger.error(f"Failed to get active connections: {e}")
-            return 0
-        finally:
-            db.close()
+            except Exception as e:
+                logger.error(f"Failed to get active connections: {e}")
+                return 0
 
     async def _calculate_quality_trends(
-        self, organization_id: str, current_cutoff: datetime, previous_cutoff: datetime
+        self, db, organization_id: str, current_cutoff: datetime, previous_cutoff: datetime
     ) -> Dict[str, float]:
-        """Calculate quality metric trends"""
+        """Calculate quality metric trends. Accepts an existing async session."""
 
-        db = next(get_db_sync())
         try:
             # Current period metrics
-            current_metrics = db.execute(
+            current_result = await db.execute(
                 text(
                     """
                 SELECT
@@ -992,10 +982,11 @@ class PerformanceDashboardService:
             """
                 ),
                 {"org_id": organization_id, "cutoff_date": current_cutoff},
-            ).fetchall()
+            )
+            current_metrics = current_result.fetchall()
 
             # Previous period metrics
-            previous_metrics = db.execute(
+            previous_result = await db.execute(
                 text(
                     """
                 SELECT
@@ -1013,7 +1004,8 @@ class PerformanceDashboardService:
                     "prev_cutoff": previous_cutoff,
                     "current_cutoff": current_cutoff,
                 },
-            ).fetchall()
+            )
+            previous_metrics = previous_result.fetchall()
 
             # Calculate trends
             current_by_type = {
@@ -1037,18 +1029,15 @@ class PerformanceDashboardService:
         except Exception as e:
             logger.error(f"Failed to calculate quality trends: {e}")
             return {}
-        finally:
-            db.close()
 
     async def _calculate_engagement_trend(
-        self, organization_id: str, cutoff_date: datetime, time_range: MetricTimeRange
+        self, db, organization_id: str, cutoff_date: datetime, time_range: MetricTimeRange
     ) -> str:
-        """Calculate engagement trend"""
+        """Calculate engagement trend. Accepts an existing async session."""
 
-        db = next(get_db_sync())
         try:
             # Current period
-            current_data = db.execute(
+            current_result = await db.execute(
                 text(
                     """
                 SELECT COUNT(DISTINCT user_id) as active_users
@@ -1058,13 +1047,14 @@ class PerformanceDashboardService:
             """
                 ),
                 {"org_id": organization_id, "cutoff_date": cutoff_date},
-            ).fetchone()
+            )
+            current_data = current_result.fetchone()
 
             # Previous period (same duration)
             days = self._get_days_for_range(time_range)
             prev_cutoff = cutoff_date - timedelta(days=days)
 
-            previous_data = db.execute(
+            previous_result = await db.execute(
                 text(
                     """
                 SELECT COUNT(DISTINCT user_id) as active_users
@@ -1079,7 +1069,8 @@ class PerformanceDashboardService:
                     "prev_cutoff": prev_cutoff,
                     "cutoff_date": cutoff_date,
                 },
-            ).fetchone()
+            )
+            previous_data = previous_result.fetchone()
 
             current_users = current_data.active_users or 0
             previous_users = previous_data.active_users or 0
@@ -1094,8 +1085,6 @@ class PerformanceDashboardService:
         except Exception as e:
             logger.error(f"Failed to calculate engagement trend: {e}")
             return "stable"
-        finally:
-            db.close()
 
 
 class SystemMonitor:
