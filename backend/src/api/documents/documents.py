@@ -305,11 +305,12 @@ async def list_documents(
 
         if search:
             search_pattern = f"%{_escape_like(search)}%"
+            # Use ILIKE for title/filename and TSVECTOR for content search
             conditions.append(
                 or_(
                     Document.title.ilike(search_pattern),
                     Document.filename.ilike(search_pattern),
-                    Document.content_text.ilike(search_pattern),
+                    Document.search_vector.match(search),
                 )
             )
 
@@ -864,14 +865,13 @@ async def search_documents(
             Document.is_deleted == False,
         ]
 
-        # Apply text search
+        # Apply text search — use ILIKE for title/filename and TSVECTOR for content
         search_pattern = f"%{_escape_like(query)}%"
         conditions.append(
             or_(
                 Document.title.ilike(search_pattern),
                 Document.filename.ilike(search_pattern),
-                Document.content_text.ilike(search_pattern),
-                Document.content_summary.ilike(search_pattern),
+                Document.search_vector.match(query),
             )
         )
 
