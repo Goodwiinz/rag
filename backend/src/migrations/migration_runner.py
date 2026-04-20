@@ -97,7 +97,7 @@ class MigrationRunner:
 
             if not migration_results["database_migration"]["migration_applied"]:
                 logger.error(
-                    "Database schema migration has not been applied. Please run: alembic upgrade head"
+                    "Database schema migration has not been applied. Please run: alembic upgrade heads"
                 )
                 raise Exception("Schema migration required but not applied")
 

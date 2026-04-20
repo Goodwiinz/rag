@@ -22,7 +22,7 @@ echo "All dependencies ready!"
 
 # Run database migrations if needed
 echo "Running database migrations..."
-python -m alembic upgrade head || echo "Migration completed or not needed"
+python -m alembic upgrade heads || echo "Migration completed or not needed"
 
 # Create logs directory
 mkdir -p logs
