@@ -5,6 +5,7 @@ that build on the existing integration conftest (test_db, test_user, etc.).
 """
 
 import uuid
+from contextlib import contextmanager
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
@@ -139,14 +140,41 @@ def mock_execute_tool():
 # ---------------------------------------------------------------------------
 
 
+@contextmanager
 def compile_graph_with_mocks(mock_llm_instance, mock_tool_fn):
-    """Compile the agent graph with all external deps patched."""
+    """Compile the agent graph with all external deps patched.
+
+    Yields a compiled graph while the patches remain active. The graph must
+    be ``ainvoke()``'d **inside** the ``with`` block — the LLM builder
+    functions are consulted at invocation time, not compile time, and at
+    least four modules (``graph``, ``classifier``, ``planner``,
+    ``compactor``) construct their own Azure LLM. All four are patched
+    here so tests never hit the real Azure endpoint.
+    """
     from langgraph.checkpoint.memory import MemorySaver
 
     with (
-        patch("src.services.agent.graph._build_llm", return_value=mock_llm_instance),
+        patch(
+            "src.services.agent.graph._build_llm",
+            return_value=mock_llm_instance,
+        ),
+        patch(
+            "src.services.agent.classifier._build_classifier_llm",
+            return_value=mock_llm_instance,
+        ),
+        patch(
+            "src.services.agent.planner._build_planner_llm",
+            return_value=mock_llm_instance,
+        ),
+        patch(
+            "src.services.agent.compactor._build_compactor_llm",
+            return_value=mock_llm_instance,
+        ),
         patch("src.services.agent.graph.execute_tool", new=mock_tool_fn),
-        patch("src.services.agent.graph._get_execute_tool", return_value=mock_tool_fn),
+        patch(
+            "src.services.agent.graph._get_execute_tool",
+            return_value=mock_tool_fn,
+        ),
         patch(
             "src.services.agent.graph.memory_retrieval_node",
             new=AsyncMock(return_value={"user_memories": []}),
@@ -162,13 +190,14 @@ def compile_graph_with_mocks(mock_llm_instance, mock_tool_fn):
     ):
         from src.services.agent.graph import compile_agent_graph
 
-        return compile_agent_graph(checkpointer=MemorySaver())
+        yield compile_agent_graph(checkpointer=MemorySaver())
 
 
 @pytest_asyncio.fixture
 async def compiled_graph(mock_llm, mock_execute_tool):
     """Compiled agent graph with mocked LLM, tools, RAG, memory."""
-    return compile_graph_with_mocks(mock_llm, mock_execute_tool)
+    with compile_graph_with_mocks(mock_llm, mock_execute_tool) as graph:
+        yield graph
 
 
 # ---------------------------------------------------------------------------
