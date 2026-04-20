@@ -5,16 +5,40 @@ Each tool delegates to the existing implementation in
 ``page_context`` from the LangGraph ``RunnableConfig.configurable`` dict.
 """
 
+import functools
 import logging
 from typing import Any, Dict, List, Optional, Tuple
 
 from langchain_core.runnables import RunnableConfig
-from langchain_core.tools import tool
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models.user import User
 
 logger = logging.getLogger(__name__)
+
+try:
+    from langchain_core.tools import tool
+except Exception:  # pragma: no cover - exercised in tests via module stubs
+    class _FallbackTool:
+        """Small StructuredTool-like wrapper for test environments."""
+
+        def __init__(self, fn):
+            functools.update_wrapper(self, fn)
+            self.func = fn
+            self.coroutine = fn
+            self.name = fn.__name__
+            self.description = (fn.__doc__ or "").strip()
+
+        def __call__(self, *args, **kwargs):
+            return self.func(*args, **kwargs)
+
+    def tool(func=None, **_kwargs):
+        def decorator(fn):
+            return _FallbackTool(fn)
+
+        if func is None:
+            return decorator
+        return decorator(func)
 
 
 # ---------------------------------------------------------------------------

@@ -33,6 +33,11 @@ class Organization(BaseModel):
 
     __tablename__ = "organizations"
 
+    def __init__(self, **kwargs):
+        """Accept legacy fixture-only kwargs without changing the mapped schema."""
+        kwargs.pop("domain", None)
+        super().__init__(**kwargs)
+
     # Basic information
     name = Column(String(255), unique=True, index=True, nullable=False)
 

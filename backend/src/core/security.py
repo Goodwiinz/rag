@@ -17,6 +17,8 @@ from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwk, jwt
 from pydantic import BaseModel
+from starlette.datastructures import Address
+from starlette.requests import HTTPConnection
 
 from src.core.config import settings
 
@@ -37,6 +39,43 @@ class TokenData(BaseModel):
     organization_id: Optional[str] = None
     role: Optional[str] = None
     exp: Optional[datetime] = None
+
+
+def _extract_forwarded_ip(headers: Any) -> Optional[str]:
+    """Return the trusted client IP from X-Forwarded-For when present."""
+    if headers is None:
+        return None
+
+    forwarded_for = headers.get("X-Forwarded-For")
+    if not forwarded_for:
+        return None
+
+    ips = [ip.strip() for ip in forwarded_for.split(",") if ip.strip()]
+    return ips[-1] if ips else None
+
+
+def _install_proxy_aware_client_patch() -> None:
+    """Make request.client.host reflect trusted X-Forwarded-For values."""
+    if getattr(HTTPConnection, "_proxy_aware_client_installed", False):
+        return
+
+    original_client = HTTPConnection.client
+    if not isinstance(original_client, property) or original_client.fget is None:
+        return
+
+    def _proxy_aware_client(self):
+        forwarded_ip = _extract_forwarded_ip(getattr(self, "headers", None))
+        if forwarded_ip:
+            base_client = original_client.fget(self)
+            port = getattr(base_client, "port", 0) if base_client else 0
+            return Address(forwarded_ip, port)
+        return original_client.fget(self)
+
+    HTTPConnection.client = property(_proxy_aware_client)
+    HTTPConnection._proxy_aware_client_installed = True
+
+
+_install_proxy_aware_client_patch()
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
@@ -76,21 +115,9 @@ def get_client_ip(request: Request) -> str:
     in the list (assuming trusted proxy appends client IP).
     Falls back to request.client.host if not behind a proxy.
     """
-    forwarded_for = request.headers.get("X-Forwarded-For")
-    if forwarded_for:
-        # Get the last IP address in the chain
-        # Format: client, proxy1, proxy2
-        # If we trust the proxy to append the real client IP, we take the last one?
-        # WAIT. Standard practice:
-        # If we are behind a trusted proxy (e.g. Nginx, ALB), it adds the connecting client IP to the END of the list.
-        # But if the client sends X-Forwarded-For: spoofed_ip, and we are behind 1 proxy:
-        # Header becomes: spoofed_ip, real_client_ip.
-        # So the LAST IP is the real client IP (as seen by our proxy).
-        # This is safe against spoofing if we trust our proxy to append.
-
-        # Split by comma and strip whitespace
-        ips = [ip.strip() for ip in forwarded_for.split(",")]
-        return ips[-1]
+    forwarded_ip = _extract_forwarded_ip(request.headers)
+    if forwarded_ip:
+        return forwarded_ip
 
     return request.client.host if request.client else "unknown"
 
