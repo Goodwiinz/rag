@@ -142,9 +142,12 @@ async def lifespan(app: FastAPI):
     # Startup
     logger.info("Starting up Multimodal RAG System...")
 
-    # Create database tables (skip in production — migrations handle schema)
+    # Create database tables only for local Docker Compose development.
+    # Any deployed cluster (dev/staging/production) relies on Alembic migrations —
+    # running create_all there grabs session-mode pooler connections on every worker
+    # boot and can exhaust Supabase's session-mode pool.
     environment = os.environ.get("ENVIRONMENT", "development")
-    if environment not in ("production", "staging"):
+    if environment == "development":
         try:
             Base.metadata.create_all(bind=engine)
             logger.info("Database tables created successfully")
@@ -155,7 +158,10 @@ async def lifespan(app: FastAPI):
                 logger.error(f"Failed to create database tables: {e}")
                 raise
     else:
-        logger.info(f"Skipping create_all in {environment} (managed by migrations)")
+        logger.info(
+            "Skipping create_all in %s (Alembic migrations are authoritative)",
+            environment,
+        )
 
     # Check Redis connection
     if redis_client:
