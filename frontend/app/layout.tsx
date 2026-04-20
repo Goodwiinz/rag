@@ -6,6 +6,7 @@ import {
   Source_Serif_4,
 } from 'next/font/google';
 import './globals.css';
+import './nous-tokens.css';
 import { Providers } from './providers';
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });

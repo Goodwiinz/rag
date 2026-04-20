@@ -1,0 +1,210 @@
+/* ============================================================
+   NOUS Design System — Colors & Type tokens
+   Sourced from ui_kits/frontend design package (2026-04-17).
+   Additive to globals.css; introduces --nous-* brand vars only.
+   ============================================================ */
+
+:root {
+  /* Planetary palette — Light */
+  --nous-erebus: #0a0a0e;
+  --nous-selene: #f7f7f5;
+  --nous-sol: #d4a039;
+  --nous-helios: #e8b84a;
+  --nous-apollo: #f5d680;
+  --nous-aurum: #fdf6e3;
+  --nous-titan: #4a4a4e;
+  --nous-charon: #9a9a9e;
+  --nous-enceladus: #e2e2e0;
+  --nous-terra: #34d399;
+  --nous-corona: #f59e0b;
+  --nous-mars: #ef4444;
+  --nous-sol-safe: #996d1a;
+
+  /* Semantic fg/bg */
+  --nous-fg-1: var(--nous-erebus);
+  --nous-fg-2: var(--nous-titan);
+  --nous-fg-3: var(--nous-charon);
+  --nous-fg-accent: var(--nous-sol);
+  --nous-fg-accent-safe: var(--nous-sol-safe);
+
+  --nous-bg-1: var(--nous-selene);
+  --nous-bg-2: #ffffff;
+  --nous-bg-3: var(--nous-aurum);
+
+  --nous-border-1: var(--nous-enceladus);
+  --nous-border-2: #d4d4d0;
+
+  /* Dark — warm amber depth stack */
+  --nous-nyx: #141210;
+  --nous-obsidian: #1e1b17;
+  --nous-umber: #28241e;
+  --nous-sepia: #332e26;
+  --nous-dusk: #3d372e;
+  --nous-ivory: #f5f0e8;
+  --nous-parchment: #c8bfa8;
+  --nous-dust: #8a8070;
+  --nous-clay: #524c42;
+  --nous-shade: #2a261f;
+  --nous-ember: rgba(212, 160, 57, 0.1);
+
+  /* Type */
+  --nous-font-heading: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --nous-font-body: 'Source Serif 4', Georgia, 'Times New Roman', serif;
+  --nous-font-ui: 'Inter', -apple-system, sans-serif;
+  --nous-font-mono: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
+
+  /* Radii */
+  --nous-radius-sm: 4px;
+  --nous-radius-md: 8px;
+  --nous-radius-lg: 12px;
+  --nous-radius-xl: 16px;
+  --nous-radius-2xl: 24px;
+
+  /* Shadows */
+  --nous-shadow-sm: 0 1px 2px rgba(10, 10, 14, 0.04);
+  --nous-shadow-md: 0 4px 12px rgba(10, 10, 14, 0.06);
+  --nous-shadow-lg: 0 8px 30px rgba(10, 10, 14, 0.08);
+  --nous-shadow-xl: 0 20px 60px rgba(10, 10, 14, 0.15);
+  --nous-shadow-focus: 0 0 0 3px rgba(212, 160, 57, 0.25);
+
+  /* Motion */
+  --nous-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --nous-ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+}
+
+[data-theme='dark'],
+.dark {
+  --nous-fg-1: var(--nous-ivory);
+  --nous-fg-2: var(--nous-parchment);
+  --nous-fg-3: var(--nous-dust);
+  --nous-fg-accent: var(--nous-helios);
+  --nous-fg-accent-safe: var(--nous-helios);
+
+  --nous-bg-1: var(--nous-nyx);
+  --nous-bg-2: var(--nous-obsidian);
+  --nous-bg-3: var(--nous-umber);
+
+  --nous-border-1: var(--nous-shade);
+  --nous-border-2: var(--nous-dusk);
+}
+
+/* ─── Semantic type helpers (namespaced to avoid colliding with app utilities) ─── */
+.nous-display {
+  font-family: var(--nous-font-heading);
+  font-weight: 700;
+  font-size: 4.5rem;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+  color: var(--nous-fg-1);
+}
+
+.nous-h1 {
+  font-family: var(--nous-font-heading);
+  font-weight: 700;
+  font-size: 2.5rem;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  color: var(--nous-fg-1);
+}
+
+.nous-h2 {
+  font-family: var(--nous-font-heading);
+  font-weight: 600;
+  font-size: 1.75rem;
+  letter-spacing: -0.02em;
+  line-height: 1.3;
+  color: var(--nous-fg-1);
+}
+
+.nous-h3 {
+  font-family: var(--nous-font-heading);
+  font-weight: 600;
+  font-size: 1.15rem;
+  line-height: 1.3;
+  color: var(--nous-fg-1);
+}
+
+.nous-body {
+  font-family: var(--nous-font-body);
+  font-weight: 400;
+  font-size: 1rem;
+  line-height: 1.8;
+  color: var(--nous-fg-2);
+}
+
+.nous-ui {
+  font-family: var(--nous-font-ui);
+  font-weight: 500;
+  font-size: 0.875rem;
+  line-height: 1.6;
+  color: var(--nous-fg-1);
+}
+
+.nous-caption {
+  font-family: var(--nous-font-ui);
+  font-weight: 500;
+  font-size: 0.75rem;
+  line-height: 1.6;
+  color: var(--nous-fg-3);
+}
+
+.nous-overline {
+  font-family: var(--nous-font-ui);
+  font-weight: 600;
+  font-size: 0.7rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--nous-fg-accent-safe);
+}
+
+.nous-mono {
+  font-family: var(--nous-font-mono);
+  font-weight: 400;
+  font-size: 0.85rem;
+  color: var(--nous-fg-accent-safe);
+  background: var(--nous-aurum);
+  padding: 0.15rem 0.4rem;
+  border-radius: var(--nous-radius-sm);
+}
+
+[data-theme='dark'] .nous-mono,
+.dark .nous-mono {
+  background: var(--nous-ember);
+  color: var(--nous-helios);
+}
+
+.nous-wordmark {
+  font-family: var(--nous-font-heading);
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  color: var(--nous-fg-1);
+}
+
+/* Citation pill used inline in assistant messages */
+.nous-cite-ref {
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 9999px;
+  background: var(--nous-aurum);
+  color: var(--nous-sol-safe);
+  font-family: var(--nous-font-ui);
+  font-size: 10px;
+  font-weight: 600;
+  margin: 0 2px;
+  vertical-align: text-top;
+}
+
+@keyframes nous-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.3;
+  }
+}
+.nous-pulse {
+  animation: nous-pulse 1.4s ease-in-out infinite;
+}
