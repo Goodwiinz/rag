@@ -22,7 +22,7 @@ from src.core.database import get_db
 from src.models import Collection, CollectionDocument, Document, ProjectNote, User
 from src.services.research.bibliography_service import BibliographyService
 from src.services.research.project_service import ProjectService
-from src.services.security.user_management import get_current_user
+from src.core.dependencies import get_current_user
 from src.shared.research_schemas import (
     NoteCreate,
     NoteListResponse,

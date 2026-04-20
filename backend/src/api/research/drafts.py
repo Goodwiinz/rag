@@ -23,7 +23,7 @@ from src.services.research.draft_generation_service import (
     DraftGenerationService,
     DraftGenerationStatus,
 )
-from src.services.security.user_management import get_current_user
+from src.core.dependencies import get_current_user
 
 logger = get_logger()
 router = APIRouter(prefix="/api/v1/projects/{project_id}/drafts", tags=["drafts"])
