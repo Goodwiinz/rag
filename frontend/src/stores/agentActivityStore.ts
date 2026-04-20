@@ -33,6 +33,7 @@ let seq = 0;
 const nextId = () => `step-${Date.now()}-${++seq}`;
 
 export const useAgentActivityStore = create<AgentActivityState>((set) => ({
+  // TODO: add eviction (cap N most-recent threads + cap steps per run) — see review of commit 7c302dd.
   runs: {},
   currentThreadId: null,
 
@@ -55,6 +56,8 @@ export const useAgentActivityStore = create<AgentActivityState>((set) => ({
   pushToolStart: (threadId, tool) =>
     set((s) => {
       const run = s.runs[threadId];
+      // Return the existing state reference so Zustand's Object.is check
+      // short-circuits and no subscribers are notified for this no-op.
       if (!run) return s;
       const existing = run.steps.find(
         (st) => st.tool === tool && st.status === 'active'
@@ -95,6 +98,8 @@ export const useAgentActivityStore = create<AgentActivityState>((set) => ({
       const run = s.runs[threadId];
       if (!run) return s;
       return {
+        currentThreadId:
+          s.currentThreadId === threadId ? null : s.currentThreadId,
         runs: { ...s.runs, [threadId]: { ...run, state } },
       };
     }),
