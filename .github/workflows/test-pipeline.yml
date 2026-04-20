@@ -151,7 +151,7 @@ jobs:
           DATABASE_URL: "sqlite:///:memory:"
 
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v6
         with:
           files: coverage.xml
           flags: unit
@@ -212,7 +212,7 @@ jobs:
           CI: true
 
       - name: Upload coverage
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v6
         with:
           files: frontend/coverage/lcov.info
           flags: frontend
@@ -299,7 +299,7 @@ jobs:
           REDIS_URL: "redis://localhost:${{ job.services.redis.ports['6379'] }}/0"
 
       - name: Upload coverage
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v6
         with:
           files: coverage.xml
           flags: integration
@@ -360,7 +360,7 @@ jobs:
           DATABASE_URL: "sqlite:///:memory:"
 
       - name: Upload coverage
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v6
         with:
           files: coverage.xml
           flags: resilience
