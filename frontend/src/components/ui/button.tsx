@@ -5,20 +5,32 @@ import { cva, type VariantProps } from 'class-variance-authority';
 import { cn } from 'src/lib/utils';
 import { Spinner } from './spinner';
 
+// NOUS migration (2026-04-19):
+//   - Hover lift + shadow on CTA variants (default, destructive, erebus, accent).
+//   - New `erebus` variant = handoff "Primary action" (Erebus dark).
+//   - New `accent` variant = handoff "Accent action" (Sol gold + glow shadow).
+//   - New `nous-ghost` variant = hover fills with Aurum wash (handoff nav-ghost).
 const buttonVariants = cva(
-  'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0',
+  'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0',
   {
     variants: {
       variant: {
-        default: 'bg-primary text-primary-foreground hover:bg-primary/90',
+        default:
+          'bg-primary text-primary-foreground hover:bg-primary/90 hover:-translate-y-px hover:shadow-[0_4px_12px_rgba(10,10,14,0.15)]',
         destructive:
-          'bg-destructive text-destructive-foreground hover:bg-destructive/90',
+          'bg-destructive text-destructive-foreground hover:bg-destructive/90 hover:-translate-y-px hover:shadow-[0_4px_12px_rgba(239,68,68,0.25)]',
         outline:
           'border border-input bg-background hover:bg-accent hover:text-accent-foreground',
         secondary:
           'bg-secondary text-secondary-foreground hover:bg-secondary/80',
         ghost: 'hover:bg-accent hover:text-accent-foreground',
         link: 'text-primary underline-offset-4 hover:underline',
+        erebus:
+          'bg-[var(--nous-erebus)] text-white hover:-translate-y-px hover:shadow-[0_4px_12px_rgba(10,10,14,0.2)]',
+        accent:
+          'bg-[var(--nous-sol)] text-white hover:-translate-y-px hover:shadow-[0_8px_30px_rgba(212,160,57,0.3)]',
+        'nous-ghost':
+          'bg-transparent text-[var(--nous-fg-2)] hover:bg-[var(--nous-aurum)] hover:text-[var(--nous-fg-1)]',
       },
       size: {
         default: 'h-10 px-4 py-2',
@@ -35,7 +47,8 @@ const buttonVariants = cva(
 );
 
 export interface ButtonProps
-  extends React.ButtonHTMLAttributes<HTMLButtonElement>,
+  extends
+    React.ButtonHTMLAttributes<HTMLButtonElement>,
     VariantProps<typeof buttonVariants> {
   asChild?: boolean;
   isLoading?: boolean;
