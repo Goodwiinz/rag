@@ -149,7 +149,7 @@ backend:
     - name: TIMEOUT
       value: "300"
     - name: CORS_ORIGINS
-      value: "https://dev-app.gen-text.app"
+      value: "https://dev-app.gen-text.app,http://localhost:3000,http://127.0.0.1:3000"
     - name: NEO4J_URI
       value: "bolt://nous-dev-knowledge-graph-analytics-neo4j:7687"
     - name: QDRANT_URL
