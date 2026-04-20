@@ -70,6 +70,7 @@ spec:
             - sh
             - -c
             - |
+              set -e
               echo "[init] Running alembic upgrade heads..."
               alembic upgrade heads
               echo "[init] Migrations complete."
