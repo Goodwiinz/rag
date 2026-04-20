@@ -57,14 +57,18 @@ if _is_sqlite:
         echo=os.getenv("ENVIRONMENT") == "development",
     )
 else:
-    # PostgreSQL configuration for production/development
+    # PostgreSQL configuration for production/development.
+    # The sync engine is used only by a small number of sync-ORM call sites and
+    # background tasks; hot-path requests use async_engine (asyncpg) below.
+    # Keep the slot count tiny so we don't saturate Supabase's session-mode pooler
+    # when many workers/replicas start simultaneously.
     engine = create_engine(
         DATABASE_URL,
         pool_pre_ping=True,
-        pool_recycle=3600,  # Recycle connections after 1 hour (reduced connection churn)
-        pool_size=10,  # Base pool size
-        max_overflow=20,  # Allow up to 30 total connections
-        pool_timeout=30,  # Wait 30s for available connection
+        pool_recycle=1800,
+        pool_size=2,
+        max_overflow=3,
+        pool_timeout=30,
         echo=os.getenv("ENVIRONMENT") == "development",
     )
 
