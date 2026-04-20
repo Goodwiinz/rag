@@ -149,6 +149,11 @@ backend:
         name: supabase-credentials
     - secretRef:
         name: redis-credentials
+    # Optional: LangSmith tracing (LANGSMITH_API_KEY, LANGSMITH_PROJECT, ...).
+    # Marked optional so the pod still starts if the secret is absent.
+    - secretRef:
+        name: langsmith-credentials
+        optional: true
 
   # Additional env vars (static config)
   env:
