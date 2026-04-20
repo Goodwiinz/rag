@@ -19,24 +19,53 @@ logger = logging.getLogger(__name__)
 
 
 def configure_langsmith():
-    """Configure LangSmith tracing if API key is available.
+    """Configure LangSmith tracing if an API key is available.
 
-    Set LANGCHAIN_TRACING_V2=true and LANGCHAIN_API_KEY for automatic tracing.
+    Accepts either the modern ``LANGSMITH_*`` names (preferred by the current
+    ``langsmith`` SDK) or the legacy ``LANGCHAIN_*`` names. Whichever is
+    provided, this propagates to both so libraries on either convention pick
+    it up.
     """
-    api_key = os.environ.get("LANGCHAIN_API_KEY", "")
-    if api_key:
-        os.environ.setdefault("LANGCHAIN_TRACING_V2", "true")
-        os.environ.setdefault("LANGCHAIN_PROJECT", "rag-agent")
-        logger.info("LangSmith tracing enabled (project: rag-agent)")
-    else:
-        logger.debug("LangSmith tracing disabled (no LANGCHAIN_API_KEY)")
+    api_key = os.environ.get("LANGSMITH_API_KEY") or os.environ.get(
+        "LANGCHAIN_API_KEY"
+    )
+    if not api_key:
+        logger.debug(
+            "LangSmith tracing disabled "
+            "(no LANGSMITH_API_KEY / LANGCHAIN_API_KEY)"
+        )
+        return
+
+    os.environ.setdefault("LANGSMITH_API_KEY", api_key)
+    os.environ.setdefault("LANGCHAIN_API_KEY", api_key)
+
+    project = (
+        os.environ.get("LANGSMITH_PROJECT")
+        or os.environ.get("LANGCHAIN_PROJECT")
+        or "rag-agent"
+    )
+    os.environ.setdefault("LANGSMITH_PROJECT", project)
+    os.environ.setdefault("LANGCHAIN_PROJECT", project)
+
+    # Both SDK generations read their own flag; set both to "true" by default.
+    os.environ.setdefault("LANGCHAIN_TRACING_V2", "true")
+    os.environ.setdefault("LANGSMITH_TRACING", "true")
+
+    endpoint = os.environ.get("LANGSMITH_ENDPOINT") or os.environ.get(
+        "LANGCHAIN_ENDPOINT"
+    )
+    if endpoint:
+        os.environ.setdefault("LANGSMITH_ENDPOINT", endpoint)
+        os.environ.setdefault("LANGCHAIN_ENDPOINT", endpoint)
+
+    logger.info("LangSmith tracing enabled (project: %s)", project)
 
 
 def get_langsmith_base_url() -> str:
     """Return the configured LangSmith endpoint or the public default."""
     return (
-        os.environ.get("LANGCHAIN_ENDPOINT")
-        or os.environ.get("LANGSMITH_ENDPOINT")
+        os.environ.get("LANGSMITH_ENDPOINT")
+        or os.environ.get("LANGCHAIN_ENDPOINT")
         or "https://smith.langchain.com"
     )
 
