@@ -70,8 +70,8 @@ spec:
             - sh
             - -c
             - |
-              echo "[init] Running alembic upgrade head..."
-              alembic upgrade head
+              echo "[init] Running alembic upgrade heads..."
+              alembic upgrade heads
               echo "[init] Migrations complete."
           envFrom:
             {{- if .Values.backend.envFrom }}
