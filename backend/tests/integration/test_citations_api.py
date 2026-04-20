@@ -31,6 +31,8 @@ async def sample_document(test_db: AsyncSession, test_user) -> Document:
         title="Attention Is All You Need",
         filename="attention.pdf",
         file_path="/data/uploads/attention.pdf",
+        file_size_bytes=1024000,
+        mime_type="application/pdf",
         document_type="pdf",
         uploaded_by_user_id=test_user.id,
         organization_id=test_user.organization_id,

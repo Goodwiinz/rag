@@ -4,6 +4,7 @@ Provides mock LLM, tool executor, compiled graph, and config fixtures
 that build on the existing integration conftest (test_db, test_user, etc.).
 """
 
+import contextlib
 import uuid
 from unittest.mock import AsyncMock, Mock, patch
 
@@ -139,8 +140,16 @@ def mock_execute_tool():
 # ---------------------------------------------------------------------------
 
 
+@contextlib.contextmanager
 def compile_graph_with_mocks(mock_llm_instance, mock_tool_fn):
-    """Compile the agent graph with all external deps patched."""
+    """Compile the agent graph with all external deps patched.
+
+    Returns a context manager so patches remain active during ``ainvoke()``.
+    Usage::
+
+        with compile_graph_with_mocks(llm, tool_fn) as graph:
+            result = await graph.ainvoke(state, config=config)
+    """
     from langgraph.checkpoint.memory import MemorySaver
 
     with (
@@ -162,13 +171,14 @@ def compile_graph_with_mocks(mock_llm_instance, mock_tool_fn):
     ):
         from src.services.agent.graph import compile_agent_graph
 
-        return compile_agent_graph(checkpointer=MemorySaver())
+        yield compile_agent_graph(checkpointer=MemorySaver())
 
 
 @pytest_asyncio.fixture
 async def compiled_graph(mock_llm, mock_execute_tool):
     """Compiled agent graph with mocked LLM, tools, RAG, memory."""
-    return compile_graph_with_mocks(mock_llm, mock_execute_tool)
+    with compile_graph_with_mocks(mock_llm, mock_execute_tool) as graph:
+        yield graph
 
 
 # ---------------------------------------------------------------------------
