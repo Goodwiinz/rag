@@ -6,8 +6,10 @@ from src.core.dependencies import get_current_user
 from src.services.arxiv.arxiv_service import IngestionError
 
 
-def test_public_arxiv_search_does_not_require_auth(test_client) -> None:
-    """Searching arXiv should remain available on the public discovery page."""
+def test_authenticated_arxiv_search_returns_papers(test_app, test_client) -> None:
+    """Searching arXiv requires auth since commit 6511f26 (arxiv auth
+    hardening); when an authenticated user is present, the endpoint
+    proxies to ``ArXivIngestionService`` and returns paper metadata."""
     paper = {
         "id": "1706.03762",
         "title": "Attention Is All You Need",
@@ -25,23 +27,28 @@ def test_public_arxiv_search_does_not_require_auth(test_client) -> None:
         },
     }
 
-    with patch("src.api.arxiv.core.ArXivIngestionService") as mock_service_cls:
-        mock_service = AsyncMock()
-        mock_service.search_papers = AsyncMock(return_value=[paper])
-        mock_service_cls.return_value.__aenter__.return_value = mock_service
-        mock_service_cls.return_value.__aexit__.return_value = None
+    test_app.dependency_overrides[get_current_user] = lambda: {"id": "user-1"}
 
-        response = test_client.post(
-            "/api/v1/arxiv/search",
-            json={"query": "transformer interpretability", "max_results": 5},
-        )
+    try:
+        with patch("src.api.arxiv.core.ArXivIngestionService") as mock_service_cls:
+            mock_service = AsyncMock()
+            mock_service.search_papers = AsyncMock(return_value=[paper])
+            mock_service_cls.return_value.__aenter__.return_value = mock_service
+            mock_service_cls.return_value.__aexit__.return_value = None
 
-    assert response.status_code == 200
-    body = response.json()
-    assert len(body) == 1
-    assert body[0]["id"] == "1706.03762"
-    assert body[0]["title"] == "Attention Is All You Need"
-    mock_service.search_papers.assert_awaited_once()
+            response = test_client.post(
+                "/api/v1/arxiv/search",
+                json={"query": "transformer interpretability", "max_results": 5},
+            )
+
+        assert response.status_code == 200
+        body = response.json()
+        assert len(body) == 1
+        assert body[0]["id"] == "1706.03762"
+        assert body[0]["title"] == "Attention Is All You Need"
+        mock_service.search_papers.assert_awaited_once()
+    finally:
+        test_app.dependency_overrides.pop(get_current_user, None)
 
 
 def test_tracking_surfaces_upstream_rate_limits_as_service_unavailable(

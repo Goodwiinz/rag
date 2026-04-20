@@ -9,7 +9,16 @@ import logging
 from typing import Any, Dict, List, Optional, Tuple
 
 from langchain_core.runnables import RunnableConfig
-from langchain_core.tools import tool
+
+# The ``tool`` decorator moved inside the ``langchain_core.tools`` subpackage
+# in langchain-core 1.x (``tools`` became a namespace package; ``__init__``
+# no longer re-exports the decorator). Fall back to the canonical submodule
+# path so the import works across 0.x and 1.x.
+try:
+    from langchain_core.tools import tool
+except ImportError:  # langchain-core >= 1.3
+    from langchain_core.tools.convert import tool
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models.user import User

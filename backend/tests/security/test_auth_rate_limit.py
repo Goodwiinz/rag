@@ -19,7 +19,11 @@ class _LoginRequest(BaseModel):
 
 @app.post("/api/v1/auth/login")
 async def _stub_login(body: _LoginRequest, request: Request):
-    client_ip = request.client.host if request.client else "unknown"
+    # Use ``get_client_ip`` so the stub mirrors the production login route,
+    # which honors ``X-Forwarded-For``. Without this the test request client
+    # always looks like the same IP and ``test_login_rate_limit_respects_x_forwarded_for``
+    # can't distinguish per-client buckets.
+    client_ip = get_client_ip(request)
     if not await auth_rate_limiter.is_allowed(client_ip, prefix="login"):
         raise HTTPException(status_code=429, detail="Too many requests")
     return {
