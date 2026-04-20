@@ -18,6 +18,8 @@ import { agentChatService } from '@/services/agentChatService';
 import { workspaceService } from '@/services/workspaceService';
 import { useChatStore } from '@/store/chat-store';
 import { useAuthStore } from '@/stores/authStore';
+import { useAgentActivityStore } from '@/stores/agentActivityStore';
+import { deriveAgentName, deriveTask } from '@/components/context-rail';
 import {
   ChatMessage as DBChatMessage,
   Conversation as DBConversation,
@@ -679,6 +681,16 @@ function ChatPageContent() {
         streamingContent: '',
       });
 
+      if (currentThreadId) {
+        useAgentActivityStore
+          .getState()
+          .startRun(
+            currentThreadId,
+            deriveAgentName(),
+            deriveTask(input)
+          );
+      }
+
       await agentChatService.streamMessage(
         {
           messages: newMessages.map((m) => ({
@@ -699,9 +711,20 @@ function ChatPageContent() {
           },
           onToolStart: (tool, args) => {
             console.log('[Agent] Tool start:', tool, args);
+            if (currentThreadId) {
+              useAgentActivityStore
+                .getState()
+                .pushToolStart(currentThreadId, tool);
+            }
           },
           onToolEnd: (tool, result) => {
             console.log('[Agent] Tool end:', tool, result);
+            if (currentThreadId) {
+              const ok = !(result && typeof result === 'object' && 'isError' in result && (result as { isError?: boolean }).isError === true);
+              useAgentActivityStore
+                .getState()
+                .pushToolEnd(currentThreadId, tool, ok);
+            }
           },
           onRagContext: (contexts) => {
             console.log('[Agent] RAG contexts:', contexts.length);
@@ -732,10 +755,20 @@ function ChatPageContent() {
           },
           onDone: () => {
             console.log('[Agent] Stream complete');
+            if (currentThreadId) {
+              useAgentActivityStore
+                .getState()
+                .finishRun(currentThreadId, 'done');
+            }
           },
           onError: (error) => {
             console.error('[Agent] Stream error:', error);
             streamHadError = true;
+            if (currentThreadId) {
+              useAgentActivityStore
+                .getState()
+                .finishRun(currentThreadId, 'error');
+            }
             // Show error as assistant message instead of blank bubble
             const errorMsg: Message = {
               role: 'assistant',
