@@ -98,14 +98,9 @@ jobs:
           AWS_ACCESS_KEY_ID: ${{ secrets.DO_SPACES_ACCESS_KEY }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.DO_SPACES_SECRET_KEY }}
 
-      - name: Scan backend image for vulnerabilities
-        uses: aquasecurity/trivy-action@915b19bbe73b92a6cf82a1bc12b087c9a19a5fe2 # v0.28.0
-        if: github.event_name != 'pull_request'
-        with:
-          image-ref: ${{ env.REGISTRY }}/backend:${{ needs.version.outputs.version }}
-          format: table
-          exit-code: '0'
-          severity: CRITICAL,HIGH
+      # Trivy scan temporarily disabled: upstream aquasecurity/trivy-action@v0.28.0
+      # depends on aquasecurity/setup-trivy@v0.2.1 which was removed from GitHub,
+      # breaking action resolution at "Set up job". Re-enable with a fresh pin.
 
   build-frontend:
     name: Build Frontend Image
@@ -166,14 +161,7 @@ jobs:
           AWS_ACCESS_KEY_ID: ${{ secrets.DO_SPACES_ACCESS_KEY }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.DO_SPACES_SECRET_KEY }}
 
-      - name: Scan frontend image for vulnerabilities
-        uses: aquasecurity/trivy-action@915b19bbe73b92a6cf82a1bc12b087c9a19a5fe2 # v0.28.0
-        if: github.event_name != 'pull_request'
-        with:
-          image-ref: ${{ env.REGISTRY }}/frontend:${{ needs.version.outputs.version }}
-          format: table
-          exit-code: '0'
-          severity: CRITICAL,HIGH
+      # Trivy scan temporarily disabled: see backend build for context.
 
   build-summary:
     name: Build Summary
