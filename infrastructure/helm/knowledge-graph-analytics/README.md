@@ -54,7 +54,7 @@ A printed IP = endpoint resolves; `socket.gaierror` = wrong hostname or DNS issu
 
 ## Database migrations
 
-The backend deployment ships with an `initContainer` named `run-migrations` that executes `alembic upgrade head` against the same `DATABASE_URL` the app uses. It is gated by a per-env values flag:
+The backend deployment ships with an `initContainer` named `run-migrations` that executes `alembic upgrade heads` against the same `DATABASE_URL` the app uses. It is gated by a per-env values flag:
 
 ```yaml
 backend:
@@ -63,11 +63,11 @@ backend:
     runMigrations: false  # production
 ```
 
-Production explicitly opts out so schema changes are reviewed and applied via `kubectl exec ... alembic upgrade head` after a snapshot. Dev/staging auto-apply on every rollout to prevent drift like the `chat_messages.tool_executions` UndefinedColumnError this flag was added in response to.
+Production explicitly opts out so schema changes are reviewed and applied via `kubectl exec ... alembic upgrade heads` after a snapshot. Dev/staging auto-apply on every rollout to prevent drift like the `chat_messages.tool_executions` UndefinedColumnError this flag was added in response to.
 
 To run migrations manually:
 ```sh
 kubectl exec -n $NS $POD -- alembic current
-kubectl exec -n $NS $POD -- alembic upgrade head --sql > /tmp/pending.sql   # dry-run
-kubectl exec -n $NS $POD -- alembic upgrade head
+kubectl exec -n $NS $POD -- alembic upgrade heads --sql > /tmp/pending.sql   # dry-run
+kubectl exec -n $NS $POD -- alembic upgrade heads
 ```
