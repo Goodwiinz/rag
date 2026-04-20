@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { useAgentActivityStore } from '../agentActivityStore';
 
 describe('agentActivityStore', () => {
@@ -98,5 +97,82 @@ describe('agentActivityStore', () => {
     startRun('t1', 'A', 'second');
     expect(getRun('t1').task).toBe('second');
     expect(getRun('t1').steps).toEqual([]);
+  });
+});
+
+describe('agentActivityStore — currentThreadId lifecycle', () => {
+  beforeEach(() => {
+    useAgentActivityStore.setState({ runs: {}, currentThreadId: null });
+  });
+
+  it('startRun sets currentThreadId to the new thread', () => {
+    useAgentActivityStore.getState().startRun('t1', 'A', 'task');
+    expect(useAgentActivityStore.getState().currentThreadId).toBe('t1');
+  });
+
+  it('finishRun clears currentThreadId when the finishing thread is current', () => {
+    const { startRun, finishRun } = useAgentActivityStore.getState();
+    startRun('t1', 'A', 'task');
+    finishRun('t1', 'done');
+    expect(useAgentActivityStore.getState().currentThreadId).toBeNull();
+  });
+
+  it('finishRun does not change currentThreadId when finishing a different thread', () => {
+    const { startRun, finishRun } = useAgentActivityStore.getState();
+    startRun('t1', 'A', 'task');
+    startRun('t2', 'B', 'task'); // t2 is now current
+    finishRun('t1', 'done'); // t1 finishes, t2 still current
+    expect(useAgentActivityStore.getState().currentThreadId).toBe('t2');
+  });
+});
+
+describe('agentActivityStore — no-op updates do not notify subscribers', () => {
+  beforeEach(() => {
+    useAgentActivityStore.setState({ runs: {}, currentThreadId: null });
+  });
+
+  it('pushToolStart for unknown thread does not notify subscribers', () => {
+    let calls = 0;
+    const unsub = useAgentActivityStore.subscribe(() => {
+      calls++;
+    });
+    useAgentActivityStore.getState().pushToolStart('t-missing', 'arxiv_search');
+    unsub();
+    expect(calls).toBe(0);
+  });
+
+  it('pushToolEnd for unknown thread does not notify subscribers', () => {
+    let calls = 0;
+    const unsub = useAgentActivityStore.subscribe(() => {
+      calls++;
+    });
+    useAgentActivityStore
+      .getState()
+      .pushToolEnd('t-missing', 'arxiv_search', true);
+    unsub();
+    expect(calls).toBe(0);
+  });
+
+  it('finishRun for unknown thread does not notify subscribers', () => {
+    let calls = 0;
+    const unsub = useAgentActivityStore.subscribe(() => {
+      calls++;
+    });
+    useAgentActivityStore.getState().finishRun('t-missing', 'done');
+    unsub();
+    expect(calls).toBe(0);
+  });
+
+  it('duplicate pushToolStart does not notify subscribers', () => {
+    const { startRun, pushToolStart } = useAgentActivityStore.getState();
+    startRun('t1', 'A', 'task');
+    pushToolStart('t1', 'arxiv_search');
+    let calls = 0;
+    const unsub = useAgentActivityStore.subscribe(() => {
+      calls++;
+    });
+    pushToolStart('t1', 'arxiv_search'); // de-duped, no-op
+    unsub();
+    expect(calls).toBe(0);
   });
 });
