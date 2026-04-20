@@ -15,7 +15,7 @@ from src.models.integrity_score import IntegrityScore
 from src.models.organization import Organization
 from src.models.user import User
 from src.services.documents.integrity_detection_service import IntegrityDetectionService
-from src.services.security.user_management import get_current_user
+from src.core.dependencies import get_current_user
 from src.shared.scispace_schemas import IntegrityScoreResponse, IntegritySegmentScore
 
 logger = get_logger()

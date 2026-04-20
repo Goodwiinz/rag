@@ -32,7 +32,7 @@ from src.models import (
 )
 from src.services.research.bibliography_service import BibliographyService
 from src.services.research.citation_extraction_service import CitationExtractionService
-from src.services.security.user_management import get_current_user
+from src.core.dependencies import get_current_user
 from src.shared.research_schemas import (
     CitationCreate,
     CitationListResponse,

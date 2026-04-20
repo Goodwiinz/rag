@@ -31,7 +31,7 @@ from src.models import (
     Workspace,
 )
 from src.schemas.chat import ThreadCreate
-from src.services.security.user_management import get_current_user
+from src.core.dependencies import get_current_user
 from src.shared.research_schemas import (
     LinkThreadRequest,
     NoteCreate,

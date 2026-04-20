@@ -14,7 +14,7 @@ from src.models.document import Document
 from src.models.organization import Organization
 from src.models.user import User
 from src.services.processing.table_extraction_service import TableExtractionService
-from src.services.security.user_management import get_current_user
+from src.core.dependencies import get_current_user
 
 logger = get_logger()
 router = APIRouter(prefix="/api/v1/documents", tags=["table-extraction"])
