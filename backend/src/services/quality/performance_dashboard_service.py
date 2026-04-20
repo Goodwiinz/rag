@@ -26,7 +26,7 @@ from sqlalchemy import and_, asc, desc, func, or_, text
 from sqlalchemy.orm import Session
 
 from src.core.config import settings
-from src.core.database import get_db
+from src.core.database import get_db_sync
 from src.models.processing import ProcessingJob
 from src.models.quality import QualityMetric
 from src.models.quality_metrics import MetricAggregation, QualityAlert, SystemMetric
@@ -287,7 +287,7 @@ class PerformanceDashboardService:
     ) -> SearchPerformanceMetrics:
         """Get search performance metrics"""
 
-        db = next(get_db())
+        db = next(get_db_sync())
         try:
             # Calculate time range
             cutoff_date = self._get_cutoff_date(time_range)
@@ -408,7 +408,7 @@ class PerformanceDashboardService:
     ) -> QualityMetricsSummary:
         """Get quality metrics summary"""
 
-        db = next(get_db())
+        db = next(get_db_sync())
         try:
             cutoff_date = self._get_cutoff_date(time_range)
 
@@ -499,7 +499,7 @@ class PerformanceDashboardService:
     ) -> UserEngagementMetrics:
         """Get user engagement metrics"""
 
-        db = next(get_db())
+        db = next(get_db_sync())
         try:
             cutoff_date = self._get_cutoff_date(time_range)
 
@@ -582,7 +582,7 @@ class PerformanceDashboardService:
     async def get_active_alerts(self, organization_id: str) -> List[Dict[str, Any]]:
         """Get active alerts for the organization"""
 
-        db = next(get_db())
+        db = next(get_db_sync())
         try:
             alerts = db.execute(
                 text(
@@ -635,7 +635,7 @@ class PerformanceDashboardService:
     ) -> List[Dict[str, Any]]:
         """Get time-series data for metric charts"""
 
-        db = next(get_db())
+        db = next(get_db_sync())
         try:
             cutoff_date = self._get_cutoff_date(time_range)
 
@@ -816,7 +816,7 @@ class PerformanceDashboardService:
         elif widget_type == "pie_chart":
             # Distribution data
             if metrics[0] == "search_types":
-                db = next(get_db())
+                db = next(get_db_sync())
                 try:
                     cutoff_date = self._get_cutoff_date(time_range)
                     data = db.execute(
@@ -883,7 +883,7 @@ class PerformanceDashboardService:
     async def _get_response_time_metrics(self) -> Dict[str, float]:
         """Get response time metrics from recent searches"""
 
-        db = next(get_db())
+        db = next(get_db_sync())
         try:
             # Get recent response times
             response_times = db.execute(
@@ -921,7 +921,7 @@ class PerformanceDashboardService:
     async def _get_error_rate(self) -> float:
         """Get current error rate - currently returns 0 as error tracking is not implemented"""
 
-        db = next(get_db())
+        db = next(get_db_sync())
         try:
             result = db.execute(
                 text(
@@ -950,7 +950,7 @@ class PerformanceDashboardService:
         """Get estimated active connections"""
 
         # This is a simplified estimate - in production you'd use proper connection tracking
-        db = next(get_db())
+        db = next(get_db_sync())
         try:
             result = db.execute(
                 text(
@@ -976,7 +976,7 @@ class PerformanceDashboardService:
     ) -> Dict[str, float]:
         """Calculate quality metric trends"""
 
-        db = next(get_db())
+        db = next(get_db_sync())
         try:
             # Current period metrics
             current_metrics = db.execute(
@@ -1045,7 +1045,7 @@ class PerformanceDashboardService:
     ) -> str:
         """Calculate engagement trend"""
 
-        db = next(get_db())
+        db = next(get_db_sync())
         try:
             # Current period
             current_data = db.execute(
