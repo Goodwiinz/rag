@@ -34,7 +34,7 @@ export interface ExtendedModel extends Model {
 export const AVAILABLE_MODELS: ExtendedModel[] = [
   {
     id: 'gpt-4o',
-    name: 'GPT-4O',
+    name: 'GPT-4o',
     description:
       'OpenAI flagship model with superior reasoning and multimodal capabilities',
     size: 'Cloud',
