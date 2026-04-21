@@ -39,7 +39,7 @@ memory-profiler==0.61.0
 py-spy==0.3.14
 
 # Multi-Agent & AI Testing
-deepeval==0.20.78
+deepeval==3.9.7
 ragas==0.1.7
 llamaindex==0.10.37
 
