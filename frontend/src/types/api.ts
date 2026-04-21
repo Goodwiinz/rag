@@ -1,4 +1,7 @@
-import { getPublicApiBaseUrl } from '@/utils/publicEndpoints';
+import {
+  getPublicApiBaseUrl,
+  shouldUseLocalProxyForConfiguredOrigin,
+} from '@/utils/publicEndpoints';
 
 // API Response Types
 export interface APIResponse<T> {
@@ -46,6 +49,10 @@ const normalizeApiBaseUrl = (rawBaseUrl?: string): string => {
 
   // Default to Next.js rewrite path to avoid CORS/mixed-content issues.
   if (!trimmed) return getPublicApiBaseUrl('/api/v1');
+
+  if (shouldUseLocalProxyForConfiguredOrigin(trimmed)) {
+    return '/api/v1';
+  }
 
   // If already versioned, keep as-is.
   if (/\/api\/v[0-9]+\/?$/.test(trimmed)) {
