@@ -1130,8 +1130,6 @@ function ChatPageContent() {
       {/* Main Chat Area */}
       <div className="flex-1 flex flex-col relative h-full min-w-0 overflow-hidden">
         <ChatHeader
-          selectedModelId={selectedModel}
-          onModelChange={setSelectedModel}
           messages={displayedMessages}
           chatTitle={
             conversations.find((c) => c.id === activeConversationId)?.title ||
@@ -1395,6 +1393,8 @@ function ChatPageContent() {
           onRAGToggle={setEnableRAG}
           inputRef={chatInputRef}
           onAttach={handleAttach}
+          selectedModelId={selectedModel}
+          onModelChange={setSelectedModel}
         />
 
         {/* Citation Panel Sidebar */}

@@ -1,6 +1,7 @@
 'use client';
 
 import { cn } from '@/lib/utils';
+import { AVAILABLE_MODELS, ModelSelector } from './ModelSelector';
 import { RAGToggle } from './RAGToggle';
 import { motion } from 'framer-motion';
 import { ArrowUp, Bot, Mic, Paperclip, Square } from 'lucide-react';
@@ -23,6 +24,8 @@ interface ChatInputProps {
   isRAGLoading?: boolean;
   inputRef?: React.RefObject<HTMLTextAreaElement>;
   onAttach?: (files: FileList) => void;
+  selectedModelId?: string;
+  onModelChange?: (id: string) => void;
 }
 
 type SpeechRecognitionEventLike = {
@@ -60,6 +63,8 @@ export function ChatInput({
   isRAGLoading,
   inputRef,
   onAttach,
+  selectedModelId,
+  onModelChange,
 }: ChatInputProps) {
   const internalRef = useRef<HTMLTextAreaElement>(null);
   const textareaRef = inputRef ?? internalRef;
@@ -158,6 +163,13 @@ export function ChatInput({
                 isLoading={isRAGLoading}
                 disabled={isLoading}
               />
+              {onModelChange && (
+                <ModelSelector
+                  models={AVAILABLE_MODELS}
+                  selectedModelId={selectedModelId}
+                  onModelChange={onModelChange}
+                />
+              )}
             </div>
             <div className="flex items-center gap-3">
               {/* RAG loading indicator */}

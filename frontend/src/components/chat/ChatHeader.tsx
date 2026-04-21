@@ -3,10 +3,6 @@
 import { IconButton } from '@/components/ui/icon-button';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import {
-  AVAILABLE_MODELS,
-  ModelSelector,
-} from '@/components/chat/ModelSelector';
-import {
   downloadFile,
   exportAsJson,
   exportAsMarkdown,
@@ -28,8 +24,6 @@ interface ExportableMessage {
 
 interface ChatHeaderProps {
   onCommandPaletteOpen?: () => void;
-  selectedModelId?: string;
-  onModelChange?: (id: string) => void;
   messages?: ExportableMessage[];
   chatTitle?: string;
   onCopyAll?: () => void;
@@ -37,8 +31,6 @@ interface ChatHeaderProps {
 
 export const ChatHeader = memo(function ChatHeader({
   onCommandPaletteOpen,
-  selectedModelId = 'gpt-4o',
-  onModelChange,
   messages = [],
   chatTitle = 'Chat',
   onCopyAll,
@@ -113,16 +105,9 @@ export const ChatHeader = memo(function ChatHeader({
         </span>
       </button>
 
-      {/* Right: model + actions (all no-wrap) */}
+      {/* Right: chat-level actions only. The model picker belongs next to
+          the composer, not in the global page chrome. */}
       <div className="flex items-center gap-2 shrink-0 ml-auto">
-        {onModelChange && (
-          <ModelSelector
-            models={AVAILABLE_MODELS}
-            selectedModelId={selectedModelId}
-            onModelChange={onModelChange}
-          />
-        )}
-
         {messages.length > 0 && onCopyAll && (
           <IconButton
             label="Copy all messages"
