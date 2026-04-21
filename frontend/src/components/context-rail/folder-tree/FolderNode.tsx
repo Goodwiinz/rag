@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils';
 import { ChevronDown } from 'lucide-react';
 import { useState } from 'react';
 import { FileRow } from './FileRow';
-import type { FolderNode as FolderNodeType, Node } from './types';
+import type { FolderNode as FolderNodeType } from './types';
 
 export function FolderNode({ node }: { node: FolderNodeType }) {
   const [open, setOpen] = useState(node.defaultOpen ?? true);
@@ -18,6 +18,7 @@ export function FolderNode({ node }: { node: FolderNodeType }) {
         aria-expanded={open}
       >
         <ChevronDown
+          aria-hidden="true"
           className={cn(
             'h-3.5 w-3.5 shrink-0 transition-transform',
             !open && '-rotate-90'
@@ -45,16 +46,15 @@ export function FolderNode({ node }: { node: FolderNodeType }) {
 
       {open && node.children.length > 0 && (
         <ul className="pl-5">
-          {node.children.map((child) => renderNode(child))}
+          {node.children.map((child) =>
+            child.kind === 'folder' ? (
+              <FolderNode key={child.id} node={child} />
+            ) : (
+              <FileRow key={child.id} node={child} />
+            )
+          )}
         </ul>
       )}
     </li>
   );
-}
-
-function renderNode(node: Node) {
-  if (node.kind === 'folder') {
-    return <FolderNode key={node.id} node={node} />;
-  }
-  return <FileRow key={node.id} node={node} />;
 }

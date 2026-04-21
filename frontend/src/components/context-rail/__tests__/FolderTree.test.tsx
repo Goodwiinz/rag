@@ -1,10 +1,10 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { FolderTree } from '../folder-tree/FolderTree';
-import type { Node } from '../folder-tree/types';
+import type { FolderNode, Node } from '../folder-tree/types';
 
 const onSelect = jest.fn();
 
-function buildTree(overrides: Partial<Node> = {}): Node[] {
+function buildTree(overrides: Partial<FolderNode> = {}): Node[] {
   return [
     {
       kind: 'folder',
@@ -71,5 +71,36 @@ describe('FolderTree', () => {
     render(<FolderTree nodes={buildTree()} />);
     fireEvent.click(screen.getByText('Paper A'));
     expect(onSelect).toHaveBeenCalledWith({ id: 'doc-1' });
+  });
+
+  it('renders deeply-nested folders recursively', () => {
+    const nested: Node[] = [
+      {
+        kind: 'folder',
+        id: 'outer',
+        label: 'Outer',
+        defaultOpen: true,
+        children: [
+          {
+            kind: 'folder',
+            id: 'inner',
+            label: 'Inner',
+            defaultOpen: true,
+            children: [
+              {
+                kind: 'file',
+                id: 'leaf',
+                label: 'Nested leaf',
+                icon: 'doc',
+                onSelect: () => {},
+              },
+            ],
+          },
+        ],
+      },
+    ];
+    render(<FolderTree nodes={nested} />);
+    expect(screen.getByText('Inner')).toBeInTheDocument();
+    expect(screen.getByText('Nested leaf')).toBeInTheDocument();
   });
 });

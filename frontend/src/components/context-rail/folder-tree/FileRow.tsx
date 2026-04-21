@@ -22,6 +22,7 @@ export function FileRow({ node }: { node: FileNode }) {
         style={{ fontFamily: 'var(--nous-font-body)' }}
       >
         <Icon
+          aria-hidden="true"
           className="h-4 w-4 shrink-0"
           style={{ color: 'var(--nous-fg-3)' }}
         />
