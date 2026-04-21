@@ -174,7 +174,28 @@ class AgentChatService {
     });
 
     if (!response.ok || !response.body) {
-      callbacks.onError?.(`Stream failed: ${response.status}`);
+      // Read the backend's error body so the user sees the real cause,
+      // not just an HTTP number. FastAPI usually returns `{detail: "..."}`.
+      let backendMessage = '';
+      try {
+        const text = await response.text();
+        if (text) {
+          try {
+            const parsed = JSON.parse(text);
+            backendMessage =
+              parsed?.detail || parsed?.error || parsed?.message || text;
+          } catch {
+            backendMessage = text.slice(0, 500);
+          }
+        }
+      } catch {
+        // Ignore — fall back to status code only.
+      }
+      callbacks.onError?.(
+        backendMessage
+          ? `Stream failed (${response.status}): ${backendMessage}`
+          : `Stream failed: ${response.status}`
+      );
       return;
     }
 
@@ -277,7 +298,26 @@ class AgentChatService {
     });
 
     if (!response.ok || !response.body) {
-      callbacks.onError?.(`Stream confirm failed: ${response.status}`);
+      let backendMessage = '';
+      try {
+        const text = await response.text();
+        if (text) {
+          try {
+            const parsed = JSON.parse(text);
+            backendMessage =
+              parsed?.detail || parsed?.error || parsed?.message || text;
+          } catch {
+            backendMessage = text.slice(0, 500);
+          }
+        }
+      } catch {
+        // Ignore — fall back to status code only.
+      }
+      callbacks.onError?.(
+        backendMessage
+          ? `Stream confirm failed (${response.status}): ${backendMessage}`
+          : `Stream confirm failed: ${response.status}`
+      );
       return;
     }
 
