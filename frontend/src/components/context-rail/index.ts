@@ -1,5 +1,6 @@
 export { ContextRail } from './ContextRail';
 export { AgentActivityPanel } from './AgentActivityPanel';
+export { ProgressPanel } from './ProgressPanel';
 export { RelatedResultsPanel } from './RelatedResultsPanel';
 export { AllCitationsPanel } from './AllCitationsPanel';
 export { toolLabel } from './toolLabels';

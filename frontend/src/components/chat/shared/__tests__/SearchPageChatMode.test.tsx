@@ -29,7 +29,7 @@ describe('SearchPage chat mode', () => {
     render(<SearchPage />);
 
     expect(
-      await screen.findByPlaceholderText(/inject query into neural stream/i)
+      await screen.findByPlaceholderText(/message nous/i)
     ).toBeInTheDocument();
   });
 });

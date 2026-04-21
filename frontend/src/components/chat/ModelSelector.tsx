@@ -148,7 +148,7 @@ export function ModelSelector({
         onClick={() => !isLoading && setIsOpen(!isOpen)}
         disabled={isLoading}
         className={cn(
-          'flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-all duration-200',
+          'flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-all duration-200 whitespace-nowrap',
           'bg-[var(--terminal-surface)] border-[var(--terminal-border)]',
           'hover:border-[var(--phosphor-green)]/30',
           'active:scale-[0.98]',
@@ -160,7 +160,7 @@ export function ModelSelector({
       >
         <Cpu
           className={cn(
-            'w-3.5 h-3.5 transition-colors',
+            'w-3.5 h-3.5 shrink-0 transition-colors',
             isOpen
               ? 'text-[var(--phosphor-green)] animate-pulse'
               : 'text-[var(--phosphor-green)]'
@@ -170,13 +170,13 @@ export function ModelSelector({
           {selectedModel?.name || 'SELECT MODEL'}
         </span>
         {selectedModel?.isCloud && (
-          <span className="px-1 py-0.5 rounded bg-[var(--amber-gold)]/20 text-[var(--amber-gold)] text-[8px] uppercase">
+          <span className="px-1 py-0.5 rounded bg-[var(--amber-gold)]/20 text-[var(--amber-gold)] text-[8px] uppercase shrink-0">
             Cloud
           </span>
         )}
         <ChevronDown
           className={cn(
-            'w-3 h-3 text-[var(--terminal-text-muted)] transition-transform',
+            'w-3 h-3 shrink-0 text-[var(--terminal-text-muted)] transition-transform',
             isOpen && 'rotate-180'
           )}
         />

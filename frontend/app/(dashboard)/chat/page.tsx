@@ -11,6 +11,7 @@ import {
   getNewChatUrl,
   getSelectedThreadUrl,
 } from '@/components/chat/shared/chatNavigation';
+import { InlineAgentSummary } from '@/components/chat/shared/InlineAgentSummary';
 import { TerminalChatBubble } from '@/components/chat/shared/TerminalChatBubble';
 import { upsertConversationFromThreadDetail } from '@/components/chat/shared/threadConversationState';
 import { buildThreadCreateRequest } from '@/components/chat/shared/threadCreation';
@@ -1230,6 +1231,14 @@ function ChatPageContent() {
                         ease: [0.25, 0.46, 0.45, 0.94],
                       }}
                     >
+                      {/* Cowork-style inline tool summary: only above the last
+                          assistant message, and only when not currently
+                          streaming (the streaming bubble shows its own). */}
+                      {message.role === 'assistant' &&
+                        index === displayedMessages.length - 1 &&
+                        !storeIsStreaming && (
+                          <InlineAgentSummary threadId={activeThreadId} />
+                        )}
                       <TerminalChatBubble
                         message={message}
                         index={index}
@@ -1271,6 +1280,7 @@ function ChatPageContent() {
                       }}
                       transition={{ duration: 0.3 }}
                     >
+                      <InlineAgentSummary threadId={activeThreadId} />
                       <TerminalChatBubble
                         message={{
                           role: 'assistant',
