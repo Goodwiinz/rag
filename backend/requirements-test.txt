@@ -68,7 +68,7 @@ opentelemetry-test==0.45b0
 
 # Integration Testing
 docker==7.1.0
-testcontainers==3.7.1
+testcontainers==4.14.2
 
 # Data Testing
 pandas==3.0.1
