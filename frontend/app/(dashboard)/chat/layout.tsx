@@ -1009,7 +1009,7 @@ export default function ChatLayout({
         {/* Right-rail: stacked Agent Activity, Related Results, Citations */}
         <ContextRail
           threadId={currentThreadId ?? null}
-          className="hidden xl:flex shrink-0 w-[360px] border-l border-[var(--nous-border-1)]"
+          className="hidden lg:flex shrink-0 w-[320px] border-l border-[var(--nous-border-1)]"
         />
       </div>
 
