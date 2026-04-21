@@ -15,6 +15,7 @@ import { TerminalChatBubble } from '@/components/chat/shared/TerminalChatBubble'
 import { upsertConversationFromThreadDetail } from '@/components/chat/shared/threadConversationState';
 import { buildThreadCreateRequest } from '@/components/chat/shared/threadCreation';
 import { agentChatService } from '@/services/agentChatService';
+import { enhancedDocumentService } from '@/services/enhancedDocumentService';
 import { workspaceService } from '@/services/workspaceService';
 import { useChatStore } from '@/store/chat-store';
 import { useAuthStore } from '@/stores/authStore';
@@ -957,6 +958,41 @@ function ChatPageContent() {
     setInput(prompt);
   };
 
+  // Upload files selected via the Paperclip attach control.
+  // Uses enhancedDocumentService (v1 /files/upload) since no workspace-scoped
+  // attach endpoint exists yet. Each upload is isolated via .catch so one
+  // failure does not cancel others.
+  const handleAttach = useCallback(
+    async (files: FileList) => {
+      if (!workspace) {
+        console.warn('[Chat] Cannot attach: no workspace');
+        return;
+      }
+      const uploads = Array.from(files).map((file) =>
+        enhancedDocumentService
+          .uploadDocument(file, {
+            title: file.name,
+            processing_priority: 'normal',
+          })
+          .then((result) => {
+            console.log(
+              '[Chat] Uploaded',
+              file.name,
+              '→',
+              result.response.document_id
+            );
+            return result;
+          })
+          .catch((err) => {
+            console.error('[Chat] Upload failed for', file.name, err);
+            return null;
+          })
+      );
+      await Promise.all(uploads);
+    },
+    [workspace]
+  );
+
   const handleRenameThread = useCallback(
     async (threadId: string) => {
       const target = conversations.find((c) => c.id === threadId);
@@ -1311,6 +1347,7 @@ function ChatPageContent() {
           enableRAG={enableRAG}
           onRAGToggle={setEnableRAG}
           inputRef={chatInputRef}
+          onAttach={handleAttach}
         />
 
         {/* Citation Panel Sidebar */}

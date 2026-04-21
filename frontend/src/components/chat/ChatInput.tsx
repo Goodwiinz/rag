@@ -22,6 +22,7 @@ interface ChatInputProps {
   onRAGToggle: (enabled: boolean) => void;
   isRAGLoading?: boolean;
   inputRef?: React.RefObject<HTMLTextAreaElement>;
+  onAttach?: (files: FileList) => void;
 }
 
 export function ChatInput({
@@ -34,6 +35,7 @@ export function ChatInput({
   onRAGToggle,
   isRAGLoading,
   inputRef,
+  onAttach,
 }: ChatInputProps) {
   const internalRef = useRef<HTMLTextAreaElement>(null);
   const textareaRef = inputRef ?? internalRef;
@@ -142,12 +144,24 @@ export function ChatInput({
                 <TooltipProvider>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <button
-                        className="p-2 rounded-lg hover:bg-[var(--terminal-elevated)] text-[var(--terminal-text-dim)] hover:text-[var(--terminal-text)] transition-colors group"
+                      <label
+                        className="p-2 rounded-lg hover:bg-[var(--terminal-elevated)] text-[var(--terminal-text-dim)] hover:text-[var(--terminal-text)] transition-colors group cursor-pointer inline-flex"
                         aria-label="Attach artifact"
                       >
                         <Paperclip className="w-4 h-4 group-hover:text-[var(--phosphor-green)] transition-colors" />
-                      </button>
+                        <input
+                          type="file"
+                          multiple
+                          className="hidden"
+                          onChange={(e) => {
+                            const files = e.target.files;
+                            if (files && files.length > 0 && onAttach) {
+                              onAttach(files);
+                            }
+                            e.target.value = '';
+                          }}
+                        />
+                      </label>
                     </TooltipTrigger>
                     <TooltipContent>Attach artifact</TooltipContent>
                   </Tooltip>
