@@ -18,7 +18,7 @@ aioredis==2.0.1
 # Background job processing
 celery[redis]==5.3.4
 flower==2.0.1
-croniter==2.0.1
+croniter==6.2.2
 
 # Authentication and security
 python-jose[cryptography]==3.4.0
