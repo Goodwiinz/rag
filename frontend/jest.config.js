@@ -17,6 +17,7 @@ const customJestConfig = {
     '<rootDir>/src/components/**/__tests__/**/*.test.{ts,tsx}',
     '<rootDir>/src/services/__tests__/**/*.test.{ts,tsx}',
     '<rootDir>/src/store/__tests__/**/*.test.{ts,tsx}',
+    '<rootDir>/src/stores/__tests__/**/*.test.{ts,tsx}',
     '<rootDir>/src/hooks/__tests__/**/*.test.{ts,tsx}',
     '<rootDir>/src/utils/__tests__/**/*.test.{ts,tsx}',
   ],

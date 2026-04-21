@@ -11,13 +11,17 @@ import {
   getNewChatUrl,
   getSelectedThreadUrl,
 } from '@/components/chat/shared/chatNavigation';
+import { InlineAgentSummary } from '@/components/chat/shared/InlineAgentSummary';
 import { TerminalChatBubble } from '@/components/chat/shared/TerminalChatBubble';
 import { upsertConversationFromThreadDetail } from '@/components/chat/shared/threadConversationState';
 import { buildThreadCreateRequest } from '@/components/chat/shared/threadCreation';
 import { agentChatService } from '@/services/agentChatService';
+import { enhancedDocumentService } from '@/services/enhancedDocumentService';
 import { workspaceService } from '@/services/workspaceService';
 import { useChatStore } from '@/store/chat-store';
 import { useAuthStore } from '@/stores/authStore';
+import { useAgentActivityStore } from '@/stores/agentActivityStore';
+import { deriveAgentName, deriveTask } from '@/components/context-rail';
 import {
   ChatMessage as DBChatMessage,
   Conversation as DBConversation,
@@ -182,6 +186,10 @@ function ChatPageContent() {
   const storeStopStreaming = useChatStore((state) => state.stopStreaming);
   const storeIsStreaming = useChatStore((state) => state.isStreaming);
   const storeStreamingContent = useChatStore((state) => state.streamingContent);
+
+  // Model selection
+  const selectedModel = useChatStore((state) => state.selectedModel);
+  const setSelectedModel = useChatStore((state) => state.setSelectedModel);
   const activeThreadId = currentThreadIdFromStore || activeConversationId;
   const displayedMessages = selectDisplayedMessages({
     localMessages: messages,
@@ -598,12 +606,14 @@ function ChatPageContent() {
   }, []);
 
   // Send message
-  const handleSubmit = async () => {
-    if (!input.trim() || isLoading || storeIsStreaming) return;
+  const handleSubmit = async (contentOverride?: string) => {
+    const rawContent = contentOverride ?? input;
+    const content = rawContent.trim();
+    if (!content || isLoading || storeIsStreaming) return;
 
     const userMessage: Message = {
       role: 'user',
-      content: input.trim(),
+      content,
       timestamp: Date.now(),
     };
 
@@ -618,7 +628,7 @@ function ChatPageContent() {
 
     if (!currentConversationId && dbConversation) {
       try {
-        const dynamicTitle = generateConversationTitle(input);
+        const dynamicTitle = generateConversationTitle(content);
         console.log(
           '[Chat] Creating new thread in database with title:',
           dynamicTitle
@@ -679,6 +689,12 @@ function ChatPageContent() {
         streamingContent: '',
       });
 
+      if (currentThreadId) {
+        useAgentActivityStore
+          .getState()
+          .startRun(currentThreadId, deriveAgentName(), deriveTask(content));
+      }
+
       await agentChatService.streamMessage(
         {
           messages: newMessages.map((m) => ({
@@ -688,6 +704,7 @@ function ChatPageContent() {
           page_context: { type: 'chat' },
           use_rag: enableRAG,
           thread_id: existingAgentThreadId,
+          model: selectedModel,
         },
         {
           onToken: (content) => {
@@ -699,9 +716,19 @@ function ChatPageContent() {
           },
           onToolStart: (tool, args) => {
             console.log('[Agent] Tool start:', tool, args);
+            if (currentThreadId) {
+              useAgentActivityStore
+                .getState()
+                .pushToolStart(currentThreadId, tool);
+            }
           },
-          onToolEnd: (tool, result) => {
-            console.log('[Agent] Tool end:', tool, result);
+          onToolEnd: (tool, result, isError) => {
+            console.log('[Agent] Tool end:', tool, result, { isError });
+            if (currentThreadId) {
+              useAgentActivityStore
+                .getState()
+                .pushToolEnd(currentThreadId, tool, !isError);
+            }
           },
           onRagContext: (contexts) => {
             console.log('[Agent] RAG contexts:', contexts.length);
@@ -732,10 +759,20 @@ function ChatPageContent() {
           },
           onDone: () => {
             console.log('[Agent] Stream complete');
+            if (currentThreadId) {
+              useAgentActivityStore
+                .getState()
+                .finishRun(currentThreadId, 'done');
+            }
           },
           onError: (error) => {
             console.error('[Agent] Stream error:', error);
             streamHadError = true;
+            if (currentThreadId) {
+              useAgentActivityStore
+                .getState()
+                .finishRun(currentThreadId, 'error');
+            }
             // Show error as assistant message instead of blank bubble
             const errorMsg: Message = {
               role: 'assistant',
@@ -796,7 +833,7 @@ function ChatPageContent() {
           // Save user message
           const savedUserMessage = await workspaceService.createMessage({
             thread_id: currentThreadId,
-            content: input.trim(),
+            content,
             role: MessageRole.USER,
           });
           addMessageToStore(currentThreadId, savedUserMessage);
@@ -921,6 +958,127 @@ function ChatPageContent() {
     setInput(prompt);
   };
 
+  // Upload files selected via the Paperclip attach control.
+  // Uses enhancedDocumentService (v1 /files/upload) since no workspace-scoped
+  // attach endpoint exists yet. Each upload is isolated via .catch so one
+  // failure does not cancel others.
+  const handleAttach = useCallback(
+    async (files: FileList) => {
+      if (!workspace) {
+        console.warn('[Chat] Cannot attach: no workspace');
+        return;
+      }
+      const uploads = Array.from(files).map((file) =>
+        enhancedDocumentService
+          .uploadDocument(file, {
+            title: file.name,
+            processing_priority: 'normal',
+          })
+          .then((result) => {
+            console.log(
+              '[Chat] Uploaded',
+              file.name,
+              '→',
+              result.response.document_id
+            );
+            return result;
+          })
+          .catch((err) => {
+            console.error('[Chat] Upload failed for', file.name, err);
+            return null;
+          })
+      );
+      await Promise.all(uploads);
+    },
+    [workspace]
+  );
+
+  const handleRenameThread = useCallback(
+    async (threadId: string) => {
+      const target = conversations.find((c) => c.id === threadId);
+      const nextTitle = window.prompt('Rename thread', target?.title ?? '');
+      if (!nextTitle || nextTitle.trim() === target?.title) return;
+      const trimmed = nextTitle.trim();
+      try {
+        const updated = await workspaceService.updateThread(threadId, {
+          title: trimmed,
+        });
+        const nextTitleValue = updated.title ?? trimmed;
+        setConversations((prev) =>
+          prev.map((c) =>
+            c.id === threadId ? { ...c, title: nextTitleValue } : c
+          )
+        );
+      } catch (err) {
+        console.error('[Chat] Rename failed', err);
+      }
+    },
+    [conversations]
+  );
+
+  const handleDeleteThread = useCallback(
+    async (threadId: string) => {
+      if (!window.confirm('Delete this thread? This cannot be undone.')) return;
+      try {
+        await workspaceService.deleteThread(threadId);
+        setConversations((prev) => prev.filter((c) => c.id !== threadId));
+        if (activeConversationId === threadId) {
+          setActiveConversationId(null);
+          setMessages([]);
+          setCurrentThread(null);
+          router.push(getNewChatUrl());
+        }
+      } catch (err) {
+        console.error('[Chat] Delete failed', err);
+      }
+    },
+    [activeConversationId, router, setCurrentThread]
+  );
+
+  const handleBulkDeleteThreads = useCallback(
+    async (ids: string[]) => {
+      if (
+        !window.confirm(`Delete ${ids.length} threads? This cannot be undone.`)
+      )
+        return;
+      try {
+        await workspaceService.bulkDeleteThreads(ids);
+        setConversations((prev) => prev.filter((c) => !ids.includes(c.id)));
+        if (activeConversationId && ids.includes(activeConversationId)) {
+          setActiveConversationId(null);
+          setMessages([]);
+          setCurrentThread(null);
+          router.push(getNewChatUrl());
+        }
+      } catch (err) {
+        console.error('[Chat] Bulk delete failed', err);
+      }
+    },
+    [activeConversationId, router, setCurrentThread]
+  );
+
+  const handleRegenerate = useCallback(
+    (assistantMessageIndex: number) => {
+      // Bug 1: bail BEFORE truncating messages if a stream is in flight.
+      // Otherwise `setMessages` clears the list but `handleSubmit`'s internal
+      // guard short-circuits, leaving the UI with no response.
+      if (isLoading || storeIsStreaming) return;
+      const priorUser = [...displayedMessages]
+        .slice(0, assistantMessageIndex)
+        .reverse()
+        .find((m) => m.role === 'user');
+      if (!priorUser) return;
+      setMessages((prev) => prev.slice(0, assistantMessageIndex));
+      setInput(priorUser.content);
+      // Bug 2: pass the content explicitly. `handleSubmit` reads `input` from
+      // its closure, and `setInput` above only schedules a state update — the
+      // deferred `handleSubmit` would otherwise see the stale pre-setInput value.
+      const contentToSend = priorUser.content;
+      setTimeout(() => handleSubmit(contentToSend), 0);
+    },
+    [displayedMessages, handleSubmit, isLoading, storeIsStreaming]
+  );
+
   return (
     <div className="flex h-full w-full overflow-hidden bg-[var(--terminal-bg)]">
       {/* Chat Sidebar */}
@@ -939,12 +1097,30 @@ function ChatPageContent() {
             setCurrentThread(null);
             router.push(getNewChatUrl());
           }}
+          onRename={handleRenameThread}
+          onDelete={handleDeleteThread}
+          onBulkDelete={handleBulkDeleteThreads}
         />
       </div>
 
       {/* Main Chat Area */}
       <div className="flex-1 flex flex-col relative h-full min-w-0 overflow-hidden">
-        <ChatHeader currentWorkspace={workspace} />
+        <ChatHeader
+          currentWorkspace={workspace}
+          selectedModelId={selectedModel}
+          onModelChange={setSelectedModel}
+          messages={displayedMessages}
+          chatTitle={
+            conversations.find((c) => c.id === activeConversationId)?.title ||
+            'Chat'
+          }
+          onCopyAll={() => {
+            const text = displayedMessages
+              .map((m) => `[${m.role}] ${m.content}`)
+              .join('\n\n');
+            navigator.clipboard.writeText(text).catch(() => {});
+          }}
+        />
 
         {/* Messages Area Wrapper */}
         <div className="flex-1 relative min-h-0">
@@ -1055,6 +1231,14 @@ function ChatPageContent() {
                         ease: [0.25, 0.46, 0.45, 0.94],
                       }}
                     >
+                      {/* Cowork-style inline tool summary: only above the last
+                          assistant message, and only when not currently
+                          streaming (the streaming bubble shows its own). */}
+                      {message.role === 'assistant' &&
+                        index === displayedMessages.length - 1 &&
+                        !storeIsStreaming && (
+                          <InlineAgentSummary threadId={activeThreadId} />
+                        )}
                       <TerminalChatBubble
                         message={message}
                         index={index}
@@ -1068,6 +1252,11 @@ function ChatPageContent() {
                           isLoading &&
                           !storeIsStreaming &&
                           message.role === 'assistant'
+                        }
+                        onRetry={
+                          message.role === 'assistant'
+                            ? () => handleRegenerate(index)
+                            : undefined
                         }
                         onCitationClick={(citations, clickedCitation) => {
                           setCitationPanelCitations(citations);
@@ -1091,6 +1280,7 @@ function ChatPageContent() {
                       }}
                       transition={{ duration: 0.3 }}
                     >
+                      <InlineAgentSummary threadId={activeThreadId} />
                       <TerminalChatBubble
                         message={{
                           role: 'assistant',
@@ -1181,6 +1371,7 @@ function ChatPageContent() {
           enableRAG={enableRAG}
           onRAGToggle={setEnableRAG}
           inputRef={chatInputRef}
+          onAttach={handleAttach}
         />
 
         {/* Citation Panel Sidebar */}

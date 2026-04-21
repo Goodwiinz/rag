@@ -25,6 +25,8 @@
     ],
     "baseUrl": ".",
     "paths": {
+      "@/nous": ["./app/components/nous/index.ts"],
+      "@/nous/*": ["./app/components/nous/*"],
       "@/*": [
         "./src/*",
         "./app/*"
