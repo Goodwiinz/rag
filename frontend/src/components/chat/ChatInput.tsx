@@ -71,7 +71,14 @@ export function ChatInput({
   const [isFocused, setIsFocused] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
-  const voiceSupported = getSpeechRecognition() !== null;
+  // Defer the Web Speech API feature check to after mount. Running it during
+  // render produces an SSR/client mismatch (server: window is undefined →
+  // false; client: browser supports it → true). Start `false`, flip after
+  // hydration so the first server and client renders match.
+  const [voiceSupported, setVoiceSupported] = useState(false);
+  useEffect(() => {
+    setVoiceSupported(getSpeechRecognition() !== null);
+  }, []);
 
   const toggleVoice = (): void => {
     const Ctor = getSpeechRecognition();
