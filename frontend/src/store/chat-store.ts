@@ -152,6 +152,7 @@ interface ChatState {
   shortcutsDialogOpen: boolean;
   copiedMessageId: string | null;
   sidebarCollapsed: boolean;
+  selectedModel: string;
 
   // Bulk selection state
   selectedThreadIds: Set<string>;
@@ -224,6 +225,7 @@ interface ChatActions {
 
   // UI actions
   setShortcutsDialogOpen: (open: boolean) => void;
+  setSelectedModel: (model: string) => void;
   setCopiedMessageId: (id: string | null) => void;
   setSidebarCollapsed: (collapsed: boolean) => void;
 
@@ -368,6 +370,7 @@ const initialState: ChatState = {
   shortcutsDialogOpen: false,
   copiedMessageId: null,
   sidebarCollapsed: false,
+  selectedModel: 'gpt-4o',
   selectedThreadIds: new Set<string>(),
   isSelectMode: false,
   // Streaming state
@@ -1127,10 +1130,24 @@ export const useChatStore = create<ChatStore>()(
         });
       },
 
+      setSelectedModel: (model) => {
+        set((state) => {
+          state.selectedModel = model;
+        });
+      },
+
       // ========================================================================
       // Streaming Actions
       // ========================================================================
 
+      /**
+       * @deprecated Orphaned v2 streaming path. The active chat page uses
+       * `agentChatService.streamMessage` directly against `/api/v1/agent/stream`
+       * (see `app/(dashboard)/chat/page.tsx`). This action is kept only so the
+       * store interface and its existing unit tests stay intact; it has no UI
+       * callers. Remove together with `services/streamingService.ts` in a
+       * dedicated cleanup PR. Do not extend.
+       */
       streamMessage: async (content, threadId, useRag = true) => {
         const state = get();
         const targetThreadId = threadId || state.currentThreadId;

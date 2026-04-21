@@ -185,6 +185,10 @@ function ChatPageContent() {
   const storeStopStreaming = useChatStore((state) => state.stopStreaming);
   const storeIsStreaming = useChatStore((state) => state.isStreaming);
   const storeStreamingContent = useChatStore((state) => state.streamingContent);
+
+  // Model selection
+  const selectedModel = useChatStore((state) => state.selectedModel);
+  const setSelectedModel = useChatStore((state) => state.setSelectedModel);
   const activeThreadId = currentThreadIdFromStore || activeConversationId;
   const displayedMessages = selectDisplayedMessages({
     localMessages: messages,
@@ -699,6 +703,7 @@ function ChatPageContent() {
           page_context: { type: 'chat' },
           use_rag: enableRAG,
           thread_id: existingAgentThreadId,
+          model: selectedModel,
         },
         {
           onToken: (content) => {
@@ -716,18 +721,12 @@ function ChatPageContent() {
                 .pushToolStart(currentThreadId, tool);
             }
           },
-          onToolEnd: (tool, result) => {
-            console.log('[Agent] Tool end:', tool, result);
+          onToolEnd: (tool, result, isError) => {
+            console.log('[Agent] Tool end:', tool, result, { isError });
             if (currentThreadId) {
-              const ok = !(
-                result &&
-                typeof result === 'object' &&
-                'isError' in result &&
-                (result as { isError?: boolean }).isError === true
-              );
               useAgentActivityStore
                 .getState()
-                .pushToolEnd(currentThreadId, tool, ok);
+                .pushToolEnd(currentThreadId, tool, !isError);
             }
           },
           onRagContext: (contexts) => {
@@ -1105,7 +1104,22 @@ function ChatPageContent() {
 
       {/* Main Chat Area */}
       <div className="flex-1 flex flex-col relative h-full min-w-0 overflow-hidden">
-        <ChatHeader currentWorkspace={workspace} />
+        <ChatHeader
+          currentWorkspace={workspace}
+          selectedModelId={selectedModel}
+          onModelChange={setSelectedModel}
+          messages={displayedMessages}
+          chatTitle={
+            conversations.find((c) => c.id === activeConversationId)?.title ||
+            'Chat'
+          }
+          onCopyAll={() => {
+            const text = displayedMessages
+              .map((m) => `[${m.role}] ${m.content}`)
+              .join('\n\n');
+            navigator.clipboard.writeText(text).catch(() => {});
+          }}
+        />
 
         {/* Messages Area Wrapper */}
         <div className="flex-1 relative min-h-0">

@@ -2,26 +2,54 @@
 
 import { IconButton } from '@/components/ui/icon-button';
 import { SidebarTrigger } from '@/components/ui/sidebar';
+import { AVAILABLE_MODELS, ModelSelector } from '@/components/chat/ModelSelector';
+import {
+  downloadFile,
+  exportAsJson,
+  exportAsMarkdown,
+} from '@/components/chat/shared/exportConversation';
 import { Workspace } from '@/types/workspace';
 import {
   ChevronDown,
+  ClipboardCopy,
+  Download,
+  FileJson,
+  FileText,
   Network,
   Search,
   Settings2,
   TerminalSquare,
 } from 'lucide-react';
-import { memo, useEffect, useState } from 'react';
+import { memo, useEffect, useRef, useState } from 'react';
+
+interface ExportableMessage {
+  role: string;
+  content: string;
+  timestamp: number;
+}
 
 interface ChatHeaderProps {
   currentWorkspace: Workspace | null;
   onCommandPaletteOpen?: () => void;
+  selectedModelId?: string;
+  onModelChange?: (id: string) => void;
+  messages?: ExportableMessage[];
+  chatTitle?: string;
+  onCopyAll?: () => void;
 }
 
 export const ChatHeader = memo(function ChatHeader({
   currentWorkspace,
   onCommandPaletteOpen,
+  selectedModelId = 'gpt-4o',
+  onModelChange,
+  messages = [],
+  chatTitle = 'Chat',
+  onCopyAll,
 }: ChatHeaderProps) {
   const [time, setTime] = useState<string>('00:00:00');
+  const [exportOpen, setExportOpen] = useState(false);
+  const exportRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const fn = () => {
@@ -33,9 +61,33 @@ export const ChatHeader = memo(function ChatHeader({
     return () => clearInterval(int);
   }, []);
 
+  // Close export menu on outside click
+  useEffect(() => {
+    if (!exportOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (!exportRef.current?.contains(e.target as Node)) {
+        setExportOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [exportOpen]);
+
+  const slug = chatTitle.toLowerCase().replace(/\s+/g, '-').slice(0, 40);
+
+  const handleExportMarkdown = () => {
+    downloadFile(`${slug}.md`, 'text/markdown', exportAsMarkdown(chatTitle, messages));
+    setExportOpen(false);
+  };
+
+  const handleExportJson = () => {
+    downloadFile(`${slug}.json`, 'application/json', exportAsJson(chatTitle, messages));
+    setExportOpen(false);
+  };
+
   return (
     <div className="flex h-14 shrink-0 items-center justify-between gap-4 border-b border-[var(--terminal-border)] bg-[var(--terminal-bg)]/95 px-4 z-40">
-      {/* Left section: Breadcrumbs and Workspace Selector */}
+      {/* Left: breadcrumbs + workspace */}
       <div className="flex items-center gap-4">
         <SidebarTrigger className="h-7 w-7 text-[var(--terminal-text-dim)] hover:text-[var(--phosphor-green)] hover:bg-[var(--terminal-elevated)] transition-all rounded" />
 
@@ -64,7 +116,7 @@ export const ChatHeader = memo(function ChatHeader({
         </button>
       </div>
 
-      {/* Middle section: Global Command Palette Simulation */}
+      {/* Middle: command palette */}
       <div className="hidden md:flex flex-1 max-w-md relative mx-4">
         <div className="absolute left-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
           <Search className="w-3.5 h-3.5 text-[var(--terminal-text-dim)]" />
@@ -96,8 +148,61 @@ export const ChatHeader = memo(function ChatHeader({
         </div>
       </div>
 
-      {/* Right section: System Status & Settings */}
-      <div className="flex items-center gap-4">
+      {/* Right: model picker + export + copy-all + system status + icons */}
+      <div className="flex items-center gap-3">
+        {/* Model picker */}
+        {onModelChange && (
+          <ModelSelector
+            models={AVAILABLE_MODELS}
+            selectedModelId={selectedModelId}
+            onModelChange={onModelChange}
+          />
+        )}
+
+        {/* Copy all messages */}
+        {messages.length > 0 && onCopyAll && (
+          <IconButton
+            label="Copy all messages"
+            icon={<ClipboardCopy className="w-4 h-4" />}
+            className="p-1.5 text-[var(--terminal-text-dim)] hover:text-[var(--terminal-text)] transition-colors"
+            onClick={onCopyAll}
+          />
+        )}
+
+        {/* Export menu */}
+        {messages.length > 0 && (
+          <div className="relative" ref={exportRef}>
+            <IconButton
+              label="Export chat"
+              icon={<Download className="w-4 h-4" />}
+              className="p-1.5 text-[var(--terminal-text-dim)] hover:text-[var(--terminal-text)] transition-colors"
+              onClick={() => setExportOpen((v) => !v)}
+            />
+            {exportOpen && (
+              <div
+                className="absolute right-0 top-full mt-1 w-44 rounded border border-[var(--terminal-border)] bg-[var(--terminal-surface)] shadow-lg z-50 overflow-hidden"
+                style={{ fontFamily: "'JetBrains Mono', monospace" }}
+              >
+                <button
+                  onClick={handleExportMarkdown}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-xs text-[var(--terminal-text)] hover:bg-[var(--terminal-elevated)] transition-colors"
+                >
+                  <FileText className="w-3.5 h-3.5 text-[var(--terminal-text-dim)]" />
+                  Export as Markdown
+                </button>
+                <button
+                  onClick={handleExportJson}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-xs text-[var(--terminal-text)] hover:bg-[var(--terminal-elevated)] transition-colors"
+                >
+                  <FileJson className="w-3.5 h-3.5 text-[var(--terminal-text-dim)]" />
+                  Export as JSON
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Clock */}
         <div
           className="flex items-center gap-3 px-3 py-1.5 rounded border border-[var(--terminal-border)] bg-[var(--terminal-surface)]"
           style={{ fontFamily: "'JetBrains Mono', monospace" }}
