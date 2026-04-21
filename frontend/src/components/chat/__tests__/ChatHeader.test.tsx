@@ -41,9 +41,9 @@ describe('ChatHeader', () => {
     expect(screen.queryByTitle('Connected')).not.toBeInTheDocument();
   });
 
-  it('shows model picker when onModelChange is provided', () => {
-    render(<ChatHeader onModelChange={() => {}} selectedModelId="gpt-4o" />);
-    expect(screen.getByText('GPT-4o')).toBeInTheDocument();
+  it('does not render the model picker (moved to the composer)', () => {
+    render(<ChatHeader />);
+    expect(screen.queryByText('GPT-4o')).not.toBeInTheDocument();
   });
 
   it('shows copy-all and export only when messages exist', () => {
