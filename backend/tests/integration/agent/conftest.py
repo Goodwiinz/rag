@@ -139,11 +139,24 @@ def mock_execute_tool():
 # ---------------------------------------------------------------------------
 
 
+# Patches started by compile_graph_with_mocks; torn down by the autouse
+# _cleanup_graph_patchers fixture so they outlive the helper's return and
+# remain active during `await graph.ainvoke(...)`.
+_active_graph_patchers: list = []
+
+
+@pytest.fixture(autouse=True)
+def _cleanup_graph_patchers():
+    yield
+    while _active_graph_patchers:
+        _active_graph_patchers.pop().stop()
+
+
 def compile_graph_with_mocks(mock_llm_instance, mock_tool_fn):
     """Compile the agent graph with all external deps patched."""
     from langgraph.checkpoint.memory import MemorySaver
 
-    with (
+    patchers = [
         patch("src.services.agent.graph._build_llm", return_value=mock_llm_instance),
         patch("src.services.agent.graph.execute_tool", new=mock_tool_fn),
         patch("src.services.agent.graph._get_execute_tool", return_value=mock_tool_fn),
@@ -159,10 +172,14 @@ def compile_graph_with_mocks(mock_llm_instance, mock_tool_fn):
             "src.services.agent.graph.rag_node",
             new=AsyncMock(return_value={"retrieved_contexts": []}),
         ),
-    ):
-        from src.services.agent.graph import compile_agent_graph
+    ]
+    for p in patchers:
+        p.start()
+        _active_graph_patchers.append(p)
 
-        return compile_agent_graph(checkpointer=MemorySaver())
+    from src.services.agent.graph import compile_agent_graph
+
+    return compile_agent_graph(checkpointer=MemorySaver())
 
 
 @pytest_asyncio.fixture
