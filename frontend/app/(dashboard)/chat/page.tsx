@@ -1123,13 +1123,13 @@ function ChatPageContent() {
           onRename={handleRenameThread}
           onDelete={handleDeleteThread}
           onBulkDelete={handleBulkDeleteThreads}
+          currentWorkspace={workspace}
         />
       </div>
 
       {/* Main Chat Area */}
       <div className="flex-1 flex flex-col relative h-full min-w-0 overflow-hidden">
         <ChatHeader
-          currentWorkspace={workspace}
           selectedModelId={selectedModel}
           onModelChange={setSelectedModel}
           messages={displayedMessages}
