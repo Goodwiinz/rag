@@ -11,14 +11,11 @@ import {
   exportAsJson,
   exportAsMarkdown,
 } from '@/components/chat/shared/exportConversation';
-import { Workspace } from '@/types/workspace';
 import {
-  ChevronDown,
   ClipboardCopy,
   Download,
   FileJson,
   FileText,
-  Network,
   Search,
 } from 'lucide-react';
 import { memo, useEffect, useRef, useState } from 'react';
@@ -30,7 +27,6 @@ interface ExportableMessage {
 }
 
 interface ChatHeaderProps {
-  currentWorkspace: Workspace | null;
   onCommandPaletteOpen?: () => void;
   selectedModelId?: string;
   onModelChange?: (id: string) => void;
@@ -40,7 +36,6 @@ interface ChatHeaderProps {
 }
 
 export const ChatHeader = memo(function ChatHeader({
-  currentWorkspace,
   onCommandPaletteOpen,
   selectedModelId = 'gpt-4o',
   onModelChange,
@@ -48,26 +43,8 @@ export const ChatHeader = memo(function ChatHeader({
   chatTitle = 'Chat',
   onCopyAll,
 }: ChatHeaderProps) {
-  const [time, setTime] = useState<string>('--:--');
   const [exportOpen, setExportOpen] = useState(false);
   const exportRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const fn = () => {
-      const d = new Date();
-      setTime(
-        d.toLocaleTimeString('en-US', {
-          hour: '2-digit',
-          minute: '2-digit',
-          hour12: false,
-        })
-      );
-    };
-    fn();
-    // HH:MM only — refresh once a minute is plenty
-    const int = setInterval(fn, 30_000);
-    return () => clearInterval(int);
-  }, []);
 
   useEffect(() => {
     if (!exportOpen) return;
@@ -116,53 +93,27 @@ export const ChatHeader = memo(function ChatHeader({
           </span>
         </div>
 
-        <button
-          aria-label="Select workspace"
-          className="flex items-center gap-2 px-3 py-1.5 rounded border border-[var(--terminal-border)] bg-[var(--terminal-surface)] hover:bg-[var(--terminal-elevated)] transition-colors max-w-[200px] min-w-0"
-        >
-          <Network className="w-3.5 h-3.5 text-[var(--phosphor-green)] shrink-0" />
-          <span
-            className="text-xs text-[var(--terminal-text)] truncate"
-            style={{ fontFamily: "'JetBrains Mono', monospace" }}
-            title={currentWorkspace?.name}
-          >
-            {currentWorkspace?.name || 'Workspace'}
-          </span>
-          <ChevronDown className="w-3.5 h-3.5 text-[var(--terminal-text-dim)] shrink-0" />
-        </button>
       </div>
 
-      {/* Middle: search (flex-1, shrinks before right side does) */}
-      <div className="hidden md:flex flex-1 min-w-0 max-w-md relative">
-        <div className="absolute left-3 top-1/2 -translate-y-1/2">
-          <Search className="w-3.5 h-3.5 text-[var(--terminal-text-dim)]" />
-        </div>
-        <input
-          type="text"
-          placeholder="Search or command..."
-          readOnly
-          role="button"
-          aria-label="Open command palette"
-          tabIndex={0}
-          onClick={onCommandPaletteOpen}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-              e.preventDefault();
-              onCommandPaletteOpen?.();
-            }
-          }}
-          className="w-full bg-[var(--terminal-surface)] border border-[var(--terminal-border)] rounded-md py-1.5 pl-9 pr-[50px] text-xs text-[var(--terminal-text)] cursor-pointer hover:border-[var(--phosphor-green)]/30 transition-colors"
-          style={{ fontFamily: "'JetBrains Mono', monospace" }}
-        />
-        <span
-          className="absolute right-2 top-1/2 -translate-y-1/2 px-1.5 py-0.5 rounded bg-[var(--terminal-elevated)] border border-[var(--terminal-border)] text-[9px] text-[var(--terminal-text-dim)] whitespace-nowrap"
-          style={{ fontFamily: "'JetBrains Mono', monospace" }}
-        >
+      {/* Middle: compact ⌘K command-palette trigger. The sidebar already has
+          a session search; this is the global command affordance only. */}
+      <button
+        type="button"
+        onClick={onCommandPaletteOpen}
+        aria-label="Open command palette"
+        className="hidden md:flex items-center gap-2 px-2.5 py-1.5 rounded-md border border-[var(--terminal-border)] bg-[var(--terminal-surface)] hover:border-[var(--phosphor-green)]/30 transition-colors"
+        style={{ fontFamily: "'JetBrains Mono', monospace" }}
+      >
+        <Search className="w-3.5 h-3.5 text-[var(--terminal-text-dim)]" />
+        <span className="text-[10px] text-[var(--terminal-text-dim)] uppercase tracking-wider">
+          Command
+        </span>
+        <span className="px-1.5 py-0.5 rounded bg-[var(--terminal-elevated)] border border-[var(--terminal-border)] text-[9px] text-[var(--terminal-text-dim)] whitespace-nowrap">
           ⌘K
         </span>
-      </div>
+      </button>
 
-      {/* Right: model + actions + status (all no-wrap) */}
+      {/* Right: model + actions (all no-wrap) */}
       <div className="flex items-center gap-2 shrink-0 ml-auto">
         {onModelChange && (
           <ModelSelector
@@ -213,17 +164,6 @@ export const ChatHeader = memo(function ChatHeader({
           </div>
         )}
 
-        {/* Compact status: green dot + time */}
-        <div
-          className="hidden lg:flex items-center gap-2 px-2.5 py-1.5 rounded border border-[var(--terminal-border)] bg-[var(--terminal-surface)] whitespace-nowrap"
-          style={{ fontFamily: "'JetBrains Mono', monospace" }}
-          title="Connected"
-        >
-          <span className="h-1.5 w-1.5 rounded-full bg-[var(--phosphor-green)] animate-pulse" />
-          <span className="text-[10px] text-[var(--phosphor-green)] font-bold tabular-nums">
-            {time}
-          </span>
-        </div>
       </div>
     </div>
   );

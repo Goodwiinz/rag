@@ -8,12 +8,14 @@ import {
   CheckSquare,
   ChevronDown,
   MessageSquare,
+  Network,
   Pencil,
   Plus,
   Search,
   Trash2,
   X,
 } from 'lucide-react';
+import type { Workspace } from '@/types/workspace';
 
 // UI conversation type (mapped from DB Thread in page.tsx)
 interface SidebarConversation {
@@ -33,6 +35,7 @@ interface ChatSidebarProps {
   onRename?: (id: string) => void;
   onDelete?: (id: string) => void;
   onBulkDelete?: (ids: string[]) => void;
+  currentWorkspace?: Workspace | null;
   className?: string;
 }
 
@@ -44,6 +47,7 @@ export const ChatSidebar = memo(function ChatSidebar({
   onRename,
   onDelete,
   onBulkDelete,
+  currentWorkspace,
   className,
 }: ChatSidebarProps) {
   const [searchQuery, setSearchQuery] = useState('');
@@ -86,6 +90,33 @@ export const ChatSidebar = memo(function ChatSidebar({
     >
       {/* Top Actions */}
       <div className="p-4 space-y-4">
+        {/* Workspace card — relocated from ChatHeader so session context
+            is visible alongside the conversation list. Uses theme vars so
+            it inverts cleanly in light/dark. */}
+        <button
+          type="button"
+          aria-label="Select workspace"
+          className="w-full flex items-center gap-2 px-3 py-2 rounded border border-[var(--terminal-border)] bg-[var(--terminal-surface)] hover:bg-[var(--terminal-elevated)] transition-colors min-w-0"
+        >
+          <Network className="w-3.5 h-3.5 text-[var(--phosphor-green)] shrink-0" />
+          <div className="flex-1 min-w-0 text-left">
+            <div
+              className="text-[9px] uppercase tracking-wider text-[var(--terminal-text-dim)]"
+              style={{ fontFamily: "'JetBrains Mono', monospace" }}
+            >
+              Active workspace
+            </div>
+            <div
+              className="text-xs text-[var(--terminal-text)] truncate"
+              style={{ fontFamily: "'JetBrains Mono', monospace" }}
+              title={currentWorkspace?.name}
+            >
+              {currentWorkspace?.name || 'Workspace'}
+            </div>
+          </div>
+          <ChevronDown className="w-3.5 h-3.5 text-[var(--terminal-text-dim)] shrink-0" />
+        </button>
+
         <button
           onClick={() => {
             exitSelectMode();
