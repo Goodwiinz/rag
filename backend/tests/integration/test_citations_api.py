@@ -106,7 +106,7 @@ class TestCreateCitation:
 
         assert response.status_code == 201
         data = response.json()
-        assert data["documentTitle"] == "New Citation" or data.get("document_title") == "New Citation"
+        assert data.get("documentTitle") == "New Citation" or data.get("document_title") == "New Citation"
 
     @pytest.mark.asyncio
     async def test_create_citation_persists_to_db(
