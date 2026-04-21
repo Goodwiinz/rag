@@ -30,6 +30,22 @@ const getBrowserLocation = (): URL | null => {
   return parseUrl(window.location.origin);
 };
 
+export const shouldUseLocalProxyForConfiguredOrigin = (
+  value: string
+): boolean => {
+  const configured = parseUrl(value);
+  const browserLocation = getBrowserLocation();
+
+  if (!configured || !browserLocation) {
+    return false;
+  }
+
+  return (
+    isLocalHostname(browserLocation.hostname) &&
+    !isLocalHostname(configured.hostname)
+  );
+};
+
 const shouldIgnoreConfiguredOrigin = (value: string): boolean => {
   const configured = parseUrl(value);
   const browserLocation = getBrowserLocation();
@@ -101,6 +117,10 @@ export const getPublicApiBaseUrl = (defaultPath: string = '/api/v1'): string => 
     process.env.NEXT_PUBLIC_API_BASE_URL
   );
   if (configuredBaseUrl) {
+    if (shouldUseLocalProxyForConfiguredOrigin(configuredBaseUrl)) {
+      return trimTrailingSlash(defaultPath);
+    }
+
     if (configuredBaseUrl.startsWith('/')) {
       return trimTrailingSlash(configuredBaseUrl);
     }
