@@ -1,79 +1,110 @@
 'use client';
 
 import { useAgentActivityStore } from '@/stores/agentActivityStore';
-import { ChevronRight } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { Check } from 'lucide-react';
+import { CollapsibleCard } from './CollapsibleCard';
 
 interface ProgressPanelProps {
   threadId: string | null;
 }
 
 /**
- * Compact progress card — matches Cowork's "Progress · N of M >" header.
- * Rendered above the full `AgentActivityPanel` for a quick scan of status.
- * Hidden when there's no active or recent run for this thread.
+ * Cowork-style Progress card: shows the agent's plan (from the LangGraph
+ * planner_node) as task rows with a filled check-circle and strikethrough
+ * when complete. Falls back to tool-step rows if no plan was emitted so the
+ * card is still useful for simple single-step runs.
+ *
+ * Hidden entirely when the thread has no run yet.
  */
 export function ProgressPanel({ threadId }: ProgressPanelProps) {
   const run = useAgentActivityStore((s) =>
     threadId ? s.runs[threadId] : undefined
   );
 
-  if (!run || run.steps.length === 0) return null;
+  if (!run) return null;
 
-  const done = run.steps.filter((s) => s.status === 'done').length;
-  const errored = run.steps.filter((s) => s.status === 'error').length;
-  const total = run.steps.length;
+  const planItems = run.plan;
+  const toolItems = run.steps;
 
-  const label =
-    run.state === 'done'
-      ? `${total} of ${total}`
-      : run.state === 'error'
-        ? `${done}/${total} · ${errored} failed`
-        : `${done} of ${total}`;
+  // Nothing to show — don't render an empty card.
+  if (planItems.length === 0 && toolItems.length === 0) return null;
 
-  const accent =
-    run.state === 'error'
-      ? 'var(--error-red)'
-      : run.state === 'done'
-        ? 'var(--nous-terra)'
-        : 'var(--nous-sol)';
+  const useTools = planItems.length === 0;
+  const rows = useTools
+    ? toolItems.map((s) => ({
+        id: s.id,
+        text: s.label,
+        done: s.status === 'done',
+        active: s.status === 'active',
+        error: s.status === 'error',
+      }))
+    : planItems.map((p) => ({
+        id: p.id,
+        text: p.text,
+        done: p.done,
+        active: false,
+        error: false,
+      }));
+
+  const doneCount = rows.filter((r) => r.done).length;
 
   return (
-    <section aria-label="Agent progress">
-      <div
-        className="flex items-center justify-between rounded-xl border px-3 py-2.5"
-        style={{
-          borderColor: 'var(--nous-border-1)',
-          background: 'var(--nous-bg-2)',
-          fontFamily: 'var(--nous-font-ui)',
-        }}
-      >
-        <div className="flex items-center gap-2 min-w-0">
-          <span
-            className="h-1.5 w-1.5 shrink-0 rounded-full"
-            style={{
-              background: accent,
-              animation:
-                run.state === 'running' ? 'pulse 1.5s ease-in-out infinite' : undefined,
-            }}
-          />
-          <span
-            className="text-[11px] uppercase tracking-wider"
-            style={{ color: 'var(--nous-fg-3)' }}
-          >
-            Progress
-          </span>
-          <span
-            className="text-sm tabular-nums"
-            style={{ color: 'var(--nous-fg-1)' }}
-          >
-            {label}
-          </span>
-        </div>
-        <ChevronRight
-          className="h-3.5 w-3.5 shrink-0"
-          style={{ color: 'var(--nous-fg-3)' }}
-        />
-      </div>
-    </section>
+    <CollapsibleCard
+      title="Progress"
+      badge={`${doneCount} of ${rows.length}`}
+    >
+      <ul className="space-y-3">
+        {rows.map((row) => (
+          <li key={row.id} className="flex items-start gap-3">
+            <span
+              className={cn(
+                'mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full transition-colors',
+                row.done && 'bg-[var(--phosphor-green)]',
+                row.active &&
+                  'border-2 border-[var(--phosphor-green)] animate-pulse',
+                row.error && 'bg-[var(--error-red)]',
+                !row.done &&
+                  !row.active &&
+                  !row.error &&
+                  'border border-[var(--nous-border-1)]'
+              )}
+              aria-hidden
+            >
+              {row.done && (
+                <Check
+                  className="h-3 w-3"
+                  style={{ color: 'var(--nous-bg-1)' }}
+                  strokeWidth={3}
+                />
+              )}
+              {row.error && (
+                <span
+                  className="text-[10px] font-bold"
+                  style={{ color: 'var(--nous-bg-1)' }}
+                >
+                  !
+                </span>
+              )}
+            </span>
+            <span
+              className={cn(
+                'text-[14px] leading-snug',
+                row.done && 'line-through'
+              )}
+              style={{
+                color: row.done
+                  ? 'var(--nous-fg-3)'
+                  : row.error
+                    ? 'var(--error-red)'
+                    : 'var(--nous-fg-1)',
+              }}
+            >
+              {row.text}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </CollapsibleCard>
   );
 }

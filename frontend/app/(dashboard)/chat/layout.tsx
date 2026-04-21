@@ -3,6 +3,7 @@
 import { ContextRail } from '@/components/context-rail';
 import { useChatPersistence } from '@/hooks';
 import { cn } from '@/lib/utils';
+import { useChatStore } from '@/store/chat-store';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   Activity,
@@ -310,6 +311,10 @@ export default function ChatLayout({
 }) {
   const router = useRouter();
   const { currentThreadId } = useChatPersistence();
+  const currentWorkspaceId = useChatStore((s) => s.currentWorkspaceId);
+  const workspaces = useChatStore((s) => s.workspaces);
+  const workspaceName =
+    workspaces.find((w) => w.id === currentWorkspaceId)?.name ?? null;
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
 
   // Global keyboard shortcut for command palette
@@ -335,6 +340,8 @@ export default function ChatLayout({
         {/* Right-rail: stacked Agent Activity, Related Results, Citations */}
         <ContextRail
           threadId={currentThreadId ?? null}
+          workspaceName={workspaceName}
+          ragEnabled={true}
           className="hidden lg:flex shrink-0 w-[320px] border-l border-[var(--nous-border-1)]"
         />
       </div>
