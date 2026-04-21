@@ -12,14 +12,14 @@ const { useCitationsForThread } = require('@/hooks');
 describe('AllCitationsPanel', () => {
   beforeEach(() => jest.clearAllMocks());
 
-  it('renders empty state when no citations', () => {
+  it('renders nothing when no citations (Cowork-style — hide empty cards)', () => {
     useCitationsForThread.mockReturnValue({
       allCitations: [],
       activeDocument: null,
       relatedResults: [],
     });
-    render(<AllCitationsPanel />);
-    expect(screen.getByText(/no citations yet/i)).toBeTruthy();
+    const { container } = render(<AllCitationsPanel />);
+    expect(container.firstChild).toBeNull();
   });
 
   it('renders title and source for each citation with source count', () => {

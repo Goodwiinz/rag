@@ -736,6 +736,29 @@ function ChatPageContent() {
               streamingCitations: contexts,
             });
           },
+          onPlan: (steps) => {
+            if (!currentThreadId) return;
+            // Coerce each plan step into a single human-readable string.
+            // Backend emits `{steps: [...], reasoning: ...}` — step items may
+            // be plain strings or objects with `description`/`text`/`title`.
+            const items = (steps ?? [])
+              .map((step) => {
+                if (typeof step === 'string') return step;
+                if (step && typeof step === 'object') {
+                  const s = step as Record<string, unknown>;
+                  return String(
+                    s.description ?? s.text ?? s.title ?? s.step ?? ''
+                  );
+                }
+                return '';
+              })
+              .filter((s) => s.length > 0);
+            if (items.length > 0) {
+              useAgentActivityStore
+                .getState()
+                .setPlan(currentThreadId, items);
+            }
+          },
           onTrace: (threadId) => {
             // Capture agent thread_id from trace event for subsequent sends
             if (currentThreadId) {
