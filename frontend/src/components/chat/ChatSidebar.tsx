@@ -60,18 +60,18 @@ export const ChatSidebar = memo(function ChatSidebar({
     [conversations, searchQuery]
   );
 
-  const exitSelectMode = () => {
+  const exitSelectMode = (): void => {
     setSelectMode(false);
     setSelectedIds([]);
   };
 
-  const toggleSelected = (id: string) => {
+  const toggleSelected = (id: string): void => {
     setSelectedIds((prev) =>
       prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
     );
   };
 
-  const handleBulkDelete = () => {
+  const handleBulkDelete = (): void => {
     if (selectedIds.length === 0) return;
     onBulkDelete?.(selectedIds);
     exitSelectMode();
@@ -87,7 +87,10 @@ export const ChatSidebar = memo(function ChatSidebar({
       {/* Top Actions */}
       <div className="p-4 space-y-4">
         <button
-          onClick={onNew}
+          onClick={() => {
+            exitSelectMode();
+            onNew();
+          }}
           className="w-full flex items-center justify-center gap-2 py-2 px-4 rounded border border-[var(--terminal-border)] hover:border-[var(--terminal-text-dim)] bg-[var(--terminal-surface)] hover:bg-[var(--terminal-elevated)] transition-all group"
           style={{ fontFamily: "'JetBrains Mono', monospace" }}
         >
@@ -204,7 +207,6 @@ export const ChatSidebar = memo(function ChatSidebar({
                       <div className="mt-0.5">
                         <input
                           type="checkbox"
-                          role="checkbox"
                           aria-label={`Select ${conv.title}`}
                           checked={isSelected}
                           onChange={() => toggleSelected(conv.id)}
@@ -258,7 +260,7 @@ export const ChatSidebar = memo(function ChatSidebar({
                   </button>
 
                   {!selectMode && (onRename || onDelete) && (
-                    <div className="absolute right-2 top-1/2 -translate-y-1/2 hidden group-hover/row:flex items-center gap-1 bg-[var(--terminal-elevated)] rounded px-1 py-0.5">
+                    <div className="absolute right-2 top-1/2 -translate-y-1/2 hidden group-hover/row:flex group-focus-within/row:flex items-center gap-1 bg-[var(--terminal-elevated)] rounded px-1 py-0.5">
                       {onRename && (
                         <button
                           type="button"
