@@ -15,6 +15,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models import Citation, Document
+from src.models.document import DocumentType
 from src.shared.research_schemas import CitationCreate
 
 
@@ -31,7 +32,9 @@ async def sample_document(test_db: AsyncSession, test_user) -> Document:
         title="Attention Is All You Need",
         filename="attention.pdf",
         file_path="/data/uploads/attention.pdf",
-        document_type="pdf",
+        file_size_bytes=1024,
+        mime_type="application/pdf",
+        document_type=DocumentType.PDF,
         uploaded_by_user_id=test_user.id,
         organization_id=test_user.organization_id,
         is_public=True,
@@ -103,7 +106,7 @@ class TestCreateCitation:
 
         assert response.status_code == 201
         data = response.json()
-        assert data["documentTitle"] == "New Citation" or data.get("document_title") == "New Citation"
+        assert data.get("documentTitle") == "New Citation" or data.get("document_title") == "New Citation"
 
     @pytest.mark.asyncio
     async def test_create_citation_persists_to_db(
