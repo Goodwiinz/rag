@@ -12,9 +12,10 @@ from dataclasses import asdict, dataclass
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
-from openai import AzureOpenAI
+from openai import AzureOpenAI, OpenAI
 
 from src.core.config import settings
+from src.core.openai_endpoint import classify_openai_endpoint
 
 logger = logging.getLogger(__name__)
 
@@ -104,17 +105,26 @@ class LLMJudgeService:
         }
 
     def _initialize_client(self):
-        """Initialize Azure OpenAI client"""
+        """Initialize the LLM Judge client, routing by endpoint shape."""
         if self.endpoint and self.api_key:
             try:
-                self.client = AzureOpenAI(
-                    api_key=self.api_key,
-                    azure_endpoint=self.endpoint,
-                    api_version=self.api_version,
-                )
-                logger.info(
-                    f"LLM Judge initialized with deployment: {self.deployment_name}"
-                )
+                if classify_openai_endpoint(self.endpoint) == "openai_compatible":
+                    self.client = OpenAI(
+                        api_key=self.api_key,
+                        base_url=self.endpoint,
+                    )
+                    logger.info(
+                        f"LLM Judge initialized (OpenAI-compat) with deployment: {self.deployment_name}"
+                    )
+                else:
+                    self.client = AzureOpenAI(
+                        api_key=self.api_key,
+                        azure_endpoint=self.endpoint,
+                        api_version=self.api_version,
+                    )
+                    logger.info(
+                        f"LLM Judge initialized (Azure) with deployment: {self.deployment_name}"
+                    )
             except Exception as e:
                 logger.error(f"Failed to initialize LLM Judge client: {e}")
                 self.client = None

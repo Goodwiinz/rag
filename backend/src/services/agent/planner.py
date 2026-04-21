@@ -13,6 +13,7 @@ from langchain_core.runnables import RunnableConfig
 from pydantic import BaseModel
 
 from src.core.config import get_settings
+from src.core.openai_endpoint import classify_openai_endpoint
 
 logger = logging.getLogger(__name__)
 
@@ -50,11 +51,6 @@ class AgentPlan(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-def _is_openai_compatible(endpoint: str) -> bool:
-    """Mirror the check used by the existing AzureOpenAIService."""
-    return "/v1" in endpoint or "services.ai.azure.com" in endpoint
-
-
 def _build_planner_llm(model: str = "gpt-4o-mini"):
     """Build a LangChain chat model for the planner.
 
@@ -81,7 +77,7 @@ def _build_planner_llm(model: str = "gpt-4o-mini"):
             "(or the non-CHAT variants)."
         )
 
-    if _is_openai_compatible(endpoint):
+    if classify_openai_endpoint(endpoint) == "openai_compatible":
         from langchain_openai import ChatOpenAI
 
         return ChatOpenAI(

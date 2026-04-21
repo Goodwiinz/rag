@@ -81,9 +81,9 @@ def _build_insights_llm():
     if not endpoint or not api_key:
         raise RuntimeError("Azure/OpenAI config required for insights LLM")
 
-    from src.services.agent.graph import _is_openai_compatible
+    from src.core.openai_endpoint import classify_openai_endpoint
 
-    if _is_openai_compatible(endpoint):
+    if classify_openai_endpoint(endpoint) == "openai_compatible":
         from langchain_openai import ChatOpenAI
         return ChatOpenAI(
             model="gpt-4o-mini",

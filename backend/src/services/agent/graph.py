@@ -16,6 +16,7 @@ from langgraph.graph import END, StateGraph
 from langgraph.types import RetryPolicy, interrupt, Command
 
 from src.core.config import get_settings
+from src.core.openai_endpoint import classify_openai_endpoint
 from src.services.agent.compactor import make_compactor_node
 from src.services.agent.error_recovery import (
     ToolError,
@@ -77,11 +78,6 @@ def _safe_json_loads(s: str) -> Any:
 # ---------------------------------------------------------------------------
 
 
-def _is_openai_compatible(endpoint: str) -> bool:
-    """Mirror the check used by the existing AzureOpenAIService."""
-    return "/v1" in endpoint or "services.ai.azure.com" in endpoint
-
-
 def _build_llm():
     """Build a LangChain chat model from the existing Azure/OpenAI config."""
     settings = get_settings()
@@ -108,7 +104,7 @@ def _build_llm():
             "(or the non-CHAT variants)."
         )
 
-    if _is_openai_compatible(endpoint):
+    if classify_openai_endpoint(endpoint) == "openai_compatible":
         from langchain_openai import ChatOpenAI
 
         return ChatOpenAI(

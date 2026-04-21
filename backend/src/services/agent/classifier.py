@@ -71,7 +71,7 @@ def _build_classifier_llm():
     ``graph.py`` but targets gpt-4o-mini with temperature=0 for
     deterministic, fast classification.
     """
-    from src.services.agent.graph import _is_openai_compatible
+    from src.core.openai_endpoint import classify_openai_endpoint
 
     settings = get_settings()
 
@@ -92,7 +92,7 @@ def _build_classifier_llm():
             "(or the non-CHAT variants)."
         )
 
-    if _is_openai_compatible(endpoint):
+    if classify_openai_endpoint(endpoint) == "openai_compatible":
         from langchain_openai import ChatOpenAI
 
         return ChatOpenAI(
