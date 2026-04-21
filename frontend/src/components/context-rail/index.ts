@@ -7,6 +7,7 @@ export { ProgressPanel } from './ProgressPanel';
 export { RelatedResultsPanel } from './RelatedResultsPanel';
 export { WorkingFoldersPanel } from './WorkingFoldersPanel';
 export { toolLabel } from './toolLabels';
+export * from './folder-tree';
 
 /**
  * Map an agent subgraph identifier to a human agent name.

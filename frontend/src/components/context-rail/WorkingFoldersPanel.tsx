@@ -2,8 +2,7 @@
 
 import { useCitationsForThread } from '@/hooks';
 import { CollapsibleCard } from './CollapsibleCard';
-import { FolderTree } from './folder-tree/FolderTree';
-import type { Node } from './folder-tree/types';
+import { FolderTree, type Node } from './folder-tree';
 import { useProjectWorkingFolders } from './hooks/useProjectWorkingFolders';
 
 export type WorkingFoldersSelection =
