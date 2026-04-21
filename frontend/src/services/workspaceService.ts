@@ -516,9 +516,21 @@ export const workspaceService = {
           const workspace = await this.getWorkspace(cachedId);
           return workspace;
         } catch (error: any) {
-          if (error?.response?.status === 404) {
+          // Any non-success from the cached-ID fetch (404 deleted, 403 no
+          // access, 500 server confused) means the cache is no longer
+          // trustworthy. Clear it and fall through to `listWorkspaces` —
+          // otherwise the stale ID 500s on every page load.
+          const status = error?.response?.status;
+          if (status && status >= 400) {
             localStorage.removeItem('default-workspace-id');
             localStorage.removeItem('default-workspace-cached-at');
+            if (status >= 500) {
+              console.warn(
+                '[WorkspaceService] Cached workspace fetch returned',
+                status,
+                '— clearing cache and re-listing workspaces'
+              );
+            }
           }
         }
       } else if (cachedId) {
