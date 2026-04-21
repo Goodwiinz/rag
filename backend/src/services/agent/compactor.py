@@ -13,6 +13,7 @@ from langchain_core.messages import AIMessage, BaseMessage, ToolMessage
 from langchain_core.runnables import RunnableConfig
 
 from src.core.config import get_settings
+from src.core.openai_endpoint import classify_openai_endpoint
 from src.services.agent.state import AgentState
 
 logger = logging.getLogger(__name__)
@@ -177,10 +178,7 @@ def _build_compactor_llm():
             "(or the non-CHAT variants)."
         )
 
-    # Detect OpenAI-compatible vs native Azure endpoint
-    is_openai = "/v1" in endpoint or "services.ai.azure.com" in endpoint
-
-    if is_openai:
+    if classify_openai_endpoint(endpoint) == "openai_compatible":
         from langchain_openai import ChatOpenAI
 
         return ChatOpenAI(

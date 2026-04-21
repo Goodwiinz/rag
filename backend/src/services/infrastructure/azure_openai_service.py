@@ -11,6 +11,7 @@ import tiktoken
 from openai import AzureOpenAI, OpenAI
 
 from src.core.config import settings
+from src.core.openai_endpoint import classify_openai_endpoint
 
 logger = logging.getLogger(__name__)
 
@@ -24,11 +25,6 @@ class AzureOpenAIService:
         self.chat_client = None
         self._initialize_clients()
 
-    @staticmethod
-    def _is_openai_compatible(endpoint: str) -> bool:
-        """Check if endpoint uses OpenAI-compatible format (e.g. Azure AI Services /v1/)"""
-        return "/v1" in endpoint or "services.ai.azure.com" in endpoint
-
     def _initialize_clients(self):
         """Initialize Azure OpenAI clients with separate endpoints for chat and embeddings"""
         try:
@@ -41,7 +37,7 @@ class AzureOpenAIService:
             )
 
             if chat_endpoint and chat_api_key:
-                if self._is_openai_compatible(chat_endpoint):
+                if classify_openai_endpoint(chat_endpoint) == "openai_compatible":
                     self.client = OpenAI(
                         api_key=chat_api_key,
                         base_url=chat_endpoint,
@@ -65,7 +61,7 @@ class AzureOpenAIService:
             )
 
             if embedding_endpoint and embedding_api_key:
-                if self._is_openai_compatible(embedding_endpoint):
+                if classify_openai_endpoint(embedding_endpoint) == "openai_compatible":
                     self.embedding_client = OpenAI(
                         api_key=embedding_api_key,
                         base_url=embedding_endpoint,
@@ -85,7 +81,7 @@ class AzureOpenAIService:
 
             # For backwards compatibility, also initialize a general client
             if settings.AZURE_OPENAI_ENDPOINT and settings.AZURE_OPENAI_API_KEY:
-                if self._is_openai_compatible(settings.AZURE_OPENAI_ENDPOINT):
+                if classify_openai_endpoint(settings.AZURE_OPENAI_ENDPOINT) == "openai_compatible":
                     self.chat_client = OpenAI(
                         api_key=settings.AZURE_OPENAI_API_KEY,
                         base_url=settings.AZURE_OPENAI_ENDPOINT,
