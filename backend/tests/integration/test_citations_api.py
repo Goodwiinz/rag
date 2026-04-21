@@ -15,6 +15,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models import Citation, Document
+from src.models.document import DocumentType
 from src.shared.research_schemas import CitationCreate
 
 
@@ -33,7 +34,7 @@ async def sample_document(test_db: AsyncSession, test_user) -> Document:
         file_path="/data/uploads/attention.pdf",
         file_size_bytes=1024,
         mime_type="application/pdf",
-        document_type="pdf",
+        document_type=DocumentType.PDF,
         uploaded_by_user_id=test_user.id,
         organization_id=test_user.organization_id,
         is_public=True,
