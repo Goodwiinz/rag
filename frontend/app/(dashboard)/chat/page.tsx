@@ -1019,6 +1019,20 @@ function ChatPageContent() {
     [activeConversationId, router, setCurrentThread]
   );
 
+  const handleRegenerate = useCallback(
+    (assistantMessageIndex: number) => {
+      const priorUser = [...displayedMessages]
+        .slice(0, assistantMessageIndex)
+        .reverse()
+        .find((m) => m.role === 'user');
+      if (!priorUser) return;
+      setMessages((prev) => prev.slice(0, assistantMessageIndex));
+      setInput(priorUser.content);
+      setTimeout(() => handleSubmit(), 0);
+    },
+    [displayedMessages, handleSubmit]
+  );
+
   return (
     <div className="flex h-full w-full overflow-hidden bg-[var(--terminal-bg)]">
       {/* Chat Sidebar */}
@@ -1169,6 +1183,11 @@ function ChatPageContent() {
                           isLoading &&
                           !storeIsStreaming &&
                           message.role === 'assistant'
+                        }
+                        onRetry={
+                          message.role === 'assistant'
+                            ? () => handleRegenerate(index)
+                            : undefined
                         }
                         onCitationClick={(citations, clickedCitation) => {
                           setCitationPanelCitations(citations);
