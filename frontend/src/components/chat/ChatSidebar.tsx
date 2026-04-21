@@ -8,8 +8,11 @@ import {
   CheckSquare,
   ChevronDown,
   MessageSquare,
+  Pencil,
   Plus,
   Search,
+  Trash2,
+  X,
 } from 'lucide-react';
 
 // UI conversation type (mapped from DB Thread in page.tsx)
@@ -27,6 +30,9 @@ interface ChatSidebarProps {
   activeId: string | null;
   onSelect: (id: string) => void;
   onNew: () => void;
+  onRename?: (id: string) => void;
+  onDelete?: (id: string) => void;
+  onBulkDelete?: (ids: string[]) => void;
   className?: string;
 }
 
@@ -35,9 +41,14 @@ export const ChatSidebar = memo(function ChatSidebar({
   activeId,
   onSelect,
   onNew,
+  onRename,
+  onDelete,
+  onBulkDelete,
   className,
 }: ChatSidebarProps) {
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
   const filteredConversations = useMemo(
     () =>
@@ -49,6 +60,23 @@ export const ChatSidebar = memo(function ChatSidebar({
     [conversations, searchQuery]
   );
 
+  const exitSelectMode = (): void => {
+    setSelectMode(false);
+    setSelectedIds([]);
+  };
+
+  const toggleSelected = (id: string): void => {
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
+  };
+
+  const handleBulkDelete = (): void => {
+    if (selectedIds.length === 0) return;
+    onBulkDelete?.(selectedIds);
+    exitSelectMode();
+  };
+
   return (
     <div
       className={cn(
@@ -59,7 +87,10 @@ export const ChatSidebar = memo(function ChatSidebar({
       {/* Top Actions */}
       <div className="p-4 space-y-4">
         <button
-          onClick={onNew}
+          onClick={() => {
+            exitSelectMode();
+            onNew();
+          }}
           className="w-full flex items-center justify-center gap-2 py-2 px-4 rounded border border-[var(--terminal-border)] hover:border-[var(--terminal-text-dim)] bg-[var(--terminal-surface)] hover:bg-[var(--terminal-elevated)] transition-all group"
           style={{ fontFamily: "'JetBrains Mono', monospace" }}
         >
@@ -81,15 +112,39 @@ export const ChatSidebar = memo(function ChatSidebar({
           />
         </div>
 
-        <button
-          className="w-full flex items-center justify-start gap-2 py-1.5 px-3 rounded border border-[var(--terminal-border)] hover:border-[var(--terminal-text-dim)] hover:bg-[var(--terminal-elevated)] transition-all group"
-          style={{ fontFamily: "'JetBrains Mono', monospace" }}
-        >
-          <CheckSquare className="w-3.5 h-3.5 text-[var(--terminal-text-dim)]" />
-          <span className="text-[10px] text-[var(--terminal-text-dim)] uppercase tracking-wider">
-            Select
-          </span>
-        </button>
+        {selectMode ? (
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleBulkDelete}
+              disabled={selectedIds.length === 0}
+              className="flex-1 flex items-center justify-center gap-2 py-1.5 px-3 rounded border border-[var(--error-red)]/40 text-[var(--error-red)] hover:bg-[var(--error-red)]/10 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+              style={{ fontFamily: "'JetBrains Mono', monospace" }}
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span className="text-[10px] uppercase tracking-wider">
+                Delete ({selectedIds.length})
+              </span>
+            </button>
+            <button
+              onClick={exitSelectMode}
+              aria-label="Exit select mode"
+              className="flex items-center justify-center w-8 h-8 rounded border border-[var(--terminal-border)] hover:border-[var(--terminal-text-dim)] hover:bg-[var(--terminal-elevated)] transition-all"
+            >
+              <X className="w-3.5 h-3.5 text-[var(--terminal-text-dim)]" />
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={() => setSelectMode(true)}
+            className="w-full flex items-center justify-start gap-2 py-1.5 px-3 rounded border border-[var(--terminal-border)] hover:border-[var(--terminal-text-dim)] hover:bg-[var(--terminal-elevated)] transition-all group"
+            style={{ fontFamily: "'JetBrains Mono', monospace" }}
+          >
+            <CheckSquare className="w-3.5 h-3.5 text-[var(--terminal-text-dim)]" />
+            <span className="text-[10px] text-[var(--terminal-text-dim)] uppercase tracking-wider">
+              Select
+            </span>
+          </button>
+        )}
       </div>
 
       <div className="flex-1 overflow-y-auto terminal-scrollbar px-2 space-y-6">
@@ -116,6 +171,7 @@ export const ChatSidebar = memo(function ChatSidebar({
           <div className="space-y-1">
             {filteredConversations.map((conv) => {
               const isActive = conv.id === activeId;
+              const isSelected = selectedIds.includes(conv.id);
               const timeString = formatDistanceToNow(new Date(conv.updatedAt), {
                 addSuffix: true,
               }).replace('about ', '');
@@ -131,58 +187,109 @@ export const ChatSidebar = memo(function ChatSidebar({
                     : 'No messages yet');
 
               return (
-                <button
-                  key={conv.id}
-                  onClick={() => onSelect(conv.id)}
-                  className={cn(
-                    'w-full text-left flex gap-3 p-2.5 rounded-lg transition-all border',
-                    isActive
-                      ? 'bg-[var(--phosphor-green)]/5 border-[var(--phosphor-green)]/20'
-                      : 'bg-transparent border-transparent hover:bg-[var(--terminal-elevated)]'
-                  )}
-                >
-                  <div className="mt-0.5">
-                    <MessageSquare
-                      className={cn(
-                        'w-4 h-4',
-                        isActive
-                          ? 'text-[var(--phosphor-green)]'
-                          : 'text-[var(--terminal-text-dim)]'
-                      )}
-                    />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between mb-1">
-                      <span
-                        className={cn(
-                          'text-xs font-semibold truncate',
-                          isActive
-                            ? 'text-[var(--terminal-text)]'
-                            : 'text-[var(--terminal-text)]/80'
-                        )}
-                        style={{ fontFamily: "'JetBrains Mono', monospace" }}
-                      >
-                        {conv.title}
-                      </span>
-                      <span
-                        className="text-[9px] text-[var(--terminal-text-dim)] shrink-0 ml-2"
-                        style={{ fontFamily: "'JetBrains Mono', monospace" }}
-                      >
-                        {timeString}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] text-[var(--terminal-text-dim)] truncate">
-                        {previewText}
-                      </span>
-                      {isActive && (
-                        <span className="text-[9px] text-[var(--terminal-text-dim)] shrink-0 ml-2 font-mono">
-                          {messageCount}
+                <div key={conv.id} className="relative group/row">
+                  <button
+                    onClick={() => {
+                      if (selectMode) {
+                        toggleSelected(conv.id);
+                      } else {
+                        onSelect(conv.id);
+                      }
+                    }}
+                    className={cn(
+                      'w-full text-left flex gap-3 p-2.5 rounded-lg transition-all border',
+                      isActive
+                        ? 'bg-[var(--phosphor-green)]/5 border-[var(--phosphor-green)]/20'
+                        : 'bg-transparent border-transparent hover:bg-[var(--terminal-elevated)]'
+                    )}
+                  >
+                    {selectMode ? (
+                      <div className="mt-0.5">
+                        <input
+                          type="checkbox"
+                          aria-label={`Select ${conv.title}`}
+                          checked={isSelected}
+                          onChange={() => toggleSelected(conv.id)}
+                          onClick={(e) => e.stopPropagation()}
+                          className="w-3.5 h-3.5 accent-[var(--phosphor-green)]"
+                        />
+                      </div>
+                    ) : (
+                      <div className="mt-0.5">
+                        <MessageSquare
+                          className={cn(
+                            'w-4 h-4',
+                            isActive
+                              ? 'text-[var(--phosphor-green)]'
+                              : 'text-[var(--terminal-text-dim)]'
+                          )}
+                        />
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between mb-1">
+                        <span
+                          className={cn(
+                            'text-xs font-semibold truncate',
+                            isActive
+                              ? 'text-[var(--terminal-text)]'
+                              : 'text-[var(--terminal-text)]/80'
+                          )}
+                          style={{ fontFamily: "'JetBrains Mono', monospace" }}
+                        >
+                          {conv.title}
                         </span>
+                        <span
+                          className="text-[9px] text-[var(--terminal-text-dim)] shrink-0 ml-2"
+                          style={{ fontFamily: "'JetBrains Mono', monospace" }}
+                        >
+                          {timeString}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] text-[var(--terminal-text-dim)] truncate">
+                          {previewText}
+                        </span>
+                        {isActive && (
+                          <span className="text-[9px] text-[var(--terminal-text-dim)] shrink-0 ml-2 font-mono">
+                            {messageCount}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </button>
+
+                  {!selectMode && (onRename || onDelete) && (
+                    <div className="absolute right-2 top-1/2 -translate-y-1/2 hidden group-hover/row:flex group-focus-within/row:flex items-center gap-1 bg-[var(--terminal-elevated)] rounded px-1 py-0.5">
+                      {onRename && (
+                        <button
+                          type="button"
+                          aria-label={`Rename ${conv.title}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onRename(conv.id);
+                          }}
+                          className="p-1 rounded hover:bg-[var(--terminal-surface)] text-[var(--terminal-text-dim)] hover:text-[var(--terminal-text)] transition-colors"
+                        >
+                          <Pencil className="w-3 h-3" />
+                        </button>
+                      )}
+                      {onDelete && (
+                        <button
+                          type="button"
+                          aria-label={`Delete ${conv.title}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onDelete(conv.id);
+                          }}
+                          className="p-1 rounded hover:bg-[var(--error-red)]/10 text-[var(--terminal-text-dim)] hover:text-[var(--error-red)] transition-colors"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
                       )}
                     </div>
-                  </div>
-                </button>
+                  )}
+                </div>
               );
             })}
           </div>

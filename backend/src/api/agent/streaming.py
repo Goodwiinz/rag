@@ -142,11 +142,18 @@ async def stream_event_generator(
                         yield f"event: token\ndata: {_json.dumps({'content': chunk.content})}\n\n"
 
                 elif kind == "on_tool_start":
-                    yield f"event: tool_start\ndata: {_json.dumps({'tool': name})}\n\n"
+                    tool_input = event.get("data", {}).get("input", {})
+                    args_preview = str(tool_input)[:500] if tool_input else ""
+                    yield f"event: tool_start\ndata: {_json.dumps({'tool': name, 'args': args_preview})}\n\n"
 
                 elif kind == "on_tool_end":
                     output = event.get("data", {}).get("output", "")
-                    yield f"event: tool_end\ndata: {_json.dumps({'tool': name, 'result': str(output)[:500]})}\n\n"
+                    is_error = (
+                        isinstance(output, dict) and bool(output.get("isError"))
+                    ) or (
+                        getattr(output, "status", None) == "error"
+                    )
+                    yield f"event: tool_end\ndata: {_json.dumps({'tool': name, 'result': str(output)[:500], 'is_error': is_error})}\n\n"
 
                 elif kind == "on_chain_end" and name == "rag_node":
                     output = event.get("data", {}).get("output", {})
@@ -327,11 +334,18 @@ async def stream_confirm_event_generator(
                         yield f"event: token\ndata: {_json.dumps({'content': chunk.content})}\n\n"
 
                 elif kind == "on_tool_start":
-                    yield f"event: tool_start\ndata: {_json.dumps({'tool': name})}\n\n"
+                    tool_input = event.get("data", {}).get("input", {})
+                    args_preview = str(tool_input)[:500] if tool_input else ""
+                    yield f"event: tool_start\ndata: {_json.dumps({'tool': name, 'args': args_preview})}\n\n"
 
                 elif kind == "on_tool_end":
                     output = event.get("data", {}).get("output", "")
-                    yield f"event: tool_end\ndata: {_json.dumps({'tool': name, 'result': str(output)[:500]})}\n\n"
+                    is_error = (
+                        isinstance(output, dict) and bool(output.get("isError"))
+                    ) or (
+                        getattr(output, "status", None) == "error"
+                    )
+                    yield f"event: tool_end\ndata: {_json.dumps({'tool': name, 'result': str(output)[:500], 'is_error': is_error})}\n\n"
 
                 elif kind == "on_chain_end" and name == "planner_node":
                     output = event.get("data", {}).get("output", {})

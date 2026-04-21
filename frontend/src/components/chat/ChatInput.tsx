@@ -22,6 +22,31 @@ interface ChatInputProps {
   onRAGToggle: (enabled: boolean) => void;
   isRAGLoading?: boolean;
   inputRef?: React.RefObject<HTMLTextAreaElement>;
+  onAttach?: (files: FileList) => void;
+}
+
+type SpeechRecognitionEventLike = {
+  results: ArrayLike<ArrayLike<{ transcript: string }>>;
+};
+type SpeechRecognitionInstance = {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  onresult: ((event: SpeechRecognitionEventLike) => void) | null;
+  onend: (() => void) | null;
+  onerror: (() => void) | null;
+  start: () => void;
+  stop: () => void;
+};
+type SpeechRecognitionCtor = new () => SpeechRecognitionInstance;
+
+function getSpeechRecognition(): SpeechRecognitionCtor | null {
+  if (typeof window === 'undefined') return null;
+  const w = window as unknown as {
+    SpeechRecognition?: SpeechRecognitionCtor;
+    webkitSpeechRecognition?: SpeechRecognitionCtor;
+  };
+  return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null;
 }
 
 export function ChatInput({
@@ -34,10 +59,50 @@ export function ChatInput({
   onRAGToggle,
   isRAGLoading,
   inputRef,
+  onAttach,
 }: ChatInputProps) {
   const internalRef = useRef<HTMLTextAreaElement>(null);
   const textareaRef = inputRef ?? internalRef;
   const [isFocused, setIsFocused] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+  const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
+  const voiceSupported = getSpeechRecognition() !== null;
+
+  const toggleVoice = (): void => {
+    const Ctor = getSpeechRecognition();
+    if (!Ctor) return;
+    if (isListening) {
+      recognitionRef.current?.stop();
+      return;
+    }
+    const recognition = new Ctor();
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    recognition.lang = 'en-US';
+    recognition.onresult = (event) => {
+      const transcript = event.results[0]?.[0]?.transcript ?? '';
+      if (transcript) {
+        onChange(value ? `${value} ${transcript}` : transcript);
+      }
+    };
+    recognition.onend = () => {
+      setIsListening(false);
+      recognitionRef.current = null;
+    };
+    recognition.onerror = () => {
+      setIsListening(false);
+      recognitionRef.current = null;
+    };
+    recognitionRef.current = recognition;
+    recognition.start();
+    setIsListening(true);
+  };
+
+  useEffect(() => {
+    return () => {
+      recognitionRef.current?.stop();
+    };
+  }, []);
 
   useEffect(() => {
     if (textareaRef.current) {
@@ -126,7 +191,7 @@ export function ChatInput({
               onKeyDown={handleKeyDown}
               onFocus={() => setIsFocused(true)}
               onBlur={() => setIsFocused(false)}
-              placeholder="Inject query into neural stream..."
+              placeholder="Message NOUS…"
               rows={1}
               className="w-full bg-transparent text-[var(--terminal-text)] text-sm resize-none outline-none placeholder:text-[var(--terminal-text-dim)]/50 selection:bg-[var(--phosphor-green)]/20 selection:text-[var(--phosphor-green)]"
               style={{
@@ -142,25 +207,67 @@ export function ChatInput({
                 <TooltipProvider>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <button
-                        className="p-2 rounded-lg hover:bg-[var(--terminal-elevated)] text-[var(--terminal-text-dim)] hover:text-[var(--terminal-text)] transition-colors group"
+                      <label
+                        className="p-2 rounded-lg hover:bg-[var(--terminal-elevated)] text-[var(--terminal-text-dim)] hover:text-[var(--terminal-text)] transition-colors group cursor-pointer inline-flex"
                         aria-label="Attach artifact"
                       >
                         <Paperclip className="w-4 h-4 group-hover:text-[var(--phosphor-green)] transition-colors" />
-                      </button>
+                        <input
+                          type="file"
+                          multiple
+                          className="hidden"
+                          onChange={(e) => {
+                            const files = e.target.files;
+                            if (files && files.length > 0 && onAttach) {
+                              onAttach(files);
+                            }
+                            e.target.value = '';
+                          }}
+                        />
+                      </label>
                     </TooltipTrigger>
                     <TooltipContent>Attach artifact</TooltipContent>
                   </Tooltip>
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <button
-                        className="p-2 rounded-lg hover:bg-[var(--terminal-elevated)] text-[var(--terminal-text-dim)] hover:text-[var(--terminal-text)] transition-colors group"
-                        aria-label="Voice input"
+                        type="button"
+                        onClick={toggleVoice}
+                        disabled={!voiceSupported}
+                        aria-pressed={isListening}
+                        className={cn(
+                          'p-2 rounded-lg transition-colors group',
+                          voiceSupported
+                            ? 'hover:bg-[var(--terminal-elevated)] text-[var(--terminal-text-dim)] hover:text-[var(--terminal-text)]'
+                            : 'text-[var(--terminal-text-dim)]/40 cursor-not-allowed',
+                          isListening &&
+                            'bg-[var(--phosphor-green)]/10 text-[var(--phosphor-green)]'
+                        )}
+                        aria-label={
+                          !voiceSupported
+                            ? 'Voice input not supported'
+                            : isListening
+                              ? 'Stop voice input'
+                              : 'Voice input'
+                        }
                       >
-                        <Mic className="w-4 h-4 group-hover:text-[var(--phosphor-green)] transition-colors" />
+                        <Mic
+                          className={cn(
+                            'w-4 h-4 transition-colors',
+                            isListening
+                              ? 'text-[var(--phosphor-green)] animate-pulse'
+                              : 'group-hover:text-[var(--phosphor-green)]'
+                          )}
+                        />
                       </button>
                     </TooltipTrigger>
-                    <TooltipContent>Voice input</TooltipContent>
+                    <TooltipContent>
+                      {!voiceSupported
+                        ? 'Voice input not supported'
+                        : isListening
+                          ? 'Stop voice input'
+                          : 'Voice input'}
+                    </TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
               </div>
@@ -193,18 +300,6 @@ export function ChatInput({
               )}
             </div>
           </div>
-        </motion.div>
-
-        {/* Keyboard Hint */}
-        <motion.div
-          initial={{ opacity: 0.5 }}
-          animate={{ opacity: isFocused ? 0.3 : 0.5 }}
-          className="flex items-center justify-center gap-4 mt-2 text-[9px] text-[var(--terminal-text-dim)] uppercase tracking-tighter"
-          style={{ fontFamily: "'JetBrains Mono', monospace" }}
-        >
-          <span>[Enter] Send</span>
-          <span>[Shift+Enter] Line Break</span>
-          <span className="hidden sm:inline">[/] Commands</span>
         </motion.div>
       </div>
     </div>

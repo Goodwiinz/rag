@@ -1,3 +1,10 @@
+// DEPRECATED: Orphaned v2 streaming client. The active chat page streams via
+// `agentChatService` against `/api/v1/agent/stream` (LangGraph agent). This
+// module is referenced only by the deprecated `useChatStore.streamMessage`
+// action and its tests. Slated for removal in a dedicated cleanup PR — do
+// not introduce new callers. (File-level block comment is intentionally a
+// plain comment so TS doesn't mark every internal symbol `@deprecated`.)
+
 /**
  * Streaming Service
  *
@@ -96,6 +103,7 @@ export function parseSSELine(
  * }
  * ```
  */
+/** @deprecated See file-level note — use `agentChatService.streamMessage`. */
 export async function* streamChatMessage(
   threadId: string,
   content: string,

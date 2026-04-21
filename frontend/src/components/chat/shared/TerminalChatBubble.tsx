@@ -130,12 +130,12 @@ export function TerminalChatBubble({
               <Copy className="h-3.5 w-3.5" />
             )}
           </button>
-          {isUser && onRetry && (
+          {message.role === 'assistant' && onRetry && (
             <button
               onClick={onRetry}
               className="rounded border border-transparent p-1 text-[var(--terminal-text-dim)] transition-all hover:border-[var(--terminal-border)] hover:bg-[var(--terminal-elevated)] hover:text-[var(--terminal-text)]"
-              aria-label="Retry"
-              title="Retry"
+              aria-label="Regenerate response"
+              title="Regenerate response"
             >
               <RefreshCw className="h-3.5 w-3.5" />
             </button>
@@ -145,13 +145,12 @@ export function TerminalChatBubble({
 
       <div
         className={cn(
-          'relative overflow-hidden rounded-xl border shadow-sm backdrop-blur-sm transition-all duration-300',
+          'relative overflow-hidden rounded-xl border transition-colors duration-200',
           isUser
-            ? 'mr-4 border-[var(--amber-gold)]/20 bg-gradient-to-br from-[var(--terminal-elevated)] to-[var(--terminal-bg)] hover:border-[var(--amber-gold)]/40'
-            : 'ml-4 border-[var(--terminal-border)] bg-[var(--terminal-surface)] hover:border-[var(--phosphor-green)]/30'
+            ? 'mr-4 border-[var(--amber-gold)]/15 bg-[var(--terminal-surface)] hover:border-[var(--amber-gold)]/30'
+            : 'ml-4 border-[var(--terminal-border)] bg-[var(--terminal-surface)] hover:border-[var(--phosphor-green)]/25'
         )}
       >
-        <div className="pointer-events-none absolute inset-0 z-0 bg-[linear-gradient(rgba(18,18,18,0)_50%,rgba(0,0,0,0.2)_50%)] bg-[length:100%_2px] opacity-10" />
 
         <div className="relative z-10 p-4 sm:p-5 overflow-hidden break-words">
           {isStreaming && !streamingContent ? (
@@ -167,7 +166,7 @@ export function TerminalChatBubble({
           ) : isStreaming && streamingContent ? (
             <div
               className="text-[14px] leading-relaxed text-[var(--terminal-text)]"
-              style={{ fontFamily: "'JetBrains Mono', monospace" }}
+              style={{ fontFamily: 'Inter, system-ui, sans-serif' }}
             >
               <span className="whitespace-pre-wrap">{streamingContent}</span>
               <span
@@ -201,12 +200,12 @@ export function TerminalChatBubble({
           ) : (
             <div
               className={cn(
-                'text-[14px] leading-relaxed',
+                'text-[15px] leading-relaxed',
                 isUser
-                  ? 'text-[var(--phosphor-green)]'
+                  ? 'text-[var(--terminal-text)]'
                   : 'text-[var(--terminal-text)]'
               )}
-              style={{ fontFamily: "'JetBrains Mono', monospace" }}
+              style={{ fontFamily: 'Inter, system-ui, sans-serif' }}
             >
               {isUser ? (
                 <p className="whitespace-pre-wrap">{message.content}</p>
