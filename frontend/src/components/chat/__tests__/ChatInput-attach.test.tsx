@@ -5,7 +5,6 @@
  * `onAttach` with the selected FileList.
  */
 
-import React from 'react';
 import { render, fireEvent } from '@testing-library/react';
 
 // Mock framer-motion to avoid animation issues in tests
