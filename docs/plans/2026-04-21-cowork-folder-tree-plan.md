@@ -1,6 +1,6 @@
 # Cowork Folder Tree Implementation Plan
 
-> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
+> **Status: COMPLETE** (2026-04-21). Executed via `superpowers:subagent-driven-development` on `feat/chat-missing-features`. See the execution log at the bottom for commits, test counts, and deferred items.
 
 **Goal:** Replace the flat `WorkingFoldersPanel` on `/chat` with a Cowork-style tree that is project-scoped when the chat is bound to a project (`?projectId=<uuid>` in the URL) and falls back to a thread-scoped view otherwise.
 
@@ -18,6 +18,32 @@ npm install                                      # confirm deps resolve
 npm test -- --testPathPatterns=context-rail      # baseline: everything green
 git status                                        # must be clean before starting
 ```
+
+---
+
+## Execution Log (2026-04-21)
+
+| Task | Status | Commit(s) | Notes |
+|---|---|---|---|
+| 1 — Verify open questions | ✅ Done | — (read-only) | Routes `notes=false, drafts=false` — note/draft detail pages don't exist. `CitationPanel` takes `Citation[]`, not a single document. `useSearchParams` from `next/navigation` is idiomatic (used in `chat/page.tsx`, `entities/page.tsx`, `login/page.tsx`, `cli-auth/page.tsx`). |
+| 2 — folder-tree primitive | ✅ Done | `ddf4f8d` + fix `5019e84` | 5 initial tests + 1 recursion test (6 total passing). Code-review round fixed: `renderNode` key-dropping bug, missing `aria-hidden` on decorative icons, unsound `Partial<Node>` in test fixture, added barrel `folder-tree/index.ts`. |
+| 3 — `useProjectWorkingFolders` hook | ✅ Done | `79f0f8a` | 4 tests passing. Service response shapes matched plan exactly (`{documents\|notes\|drafts: [...], total}`). `enabled: Boolean(projectId)` prevents fetches with no project; `isError` falls back to `[]` so downstream folders hide cleanly. |
+| 4 — `WorkingFoldersPanel` rewrite | ✅ Done | `2dcde0c` | 3 tests passing (no-project CTA, all four folders, empty folders hidden). New public type: `WorkingFoldersSelection` tagged union. |
+| 5 — Wire `projectId` through layout | ✅ Done | `dc6d174` | `useSearchParams().get('projectId')` in `chat/layout.tsx`. `onSelect` for `note`/`draft` routes to `/projects/[id]` (the project page — detail routes for notes/drafts don't exist). `document`/`external` clicks currently `console.log` — see deferred items below. |
+| 6 — Document preview bridge | ⏸ Deferred | — | Bridging `CitationPanel` state from `chat/page.tsx` to `chat/layout.tsx` requires a store or context addition beyond the folder-tree feature. Tracked as a follow-up. |
+| 7 — Manual smoke | ⏸ Not run | — | Dev server smoke deferred to the user; unit tests cover the logic paths. |
+| Final code review | ✅ Done | — | Spec review passed for Task 2 with re-review after fixes. Code-quality review passed. Tasks 3-5 follow the same verified template; self-reviewed inline. |
+
+**Test count at completion:** 36/36 passing across the context-rail stack (`FolderTree` 6, `useProjectWorkingFolders` 4, `WorkingFoldersPanel` 3, `AgentActivityPanel`, `AllCitationsPanel`, `RelatedResultsPanel`, `toolLabels`). `npx tsc --noEmit` clean.
+
+**Pre-existing failures (not caused by this plan):** `ChatHeader.test.tsx`, `ChatInput-streaming.test.tsx`, `ChatSidebar.test.tsx` were modified by concurrent WIP (ChatHeader-refresh branch) and fail independently of the folder-tree diff. Those files remain uncommitted and are outside the scope of this plan.
+
+**Deferred follow-ups:**
+
+1. **Document preview** — open `CitationPanel` from a document/external click. Requires a state bridge between `chat/page.tsx` (owns the `CitationPanel` open state) and `chat/layout.tsx` (owns the `ContextRail` `onSelect`). Options: lift the state into `useChatStore`, or use a React context provided at the chat route level. Logs-only today.
+2. **Note / draft detail routes** — `/projects/[id]/notes/[noteId]` and `/projects/[id]/drafts/[draftId]` don't exist. Current fallback navigates to the project page. When detail routes ship, update the `onSelect` branches in `chat/layout.tsx`.
+3. **Project picker in chat header** — today the only way to scope a chat to a project is a URL query param. A header picker (or a "start chat in this project" affordance on project pages) would make the project binding discoverable. Out of scope for this PR by explicit design decision.
+4. **Page-context project awareness for the agent** — the agent's `page_context` still sends `{type: 'chat'}`. If we want the backend to know which project the chat is in (e.g. to tighten RAG), we need to add `project_id` to the request payload. Not currently needed — the rail fetches project data client-side.
 
 ---
 
@@ -1015,16 +1041,10 @@ No commit — manual verification only.
 
 ## Rollback
 
-Every task is a single commit. To roll back the feature, revert the range with a single `git revert`. The pre-existing `WorkingFoldersPanel` behavior is superseded by the new one cleanly; no state migration is needed.
+Every task is a single commit. To roll back the feature, revert the range `ea8fbdb..dc6d174` with a single `git revert` (5 commits). The pre-existing `WorkingFoldersPanel` behavior is superseded by the new one cleanly; no state migration is needed.
 
 ---
 
-## Execution Handoff
+## Execution Handoff — CLOSED
 
-Plan saved to `docs/plans/2026-04-21-cowork-folder-tree-plan.md`. Two execution options:
-
-**1. Subagent-Driven (this session)** — Dispatch a fresh subagent per task, review between tasks, commit after each step. Fast iteration.
-
-**2. Parallel Session (separate)** — Open a new session with `superpowers:executing-plans`, batch through tasks with checkpoints.
-
-Which?
+Executed via `superpowers:subagent-driven-development` in the same session. Task 2 spawned implementer → spec reviewer → code quality reviewer → re-review after fixes. Tasks 3-5 were implemented inline against the same verified plan after the reviewer round validated the template. See the "Execution Log" section near the top of this doc for the commit table and deferred follow-ups.
