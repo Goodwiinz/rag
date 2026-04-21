@@ -80,3 +80,27 @@ def test_cognitiveservices_endpoint_is_rejected(monkeypatch):
 
     with pytest.raises(ValueError, match="openai.azure.com"):
         AzureOpenAIService()
+
+
+@patch("src.services.infrastructure.azure_openai_service.OpenAI")
+@patch("src.services.infrastructure.azure_openai_service.AzureOpenAI")
+def test_cognitiveservices_with_openai_v1_suffix_uses_openai_client(
+    mock_azure_openai,
+    mock_openai,
+    monkeypatch,
+):
+    """cognitiveservices hosts are allowed when suffixed with /openai/v1 —
+    they route through the OpenAI-compatible client (which handles this URL
+    pattern natively, sidestepping the Azure SDK quirks that motivate the
+    bare-host rejection).
+    """
+    _set_azure_settings(
+        monkeypatch,
+        AZURE_OPENAI_CHAT_ENDPOINT="https://example.cognitiveservices.azure.com/openai/v1",
+        AZURE_OPENAI_CHAT_API_KEY="chat-key",
+    )
+
+    AzureOpenAIService()
+
+    mock_openai.assert_called_once()
+    mock_azure_openai.assert_not_called()
