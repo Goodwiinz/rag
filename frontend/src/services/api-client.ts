@@ -183,6 +183,9 @@ export class APIClient {
     schema: ZodSchema<T>,
     options: RequestConfig = {}
   ): Promise<TypedResponse<T>> {
+    // Keep auth behavior consistent with request()
+    await this.ensureAuth();
+
     const response = await fetch(
       endpoint.startsWith('http') ? endpoint : `${this.baseURL}${endpoint}`,
       {
@@ -294,6 +297,8 @@ export class APIClient {
     file: File,
     options: UploadOptions = {}
   ): Promise<T> {
+    await this.ensureAuth();
+
     const formData = new FormData();
     formData.append('file', file);
 
@@ -379,6 +384,8 @@ export class APIClient {
   }
 
   async download(url: string, filename?: string): Promise<void> {
+    await this.ensureAuth();
+
     const response = await fetch(
       url.startsWith('http') ? url : `${this.baseURL}${url}`,
       {
