@@ -684,11 +684,7 @@ function ChatPageContent() {
       if (currentThreadId) {
         useAgentActivityStore
           .getState()
-          .startRun(
-            currentThreadId,
-            deriveAgentName(),
-            deriveTask(input)
-          );
+          .startRun(currentThreadId, deriveAgentName(), deriveTask(input));
       }
 
       await agentChatService.streamMessage(
@@ -720,7 +716,12 @@ function ChatPageContent() {
           onToolEnd: (tool, result) => {
             console.log('[Agent] Tool end:', tool, result);
             if (currentThreadId) {
-              const ok = !(result && typeof result === 'object' && 'isError' in result && (result as { isError?: boolean }).isError === true);
+              const ok = !(
+                result &&
+                typeof result === 'object' &&
+                'isError' in result &&
+                (result as { isError?: boolean }).isError === true
+              );
               useAgentActivityStore
                 .getState()
                 .pushToolEnd(currentThreadId, tool, ok);
@@ -954,6 +955,70 @@ function ChatPageContent() {
     setInput(prompt);
   };
 
+  const handleRenameThread = useCallback(
+    async (threadId: string) => {
+      const target = conversations.find((c) => c.id === threadId);
+      const nextTitle = window.prompt('Rename thread', target?.title ?? '');
+      if (!nextTitle || nextTitle.trim() === target?.title) return;
+      const trimmed = nextTitle.trim();
+      try {
+        const updated = await workspaceService.updateThread(threadId, {
+          title: trimmed,
+        });
+        const nextTitleValue = updated.title ?? trimmed;
+        setConversations((prev) =>
+          prev.map((c) =>
+            c.id === threadId ? { ...c, title: nextTitleValue } : c
+          )
+        );
+      } catch (err) {
+        console.error('[Chat] Rename failed', err);
+      }
+    },
+    [conversations]
+  );
+
+  const handleDeleteThread = useCallback(
+    async (threadId: string) => {
+      if (!window.confirm('Delete this thread? This cannot be undone.')) return;
+      try {
+        await workspaceService.deleteThread(threadId);
+        setConversations((prev) => prev.filter((c) => c.id !== threadId));
+        if (activeConversationId === threadId) {
+          setActiveConversationId(null);
+          setMessages([]);
+          setCurrentThread(null);
+          router.push(getNewChatUrl());
+        }
+      } catch (err) {
+        console.error('[Chat] Delete failed', err);
+      }
+    },
+    [activeConversationId, router, setCurrentThread]
+  );
+
+  const handleBulkDeleteThreads = useCallback(
+    async (ids: string[]) => {
+      if (
+        !window.confirm(`Delete ${ids.length} threads? This cannot be undone.`)
+      )
+        return;
+      try {
+        await workspaceService.bulkDeleteThreads(ids);
+        setConversations((prev) => prev.filter((c) => !ids.includes(c.id)));
+        if (activeConversationId && ids.includes(activeConversationId)) {
+          setActiveConversationId(null);
+          setMessages([]);
+          setCurrentThread(null);
+          router.push(getNewChatUrl());
+        }
+      } catch (err) {
+        console.error('[Chat] Bulk delete failed', err);
+      }
+    },
+    [activeConversationId, router, setCurrentThread]
+  );
+
   return (
     <div className="flex h-full w-full overflow-hidden bg-[var(--terminal-bg)]">
       {/* Chat Sidebar */}
@@ -972,6 +1037,9 @@ function ChatPageContent() {
             setCurrentThread(null);
             router.push(getNewChatUrl());
           }}
+          onRename={handleRenameThread}
+          onDelete={handleDeleteThread}
+          onBulkDelete={handleBulkDeleteThreads}
         />
       </div>
 
