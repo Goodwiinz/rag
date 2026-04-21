@@ -48,9 +48,9 @@ class SearchResultItem(BaseModel):
     source: str
     url: str
     content: str = ""
-    authors: List[str] = []
+    authors: List[str] = Field(default_factory=list)
     published_date: Optional[str] = None
-    metadata: Dict[str, Any] = {}
+    metadata: Dict[str, Any] = Field(default_factory=dict)
     document_type: str = "article"
 
 
