@@ -1,5 +1,6 @@
 'use client';
 
+import { ContextRail } from '@/components/context-rail';
 import { useChatPersistence, useCitationsForThread } from '@/hooks';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/stores/authStore';
@@ -901,8 +902,8 @@ export default function ChatLayout({
   children: React.ReactNode;
 }) {
   const router = useRouter();
+  const { currentThreadId } = useChatPersistence();
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
-  const [contextPanelOpen, setContextPanelOpen] = useState(false);
 
   // Workspace and project state
   const [workspaces, setWorkspaces] = useState<WorkspaceType[]>([]);
@@ -1005,25 +1006,10 @@ export default function ChatLayout({
         {/* Main Content */}
         <main className="flex-1 flex flex-col overflow-hidden">{children}</main>
 
-        {/* Context Panel Toggle Button - only show when panel is closed */}
-        {!contextPanelOpen && (
-          <button
-            onClick={() => setContextPanelOpen(true)}
-            className="hidden xl:flex absolute right-4 top-4 z-10 items-center gap-2 px-3 py-2 rounded-lg border border-[var(--terminal-border)] bg-[var(--terminal-surface)] hover:border-[var(--phosphor-green)]/30 hover:bg-[var(--terminal-elevated)] text-[var(--terminal-text-dim)] hover:text-[var(--phosphor-green)] transition-all"
-            style={{ fontFamily: "'JetBrains Mono', monospace" }}
-            title="Open context panel"
-          >
-            <FileText className="w-4 h-4" />
-            <span className="text-[10px] uppercase tracking-wider">
-              Context
-            </span>
-          </button>
-        )}
-
-        {/* Right Context Panel */}
-        <ContextPanel
-          isOpen={contextPanelOpen}
-          onClose={() => setContextPanelOpen(false)}
+        {/* Right-rail: stacked Agent Activity, Related Results, Citations */}
+        <ContextRail
+          threadId={currentThreadId ?? null}
+          className="hidden xl:flex shrink-0 w-[360px] border-l border-[var(--nous-border-1)]"
         />
       </div>
 
