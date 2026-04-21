@@ -130,12 +130,12 @@ export function TerminalChatBubble({
               <Copy className="h-3.5 w-3.5" />
             )}
           </button>
-          {isUser && onRetry && (
+          {message.role === 'assistant' && onRetry && (
             <button
               onClick={onRetry}
               className="rounded border border-transparent p-1 text-[var(--terminal-text-dim)] transition-all hover:border-[var(--terminal-border)] hover:bg-[var(--terminal-elevated)] hover:text-[var(--terminal-text)]"
-              aria-label="Retry"
-              title="Retry"
+              aria-label="Regenerate response"
+              title="Regenerate response"
             >
               <RefreshCw className="h-3.5 w-3.5" />
             </button>
