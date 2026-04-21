@@ -158,4 +158,38 @@ describe('ChatSidebar', () => {
     // Active conversation should show message count
     expect(screen.getByText('1')).toBeInTheDocument();
   });
+
+  it('calls onRename when rename hover action clicked', () => {
+    const onRename = jest.fn();
+    render(<ChatSidebar {...defaultProps} onRename={onRename} />);
+    const row = screen.getByText('Alpha Chat').closest('button')!;
+    fireEvent.mouseEnter(row);
+    fireEvent.click(screen.getByLabelText('Rename Alpha Chat'));
+    expect(onRename).toHaveBeenCalledWith('conv-1');
+  });
+
+  it('calls onDelete when delete hover action clicked', () => {
+    const onDelete = jest.fn();
+    render(<ChatSidebar {...defaultProps} onDelete={onDelete} />);
+    const row = screen.getByText('Alpha Chat').closest('button')!;
+    fireEvent.mouseEnter(row);
+    fireEvent.click(screen.getByLabelText('Delete Alpha Chat'));
+    expect(onDelete).toHaveBeenCalledWith('conv-1');
+  });
+
+  it('enters multi-select mode when Select toolbar button clicked', () => {
+    render(<ChatSidebar {...defaultProps} />);
+    fireEvent.click(screen.getByRole('button', { name: /^Select$/i }));
+    expect(screen.getAllByRole('checkbox')).toHaveLength(3);
+  });
+
+  it('calls onBulkDelete with selected ids from multi-select mode', () => {
+    const onBulkDelete = jest.fn();
+    render(<ChatSidebar {...defaultProps} onBulkDelete={onBulkDelete} />);
+    fireEvent.click(screen.getByRole('button', { name: /^Select$/i }));
+    fireEvent.click(screen.getAllByRole('checkbox')[0]);
+    fireEvent.click(screen.getAllByRole('checkbox')[1]);
+    fireEvent.click(screen.getByRole('button', { name: /Delete \(2\)/i }));
+    expect(onBulkDelete).toHaveBeenCalledWith(['conv-1', 'conv-2']);
+  });
 });
