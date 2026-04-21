@@ -1,132 +1,176 @@
 'use client';
 
 import { useCitationsForThread } from '@/hooks';
-import { BookOpen, FileText, FolderOpen } from 'lucide-react';
 import { CollapsibleCard } from './CollapsibleCard';
+import { FolderTree } from './folder-tree/FolderTree';
+import type { Node } from './folder-tree/types';
+import { useProjectWorkingFolders } from './hooks/useProjectWorkingFolders';
+
+export type WorkingFoldersSelection =
+  | { kind: 'document'; id: string; title: string }
+  | { kind: 'external'; id: string; title: string }
+  | { kind: 'note'; id: string; title: string }
+  | { kind: 'draft'; id: string; title: string };
 
 interface WorkingFoldersPanelProps {
-  /** Optional workspace name to use as the top-level folder label. */
+  projectId?: string;
   workspaceName?: string | null;
+  onSelect?: (node: WorkingFoldersSelection) => void;
 }
 
 /**
- * Cowork-style "Working folders" card. NOUS doesn't have a real filesystem
- * tree, so we surface a workspace-rooted view of what the thread has touched:
- *   - Thread documents: anything with a `documentId` (uploaded to the
- *     workspace and retrieved via RAG)
- *   - External sources: arXiv / web citations from assistant messages
- * The card is always rendered — an empty state prompts the user to attach
- * a file or ask a RAG question.
+ * Cowork-style folder tree. Project-scoped when `projectId` is set
+ * (shows `This thread` + `Sources`/`Notes`/`Drafts`, empty slots hidden);
+ * otherwise falls back to a thread-only view with a CTA to attach a project.
  */
 export function WorkingFoldersPanel({
+  projectId,
   workspaceName,
+  onSelect,
 }: WorkingFoldersPanelProps = {}) {
   const { allCitations } = useCitationsForThread();
+  const { documents, notes, drafts } = useProjectWorkingFolders(projectId);
 
-  const internal = allCitations.filter((c) => c.documentId);
-  const external = allCitations.filter((c) => !c.documentId);
-  const total = internal.length + external.length;
+  const threadInternal = allCitations.filter((c) => c.documentId);
+  const threadExternal = allCitations.filter((c) => !c.documentId);
 
-  const rootLabel = workspaceName ?? 'Workspace';
+  const thisThread: Node = {
+    kind: 'folder',
+    id: 'this-thread',
+    label: 'This thread',
+    defaultOpen: true,
+    badge:
+      threadInternal.length + threadExternal.length > 0
+        ? String(threadInternal.length + threadExternal.length)
+        : undefined,
+    children: [
+      ...threadInternal.map((c, i) => ({
+        kind: 'file' as const,
+        id: `ti-${c.id || c.documentId || i}`,
+        label: c.title || 'Untitled document',
+        icon: 'pdf' as const,
+        onSelect: () =>
+          onSelect?.({
+            kind: 'document',
+            id: (c.documentId ?? '') as string,
+            title: c.title || 'Untitled document',
+          }),
+      })),
+      ...threadExternal.map((c, i) => ({
+        kind: 'file' as const,
+        id: `te-${c.id || c.externalReferenceId || i}`,
+        label: c.title || 'Untitled source',
+        icon: 'book' as const,
+        onSelect: () =>
+          onSelect?.({
+            kind: 'external',
+            id: (c.externalReferenceId ?? c.id ?? '') as string,
+            title: c.title || 'Untitled source',
+          }),
+      })),
+    ],
+  };
+
+  const tree: Node[] = [thisThread];
+
+  if (projectId && documents && documents.length > 0) {
+    tree.push({
+      kind: 'folder',
+      id: 'sources',
+      label: 'Sources',
+      defaultOpen: true,
+      badge: String(documents.length),
+      children: documents.map((d) => ({
+        kind: 'file',
+        id: `src-${d.id}`,
+        label: d.title ?? 'Untitled document',
+        icon: 'pdf',
+        onSelect: () =>
+          onSelect?.({
+            kind: 'document',
+            id: d.id,
+            title: d.title ?? 'Untitled document',
+          }),
+      })),
+    });
+  }
+
+  if (projectId && notes && notes.length > 0) {
+    const sorted = [...notes].sort(
+      (a, b) => Number(b.isPinned ?? 0) - Number(a.isPinned ?? 0)
+    );
+    tree.push({
+      kind: 'folder',
+      id: 'notes',
+      label: 'Notes',
+      badge: String(notes.length),
+      children: sorted.map((n) => ({
+        kind: 'file',
+        id: `note-${n.id}`,
+        label: n.title,
+        icon: 'note',
+        meta: n.isPinned ? '📌' : undefined,
+        onSelect: () => onSelect?.({ kind: 'note', id: n.id, title: n.title }),
+      })),
+    });
+  }
+
+  if (projectId && drafts && drafts.length > 0) {
+    tree.push({
+      kind: 'folder',
+      id: 'drafts',
+      label: 'Drafts',
+      badge: String(drafts.length),
+      children: drafts.map((d) => ({
+        kind: 'file',
+        id: `draft-${d.id}`,
+        label: d.title,
+        icon: 'draft',
+        meta: d.version ? `v${d.version}` : undefined,
+        onSelect: () => onSelect?.({ kind: 'draft', id: d.id, title: d.title }),
+      })),
+    });
+  }
+
+  const totalFiles =
+    threadInternal.length +
+    threadExternal.length +
+    (documents?.length ?? 0) +
+    (notes?.length ?? 0) +
+    (drafts?.length ?? 0);
 
   return (
     <CollapsibleCard
       title="Working folders"
-      badge={total > 0 ? `${total} file${total === 1 ? '' : 's'}` : undefined}
+      badge={
+        totalFiles > 0
+          ? `${totalFiles} file${totalFiles === 1 ? '' : 's'}`
+          : undefined
+      }
     >
-      <div className="flex items-center gap-2 mb-2">
-        <FolderOpen
-          className="h-4 w-4 shrink-0"
-          style={{ color: 'var(--nous-fg-3)' }}
-        />
-        <span
-          className="text-[13px] font-medium truncate"
+      <FolderTree nodes={tree} />
+      {!projectId && (
+        <a
+          href="/projects"
+          className="mt-3 inline-flex items-center gap-1 text-[13px]"
           style={{
-            color: 'var(--nous-fg-1)',
+            color: 'var(--nous-sol)',
             fontFamily: 'var(--nous-font-ui)',
           }}
-          title={rootLabel}
         >
-          {rootLabel}
-        </span>
-      </div>
-
-      {total === 0 ? (
+          Attach this chat to a project →
+        </a>
+      )}
+      {workspaceName && (
         <p
-          className="pl-6 text-[13px]"
+          className="mt-3 text-[11px]"
           style={{
             color: 'var(--nous-fg-3)',
-            fontFamily: 'var(--nous-font-body)',
+            fontFamily: 'var(--nous-font-ui)',
           }}
         >
-          No files yet. Attach documents with the paperclip in the composer, or
-          ask a question to pull sources from the workspace.
+          Workspace · {workspaceName}
         </p>
-      ) : (
-        <div className="pl-6 space-y-3">
-          {internal.length > 0 && (
-            <div>
-              <div
-                className="text-[11px] uppercase tracking-wider mb-2"
-                style={{ color: 'var(--nous-fg-3)' }}
-              >
-                Thread documents
-              </div>
-              <ul className="space-y-1">
-                {internal.map((c, idx) => (
-                  <li
-                    key={c.id || c.documentId || idx}
-                    className="flex items-center gap-3 py-1"
-                    style={{ fontFamily: 'var(--nous-font-body)' }}
-                  >
-                    <FileText
-                      className="w-4 h-4 shrink-0"
-                      style={{ color: 'var(--nous-sol)' }}
-                    />
-                    <span
-                      className="text-[14px] truncate"
-                      style={{ color: 'var(--nous-fg-1)' }}
-                      title={c.title}
-                    >
-                      {c.title || 'Untitled document'}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-          {external.length > 0 && (
-            <div>
-              <div
-                className="text-[11px] uppercase tracking-wider mb-2"
-                style={{ color: 'var(--nous-fg-3)' }}
-              >
-                External sources
-              </div>
-              <ul className="space-y-1">
-                {external.map((c, idx) => (
-                  <li
-                    key={c.id || c.externalReferenceId || idx}
-                    className="flex items-center gap-3 py-1"
-                    style={{ fontFamily: 'var(--nous-font-body)' }}
-                  >
-                    <BookOpen
-                      className="w-4 h-4 shrink-0"
-                      style={{ color: 'var(--nous-corona)' }}
-                    />
-                    <span
-                      className="text-[14px] truncate"
-                      style={{ color: 'var(--nous-fg-1)' }}
-                      title={c.title}
-                    >
-                      {c.title || 'Untitled source'}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </div>
       )}
     </CollapsibleCard>
   );
