@@ -600,12 +600,14 @@ function ChatPageContent() {
   }, []);
 
   // Send message
-  const handleSubmit = async () => {
-    if (!input.trim() || isLoading || storeIsStreaming) return;
+  const handleSubmit = async (contentOverride?: string) => {
+    const rawContent = contentOverride ?? input;
+    const content = rawContent.trim();
+    if (!content || isLoading || storeIsStreaming) return;
 
     const userMessage: Message = {
       role: 'user',
-      content: input.trim(),
+      content,
       timestamp: Date.now(),
     };
 
@@ -620,7 +622,7 @@ function ChatPageContent() {
 
     if (!currentConversationId && dbConversation) {
       try {
-        const dynamicTitle = generateConversationTitle(input);
+        const dynamicTitle = generateConversationTitle(content);
         console.log(
           '[Chat] Creating new thread in database with title:',
           dynamicTitle
@@ -684,7 +686,7 @@ function ChatPageContent() {
       if (currentThreadId) {
         useAgentActivityStore
           .getState()
-          .startRun(currentThreadId, deriveAgentName(), deriveTask(input));
+          .startRun(currentThreadId, deriveAgentName(), deriveTask(content));
       }
 
       await agentChatService.streamMessage(
@@ -830,7 +832,7 @@ function ChatPageContent() {
           // Save user message
           const savedUserMessage = await workspaceService.createMessage({
             thread_id: currentThreadId,
-            content: input.trim(),
+            content,
             role: MessageRole.USER,
           });
           addMessageToStore(currentThreadId, savedUserMessage);
@@ -1021,6 +1023,10 @@ function ChatPageContent() {
 
   const handleRegenerate = useCallback(
     (assistantMessageIndex: number) => {
+      // Bug 1: bail BEFORE truncating messages if a stream is in flight.
+      // Otherwise `setMessages` clears the list but `handleSubmit`'s internal
+      // guard short-circuits, leaving the UI with no response.
+      if (isLoading || storeIsStreaming) return;
       const priorUser = [...displayedMessages]
         .slice(0, assistantMessageIndex)
         .reverse()
@@ -1028,9 +1034,13 @@ function ChatPageContent() {
       if (!priorUser) return;
       setMessages((prev) => prev.slice(0, assistantMessageIndex));
       setInput(priorUser.content);
-      setTimeout(() => handleSubmit(), 0);
+      // Bug 2: pass the content explicitly. `handleSubmit` reads `input` from
+      // its closure, and `setInput` above only schedules a state update — the
+      // deferred `handleSubmit` would otherwise see the stale pre-setInput value.
+      const contentToSend = priorUser.content;
+      setTimeout(() => handleSubmit(contentToSend), 0);
     },
-    [displayedMessages, handleSubmit]
+    [displayedMessages, handleSubmit, isLoading, storeIsStreaming]
   );
 
   return (
