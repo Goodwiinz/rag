@@ -1,64 +1,64 @@
 # Requirements for Graph Analytics Service (Port 8009)
 
 # Core FastAPI and web framework
-fastapi==0.104.1
-uvicorn[standard]==0.24.0
-python-multipart==0.0.22
+fastapi==0.136.0
+uvicorn[standard]==0.45.0
+python-multipart==0.0.26
 
 # Database and graph databases
 neo4j==6.1.0
-asyncpg==0.29.0
-sqlalchemy[asyncio]==2.0.23
-alembic==1.12.1
+asyncpg==0.31.0
+sqlalchemy[asyncio]==2.0.49
+alembic==1.18.4
 
 # Caching and session management
 redis[asyncio]==7.2.0
 aioredis==2.0.1
 
 # Background job processing
-celery[redis]==5.3.4
+celery[redis]==5.6.3
 flower==2.0.1
 croniter==2.0.1
 
 # Authentication and security
-python-jose[cryptography]==3.4.0
+python-jose[cryptography]==3.5.0
 passlib[bcrypt]==1.7.4
 
 # Data validation and serialization
-pydantic==2.5.0
-pydantic-settings==2.1.0
+pydantic==2.13.3
+pydantic-settings==2.14.0
 
 # Async HTTP client
-httpx==0.25.2
+httpx==0.28.1
 aiofiles==23.2.1
 
 # Graph algorithms and analytics
 numpy==1.25.2
-scipy==1.11.4
-networkx==3.2.1
-pandas==3.0.1
+scipy==1.17.1
+networkx==3.6.1
+pandas==3.0.2
 
 # Mathematical computations
-scikit-learn==1.5.0
-matplotlib==3.8.2
-seaborn==0.13.0
+scikit-learn==1.8.0
+matplotlib==3.10.8
+seaborn==0.13.2
 
 # Logging and monitoring
 structlog==23.2.0
-python-json-logger==4.0.0
-prometheus-client==0.19.0
+python-json-logger==4.1.0
+prometheus-client==0.25.0
 
 # Development and testing
 pytest==7.4.3
 pytest-asyncio==1.3.0
-pytest-cov==7.0.0
-pytest-mock==3.12.0
+pytest-cov==7.1.0
+pytest-mock==3.15.1
 
 # Utility libraries
-python-dateutil==2.8.2
+python-dateutil==2.9.0.post0
 pytz==2023.3
-typing-extensions==4.8.0
-asyncio-mqtt==0.16.1
+typing-extensions==4.15.0
+asyncio-mqtt==0.16.2
 
 # Performance monitoring
 psutil==5.9.6
