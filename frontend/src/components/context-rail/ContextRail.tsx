@@ -6,12 +6,17 @@ import { AllCitationsPanel } from './AllCitationsPanel';
 import { ContextPanel } from './ContextPanel';
 import { ProgressPanel } from './ProgressPanel';
 import { RelatedResultsPanel } from './RelatedResultsPanel';
-import { WorkingFoldersPanel } from './WorkingFoldersPanel';
+import {
+  WorkingFoldersPanel,
+  type WorkingFoldersSelection,
+} from './WorkingFoldersPanel';
 
 interface ContextRailProps {
   threadId: string | null;
   ragEnabled?: boolean;
   workspaceName?: string | null;
+  projectId?: string;
+  onSelect?: (node: WorkingFoldersSelection) => void;
   className?: string;
 }
 
@@ -19,6 +24,8 @@ export function ContextRail({
   threadId,
   ragEnabled,
   workspaceName,
+  projectId,
+  onSelect,
   className,
 }: ContextRailProps) {
   return (
@@ -34,7 +41,11 @@ export function ContextRail({
       aria-label="Chat context rail"
     >
       <ProgressPanel threadId={threadId} />
-      <WorkingFoldersPanel workspaceName={workspaceName} />
+      <WorkingFoldersPanel
+        projectId={projectId}
+        workspaceName={workspaceName}
+        onSelect={onSelect}
+      />
       <AgentActivityPanel threadId={threadId} />
       <RelatedResultsPanel />
       <AllCitationsPanel />

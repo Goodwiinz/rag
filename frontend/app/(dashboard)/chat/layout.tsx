@@ -15,7 +15,7 @@ import {
   Settings,
   Share2,
 } from 'lucide-react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 // ============================================
@@ -310,6 +310,8 @@ export default function ChatLayout({
   children: React.ReactNode;
 }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const projectId = searchParams.get('projectId') ?? undefined;
   const { currentThreadId } = useChatPersistence();
   const currentWorkspaceId = useChatStore((s) => s.currentWorkspaceId);
   const workspaces = useChatStore((s) => s.workspaces);
@@ -342,6 +344,20 @@ export default function ChatLayout({
           threadId={currentThreadId ?? null}
           workspaceName={workspaceName}
           ragEnabled={true}
+          projectId={projectId}
+          onSelect={(node) => {
+            // Per design + Task 1 verification: note/draft detail routes don't
+            // exist yet, so navigate to the project page as a stable fallback.
+            // Document previews (kind: 'document' | 'external') are still a
+            // follow-up wiring through the chat page's CitationPanel state.
+            if ((node.kind === 'note' || node.kind === 'draft') && projectId) {
+              router.push(`/projects/${projectId}`);
+              return;
+            }
+            // TODO(follow-up): open CitationPanel with a synthetic citation
+            // for kind === 'document' | 'external'.
+            console.log('[ContextRail] preview', node);
+          }}
           className="hidden lg:flex shrink-0 w-[320px] border-l border-[var(--nous-border-1)]"
         />
       </div>
