@@ -149,7 +149,7 @@ class AgentChatService {
     callbacks: {
       onToken?: (content: string) => void;
       onToolStart?: (tool: string, args: Record<string, unknown>) => void;
-      onToolEnd?: (tool: string, result: string) => void;
+      onToolEnd?: (tool: string, result: string, isError: boolean) => void;
       onRagContext?: (contexts: Array<Record<string, unknown>>) => void;
       onPlan?: (
         steps: Array<Record<string, unknown>>,
@@ -181,6 +181,7 @@ class AgentChatService {
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let buffer = '';
+    let eventType = '';
 
     try {
       while (true) {
@@ -191,8 +192,9 @@ class AgentChatService {
         const lines = buffer.split('\n');
         buffer = lines.pop() || '';
 
-        let eventType = '';
-        for (const line of lines) {
+        for (const rawLine of lines) {
+          const line = rawLine.trim();
+          if (!line) continue;
           if (line.startsWith('event: ')) {
             eventType = line.slice(7).trim();
           } else if (line.startsWith('data: ') && eventType) {
@@ -206,7 +208,11 @@ class AgentChatService {
                   callbacks.onToolStart?.(data.tool, data.args);
                   break;
                 case 'tool_end':
-                  callbacks.onToolEnd?.(data.tool, data.result);
+                  callbacks.onToolEnd?.(
+                    data.tool,
+                    data.result,
+                    Boolean(data.is_error)
+                  );
                   break;
                 case 'rag_context':
                   callbacks.onRagContext?.(data.contexts);
@@ -253,7 +259,7 @@ class AgentChatService {
     callbacks: {
       onToken?: (content: string) => void;
       onToolStart?: (tool: string, args: Record<string, unknown>) => void;
-      onToolEnd?: (tool: string, result: string) => void;
+      onToolEnd?: (tool: string, result: string, isError: boolean) => void;
       onConfirmation?: (
         threadId: string,
         confirmation: Record<string, unknown>
@@ -278,6 +284,7 @@ class AgentChatService {
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let buffer = '';
+    let eventType = '';
 
     try {
       while (true) {
@@ -288,8 +295,9 @@ class AgentChatService {
         const lines = buffer.split('\n');
         buffer = lines.pop() || '';
 
-        let eventType = '';
-        for (const line of lines) {
+        for (const rawLine of lines) {
+          const line = rawLine.trim();
+          if (!line) continue;
           if (line.startsWith('event: ')) {
             eventType = line.slice(7).trim();
           } else if (line.startsWith('data: ') && eventType) {
@@ -303,7 +311,11 @@ class AgentChatService {
                   callbacks.onToolStart?.(data.tool, data.args);
                   break;
                 case 'tool_end':
-                  callbacks.onToolEnd?.(data.tool, data.result);
+                  callbacks.onToolEnd?.(
+                    data.tool,
+                    data.result,
+                    Boolean(data.is_error)
+                  );
                   break;
                 case 'trace':
                   break;
