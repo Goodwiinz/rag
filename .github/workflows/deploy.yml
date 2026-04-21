@@ -101,7 +101,7 @@ jobs:
 
       - name: Install Helm
         # v3.0.0 - pinned for security
-        uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4
+        uses: azure/setup-helm@dda3372f752e03dde6b3237bc9431cdc2f7a02a2
         with:
           version: "3.13.0"
 
@@ -176,7 +176,7 @@ jobs:
 
       - name: Install Helm
         # v3.0.0 - pinned for security
-        uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4
+        uses: azure/setup-helm@dda3372f752e03dde6b3237bc9431cdc2f7a02a2
         with:
           version: "3.13.0"
 
@@ -228,7 +228,7 @@ jobs:
 
       - name: Upload backup artifact
         # v4.4.3 - pinned for security
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: pre-deploy-backup-${{ github.run_id }}
           path: pre-deploy-backup.yaml
