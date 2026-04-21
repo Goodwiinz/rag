@@ -38,22 +38,51 @@ describe('ChatHeader', () => {
     expect(screen.getByText('My Workspace')).toBeInTheDocument();
   });
 
-  it('shows fallback text when no workspace', () => {
+  it('shows fallback Workspace label when no workspace', () => {
     render(<ChatHeader currentWorkspace={null} />);
-    expect(screen.getByText('Fresh Test Workspace')).toBeInTheDocument();
+    expect(screen.getByText('Workspace')).toBeInTheDocument();
   });
 
-  it('has aria-labels on icon buttons', () => {
+  it('has aria-labels on workspace + command palette', () => {
     render(<ChatHeader currentWorkspace={null} />);
-    expect(screen.getByLabelText('Terminal')).toBeInTheDocument();
-    expect(screen.getByLabelText('Settings')).toBeInTheDocument();
     expect(screen.getByLabelText('Select workspace')).toBeInTheDocument();
     expect(screen.getByLabelText('Open command palette')).toBeInTheDocument();
   });
 
-  it('displays the clock time', () => {
+  it('renders the compact connected status clock', () => {
     jest.setSystemTime(new Date('2026-03-08T14:30:00'));
     render(<ChatHeader currentWorkspace={null} />);
-    expect(screen.getByText(/LTC/)).toBeInTheDocument();
+    // HH:MM only, 24-hour, tabular nums
+    expect(screen.getByText(/\d{2}:\d{2}/)).toBeInTheDocument();
+    expect(screen.getByTitle('Connected')).toBeInTheDocument();
+  });
+
+  it('shows model picker when onModelChange is provided', () => {
+    render(
+      <ChatHeader
+        currentWorkspace={null}
+        onModelChange={() => {}}
+        selectedModelId="gpt-4o"
+      />
+    );
+    expect(screen.getByText('GPT-4o')).toBeInTheDocument();
+  });
+
+  it('shows copy-all and export only when messages exist', () => {
+    const { rerender } = render(
+      <ChatHeader currentWorkspace={null} messages={[]} onCopyAll={() => {}} />
+    );
+    expect(screen.queryByLabelText('Copy all messages')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Export chat')).not.toBeInTheDocument();
+
+    rerender(
+      <ChatHeader
+        currentWorkspace={null}
+        messages={[{ role: 'user', content: 'hi', timestamp: Date.now() }]}
+        onCopyAll={() => {}}
+      />
+    );
+    expect(screen.getByLabelText('Copy all messages')).toBeInTheDocument();
+    expect(screen.getByLabelText('Export chat')).toBeInTheDocument();
   });
 });

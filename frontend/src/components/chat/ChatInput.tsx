@@ -191,7 +191,7 @@ export function ChatInput({
               onKeyDown={handleKeyDown}
               onFocus={() => setIsFocused(true)}
               onBlur={() => setIsFocused(false)}
-              placeholder="Inject query into neural stream..."
+              placeholder="Message NOUS…"
               rows={1}
               className="w-full bg-transparent text-[var(--terminal-text)] text-sm resize-none outline-none placeholder:text-[var(--terminal-text-dim)]/50 selection:bg-[var(--phosphor-green)]/20 selection:text-[var(--phosphor-green)]"
               style={{
@@ -300,18 +300,6 @@ export function ChatInput({
               )}
             </div>
           </div>
-        </motion.div>
-
-        {/* Keyboard Hint */}
-        <motion.div
-          initial={{ opacity: 0.5 }}
-          animate={{ opacity: isFocused ? 0.3 : 0.5 }}
-          className="flex items-center justify-center gap-4 mt-2 text-[9px] text-[var(--terminal-text-dim)] uppercase tracking-tighter"
-          style={{ fontFamily: "'JetBrains Mono', monospace" }}
-        >
-          <span>[Enter] Send</span>
-          <span>[Shift+Enter] Line Break</span>
-          <span className="hidden sm:inline">[/] Commands</span>
         </motion.div>
       </div>
     </div>

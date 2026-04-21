@@ -22,7 +22,7 @@ export function TerminalChatComposer({
   onStop,
   isLoading,
   isDisabled = false,
-  placeholder = 'Inject query into neural stream...',
+  placeholder = 'Message NOUS…',
   textareaRef,
 }: TerminalChatComposerProps) {
   const internalRef = useRef<HTMLTextAreaElement>(null);

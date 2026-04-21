@@ -3,6 +3,7 @@
 import * as React from 'react';
 import { cn } from '@/lib/utils';
 import { AgentActivityPanel } from './AgentActivityPanel';
+import { ProgressPanel } from './ProgressPanel';
 import { RelatedResultsPanel } from './RelatedResultsPanel';
 import { AllCitationsPanel } from './AllCitationsPanel';
 
@@ -24,6 +25,7 @@ export function ContextRail({ threadId, className }: ContextRailProps) {
       }}
       aria-label="Chat context rail"
     >
+      <ProgressPanel threadId={threadId} />
       <AgentActivityPanel threadId={threadId} />
       <RelatedResultsPanel />
       <AllCitationsPanel />

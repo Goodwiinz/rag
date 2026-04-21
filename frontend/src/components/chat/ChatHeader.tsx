@@ -2,7 +2,10 @@
 
 import { IconButton } from '@/components/ui/icon-button';
 import { SidebarTrigger } from '@/components/ui/sidebar';
-import { AVAILABLE_MODELS, ModelSelector } from '@/components/chat/ModelSelector';
+import {
+  AVAILABLE_MODELS,
+  ModelSelector,
+} from '@/components/chat/ModelSelector';
 import {
   downloadFile,
   exportAsJson,
@@ -17,8 +20,6 @@ import {
   FileText,
   Network,
   Search,
-  Settings2,
-  TerminalSquare,
 } from 'lucide-react';
 import { memo, useEffect, useRef, useState } from 'react';
 
@@ -47,21 +48,27 @@ export const ChatHeader = memo(function ChatHeader({
   chatTitle = 'Chat',
   onCopyAll,
 }: ChatHeaderProps) {
-  const [time, setTime] = useState<string>('00:00:00');
+  const [time, setTime] = useState<string>('--:--');
   const [exportOpen, setExportOpen] = useState(false);
   const exportRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const fn = () => {
       const d = new Date();
-      setTime(d.toLocaleTimeString('en-US', { hour12: false }));
+      setTime(
+        d.toLocaleTimeString('en-US', {
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false,
+        })
+      );
     };
     fn();
-    const int = setInterval(fn, 1000);
+    // HH:MM only — refresh once a minute is plenty
+    const int = setInterval(fn, 30_000);
     return () => clearInterval(int);
   }, []);
 
-  // Close export menu on outside click
   useEffect(() => {
     if (!exportOpen) return;
     const handler = (e: MouseEvent) => {
@@ -76,23 +83,31 @@ export const ChatHeader = memo(function ChatHeader({
   const slug = chatTitle.toLowerCase().replace(/\s+/g, '-').slice(0, 40);
 
   const handleExportMarkdown = () => {
-    downloadFile(`${slug}.md`, 'text/markdown', exportAsMarkdown(chatTitle, messages));
+    downloadFile(
+      `${slug}.md`,
+      'text/markdown',
+      exportAsMarkdown(chatTitle, messages)
+    );
     setExportOpen(false);
   };
 
   const handleExportJson = () => {
-    downloadFile(`${slug}.json`, 'application/json', exportAsJson(chatTitle, messages));
+    downloadFile(
+      `${slug}.json`,
+      'application/json',
+      exportAsJson(chatTitle, messages)
+    );
     setExportOpen(false);
   };
 
   return (
-    <div className="flex h-14 shrink-0 items-center justify-between gap-4 border-b border-[var(--terminal-border)] bg-[var(--terminal-bg)]/95 px-4 z-40">
-      {/* Left: breadcrumbs + workspace */}
-      <div className="flex items-center gap-4">
-        <SidebarTrigger className="h-7 w-7 text-[var(--terminal-text-dim)] hover:text-[var(--phosphor-green)] hover:bg-[var(--terminal-elevated)] transition-all rounded" />
+    <div className="flex h-14 shrink-0 items-center gap-3 border-b border-[var(--terminal-border)] bg-[var(--terminal-bg)]/95 px-4 z-40">
+      {/* Left: sidebar trigger + breadcrumb + workspace (compact, no-wrap) */}
+      <div className="flex items-center gap-3 shrink-0 min-w-0">
+        <SidebarTrigger className="h-7 w-7 shrink-0 text-[var(--terminal-text-dim)] hover:text-[var(--phosphor-green)] hover:bg-[var(--terminal-elevated)] transition-all rounded" />
 
         <div
-          className="flex items-center gap-2"
+          className="hidden lg:flex items-center whitespace-nowrap"
           style={{ fontFamily: "'JetBrains Mono', monospace" }}
         >
           <span className="text-xs text-[var(--terminal-text-dim)]">
@@ -103,22 +118,23 @@ export const ChatHeader = memo(function ChatHeader({
 
         <button
           aria-label="Select workspace"
-          className="flex items-center gap-2 ml-4 px-3 py-1.5 rounded border border-[var(--terminal-border)] bg-[var(--terminal-surface)] hover:bg-[var(--terminal-elevated)] transition-colors"
+          className="flex items-center gap-2 px-3 py-1.5 rounded border border-[var(--terminal-border)] bg-[var(--terminal-surface)] hover:bg-[var(--terminal-elevated)] transition-colors max-w-[200px] min-w-0"
         >
-          <Network className="w-3.5 h-3.5 text-[var(--phosphor-green)]" />
+          <Network className="w-3.5 h-3.5 text-[var(--phosphor-green)] shrink-0" />
           <span
-            className="text-xs text-[var(--terminal-text)]"
+            className="text-xs text-[var(--terminal-text)] truncate"
             style={{ fontFamily: "'JetBrains Mono', monospace" }}
+            title={currentWorkspace?.name}
           >
-            {currentWorkspace?.name || 'Fresh Test Workspace'}
+            {currentWorkspace?.name || 'Workspace'}
           </span>
-          <ChevronDown className="w-3.5 h-3.5 text-[var(--terminal-text-dim)] ml-2" />
+          <ChevronDown className="w-3.5 h-3.5 text-[var(--terminal-text-dim)] shrink-0" />
         </button>
       </div>
 
-      {/* Middle: command palette */}
-      <div className="hidden md:flex flex-1 max-w-md relative mx-4">
-        <div className="absolute left-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
+      {/* Middle: search (flex-1, shrinks before right side does) */}
+      <div className="hidden md:flex flex-1 min-w-0 max-w-md relative">
+        <div className="absolute left-3 top-1/2 -translate-y-1/2">
           <Search className="w-3.5 h-3.5 text-[var(--terminal-text-dim)]" />
         </div>
         <input
@@ -135,22 +151,19 @@ export const ChatHeader = memo(function ChatHeader({
               onCommandPaletteOpen?.();
             }
           }}
-          className="w-full bg-[var(--terminal-surface)] border border-[var(--terminal-border)] rounded-md py-1.5 pl-9 pr-[60px] text-xs text-[var(--terminal-text)] cursor-pointer hover:border-[var(--phosphor-green)]/30 transition-colors"
+          className="w-full bg-[var(--terminal-surface)] border border-[var(--terminal-border)] rounded-md py-1.5 pl-9 pr-[50px] text-xs text-[var(--terminal-text)] cursor-pointer hover:border-[var(--phosphor-green)]/30 transition-colors"
           style={{ fontFamily: "'JetBrains Mono', monospace" }}
         />
-        <div className="absolute right-2 top-1/2 -translate-y-1/2 flex gap-1">
-          <span
-            className="px-1.5 py-0.5 rounded bg-[var(--terminal-elevated)] border border-[var(--terminal-border)] text-[9px] text-[var(--terminal-text-dim)]"
-            style={{ fontFamily: "'JetBrains Mono', monospace" }}
-          >
-            ⌘K
-          </span>
-        </div>
+        <span
+          className="absolute right-2 top-1/2 -translate-y-1/2 px-1.5 py-0.5 rounded bg-[var(--terminal-elevated)] border border-[var(--terminal-border)] text-[9px] text-[var(--terminal-text-dim)] whitespace-nowrap"
+          style={{ fontFamily: "'JetBrains Mono', monospace" }}
+        >
+          ⌘K
+        </span>
       </div>
 
-      {/* Right: model picker + export + copy-all + system status + icons */}
-      <div className="flex items-center gap-3">
-        {/* Model picker */}
+      {/* Right: model + actions + status (all no-wrap) */}
+      <div className="flex items-center gap-2 shrink-0 ml-auto">
         {onModelChange && (
           <ModelSelector
             models={AVAILABLE_MODELS}
@@ -159,7 +172,6 @@ export const ChatHeader = memo(function ChatHeader({
           />
         )}
 
-        {/* Copy all messages */}
         {messages.length > 0 && onCopyAll && (
           <IconButton
             label="Copy all messages"
@@ -169,7 +181,6 @@ export const ChatHeader = memo(function ChatHeader({
           />
         )}
 
-        {/* Export menu */}
         {messages.length > 0 && (
           <div className="relative" ref={exportRef}>
             <IconButton
@@ -202,29 +213,17 @@ export const ChatHeader = memo(function ChatHeader({
           </div>
         )}
 
-        {/* Clock */}
+        {/* Compact status: green dot + time */}
         <div
-          className="flex items-center gap-3 px-3 py-1.5 rounded border border-[var(--terminal-border)] bg-[var(--terminal-surface)]"
+          className="hidden lg:flex items-center gap-2 px-2.5 py-1.5 rounded border border-[var(--terminal-border)] bg-[var(--terminal-surface)] whitespace-nowrap"
           style={{ fontFamily: "'JetBrains Mono', monospace" }}
+          title="Connected"
         >
-          <span className="text-[10px] text-[var(--terminal-text-dim)] uppercase tracking-wider">
-            Connected
-          </span>
-          <span className="text-[10px] text-[var(--phosphor-green)] font-bold">
-            LTC {time}
+          <span className="h-1.5 w-1.5 rounded-full bg-[var(--phosphor-green)] animate-pulse" />
+          <span className="text-[10px] text-[var(--phosphor-green)] font-bold tabular-nums">
+            {time}
           </span>
         </div>
-
-        <IconButton
-          label="Terminal"
-          icon={<TerminalSquare className="w-4 h-4" />}
-          className="p-1.5 text-[var(--terminal-text-dim)] hover:text-[var(--terminal-text)] transition-colors"
-        />
-        <IconButton
-          label="Settings"
-          icon={<Settings2 className="w-4 h-4" />}
-          className="p-1.5 text-[var(--terminal-text-dim)] hover:text-[var(--terminal-text)] transition-colors"
-        />
       </div>
     </div>
   );

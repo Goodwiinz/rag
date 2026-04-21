@@ -15,7 +15,7 @@ describe('TerminalChatComposer', () => {
       />
     );
 
-    fireEvent.keyDown(screen.getByPlaceholderText(/inject query/i), {
+    fireEvent.keyDown(screen.getByPlaceholderText(/message nous/i), {
       key: 'Enter',
     });
 
@@ -35,7 +35,7 @@ describe('TerminalChatComposer', () => {
       />
     );
 
-    fireEvent.keyDown(screen.getByPlaceholderText(/inject query/i), {
+    fireEvent.keyDown(screen.getByPlaceholderText(/message nous/i), {
       key: 'Enter',
       shiftKey: true,
     });
