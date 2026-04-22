@@ -208,25 +208,46 @@ export default function ProjectsPage() {
         </div>
       )}
 
-      {!loading && projects.length === 0 && (
-        <div className="text-center py-12 bg-card border border-border rounded-lg">
-          <FolderOpen className="h-12 w-12 text-muted-foreground/40 mx-auto mb-4" />
-          <h3 className="text-lg font-mono text-foreground mb-2">
-            NO_ACTIVE_RESEARCH
-          </h3>
-          <p className="text-sm font-mono text-muted-foreground mb-4">
-            Initialize your first research project to begin building your
-            knowledge graph.
-          </p>
-          <button
-            onClick={() => setShowCreateModal(true)}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-primary/10 text-primary border border-primary/30 rounded-lg font-mono text-sm hover:bg-primary/20 transition-colors"
-          >
-            <Plus className="h-4 w-4" />
-            Create Project
-          </button>
-        </div>
-      )}
+      {!loading &&
+        projects.length === 0 &&
+        (() => {
+          const hasActiveFilters = !!(
+            searchQuery ||
+            statusFilter ||
+            typeFilter ||
+            tagFilter
+          );
+          return hasActiveFilters ? (
+            <div className="text-center py-12 bg-card border border-border rounded-lg">
+              <FolderOpen className="h-12 w-12 text-muted-foreground/40 mx-auto mb-4" />
+              <h3 className="text-lg font-mono text-foreground mb-2">
+                NO_RESULTS
+              </h3>
+              <p className="text-sm font-mono text-muted-foreground">
+                No projects match your filters. Try clearing your search or
+                filters.
+              </p>
+            </div>
+          ) : (
+            <div className="text-center py-12 bg-card border border-border rounded-lg">
+              <FolderOpen className="h-12 w-12 text-muted-foreground/40 mx-auto mb-4" />
+              <h3 className="text-lg font-mono text-foreground mb-2">
+                NO_ACTIVE_RESEARCH
+              </h3>
+              <p className="text-sm font-mono text-muted-foreground mb-4">
+                Initialize your first research project to begin building your
+                knowledge graph.
+              </p>
+              <button
+                onClick={() => setShowCreateModal(true)}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-primary/10 text-primary border border-primary/30 rounded-lg font-mono text-sm hover:bg-primary/20 transition-colors"
+              >
+                <Plus className="h-4 w-4" />
+                Create Project
+              </button>
+            </div>
+          );
+        })()}
 
       {!loading && projects.length > 0 && (
         <ProjectList
@@ -243,7 +264,7 @@ export default function ProjectsPage() {
         />
       )}
 
-      {!loading && total > 0 && (
+      {!loading && projects.length > 0 && total > 0 && (
         <div className="mt-6 text-center text-sm text-muted-foreground font-mono">
           Showing {projects.length} of {total} projects
         </div>

@@ -25,6 +25,7 @@ export function CreateProjectModal({
   const [tagInput, setTagInput] = useState('');
   const [tags, setTags] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
@@ -46,6 +47,7 @@ export function CreateProjectModal({
     setDeadline('');
     setTagInput('');
     setTags([]);
+    setSubmitError(null);
   };
 
   const handleClose = () => {
@@ -57,6 +59,7 @@ export function CreateProjectModal({
   const handleSubmit = async () => {
     if (!name.trim()) return;
     setSubmitting(true);
+    setSubmitError(null);
     try {
       await onCreate({
         name: name.trim(),
@@ -67,6 +70,10 @@ export function CreateProjectModal({
       });
       reset();
       onClose();
+    } catch (err: unknown) {
+      const msg =
+        err instanceof Error ? err.message : 'Failed to create project';
+      setSubmitError(msg);
     } finally {
       setSubmitting(false);
     }
@@ -191,6 +198,10 @@ export function CreateProjectModal({
             )}
           </div>
         </div>
+
+        {submitError && (
+          <p className="mt-4 text-xs font-mono text-red-400">{submitError}</p>
+        )}
 
         <div className="flex justify-end gap-3 mt-6">
           <button

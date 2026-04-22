@@ -1,10 +1,10 @@
 'use client';
 
 import {
+  Archive,
   Calendar,
   FileText,
   FolderKanban,
-  MoreHorizontal,
   Trash2,
 } from 'lucide-react';
 import type { Project } from '@/services/projectService';
@@ -71,7 +71,7 @@ export function ProjectCard({
                 className="p-1 text-muted-foreground hover:text-[var(--amber-gold)] transition-colors"
                 title="Archive project"
               >
-                <MoreHorizontal className="h-4 w-4" />
+                <Archive className="h-4 w-4" />
               </button>
             )}
             {onDelete && (
