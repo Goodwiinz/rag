@@ -12,8 +12,8 @@ import { FolderOpen, Loader2, Network, Plus, Search } from 'lucide-react';
 import { CreateProjectModal } from '@/components/research/CreateProjectModal';
 import { ProjectList } from '@/components/research/ProjectList';
 import { useProjectStore } from '@/store/projectStore';
-import { useAuthStore } from '@/stores/authStore';
 import { useChatStore, selectCurrentWorkspace } from '@/store/chat-store';
+import { useAuthStore } from '@/stores/authStore';
 import { workspaceService } from '@/services/workspaceService';
 import { getApiErrorMessage } from '@/utils/apiErrorMessage';
 
@@ -24,6 +24,8 @@ export default function ProjectsPage() {
   const router = useRouter();
   const { isAuthenticated } = useAuthStore();
   const currentWorkspace = useChatStore(selectCurrentWorkspace);
+  const currentWorkspaceId = useChatStore((s) => s.currentWorkspaceId);
+  const loadWorkspaces = useChatStore((s) => s.loadWorkspaces);
   const {
     projects,
     loading,
@@ -50,12 +52,26 @@ export default function ProjectsPage() {
 
   useEffect(() => {
     if (!mounted || !isAuthenticated) return;
+    if (currentWorkspaceId && !currentWorkspace) {
+      void loadWorkspaces();
+    }
+  }, [
+    mounted,
+    isAuthenticated,
+    currentWorkspaceId,
+    currentWorkspace,
+    loadWorkspaces,
+  ]);
+
+  useEffect(() => {
+    if (!mounted || !isAuthenticated) return;
+    const effectiveWorkspaceId = currentWorkspace?.id ?? currentWorkspaceId;
     // Cancel the previous fetch when filters/workspace change so a slow response
     // from the earlier request can't overwrite the latest results.
     const controller = new AbortController();
     void fetchProjects(
       {
-        workspace_id: currentWorkspace?.id || undefined,
+        workspace_id: effectiveWorkspaceId || undefined,
         search: searchQuery || undefined,
         project_status: statusFilter || undefined,
         project_type: typeFilter || undefined,
@@ -67,6 +83,7 @@ export default function ProjectsPage() {
   }, [
     mounted,
     isAuthenticated,
+    currentWorkspaceId,
     currentWorkspace?.id,
     searchQuery,
     statusFilter,
@@ -91,9 +108,12 @@ export default function ProjectsPage() {
     // Let the modal surface the toast on failure (it keeps the form open for
     // retry). Rethrow so the modal's catch block fires instead of silently
     // resolving.
-    const workspace = await workspaceService.getOrCreateDefaultWorkspace();
+    const workspaceId =
+      currentWorkspace?.id ??
+      currentWorkspaceId ??
+      (await workspaceService.getOrCreateDefaultWorkspace()).id;
     const project = await createProject({
-      workspace_id: workspace.id,
+      workspace_id: workspaceId,
       name: payload.name,
       description: payload.description,
       project_type: payload.project_type,

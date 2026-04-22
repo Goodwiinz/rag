@@ -220,6 +220,8 @@ export function clearWorkspaceServiceCache(): void {
     localStorage.removeItem(WS_CACHE_KEY);
     localStorage.removeItem(WS_CACHE_AT_KEY);
     localStorage.removeItem('default-workspace-id');
+    localStorage.removeItem('default-conversation-id');
+    localStorage.removeItem('chat-storage');
   }
 }
 
@@ -549,6 +551,22 @@ export const workspaceService = {
   // ============================================================================
 
   async getOrCreateDefaultWorkspace(): Promise<Workspace> {
+    const cacheWorkspace = (ws: Workspace) => {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(WS_CACHE_KEY, JSON.stringify(ws));
+        localStorage.setItem(WS_CACHE_AT_KEY, String(Date.now()));
+        localStorage.setItem('default-workspace-id', ws.id);
+      }
+    };
+
+    const clearCachedWorkspace = () => {
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem(WS_CACHE_KEY);
+        localStorage.removeItem(WS_CACHE_AT_KEY);
+        localStorage.removeItem('default-workspace-id');
+      }
+    };
+
     // Check localStorage for a cached full workspace object — avoids any API call on warm hits.
     if (typeof window !== 'undefined') {
       const cachedJson = localStorage.getItem(WS_CACHE_KEY);
@@ -560,25 +578,32 @@ export const workspaceService = {
         Date.now() - Number(cachedAt) < WS_CACHE_TTL_MS
       ) {
         try {
-          return JSON.parse(cachedJson) as Workspace;
+          const cachedWorkspace = JSON.parse(cachedJson) as Partial<Workspace>;
+
+          if (cachedWorkspace.id) {
+            try {
+              const workspace = await this.getWorkspace(cachedWorkspace.id);
+              cacheWorkspace(workspace);
+              return workspace;
+            } catch (error: unknown) {
+              const status = (error as { response?: { status?: number } })
+                ?.response?.status;
+              if (status === 403 || status === 404) {
+                clearCachedWorkspace();
+              }
+            }
+          } else {
+            clearCachedWorkspace();
+          }
         } catch {
           // Corrupted JSON — fall through to API
-          localStorage.removeItem(WS_CACHE_KEY);
-          localStorage.removeItem(WS_CACHE_AT_KEY);
+          clearCachedWorkspace();
         }
       } else if (cachedJson) {
         // TTL expired — clear stale entry
-        localStorage.removeItem(WS_CACHE_KEY);
-        localStorage.removeItem(WS_CACHE_AT_KEY);
+        clearCachedWorkspace();
       }
     }
-
-    const cacheWorkspace = (ws: Workspace) => {
-      if (typeof window !== 'undefined') {
-        localStorage.setItem(WS_CACHE_KEY, JSON.stringify(ws));
-        localStorage.setItem(WS_CACHE_AT_KEY, String(Date.now()));
-      }
-    };
 
     // Try to get existing workspaces with retry for transient errors
     let retries = 2;
@@ -661,6 +686,7 @@ export const workspaceService = {
         if (typeof window !== 'undefined') {
           localStorage.removeItem(WS_CACHE_KEY);
           localStorage.removeItem(WS_CACHE_AT_KEY);
+          localStorage.removeItem('default-workspace-id');
           localStorage.removeItem('default-conversation-id');
         }
         throw error;
