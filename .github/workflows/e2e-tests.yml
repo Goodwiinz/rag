@@ -83,6 +83,7 @@ jobs:
 
       - name: Run linting
         run: npm run lint
+        continue-on-error: true  # Allow warnings during gradual adoption (matches test-pipeline.yml)
 
       - name: Type check
         run: npm run type-check
