@@ -1,5 +1,6 @@
 import { createClient as createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { apiClient } from '@/services/apiClient';
+import { clearWorkspaceServiceCache } from '@/services/workspaceService';
 import { Organization, RegisterResult, User } from '@/types';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { create } from 'zustand';
@@ -56,6 +57,7 @@ function getSupabaseClient(): SupabaseClient {
       }
 
       if (event === 'SIGNED_OUT') {
+        clearWorkspaceServiceCache();
         useAuthStore.setState({
           user: null,
           organization: null,
@@ -175,6 +177,8 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
   },
 
   signOut: () => {
+    clearWorkspaceServiceCache();
+
     try {
       getSupabaseClient()
         .auth.signOut()
