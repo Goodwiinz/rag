@@ -47,11 +47,22 @@ jobs:
   lint-backend:
     name: Lint Backend
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@v6
 
+      - uses: depot/setup-action@v1
+
       - name: Build lint image
-        run: docker build -t rag-lint:ci -f backend/docker/Dockerfile.lint .
+        uses: depot/build-push-action@v1
+        with:
+          project: pv986cnqtf
+          context: .
+          file: backend/docker/Dockerfile.lint
+          tags: rag-lint:ci
+          load: true
 
       - name: Run Ruff (linting)
         run: docker run --rm rag-lint:ci ruff check backend/src --output-format=github
@@ -432,8 +443,13 @@ jobs:
     if: github.event_name != 'pull_request'
     continue-on-error: true  # Non-critical; don't block even when run
     needs: [integration-tests]
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@v6
+
+      - uses: depot/setup-action@v1
 
       - name: Free runner disk space
         run: |
@@ -455,10 +471,25 @@ jobs:
           df -h
 
       - name: Build backend image
-        run: docker build --build-arg PYTHON_VERSION=3.11 --build-arg TORCH_CPU_ONLY=true -t rag-backend:test -f backend/docker/Dockerfile.prod .
+        uses: depot/build-push-action@v1
+        with:
+          project: pv986cnqtf
+          context: .
+          file: backend/docker/Dockerfile.prod
+          tags: rag-backend:test
+          build-args: |
+            PYTHON_VERSION=3.11
+            TORCH_CPU_ONLY=true
+          load: true
 
       - name: Build frontend image
-        run: docker build -t rag-frontend:test -f frontend/Dockerfile.prod .
+        uses: depot/build-push-action@v1
+        with:
+          project: pv986cnqtf
+          context: .
+          file: frontend/Dockerfile.prod
+          tags: rag-frontend:test
+          load: true
 
       - name: Start infrastructure services
         run: |
