@@ -9,12 +9,13 @@ from functools import wraps
 from typing import Any, Callable, Optional
 
 from fastapi import HTTPException, Request, Response, status
-from sqlalchemy import event
+from sqlalchemy import event, select
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 from starlette.middleware.base import BaseHTTPMiddleware
 
-from src.core.database import get_db
+from src.core.database import AsyncSessionLocal
+from src.core.security import verify_token
 from src.exceptions.analytics_exceptions import PermissionDeniedException
 from src.models.organization import Organization
 from src.models.user import User
@@ -33,37 +34,27 @@ class MultiTenancyMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
         """Process request and set tenant context"""
 
-        # Skip tenant validation for health checks and auth endpoints
         if self._should_skip_tenant_validation(request):
-            response = await call_next(request)
-            return response
+            return await call_next(request)
 
         try:
-            # Extract tenant information from JWT token
             tenant_info = await self._extract_tenant_info(request)
 
-            if tenant_info:
-                # Set tenant context
-                tenant_context.set(tenant_info["organization_id"])
-                user_context.set(tenant_info["user_id"])
-                role_context.set(tenant_info["role"])
+            if not tenant_info:
+                return await call_next(request)
 
-                # Validate tenant access
+            with tenant_context_manager(
+                organization_id=tenant_info["organization_id"],
+                user_id=tenant_info["user_id"],
+                user_role=tenant_info["role"],
+            ):
                 await self._validate_tenant_access(
                     tenant_info["organization_id"], request
                 )
-
-                # Add tenant info to request state
                 request.state.tenant_id = tenant_info["organization_id"]
                 request.state.user_id = tenant_info["user_id"]
                 request.state.user_role = tenant_info["role"]
-
-            response = await call_next(request)
-
-            # Clear tenant context after request
-            self._clear_tenant_context()
-
-            return response
+                return await call_next(request)
 
         except PermissionDeniedException as e:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
@@ -89,24 +80,35 @@ class MultiTenancyMiddleware(BaseHTTPMiddleware):
         return any(request.url.path.startswith(path) for path in skip_paths)
 
     async def _extract_tenant_info(self, request: Request) -> Optional[dict]:
-        """Extract tenant information from JWT token or session"""
+        """Extract tenant information by verifying the Bearer JWT and resolving org via DB."""
+        auth_header = request.headers.get("Authorization", "")
+        if not auth_header.startswith("Bearer "):
+            return None
+        token = auth_header[7:]
         try:
-            # Try to get user from request state (set by auth middleware)
-            if hasattr(request.state, "user"):
-                user = request.state.user
-                return {
-                    "organization_id": str(user.organization_id),
-                    "user_id": str(user.id),
-                    "role": user.role.value if user.role else "user",
-                }
-
-            # TODO: Implement JWT token extraction if needed
-            # For now, we'll rely on auth middleware to set user info
-
+            token_data = verify_token(token)
+        except Exception:
+            return None
+        if not token_data or not token_data.user_id:
             return None
 
+        # organization_id is not embedded in Supabase JWTs — resolve from DB.
+        # TODO(5b): embed organization_id in JWT claims at issuance to skip this query.
+        try:
+            async with AsyncSessionLocal() as db:
+                result = await db.execute(
+                    select(User).where(User.id == token_data.user_id)
+                )
+                user = result.scalars().first()
+            if not user or not user.organization_id:
+                return None
+            return {
+                "organization_id": str(user.organization_id),
+                "user_id": str(token_data.user_id),
+                "role": token_data.role or "user",
+            }
         except Exception as e:
-            logger.error(f"Error extracting tenant info: {e}")
+            logger.error(f"Error resolving tenant from token: {e}")
             return None
 
     async def _validate_tenant_access(
@@ -114,16 +116,14 @@ class MultiTenancyMiddleware(BaseHTTPMiddleware):
     ) -> bool:
         """Validate that the organization exists and is active"""
         try:
-            db = next(get_db())
-
-            # Check if organization exists and is active
-            organization = (
-                db.query(Organization)
-                .filter(
-                    Organization.id == organization_id, Organization.is_active == True
+            async with AsyncSessionLocal() as db:
+                result = await db.execute(
+                    select(Organization).where(
+                        Organization.id == organization_id,
+                        Organization.is_active == True,
+                    )
                 )
-                .first()
-            )
+                organization = result.scalars().first()
 
             if not organization:
                 raise PermissionDeniedException(
@@ -132,7 +132,6 @@ class MultiTenancyMiddleware(BaseHTTPMiddleware):
                     details={"organization_id": organization_id},
                 )
 
-            db.close()
             return True
 
         except PermissionDeniedException:
@@ -144,13 +143,6 @@ class MultiTenancyMiddleware(BaseHTTPMiddleware):
                 user_role="unknown",
                 details={"organization_id": organization_id, "error": str(e)},
             )
-
-    def _clear_tenant_context(self):
-        """Clear tenant context variables"""
-        tenant_context.set(None)
-        user_context.set(None)
-        role_context.set(None)
-
 
 # Row Level Security functions
 

@@ -1,0 +1,8 @@
+# Keep the lint image context narrow even though the build runs from repo root.
+# Dockerfile.lint only needs the lint config and backend source tree.
+**
+!pyproject.toml
+!backend/
+backend/**
+!backend/src/
+!backend/src/**
