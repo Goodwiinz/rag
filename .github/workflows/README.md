@@ -1,12 +1,12 @@
 # CI/CD Workflows
 
-GitHub Actions workflows for testing, building, and deploying the RAG system.
+CI for this repo is split across Depot CI and GitHub Actions.
 
 ## 📁 Workflows
 
 | File | Purpose | Triggers |
 |------|---------|----------|
-| `test-pipeline.yml` | Lint, test, security scan | Push, PR |
+| `.depot/workflows/test-pipeline.yml` | Lint, test, security scan | Push, PR |
 | `docker-build.yml` | Build & push Docker images | After tests pass |
 | `deploy.yml` | Deploy to DigitalOcean K8s | After build, manual |
 
@@ -24,21 +24,21 @@ GitHub Actions workflows for testing, building, and deploying the RAG system.
                     └──────────────┘     └─────────────┘
 ```
 
-`test-pipeline.yml` and `docker-build.yml` are intentionally separate.
+Depot CI `test-pipeline.yml` and GitHub Actions `docker-build.yml` are intentionally separate.
 
-- `test-pipeline.yml` validates the codebase: linting, unit/integration/frontend/security/E2E/performance checks.
-- `docker-build.yml` builds and publishes the deployable backend/frontend images after code changes land on `main` or `develop`.
+- `.depot/workflows/test-pipeline.yml` validates the codebase: linting, unit/integration/frontend/security/E2E/performance checks on Depot CI sandboxes.
+- `.github/workflows/docker-build.yml` builds and publishes the deployable backend/frontend images after code changes land on `main` or `develop`.
 - `deploy.yml` and `gitops-image-update.yml` depend on the image build stage, so `docker-build.yml` is part of the delivery pipeline rather than duplicate CI.
 
-Depot runner usage is scoped to the expensive jobs:
+Depot usage is split by product:
 
-- Docker-heavy and service-heavy jobs in `test-pipeline.yml` run on `depot-ubuntu-24.04-8`.
-- Image builds in `docker-build.yml` run on `depot-ubuntu-24.04-8`.
-- Lighter summary/deploy orchestration jobs stay on `ubuntu-latest`.
+- Depot CI uses explicit sandbox labels in `.depot/workflows/test-pipeline.yml`, with `depot-ubuntu-24.04-8` on the heavier jobs and `depot-ubuntu-24.04` on lighter jobs.
+- GitHub Actions image builds in `.github/workflows/docker-build.yml` use Depot GitHub Actions runner labels (`depot-ubuntu-24.04-8`).
+- Lighter GitHub summary/deploy orchestration jobs stay on `ubuntu-latest`.
 
 ---
 
-## 🧪 Test Pipeline (`test-pipeline.yml`)
+## 🧪 Test Pipeline (`.depot/workflows/test-pipeline.yml`)
 
 Runs on every push and PR. **Must pass before Docker build.**
 

@@ -47,7 +47,7 @@ jobs:
   # ==========================================================================
   lint-backend:
     name: Lint Backend
-    runs-on: depot-ubuntu-latest # was: ubuntu-latest. Mapped standard GitHub runner to Depot equivalent.
+    runs-on: depot-ubuntu-24.04-8
     steps:
       - uses: actions/checkout@v6
       - name: Build lint image
@@ -65,7 +65,7 @@ jobs:
         continue-on-error: true # Allow failures during gradual adoption
   lint-frontend:
     name: Lint Frontend
-    runs-on: depot-ubuntu-latest # was: ubuntu-latest. Mapped standard GitHub runner to Depot equivalent.
+    runs-on: depot-ubuntu-24.04
     defaults:
       run:
         working-directory: frontend
@@ -89,7 +89,7 @@ jobs:
   # ==========================================================================
   unit-tests:
     name: Unit Tests
-    runs-on: depot-ubuntu-latest # was: ubuntu-latest. Mapped standard GitHub runner to Depot equivalent.
+    runs-on: depot-ubuntu-24.04-8
     needs: lint-backend
     steps:
       - uses: actions/checkout@v6
@@ -145,7 +145,7 @@ jobs:
   # ==========================================================================
   security-scan:
     name: Security Scan
-    runs-on: depot-ubuntu-latest # was: ubuntu-latest. Mapped standard GitHub runner to Depot equivalent.
+    runs-on: depot-ubuntu-24.04
     needs: lint-backend
     steps:
       - uses: actions/checkout@v6
@@ -166,7 +166,7 @@ jobs:
   # ==========================================================================
   frontend-tests:
     name: Frontend Tests
-    runs-on: depot-ubuntu-latest # was: ubuntu-latest. Mapped standard GitHub runner to Depot equivalent.
+    runs-on: depot-ubuntu-24.04
     needs: lint-frontend
     defaults:
       run:
@@ -196,7 +196,7 @@ jobs:
   # ==========================================================================
   integration-tests:
     name: Integration Tests
-    runs-on: depot-ubuntu-latest # was: ubuntu-latest. Mapped standard GitHub runner to Depot equivalent.
+    runs-on: depot-ubuntu-24.04-8
     timeout-minutes: 15
     continue-on-error: true # Don't block workflow if integration tests fail/timeout
     needs: [unit-tests, frontend-tests]
@@ -269,7 +269,7 @@ jobs:
   # ==========================================================================
   resilience-tests:
     name: Resilience Tests
-    runs-on: depot-ubuntu-latest # was: ubuntu-latest. Mapped standard GitHub runner to Depot equivalent.
+    runs-on: depot-ubuntu-24.04-8
     timeout-minutes: 10
     continue-on-error: true # Non-critical in PR checks; don't block merges
     needs: unit-tests
@@ -324,7 +324,7 @@ jobs:
   # ==========================================================================
   api-contract-tests:
     name: API Contract Tests
-    runs-on: depot-ubuntu-latest # was: ubuntu-latest. Mapped standard GitHub runner to Depot equivalent.
+    runs-on: depot-ubuntu-24.04-8
     continue-on-error: true # Non-critical in PR checks; don't block merges
     needs: [unit-tests, frontend-tests]
     services:
@@ -370,7 +370,7 @@ jobs:
   # ==========================================================================
   e2e-tests:
     name: E2E Tests
-    runs-on: depot-ubuntu-latest # was: ubuntu-latest. Mapped standard GitHub runner to Depot equivalent.
+    runs-on: depot-ubuntu-24.04-8
     continue-on-error: true # Non-critical in PR checks; don't block merges
     needs: [integration-tests]
     steps:
@@ -493,7 +493,7 @@ jobs:
   # ==========================================================================
   performance-tests:
     name: Performance Tests
-    runs-on: depot-ubuntu-latest # was: ubuntu-latest. Mapped standard GitHub runner to Depot equivalent.
+    runs-on: depot-ubuntu-24.04-8
     continue-on-error: true # Non-critical in PR checks; don't block merges
     needs: integration-tests
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -546,7 +546,7 @@ jobs:
   # ==========================================================================
   test-summary:
     name: Test Summary
-    runs-on: depot-ubuntu-latest # was: ubuntu-latest. Mapped standard GitHub runner to Depot equivalent.
+    runs-on: depot-ubuntu-24.04
     needs: [unit-tests, integration-tests, resilience-tests, frontend-tests, security-scan, api-contract-tests]
     if: always()
     env:
