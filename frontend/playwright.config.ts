@@ -28,12 +28,12 @@ const BASE_URL = process.env.BASE_URL || 'http://localhost:3000';
 const TEST_CREDENTIALS = {
   validUser: {
     email: process.env.TEST_USER_EMAIL || 'test@example.com',
-    password: process.env.TEST_USER_PASSWORD || 'testpassword123'
+    password: process.env.TEST_USER_PASSWORD || 'testpassword123',
   },
   adminUser: {
     email: process.env.TEST_ADMIN_EMAIL || 'admin@example.com',
-    password: process.env.TEST_ADMIN_PASSWORD || 'adminpassword123'
-  }
+    password: process.env.TEST_ADMIN_PASSWORD || 'adminpassword123',
+  },
 };
 
 // File paths for test data
@@ -51,11 +51,11 @@ export default defineConfig({
     toHaveScreenshot: {
       threshold: 0.2, // Allow for small pixel differences
       maxDiffPixels: 1000,
-      animationHandling: 'allow'
+      animationHandling: 'allow',
     },
     toMatchSnapshot: {
-      threshold: 0.2
-    }
+      threshold: 0.2,
+    },
   },
 
   // Global setup and teardown
@@ -70,20 +70,27 @@ export default defineConfig({
 
   // Reporter configuration
   reporter: [
-    ['html', {
-      outputFolder: path.join(REPORTS_PATH, 'html'),
-      open: process.env.CI ? 'never' : 'on-failure'
-    }],
-    ['json', {
-      outputFile: path.join(REPORTS_PATH, 'results.json')
-    }],
-    ['junit', {
-      outputFile: path.join(REPORTS_PATH, 'junit.xml'),
-      stripANSIControlSequences: true
-    }],
+    [
+      'html',
+      {
+        outputFolder: path.join(REPORTS_PATH, 'html'),
+        open: process.env.CI ? 'never' : 'on-failure',
+      },
+    ],
+    [
+      'json',
+      {
+        outputFile: path.join(REPORTS_PATH, 'results.json'),
+      },
+    ],
+    [
+      'junit',
+      {
+        outputFile: path.join(REPORTS_PATH, 'junit.xml'),
+        stripANSIControlSequences: true,
+      },
+    ],
     ['list'],
-    // Custom reporter for accessibility and performance metrics
-    ['./e2e/custom-reporter.ts']
   ],
 
   // Web server configuration
@@ -93,7 +100,7 @@ export default defineConfig({
     reuseExistingServer: !process.env.CI,
     timeout: 120000, // 2 minutes
     stdout: 'pipe',
-    stderr: 'pipe'
+    stderr: 'pipe',
   },
 
   // Projects for different browsers and devices
@@ -105,8 +112,8 @@ export default defineConfig({
         ...devices['Desktop Chrome'],
         viewport: { width: 1280, height: 720 },
         contextOptions: {
-          permissions: ['clipboard-read', 'clipboard-write']
-        }
+          permissions: ['clipboard-read', 'clipboard-write'],
+        },
       },
       dependencies: ['setup'],
     },
@@ -114,7 +121,7 @@ export default defineConfig({
       name: 'firefox',
       use: {
         ...devices['Desktop Firefox'],
-        viewport: { width: 1280, height: 720 }
+        viewport: { width: 1280, height: 720 },
       },
       dependencies: ['setup'],
     },
@@ -122,7 +129,7 @@ export default defineConfig({
       name: 'webkit',
       use: {
         ...devices['Desktop Safari'],
-        viewport: { width: 1280, height: 720 }
+        viewport: { width: 1280, height: 720 },
       },
       dependencies: ['setup'],
     },
@@ -131,7 +138,7 @@ export default defineConfig({
       use: {
         ...devices['Desktop Edge'],
         viewport: { width: 1280, height: 720 },
-        channel: 'msedge'
+        channel: 'msedge',
       },
       dependencies: ['setup'],
     },
@@ -141,7 +148,7 @@ export default defineConfig({
       name: 'iPhone',
       use: {
         ...devices['iPhone 14'],
-        viewport: { width: 390, height: 844 }
+        viewport: { width: 390, height: 844 },
       },
       dependencies: ['setup'],
     },
@@ -149,7 +156,7 @@ export default defineConfig({
       name: 'Android',
       use: {
         ...devices['Pixel 5'],
-        viewport: { width: 393, height: 851 }
+        viewport: { width: 393, height: 851 },
       },
       dependencies: ['setup'],
     },
@@ -159,7 +166,7 @@ export default defineConfig({
       name: 'iPad',
       use: {
         ...devices['iPad Pro'],
-        viewport: { width: 1024, height: 1366 }
+        viewport: { width: 1024, height: 1366 },
       },
       dependencies: ['setup'],
     },
@@ -169,7 +176,7 @@ export default defineConfig({
       name: 'accessibility',
       use: {
         ...devices['Desktop Chrome'],
-        viewport: { width: 1280, height: 720 }
+        viewport: { width: 1280, height: 720 },
       },
       dependencies: ['setup'],
       testMatch: '**/accessibility/**/*.spec.ts',
@@ -186,9 +193,9 @@ export default defineConfig({
           args: [
             '--enable-precise-memory-info',
             '--disable-web-security',
-            '--disable-features=IsolateOrigins,site-per-process'
-          ]
-        }
+            '--disable-features=IsolateOrigins,site-per-process',
+          ],
+        },
       },
       dependencies: ['setup'],
       testMatch: '**/performance/**/*.spec.ts',
@@ -203,7 +210,7 @@ export default defineConfig({
         // Ensure consistent visual testing
         deviceScaleFactor: 1,
         hasTouch: false,
-        isMobile: false
+        isMobile: false,
       },
       dependencies: ['setup'],
       testMatch: '**/visual/**/*.spec.ts',
@@ -235,7 +242,7 @@ export default defineConfig({
       await use({
         credentials: TEST_CREDENTIALS,
         filesPath: TEST_FILES_PATH,
-        baseUrl: BASE_URL
+        baseUrl: BASE_URL,
       });
     },
 
@@ -252,13 +259,16 @@ export default defineConfig({
           await page.evaluate(() => performance.mark(`${name}-start`));
           return {
             end: async () => {
-              await page.evaluate((n: any) => performance.mark(`${n}-end`), name);
+              await page.evaluate(
+                (n: any) => performance.mark(`${n}-end`),
+                name
+              );
               return page.evaluate((n: any) => {
                 performance.measure(n, `${n}-start`, `${n}-end`);
                 const entries = performance.getEntriesByName(n, 'measure');
                 return entries[entries.length - 1];
               }, name);
-            }
+            },
           };
         },
         getMemoryUsage: async () => {
@@ -267,22 +277,22 @@ export default defineConfig({
               return {
                 usedJSHeapSize: (performance as any).memory.usedJSHeapSize,
                 totalJSHeapSize: (performance as any).memory.totalJSHeapSize,
-                jsHeapSizeLimit: (performance as any).memory.jsHeapSizeLimit
+                jsHeapSizeLimit: (performance as any).memory.jsHeapSizeLimit,
               };
             }
             return null;
           });
-        }
+        },
       };
       await use(metrics);
-    }
+    },
   },
 
   // Metadata for test organization
   metadata: {
     'Test Suite': 'Multimodal Enterprise RAG E2E Tests',
-    'Application': 'Multimodal Enterprise RAG System',
-    'Version': '1.0.0',
-    'Test Environment': process.env.NODE_ENV || 'test'
-  }
+    Application: 'Multimodal Enterprise RAG System',
+    Version: '1.0.0',
+    'Test Environment': process.env.NODE_ENV || 'test',
+  },
 });
