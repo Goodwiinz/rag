@@ -34,8 +34,9 @@ TOOL_ERROR_HINTS: dict[tuple[str, str], tuple[ErrorCategory, str]] = {
     ),
 }
 
-# Exception types that are always transient
-_TRANSIENT_EXCEPTIONS = (asyncio.TimeoutError, asyncio.CancelledError, ConnectionError, OSError)
+# Exception types that are always transient (CancelledError is intentionally excluded —
+# it means the caller aborted the request and must propagate immediately, not be retried)
+_TRANSIENT_EXCEPTIONS = (asyncio.TimeoutError, ConnectionError, OSError)
 _USER_FIXABLE_EXCEPTIONS = (PermissionError,)
 
 
@@ -114,6 +115,8 @@ async def retry_transient(
     for attempt in range(max_attempts):
         try:
             return await fn()
+        except asyncio.CancelledError:
+            raise
         except _TRANSIENT_EXCEPTIONS as e:
             last_exc = e
             if attempt < max_attempts - 1:

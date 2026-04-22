@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { ProjectList } from '@/components/research/ProjectList';
 import type { Project } from '@/services/projectService';
 
@@ -65,7 +66,8 @@ describe('ProjectList', () => {
     expect(onViewModeChange).toHaveBeenCalledWith('list');
   });
 
-  it('triggers archive and delete actions', () => {
+  it('triggers archive and delete actions', async () => {
+    const user = userEvent.setup();
     const onArchiveProject = jest.fn();
     const onDeleteProject = jest.fn();
 
@@ -80,10 +82,18 @@ describe('ProjectList', () => {
       />
     );
 
-    fireEvent.click(screen.getAllByTitle('Archive project')[0]);
-    fireEvent.click(screen.getAllByTitle('Delete project')[0]);
-
+    // Open the dropdown for the first project card and click Archive
+    await user.click(
+      screen.getAllByRole('button', { name: /project actions/i })[0]
+    );
+    await user.click(screen.getByText('Archive'));
     expect(onArchiveProject).toHaveBeenCalledWith('p1');
+
+    // Open the dropdown again and click Delete
+    await user.click(
+      screen.getAllByRole('button', { name: /project actions/i })[0]
+    );
+    await user.click(screen.getByText('Delete'));
     expect(onDeleteProject).toHaveBeenCalledWith('p1');
   });
 });
