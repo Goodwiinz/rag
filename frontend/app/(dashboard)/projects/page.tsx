@@ -126,6 +126,16 @@ export default function ProjectsPage() {
     }
   };
 
+  const handleRestoreProject = async (projectId: string) => {
+    clearError();
+    try {
+      await updateProject(projectId, { research_status: 'active' });
+      toast.success('Project restored');
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, 'Failed to restore project'));
+    }
+  };
+
   if (!mounted) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -275,6 +285,9 @@ export default function ProjectsPage() {
           }}
           onArchiveProject={(projectId) => {
             void handleArchiveProject(projectId);
+          }}
+          onRestoreProject={(projectId) => {
+            void handleRestoreProject(projectId);
           }}
         />
       )}
