@@ -1,5 +1,10 @@
-name: Test Pipeline
+# Depot CI Migration
+# Source: .github/workflows/test-pipeline.yml
+#
+# Changes made:
+# - Changed GitHub runs-on labels to their Depot equivalents
 
+name: Test Pipeline
 on:
   push:
     branches:
@@ -24,22 +29,18 @@ on:
       - 'LICENSE'
       - '.gitignore'
   workflow_dispatch:
-
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
-
 env:
   PYTHON_VERSION: "3.11"
   NODE_VERSION: "20"
-  DOCKER_BUILDKIT: "0"
+  DOCKER_BUILDKIT: "1"
   PIP_NO_CACHE_DIR: "1"
   PIP_DISABLE_PIP_VERSION_CHECK: "1"
-
 defaults:
   run:
     shell: bash
-
 jobs:
   # ==========================================================================
   # Code Quality Checks (Fast - Run First)
@@ -48,52 +49,41 @@ jobs:
     name: Lint Backend
     runs-on: depot-ubuntu-24.04-8
     steps:
-      - uses: actions/checkout@v4
-
+      - uses: actions/checkout@v6
       - name: Build lint image
         run: docker build -t rag-lint:ci -f backend/docker/Dockerfile.lint .
-
       - name: Run Ruff (linting)
         run: docker run --rm rag-lint:ci ruff check backend/src --output-format=github
-
       - name: Run Black (formatting check)
         run: docker run --rm rag-lint:ci black --check backend/src
-        continue-on-error: true  # Allow failures during gradual adoption
-
+        continue-on-error: true # Allow failures during gradual adoption
       - name: Run isort (import sorting)
         run: docker run --rm rag-lint:ci isort --check-only backend/src
-        continue-on-error: true  # Allow failures during gradual adoption
-
+        continue-on-error: true # Allow failures during gradual adoption
       - name: Run MyPy (type checking)
         run: docker run --rm rag-lint:ci mypy backend/src --ignore-missing-imports
-        continue-on-error: true  # Allow failures during gradual adoption
-
+        continue-on-error: true # Allow failures during gradual adoption
   lint-frontend:
     name: Lint Frontend
-    runs-on: ubuntu-latest
+    runs-on: depot-ubuntu-24.04
     defaults:
       run:
         working-directory: frontend
     steps:
-      - uses: actions/checkout@v4
-
+      - uses: actions/checkout@v6
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
           cache-dependency-path: package-lock.json
-
       - name: Install dependencies
         run: npm ci
-
       - name: Run type check
         run: npm run type-check
-
       - name: Run linting
         run: npm run lint
-        continue-on-error: true  # Allow warnings during gradual adoption
-
+        continue-on-error: true # Allow warnings during gradual adoption
   # ==========================================================================
   # Unit Tests (Fast - No External Dependencies)
   # ==========================================================================
@@ -102,13 +92,11 @@ jobs:
     runs-on: depot-ubuntu-24.04-8
     needs: lint-backend
     steps:
-      - uses: actions/checkout@v4
-
+      - uses: actions/checkout@v6
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-
       - name: Free runner disk space
         run: |
           df -h
@@ -118,7 +106,6 @@ jobs:
           sudo rm -rf /opt/hostedtoolcache/CodeQL || true
           docker system prune -af || true
           df -h
-
       - name: Cache pip dependencies
         uses: actions/cache@v5
         with:
@@ -127,12 +114,10 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pip-test-
             ${{ runner.os }}-pip-
-
       - name: Install dependencies
         run: |
           pip install pytest pytest-asyncio pytest-cov pytest-xdist
           pip install --build-constraint backend/constraints-ci.txt -r backend/requirements.txt
-
       - name: Run unit tests
         run: |
           pytest backend/tests/ \
@@ -149,75 +134,63 @@ jobs:
         env:
           ENVIRONMENT: testing
           DATABASE_URL: "sqlite:///:memory:"
-
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
         with:
           files: coverage.xml
           flags: unit
           name: unit-tests
-
   # ==========================================================================
   # Security Scan
   # ==========================================================================
   security-scan:
     name: Security Scan
-    runs-on: ubuntu-latest
+    runs-on: depot-ubuntu-24.04
     needs: lint-backend
     steps:
-      - uses: actions/checkout@v4
-
+      - uses: actions/checkout@v6
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-
       - name: Install security tools
         run: pip install bandit safety
-
       - name: Run Bandit (Python security)
         run: bandit -r backend/src -ll -ii -x tests
-        continue-on-error: true  # Allow failures while security issues are addressed
-
+        continue-on-error: true # Allow failures while security issues are addressed
       - name: Run Safety (dependency vulnerabilities)
         run: safety check -r backend/requirements.txt
-        continue-on-error: true  # Allow failures for unmaintained packages
-
+        continue-on-error: true # Allow failures for unmaintained packages
   # ==========================================================================
   # Frontend Tests
   # ==========================================================================
   frontend-tests:
     name: Frontend Tests
-    runs-on: ubuntu-latest
+    runs-on: depot-ubuntu-24.04
     needs: lint-frontend
     defaults:
       run:
         working-directory: frontend
     steps:
-      - uses: actions/checkout@v4
-
+      - uses: actions/checkout@v6
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
           cache-dependency-path: package-lock.json
-
       - name: Install dependencies
         run: npm ci
-
       - name: Run tests
         run: npm test -- --coverage --watchAll=false
         env:
           CI: true
-
       - name: Upload coverage
         uses: codecov/codecov-action@v5
         with:
           files: frontend/coverage/lcov.info
           flags: frontend
           name: frontend-tests
-
   # ==========================================================================
   # Integration Tests (Require Services)
   # ==========================================================================
@@ -225,7 +198,7 @@ jobs:
     name: Integration Tests
     runs-on: depot-ubuntu-24.04-8
     timeout-minutes: 15
-    continue-on-error: true  # Don't block workflow if integration tests fail/timeout
+    continue-on-error: true # Don't block workflow if integration tests fail/timeout
     needs: [unit-tests, frontend-tests]
     services:
       postgres:
@@ -237,29 +210,19 @@ jobs:
         ports:
           - 5432/tcp
         options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
+          --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
       redis:
         image: redis:7
         ports:
           - 6379/tcp
         options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
+          --health-cmd "redis-cli ping" --health-interval 10s --health-timeout 5s --health-retries 5
     steps:
-      - uses: actions/checkout@v4
-
+      - uses: actions/checkout@v6
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-
       - name: Free runner disk space
         run: |
           df -h
@@ -269,11 +232,9 @@ jobs:
           sudo rm -rf /opt/hostedtoolcache/CodeQL || true
           docker system prune -af || true
           df -h
-
       - name: Install dependencies
         run: |
           pip install --build-constraint backend/constraints-ci.txt -r backend/requirements.txt
-
       - name: Run integration tests
         run: |
           set +e
@@ -297,14 +258,12 @@ jobs:
           ENVIRONMENT: testing
           DATABASE_URL: "postgresql://test:test@localhost:${{ job.services.postgres.ports['5432'] }}/test_db"
           REDIS_URL: "redis://localhost:${{ job.services.redis.ports['6379'] }}/0"
-
       - name: Upload coverage
         uses: codecov/codecov-action@v5
         with:
           files: coverage.xml
           flags: integration
           name: integration-tests
-
   # ==========================================================================
   # Resilience Tests
   # ==========================================================================
@@ -312,16 +271,14 @@ jobs:
     name: Resilience Tests
     runs-on: depot-ubuntu-24.04-8
     timeout-minutes: 10
-    continue-on-error: true  # Non-critical in PR checks; don't block merges
+    continue-on-error: true # Non-critical in PR checks; don't block merges
     needs: unit-tests
     steps:
-      - uses: actions/checkout@v4
-
+      - uses: actions/checkout@v6
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-
       - name: Free runner disk space
         run: |
           df -h
@@ -331,12 +288,10 @@ jobs:
           sudo rm -rf /opt/hostedtoolcache/CodeQL || true
           docker system prune -af || true
           df -h
-
       - name: Install dependencies
         run: |
           pip install pytest pytest-asyncio pytest-cov
           pip install --build-constraint backend/constraints-ci.txt -r backend/requirements.txt
-
       - name: Run resilience tests
         run: |
           set +e
@@ -358,21 +313,19 @@ jobs:
         env:
           ENVIRONMENT: testing
           DATABASE_URL: "sqlite:///:memory:"
-
       - name: Upload coverage
         uses: codecov/codecov-action@v5
         with:
           files: coverage.xml
           flags: resilience
           name: resilience-tests
-
   # ==========================================================================
   # API Contract Tests
   # ==========================================================================
   api-contract-tests:
     name: API Contract Tests
     runs-on: depot-ubuntu-24.04-8
-    continue-on-error: true  # Non-critical in PR checks; don't block merges
+    continue-on-error: true # Non-critical in PR checks; don't block merges
     needs: [unit-tests, frontend-tests]
     services:
       postgres:
@@ -384,15 +337,12 @@ jobs:
         ports:
           - 5432/tcp
         options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
-
     steps:
-      - uses: actions/checkout@v4
-
+      - uses: actions/checkout@v6
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-
       - name: Free runner disk space
         run: |
           df -h
@@ -402,12 +352,10 @@ jobs:
           sudo rm -rf /opt/hostedtoolcache/CodeQL || true
           docker system prune -af || true
           df -h
-
       - name: Install dependencies
         run: |
           pip install --build-constraint backend/constraints-ci.txt -r backend/requirements.txt
           pip install schemathesis
-
       - name: Run contract tests
         run: |
           pytest backend/tests/api_contract/ \
@@ -416,8 +364,7 @@ jobs:
         env:
           ENVIRONMENT: testing
           DATABASE_URL: "postgresql://test:test@localhost:${{ job.services.postgres.ports['5432'] }}/test_db"
-        continue-on-error: true  # Allow failures during development
-
+        continue-on-error: true # Allow failures during development
   # ==========================================================================
   # E2E Tests (Full System)
   # ==========================================================================
@@ -430,11 +377,10 @@ jobs:
     # stops being review noise. `continue-on-error: true` is retained as a
     # second safety net when the job does run.
     if: github.event_name != 'pull_request'
-    continue-on-error: true  # Non-critical; don't block even when run
+    continue-on-error: true # Non-critical in PR checks; don't block merges
     needs: [integration-tests]
     steps:
-      - uses: actions/checkout@v4
-
+      - uses: actions/checkout@v6
       - name: Free runner disk space
         run: |
           df -h
@@ -453,13 +399,10 @@ jobs:
           sudo rm -f /swapfile || true
           docker system prune -af --volumes || true
           df -h
-
       - name: Build backend image
         run: docker build --build-arg PYTHON_VERSION=3.11 --build-arg TORCH_CPU_ONLY=true -t rag-backend:test -f backend/docker/Dockerfile.prod .
-
       - name: Build frontend image
         run: docker build -t rag-frontend:test -f frontend/Dockerfile.prod .
-
       - name: Start infrastructure services
         run: |
           docker compose -p rag_system -f docker-compose.ci.yml up -d postgres redis
@@ -467,7 +410,6 @@ jobs:
           # Wait for infrastructure to be healthy
           echo "Waiting for infrastructure services..."
           timeout 60 bash -c 'until docker compose -p rag_system -f docker-compose.ci.yml ps | grep -E "(healthy)" | wc -l | grep -q "2"; do sleep 3; done'
-
       - name: Start application services
         run: |
           # Start backend with pre-built image
@@ -510,7 +452,6 @@ jobs:
             fi
             sleep 3
           done
-
       - name: Verify services are accessible
         run: |
           echo "Checking backend health..."
@@ -518,7 +459,6 @@ jobs:
 
           echo "Checking frontend..."
           curl -f http://localhost:3000 || exit 1
-
       - name: Run E2E Tests
         env:
           EVENT_NAME: ${{ github.event_name }}
@@ -531,9 +471,8 @@ jobs:
             echo "Running full E2E tests..."
             docker compose -p rag_system -f docker-compose.ci.yml --profile e2e run --rm --no-deps e2e-tests
           fi
-
       - name: Upload E2E test results
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: e2e-test-results
@@ -541,7 +480,6 @@ jobs:
             tests/e2e/test-results/
             tests/e2e/playwright-report/
           retention-days: 7
-
       - name: Collect logs on failure
         if: failure()
         run: |
@@ -550,21 +488,19 @@ jobs:
           echo ""
           echo "=== Frontend Logs ==="
           docker logs frontend-e2e --tail=100 2>&1 || true
-
       - name: Cleanup
         if: always()
         run: |
           docker stop backend-e2e frontend-e2e 2>/dev/null || true
           docker rm backend-e2e frontend-e2e 2>/dev/null || true
           docker compose -p rag_system -f docker-compose.ci.yml down -v --remove-orphans
-
   # ==========================================================================
   # Performance Tests (Main Branch Only)
   # ==========================================================================
   performance-tests:
     name: Performance Tests
     runs-on: depot-ubuntu-24.04-8
-    continue-on-error: true  # Non-critical in PR checks; don't block merges
+    continue-on-error: true # Non-critical in PR checks; don't block merges
     needs: integration-tests
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     services:
@@ -576,15 +512,12 @@ jobs:
           POSTGRES_DB: test_db
         ports:
           - 5432/tcp
-
     steps:
-      - uses: actions/checkout@v4
-
+      - uses: actions/checkout@v6
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-
       - name: Free runner disk space
         run: |
           df -h
@@ -594,12 +527,10 @@ jobs:
           sudo rm -rf /opt/hostedtoolcache/CodeQL || true
           docker system prune -af || true
           df -h
-
       - name: Install dependencies
         run: |
           pip install pytest pytest-asyncio pytest-benchmark locust
           pip install --build-constraint backend/constraints-ci.txt -r backend/requirements.txt
-
       - name: Run performance tests
         run: |
           pytest backend/tests/ \
@@ -611,19 +542,17 @@ jobs:
         env:
           ENVIRONMENT: testing
           DATABASE_URL: "postgresql://test:test@localhost:${{ job.services.postgres.ports['5432'] }}/test_db"
-
       - name: Store benchmark results
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: benchmark-results
           path: benchmark.json
-
   # ==========================================================================
   # Test Summary
   # ==========================================================================
   test-summary:
     name: Test Summary
-    runs-on: ubuntu-latest
+    runs-on: depot-ubuntu-24.04
     needs: [unit-tests, integration-tests, resilience-tests, frontend-tests, security-scan, api-contract-tests]
     if: always()
     env:
@@ -704,7 +633,6 @@ jobs:
             echo "**Branch:** \`$GH_REF\`"
             echo "**Commit:** \`$GH_SHA\`"
           } >> "$GITHUB_STEP_SUMMARY"
-
       - name: Fail if critical tests failed
         env:
           UNIT_RESULT: ${{ needs.unit-tests.result }}
