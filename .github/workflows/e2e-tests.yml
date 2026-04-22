@@ -46,6 +46,10 @@ env:
   PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/pw-browsers
   BASE_URL: ${{ vars.BASE_URL || 'http://localhost:3000' }}
 
+defaults:
+  run:
+    working-directory: frontend
+
 jobs:
   lint-and-install:
     name: Lint and Install Dependencies
@@ -64,14 +68,14 @@ jobs:
 
       - name: Generate cache key
         id: cache-key
-        run: echo "key=e2e-${{ hashFiles('**/package-lock.json') }}" >> $GITHUB_OUTPUT
+        run: echo "key=e2e-${{ hashFiles('frontend/package-lock.json') }}" >> $GITHUB_OUTPUT
 
       - name: Cache dependencies
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             ~/.npm
-            node_modules
+            frontend/node_modules
           key: ${{ steps.cache-key.outputs.key }}
 
       - name: Install dependencies
@@ -97,165 +101,29 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
 
       - name: Cache dependencies
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             ~/.npm
-            node_modules
+            frontend/node_modules
           key: ${{ needs.lint-and-install.outputs.cache-key }}
 
       - name: Cache Playwright browsers
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: ${{ env.PLAYWRIGHT_BROWSERS_PATH }}
-          key: playwright-browsers-${{ hashFiles('package-lock.json') }}
+          key: playwright-browsers-${{ hashFiles('frontend/package-lock.json') }}
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
 
       - name: Install Playwright
         run: npx playwright install --with-deps
 
-  build-app:
-    name: Build Application
-    runs-on: ubuntu-latest
-    needs: lint-and-install
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-
-      - name: Cache dependencies
-        uses: actions/cache@v3
-        with:
-          path: |
-            ~/.npm
-            node_modules
-          key: ${{ needs.lint-and-install.outputs.cache-key }}
-
-      - name: Build application
-        run: npm run build
-
-      - name: Upload build artifacts
-        uses: actions/upload-artifact@v3
-        with:
-          name: build-files
-          path: dist/
-          retention-days: 1
-
-  start-services:
-    name: Start Test Services
-    runs-on: ubuntu-latest
-    needs: [lint-and-install, build-app]
-    services:
-      postgres:
-        image: postgres:15
-        env:
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: rag_test
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 5432:5432
-
-      redis:
-        image: redis:7-alpine
-        options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 6379:6379
-
-      neo4j:
-        image: neo4j:5-community
-        env:
-          NEO4J_AUTH: neo4j/password
-          NEO4J_dbms_default__database: rag_test
-        options: >-
-          --health-cmd "cypher-shell -u neo4j -p password 'RETURN 1'"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 7474:7474
-          - 7687:7687
-
-      qdrant:
-        image: qdrant/qdrant:latest
-        options: >-
-          --health-cmd "curl -f http://localhost:6333/health"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 6333:6333
-          - 6334:6334
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-
-      - name: Cache dependencies
-        uses: actions/cache@v3
-        with:
-          path: |
-            ~/.npm
-            node_modules
-          key: ${{ needs.lint-and-install.outputs.cache-key }}
-
-      - name: Download build artifacts
-        uses: actions/download-artifact@v3
-        with:
-          name: build-files
-          path: dist/
-
-      - name: Wait for services to be ready
-        run: |
-          echo "Waiting for services..."
-          sleep 30
-
-          # Check database connectivity
-          docker ps
-
-          # Verify Neo4j is ready
-          curl -f http://localhost:7474 || echo "Neo4j not ready yet"
-
-          # Verify Qdrant is ready
-          curl -f http://localhost:6333/health || echo "Qdrant not ready yet"
-
-      - name: Start application
-        run: |
-          npm run preview &
-          echo "Application started"
-          sleep 30
-
-          # Health check
-          curl -f http://localhost:4173 || exit 1
-
-      - name: Upload service logs
-        if: failure()
-        uses: actions/upload-artifact@v3
-        with:
-          name: service-logs
-          path: |
-            /var/log/docker*
-          retention-days: 1
-
   e2e-smoke-tests:
     name: E2E Smoke Tests
     runs-on: ubuntu-latest
-    needs: [install-playwright, start-services]
+    needs: [lint-and-install, install-playwright]
     if: github.event_name == 'push' || github.event_name == 'pull_request'
     strategy:
       fail-fast: false
@@ -264,7 +132,7 @@ jobs:
         shard: [1, 2]
     env:
       CI: true
-      BASE_URL: http://localhost:4173
+      BASE_URL: http://localhost:3000
 
     steps:
       - name: Checkout code
@@ -276,26 +144,24 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
 
       - name: Cache dependencies
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             ~/.npm
-            node_modules
+            frontend/node_modules
           key: ${{ needs.lint-and-install.outputs.cache-key }}
 
       - name: Cache Playwright browsers
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: ${{ env.PLAYWRIGHT_BROWSERS_PATH }}
-          key: playwright-browsers-${{ hashFiles('package-lock.json') }}
+          key: playwright-browsers-${{ hashFiles('frontend/package-lock.json') }}
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
 
       - name: Install Playwright
         run: npx playwright install --with-deps chromium
-
-      - name: Wait for application
-        run: |
-          echo "Waiting for application..."
-          timeout 300 bash -c 'until curl -f http://localhost:4173; do sleep 5; done'
 
       - name: Run smoke tests
         run: |
@@ -307,7 +173,7 @@ jobs:
             --output-dir=test-results/smoke
 
       - name: Upload smoke test results
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         if: always()
         with:
           name: smoke-test-results-${{ matrix.browser }}-shard${{ matrix.shard }}
@@ -316,7 +182,7 @@ jobs:
           retention-days: 3
 
       - name: Upload smoke test screenshots
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         if: failure()
         with:
           name: smoke-screenshots-${{ matrix.browser }}-shard${{ matrix.shard }}
@@ -326,7 +192,7 @@ jobs:
   e2e-regression-tests:
     name: E2E Regression Tests
     runs-on: ubuntu-latest
-    needs: [install-playwright, start-services, e2e-smoke-tests]
+    needs: [lint-and-install, install-playwright, e2e-smoke-tests]
     if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
     strategy:
       fail-fast: false
@@ -335,7 +201,7 @@ jobs:
         shard: [1, 2, 3]
     env:
       CI: true
-      BASE_URL: http://localhost:4173
+      BASE_URL: http://localhost:3000
 
     steps:
       - name: Checkout code
@@ -347,26 +213,24 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
 
       - name: Cache dependencies
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             ~/.npm
-            node_modules
+            frontend/node_modules
           key: ${{ needs.lint-and-install.outputs.cache-key }}
 
       - name: Cache Playwright browsers
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: ${{ env.PLAYWRIGHT_BROWSERS_PATH }}
-          key: playwright-browsers-${{ hashFiles('package-lock.json') }}
+          key: playwright-browsers-${{ hashFiles('frontend/package-lock.json') }}
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
 
       - name: Install Playwright
         run: npx playwright install --with-deps ${{ matrix.browser }}
-
-      - name: Wait for application
-        run: |
-          echo "Waiting for application..."
-          timeout 300 bash -c 'until curl -f http://localhost:4173; do sleep 5; done'
 
       - name: Run regression tests
         run: |
@@ -378,7 +242,7 @@ jobs:
             --output-dir=test-results/regression
 
       - name: Upload regression test results
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         if: always()
         with:
           name: regression-test-results-${{ matrix.browser }}-shard${{ matrix.shard }}
@@ -387,7 +251,7 @@ jobs:
           retention-days: 7
 
       - name: Upload regression test screenshots
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         if: failure()
         with:
           name: regression-screenshots-${{ matrix.browser }}-shard${{ matrix.shard }}
@@ -397,11 +261,11 @@ jobs:
   e2e-accessibility-tests:
     name: E2E Accessibility Tests
     runs-on: ubuntu-latest
-    needs: [install-playwright, start-services]
+    needs: [lint-and-install, install-playwright]
     if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
     env:
       CI: true
-      BASE_URL: http://localhost:4173
+      BASE_URL: http://localhost:3000
 
     steps:
       - name: Checkout code
@@ -413,26 +277,24 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
 
       - name: Cache dependencies
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             ~/.npm
-            node_modules
+            frontend/node_modules
           key: ${{ needs.lint-and-install.outputs.cache-key }}
 
       - name: Cache Playwright browsers
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: ${{ env.PLAYWRIGHT_BROWSERS_PATH }}
-          key: playwright-browsers-${{ hashFiles('package-lock.json') }}
+          key: playwright-browsers-${{ hashFiles('frontend/package-lock.json') }}
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
 
       - name: Install Playwright
         run: npx playwright install --with-deps chromium
-
-      - name: Wait for application
-        run: |
-          echo "Waiting for application..."
-          timeout 300 bash -c 'until curl -f http://localhost:4173; do sleep 5; done'
 
       - name: Run accessibility tests
         run: |
@@ -446,7 +308,7 @@ jobs:
           node scripts/process-accessibility-results.js test-results/accessibility/results.json
 
       - name: Upload accessibility test results
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         if: always()
         with:
           name: accessibility-test-results
@@ -456,8 +318,6 @@ jobs:
 
       - name: Accessibility violation comment
         if: failure()
-        env:
-          VIOLATION_COUNT: ${{ steps.count-violations.outputs.count }}
         run: |
           COUNT=$(node -e "
             const fs = require('fs');
@@ -488,11 +348,11 @@ jobs:
   e2e-performance-tests:
     name: E2E Performance Tests
     runs-on: ubuntu-latest
-    needs: [install-playwright, start-services]
+    needs: [lint-and-install, install-playwright]
     if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
     env:
       CI: true
-      BASE_URL: http://localhost:4173
+      BASE_URL: http://localhost:3000
 
     steps:
       - name: Checkout code
@@ -504,26 +364,24 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
 
       - name: Cache dependencies
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             ~/.npm
-            node_modules
+            frontend/node_modules
           key: ${{ needs.lint-and-install.outputs.cache-key }}
 
       - name: Cache Playwright browsers
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: ${{ env.PLAYWRIGHT_BROWSERS_PATH }}
-          key: playwright-browsers-${{ hashFiles('package-lock.json') }}
+          key: playwright-browsers-${{ hashFiles('frontend/package-lock.json') }}
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
 
       - name: Install Playwright
         run: npx playwright install --with-deps chromium
-
-      - name: Wait for application
-        run: |
-          echo "Waiting for application..."
-          timeout 300 bash -c 'until curl -f http://localhost:4173; do sleep 5; done'
 
       - name: Run performance tests
         run: |
@@ -537,7 +395,7 @@ jobs:
           node scripts/process-performance-results.js test-results/performance/results.json
 
       - name: Upload performance test results
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         if: always()
         with:
           name: performance-test-results
@@ -559,7 +417,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Download all test results
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           path: all-test-results/
 
@@ -568,7 +426,7 @@ jobs:
           node scripts/generate-test-summary.js all-test-results/
 
       - name: Upload summary report
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: test-summary-report
           path: test-summary.html
