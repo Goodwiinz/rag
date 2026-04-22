@@ -90,6 +90,7 @@ from src.api.threads import (
 )
 from src.core.config import settings
 from src.core.database import Base, engine
+from src.middleware.multi_tenancy import MultiTenancyMiddleware
 from src.middleware.rate_limiting import AnalyticsRateLimitMiddleware
 from src.health.endpoints import router as health_router
 from src.core.security import auth_rate_limiter
@@ -302,6 +303,10 @@ app.add_middleware(
 
 # Add rate limiting middleware for analytics endpoints
 app.add_middleware(AnalyticsRateLimitMiddleware, redis_client=redis_client)
+
+# Add multi-tenancy middleware — runs before rate limiting so tenant context is
+# available when rate limit decisions are made (registered after = executes first).
+app.add_middleware(MultiTenancyMiddleware)
 
 # Add trusted host middleware for production
 if not settings.DEBUG:
