@@ -1,18 +1,33 @@
 'use client';
 
-import * as React from 'react';
 import { cn } from '@/lib/utils';
 import { AgentActivityPanel } from './AgentActivityPanel';
+import { AllCitationsPanel } from './AllCitationsPanel';
+import { ContextPanel } from './ContextPanel';
 import { ProgressPanel } from './ProgressPanel';
 import { RelatedResultsPanel } from './RelatedResultsPanel';
-import { AllCitationsPanel } from './AllCitationsPanel';
+import {
+  WorkingFoldersPanel,
+  type WorkingFoldersSelection,
+} from './WorkingFoldersPanel';
 
 interface ContextRailProps {
   threadId: string | null;
+  ragEnabled?: boolean;
+  workspaceName?: string | null;
+  projectId?: string;
+  onSelect?: (node: WorkingFoldersSelection) => void;
   className?: string;
 }
 
-export function ContextRail({ threadId, className }: ContextRailProps) {
+export function ContextRail({
+  threadId,
+  ragEnabled,
+  workspaceName,
+  projectId,
+  onSelect,
+  className,
+}: ContextRailProps) {
   return (
     <aside
       className={cn(
@@ -26,9 +41,15 @@ export function ContextRail({ threadId, className }: ContextRailProps) {
       aria-label="Chat context rail"
     >
       <ProgressPanel threadId={threadId} />
+      <WorkingFoldersPanel
+        projectId={projectId}
+        workspaceName={workspaceName}
+        onSelect={onSelect}
+      />
       <AgentActivityPanel threadId={threadId} />
       <RelatedResultsPanel />
       <AllCitationsPanel />
+      <ContextPanel ragEnabled={ragEnabled} workspaceName={workspaceName} />
     </aside>
   );
 }

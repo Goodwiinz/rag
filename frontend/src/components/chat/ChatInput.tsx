@@ -1,6 +1,7 @@
 'use client';
 
 import { cn } from '@/lib/utils';
+import { AVAILABLE_MODELS, ModelSelector } from './ModelSelector';
 import { RAGToggle } from './RAGToggle';
 import { motion } from 'framer-motion';
 import { ArrowUp, Bot, Mic, Paperclip, Square } from 'lucide-react';
@@ -23,6 +24,8 @@ interface ChatInputProps {
   isRAGLoading?: boolean;
   inputRef?: React.RefObject<HTMLTextAreaElement>;
   onAttach?: (files: FileList) => void;
+  selectedModelId?: string;
+  onModelChange?: (id: string) => void;
 }
 
 type SpeechRecognitionEventLike = {
@@ -60,13 +63,22 @@ export function ChatInput({
   isRAGLoading,
   inputRef,
   onAttach,
+  selectedModelId,
+  onModelChange,
 }: ChatInputProps) {
   const internalRef = useRef<HTMLTextAreaElement>(null);
   const textareaRef = inputRef ?? internalRef;
   const [isFocused, setIsFocused] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
-  const voiceSupported = getSpeechRecognition() !== null;
+  // Defer the Web Speech API feature check to after mount. Running it during
+  // render produces an SSR/client mismatch (server: window is undefined →
+  // false; client: browser supports it → true). Start `false`, flip after
+  // hydration so the first server and client renders match.
+  const [voiceSupported, setVoiceSupported] = useState(false);
+  useEffect(() => {
+    setVoiceSupported(getSpeechRecognition() !== null);
+  }, []);
 
   const toggleVoice = (): void => {
     const Ctor = getSpeechRecognition();
@@ -158,6 +170,13 @@ export function ChatInput({
                 isLoading={isRAGLoading}
                 disabled={isLoading}
               />
+              {onModelChange && (
+                <ModelSelector
+                  models={AVAILABLE_MODELS}
+                  selectedModelId={selectedModelId}
+                  onModelChange={onModelChange}
+                />
+              )}
             </div>
             <div className="flex items-center gap-3">
               {/* RAG loading indicator */}

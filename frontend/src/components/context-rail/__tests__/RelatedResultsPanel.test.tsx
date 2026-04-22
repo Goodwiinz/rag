@@ -12,14 +12,14 @@ const { useCitationsForThread } = require('@/hooks');
 describe('RelatedResultsPanel', () => {
   beforeEach(() => jest.clearAllMocks());
 
-  it('renders empty state when no related results', () => {
+  it('renders nothing when no related results (Cowork-style — hide empty cards)', () => {
     useCitationsForThread.mockReturnValue({
       allCitations: [],
       activeDocument: null,
       relatedResults: [],
     });
-    render(<RelatedResultsPanel />);
-    expect(screen.getByText(/no related results/i)).toBeTruthy();
+    const { container } = render(<RelatedResultsPanel />);
+    expect(container.firstChild).toBeNull();
   });
 
   it('renders populated list with titles and scores', () => {

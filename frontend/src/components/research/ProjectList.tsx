@@ -11,6 +11,7 @@ export interface ProjectListProps {
   onOpenProject: (projectId: string) => void;
   onDeleteProject?: (projectId: string) => void;
   onArchiveProject?: (projectId: string) => void;
+  onRestoreProject?: (projectId: string) => void;
 }
 
 export function ProjectList({
@@ -20,11 +21,16 @@ export function ProjectList({
   onOpenProject,
   onDeleteProject,
   onArchiveProject,
+  onRestoreProject,
 }: ProjectListProps) {
   return (
     <div>
       <div className="flex justify-end mb-4">
-        <div className="inline-flex items-center border border-border rounded-lg overflow-hidden">
+        <div
+          className="inline-flex items-center border border-border rounded-lg overflow-hidden"
+          role="group"
+          aria-label="View mode"
+        >
           <button
             onClick={() => onViewModeChange('grid')}
             className={`px-3 py-2 text-xs font-mono flex items-center gap-1.5 ${
@@ -33,6 +39,8 @@ export function ProjectList({
                 : 'bg-muted text-muted-foreground hover:text-foreground'
             }`}
             title="Grid view"
+            aria-label="Grid view"
+            aria-pressed={viewMode === 'grid'}
           >
             <LayoutGrid className="h-3.5 w-3.5" />
             Grid
@@ -45,6 +53,8 @@ export function ProjectList({
                 : 'bg-muted text-muted-foreground hover:text-foreground'
             }`}
             title="List view"
+            aria-label="List view"
+            aria-pressed={viewMode === 'list'}
           >
             <List className="h-3.5 w-3.5" />
             List
@@ -61,6 +71,7 @@ export function ProjectList({
               onOpen={onOpenProject}
               onDelete={onDeleteProject}
               onArchive={onArchiveProject}
+              onRestore={onRestoreProject}
             />
           ))}
         </div>

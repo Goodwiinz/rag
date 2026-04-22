@@ -4,6 +4,17 @@ import { ChatInput, CitationPanel, WelcomeState } from '@/components/chat';
 import { ChatHeader } from '@/components/chat/ChatHeader';
 import { ChatSidebar } from '@/components/chat/ChatSidebar';
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { Input } from '@/components/ui/input';
+import {
   selectDisplayedMessages,
   syncConversationMessagesWithStore,
 } from '@/components/chat/shared/cloudMessageView';
@@ -141,7 +152,6 @@ function ChatPageContent() {
   const [enableRAG, setEnableRAG] = useState(true);
 
   // Agent state
-  const [agentThreadId, setAgentThreadId] = useState<string | null>(null);
   const agentThreadMapRef = useRef<Record<string, string>>({});
 
   // HITL confirmation state
@@ -152,12 +162,29 @@ function ChatPageContent() {
   } | null>(null);
   const [isConfirming, setIsConfirming] = useState(false);
 
+  // Dialog state for rename/delete — replaces window.prompt/confirm
+  const [renameDialog, setRenameDialog] = useState<{
+    open: boolean;
+    threadId: string;
+    currentTitle: string;
+    value: string;
+  }>({ open: false, threadId: '', currentTitle: '', value: '' });
+  const [deleteDialog, setDeleteDialog] = useState<{
+    open: boolean;
+    threadId: string;
+  }>({ open: false, threadId: '' });
+  const [bulkDeleteDialog, setBulkDeleteDialog] = useState<{
+    open: boolean;
+    ids: string[];
+  }>({ open: false, ids: [] });
+
   // Refs
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const chatInputRef = useRef<HTMLTextAreaElement>(null);
   const isHydratedRef = useRef(false);
   const lastStreamedContentRef = useRef<string>('');
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   // Scroll state
   const [showScrollButton, setShowScrollButton] = useState(false);
@@ -444,27 +471,86 @@ function ChatPageContent() {
         return;
       }
 
-      try {
-        console.log('[Chat] Initializing from database...');
-        setIsInitializing(true);
-        setInitError(null);
+      setIsInitializing(true);
+      setInitError(null);
+      console.log('[Chat] Initializing from database...');
 
-        // Get or create default workspace
-        const ws = await workspaceService.getOrCreateDefaultWorkspace();
-        setWorkspace(ws);
+      // Warm-start: read IDs cached on prior visits and fire sidebar + message
+      // fetches in parallel with workspace validation. On repeat page loads this
+      // collapses 4 sequential calls into 2 parallel ones.
+      // - conversationId: stored in localStorage by getOrCreateDefaultConversation
+      // - threadId: persisted in Zustand chat-storage by setCurrentThread
+      const persistedConvId =
+        typeof window !== 'undefined'
+          ? localStorage.getItem('default-conversation-id')
+          : null;
+      const persistedThreadId = useChatStore.getState().currentThreadId;
+
+      const wsPromise = workspaceService.getOrCreateDefaultWorkspace();
+
+      try {
+        let ws: Workspace;
+
+        if (persistedConvId && persistedThreadId) {
+          const warmDataPromise = Promise.all([
+            workspaceService.listThreads(persistedConvId, { limit: 50 }),
+            workspaceService.getThread(persistedThreadId),
+          ]).catch(() => null);
+
+          const [resolvedWs, warmData] = await Promise.all([
+            wsPromise,
+            warmDataPromise,
+          ]);
+          ws = resolvedWs;
+          setWorkspace(ws);
+
+          if (warmData) {
+            const [threadListResponse, threadDetail] = warmData;
+            const uiConversations: Conversation[] =
+              threadListResponse.threads.map((thread) => ({
+                id: thread.id,
+                title: thread.title || 'New Chat',
+                messages: [],
+                createdAt: new Date(thread.created_at).getTime(),
+                updatedAt: new Date(thread.updated_at).getTime(),
+                threadId: thread.id,
+                conversationId: persistedConvId,
+                previewText: thread.summary || undefined,
+                messageCount: thread.message_count,
+              }));
+            setConversations(uiConversations);
+            setMessages(threadDetail.messages.map(mapDbMessageToUiMessage));
+            setActiveConversationId(persistedThreadId);
+            // Set store ID directly to avoid the loadMessages side-effect in
+            // setCurrentThread — we already have messages from getThread above.
+            useChatStore.setState({ currentThreadId: persistedThreadId });
+
+            // Still need dbConversation so new-thread creation works
+            const conv = await workspaceService.getOrCreateDefaultConversation(
+              ws.id
+            );
+            setDbConversation(conv);
+            isHydratedRef.current = true;
+            console.log('[Chat] Warm-start initialization complete');
+            return;
+          }
+          // Warm data fetch failed (stale IDs) — fall through to cold init
+        } else {
+          ws = await wsPromise;
+          setWorkspace(ws);
+        }
+
         console.log('[Chat] Workspace:', ws.name);
 
-        // Get or create default conversation
+        // Cold init: full sequential chain
         const conv = await workspaceService.getOrCreateDefaultConversation(
           ws.id
         );
         setDbConversation(conv);
         console.log('[Chat] DB Conversation:', conv.title);
 
-        // Load threads - handle stale conversation data
         const loadSuccess = await loadThreadsFromDb(conv.id);
 
-        // If load failed due to 404, create fresh conversation
         if (!loadSuccess) {
           console.log('[Chat] Retrying with fresh conversation...');
           const freshConv = await workspaceService.createConversation({
@@ -474,8 +560,6 @@ function ChatPageContent() {
           });
           setDbConversation(freshConv);
           console.log('[Chat] Created fresh conversation:', freshConv.title);
-
-          // Try loading threads again (should be empty for new conversation)
           await loadThreadsFromDb(freshConv.id);
         }
 
@@ -484,7 +568,6 @@ function ChatPageContent() {
       } catch (error: unknown) {
         console.error('[Chat] Failed to initialize from database:', error);
 
-        // Handle 404 by clearing stale data and retrying once
         const err = error as { response?: { status?: number } };
         if (err?.response?.status === 404) {
           console.warn('[Chat] Stale data detected, clearing and retrying...');
@@ -492,7 +575,6 @@ function ChatPageContent() {
             localStorage.removeItem('default-workspace-id');
             localStorage.removeItem('default-conversation-id');
           }
-          // Retry once after clearing stale data
           try {
             const ws = await workspaceService.getOrCreateDefaultWorkspace();
             setWorkspace(ws);
@@ -527,7 +609,7 @@ function ChatPageContent() {
     };
 
     initializeFromDb();
-  }, [isAuthenticated, loadThreadsFromDb]);
+  }, [isAuthenticated, loadThreadsFromDb, mapDbMessageToUiMessage]);
 
   // Load messages when active conversation changes (lazy-load from API)
   useEffect(() => {
@@ -548,17 +630,16 @@ function ChatPageContent() {
       return;
     }
 
-    // Lazy-load messages for this thread
+    // Lazy-load messages for this thread using the thread detail endpoint
+    // (GET /api/v2/threads/{id} embeds messages, saving a separate listMessages call)
     let cancelled = false;
     setIsLoadingMessages(true);
     (async () => {
       try {
-        const msgResponse = await workspaceService.listMessages(
-          activeConversationId,
-          { limit: 100 }
-        );
+        const threadDetail =
+          await workspaceService.getThread(activeConversationId);
         if (cancelled) return;
-        const uiMessages = msgResponse.messages.map(mapDbMessageToUiMessage);
+        const uiMessages = threadDetail.messages.map(mapDbMessageToUiMessage);
         // Update conversation cache so subsequent switches are instant
         setConversations((prev) =>
           prev.map((c) =>
@@ -607,7 +688,8 @@ function ChatPageContent() {
 
   // Send message
   const handleSubmit = async (contentOverride?: string) => {
-    const rawContent = contentOverride ?? input;
+    const rawContent =
+      typeof contentOverride === 'string' ? contentOverride : input;
     const content = rawContent.trim();
     if (!content || isLoading || storeIsStreaming) return;
 
@@ -695,6 +777,9 @@ function ChatPageContent() {
           .startRun(currentThreadId, deriveAgentName(), deriveTask(content));
       }
 
+      const streamAbort = new AbortController();
+      abortControllerRef.current = streamAbort;
+
       await agentChatService.streamMessage(
         {
           messages: newMessages.map((m) => ({
@@ -736,12 +821,32 @@ function ChatPageContent() {
               streamingCitations: contexts,
             });
           },
+          onPlan: (steps) => {
+            if (!currentThreadId) return;
+            // Coerce each plan step into a single human-readable string.
+            // Backend emits `{steps: [...], reasoning: ...}` — step items may
+            // be plain strings or objects with `description`/`text`/`title`.
+            const items = (steps ?? [])
+              .map((step) => {
+                if (typeof step === 'string') return step;
+                if (step && typeof step === 'object') {
+                  const s = step as Record<string, unknown>;
+                  return String(
+                    s.description ?? s.text ?? s.title ?? s.step ?? ''
+                  );
+                }
+                return '';
+              })
+              .filter((s) => s.length > 0);
+            if (items.length > 0) {
+              useAgentActivityStore.getState().setPlan(currentThreadId, items);
+            }
+          },
           onTrace: (threadId) => {
             // Capture agent thread_id from trace event for subsequent sends
             if (currentThreadId) {
               agentThreadMapRef.current[currentThreadId] = threadId;
             }
-            setAgentThreadId(threadId);
           },
           onConfirmation: (threadId, confirmation) => {
             console.log('[Agent] HITL confirmation needed:', confirmation);
@@ -750,7 +855,6 @@ function ChatPageContent() {
             if (currentThreadId) {
               agentThreadMapRef.current[currentThreadId] = threadId;
             }
-            setAgentThreadId(threadId);
             setPendingConfirmation({
               threadId,
               workspaceThreadId: currentThreadId || '',
@@ -781,7 +885,8 @@ function ChatPageContent() {
             };
             setMessages([...newMessages, errorMsg]);
           },
-        }
+        },
+        streamAbort.signal
       );
 
       // Don't append a normal message if stream errored or needs confirmation
@@ -817,12 +922,23 @@ function ChatPageContent() {
         return;
       }
 
-      // After streaming completes, build final message
+      // After streaming completes, build final message.
+      // Clear the streaming state BEFORE appending the final assistant message
+      // so the virtual streaming bubble unmounts atomically with the real one
+      // mounting. Otherwise the final message and the streaming bubble render
+      // together during the (awaited) DB save window below.
       const finalAssistantMessage: Message = {
         role: 'assistant',
         content: finalContent,
         timestamp: Date.now(),
       };
+
+      useChatStore.setState({
+        isStreaming: false,
+        streamingContent: '',
+        streamingCitations: [],
+      });
+      lastStreamedContentRef.current = '';
 
       const finalMessages = [...newMessages, finalAssistantMessage];
       setMessages(finalMessages);
@@ -885,6 +1001,8 @@ function ChatPageContent() {
   };
 
   const handleStop = () => {
+    abortControllerRef.current?.abort();
+    abortControllerRef.current = null;
     setIsLoading(false);
     if (storeIsStreaming) {
       storeStopStreaming();
@@ -903,6 +1021,9 @@ function ChatPageContent() {
 
     let confirmContent = '';
     const confirmMessages = [...messages];
+
+    const confirmAbort = new AbortController();
+    abortControllerRef.current = confirmAbort;
 
     try {
       await agentChatService.streamConfirm(
@@ -931,7 +1052,8 @@ function ChatPageContent() {
             };
             setMessages([...confirmMessages, msg]);
           },
-        }
+        },
+        confirmAbort.signal
       );
     } catch (err) {
       const errorMessage =
@@ -996,66 +1118,77 @@ function ChatPageContent() {
   const handleRenameThread = useCallback(
     async (threadId: string) => {
       const target = conversations.find((c) => c.id === threadId);
-      const nextTitle = window.prompt('Rename thread', target?.title ?? '');
-      if (!nextTitle || nextTitle.trim() === target?.title) return;
-      const trimmed = nextTitle.trim();
-      try {
-        const updated = await workspaceService.updateThread(threadId, {
-          title: trimmed,
-        });
-        const nextTitleValue = updated.title ?? trimmed;
-        setConversations((prev) =>
-          prev.map((c) =>
-            c.id === threadId ? { ...c, title: nextTitleValue } : c
-          )
-        );
-      } catch (err) {
-        console.error('[Chat] Rename failed', err);
-      }
+      setRenameDialog({
+        open: true,
+        threadId,
+        currentTitle: target?.title ?? '',
+        value: target?.title ?? '',
+      });
     },
     [conversations]
   );
 
-  const handleDeleteThread = useCallback(
-    async (threadId: string) => {
-      if (!window.confirm('Delete this thread? This cannot be undone.')) return;
-      try {
-        await workspaceService.deleteThread(threadId);
-        setConversations((prev) => prev.filter((c) => c.id !== threadId));
-        if (activeConversationId === threadId) {
-          setActiveConversationId(null);
-          setMessages([]);
-          setCurrentThread(null);
-          router.push(getNewChatUrl());
-        }
-      } catch (err) {
-        console.error('[Chat] Delete failed', err);
-      }
-    },
-    [activeConversationId, router, setCurrentThread]
-  );
+  const commitRename = useCallback(async () => {
+    const { threadId, value, currentTitle } = renameDialog;
+    const trimmed = value.trim();
+    setRenameDialog((d) => ({ ...d, open: false }));
+    if (!trimmed || trimmed === currentTitle) return;
+    try {
+      const updated = await workspaceService.updateThread(threadId, {
+        title: trimmed,
+      });
+      const nextTitleValue = updated.title ?? trimmed;
+      setConversations((prev) =>
+        prev.map((c) =>
+          c.id === threadId ? { ...c, title: nextTitleValue } : c
+        )
+      );
+    } catch (err) {
+      console.error('[Chat] Rename failed', err);
+    }
+  }, [renameDialog]);
 
-  const handleBulkDeleteThreads = useCallback(
-    async (ids: string[]) => {
-      if (
-        !window.confirm(`Delete ${ids.length} threads? This cannot be undone.`)
-      )
-        return;
-      try {
-        await workspaceService.bulkDeleteThreads(ids);
-        setConversations((prev) => prev.filter((c) => !ids.includes(c.id)));
-        if (activeConversationId && ids.includes(activeConversationId)) {
-          setActiveConversationId(null);
-          setMessages([]);
-          setCurrentThread(null);
-          router.push(getNewChatUrl());
-        }
-      } catch (err) {
-        console.error('[Chat] Bulk delete failed', err);
+  const handleDeleteThread = useCallback((threadId: string) => {
+    setDeleteDialog({ open: true, threadId });
+  }, []);
+
+  const commitDeleteThread = useCallback(async () => {
+    const { threadId } = deleteDialog;
+    setDeleteDialog({ open: false, threadId: '' });
+    try {
+      await workspaceService.deleteThread(threadId);
+      setConversations((prev) => prev.filter((c) => c.id !== threadId));
+      if (activeConversationId === threadId) {
+        setActiveConversationId(null);
+        setMessages([]);
+        setCurrentThread(null);
+        router.push(getNewChatUrl());
       }
-    },
-    [activeConversationId, router, setCurrentThread]
-  );
+    } catch (err) {
+      console.error('[Chat] Delete failed', err);
+    }
+  }, [deleteDialog, activeConversationId, router, setCurrentThread]);
+
+  const handleBulkDeleteThreads = useCallback((ids: string[]) => {
+    setBulkDeleteDialog({ open: true, ids });
+  }, []);
+
+  const commitBulkDelete = useCallback(async () => {
+    const { ids } = bulkDeleteDialog;
+    setBulkDeleteDialog({ open: false, ids: [] });
+    try {
+      await workspaceService.bulkDeleteThreads(ids);
+      setConversations((prev) => prev.filter((c) => !ids.includes(c.id)));
+      if (activeConversationId && ids.includes(activeConversationId)) {
+        setActiveConversationId(null);
+        setMessages([]);
+        setCurrentThread(null);
+        router.push(getNewChatUrl());
+      }
+    } catch (err) {
+      console.error('[Chat] Bulk delete failed', err);
+    }
+  }, [bulkDeleteDialog, activeConversationId, router, setCurrentThread]);
 
   const handleRegenerate = useCallback(
     (assistantMessageIndex: number) => {
@@ -1100,15 +1233,13 @@ function ChatPageContent() {
           onRename={handleRenameThread}
           onDelete={handleDeleteThread}
           onBulkDelete={handleBulkDeleteThreads}
+          currentWorkspace={workspace}
         />
       </div>
 
       {/* Main Chat Area */}
       <div className="flex-1 flex flex-col relative h-full min-w-0 overflow-hidden">
         <ChatHeader
-          currentWorkspace={workspace}
-          selectedModelId={selectedModel}
-          onModelChange={setSelectedModel}
           messages={displayedMessages}
           chatTitle={
             conversations.find((c) => c.id === activeConversationId)?.title ||
@@ -1372,6 +1503,8 @@ function ChatPageContent() {
           onRAGToggle={setEnableRAG}
           inputRef={chatInputRef}
           onAttach={handleAttach}
+          selectedModelId={selectedModel}
+          onModelChange={setSelectedModel}
         />
 
         {/* Citation Panel Sidebar */}
@@ -1381,12 +1514,101 @@ function ChatPageContent() {
           onClose={() => setIsCitationPanelOpen(false)}
           onCitationClick={(citation) => {
             setActiveCitationId(citation.documentId);
-            // Navigate to document detail page
             router.push(`/documents/${citation.documentId}`);
           }}
           activeCitationId={activeCitationId}
         />
       </div>
+
+      {/* Rename dialog */}
+      <AlertDialog
+        open={renameDialog.open}
+        onOpenChange={(open) => setRenameDialog((d) => ({ ...d, open }))}
+      >
+        <AlertDialogContent className="terminal-window border-[var(--terminal-border)] bg-[var(--terminal-bg)]">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-[var(--terminal-text)] font-mono tracking-tight">
+              Rename thread
+            </AlertDialogTitle>
+          </AlertDialogHeader>
+          <Input
+            className="font-mono text-sm bg-[var(--terminal-surface)] border-[var(--terminal-border)] text-[var(--terminal-text)]"
+            value={renameDialog.value}
+            onChange={(e) =>
+              setRenameDialog((d) => ({ ...d, value: e.target.value }))
+            }
+            onKeyDown={(e) => e.key === 'Enter' && commitRename()}
+            autoFocus
+          />
+          <AlertDialogFooter>
+            <AlertDialogCancel className="font-mono text-xs uppercase tracking-wider">
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={commitRename}
+              className="font-mono text-xs uppercase tracking-wider"
+            >
+              Rename
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete single thread dialog */}
+      <AlertDialog
+        open={deleteDialog.open}
+        onOpenChange={(open) => setDeleteDialog((d) => ({ ...d, open }))}
+      >
+        <AlertDialogContent className="terminal-window border-[var(--terminal-border)] bg-[var(--terminal-bg)]">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-[var(--terminal-text)] font-mono tracking-tight">
+              Delete thread?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-[var(--terminal-text-muted)] font-mono text-xs">
+              This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="font-mono text-xs uppercase tracking-wider">
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={commitDeleteThread}
+              className="bg-red-500/10 border border-red-500/50 text-red-400 hover:bg-red-500/20 font-mono text-xs uppercase tracking-wider"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Bulk delete dialog */}
+      <AlertDialog
+        open={bulkDeleteDialog.open}
+        onOpenChange={(open) => setBulkDeleteDialog((d) => ({ ...d, open }))}
+      >
+        <AlertDialogContent className="terminal-window border-[var(--terminal-border)] bg-[var(--terminal-bg)]">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-[var(--terminal-text)] font-mono tracking-tight">
+              Delete {bulkDeleteDialog.ids.length} threads?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-[var(--terminal-text-muted)] font-mono text-xs">
+              This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="font-mono text-xs uppercase tracking-wider">
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={commitBulkDelete}
+              className="bg-red-500/10 border border-red-500/50 text-red-400 hover:bg-red-500/20 font-mono text-xs uppercase tracking-wider"
+            >
+              Delete all
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

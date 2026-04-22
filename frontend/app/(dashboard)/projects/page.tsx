@@ -6,13 +6,16 @@
  */
 
 import { useEffect, useMemo, useState } from 'react';
+import toast from 'react-hot-toast';
 import { useRouter } from 'next/navigation';
-import { FolderOpen, Loader2, Plus, Search } from 'lucide-react';
+import { FolderOpen, Loader2, Network, Plus, Search } from 'lucide-react';
 import { CreateProjectModal } from '@/components/research/CreateProjectModal';
 import { ProjectList } from '@/components/research/ProjectList';
 import { useProjectStore } from '@/store/projectStore';
+import { useChatStore, selectCurrentWorkspace } from '@/store/chat-store';
 import { useAuthStore } from '@/stores/authStore';
 import { workspaceService } from '@/services/workspaceService';
+import { getApiErrorMessage } from '@/utils/apiErrorMessage';
 
 type ProjectStatus = 'active' | 'paused' | 'completed' | 'archived';
 type ProjectType = 'research' | 'literature_review' | 'thesis' | 'paper';
@@ -20,6 +23,9 @@ type ProjectType = 'research' | 'literature_review' | 'thesis' | 'paper';
 export default function ProjectsPage() {
   const router = useRouter();
   const { isAuthenticated } = useAuthStore();
+  const currentWorkspace = useChatStore(selectCurrentWorkspace);
+  const currentWorkspaceId = useChatStore((s) => s.currentWorkspaceId);
+  const loadWorkspaces = useChatStore((s) => s.loadWorkspaces);
   const {
     projects,
     loading,
@@ -46,15 +52,39 @@ export default function ProjectsPage() {
 
   useEffect(() => {
     if (!mounted || !isAuthenticated) return;
-    void fetchProjects({
-      search: searchQuery || undefined,
-      project_status: statusFilter || undefined,
-      project_type: typeFilter || undefined,
-      tag: tagFilter || undefined,
-    });
+    if (currentWorkspaceId && !currentWorkspace) {
+      void loadWorkspaces();
+    }
   }, [
     mounted,
     isAuthenticated,
+    currentWorkspaceId,
+    currentWorkspace,
+    loadWorkspaces,
+  ]);
+
+  useEffect(() => {
+    if (!mounted || !isAuthenticated) return;
+    const effectiveWorkspaceId = currentWorkspace?.id ?? currentWorkspaceId;
+    // Cancel the previous fetch when filters/workspace change so a slow response
+    // from the earlier request can't overwrite the latest results.
+    const controller = new AbortController();
+    void fetchProjects(
+      {
+        workspace_id: effectiveWorkspaceId || undefined,
+        search: searchQuery || undefined,
+        project_status: statusFilter || undefined,
+        project_type: typeFilter || undefined,
+        tag: tagFilter || undefined,
+      },
+      { signal: controller.signal }
+    );
+    return () => controller.abort();
+  }, [
+    mounted,
+    isAuthenticated,
+    currentWorkspaceId,
+    currentWorkspace?.id,
     searchQuery,
     statusFilter,
     typeFilter,
@@ -75,9 +105,15 @@ export default function ProjectsPage() {
     deadline?: string;
     tags?: string[];
   }) => {
-    const workspace = await workspaceService.getOrCreateDefaultWorkspace();
+    // Let the modal surface the toast on failure (it keeps the form open for
+    // retry). Rethrow so the modal's catch block fires instead of silently
+    // resolving.
+    const workspaceId =
+      currentWorkspace?.id ??
+      currentWorkspaceId ??
+      (await workspaceService.getOrCreateDefaultWorkspace()).id;
     const project = await createProject({
-      workspace_id: workspace.id,
+      workspace_id: workspaceId,
       name: payload.name,
       description: payload.description,
       project_type: payload.project_type,
@@ -89,11 +125,35 @@ export default function ProjectsPage() {
 
   const handleDeleteProject = async (projectId: string) => {
     if (!confirm('Are you sure you want to delete this project?')) return;
-    await deleteProject(projectId);
+    // Clear any leftover error from a previous action so the banner doesn't
+    // linger under a successful toast.
+    clearError();
+    try {
+      await deleteProject(projectId);
+      toast.success('Project deleted');
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, 'Failed to delete project'));
+    }
   };
 
   const handleArchiveProject = async (projectId: string) => {
-    await updateProject(projectId, { research_status: 'archived' });
+    clearError();
+    try {
+      await updateProject(projectId, { research_status: 'archived' });
+      toast.success('Project archived');
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, 'Failed to archive project'));
+    }
+  };
+
+  const handleRestoreProject = async (projectId: string) => {
+    clearError();
+    try {
+      await updateProject(projectId, { research_status: 'active' });
+      toast.success('Project restored');
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, 'Failed to restore project'));
+    }
   };
 
   if (!mounted) {
@@ -111,6 +171,12 @@ export default function ProjectsPage() {
           <h1 className="text-2xl font-mono font-bold text-primary">
             RESEARCH_PROJECTS
           </h1>
+          {currentWorkspace && (
+            <span className="inline-flex items-center gap-1.5 text-[10px] font-mono text-muted-foreground uppercase tracking-wider mt-1">
+              <Network className="w-3 h-3 text-[var(--phosphor-green)]" />
+              {currentWorkspace.name}
+            </span>
+          )}
           <p className="text-sm font-mono text-muted-foreground mt-1">
             Organize documents, citations, and notes into research projects
           </p>
@@ -239,6 +305,9 @@ export default function ProjectsPage() {
           }}
           onArchiveProject={(projectId) => {
             void handleArchiveProject(projectId);
+          }}
+          onRestoreProject={(projectId) => {
+            void handleRestoreProject(projectId);
           }}
         />
       )}

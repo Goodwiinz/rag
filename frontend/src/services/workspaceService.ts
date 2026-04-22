@@ -33,12 +33,28 @@ import {
 import { getPublicApiOrigin } from '@/utils/publicEndpoints';
 import axios, { AxiosInstance } from 'axios';
 
+// Session token cache — avoids a Supabase getSession() call on every API request.
+// JWT lifetime is typically 1 hour; we refresh 1 minute before the token's own expiry
+// or after 4 minutes as a safety cap so we never send a stale token.
+let _sessionCache: {
+  token: string;
+  organizationId: string | null;
+  expiresAt: number;
+} | null = null;
+
 const getAuthContext = async (): Promise<{
   token: string | null;
   organizationId: string | null;
 }> => {
   if (typeof window === 'undefined') {
     return { token: null, organizationId: null };
+  }
+
+  if (_sessionCache && Date.now() < _sessionCache.expiresAt) {
+    return {
+      token: _sessionCache.token,
+      organizationId: _sessionCache.organizationId,
+    };
   }
 
   try {
@@ -50,8 +66,21 @@ const getAuthContext = async (): Promise<{
     const token = session?.access_token ?? null;
     const organizationId =
       session?.user?.user_metadata?.organization_id ?? null;
+
+    if (token) {
+      // Cache for 4 minutes (well within the typical 5-minute JWT refresh window)
+      _sessionCache = {
+        token,
+        organizationId,
+        expiresAt: Date.now() + 4 * 60 * 1000,
+      };
+    } else {
+      _sessionCache = null;
+    }
+
     return { token, organizationId };
   } catch (e) {
+    _sessionCache = null;
     console.warn(
       '[WorkspaceService] Failed to get auth context from Supabase:',
       e
@@ -167,6 +196,7 @@ v2Client.interceptors.response.use(
     // If it's a 401, the user needs to re-authenticate (403 is forbidden, not unauthenticated)
     if (error.response?.status === 401) {
       console.warn('[WorkspaceService] Authentication error - logging out');
+      clearWorkspaceServiceCache();
       // Dynamic import to avoid circular dependencies
       import('@/stores/authStore').then(({ useAuthStore }) => {
         useAuthStore.getState().signOut();
@@ -178,6 +208,22 @@ v2Client.interceptors.response.use(
 );
 
 const API_PREFIX = '/api/v2';
+
+const WS_CACHE_KEY = 'default-workspace-object';
+const WS_CACHE_AT_KEY = 'default-workspace-cached-at';
+const WS_CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
+
+/** Clear all workspace service caches (session token + localStorage). Called on 401. */
+export function clearWorkspaceServiceCache(): void {
+  _sessionCache = null;
+  if (typeof window !== 'undefined') {
+    localStorage.removeItem(WS_CACHE_KEY);
+    localStorage.removeItem(WS_CACHE_AT_KEY);
+    localStorage.removeItem('default-workspace-id');
+    localStorage.removeItem('default-conversation-id');
+    localStorage.removeItem('chat-storage');
+  }
+}
 
 // ============================================================================
 // Workspace Operations
@@ -505,26 +551,57 @@ export const workspaceService = {
   // ============================================================================
 
   async getOrCreateDefaultWorkspace(): Promise<Workspace> {
-    // Check localStorage cache first to avoid unnecessary API calls
-    if (typeof window !== 'undefined') {
-      const cachedId = localStorage.getItem('default-workspace-id');
-      const cachedAt = localStorage.getItem('default-workspace-cached-at');
-      const TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
+    const cacheWorkspace = (ws: Workspace) => {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(WS_CACHE_KEY, JSON.stringify(ws));
+        localStorage.setItem(WS_CACHE_AT_KEY, String(Date.now()));
+        localStorage.setItem('default-workspace-id', ws.id);
+      }
+    };
 
-      if (cachedId && cachedAt && Date.now() - Number(cachedAt) < TTL_MS) {
-        try {
-          const workspace = await this.getWorkspace(cachedId);
-          return workspace;
-        } catch (error: any) {
-          if (error?.response?.status === 404) {
-            localStorage.removeItem('default-workspace-id');
-            localStorage.removeItem('default-workspace-cached-at');
-          }
-        }
-      } else if (cachedId) {
-        // TTL expired, clear stale cache
+    const clearCachedWorkspace = () => {
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem(WS_CACHE_KEY);
+        localStorage.removeItem(WS_CACHE_AT_KEY);
         localStorage.removeItem('default-workspace-id');
-        localStorage.removeItem('default-workspace-cached-at');
+      }
+    };
+
+    // Check localStorage for a cached full workspace object — avoids any API call on warm hits.
+    if (typeof window !== 'undefined') {
+      const cachedJson = localStorage.getItem(WS_CACHE_KEY);
+      const cachedAt = localStorage.getItem(WS_CACHE_AT_KEY);
+
+      if (
+        cachedJson &&
+        cachedAt &&
+        Date.now() - Number(cachedAt) < WS_CACHE_TTL_MS
+      ) {
+        try {
+          const cachedWorkspace = JSON.parse(cachedJson) as Partial<Workspace>;
+
+          if (cachedWorkspace.id) {
+            try {
+              const workspace = await this.getWorkspace(cachedWorkspace.id);
+              cacheWorkspace(workspace);
+              return workspace;
+            } catch (error: unknown) {
+              const status = (error as { response?: { status?: number } })
+                ?.response?.status;
+              if (status === 403 || status === 404) {
+                clearCachedWorkspace();
+              }
+            }
+          } else {
+            clearCachedWorkspace();
+          }
+        } catch {
+          // Corrupted JSON — fall through to API
+          clearCachedWorkspace();
+        }
+      } else if (cachedJson) {
+        // TTL expired — clear stale entry
+        clearCachedWorkspace();
       }
     }
 
@@ -534,7 +611,6 @@ export const workspaceService = {
       try {
         const workspaces = await this.listWorkspaces();
         if (workspaces.length > 0) {
-          // Return workspace with most content, or first available
           const bestWorkspace = workspaces.reduce((best, current) => {
             const bestScore =
               (best.collection_count ?? 0) + (best.conversation_count ?? 0);
@@ -544,28 +620,20 @@ export const workspaceService = {
             return currentScore > bestScore ? current : best;
           }, workspaces[0]);
 
-          // Cache the ID
-          if (typeof window !== 'undefined') {
-            localStorage.setItem('default-workspace-id', bestWorkspace.id);
-            localStorage.setItem(
-              'default-workspace-cached-at',
-              String(Date.now())
-            );
-          }
+          cacheWorkspace(bestWorkspace);
           return bestWorkspace;
         }
-        // Only break if we successfully got an empty list (no workspaces exist)
+        // Successfully got an empty list — no workspaces exist yet
         break;
-      } catch (error: any) {
+      } catch (error: unknown) {
         retries--;
         if (retries > 0) {
           console.warn(
             '[WorkspaceService] Error listing workspaces, retrying...',
             error
           );
-          await new Promise((resolve) => setTimeout(resolve, 500)); // Brief delay before retry
+          await new Promise((resolve) => setTimeout(resolve, 500));
         } else {
-          // Don't create workspace on error - rethrow to let caller handle
           console.error(
             '[WorkspaceService] Failed to list workspaces after retries:',
             error
@@ -575,7 +643,6 @@ export const workspaceService = {
       }
     }
 
-    // Only create workspace if list was successfully empty
     console.log(
       '[WorkspaceService] No workspaces found, creating default workspace'
     );
@@ -585,12 +652,7 @@ export const workspaceService = {
       is_public: false,
     });
 
-    // Cache the new workspace ID
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('default-workspace-id', newWorkspace.id);
-      localStorage.setItem('default-workspace-cached-at', String(Date.now()));
-    }
-
+    cacheWorkspace(newWorkspace);
     return newWorkspace;
   },
 
@@ -601,35 +663,45 @@ export const workspaceService = {
   async getOrCreateDefaultConversation(
     workspaceId: string
   ): Promise<Conversation> {
+    const cacheConversationId = (id: string) => {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('default-conversation-id', id);
+      }
+    };
+
     try {
-      // Try to get existing conversations
       const response = await this.listConversations(workspaceId, { limit: 1 });
       if (response.conversations.length > 0) {
-        return response.conversations[0];
+        const conv = response.conversations[0];
+        cacheConversationId(conv.id);
+        return conv;
       }
-    } catch (error: any) {
-      // Handle 404 - workspace not found or stale data
-      if (error?.response?.status === 404) {
+    } catch (error: unknown) {
+      const status = (error as { response?: { status?: number } })?.response
+        ?.status;
+      if (status === 404) {
         console.warn(
           '[WorkspaceService] Workspace not found (404), clearing stale data'
         );
         if (typeof window !== 'undefined') {
+          localStorage.removeItem(WS_CACHE_KEY);
+          localStorage.removeItem(WS_CACHE_AT_KEY);
           localStorage.removeItem('default-workspace-id');
           localStorage.removeItem('default-conversation-id');
         }
-        // Let the caller handle retry with fresh workspace
         throw error;
       }
       console.warn('[WorkspaceService] Error listing conversations:', error);
     }
 
-    // Create default conversation if none exists
     console.log('[WorkspaceService] Creating default conversation');
-    return this.createConversation({
+    const conv = await this.createConversation({
       workspace_id: workspaceId,
       title: 'New Chat',
       description: 'A new conversation',
     });
+    cacheConversationId(conv.id);
+    return conv;
   },
 };
 

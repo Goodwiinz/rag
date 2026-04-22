@@ -1,9 +1,13 @@
 export { ContextRail } from './ContextRail';
+export { CollapsibleCard } from './CollapsibleCard';
 export { AgentActivityPanel } from './AgentActivityPanel';
+export { AllCitationsPanel } from './AllCitationsPanel';
+export { ContextPanel } from './ContextPanel';
 export { ProgressPanel } from './ProgressPanel';
 export { RelatedResultsPanel } from './RelatedResultsPanel';
-export { AllCitationsPanel } from './AllCitationsPanel';
+export { WorkingFoldersPanel } from './WorkingFoldersPanel';
 export { toolLabel } from './toolLabels';
+export * from './folder-tree';
 
 /**
  * Map an agent subgraph identifier to a human agent name.
