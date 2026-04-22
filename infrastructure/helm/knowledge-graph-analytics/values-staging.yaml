@@ -20,7 +20,7 @@ frontend:
   replicaCount: 1
   image:
     repository: registry.digitalocean.com/ragsystemregistry/frontend
-    tag: "6f05cb6"
+    tag: "716000a"
     pullPolicy: Always
   service:
     type: ClusterIP
@@ -70,7 +70,7 @@ backend:
   replicaCount: 1
   image:
     repository: registry.digitalocean.com/ragsystemregistry/backend
-    tag: "6f05cb6"
+    tag: "716000a"
     pullPolicy: Always
   service:
     type: ClusterIP
