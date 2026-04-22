@@ -130,18 +130,27 @@ export const projectService = {
   // =========================================================================
 
   /**
-   * List all projects for current user
+   * List all projects for current user.
+   *
+   * `options.signal` can be an AbortSignal; when it fires, axios cancels the
+   * in-flight request (used by the page effect to drop stale responses when
+   * the workspace changes mid-fetch).
    */
-  async listProjects(params?: {
-    skip?: number;
-    limit?: number;
-    search?: string;
-    project_status?: 'active' | 'paused' | 'completed' | 'archived';
-    project_type?: 'research' | 'literature_review' | 'thesis' | 'paper';
-    tag?: string;
-  }): Promise<ProjectListResponse> {
+  async listProjects(
+    params?: {
+      workspace_id?: string;
+      skip?: number;
+      limit?: number;
+      search?: string;
+      project_status?: 'active' | 'paused' | 'completed' | 'archived';
+      project_type?: 'research' | 'literature_review' | 'thesis' | 'paper';
+      tag?: string;
+    },
+    options?: { signal?: AbortSignal }
+  ): Promise<ProjectListResponse> {
     return apiClient.get<ProjectListResponse>('/projects', {
       params,
+      signal: options?.signal,
     });
   },
 

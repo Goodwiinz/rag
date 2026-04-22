@@ -80,6 +80,53 @@ describe('public endpoint resolution', () => {
     expect(getPublicWebSocketOrigin()).toBe('ws://localhost:8000');
   });
 
+
+  it('ignores baked remote public env on localhost', () => {
+    process.env.NEXT_PUBLIC_API_URL = 'https://dev-api.gen-text.app';
+    process.env.NEXT_PUBLIC_API_BASE_URL = 'https://dev-api.gen-text.app/api/v1';
+    process.env.NEXT_PUBLIC_WS_URL = 'wss://dev-api.gen-text.app';
+
+    setLocation('http://localhost:3000/login');
+
+    expect(getPublicApiOrigin()).toBe('http://localhost:8000');
+    expect(getPublicApiBaseUrl()).toBe('http://localhost:8000/api/v1');
+    expect(getPublicWebSocketOrigin()).toBe('ws://localhost:8000');
+  });
+
+  it('normalizes trailing slashes on same-environment configured values without producing double slashes', () => {
+    // Browser + configured env BOTH remote, so `shouldIgnoreConfiguredOrigin`
+    // does NOT discard the env (the previous version of this test failed to
+    // exercise trimTrailingSlash because cross-env values were thrown away
+    // before reaching the concat path).
+    process.env.NEXT_PUBLIC_API_URL = 'https://dev-api.gen-text.app/';
+    process.env.NEXT_PUBLIC_API_BASE_URL =
+      'https://dev-api.gen-text.app/api/v1/';
+
+    setLocation('https://dev-app.gen-text.app/login');
+
+    const origin = getPublicApiOrigin();
+    const baseUrl = getPublicApiBaseUrl();
+
+    // Trailing slashes are trimmed on both origin and base.
+    expect(origin).toBe('https://dev-api.gen-text.app');
+    expect(baseUrl).toBe('https://dev-api.gen-text.app/api/v1');
+
+    // Explicit assertion that no component path contains `//` (the protocol's
+    // `://` is allowed, but not `/api//v1` or a trailing `//`).
+    const pathOnly = baseUrl.replace(/^[a-z]+:\/\//, '');
+    expect(pathOnly).not.toMatch(/\/\//);
+  });
+
+  it('honors a caller-supplied default path when deriving from the browser origin', () => {
+    delete process.env.NEXT_PUBLIC_API_URL;
+    delete process.env.NEXT_PUBLIC_API_BASE_URL;
+
+    setLocation('http://localhost:3000/login');
+
+    expect(getPublicApiBaseUrl('/api/v2')).toBe('http://localhost:8000/api/v2');
+    expect(getPublicApiBaseUrl('/custom')).toBe('http://localhost:8000/custom');
+  });
+
   it('uses explicitly configured public endpoints when they are not localhost', () => {
     process.env.NEXT_PUBLIC_API_URL = 'https://staging-api.gen-text.app';
     process.env.NEXT_PUBLIC_WS_URL = 'wss://staging-api.gen-text.app';

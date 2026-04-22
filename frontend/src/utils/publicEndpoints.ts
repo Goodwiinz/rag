@@ -54,10 +54,13 @@ const shouldIgnoreConfiguredOrigin = (value: string): boolean => {
     return false;
   }
 
-  return (
-    isLocalHostname(configured.hostname) &&
-    !isLocalHostname(browserLocation.hostname)
-  );
+  const configuredIsLocal = isLocalHostname(configured.hostname);
+  const browserIsLocal = isLocalHostname(browserLocation.hostname);
+
+  // Prevent cross-environment leakage from baked NEXT_PUBLIC_* values.
+  // Localhost UI should not call remote hosts by default, and remote UIs
+  // should not call localhost.
+  return configuredIsLocal !== browserIsLocal;
 };
 
 const mapFrontendHostToApiHost = (hostname: string): string => {

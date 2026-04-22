@@ -23,6 +23,33 @@ from src.models.user import User, UserRole
 
 logger = logging.getLogger(__name__)
 
+
+def _env_int(name: str, default: int) -> int:
+    """Read an integer env var, falling back to ``default`` on any parse error.
+
+    Previously these values used raw ``int(os.getenv(name, str(default)))``
+    which raises ``ValueError`` at module import time if the env is set to
+    an empty string, ``"true"``, or any other non-numeric value — crashing
+    FastAPI startup with a cryptic traceback before loggers are initialized.
+    This helper degrades gracefully: it logs the bad value once and keeps
+    the service bootable on the hard-coded default.
+    """
+
+    raw = os.getenv(name)
+    if raw is None or raw == "":
+        return default
+    try:
+        return int(raw)
+    except (ValueError, TypeError):
+        logger.error(
+            "Invalid integer env %s=%r; falling back to default %d",
+            name,
+            raw,
+            default,
+        )
+        return default
+
+
 # Database URL resolution: prefer SUPABASE_DB_URL if set
 _supabase_db_url = os.getenv("SUPABASE_DB_URL", "")
 DATABASE_URL = _supabase_db_url or os.getenv(
@@ -66,8 +93,8 @@ else:
         DATABASE_URL,
         pool_pre_ping=True,
         pool_recycle=1800,
-        pool_size=2,
-        max_overflow=3,
+        pool_size=_env_int("DB_SYNC_POOL_SIZE", 2),
+        max_overflow=_env_int("DB_SYNC_MAX_OVERFLOW", 3),
         pool_timeout=30,
         echo=os.getenv("ENVIRONMENT") == "development",
     )
@@ -87,11 +114,18 @@ else:
     # Note: pool_pre_ping is disabled for async engine as it can cause
     # MissingGreenlet errors with asyncpg when ping runs outside greenlet context.
     # Instead, we rely on pool_recycle to handle stale connections.
+    #
+    # Pool sizing: Supabase's session-mode pooler caps each client at pool_size
+    # slots (Nano defaults to 15, Small to 25). A single backend process here
+    # previously held up to pool_size (10) + max_overflow (20) = 30 connections,
+    # which alone saturates Nano and leaves nothing for celery workers/beat.
+    # Defaults below keep one process at <=10 and are overridable via env for
+    # prod capacity tuning.
     async_engine = create_async_engine(
         ASYNC_DATABASE_URL,
-        pool_size=10,
-        max_overflow=20,
-        pool_timeout=30,
+        pool_size=_env_int("DB_ASYNC_POOL_SIZE", 5),
+        max_overflow=_env_int("DB_ASYNC_MAX_OVERFLOW", 5),
+        pool_timeout=_env_int("DB_ASYNC_POOL_TIMEOUT", 30),
         pool_recycle=300,
         pool_pre_ping=False,  # Disabled - causes greenlet issues with asyncpg
         connect_args={

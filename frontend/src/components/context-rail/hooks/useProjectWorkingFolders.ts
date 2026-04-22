@@ -26,6 +26,7 @@ export function useProjectWorkingFolders(
       projectService.listProjectDocuments(projectId as string, { limit: 100 }),
     enabled,
     retry: false,
+    staleTime: 5 * 60 * 1000,
   });
 
   const notesQ = useQuery({
@@ -34,6 +35,7 @@ export function useProjectWorkingFolders(
       projectService.listProjectNotes(projectId as string, { limit: 100 }),
     enabled,
     retry: false,
+    staleTime: 5 * 60 * 1000,
   });
 
   const draftsQ = useQuery({
@@ -45,6 +47,7 @@ export function useProjectWorkingFolders(
       }),
     enabled,
     retry: false,
+    staleTime: 5 * 60 * 1000,
   });
 
   return {

@@ -3,6 +3,7 @@
  */
 
 import { create } from 'zustand';
+import axios from 'axios';
 import { projectService } from '@/services/projectService';
 import type {
   Project,
@@ -29,14 +30,18 @@ interface ProjectState {
   total: number;
 
   // Project Actions
-  fetchProjects: (params?: {
-    skip?: number;
-    limit?: number;
-    search?: string;
-    project_status?: 'active' | 'paused' | 'completed' | 'archived';
-    project_type?: 'research' | 'literature_review' | 'thesis' | 'paper';
-    tag?: string;
-  }) => Promise<void>;
+  fetchProjects: (
+    params?: {
+      workspace_id?: string;
+      skip?: number;
+      limit?: number;
+      search?: string;
+      project_status?: 'active' | 'paused' | 'completed' | 'archived';
+      project_type?: 'research' | 'literature_review' | 'thesis' | 'paper';
+      tag?: string;
+    },
+    options?: { signal?: AbortSignal }
+  ) => Promise<void>;
   fetchProject: (projectId: string) => Promise<void>;
   createProject: (data: ProjectCreate) => Promise<Project>;
   updateProject: (projectId: string, data: ProjectUpdate) => Promise<void>;
@@ -81,16 +86,25 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   // Project Actions
   // =========================================================================
 
-  fetchProjects: async (params) => {
+  fetchProjects: async (params, options) => {
     set({ loading: true, error: null });
     try {
-      const response = await projectService.listProjects(params);
+      const response = await projectService.listProjects(params, options);
       set({
         projects: response.projects,
         total: response.total,
         loading: false,
       });
     } catch (error: any) {
+      // Aborted requests (e.g., workspace switched or component unmounted
+      // before the previous fetch settled) must still clear `loading` — the
+      // common case is that a superseding fetch has already set it back to
+      // true, but on unmount nothing replaces us and the spinner would
+      // otherwise stick in the global store until the next visit.
+      if (axios.isCancel(error) || error?.name === 'CanceledError') {
+        set({ loading: false });
+        return;
+      }
       console.error('[ProjectStore] Failed to fetch projects:', error);
       set({
         error: error?.message || 'Failed to fetch projects',

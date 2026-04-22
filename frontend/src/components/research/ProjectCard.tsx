@@ -70,6 +70,7 @@ export function ProjectCard({
                 onClick={() => onArchive(project.id)}
                 className="p-1 text-muted-foreground hover:text-[var(--amber-gold)] transition-colors"
                 title="Archive project"
+                aria-label="Archive project"
               >
                 <MoreHorizontal className="h-4 w-4" />
               </button>
@@ -79,6 +80,7 @@ export function ProjectCard({
                 onClick={() => onDelete(project.id)}
                 className="p-1 text-gray-500 hover:text-red-400 transition-colors"
                 title="Delete project"
+                aria-label="Delete project"
               >
                 <Trash2 className="h-4 w-4" />
               </button>
