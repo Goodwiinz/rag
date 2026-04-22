@@ -163,15 +163,23 @@ class AgentChatService {
       onTrace?: (threadId: string) => void;
       onDone?: () => void;
       onError?: (error: string) => void;
-    }
+    },
+    signal?: AbortSignal
   ): Promise<void> {
     const headers = await getStreamAuthHeaders();
 
-    const response = await fetch('/api/v1/agent/stream', {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(request),
-    });
+    let response: Response;
+    try {
+      response = await fetch('/api/v1/agent/stream', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(request),
+        signal,
+      });
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') return;
+      throw err;
+    }
 
     if (!response.ok || !response.body) {
       // Read the backend's error body so the user sees the real cause,
@@ -215,7 +223,10 @@ class AgentChatService {
 
         for (const rawLine of lines) {
           const line = rawLine.trim();
-          if (!line) continue;
+          if (!line) {
+            eventType = '';
+            continue;
+          }
           if (line.startsWith('event: ')) {
             eventType = line.slice(7).trim();
           } else if (line.startsWith('data: ') && eventType) {
@@ -266,10 +277,12 @@ class AgentChatService {
             } catch {
               // Skip malformed JSON
             }
-            eventType = '';
           }
         }
       }
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') return;
+      throw err;
     } finally {
       reader.releaseLock();
     }
@@ -287,15 +300,23 @@ class AgentChatService {
       ) => void;
       onDone?: () => void;
       onError?: (error: string) => void;
-    }
+    },
+    signal?: AbortSignal
   ): Promise<void> {
     const headers = await getStreamAuthHeaders();
 
-    const response = await fetch('/api/v1/agent/stream/confirm', {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(request),
-    });
+    let response: Response;
+    try {
+      response = await fetch('/api/v1/agent/stream/confirm', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(request),
+        signal,
+      });
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') return;
+      throw err;
+    }
 
     if (!response.ok || !response.body) {
       let backendMessage = '';
@@ -337,7 +358,10 @@ class AgentChatService {
 
         for (const rawLine of lines) {
           const line = rawLine.trim();
-          if (!line) continue;
+          if (!line) {
+            eventType = '';
+            continue;
+          }
           if (line.startsWith('event: ')) {
             eventType = line.slice(7).trim();
           } else if (line.startsWith('data: ') && eventType) {
@@ -372,10 +396,12 @@ class AgentChatService {
             } catch {
               // Skip malformed JSON
             }
-            eventType = '';
           }
         }
       }
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') return;
+      throw err;
     } finally {
       reader.releaseLock();
     }
