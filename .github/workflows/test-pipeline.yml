@@ -489,6 +489,9 @@ jobs:
           context: .
           file: frontend/Dockerfile.prod
           tags: rag-frontend:test
+          build-args: |
+            NEXT_PUBLIC_SUPABASE_URL=${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+            NEXT_PUBLIC_SUPABASE_ANON_KEY=${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
           load: true
 
       - name: Start infrastructure services
