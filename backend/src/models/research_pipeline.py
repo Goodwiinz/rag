@@ -2,6 +2,7 @@
 
 from sqlalchemy import Column, ForeignKey, Integer, UniqueConstraint
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB
+from sqlalchemy.orm import backref as orm_backref
 from sqlalchemy.orm import relationship
 
 from .base import GUID, BaseModel
@@ -27,7 +28,10 @@ class ResearchPipeline(BaseModel):
     step_data = Column(JSONB, nullable=False, server_default="{}")
     invalidated_steps = Column(ARRAY(Integer), nullable=False, server_default="{}")
 
-    project = relationship("Collection", backref="research_pipeline")
+    project = relationship(
+        "Collection",
+        backref=orm_backref("research_pipeline", passive_deletes=True),
+    )
 
     def __repr__(self):
         return f"<ResearchPipeline(id={self.id}, project={self.project_id}, step={self.current_step})>"
