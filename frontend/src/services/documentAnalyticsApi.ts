@@ -293,8 +293,10 @@ class SearchAnalyticsApiService {
    * Get search performance metrics
    */
   async getSearchPerformance(
-    timeRange: string = 'LAST_7D'
+    timeRange: string = '7d'
   ): Promise<SearchPerformanceResponse> {
+    // Backend MetricTimeRange enum accepts value-form only (`1h`, `24h`, `7d`,
+    // `30d`, `90d`). Passing the enum NAME (e.g. `LAST_7D`) returns 422.
     return apiClient.get<SearchPerformanceResponse>(
       `${this.performancePath}/search-performance?time_range=${timeRange}`
     );

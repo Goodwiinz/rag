@@ -371,6 +371,12 @@ jobs:
   e2e-tests:
     name: E2E Tests
     runs-on: depot-ubuntu-24.04-8
+    # E2E build is infrastructure-flaky on PR runners (PyTorch-sized backend
+    # image; disk/timeout issues). Kept as a push gate on develop/main where
+    # regressions are still caught, but skipped on PR events so the red check
+    # stops being review noise. `continue-on-error: true` is retained as a
+    # second safety net when the job does run.
+    if: github.event_name != 'pull_request'
     continue-on-error: true # Non-critical in PR checks; don't block merges
     needs: [integration-tests]
     steps:

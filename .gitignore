@@ -273,3 +273,6 @@ backend/data/*.json
 backend/data/*.log
 graphify-out/
 backend/graphify-out/
+
+# Claude Code ephemeral worktrees
+.claude/worktrees/

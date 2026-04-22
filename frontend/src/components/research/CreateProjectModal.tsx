@@ -1,8 +1,10 @@
 'use client';
 
 import { useState } from 'react';
+import toast from 'react-hot-toast';
 import { Loader2, Plus, X } from 'lucide-react';
 import type { ProjectCreate } from '@/services/projectService';
+import { getApiErrorMessage } from '@/utils/apiErrorMessage';
 
 type CreateProjectPayload = Omit<ProjectCreate, 'workspace_id'>;
 
@@ -67,6 +69,14 @@ export function CreateProjectModal({
       });
       reset();
       onClose();
+    } catch (err) {
+      // Surface the failure instead of silently dropping it. Keep the modal
+      // open with the user's values so they can retry without retyping.
+      // Prefer the server-provided detail over axios's generic "Request
+      // failed with status code 4xx" message.
+      const message = getApiErrorMessage(err, 'Failed to create project');
+      console.error('[CreateProjectModal] create failed:', err);
+      toast.error(message);
     } finally {
       setSubmitting(false);
     }

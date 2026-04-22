@@ -8,7 +8,7 @@ describe('agentActivityStore', () => {
   const getRun = (threadId: string) =>
     useAgentActivityStore.getState().runs[threadId];
 
-  it('startRun initializes a running run with empty steps', () => {
+  it('startRun initializes a running run with empty steps and plan', () => {
     useAgentActivityStore
       .getState()
       .startRun('t1', 'Literature synth', 'Reviewing Mamba-2');
@@ -18,6 +18,46 @@ describe('agentActivityStore', () => {
     expect(run.name).toBe('Literature synth');
     expect(run.task).toBe('Reviewing Mamba-2');
     expect(run.steps).toEqual([]);
+    expect(run.plan).toEqual([]);
+  });
+
+  it('setPlan stores plan items with sequential ids', () => {
+    const { startRun, setPlan } = useAgentActivityStore.getState();
+    startRun('t1', 'NOUS', 'task');
+    setPlan('t1', ['Read the paper', 'Summarize key findings']);
+    const plan = getRun('t1').plan;
+    expect(plan).toHaveLength(2);
+    expect(plan[0].text).toBe('Read the paper');
+    expect(plan[0].done).toBe(false);
+    expect(plan[1].text).toBe('Summarize key findings');
+  });
+
+  it('setPlan is idempotent once a plan exists (avoids clobber on re-emit)', () => {
+    const { startRun, setPlan } = useAgentActivityStore.getState();
+    startRun('t1', 'NOUS', 'task');
+    setPlan('t1', ['first']);
+    setPlan('t1', ['second', 'third']);
+    const plan = getRun('t1').plan;
+    expect(plan).toHaveLength(1);
+    expect(plan[0].text).toBe('first');
+  });
+
+  it('finishRun(done) marks every plan item as complete', () => {
+    const { startRun, setPlan, finishRun } = useAgentActivityStore.getState();
+    startRun('t1', 'NOUS', 'task');
+    setPlan('t1', ['one', 'two', 'three']);
+    finishRun('t1', 'done');
+    const plan = getRun('t1').plan;
+    expect(plan.every((p) => p.done)).toBe(true);
+  });
+
+  it('finishRun(error) leaves plan items as pending', () => {
+    const { startRun, setPlan, finishRun } = useAgentActivityStore.getState();
+    startRun('t1', 'NOUS', 'task');
+    setPlan('t1', ['one', 'two']);
+    finishRun('t1', 'error');
+    const plan = getRun('t1').plan;
+    expect(plan.every((p) => !p.done)).toBe(true);
   });
 
   it('pushToolStart appends an active step with a mapped label', () => {

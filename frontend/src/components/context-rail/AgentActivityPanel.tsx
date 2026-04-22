@@ -1,8 +1,8 @@
 'use client';
 
-import * as React from 'react';
 import { NousAgentStatusCard, type AgentStep } from '@/nous';
 import { useAgentActivityStore, type Step } from '@/stores/agentActivityStore';
+import { CollapsibleCard } from './CollapsibleCard';
 
 interface AgentActivityPanelProps {
   threadId: string | null;
@@ -25,24 +25,15 @@ export function AgentActivityPanel({ threadId }: AgentActivityPanelProps) {
     threadId ? s.runs[threadId] : undefined
   );
 
-  if (!run) return null;
+  if (!run || run.steps.length === 0) return null;
 
   return (
-    <section aria-label="Agent activity">
-      <div
-        className="text-[10px] uppercase tracking-wider mb-2 px-1"
-        style={{
-          color: 'var(--nous-fg-3)',
-          fontFamily: 'var(--nous-font-ui)',
-        }}
-      >
-        Agent Activity
-      </div>
+    <CollapsibleCard title="Agent activity">
       <NousAgentStatusCard
         name={run.name}
         task={run.task}
         steps={run.steps.map(toAgentStep)}
       />
-    </section>
+    </CollapsibleCard>
   );
 }
