@@ -46,7 +46,7 @@ jobs:
   # ==========================================================================
   lint-backend:
     name: Lint Backend
-    runs-on: ubuntu-latest
+    runs-on: depot-ubuntu-24.04-8
     steps:
       - uses: actions/checkout@v4
 
@@ -99,7 +99,7 @@ jobs:
   # ==========================================================================
   unit-tests:
     name: Unit Tests
-    runs-on: ubuntu-latest
+    runs-on: depot-ubuntu-24.04-8
     needs: lint-backend
     steps:
       - uses: actions/checkout@v4
@@ -223,7 +223,7 @@ jobs:
   # ==========================================================================
   integration-tests:
     name: Integration Tests
-    runs-on: ubuntu-latest
+    runs-on: depot-ubuntu-24.04-8
     timeout-minutes: 15
     continue-on-error: true  # Don't block workflow if integration tests fail/timeout
     needs: [unit-tests, frontend-tests]
@@ -310,7 +310,7 @@ jobs:
   # ==========================================================================
   resilience-tests:
     name: Resilience Tests
-    runs-on: ubuntu-latest
+    runs-on: depot-ubuntu-24.04-8
     timeout-minutes: 10
     continue-on-error: true  # Non-critical in PR checks; don't block merges
     needs: unit-tests
@@ -371,7 +371,7 @@ jobs:
   # ==========================================================================
   api-contract-tests:
     name: API Contract Tests
-    runs-on: ubuntu-latest
+    runs-on: depot-ubuntu-24.04-8
     continue-on-error: true  # Non-critical in PR checks; don't block merges
     needs: [unit-tests, frontend-tests]
     services:
@@ -423,7 +423,7 @@ jobs:
   # ==========================================================================
   e2e-tests:
     name: E2E Tests
-    runs-on: ubuntu-latest
+    runs-on: depot-ubuntu-24.04-8
     # E2E build is infrastructure-flaky on PR runners (PyTorch-sized backend
     # image; disk/timeout issues). Kept as a push gate on develop/main where
     # regressions are still caught, but skipped on PR events so the red check
@@ -563,7 +563,7 @@ jobs:
   # ==========================================================================
   performance-tests:
     name: Performance Tests
-    runs-on: ubuntu-latest
+    runs-on: depot-ubuntu-24.04-8
     continue-on-error: true  # Non-critical in PR checks; don't block merges
     needs: integration-tests
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
