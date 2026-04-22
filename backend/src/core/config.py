@@ -149,15 +149,12 @@ class Settings(BaseSettings):
     @classmethod
     def validate_jwt_secret_key(cls, v, info):
         """Validate JWT_SECRET_KEY - require in production, generate for dev."""
-        # Allow the docker-compose default for development persistence
-        if v == "dev-jwt-persistent-secret-key-32chars!":
-            return v
-
         weak_patterns = [
             "change-in-production",
             "your-secret",
             "changeme",
             "jwt-secret",
+            "dev-jwt-persistent",
         ]
         is_weak = not v or any(
             pattern in (v or "").lower() for pattern in weak_patterns
@@ -167,10 +164,10 @@ class Settings(BaseSettings):
             env = os.getenv("ENVIRONMENT", "development")
             if env in ("production", "staging"):
                 raise ValueError(
-                    "JWT_SECRET_KEY must be set to a strong value in production/staging"
+                    "JWT_SECRET_KEY must be set to a strong value in production/staging. "
+                    "Generate one with: python -c 'import secrets; print(secrets.token_urlsafe(48))'"
                 )
-            # In development without explicit config, use docker-compose default
-            return "dev-jwt-persistent-secret-key-32chars!"
+            return _generate_dev_secret()
         if len(v) < 32:
             raise ValueError("JWT_SECRET_KEY must be at least 32 characters")
         return v
