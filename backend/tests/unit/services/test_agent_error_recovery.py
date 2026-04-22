@@ -97,3 +97,20 @@ class TestRetryTransient:
 
         with pytest.raises(ConnectionError):
             await retry_transient(always_fails, max_attempts=3, base_delay=0.01)
+
+    @pytest.mark.asyncio
+    async def test_cancelled_error_propagates_immediately(self):
+        """CancelledError must never be retried — it means the caller aborted."""
+        from src.services.agent.error_recovery import retry_transient
+
+        call_count = 0
+
+        async def fn():
+            nonlocal call_count
+            call_count += 1
+            raise asyncio.CancelledError()
+
+        with pytest.raises(asyncio.CancelledError):
+            await retry_transient(fn, max_attempts=3, base_delay=0.01)
+
+        assert call_count == 1
