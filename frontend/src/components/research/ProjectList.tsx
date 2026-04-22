@@ -11,6 +11,7 @@ export interface ProjectListProps {
   onOpenProject: (projectId: string) => void;
   onDeleteProject?: (projectId: string) => void;
   onArchiveProject?: (projectId: string) => void;
+  onRestoreProject?: (projectId: string) => void;
 }
 
 export function ProjectList({
@@ -20,6 +21,7 @@ export function ProjectList({
   onOpenProject,
   onDeleteProject,
   onArchiveProject,
+  onRestoreProject,
 }: ProjectListProps) {
   return (
     <div>
@@ -69,6 +71,7 @@ export function ProjectList({
               onOpen={onOpenProject}
               onDelete={onDeleteProject}
               onArchive={onArchiveProject}
+              onRestore={onRestoreProject}
             />
           ))}
         </div>
