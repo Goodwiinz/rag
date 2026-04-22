@@ -24,6 +24,18 @@ GitHub Actions workflows for testing, building, and deploying the RAG system.
                     └──────────────┘     └─────────────┘
 ```
 
+`test-pipeline.yml` and `docker-build.yml` are intentionally separate.
+
+- `test-pipeline.yml` validates the codebase: linting, unit/integration/frontend/security/E2E/performance checks.
+- `docker-build.yml` builds and publishes the deployable backend/frontend images after code changes land on `main` or `develop`.
+- `deploy.yml` and `gitops-image-update.yml` depend on the image build stage, so `docker-build.yml` is part of the delivery pipeline rather than duplicate CI.
+
+Depot runner usage is scoped to the expensive jobs:
+
+- Docker-heavy and service-heavy jobs in `test-pipeline.yml` run on `depot-ubuntu-24.04-8`.
+- Image builds in `docker-build.yml` run on `depot-ubuntu-24.04-8`.
+- Lighter summary/deploy orchestration jobs stay on `ubuntu-latest`.
+
 ---
 
 ## 🧪 Test Pipeline (`test-pipeline.yml`)
