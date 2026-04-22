@@ -38,6 +38,8 @@ env:
   DOCKER_BUILDKIT: "1"
   PIP_NO_CACHE_DIR: "1"
   PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  NEXT_PUBLIC_SUPABASE_URL: "http://localhost:54321"
+  NEXT_PUBLIC_SUPABASE_ANON_KEY: "ci-test-anon-key"
 defaults:
   run:
     shell: bash
@@ -402,7 +404,12 @@ jobs:
       - name: Build backend image
         run: docker build --build-arg PYTHON_VERSION=3.11 --build-arg TORCH_CPU_ONLY=true -t rag-backend:test -f backend/docker/Dockerfile.prod .
       - name: Build frontend image
-        run: docker build -t rag-frontend:test -f frontend/Dockerfile.prod .
+        run: >
+          docker build
+          --build-arg NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
+          --build-arg NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+          -t rag-frontend:test
+          -f frontend/Dockerfile.prod .
       - name: Start infrastructure services
         run: |
           docker compose -p rag_system -f docker-compose.ci.yml up -d postgres redis
