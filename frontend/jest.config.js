@@ -20,6 +20,7 @@ const customJestConfig = {
     '<rootDir>/src/stores/__tests__/**/*.test.{ts,tsx}',
     '<rootDir>/src/hooks/__tests__/**/*.test.{ts,tsx}',
     '<rootDir>/src/utils/__tests__/**/*.test.{ts,tsx}',
+    '<rootDir>/cli/__tests__/**/*.test.{ts,tsx}',
   ],
 
   // Ignore Playwright e2e and heavy integration suites in Jest
