@@ -7,9 +7,10 @@ Tools: search_arxiv, ingest_arxiv_papers, search_documents,
 
 import logging
 
-from langchain_core.messages import AIMessage, SystemMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 from langchain_core.runnables import RunnableConfig
 from langgraph.graph import END, StateGraph
+from langgraph.types import interrupt
 
 from src.services.agent.compactor import make_compactor_node
 from src.services.agent.planner import make_planner_node
@@ -50,11 +51,49 @@ RESEARCH_SYSTEM_PROMPT = (
 )
 
 
+def _sanitize_messages(raw: list) -> list:
+    """Ensure the message list is valid for LLM APIs.
+
+    - Adds placeholder ToolMessages for AIMessages whose tool_calls are unanswered.
+    - Merges consecutive HumanMessages into one so the LLM doesn't reject them.
+    """
+    # Pass 1: fill missing ToolMessages
+    filled: list = []
+    for i, msg in enumerate(raw):
+        filled.append(msg)
+        if isinstance(msg, AIMessage) and getattr(msg, "tool_calls", None):
+            expected = {tc["id"] for tc in msg.tool_calls}
+            answered: set = set()
+            for future in raw[i + 1:]:
+                if isinstance(future, ToolMessage):
+                    answered.add(future.tool_call_id)
+                elif isinstance(future, (AIMessage, HumanMessage)):
+                    break
+            for tc in msg.tool_calls:
+                if tc["id"] not in answered:
+                    filled.append(ToolMessage(content='{"status": "skipped"}', tool_call_id=tc["id"]))
+
+    # Pass 2: merge consecutive HumanMessages
+    merged: list = []
+    for msg in filled:
+        if merged and isinstance(merged[-1], HumanMessage) and isinstance(msg, HumanMessage):
+            combined = f"{merged[-1].content}\n{msg.content}"
+            merged[-1] = HumanMessage(content=combined)
+        else:
+            merged.append(msg)
+
+    return merged
+
+
+RESEARCH_DESTRUCTIVE_TOOLS = {"ingest_arxiv_papers", "add_document_to_project"}
+
+
 async def research_llm_node(state: AgentState, config: RunnableConfig) -> dict:
     """Research-specialized LLM node."""
     from src.services.agent.graph import _build_llm
 
-    messages = [SystemMessage(content=RESEARCH_SYSTEM_PROMPT)] + list(state["messages"])
+    sanitized = _sanitize_messages(list(state["messages"]))
+    messages = [SystemMessage(content=RESEARCH_SYSTEM_PROMPT)] + sanitized
 
     llm = _build_llm()
     llm_with_tools = llm.bind_tools(RESEARCH_TOOLS)
@@ -75,6 +114,22 @@ def research_should_continue(state: AgentState) -> str:
         and last.tool_calls
         and state.get("tool_loop_count", 0) < 8
     ):
+        if any(tc["name"] in RESEARCH_DESTRUCTIVE_TOOLS for tc in last.tool_calls):
+            return "research_interrupt_node"
+        return "research_tool_node"
+    return "research_reflection_gate"
+
+
+async def research_interrupt_node(state: AgentState, config: RunnableConfig) -> dict:
+    """Pause for user confirmation before executing destructive research tools."""
+    last = state["messages"][-1]
+    tool_names = [tc["name"] for tc in last.tool_calls if tc["name"] in RESEARCH_DESTRUCTIVE_TOOLS]
+    interrupt({"pending_tools": tool_names, "message": f"Confirm: {', '.join(tool_names)}?"})
+    return {}
+
+
+def research_after_interrupt(state: AgentState) -> str:
+    if state.get("user_confirmed", False):
         return "research_tool_node"
     return "research_reflection_gate"
 
@@ -117,6 +172,7 @@ def build_research_subgraph() -> StateGraph:
     graph.add_node("research_planner_node", planner)
     graph.add_node("research_llm_node", research_llm_node)
     graph.add_node("research_tool_node", filtered_tool)
+    graph.add_node("research_interrupt_node", research_interrupt_node)
     graph.add_node("research_compactor_node", compactor)
     graph.add_node("research_reflection_gate", reflection_node)
 
@@ -127,6 +183,16 @@ def build_research_subgraph() -> StateGraph:
     graph.add_conditional_edges(
         "research_llm_node",
         research_should_continue,
+        {
+            "research_tool_node": "research_tool_node",
+            "research_interrupt_node": "research_interrupt_node",
+            "research_reflection_gate": "research_reflection_gate",
+        },
+    )
+
+    graph.add_conditional_edges(
+        "research_interrupt_node",
+        research_after_interrupt,
         {
             "research_tool_node": "research_tool_node",
             "research_reflection_gate": "research_reflection_gate",
