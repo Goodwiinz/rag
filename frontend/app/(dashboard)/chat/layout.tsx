@@ -16,7 +16,7 @@ import {
   Share2,
 } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 
 // ============================================
 // TYPES
@@ -304,11 +304,7 @@ function CommandPalette({
 // MAIN LAYOUT
 // ============================================
 
-export default function ChatLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+function ChatLayoutContent({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const projectId = searchParams.get('projectId') ?? undefined;
@@ -387,5 +383,17 @@ export default function ChatLayout({
         }}
       />
     </div>
+  );
+}
+
+export default function ChatLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <Suspense>
+      <ChatLayoutContent>{children}</ChatLayoutContent>
+    </Suspense>
   );
 }
