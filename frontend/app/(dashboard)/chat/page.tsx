@@ -1033,6 +1033,20 @@ function ChatPageContent() {
             confirmContent += content;
             useChatStore.setState({ streamingContent: confirmContent });
           },
+          onToolStart: (tool) => {
+            useAgentActivityStore
+              .getState()
+              .pushToolStart(pendingConfirmation.workspaceThreadId, tool);
+          },
+          onToolEnd: (tool, _result, isError) => {
+            useAgentActivityStore
+              .getState()
+              .pushToolEnd(
+                pendingConfirmation.workspaceThreadId,
+                tool,
+                !isError
+              );
+          },
           onDone: () => {
             if (confirmContent.trim()) {
               const msg: Message = {
@@ -1044,7 +1058,6 @@ function ChatPageContent() {
             }
           },
           onError: (error) => {
-            console.error('[Agent] Confirm error:', error);
             const msg: Message = {
               role: 'assistant',
               content: `Confirmation error: ${error}`,
