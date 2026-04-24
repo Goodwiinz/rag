@@ -44,6 +44,7 @@ from .tools_impl import (  # noqa: F401
     _tool_create_project,
     _tool_create_project_note,
     _tool_list_project_documents,
+    _tool_list_projects,
     _tool_summarize_document,
     _tool_compare_documents,
     _tool_extract_entities,

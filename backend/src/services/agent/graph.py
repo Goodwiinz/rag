@@ -7,8 +7,34 @@ Builds a ``StateGraph`` that chains:
 import asyncio
 import json
 import logging
+import re
 import time
 from typing import Any, Dict, List, Optional
+
+# Matches a UUID anywhere in a string. Used to extract project IDs from URLs
+# or raw UUIDs that the user pastes into the conversation so the agent can
+# carry the context forward across turns.
+_UUID_RE = re.compile(
+    r"\b([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})\b"
+)
+
+
+def _extract_project_id_from_text(text: str) -> Optional[str]:
+    """Return the first project UUID found in *text*, preferring ``/projects/<uuid>``.
+
+    Falls back to any standalone UUID in the text. Returns ``None`` if no
+    UUID is present.
+    """
+    if not text:
+        return None
+    project_url_match = re.search(
+        r"/projects/([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})",
+        text,
+    )
+    if project_url_match:
+        return project_url_match.group(1).lower()
+    bare_match = _UUID_RE.search(text)
+    return bare_match.group(1).lower() if bare_match else None
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 from langchain_core.runnables import RunnableConfig
@@ -241,8 +267,30 @@ async def rag_node(state: AgentState, config: RunnableConfig) -> dict:
             last_user_msg = msg.content
             break
 
+    # Extract a project UUID from the latest user message (e.g. a pasted
+    # /projects/<uuid> URL) so downstream nodes carry the context across
+    # turns without depending on the client always re-sending page_context.
+    page_context = dict(state.get("page_context") or {})
+    existing_project_id = state.get("current_project_id") or page_context.get("project_id")
+    extracted_pid = _extract_project_id_from_text(last_user_msg or "")
+
+    resolved_project_id: Optional[str] = extracted_pid or existing_project_id or None
+    state_update: Dict[str, Any] = {}
+    if resolved_project_id:
+        state_update["current_project_id"] = resolved_project_id
+        # Mirror into page_context so the system prompt built by llm_node
+        # tells the LLM about the active project, and any tool that reads
+        # page_context (e.g. list_project_documents) can resolve it.
+        if page_context.get("project_id") != resolved_project_id:
+            page_context = {
+                **page_context,
+                "type": page_context.get("type") or "project",
+                "project_id": resolved_project_id,
+            }
+            state_update["page_context"] = page_context
+
     if not last_user_msg or not current_user:
-        return {"retrieved_contexts": []}
+        return {"retrieved_contexts": [], **state_update}
 
     try:
         # Allow injecting a search function for testing
@@ -303,11 +351,11 @@ async def rag_node(state: AgentState, config: RunnableConfig) -> dict:
                     }
                 )
 
-        return {"retrieved_contexts": contexts}
+        return {"retrieved_contexts": contexts, **state_update}
 
     except Exception as e:
         logger.warning("RAG retrieval failed, proceeding without context", exc_info=e)
-        return {"retrieved_contexts": []}
+        return {"retrieved_contexts": [], **state_update}
 
 
 # ---------------------------------------------------------------------------
@@ -466,8 +514,8 @@ def route_by_intent(state: AgentState) -> str:
 
 RESEARCH_TOOLS_NAMES = {
     "search_arxiv", "ingest_arxiv_papers", "search_documents",
-    "create_project", "add_document_to_project", "list_project_documents",
-    "execute_code",
+    "create_project", "list_projects", "add_document_to_project",
+    "list_project_documents", "execute_code",
 }
 WRITING_TOOLS_NAMES = {
     "create_draft", "create_project_note", "export_bibliography",
@@ -553,6 +601,9 @@ async def llm_node(state: AgentState, config: RunnableConfig) -> dict:
         "- **search_documents**: Search the user's indexed documents.\n"
         "- **create_project**: Create a NEW research project (folder). Use when the user asks to "
         "create, start, or set up a project/folder. Requires a name; optional description, research_goals, tags.\n"
+        "- **list_projects**: List the user's existing research projects. Call this when the user asks "
+        "'what projects do I have', 'list my projects', or wants to pick a project — do NOT ask them "
+        "to provide a project_id, look it up yourself.\n"
         "- **add_document_to_project**: Add an ALREADY-INGESTED document to a project. "
         "The document MUST already exist in the system. document_id MUST be a UUID.\n"
         "- **create_project_note**: Create a markdown note in a project.\n"
