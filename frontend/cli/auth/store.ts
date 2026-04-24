@@ -8,6 +8,7 @@ export interface NousConfig {
   organization_id: string;
   expires_at: string;
   thread_id: string | null;
+  api_url?: string;
 }
 
 function configDir(): string {

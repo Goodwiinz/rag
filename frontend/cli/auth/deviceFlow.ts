@@ -71,6 +71,7 @@ export async function login(): Promise<void> {
     organization_id: result.organization_id,
     expires_at: result.expires_at,
     thread_id: null,
+    api_url: BACKEND_URL,
   });
 
   console.log(`\n✓ Logged in as ${result.user_email}`);

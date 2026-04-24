@@ -1,5 +1,5 @@
 import { loadConfig, saveConfig } from './auth/store';
-import { API_BASE, getCliAuthHeaders } from './services/client';
+import { getApiBase, getCliAuthHeaders } from './services/client';
 
 export type StreamEvent =
   | { type: 'token'; content: string }
@@ -17,7 +17,7 @@ export interface StreamOptions {
 export async function* streamAgent(
   message: string,
   pageContext: Record<string, unknown> = {},
-  options: StreamOptions = {},
+  options: StreamOptions = {}
 ): AsyncGenerator<StreamEvent> {
   const config = loadConfig();
   if (!config) throw new Error('Not logged in');
@@ -25,7 +25,7 @@ export async function* streamAgent(
   const { fetchFn = fetch, signal } = options;
   const headers = getCliAuthHeaders();
 
-  const res = await fetchFn(`${API_BASE}/agent/stream`, {
+  const res = await fetchFn(`${getApiBase()}/agent/stream`, {
     method: 'POST',
     headers,
     body: JSON.stringify({
@@ -80,7 +80,8 @@ export async function* streamAgent(
               };
             } else if (eventType === 'trace' && data.thread_id) {
               const cfg = loadConfig();
-              if (cfg && !cfg.thread_id) saveConfig({ ...cfg, thread_id: data.thread_id });
+              if (cfg && !cfg.thread_id)
+                saveConfig({ ...cfg, thread_id: data.thread_id });
             } else if (eventType === 'done') {
               yield { type: 'done' };
               return;

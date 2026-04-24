@@ -10,5 +10,13 @@ export function getCliAuthHeaders(): Record<string, string> {
   };
 }
 
-export const API_BASE =
-  process.env.NOUS_API_URL ?? 'http://localhost:8000/api/v1';
+const DEFAULT_API_BASE = 'http://localhost:8000/api/v1';
+
+export function getApiBase(): string {
+  if (process.env.NOUS_API_URL) return process.env.NOUS_API_URL;
+  const config = loadConfig();
+  if (config?.api_url) return config.api_url;
+  return DEFAULT_API_BASE;
+}
+
+export const API_BASE = getApiBase();
