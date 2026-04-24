@@ -9,29 +9,24 @@ global:
     - name: do-registry
   environment: "dev"
   storageClass: "do-block-storage"
-
 commonLabels:
   app.kubernetes.io/name: knowledge-graph-analytics
   app.kubernetes.io/part-of: nous-platform
   environment: dev
-
 # ──────────────────────────────────────────────
 # Frontend
 # ──────────────────────────────────────────────
 frontend:
   enabled: true
   replicaCount: 1
-
   image:
     repository: registry.digitalocean.com/ragsystemregistry/frontend
-    tag: "latest"
+    tag: "0ffc1ca"
     pullPolicy: IfNotPresent
-
   service:
     type: ClusterIP
     port: 80
     targetPort: 3000
-
   ingress:
     enabled: true
     className: "nginx"
@@ -47,7 +42,6 @@ frontend:
       - secretName: rag-dev-app-tls
         hosts:
           - dev-app.gen-text.app
-
   resources:
     limits:
       cpu: 500m
@@ -55,10 +49,8 @@ frontend:
     requests:
       cpu: 100m
       memory: 256Mi
-
   autoscaling:
     enabled: false
-
   env:
     - name: NODE_ENV
       value: "production"
@@ -66,7 +58,6 @@ frontend:
       value: "dev"
     - name: BACKEND_URL
       value: "http://nous-dev-knowledge-graph-analytics-backend.rag-dev.svc.cluster.local:80"
-
   healthCheck:
     enabled: true
     path: /
@@ -74,24 +65,20 @@ frontend:
     periodSeconds: 10
     timeoutSeconds: 5
     failureThreshold: 3
-
 # ──────────────────────────────────────────────
 # Backend
 # ──────────────────────────────────────────────
 backend:
   enabled: true
   replicaCount: 1
-
   image:
     repository: registry.digitalocean.com/ragsystemregistry/backend
-    tag: "latest"
+    tag: "0ffc1ca"
     pullPolicy: IfNotPresent
-
   service:
     type: ClusterIP
     port: 80
     targetPort: 8000
-
   ingress:
     enabled: true
     className: "nginx"
@@ -113,7 +100,6 @@ backend:
       - secretName: rag-dev-api-tls
         hosts:
           - dev-api.gen-text.app
-
   resources:
     limits:
       cpu: "1"
@@ -121,10 +107,8 @@ backend:
     requests:
       cpu: 250m
       memory: 512Mi
-
   autoscaling:
     enabled: false
-
   envFrom:
     - secretRef:
         name: database-credentials
@@ -141,7 +125,6 @@ backend:
     - secretRef:
         name: langsmith-credentials
         optional: true
-
   env:
     - name: ENVIRONMENT
       value: "dev"
@@ -201,7 +184,6 @@ backend:
         secretKeyRef:
           name: azure-openai-credentials
           key: AZURE_OPENAI_CHAT_API_VERSION
-
   healthCheck:
     enabled: true
     path: /health
@@ -218,7 +200,6 @@ backend:
     readinessPeriodSeconds: 10
     readinessTimeoutSeconds: 3
     readinessFailureThreshold: 2
-
   initContainers:
     waitForPostgres: true
     waitForRedis: false
@@ -227,16 +208,13 @@ backend:
     runMigrations: true
     waitForNeo4j: false
     waitForQdrant: false
-
 # ──────────────────────────────────────────────
 # All databases are external (DO Managed)
 # ──────────────────────────────────────────────
 postgresql:
   enabled: false
-
 redis:
   enabled: false
-
 neo4j:
   enabled: true
   image:
@@ -257,7 +235,6 @@ neo4j:
       requests:
         cpu: 100m
         memory: 256Mi
-
 qdrant:
   enabled: true
   persistence:
@@ -276,8 +253,7 @@ qdrant:
       grpc_port: 6334
   backup:
     enabled: true
-    schedule: "0 3 * * 0"  # Weekly Sunday 3am
-
+    schedule: "0 3 * * 0" # Weekly Sunday 3am
 celeryWorker:
   enabled: true
   replicaCount: 1
@@ -299,7 +275,6 @@ celeryWorker:
     requests:
       cpu: 250m
       memory: 1Gi
-
 celeryBeat:
   enabled: true
   resources:
@@ -309,19 +284,14 @@ celeryBeat:
     requests:
       cpu: 50m
       memory: 384Mi
-
 prometheus:
   enabled: false
-
 grafana:
   enabled: false
-
 nginx-ingress-controller:
   enabled: false
-
 monitoring:
   enabled: false
-
 # ──────────────────────────────────────────────
 # Security
 # ──────────────────────────────────────────────
@@ -330,17 +300,13 @@ securityContext:
   runAsUser: 1001
   runAsGroup: 1001
   fsGroup: 1001
-
 podSecurityPolicy:
   enabled: false
-
 networkPolicy:
   enabled: false
-
 podDisruptionBudget:
   enabled: true
   minAvailable: 1
-
 serviceAccount:
   create: true
   annotations: {}
