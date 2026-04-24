@@ -8,7 +8,12 @@ import * as client from '../services/client';
 jest.mock('../auth/store');
 jest.mock('../services/client');
 
-const mockedLoadConfig = store.loadConfig as jest.MockedFunction<typeof store.loadConfig>;
+const mockedLoadConfig = store.loadConfig as jest.MockedFunction<
+  typeof store.loadConfig
+>;
+const mockedSaveConfig = store.saveConfig as jest.MockedFunction<
+  typeof store.saveConfig
+>;
 const mockedGetHeaders = client.getCliAuthHeaders as jest.MockedFunction<
   typeof client.getCliAuthHeaders
 >;
@@ -29,7 +34,9 @@ const HEADERS = {
 
 function sseResponse(events: Array<{ event: string; data: unknown }>) {
   const text = events
-    .map(({ event, data }) => `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`)
+    .map(
+      ({ event, data }) => `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`
+    )
     .join('');
   const encoder = new TextEncoder();
   const bytes = encoder.encode(text);
@@ -55,7 +62,7 @@ test('yields token events', async () => {
       { event: 'token', data: { content: 'Hello ' } },
       { event: 'token', data: { content: 'world' } },
       { event: 'done', data: {} },
-    ]),
+    ])
   );
 
   const events: unknown[] = [];
@@ -76,16 +83,24 @@ test('yields tool_start and tool_end events', async () => {
       { event: 'tool_start', data: { tool: 'search_arxiv' } },
       { event: 'tool_end', data: { tool: 'search_arxiv', is_error: false } },
       { event: 'done', data: {} },
-    ]),
+    ])
   );
 
   const events: unknown[] = [];
-  for await (const e of streamAgent('search', {}, { fetchFn: mockFetch as any })) {
+  for await (const e of streamAgent(
+    'search',
+    {},
+    { fetchFn: mockFetch as any }
+  )) {
     events.push(e);
   }
 
   expect(events).toContainEqual({ type: 'tool_start', tool: 'search_arxiv' });
-  expect(events).toContainEqual({ type: 'tool_end', tool: 'search_arxiv', isError: false });
+  expect(events).toContainEqual({
+    type: 'tool_end',
+    tool: 'search_arxiv',
+    isError: false,
+  });
 });
 
 test('yields error event when tool_end has is_error=true', async () => {
@@ -94,15 +109,23 @@ test('yields error event when tool_end has is_error=true', async () => {
       { event: 'tool_start', data: { tool: 'ingest_papers' } },
       { event: 'tool_end', data: { tool: 'ingest_papers', is_error: true } },
       { event: 'done', data: {} },
-    ]),
+    ])
   );
 
   const events: unknown[] = [];
-  for await (const e of streamAgent('ingest', {}, { fetchFn: mockFetch as any })) {
+  for await (const e of streamAgent(
+    'ingest',
+    {},
+    { fetchFn: mockFetch as any }
+  )) {
     events.push(e);
   }
 
-  expect(events).toContainEqual({ type: 'tool_end', tool: 'ingest_papers', isError: true });
+  expect(events).toContainEqual({
+    type: 'tool_end',
+    tool: 'ingest_papers',
+    isError: true,
+  });
 });
 
 test('yields confirmation event', async () => {
@@ -113,7 +136,7 @@ test('yields confirmation event', async () => {
         data: { thread_id: 'thread_1', confirmation: { action: 'ingest' } },
       },
       { event: 'done', data: {} },
-    ]),
+    ])
   );
 
   const events: unknown[] = [];
@@ -129,7 +152,9 @@ test('yields confirmation event', async () => {
 });
 
 test('yields error event on non-ok response', async () => {
-  const mockFetch = jest.fn().mockResolvedValue({ ok: false, status: 401, body: null });
+  const mockFetch = jest
+    .fn()
+    .mockResolvedValue({ ok: false, status: 401, body: null });
 
   const events: unknown[] = [];
   for await (const e of streamAgent('hi', {}, { fetchFn: mockFetch as any })) {
@@ -155,7 +180,7 @@ test('skips token events with empty content', async () => {
       { event: 'token', data: { content: '' } },
       { event: 'token', data: { content: 'real' } },
       { event: 'done', data: {} },
-    ]),
+    ])
   );
 
   const events: unknown[] = [];
@@ -163,7 +188,63 @@ test('skips token events with empty content', async () => {
     events.push(e);
   }
 
-  expect(events.filter((e) => (e as { type: string }).type === 'token')).toEqual([
-    { type: 'token', content: 'real' },
-  ]);
+  expect(
+    events.filter((e) => (e as { type: string }).type === 'token')
+  ).toEqual([{ type: 'token', content: 'real' }]);
+});
+
+test('persists thread_id from trace event on first turn', async () => {
+  mockedLoadConfig.mockReturnValue({ ...CONFIG, thread_id: null });
+
+  const mockFetch = jest.fn().mockResolvedValue(
+    sseResponse([
+      { event: 'trace', data: { thread_id: 'abc-123' } },
+      { event: 'token', data: { content: 'hi' } },
+      { event: 'done', data: {} },
+    ])
+  );
+
+  for await (const _ of streamAgent('hi', {}, { fetchFn: mockFetch as any })) {
+    // drain
+  }
+
+  expect(mockedSaveConfig).toHaveBeenCalledWith(
+    expect.objectContaining({ thread_id: 'abc-123' })
+  );
+});
+
+test('updates thread_id when backend returns a different one', async () => {
+  mockedLoadConfig.mockReturnValue({ ...CONFIG, thread_id: 'stale-id' });
+
+  const mockFetch = jest.fn().mockResolvedValue(
+    sseResponse([
+      { event: 'trace', data: { thread_id: 'fresh-id' } },
+      { event: 'done', data: {} },
+    ])
+  );
+
+  for await (const _ of streamAgent('hi', {}, { fetchFn: mockFetch as any })) {
+    // drain
+  }
+
+  expect(mockedSaveConfig).toHaveBeenCalledWith(
+    expect.objectContaining({ thread_id: 'fresh-id' })
+  );
+});
+
+test('skips save when trace thread_id matches cached thread_id', async () => {
+  mockedLoadConfig.mockReturnValue({ ...CONFIG, thread_id: 'same-id' });
+
+  const mockFetch = jest.fn().mockResolvedValue(
+    sseResponse([
+      { event: 'trace', data: { thread_id: 'same-id' } },
+      { event: 'done', data: {} },
+    ])
+  );
+
+  for await (const _ of streamAgent('hi', {}, { fetchFn: mockFetch as any })) {
+    // drain
+  }
+
+  expect(mockedSaveConfig).not.toHaveBeenCalled();
 });
