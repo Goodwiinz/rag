@@ -213,6 +213,34 @@ async def create_project_note(
 
 
 @tool
+async def list_projects(
+    status: Optional[str] = None,
+    tag: Optional[str] = None,
+    search: Optional[str] = None,
+    limit: int = 20,
+    config: RunnableConfig | None = None,
+) -> Dict[str, Any]:
+    """List the user's research projects.
+
+    Use when the user asks "what projects do I have", "list my projects",
+    or wants to discover existing projects before choosing one. Prefer this
+    over asking the user to provide a project_id.
+    """
+    config = config or {}
+    from src.api.agent.execute import _tool_list_projects
+
+    db, current_user, _page_ctx = _get_context(config)
+    args: Dict[str, Any] = {"limit": limit}
+    if status:
+        args["status"] = status
+    if tag:
+        args["tag"] = tag
+    if search:
+        args["search"] = search
+    return await _tool_list_projects(args, db, current_user)
+
+
+@tool
 async def list_project_documents(
     project_id: Optional[str] = None,
     config: RunnableConfig | None = None,
@@ -523,6 +551,7 @@ ALL_TOOLS = [
     ingest_arxiv_papers,
     search_documents,
     create_project,
+    list_projects,
     add_document_to_project,
     create_project_note,
     list_project_documents,

@@ -33,3 +33,6 @@ class AgentState(TypedDict):
     intent_confidence: float  # LLM classifier confidence 0-1
     last_error_info: dict     # {category, message, suggestion}
     user_id: str              # Owner user ID for HITL ownership verification
+    current_project_id: str   # UUID of the project the user is currently discussing
+                              # (extracted from URLs, inherited from page_context,
+                              # or carried forward across turns via checkpoint)
