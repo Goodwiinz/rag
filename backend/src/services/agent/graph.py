@@ -384,6 +384,70 @@ async def intent_classifier_node(state: AgentState, config: RunnableConfig) -> d
     return {"intent": result.intent, "intent_confidence": result.confidence}
 
 
+async def _classify_core(state: AgentState, config: RunnableConfig) -> dict:
+    """Extract intent classification logic for use inside preprocessing_node."""
+    from src.services.agent.classifier import classify_intent_with_fallback
+
+    last_user_msg = ""
+    for msg in reversed(state["messages"]):
+        if isinstance(msg, HumanMessage):
+            last_user_msg = msg.content
+            break
+
+    if not last_user_msg:
+        return {"intent": "general", "intent_confidence": 0.0}
+
+    previous_turn = ""
+    found_user = False
+    for msg in reversed(state["messages"]):
+        if isinstance(msg, HumanMessage):
+            if found_user:
+                break
+            found_user = True
+            continue
+        if found_user and isinstance(msg, AIMessage) and msg.content:
+            previous_turn = msg.content
+            break
+
+    page_context = config.get("configurable", {}).get("page_context", {})
+    result = await classify_intent_with_fallback(
+        query=last_user_msg,
+        page_context=page_context,
+        previous_turn=previous_turn,
+    )
+    logger.debug(
+        "Classified intent: %s (confidence=%.2f, source=%s)",
+        result.intent,
+        result.confidence,
+        result.source,
+    )
+    return {"intent": result.intent, "intent_confidence": result.confidence}
+
+
+@track_node_execution("preprocessing_node")
+async def preprocessing_node(state: AgentState, config: RunnableConfig) -> dict:
+    """Run RAG retrieval, intent classification, and memory retrieval in parallel."""
+    rag_task = asyncio.create_task(rag_node(state, config))
+    classify_task = asyncio.create_task(_classify_core(state, config))
+    memory_task = asyncio.create_task(memory_retrieval_node(state, config))
+
+    results = await asyncio.gather(rag_task, classify_task, memory_task, return_exceptions=True)
+
+    defaults = [
+        {"retrieved_contexts": []},
+        {"intent": "general", "intent_confidence": 0.0},
+        {"user_memories": []},
+    ]
+    merged: dict = {}
+    for result, default in zip(results, defaults):
+        if isinstance(result, Exception):
+            logger.warning("Preprocessing subtask failed: %s", result)
+            merged.update(default)
+        else:
+            merged.update(result)
+    return merged
+
+
 def route_by_intent(state: AgentState) -> str:
     """Route to the appropriate sub-graph based on classified intent."""
     intent = state.get("intent", "general")
@@ -936,7 +1000,7 @@ def build_agent_graph() -> StateGraph:
     """Build the uncompiled agent state graph.
 
     Flow:
-      START -> rag_node -> intent_classifier_node -> memory_retrieval_node
+      START -> preprocessing_node (RAG + classify + memory in parallel)
         -> [route_by_intent]
         -> research_subgraph | writing_subgraph | data_subgraph | general path
 
@@ -960,9 +1024,7 @@ def build_agent_graph() -> StateGraph:
 
     graph = StateGraph(AgentState)
 
-    graph.add_node("rag_node", rag_node, retry=_RETRY_POLICY)
-    graph.add_node("intent_classifier_node", intent_classifier_node)
-    graph.add_node("memory_retrieval_node", memory_retrieval_node)
+    graph.add_node("preprocessing_node", preprocessing_node)
     graph.add_node("planner_node", planner_node_fn)
     graph.add_node("llm_node", llm_node, retry=_RETRY_POLICY)
     graph.add_node("tool_node", tool_node)
@@ -976,13 +1038,11 @@ def build_agent_graph() -> StateGraph:
     graph.add_node("writing_subgraph", build_writing_subgraph().compile())
     graph.add_node("data_subgraph", build_data_subgraph().compile())
 
-    graph.set_entry_point("rag_node")
-    graph.add_edge("rag_node", "intent_classifier_node")
-    graph.add_edge("intent_classifier_node", "memory_retrieval_node")
+    graph.set_entry_point("preprocessing_node")
 
-    # Route by intent after memory retrieval
+    # Route by intent after parallel preprocessing
     graph.add_conditional_edges(
-        "memory_retrieval_node",
+        "preprocessing_node",
         route_by_intent,
         {
             "research_subgraph": "research_subgraph",

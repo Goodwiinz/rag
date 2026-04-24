@@ -278,11 +278,12 @@ async def classify_intent_with_fallback(
     page_context: Dict[str, Any],
     previous_turn: str = "",
 ) -> ClassificationResult:
-    """Classify intent with LLM-first, keyword-fallback strategy.
+    """Classify intent with keyword-first, LLM-escalation strategy.
 
-    1. Attempt LLM classification.
-    2. If confidence < 0.7, discard and use keyword classifier instead.
-    3. If the LLM call fails entirely, fall back to keyword classifier.
+    1. Run keyword classifier. If confidence >= 0.7, return immediately (no LLM).
+    2. For ambiguous queries, escalate to LLM for better accuracy.
+    3. If the LLM call fails or returns low confidence, fall back to the
+       keyword result.
 
     Args:
         query:          The user's current query.
@@ -292,6 +293,17 @@ async def classify_intent_with_fallback(
     Returns:
         ClassificationResult (never raises).
     """
+    keyword_result = classify_intent_keywords(query)
+
+    if keyword_result.confidence >= _LLM_CONFIDENCE_THRESHOLD:
+        logger.debug(
+            "Keyword classifier confident (%.2f) for intent '%s', skipping LLM",
+            keyword_result.confidence,
+            keyword_result.intent,
+        )
+        return keyword_result
+
+    # Ambiguous query — escalate to LLM for better accuracy
     try:
         llm_result = await classify_intent_llm(query, page_context, previous_turn)
 
@@ -299,11 +311,11 @@ async def classify_intent_with_fallback(
             return llm_result
 
         logger.info(
-            "LLM confidence %.2f < %.2f, falling back to keyword classifier",
+            "LLM confidence %.2f < %.2f for ambiguous query, using keyword result",
             llm_result.confidence,
             _LLM_CONFIDENCE_THRESHOLD,
         )
     except Exception as exc:
-        logger.warning("LLM classifier failed, falling back to keywords: %s", exc)
+        logger.warning("LLM classifier failed, using keyword result: %s", exc)
 
-    return classify_intent_keywords(query)
+    return keyword_result
