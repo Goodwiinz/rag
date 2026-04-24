@@ -402,7 +402,7 @@ def route_by_intent(state: AgentState) -> str:
 
 RESEARCH_TOOLS_NAMES = {
     "search_arxiv", "ingest_arxiv_papers", "search_documents",
-    "add_document_to_project", "list_project_documents",
+    "create_project", "add_document_to_project", "list_project_documents",
     "execute_code",
 }
 WRITING_TOOLS_NAMES = {
@@ -487,6 +487,8 @@ async def llm_node(state: AgentState, config: RunnableConfig) -> dict:
         "- **search_arxiv**: Search arXiv for academic papers.\n"
         "- **ingest_arxiv_papers**: Ingest arXiv papers into the RAG system.\n"
         "- **search_documents**: Search the user's indexed documents.\n"
+        "- **create_project**: Create a NEW research project (folder). Use when the user asks to "
+        "create, start, or set up a project/folder. Requires a name; optional description, research_goals, tags.\n"
         "- **add_document_to_project**: Add an ALREADY-INGESTED document to a project. "
         "The document MUST already exist in the system. document_id MUST be a UUID.\n"
         "- **create_project_note**: Create a markdown note in a project.\n"
@@ -577,6 +579,7 @@ async def llm_node(state: AgentState, config: RunnableConfig) -> dict:
 DESTRUCTIVE_TOOLS = {
     "ingest_arxiv_papers",
     "add_document_to_project",
+    "create_project",
     "create_project_note",
     "create_draft",
     "execute_code",

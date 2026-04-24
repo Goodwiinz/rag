@@ -129,6 +129,47 @@ AGENT_TOOLS = [
     {
         "type": "function",
         "function": {
+            "name": "create_project",
+            "description": (
+                "Create a new research project (folder) for organizing papers, "
+                "documents, and notes. Use when the user asks to create, start, "
+                "or set up a new project or research folder."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "Project name (1-255 chars)",
+                    },
+                    "description": {
+                        "type": "string",
+                        "description": "Optional project description",
+                    },
+                    "research_goals": {
+                        "type": "string",
+                        "description": "Optional statement of the project's objectives and goals",
+                    },
+                    "tags": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Optional categorization tags",
+                    },
+                    "workspace_id": {
+                        "type": "string",
+                        "description": (
+                            "Optional workspace UUID. If omitted, the user's "
+                            "first workspace is used."
+                        ),
+                    },
+                },
+                "required": ["name"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "create_project_note",
             "description": "Create a markdown note in a research project.",
             "parameters": {
@@ -459,6 +500,8 @@ async def execute_tool(
         return await _tool_search_documents(args, db, current_user)
     if tool_name == "add_document_to_project":
         return await _tool_add_document_to_project(args, db, current_user)
+    if tool_name == "create_project":
+        return await _tool_create_project(args, db, current_user)
     if tool_name == "create_project_note":
         return await _tool_create_project_note(args, db, current_user)
     if tool_name == "list_project_documents":
@@ -748,6 +791,73 @@ async def _tool_add_document_to_project(
     except Exception as e:
         logger.error("add_document_to_project tool failed", exc_info=e)
         return {"error": f"Failed to add document to project: {str(e)}"}
+
+
+async def _tool_create_project(
+    args: Dict[str, Any],
+    db: Optional[AsyncSession],
+    current_user: Optional[User],
+) -> Dict[str, Any]:
+    """Create a new research project.
+
+    If ``workspace_id`` is omitted, the user's first workspace is used.
+    """
+    if not current_user:
+        return {"error": "Authentication required"}
+
+    name = (args.get("name") or "").strip()
+    if not name:
+        return {"error": "name is required"}
+
+    from src.core.database import AsyncSessionLocal
+    from src.services.research.project_service import ProjectService
+    from src.shared.research_schemas import ProjectCreate
+
+    try:
+        async with AsyncSessionLocal() as fresh_db:
+            service = ProjectService(fresh_db)
+
+            workspace_id_raw = args.get("workspace_id")
+            if workspace_id_raw:
+                try:
+                    workspace_id = UUID(str(workspace_id_raw))
+                except ValueError:
+                    return {"error": "workspace_id must be a valid UUID"}
+            else:
+                workspace_ids = await service._get_workspace_ids_for_user(
+                    current_user.id
+                )
+                if not workspace_ids:
+                    return {
+                        "error": (
+                            "No workspace found for user. Create a workspace first."
+                        )
+                    }
+                workspace_id = workspace_ids[0]
+
+            payload = ProjectCreate(
+                workspace_id=workspace_id,
+                name=name,
+                description=args.get("description") or None,
+                research_goals=args.get("research_goals") or None,
+                tags=list(args.get("tags") or []),
+            )
+
+            project = await service.create_project(
+                user_id=current_user.id,
+                project_data=payload,
+            )
+
+            return {
+                "status": "success",
+                "project_id": str(project.id),
+                "name": project.name,
+                "workspace_id": str(project.workspace_id),
+                "message": f"Created project '{project.name}'.",
+            }
+    except Exception as e:
+        logger.error("create_project tool failed", exc_info=e)
+        return {"error": f"Failed to create project: {str(e)}"}
 
 
 async def _tool_create_project_note(
