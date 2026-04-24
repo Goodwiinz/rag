@@ -747,7 +747,7 @@ async def tool_node(state: AgentState, config: RunnableConfig) -> dict:
     tool_messages: List[ToolMessage] = []
     any_success = False
     for i, r in enumerate(results):
-        if isinstance(r, Exception):
+        if isinstance(r, BaseException):
             logger.error("Parallel tool execution error: %s", r)
             error_count += 1
             last_error = str(r)
@@ -834,6 +834,7 @@ def make_filtered_tool_node(allowed_tool_names: set[str]):
         tool_executions = list(state.get("tool_executions", []))
         error_count = state.get("error_count", 0)
         last_error = state.get("last_error", "")
+        last_error_info: dict = {}
         page_context = state.get("page_context", {})
 
         tasks = [
@@ -843,7 +844,7 @@ def make_filtered_tool_node(allowed_tool_names: set[str]):
 
         tool_messages = list(skipped_messages)
         for i, r in enumerate(results):
-            if isinstance(r, Exception):
+            if isinstance(r, BaseException):
                 logger.error("Parallel tool execution error: %s", r)
                 error_count += 1
                 last_error = str(r)
@@ -860,6 +861,8 @@ def make_filtered_tool_node(allowed_tool_names: set[str]):
             error_count += r["error_increment"]
             if r["error_text"]:
                 last_error = r["error_text"]
+            if r.get("error_info"):
+                last_error_info = r["error_info"]
 
         # Prune to last 20 entries to prevent unbounded growth
         tool_executions = tool_executions[-20:]
@@ -869,6 +872,7 @@ def make_filtered_tool_node(allowed_tool_names: set[str]):
             "tool_executions": tool_executions,
             "error_count": error_count,
             "last_error": last_error,
+            "last_error_info": last_error_info,
             "tool_loop_count": state.get("tool_loop_count", 0) + 1,
         }
 
