@@ -41,6 +41,7 @@ from .tools_impl import (  # noqa: F401
     _tool_ingest_arxiv,
     _tool_search_documents,
     _tool_add_document_to_project,
+    _tool_create_project,
     _tool_create_project_note,
     _tool_list_project_documents,
     _tool_summarize_document,
@@ -180,6 +181,7 @@ You have access to the following tools:
 - **search_arxiv**: Search arXiv for academic papers. Use when the user asks to find research papers or scientific articles.
 - **ingest_arxiv_papers**: Ingest arXiv papers into the RAG system. Use when the user wants to add/import specific arXiv papers by ID.
 - **search_documents**: Search the user's indexed documents by title or content. Use when the user wants to find documents they have already uploaded.
+- **create_project**: Create a new research project (folder). Use when the user asks to create, start, or set up a new project, folder, or research workspace.
 - **add_document_to_project**: Add an existing document to a research project. Use when the user wants to organize a document into a project.
 - **create_project_note**: Create a markdown note in a research project. Use when the user wants to write or save notes, observations, or summaries.
 - **list_project_documents**: List all documents in a research project. Use when the user wants to see what documents are in a project.

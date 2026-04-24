@@ -156,6 +156,35 @@ async def add_document_to_project(
 
 
 @tool
+async def create_project(
+    name: str,
+    description: Optional[str] = None,
+    research_goals: Optional[str] = None,
+    tags: Optional[List[str]] = None,
+    workspace_id: Optional[str] = None,
+    config: RunnableConfig | None = None,
+) -> Dict[str, Any]:
+    """Create a new research project (folder) for organizing papers, documents, and notes.
+
+    If *workspace_id* is omitted, the user's first workspace is used.
+    """
+    config = config or {}
+    from src.api.agent.execute import _tool_create_project
+
+    db, current_user, _ = _get_context(config)
+    args: Dict[str, Any] = {"name": name}
+    if description:
+        args["description"] = description
+    if research_goals:
+        args["research_goals"] = research_goals
+    if tags:
+        args["tags"] = tags
+    if workspace_id:
+        args["workspace_id"] = workspace_id
+    return await _tool_create_project(args, db, current_user)
+
+
+@tool
 async def create_project_note(
     title: str,
     content: str,
@@ -493,6 +522,7 @@ ALL_TOOLS = [
     search_arxiv,
     ingest_arxiv_papers,
     search_documents,
+    create_project,
     add_document_to_project,
     create_project_note,
     list_project_documents,
