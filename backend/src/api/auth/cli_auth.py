@@ -7,15 +7,37 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel
 
+import logging
+
+import redis as redis_lib
+
 from src.core.config import settings
 from src.core.dependencies import get_current_user
 from src.core.security import auth_rate_limiter
-from src.services.auth.cli_auth_sessions import InMemoryCLIAuthSessionStore
+from src.services.auth.cli_auth_sessions import (
+    InMemoryCLIAuthSessionStore,
+    RedisCLIAuthSessionStore,
+)
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/cli-auth", tags=["cli-auth"])
 
 _POLL_INTERVAL_SECONDS = 2
-_session_store = InMemoryCLIAuthSessionStore()
+
+# Prefer Redis-backed store so sessions survive across Gunicorn workers.
+# Falls back to in-memory if Redis is unavailable (e.g. local dev without Redis).
+def _build_session_store() -> RedisCLIAuthSessionStore | InMemoryCLIAuthSessionStore:
+    try:
+        r: redis_lib.Redis = redis_lib.from_url(settings.REDIS_URL, socket_connect_timeout=2)  # type: ignore[type-arg]
+        r.ping()
+        logger.info("cli-auth: using Redis session store")
+        return RedisCLIAuthSessionStore(r)
+    except Exception as exc:
+        logger.warning("cli-auth: Redis unavailable (%s), falling back to in-memory store", exc)
+        return InMemoryCLIAuthSessionStore()
+
+_session_store = _build_session_store()
 
 
 class CLIAuthApproveRequest(BaseModel):
@@ -23,7 +45,7 @@ class CLIAuthApproveRequest(BaseModel):
     verification_code: str
 
 
-def get_cli_auth_session_store() -> InMemoryCLIAuthSessionStore:
+def get_cli_auth_session_store() -> RedisCLIAuthSessionStore | InMemoryCLIAuthSessionStore:
     return _session_store
 
 
