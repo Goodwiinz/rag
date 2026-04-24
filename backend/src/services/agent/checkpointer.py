@@ -61,8 +61,9 @@ async def get_checkpointer():
             await _checkpointer.setup()
             logger.info("LangGraph checkpointer initialised (PostgreSQL)")
         except Exception as e:
-            logger.warning(
-                "Failed to initialise Postgres checkpointer, falling back to MemorySaver: %s",
+            logger.error(
+                "Postgres checkpointer UNAVAILABLE — falling back to MemorySaver. "
+                "HITL state will not survive restarts. Cause: %s",
                 e,
             )
             from langgraph.checkpoint.memory import MemorySaver

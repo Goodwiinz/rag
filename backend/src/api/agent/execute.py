@@ -239,7 +239,7 @@ async def execute_agent(
     _set_job(job_id, {"status": "running", "tool_executions": [], "user_id": str(current_user.id), "request": request.model_dump()})
 
     background_tasks.add_task(
-        _run_agent_graph, job_id, request, current_user, db,
+        _run_agent_graph, job_id, request, current_user,
     )
     return JobStartResponse(job_id=job_id)
 
@@ -277,7 +277,7 @@ async def confirm_agent_action(
 
     # Resume the graph with the user's decision
     background_tasks.add_task(
-        _resume_agent_graph, job_id, request.confirmed, current_user, db,
+        _resume_agent_graph, job_id, request.confirmed, current_user,
     )
     return {"status": "running", "job_id": job_id}
 

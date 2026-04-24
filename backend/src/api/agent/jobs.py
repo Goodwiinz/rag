@@ -6,6 +6,7 @@ Manages the async job lifecycle for agent execution:
 - Graph resume after human-in-the-loop confirmation via _resume_agent_graph
 """
 
+import asyncio
 import logging
 import time
 import uuid as _uuid
@@ -16,6 +17,7 @@ from typing import Any, Dict, List, Optional
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.core.database import AsyncSessionLocal
 from src.models.user import User
 
 logger = logging.getLogger(__name__)
@@ -145,10 +147,18 @@ async def _persist_thread_messages(
     thread_id = request.thread_id or ""
     conversation_id = ""
 
-    # Resolve or create thread
+    # Resolve or create thread — validate ownership to prevent cross-user injection
     thread: Optional[Thread] = None
     if request.thread_id:
-        thread = await db.get(Thread, UUID(request.thread_id))
+        stmt = (
+            select(Thread)
+            .join(Conversation, Thread.conversation_id == Conversation.id)
+            .join(Workspace, Conversation.workspace_id == Workspace.id)
+            .where(Thread.id == UUID(request.thread_id))
+            .where(Workspace.owner_id == current_user.id)
+        )
+        result = await db.execute(stmt)
+        thread = result.scalar_one_or_none()
 
     if thread is None:
         # Need a workspace + conversation for the thread
@@ -246,7 +256,6 @@ async def _run_agent_graph(
     job_id: str,
     request: Any,  # AgentExecuteRequest
     current_user: User,
-    db: AsyncSession,
 ):
     """Run the LangGraph agent graph in the background and update job status."""
     from langgraph.errors import GraphInterrupt
@@ -261,136 +270,126 @@ async def _run_agent_graph(
     AgentMessage = schemas["AgentMessage"]
     RetrievedContextResponse = schemas["RetrievedContextResponse"]
 
-    try:
-        # Configure LangSmith tracing if available
+    async with AsyncSessionLocal() as db:
         try:
-            from src.services.agent.observability import configure_langsmith
+            # Configure LangSmith tracing if available
+            try:
+                from src.services.agent.observability import configure_langsmith
 
-            configure_langsmith()
-        except Exception:
-            pass
+                configure_langsmith()
+            except Exception:
+                pass
 
-        checkpointer = await get_checkpointer()
-        graph = compile_agent_graph(checkpointer=checkpointer)
+            checkpointer = await get_checkpointer()
+            graph = compile_agent_graph(checkpointer=checkpointer)
 
-        messages = [
-            HumanMessage(content=m.content)
-            for m in request.messages
-            if m.role == "user"
-        ]
+            messages = [
+                HumanMessage(content=m.content)
+                for m in request.messages
+                if m.role == "user"
+            ]
 
-        initial_state = {
-            "messages": messages,
-            "page_context": _page_context_to_dict(request.page_context),
-            "retrieved_contexts": [],
-            "tool_executions": [],
-            "thread_id": request.thread_id or "",
-            "tool_loop_count": 0,
-            "error_count": 0,
-            "last_error": "",
-            "pending_confirmation": {},
-            "user_confirmed": False,
-            "intent": "",
-            "user_memories": [],
-            "plan": [],
-            "reflection_count": 0,
-            "compaction_count": 0,
-            "intent_confidence": 0.0,
-            "last_error_info": {},
-            "user_id": str(current_user.id),
-        }
-
-        config = {
-            "configurable": {
-                "thread_id": request.thread_id or job_id,
-                "db": db,
-                "current_user": current_user,
+            initial_state = {
+                "messages": messages,
                 "page_context": _page_context_to_dict(request.page_context),
-            }
-        }
-
-        try:
-            final_state = await graph.ainvoke(initial_state, config=config)
-        except GraphInterrupt as exc:
-            interrupts = getattr(exc, "interrupts", [])
-            confirmation_details = {}
-            if interrupts:
-                confirmation_details = getattr(interrupts[0], "value", {})
-            _set_job(job_id, {
-                "status": "awaiting_confirmation",
-                "confirmation": confirmation_details,
+                "retrieved_contexts": [],
                 "tool_executions": [],
+                "thread_id": request.thread_id or "",
+                "tool_loop_count": 0,
+                "error_count": 0,
+                "last_error": "",
+                "pending_confirmation": {},
+                "user_confirmed": False,
+                "intent": "",
+                "user_memories": [],
+                "plan": [],
+                "reflection_count": 0,
+                "compaction_count": 0,
+                "intent_confidence": 0.0,
+                "last_error_info": {},
                 "user_id": str(current_user.id),
-                "request": request.model_dump(),
-            })
-            return
+            }
 
-        # Extract assistant content from the last AI message
-        assistant_content = ""
-        for msg in reversed(final_state["messages"]):
-            if hasattr(msg, "type") and msg.type == "ai" and msg.content:
-                assistant_content = msg.content
-                break
+            config = {
+                "configurable": {
+                    "thread_id": request.thread_id or job_id,
+                    "db": db,
+                    "current_user": current_user,
+                    "page_context": _page_context_to_dict(request.page_context),
+                }
+            }
 
-        # Persist thread & messages
-        thread_id, conversation_id = "", ""
-        try:
-            tool_executions_out = [
-                ToolExecutionResponse(**te)
-                for te in final_state.get("tool_executions", [])
-            ] or None
-            thread_id, conversation_id = await _persist_thread_messages(
-                db, current_user, request, assistant_content, tool_executions_out,
+            try:
+                async with asyncio.timeout(360):
+                    final_state = await graph.ainvoke(initial_state, config=config)
+            except GraphInterrupt as exc:
+                interrupts = getattr(exc, "interrupts", [])
+                confirmation_details = {}
+                if interrupts:
+                    confirmation_details = getattr(interrupts[0], "value", {})
+                _set_job(job_id, {
+                    "status": "awaiting_confirmation",
+                    "confirmation": confirmation_details,
+                    "tool_executions": [],
+                    "user_id": str(current_user.id),
+                    "request": request.model_dump(),
+                })
+                return
+
+            # Extract assistant content from the last AI message
+            assistant_content = ""
+            for msg in reversed(final_state["messages"]):
+                if hasattr(msg, "type") and msg.type == "ai" and msg.content:
+                    assistant_content = msg.content
+                    break
+
+            # Persist thread & messages — session managed by AsyncSessionLocal context
+            thread_id, conversation_id = "", ""
+            try:
+                tool_executions_out = [
+                    ToolExecutionResponse(**te)
+                    for te in final_state.get("tool_executions", [])
+                ] or None
+                thread_id, conversation_id = await _persist_thread_messages(
+                    db, current_user, request, assistant_content, tool_executions_out,
+                )
+            except Exception as e:
+                logger.warning("Failed to persist thread", exc_info=e)
+
+            # Build response
+            result = AgentExecuteResponse(
+                message=AgentMessage(role="assistant", content=assistant_content),
+                model="gpt-4o",
+                usage={},
+                finish_reason="stop",
+                timestamp=datetime.now(timezone.utc).isoformat(),
+                rag_enabled=request.use_rag,
+                retrieved_contexts=[
+                    RetrievedContextResponse(**rc)
+                    for rc in final_state.get("retrieved_contexts", [])
+                ] or None,
+                tool_executions=[
+                    ToolExecutionResponse(**te)
+                    for te in final_state.get("tool_executions", [])
+                ] or None,
+                thread_id=thread_id,
+                conversation_id=conversation_id,
             )
+
+            _set_job(job_id, {
+                "status": "completed",
+                "result": result.model_dump(),
+                "tool_executions": list(final_state.get("tool_executions", [])),
+            })
         except Exception as e:
-            logger.warning("Failed to persist thread", exc_info=e)
-            # Only rollback the thread persistence, not tool side-effects
-            try:
-                await db.rollback()
-            except Exception:
-                pass
-            try:
-                await db.begin()
-            except Exception:
-                pass
-
-        # Build response
-        result = AgentExecuteResponse(
-            message=AgentMessage(role="assistant", content=assistant_content),
-            model="gpt-4o",
-            usage={},
-            finish_reason="stop",
-            timestamp=datetime.now(timezone.utc).isoformat(),
-            rag_enabled=request.use_rag,
-            retrieved_contexts=[
-                RetrievedContextResponse(**rc)
-                for rc in final_state.get("retrieved_contexts", [])
-            ] or None,
-            tool_executions=[
-                ToolExecutionResponse(**te)
-                for te in final_state.get("tool_executions", [])
-            ] or None,
-            thread_id=thread_id,
-            conversation_id=conversation_id,
-        )
-
-        _set_job(job_id, {
-            "status": "completed",
-            "result": result.model_dump(),
-            "tool_executions": [
-                te for te in final_state.get("tool_executions", [])
-            ],
-        })
-    except Exception as e:
-        logger.error("Agent graph execution failed", exc_info=e)
-        _set_job(job_id, {"status": "failed", "error": str(e)})
+            logger.error("Agent graph execution failed", exc_info=e)
+            _set_job(job_id, {"status": "failed", "error": str(e)})
 
 
 async def _resume_agent_graph(
     job_id: str,
     confirmed: bool,
     current_user: User,
-    db: AsyncSession,
 ):
     """Resume the agent graph after human confirmation."""
     from langgraph.types import Command
@@ -404,95 +403,97 @@ async def _resume_agent_graph(
     AgentExecuteResponse = schemas["AgentExecuteResponse"]
     AgentMessage = schemas["AgentMessage"]
 
-    try:
-        checkpointer = await get_checkpointer()
-        graph = compile_agent_graph(checkpointer=checkpointer)
-        job = _get_job(job_id)
-        original_request = None
-        if job and job.get("request"):
-            original_request = AgentExecuteRequest(**job["request"])
-
-        resume_thread_id = (
-            original_request.thread_id
-            if original_request and original_request.thread_id
-            else job_id
-        )
-
-        config = {
-            "configurable": {
-                "thread_id": resume_thread_id,
-                "db": db,
-                "current_user": current_user,
-                "page_context": (
-                    _page_context_to_dict(original_request.page_context)
-                    if original_request
-                    else {}
-                ),
-            }
-        }
-
-        # Verify thread ownership before resuming
-        snapshot = await graph.aget_state(config)
-        if snapshot and snapshot.values:
-            snapshot_user_id = snapshot.values.get("user_id", "")
-            if snapshot_user_id and snapshot_user_id != str(current_user.id):
-                logger.warning(
-                    "HITL ownership mismatch: job %s thread owned by %s, requested by %s",
-                    job_id,
-                    snapshot_user_id,
-                    current_user.id,
-                )
-                _set_job(job_id, {
-                    "status": "error",
-                    "error": "Thread not found",
-                })
-                return
-
-        final_state = await graph.ainvoke(
-            Command(resume={"confirmed": confirmed}),
-            config=config,
-        )
-
-        # Extract assistant content
-        assistant_content = ""
-        for msg in reversed(final_state["messages"]):
-            if hasattr(msg, "type") and msg.type == "ai" and msg.content:
-                assistant_content = msg.content
-                break
-
-        # Persist thread messages
-        thread_id, conversation_id = "", ""
+    async with AsyncSessionLocal() as db:
         try:
-            if original_request:
-                tool_executions_out = [
+            checkpointer = await get_checkpointer()
+            graph = compile_agent_graph(checkpointer=checkpointer)
+            job = _get_job(job_id)
+            original_request = None
+            if job and job.get("request"):
+                original_request = AgentExecuteRequest(**job["request"])
+
+            resume_thread_id = (
+                original_request.thread_id
+                if original_request and original_request.thread_id
+                else job_id
+            )
+
+            config = {
+                "configurable": {
+                    "thread_id": resume_thread_id,
+                    "db": db,
+                    "current_user": current_user,
+                    "page_context": (
+                        _page_context_to_dict(original_request.page_context)
+                        if original_request
+                        else {}
+                    ),
+                }
+            }
+
+            # Verify thread ownership before resuming
+            snapshot = await graph.aget_state(config)
+            if snapshot and snapshot.values:
+                snapshot_user_id = snapshot.values.get("user_id", "")
+                if snapshot_user_id and snapshot_user_id != str(current_user.id):
+                    logger.warning(
+                        "HITL ownership mismatch: job %s thread owned by %s, requested by %s",
+                        job_id,
+                        snapshot_user_id,
+                        current_user.id,
+                    )
+                    _set_job(job_id, {
+                        "status": "error",
+                        "error": "Thread not found",
+                    })
+                    return
+
+            async with asyncio.timeout(360):
+                final_state = await graph.ainvoke(
+                    Command(resume={"confirmed": confirmed}),
+                    config=config,
+                )
+
+            # Extract assistant content
+            assistant_content = ""
+            for msg in reversed(final_state["messages"]):
+                if hasattr(msg, "type") and msg.type == "ai" and msg.content:
+                    assistant_content = msg.content
+                    break
+
+            # Persist thread messages — session managed by AsyncSessionLocal context
+            thread_id, conversation_id = "", ""
+            try:
+                if original_request:
+                    tool_executions_out = [
+                        ToolExecutionResponse(**te)
+                        for te in final_state.get("tool_executions", [])
+                    ] or None
+                    thread_id, conversation_id = await _persist_thread_messages(
+                        db, current_user, original_request, assistant_content, tool_executions_out,
+                    )
+            except Exception as e:
+                logger.warning("Failed to persist confirmation thread messages", exc_info=e)
+
+            result = AgentExecuteResponse(
+                message=AgentMessage(role="assistant", content=assistant_content),
+                model="gpt-4o",
+                usage={},
+                finish_reason="stop",
+                timestamp=datetime.now(timezone.utc).isoformat(),
+                tool_executions=[
                     ToolExecutionResponse(**te)
                     for te in final_state.get("tool_executions", [])
-                ] or None
-                thread_id, conversation_id = await _persist_thread_messages(
-                    db, current_user, original_request, assistant_content, tool_executions_out,
-                )
+                ] or None,
+                thread_id=thread_id,
+                conversation_id=conversation_id,
+            )
+
+            _set_job(job_id, {
+                "status": "completed",
+                "result": result.model_dump(),
+                "tool_executions": list(final_state.get("tool_executions", [])),
+            })
         except Exception as e:
-            logger.warning("Failed to persist confirmation thread messages", exc_info=e)
-
-        result = AgentExecuteResponse(
-            message=AgentMessage(role="assistant", content=assistant_content),
-            model="gpt-4o",
-            usage={},
-            finish_reason="stop",
-            timestamp=datetime.now(timezone.utc).isoformat(),
-            tool_executions=[
-                ToolExecutionResponse(**te)
-                for te in final_state.get("tool_executions", [])
-            ] or None,
-            thread_id=thread_id,
-            conversation_id=conversation_id,
-        )
-
-        _set_job(job_id, {
-            "status": "completed",
-            "result": result.model_dump(),
-            "tool_executions": final_state.get("tool_executions", []),
-        })
-    except Exception as e:
-        logger.error("Agent graph resume failed", exc_info=e)
-        _set_job(job_id, {"status": "failed", "error": str(e)})
+            logger.error("Agent graph resume failed", exc_info=e)
+            _set_job(job_id, {"status": "failed", "error": str(e)})
