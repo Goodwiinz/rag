@@ -194,6 +194,18 @@ def make_planner_node(
         if not query:
             return {}
 
+        # Fast heuristic: skip complexity LLM call for obviously simple queries
+        words = query.split()
+        if len(words) < 8:
+            return {}
+        conversational_starts = {
+            "hi", "hello", "hey", "thanks", "thank", "ok", "okay",
+            "yes", "no", "sure", "what", "who", "when", "where",
+            "why", "is", "are", "can", "could", "would", "will",
+        }
+        if words[0].lower().rstrip("?!,") in conversational_starts and len(words) < 15:
+            return {}
+
         page_context = state.get("page_context", {})
 
         # 2. Check complexity
