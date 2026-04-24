@@ -105,12 +105,16 @@ async function streamToTerminal(
     } else if (event.type === 'tool_end') {
       const s = spinners.get(event.tool);
       if (s) {
-        s.stop(event.isError ? `✗ ${event.tool}` : `✓ ${event.tool}`);
+        if (event.isError) {
+          s.error(event.tool);
+        } else {
+          s.stop(event.tool);
+        }
         spinners.delete(event.tool);
       }
     } else if (event.type === 'confirmation') {
       for (const [tool, s] of spinners) {
-        s.stop(`⏸ ${tool} (awaiting confirmation)`);
+        s.cancel(`${tool} (paused — awaiting confirmation)`);
       }
       spinners.clear();
       process.stdout.write('\n');
