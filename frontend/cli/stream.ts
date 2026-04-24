@@ -16,7 +16,7 @@ export interface StreamOptions {
 
 async function* _parseSseBody(
   body: ReadableStream<Uint8Array>,
-  onTrace?: (threadId: string) => void,
+  onTrace?: (threadId: string) => void
 ): AsyncGenerator<StreamEvent> {
   const reader = body.getReader();
   const decoder = new TextDecoder();
@@ -104,7 +104,9 @@ export async function* streamAgent(
 
   yield* _parseSseBody(res.body, (threadId) => {
     const cfg = loadConfig();
-    if (cfg && !cfg.thread_id) saveConfig({ ...cfg, thread_id: threadId });
+    if (cfg && cfg.thread_id !== threadId) {
+      saveConfig({ ...cfg, thread_id: threadId });
+    }
   });
 }
 
