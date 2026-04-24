@@ -14,34 +14,11 @@ export interface StreamOptions {
   signal?: AbortSignal;
 }
 
-export async function* streamAgent(
-  message: string,
-  pageContext: Record<string, unknown> = {},
-  options: StreamOptions = {}
+async function* _parseSseBody(
+  body: ReadableStream<Uint8Array>,
+  onTrace?: (threadId: string) => void,
 ): AsyncGenerator<StreamEvent> {
-  const config = loadConfig();
-  if (!config) throw new Error('Not logged in');
-
-  const { fetchFn = fetch, signal } = options;
-  const headers = getCliAuthHeaders();
-
-  const res = await fetchFn(`${getApiBase()}/agent/stream`, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({
-      messages: [{ role: 'user', content: message }],
-      page_context: pageContext,
-      thread_id: config.thread_id ?? undefined,
-    }),
-    signal,
-  });
-
-  if (!res.ok || !res.body) {
-    yield { type: 'error', message: `Stream failed: ${res.status}` };
-    return;
-  }
-
-  const reader = res.body.getReader();
+  const reader = body.getReader();
   const decoder = new TextDecoder();
   let buffer = '';
   let eventType = '';
@@ -79,9 +56,7 @@ export async function* streamAgent(
                 details: data.confirmation ?? {},
               };
             } else if (eventType === 'trace' && data.thread_id) {
-              const cfg = loadConfig();
-              if (cfg && !cfg.thread_id)
-                saveConfig({ ...cfg, thread_id: data.thread_id });
+              onTrace?.(data.thread_id);
             } else if (eventType === 'done') {
               yield { type: 'done' };
               return;
@@ -98,4 +73,63 @@ export async function* streamAgent(
   } finally {
     reader.releaseLock();
   }
+}
+
+export async function* streamAgent(
+  message: string,
+  pageContext: Record<string, unknown> = {},
+  options: StreamOptions = {}
+): AsyncGenerator<StreamEvent> {
+  const config = loadConfig();
+  if (!config) throw new Error('Not logged in');
+
+  const { fetchFn = fetch, signal } = options;
+  const headers = getCliAuthHeaders();
+
+  const res = await fetchFn(`${getApiBase()}/agent/stream`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      messages: [{ role: 'user', content: message }],
+      page_context: pageContext,
+      thread_id: config.thread_id ?? undefined,
+    }),
+    signal,
+  });
+
+  if (!res.ok || !res.body) {
+    yield { type: 'error', message: `Stream failed: ${res.status}` };
+    return;
+  }
+
+  yield* _parseSseBody(res.body, (threadId) => {
+    const cfg = loadConfig();
+    if (cfg && !cfg.thread_id) saveConfig({ ...cfg, thread_id: threadId });
+  });
+}
+
+export async function* streamConfirm(
+  threadId: string,
+  confirmed: boolean,
+  options: StreamOptions = {}
+): AsyncGenerator<StreamEvent> {
+  const config = loadConfig();
+  if (!config) throw new Error('Not logged in');
+
+  const { fetchFn = fetch, signal } = options;
+  const headers = getCliAuthHeaders();
+
+  const res = await fetchFn(`${getApiBase()}/agent/stream/confirm`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ thread_id: threadId, confirmed }),
+    signal,
+  });
+
+  if (!res.ok || !res.body) {
+    yield { type: 'error', message: `Confirm failed: ${res.status}` };
+    return;
+  }
+
+  yield* _parseSseBody(res.body);
 }

@@ -479,3 +479,160 @@ class TestCreateProject:
 
         assert "error" in result
         assert "workspace" in result["error"].lower()
+
+
+class TestListProjects:
+    """Tests for _tool_list_projects (user-facing project discovery)."""
+
+    async def test_missing_user_returns_error(self):
+        from src.api.agent.execute import _tool_list_projects
+
+        result = await _tool_list_projects({}, None, None)
+        assert "error" in result
+        assert "Authentication" in result["error"]
+
+    async def test_success_returns_compact_payload(self):
+        """The tool should call ProjectService.list_projects and flatten the result."""
+        from datetime import datetime, timezone
+
+        from src.api.agent.execute import _tool_list_projects
+
+        user = _mock_user()
+        project_a = _mock_project(name="Alpha")
+        project_a.description = "first"
+        project_a.research_status = "active"
+        project_a.tags = ["ml"]
+        project_a.updated_at = datetime(2026, 4, 24, tzinfo=timezone.utc)
+        project_b = _mock_project(name="Beta")
+        project_b.description = None
+        project_b.research_status = "archived"
+        project_b.tags = []
+        project_b.updated_at = None
+
+        service = MagicMock()
+        service.list_projects = AsyncMock(
+            return_value={
+                "projects": [project_a, project_b],
+                "total": 2,
+                "page": 1,
+                "size": 20,
+                "has_next": False,
+                "has_prev": False,
+            }
+        )
+
+        fresh_db = MockAsyncSession()
+
+        with (
+            patch(
+                "src.core.database.AsyncSessionLocal",
+                return_value=fresh_db,
+            ),
+            patch(
+                "src.services.research.project_service.ProjectService",
+                return_value=service,
+            ),
+        ):
+            result = await _tool_list_projects(
+                {"status": "active", "tag": "ml", "search": "Alp", "limit": 5},
+                None,
+                user,
+            )
+
+        service.list_projects.assert_awaited_once()
+        call_kwargs = service.list_projects.await_args.kwargs
+        assert call_kwargs["user_id"] == user.id
+        assert call_kwargs["project_status"] == "active"
+        assert call_kwargs["tag"] == "ml"
+        assert call_kwargs["search"] == "Alp"
+        assert call_kwargs["limit"] == 5
+
+        assert result["total"] == 2
+        assert result["returned"] == 2
+        assert [p["name"] for p in result["projects"]] == ["Alpha", "Beta"]
+        assert result["projects"][0]["id"] == str(project_a.id)
+        assert result["projects"][0]["tags"] == ["ml"]
+        assert result["projects"][0]["updated_at"] == "2026-04-24T00:00:00+00:00"
+        assert result["projects"][1]["updated_at"] is None
+
+    async def test_limit_is_clamped(self):
+        """limit must be coerced into the [1, 50] range."""
+        from src.api.agent.execute import _tool_list_projects
+
+        user = _mock_user()
+        service = MagicMock()
+        service.list_projects = AsyncMock(
+            return_value={"projects": [], "total": 0}
+        )
+
+        with (
+            patch(
+                "src.core.database.AsyncSessionLocal",
+                return_value=MockAsyncSession(),
+            ),
+            patch(
+                "src.services.research.project_service.ProjectService",
+                return_value=service,
+            ),
+        ):
+            await _tool_list_projects({"limit": 9999}, None, user)
+            assert service.list_projects.await_args.kwargs["limit"] == 50
+
+            service.list_projects.reset_mock()
+            await _tool_list_projects({"limit": -3}, None, user)
+            assert service.list_projects.await_args.kwargs["limit"] == 1
+
+            service.list_projects.reset_mock()
+            await _tool_list_projects({"limit": "not-a-number"}, None, user)
+            assert service.list_projects.await_args.kwargs["limit"] == 20
+
+
+class TestExtractProjectIdFromText:
+    """Tests for _extract_project_id_from_text used in rag_node."""
+
+    async def test_project_url_returns_uuid(self):
+        from src.services.agent.graph import _extract_project_id_from_text
+
+        text = "look at https://dev-app.gen-text.app/projects/fd68b324-5a89-47a4-a8ff-38d29f4fa496"
+        assert (
+            _extract_project_id_from_text(text)
+            == "fd68b324-5a89-47a4-a8ff-38d29f4fa496"
+        )
+
+    async def test_bare_uuid_returns_uuid(self):
+        from src.services.agent.graph import _extract_project_id_from_text
+
+        text = "use project fd68b324-5a89-47a4-a8ff-38d29f4fa496 please"
+        assert (
+            _extract_project_id_from_text(text)
+            == "fd68b324-5a89-47a4-a8ff-38d29f4fa496"
+        )
+
+    async def test_uppercase_is_normalised(self):
+        from src.services.agent.graph import _extract_project_id_from_text
+
+        text = "/projects/FD68B324-5A89-47A4-A8FF-38D29F4FA496"
+        assert (
+            _extract_project_id_from_text(text)
+            == "fd68b324-5a89-47a4-a8ff-38d29f4fa496"
+        )
+
+    async def test_no_uuid_returns_none(self):
+        from src.services.agent.graph import _extract_project_id_from_text
+
+        assert _extract_project_id_from_text("nothing to see here") is None
+        assert _extract_project_id_from_text("") is None
+
+    async def test_prefers_project_url_over_bare_uuid(self):
+        """When both a /projects/<uuid> URL and an unrelated UUID appear,
+        the URL-scoped UUID wins."""
+        from src.services.agent.graph import _extract_project_id_from_text
+
+        text = (
+            "doc 11111111-1111-1111-1111-111111111111 "
+            "and /projects/22222222-2222-2222-2222-222222222222"
+        )
+        assert (
+            _extract_project_id_from_text(text)
+            == "22222222-2222-2222-2222-222222222222"
+        )

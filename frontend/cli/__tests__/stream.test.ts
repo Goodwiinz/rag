@@ -163,7 +163,7 @@ test('skips token events with empty content', async () => {
     events.push(e);
   }
 
-  expect(events.filter((e) => e.type === 'token')).toEqual([
+  expect(events.filter((e) => (e as { type: string }).type === 'token')).toEqual([
     { type: 'token', content: 'real' },
   ]);
 });

@@ -1,7 +1,7 @@
 import * as p from '@clack/prompts';
 import { loadConfig, saveConfig } from './auth/store';
 import { parseSlashCommand } from './hooks/useSlashCommands';
-import { streamAgent } from './stream';
+import { streamAgent, streamConfirm } from './stream';
 
 interface ActiveProject {
   id: string;
@@ -95,41 +95,56 @@ async function streamToTerminal(
 
   process.stdout.write('\n');
 
-  for await (const event of streamAgent(message, pageContext, { signal })) {
-    if (event.type === 'token') {
-      process.stdout.write(event.content);
-    } else if (event.type === 'tool_start') {
-      const s = p.spinner();
-      s.start(event.tool);
-      spinners.set(event.tool, s);
-    } else if (event.type === 'tool_end') {
-      const s = spinners.get(event.tool);
-      if (s) {
-        if (event.isError) {
-          s.error(event.tool);
-        } else {
-          s.stop(event.tool);
+  type EventStream = AsyncGenerator<import('./stream').StreamEvent>;
+  let current: EventStream = streamAgent(message, pageContext, { signal });
+
+  while (true) {
+    let pendingConfirmThreadId: string | null = null;
+
+    for await (const event of current) {
+      if (event.type === 'token') {
+        process.stdout.write(event.content);
+      } else if (event.type === 'tool_start') {
+        const s = p.spinner();
+        s.start(event.tool);
+        spinners.set(event.tool, s);
+      } else if (event.type === 'tool_end') {
+        const s = spinners.get(event.tool);
+        if (s) {
+          if (event.isError) {
+            s.error(event.tool);
+          } else {
+            s.stop(event.tool);
+          }
+          spinners.delete(event.tool);
         }
-        spinners.delete(event.tool);
-      }
-    } else if (event.type === 'confirmation') {
-      for (const [tool, s] of spinners) {
-        s.cancel(`${tool} (paused — awaiting confirmation)`);
-      }
-      spinners.clear();
-      process.stdout.write('\n');
-      const ok = await p.confirm({ message: 'Agent wants to proceed. Allow?' });
-      if (p.isCancel(ok) || !ok) {
-        p.log.warn('Cancelled.');
+      } else if (event.type === 'confirmation') {
+        for (const [tool, s] of spinners) {
+          s.cancel(`${tool} (paused — awaiting confirmation)`);
+        }
+        spinners.clear();
+        process.stdout.write('\n');
+        const ok = await p.confirm({ message: 'Agent wants to proceed. Allow?' });
+        if (p.isCancel(ok) || !ok) {
+          p.log.warn('Cancelled.');
+          return;
+        }
+        p.log.info('Resuming agent…');
+        pendingConfirmThreadId = event.threadId;
+        break;
+      } else if (event.type === 'done') {
+        process.stdout.write('\n\n');
+        return;
+      } else if (event.type === 'error') {
+        process.stdout.write('\n');
+        p.log.error(event.message);
         return;
       }
-      p.log.info('Resuming agent…');
-    } else if (event.type === 'done') {
-      process.stdout.write('\n\n');
-    } else if (event.type === 'error') {
-      process.stdout.write('\n');
-      p.log.error(event.message);
     }
+
+    if (pendingConfirmThreadId === null) break;
+
+    current = streamConfirm(pendingConfirmThreadId, true, { signal });
   }
 }
 

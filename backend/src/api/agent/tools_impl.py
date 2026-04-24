@@ -200,6 +200,41 @@ AGENT_TOOLS = [
     {
         "type": "function",
         "function": {
+            "name": "list_projects",
+            "description": (
+                "List the user's research projects. Use when the user asks "
+                "'what projects do I have', 'list my projects', or otherwise "
+                "wants to discover existing projects before choosing one. "
+                "Prefer this over asking the user to provide a project_id."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "status": {
+                        "type": "string",
+                        "description": "Optional filter by research status (e.g., 'active', 'archived')",
+                    },
+                    "tag": {
+                        "type": "string",
+                        "description": "Optional tag to filter by",
+                    },
+                    "search": {
+                        "type": "string",
+                        "description": "Optional substring match against project name",
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Maximum number of projects to return (1-50, default 20)",
+                        "default": 20,
+                    },
+                },
+                "required": [],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "list_project_documents",
             "description": "List all documents in a research project.",
             "parameters": {
@@ -504,6 +539,8 @@ async def execute_tool(
         return await _tool_create_project(args, db, current_user)
     if tool_name == "create_project_note":
         return await _tool_create_project_note(args, db, current_user)
+    if tool_name == "list_projects":
+        return await _tool_list_projects(args, db, current_user)
     if tool_name == "list_project_documents":
         return await _tool_list_project_documents(args, db, current_user)
     if tool_name == "summarize_document":
@@ -959,6 +996,70 @@ async def _tool_list_project_documents(
     except Exception as e:
         logger.error("list_project_documents tool failed", exc_info=e)
         return {"error": f"Failed to list project documents: {str(e)}"}
+
+
+async def _tool_list_projects(
+    args: Dict[str, Any],
+    db: Optional[AsyncSession],
+    current_user: Optional[User],
+) -> Dict[str, Any]:
+    """List research projects owned by the current user.
+
+    Thin wrapper around :meth:`ProjectService.list_projects` that returns a
+    compact payload suitable for LLM context. Uses a fresh DB session to
+    avoid conflicts with the shared graph session.
+    """
+    if not current_user:
+        return {"error": "Authentication required"}
+
+    raw_limit = args.get("limit", 20)
+    try:
+        limit = max(1, min(int(raw_limit), 50))
+    except (TypeError, ValueError):
+        limit = 20
+
+    status = (args.get("status") or "").strip() or None
+    tag = (args.get("tag") or "").strip() or None
+    search = (args.get("search") or "").strip() or None
+
+    from src.core.database import AsyncSessionLocal
+    from src.services.research.project_service import ProjectService
+
+    try:
+        async with AsyncSessionLocal() as fresh_db:
+            service = ProjectService(fresh_db)
+            result = await service.list_projects(
+                user_id=current_user.id,
+                project_status=status,
+                tag=tag,
+                search=search,
+                skip=0,
+                limit=limit,
+            )
+
+            projects = result.get("projects", [])
+            return {
+                "projects": [
+                    {
+                        "id": str(p.id),
+                        "name": p.name,
+                        "description": getattr(p, "description", None),
+                        "status": getattr(p, "research_status", None),
+                        "tags": list(getattr(p, "tags", []) or []),
+                        "updated_at": (
+                            p.updated_at.isoformat()
+                            if getattr(p, "updated_at", None)
+                            else None
+                        ),
+                    }
+                    for p in projects
+                ],
+                "total": result.get("total", len(projects)),
+                "returned": len(projects),
+            }
+    except Exception as e:
+        logger.error("list_projects tool failed", exc_info=e)
+        return {"error": f"Failed to list projects: {str(e)}"}
 
 
 async def _tool_summarize_document(
