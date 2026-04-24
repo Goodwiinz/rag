@@ -368,3 +368,114 @@ class TestExecuteToolDispatch:
 
         mock_handler.assert_awaited_once()
         assert result["status"] == "success"
+
+    async def test_create_project_dispatches_correctly(self):
+        """execute_tool should route create_project to its handler."""
+        from src.api.agent.execute import execute_tool
+
+        with patch(
+            "src.api.agent.tools_impl._tool_create_project",
+            new_callable=AsyncMock,
+            return_value={"status": "success", "project_id": "p1"},
+        ) as mock_handler:
+            result = await execute_tool(
+                tool_name="create_project",
+                args={"name": "Diffusion Transformers"},
+                user_id="user-1",
+                db=AsyncMock(),
+                current_user=_mock_user(),
+            )
+
+        mock_handler.assert_awaited_once()
+        assert result["status"] == "success"
+
+
+class TestCreateProject:
+    """Tests for _tool_create_project."""
+
+    async def test_missing_user_returns_error(self):
+        from src.api.agent.execute import _tool_create_project
+
+        result = await _tool_create_project(
+            {"name": "Diffusion Transformers"}, None, None
+        )
+        assert "error" in result
+        assert "Authentication" in result["error"]
+
+    async def test_missing_name_returns_error(self):
+        from src.api.agent.execute import _tool_create_project
+
+        result = await _tool_create_project({"name": "  "}, None, _mock_user())
+        assert "error" in result
+        assert "name is required" in result["error"]
+
+    async def test_invalid_workspace_id_returns_error(self):
+        from src.api.agent.execute import _tool_create_project
+
+        result = await _tool_create_project(
+            {"name": "X", "workspace_id": "not-a-uuid"},
+            None,
+            _mock_user(),
+        )
+        assert "error" in result
+        assert "UUID" in result["error"]
+
+    async def test_success_uses_first_workspace_when_omitted(self):
+        """When workspace_id is omitted, the user's first workspace is used."""
+        from src.api.agent.execute import _tool_create_project
+
+        user = _mock_user()
+        workspace_id = uuid4()
+        project = _mock_project(name="Diffusion Transformers")
+        project.workspace_id = workspace_id
+
+        service = MagicMock()
+        service._get_workspace_ids_for_user = AsyncMock(return_value=[workspace_id])
+        service.create_project = AsyncMock(return_value=project)
+
+        fresh_db = MockAsyncSession()
+
+        with (
+            patch(
+                "src.core.database.AsyncSessionLocal",
+                return_value=fresh_db,
+            ),
+            patch(
+                "src.services.research.project_service.ProjectService",
+                return_value=service,
+            ),
+        ):
+            result = await _tool_create_project(
+                {"name": "Diffusion Transformers", "tags": ["ml"]}, None, user
+            )
+
+        assert result["status"] == "success"
+        assert result["project_id"] == str(project.id)
+        assert result["workspace_id"] == str(workspace_id)
+        service._get_workspace_ids_for_user.assert_awaited_once_with(user.id)
+        service.create_project.assert_awaited_once()
+
+    async def test_success_no_workspace_returns_error(self):
+        """If the user has no workspace, the tool returns a clear error."""
+        from src.api.agent.execute import _tool_create_project
+
+        user = _mock_user()
+        service = MagicMock()
+        service._get_workspace_ids_for_user = AsyncMock(return_value=[])
+
+        fresh_db = MockAsyncSession()
+
+        with (
+            patch(
+                "src.core.database.AsyncSessionLocal",
+                return_value=fresh_db,
+            ),
+            patch(
+                "src.services.research.project_service.ProjectService",
+                return_value=service,
+            ),
+        ):
+            result = await _tool_create_project({"name": "X"}, None, user)
+
+        assert "error" in result
+        assert "workspace" in result["error"].lower()

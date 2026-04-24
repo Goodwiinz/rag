@@ -2,7 +2,7 @@
 
 Specialized for paper discovery, search, and ingestion tasks.
 Tools: search_arxiv, ingest_arxiv_papers, search_documents,
-       add_document_to_project, list_project_documents
+       create_project, add_document_to_project, list_project_documents
 """
 
 import logging
@@ -18,6 +18,7 @@ from src.services.agent.reflection import make_reflection_gate
 from src.services.agent.state import AgentState
 from src.services.agent.tools import (
     add_document_to_project,
+    create_project,
     ingest_arxiv_papers,
     list_project_documents,
     search_arxiv,
@@ -30,6 +31,7 @@ RESEARCH_TOOLS = [
     search_arxiv,
     ingest_arxiv_papers,
     search_documents,
+    create_project,
     add_document_to_project,
     list_project_documents,
 ]
@@ -43,6 +45,8 @@ RESEARCH_SYSTEM_PROMPT = (
     "- search_arxiv: Find papers on arXiv\n"
     "- ingest_arxiv_papers: Import papers into the RAG system\n"
     "- search_documents: Search indexed documents\n"
+    "- create_project: Create a new research project (folder). Requires a name; "
+    "description/research_goals/tags are optional\n"
     "- add_document_to_project: Organize documents into projects\n"
     "- list_project_documents: View project contents\n\n"
     "CRITICAL: After ingesting papers, use the document_ids (UUIDs) from the "
@@ -85,7 +89,7 @@ def _sanitize_messages(raw: list) -> list:
     return merged
 
 
-RESEARCH_DESTRUCTIVE_TOOLS = {"ingest_arxiv_papers", "add_document_to_project"}
+RESEARCH_DESTRUCTIVE_TOOLS = {"ingest_arxiv_papers", "add_document_to_project", "create_project"}
 
 
 async def research_llm_node(state: AgentState, config: RunnableConfig) -> dict:
