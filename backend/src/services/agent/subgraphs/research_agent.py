@@ -7,12 +7,13 @@ Tools: search_arxiv, ingest_arxiv_papers, search_documents,
 
 import logging
 
-from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
+from langchain_core.messages import AIMessage, SystemMessage
 from langchain_core.runnables import RunnableConfig
 from langgraph.graph import END, StateGraph
 from langgraph.types import interrupt
 
 from src.services.agent.compactor import make_compactor_node
+from src.services.agent.graph import _sanitize_messages
 from src.services.agent.planner import make_planner_node
 from src.services.agent.reflection import make_reflection_gate
 from src.services.agent.state import AgentState
@@ -68,39 +69,6 @@ RESEARCH_SYSTEM_PROMPT = (
     "Be thorough in searching and systematic in organizing research."
 )
 
-
-def _sanitize_messages(raw: list) -> list:
-    """Ensure the message list is valid for LLM APIs.
-
-    - Adds placeholder ToolMessages for AIMessages whose tool_calls are unanswered.
-    - Merges consecutive HumanMessages into one so the LLM doesn't reject them.
-    """
-    # Pass 1: fill missing ToolMessages
-    filled: list = []
-    for i, msg in enumerate(raw):
-        filled.append(msg)
-        if isinstance(msg, AIMessage) and getattr(msg, "tool_calls", None):
-            expected = {tc["id"] for tc in msg.tool_calls}
-            answered: set = set()
-            for future in raw[i + 1:]:
-                if isinstance(future, ToolMessage):
-                    answered.add(future.tool_call_id)
-                elif isinstance(future, (AIMessage, HumanMessage)):
-                    break
-            for tc in msg.tool_calls:
-                if tc["id"] not in answered:
-                    filled.append(ToolMessage(content='{"status": "skipped"}', tool_call_id=tc["id"]))
-
-    # Pass 2: merge consecutive HumanMessages
-    merged: list = []
-    for msg in filled:
-        if merged and isinstance(merged[-1], HumanMessage) and isinstance(msg, HumanMessage):
-            combined = f"{merged[-1].content}\n{msg.content}"
-            merged[-1] = HumanMessage(content=combined)
-        else:
-            merged.append(msg)
-
-    return merged
 
 
 RESEARCH_DESTRUCTIVE_TOOLS = {"ingest_arxiv_papers", "add_document_to_project", "create_project"}

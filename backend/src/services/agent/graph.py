@@ -39,6 +39,39 @@ def _extract_project_id_from_text(text: str) -> Optional[str]:
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 from langchain_core.runnables import RunnableConfig
 from langgraph.graph import END, StateGraph
+
+
+def _sanitize_messages(raw: list) -> list:
+    """Ensure the message list is valid for LLM APIs.
+
+    - Adds placeholder ToolMessages for AIMessages whose tool_calls are unanswered.
+    - Merges consecutive HumanMessages into one.
+    """
+    filled: list = []
+    for i, msg in enumerate(raw):
+        filled.append(msg)
+        if isinstance(msg, AIMessage) and getattr(msg, "tool_calls", None):
+            answered: set = set()
+            for future in raw[i + 1 :]:
+                if isinstance(future, ToolMessage):
+                    answered.add(future.tool_call_id)
+                elif isinstance(future, (AIMessage, HumanMessage)):
+                    break
+            for tc in msg.tool_calls:
+                if tc["id"] not in answered:
+                    filled.append(
+                        ToolMessage(content='{"status": "skipped"}', tool_call_id=tc["id"])
+                    )
+
+    merged: list = []
+    for msg in filled:
+        if merged and isinstance(merged[-1], HumanMessage) and isinstance(msg, HumanMessage):
+            merged[-1] = HumanMessage(content=f"{merged[-1].content}\n{msg.content}")
+        else:
+            merged.append(msg)
+    return merged
+
+
 from langgraph.types import RetryPolicy, interrupt, Command
 
 from src.core.config import get_settings
@@ -745,32 +778,7 @@ async def llm_node(state: AgentState, config: RunnableConfig) -> dict:
         )
         system_text += f"\n\nRetrieved context:\n{context_text}"
 
-    # Build messages list: system + conversation messages
-    # Sanitize: ensure every AIMessage with tool_calls has matching ToolMessages
-    raw_messages = list(state["messages"])
-    sanitized: list = []
-    for i, msg in enumerate(raw_messages):
-        sanitized.append(msg)
-        if isinstance(msg, AIMessage) and getattr(msg, "tool_calls", None):
-            # Collect tool_call IDs from this message
-            expected_ids = {tc["id"] for tc in msg.tool_calls}
-            # Look ahead for matching ToolMessages already in the list
-            answered_ids: set = set()
-            for future_msg in raw_messages[i + 1:]:
-                if isinstance(future_msg, ToolMessage):
-                    answered_ids.add(future_msg.tool_call_id)
-                elif isinstance(future_msg, (AIMessage, HumanMessage)):
-                    break
-            # Add placeholder ToolMessages for any unanswered tool_calls
-            for tc in msg.tool_calls:
-                if tc["id"] not in answered_ids:
-                    sanitized.append(
-                        ToolMessage(
-                            content='{"status": "skipped"}',
-                            tool_call_id=tc["id"],
-                        )
-                    )
-
+    sanitized = _sanitize_messages(list(state["messages"]))
     messages = [SystemMessage(content=system_text)] + sanitized
 
     # Bind intent-specific tool subset
