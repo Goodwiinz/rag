@@ -104,3 +104,33 @@ def test_cognitiveservices_with_openai_v1_suffix_uses_openai_client(
 
     mock_openai.assert_called_once()
     mock_azure_openai.assert_not_called()
+
+
+@patch("src.services.infrastructure.azure_openai_service.OpenAI")
+@patch("src.services.infrastructure.azure_openai_service.AzureOpenAI")
+def test_model_router_endpoint_uses_openai_compatible_client(
+    mock_azure_openai,
+    mock_openai,
+    monkeypatch,
+):
+    """The Foundry `model-router` deployment lives at
+    `goodwiinzapix.cognitiveservices.azure.com/openai/v1/` (note the trailing
+    slash). It must route through the OpenAI-compatible client with
+    `base_url=` set to the full v1 URL — the deployment name is passed as the
+    `model=` parameter at call time, not in the URL.
+    """
+    _set_azure_settings(
+        monkeypatch,
+        AZURE_OPENAI_CHAT_ENDPOINT="https://goodwiinzapix.cognitiveservices.azure.com/openai/v1/",
+        AZURE_OPENAI_CHAT_API_KEY="router-key",
+        AZURE_OPENAI_CHAT_DEPLOYMENT_NAME="model-router",
+        AZURE_OPENAI_CHAT_API_VERSION="2024-12-01-preview",
+    )
+
+    AzureOpenAIService()
+
+    mock_openai.assert_called_once_with(
+        api_key="router-key",
+        base_url="https://goodwiinzapix.cognitiveservices.azure.com/openai/v1/",
+    )
+    mock_azure_openai.assert_not_called()
