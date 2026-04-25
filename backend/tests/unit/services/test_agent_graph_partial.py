@@ -106,6 +106,39 @@ class TestIndividualNodes:
         )
         assert result["intent"] == "writing"
 
+    async def test_llm_node_system_prompt_contains_context_rules(self):
+        """llm_node's system prompt must include the project-reuse and honesty rules.
+
+        Regression test: prevents the prompt from being trimmed or rephrased away from
+        the rules that prevent duplicate-project creation, lost-project context, and
+        hallucinated tool completions.
+        """
+        from src.services.agent.graph import llm_node
+
+        captured: dict = {"messages": None}
+
+        async def fake_ainvoke(messages, config=None):
+            captured["messages"] = messages
+            return AIMessage(content="ok")
+
+        fake_with_tools = MagicMock()
+        fake_with_tools.ainvoke = fake_ainvoke
+        fake_llm = MagicMock()
+        fake_llm.bind_tools.return_value = fake_with_tools
+
+        with patch("src.services.agent.graph._build_llm", return_value=fake_llm):
+            await llm_node(_make_initial_state("hi"), _make_config())
+
+        system_text = captured["messages"][0].content
+        # Project reuse rule
+        assert "Reusing project IDs from conversation history" in system_text
+        assert "REUSE its project_id" in system_text
+        # Honesty rule
+        assert "Honest tool-call reporting" in system_text
+        assert "Never invent troubleshooting steps" in system_text
+        # Retry rule (PR #394 — also part of this prompt; guard against accidental removal)
+        assert "Handling retry follow-ups" in system_text
+
     async def test_rag_node_without_user(self):
         """rag_node should return empty contexts when no current_user."""
         from src.services.agent.graph import rag_node
