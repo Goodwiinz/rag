@@ -163,7 +163,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          git pull --rebase origin develop
+          git pull --rebase --autostash origin develop
 
           git add infrastructure/helm/knowledge-graph-analytics/values-staging.yaml
 
