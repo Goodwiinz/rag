@@ -534,6 +534,62 @@ class TestHumanInTheLoopFlow:
         snapshot = await graph.aget_state(config)
         assert not snapshot.next, "Graph should have completed (no next nodes)"
 
+    async def test_confirmed_research_interrupt_resumes_tool_execution(self):
+        """Research subgraph should execute destructive tools after confirmation."""
+        from langgraph.types import Command
+        from src.services.agent.subgraphs.research_agent import build_research_subgraph
+
+        checkpointer = MemorySaver()
+        graph = build_research_subgraph().compile(checkpointer=checkpointer)
+        thread_id = str(uuid4())
+        config = _make_config(thread_id)
+
+        ai_msg = AIMessage(
+            content="I'll ingest that paper.",
+            tool_calls=[
+                {
+                    "id": "tc1",
+                    "name": "ingest_arxiv_papers",
+                    "args": {"paper_ids": ["2401.12345"]},
+                }
+            ],
+        )
+        state = _make_initial_state("ingest paper 2401.12345")
+        state["messages"].append(ai_msg)
+        state["intent"] = "research"
+
+        graph.update_state(config, values=state, as_node="research_llm_node")
+
+        result = await graph.ainvoke(None, config=config)
+        assert "__interrupt__" in result, "Research graph should pause with an interrupt"
+
+        with patch(
+            "src.api.agent.execute.execute_tool",
+            new_callable=AsyncMock,
+            return_value={"status": "success", "document_ids": ["doc-uuid-1"]},
+        ) as mock_execute_tool:
+            with patch("src.services.agent.graph._build_llm") as mock_build:
+                mock_llm = MagicMock()
+                mock_response = AIMessage(content="Paper ingested successfully.")
+                mock_llm.bind_tools.return_value.ainvoke = AsyncMock(
+                    return_value=mock_response
+                )
+                mock_build.return_value = mock_llm
+
+                result = await graph.ainvoke(
+                    Command(resume={"confirmed": True}),
+                    config=config,
+                )
+
+        mock_execute_tool.assert_awaited_once()
+        assert result is not None
+        assert "__interrupt__" not in result
+        assert any(
+            te.get("tool_name") == "ingest_arxiv_papers"
+            and te.get("status") == "completed"
+            for te in result.get("tool_executions", [])
+        )
+
     async def test_denied_interrupt_skips_tool(self):
         """Denying the interrupt should skip tool execution."""
         from langgraph.types import Command
