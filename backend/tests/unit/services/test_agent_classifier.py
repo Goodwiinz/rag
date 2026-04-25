@@ -315,3 +315,144 @@ class TestFallbackClassifier:
         assert result.intent == "general"
         # Could be keyword or fallback source
         assert result.source in ("keyword", "fallback")
+
+
+# ---------------------------------------------------------------------------
+# Prior tool context (retry-routing fix)
+# ---------------------------------------------------------------------------
+
+
+class TestPriorToolContext:
+    """Tests for the prior_tool parameter that helps classify retry phrases."""
+
+    def test_format_prior_tool_returns_none_when_missing(self):
+        from src.services.agent.classifier import _format_prior_tool
+
+        assert _format_prior_tool(None) == "None"
+        assert _format_prior_tool({}) == "None"
+
+    def test_format_prior_tool_includes_name_args_result(self):
+        from src.services.agent.classifier import _format_prior_tool
+
+        text = _format_prior_tool(
+            {
+                "name": "ingest_arxiv_papers",
+                "args": {"arxiv_id": "2310.11522"},
+                "result": '{"status": "skipped"}',
+            }
+        )
+        assert "ingest_arxiv_papers" in text
+        assert "2310.11522" in text
+        assert "skipped" in text
+
+    def test_format_prior_tool_truncates_large_payloads(self):
+        from src.services.agent.classifier import _format_prior_tool
+
+        big_result = "x" * 1000
+        text = _format_prior_tool({"name": "t", "args": {}, "result": big_result})
+        # 200-char truncation per field; full block stays under ~600 chars
+        assert len(text) < 600
+
+    async def test_keyword_classifier_unchanged_for_retry_phrase(self):
+        """Sanity: 'try again' still has 0.0 keyword confidence (forces LLM escalation)."""
+        from src.services.agent.classifier import classify_intent_keywords
+
+        result = classify_intent_keywords("try again")
+        assert result.confidence == 0.0
+        assert result.source == "keyword"
+
+    async def test_llm_classifier_includes_prior_tool_in_prompt(self):
+        """When prior_tool is supplied, the LLM system message should describe it."""
+        from src.services.agent.classifier import classify_intent_llm
+
+        mock_classification = _make_llm_classification(
+            intent="research", confidence=0.85, reasoning="retry"
+        )
+        captured: list = []
+
+        async def capture_ainvoke(messages, **kwargs):
+            captured.extend(messages)
+            return mock_classification
+
+        with patch(
+            "src.services.agent.classifier._build_classifier_llm"
+        ) as mock_build:
+            mock_llm = MagicMock()
+            mock_chain = MagicMock()
+            mock_chain.ainvoke = capture_ainvoke
+            mock_llm.with_structured_output.return_value = mock_chain
+            mock_build.return_value = mock_llm
+
+            await classify_intent_llm(
+                "try again",
+                {"type": "unknown"},
+                previous_turn="The ingest was skipped.",
+                prior_tool={
+                    "name": "ingest_arxiv_papers",
+                    "args": {"arxiv_id": "2310.11522"},
+                    "result": '{"status": "skipped"}',
+                },
+            )
+
+        system_content = captured[0].content
+        assert "ingest_arxiv_papers" in system_content
+        assert "2310.11522" in system_content
+
+    async def test_fallback_propagates_prior_tool_to_llm(self):
+        """When keyword confidence is low, prior_tool should reach the LLM call."""
+        from src.services.agent.classifier import (
+            ClassificationResult,
+            classify_intent_with_fallback,
+        )
+
+        llm_result = ClassificationResult(
+            intent="research",
+            confidence=0.85,
+            reasoning="retry of prior ingest",
+            source="llm",
+        )
+
+        with patch(
+            "src.services.agent.classifier.classify_intent_llm",
+            new_callable=AsyncMock,
+            return_value=llm_result,
+        ) as mock_llm:
+            await classify_intent_with_fallback(
+                "try again",
+                {"type": "unknown"},
+                previous_turn="The ingest was skipped.",
+                prior_tool={
+                    "name": "ingest_arxiv_papers",
+                    "args": {"arxiv_id": "2310.11522"},
+                    "result": '{"status": "skipped"}',
+                },
+            )
+
+        # Verify prior_tool was passed through (4th positional or kwarg)
+        call_args = mock_llm.call_args
+        passed_prior = (
+            call_args.kwargs.get("prior_tool")
+            if call_args.kwargs
+            else (call_args.args[3] if len(call_args.args) > 3 else None)
+        )
+        assert passed_prior is not None
+        assert passed_prior["name"] == "ingest_arxiv_papers"
+
+    async def test_fallback_omits_prior_tool_when_keyword_confident(self):
+        """High-confidence keyword match short-circuits before reaching the LLM."""
+        from src.services.agent.classifier import classify_intent_with_fallback
+
+        with patch(
+            "src.services.agent.classifier.classify_intent_llm",
+            new_callable=AsyncMock,
+        ) as mock_llm:
+            result = await classify_intent_with_fallback(
+                "search for arxiv papers on attention",
+                {"type": "unknown"},
+                prior_tool={"name": "ingest_arxiv_papers", "args": {}, "result": ""},
+            )
+
+        # LLM should not be called at all when keyword confidence >= 0.7
+        mock_llm.assert_not_called()
+        assert result.source == "keyword"
+        assert result.intent == "research"
