@@ -4,6 +4,7 @@ Knowledge Graph API endpoints
 
 import logging
 from typing import Any, Dict, List, Optional
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import JSONResponse
@@ -13,6 +14,7 @@ from pydantic import BaseModel, Field
 from src.core.circuit_breaker import ServiceUnavailableError as CircuitBreakerError
 from src.core.database import get_db_sync
 from src.core.dependencies import get_current_user
+from src.models.collection import CollectionDocument
 from src.models.document import Document
 from src.models.graph import (
     BatchEntityRequest,
@@ -59,6 +61,31 @@ def _get_org_document_ids(db, organization_id) -> List[str]:
         .filter(Document.organization_id == organization_id)
         .all()
     ]
+
+
+def _get_project_document_ids(db, organization_id, project_id: UUID) -> List[str]:
+    """Get document IDs in a specific project, intersected with org scope."""
+    return [
+        str(doc_id)
+        for (doc_id,) in db.query(CollectionDocument.document_id)
+        .join(Document, Document.id == CollectionDocument.document_id)
+        .filter(
+            CollectionDocument.collection_id == project_id,
+            Document.organization_id == organization_id,
+        )
+        .all()
+    ]
+
+
+def _scope_doc_ids(db, organization_id, project_id: Optional[UUID]) -> List[str]:
+    """Return the set of document IDs that bound a knowledge-graph query.
+
+    Without `project_id`, scopes to the user's organization. With `project_id`,
+    further narrows to documents attached to that project (still org-bound).
+    """
+    if project_id is None:
+        return _get_org_document_ids(db, organization_id)
+    return _get_project_document_ids(db, organization_id, project_id)
 
 
 def _is_neo4j_unavailable_error(error: Exception) -> bool:
@@ -195,21 +222,28 @@ async def get_all_entities(
     connected_only: bool = Query(
         default=False, description="Only return entities that have relationships"
     ),
+    project_id: Optional[UUID] = Query(
+        None, description="Scope to documents attached to a project (collection)"
+    ),
     current_user: User = Depends(get_current_user),
     db=Depends(get_db_sync),
 ):
     """Get all entities with pagination and optional filtering"""
     try:
-        org_doc_ids = _get_org_document_ids(db, current_user.organization_id)
+        scope_doc_ids = _scope_doc_ids(db, current_user.organization_id, project_id)
+        if project_id is not None and not scope_doc_ids:
+            return PaginatedEntitiesResponse(
+                entities=[], total=0, limit=limit, offset=offset, has_more=False
+            )
 
         entities = knowledge_graph_service.get_all_entities(
             limit, offset, entity_types,
-            source_document_ids=org_doc_ids,
+            source_document_ids=scope_doc_ids,
             connected_only=connected_only,
         )
         total = knowledge_graph_service.count_entities(
             entity_types,
-            source_document_ids=org_doc_ids,
+            source_document_ids=scope_doc_ids,
             connected_only=connected_only,
         )
         return PaginatedEntitiesResponse(
@@ -233,14 +267,19 @@ async def search_entities(
         None, description="Filter by entity types"
     ),
     limit: int = Query(default=50, ge=1, le=200, description="Maximum results"),
+    project_id: Optional[UUID] = Query(
+        None, description="Scope to documents attached to a project (collection)"
+    ),
     current_user: User = Depends(get_current_user),
     db=Depends(get_db_sync),
 ):
     """Search for entities by name or properties"""
     try:
-        org_doc_ids = _get_org_document_ids(db, current_user.organization_id)
+        scope_doc_ids = _scope_doc_ids(db, current_user.organization_id, project_id)
+        if project_id is not None and not scope_doc_ids:
+            return []
         entities = knowledge_graph_service.search_entities(
-            query, entity_types, limit, source_document_ids=org_doc_ids
+            query, entity_types, limit, source_document_ids=scope_doc_ids
         )
         return entities
     except Exception as e:
@@ -333,14 +372,19 @@ async def get_all_relationships(
     relationship_types: Optional[List[RelationshipType]] = Query(
         None, description="Filter by relationship types"
     ),
+    project_id: Optional[UUID] = Query(
+        None, description="Scope to documents attached to a project (collection)"
+    ),
     current_user: User = Depends(get_current_user),
     db=Depends(get_db_sync),
 ):
     """Get all relationships with pagination and optional filtering"""
     try:
-        org_doc_ids = _get_org_document_ids(db, current_user.organization_id)
+        scope_doc_ids = _scope_doc_ids(db, current_user.organization_id, project_id)
+        if project_id is not None and not scope_doc_ids:
+            return []
         relationships = knowledge_graph_service.get_all_relationships(
-            limit, offset, relationship_types, source_document_ids=org_doc_ids
+            limit, offset, relationship_types, source_document_ids=scope_doc_ids
         )
         return relationships
     except Exception as e:
@@ -831,14 +875,19 @@ async def get_document_entities(
 # Analytics and Statistics Endpoints
 @router.get("/analytics", response_model=GraphAnalytics)
 async def get_graph_analytics(
+    project_id: Optional[UUID] = Query(
+        None, description="Scope to documents attached to a project (collection)"
+    ),
     current_user: User = Depends(get_current_user),
     db=Depends(get_db_sync),
 ):
     """Get comprehensive graph analytics"""
     try:
-        org_doc_ids = _get_org_document_ids(db, current_user.organization_id)
+        scope_doc_ids = _scope_doc_ids(db, current_user.organization_id, project_id)
+        if project_id is not None and not scope_doc_ids:
+            return GraphAnalytics()
         analytics = knowledge_graph_service.get_graph_analytics(
-            source_document_ids=org_doc_ids
+            source_document_ids=scope_doc_ids
         )
         return analytics
     except Exception as e:
