@@ -6,12 +6,22 @@ export type StreamEvent =
   | { type: 'tool_start'; tool: string }
   | { type: 'tool_end'; tool: string; isError: boolean }
   | { type: 'confirmation'; threadId: string; details: Record<string, unknown> }
+  | { type: 'plan'; steps: string[]; reasoning: string }
+  | { type: 'reflection'; passed: boolean; issues: string[]; round: number }
+  | { type: 'rag_context'; contexts: Array<Record<string, unknown>> }
   | { type: 'done' }
   | { type: 'error'; message: string };
 
 export interface StreamOptions {
   fetchFn?: typeof fetch;
   signal?: AbortSignal;
+}
+
+function persistThreadId(threadId: string): void {
+  const cfg = loadConfig();
+  if (cfg && cfg.thread_id !== threadId) {
+    saveConfig({ ...cfg, thread_id: threadId });
+  }
 }
 
 async function* _parseSseBody(
@@ -54,6 +64,24 @@ async function* _parseSseBody(
                 type: 'confirmation',
                 threadId: data.thread_id,
                 details: data.confirmation ?? {},
+              };
+            } else if (eventType === 'plan') {
+              yield {
+                type: 'plan',
+                steps: Array.isArray(data.steps) ? data.steps : [],
+                reasoning: typeof data.reasoning === 'string' ? data.reasoning : '',
+              };
+            } else if (eventType === 'reflection') {
+              yield {
+                type: 'reflection',
+                passed: data.passed ?? true,
+                issues: Array.isArray(data.issues) ? data.issues : [],
+                round: typeof data.round === 'number' ? data.round : 0,
+              };
+            } else if (eventType === 'rag_context') {
+              yield {
+                type: 'rag_context',
+                contexts: Array.isArray(data.contexts) ? data.contexts : [],
               };
             } else if (eventType === 'trace' && data.thread_id) {
               onTrace?.(data.thread_id);
@@ -102,12 +130,7 @@ export async function* streamAgent(
     return;
   }
 
-  yield* _parseSseBody(res.body, (threadId) => {
-    const cfg = loadConfig();
-    if (cfg && cfg.thread_id !== threadId) {
-      saveConfig({ ...cfg, thread_id: threadId });
-    }
-  });
+  yield* _parseSseBody(res.body, persistThreadId);
 }
 
 export async function* streamConfirm(
@@ -133,5 +156,5 @@ export async function* streamConfirm(
     return;
   }
 
-  yield* _parseSseBody(res.body);
+  yield* _parseSseBody(res.body, persistThreadId);
 }

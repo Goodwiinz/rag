@@ -117,6 +117,26 @@ async function streamToTerminal(
             s.stop(event.tool);
           }
           spinners.delete(event.tool);
+        } else if (event.isError) {
+          p.log.error(`✗ ${event.tool}`);
+        } else {
+          p.log.success(`✓ ${event.tool}`);
+        }
+      } else if (event.type === 'plan') {
+        if (event.steps.length > 0) {
+          p.log.info(`Plan: ${event.steps.join(' → ')}`);
+        }
+      } else if (event.type === 'reflection') {
+        if (event.passed) {
+          p.log.success(`Reflection #${event.round} passed`);
+        } else {
+          p.log.warn(
+            `Reflection #${event.round}: ${event.issues.length > 0 ? event.issues.join('; ') : 'failed'}`,
+          );
+        }
+      } else if (event.type === 'rag_context') {
+        if (event.contexts.length > 0) {
+          p.log.info(`Retrieved ${event.contexts.length} context(s)`);
         }
       } else if (event.type === 'confirmation') {
         for (const [tool, s] of spinners) {

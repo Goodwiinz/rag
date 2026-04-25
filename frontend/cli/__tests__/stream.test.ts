@@ -1,7 +1,7 @@
 /**
  * @jest-environment node
  */
-import { streamAgent } from '../stream';
+import { streamAgent, streamConfirm } from '../stream';
 import * as store from '../auth/store';
 import * as client from '../services/client';
 
@@ -247,4 +247,94 @@ test('skips save when trace thread_id matches cached thread_id', async () => {
   }
 
   expect(mockedSaveConfig).not.toHaveBeenCalled();
+});
+
+test('yields plan event with steps and reasoning', async () => {
+  const mockFetch = jest.fn().mockResolvedValue(
+    sseResponse([
+      {
+        event: 'plan',
+        data: { steps: ['search arxiv', 'ingest paper'], reasoning: 'why' },
+      },
+      { event: 'done', data: {} },
+    ])
+  );
+
+  const events: unknown[] = [];
+  for await (const e of streamAgent('go', {}, { fetchFn: mockFetch as any })) {
+    events.push(e);
+  }
+
+  expect(events).toContainEqual({
+    type: 'plan',
+    steps: ['search arxiv', 'ingest paper'],
+    reasoning: 'why',
+  });
+});
+
+test('yields reflection event with passed/issues/round', async () => {
+  const mockFetch = jest.fn().mockResolvedValue(
+    sseResponse([
+      {
+        event: 'reflection',
+        data: { passed: false, issues: ['missing citations'], round: 2 },
+      },
+      { event: 'done', data: {} },
+    ])
+  );
+
+  const events: unknown[] = [];
+  for await (const e of streamAgent('go', {}, { fetchFn: mockFetch as any })) {
+    events.push(e);
+  }
+
+  expect(events).toContainEqual({
+    type: 'reflection',
+    passed: false,
+    issues: ['missing citations'],
+    round: 2,
+  });
+});
+
+test('yields rag_context event with contexts array', async () => {
+  const mockFetch = jest.fn().mockResolvedValue(
+    sseResponse([
+      {
+        event: 'rag_context',
+        data: { contexts: [{ id: 'doc1', score: 0.9 }] },
+      },
+      { event: 'done', data: {} },
+    ])
+  );
+
+  const events: unknown[] = [];
+  for await (const e of streamAgent('go', {}, { fetchFn: mockFetch as any })) {
+    events.push(e);
+  }
+
+  expect(events).toContainEqual({
+    type: 'rag_context',
+    contexts: [{ id: 'doc1', score: 0.9 }],
+  });
+});
+
+test('streamConfirm persists thread_id rotation from trace event', async () => {
+  mockedLoadConfig.mockReturnValue({ ...CONFIG, thread_id: 'stale-id' });
+
+  const mockFetch = jest.fn().mockResolvedValue(
+    sseResponse([
+      { event: 'trace', data: { thread_id: 'rotated-id' } },
+      { event: 'done', data: {} },
+    ])
+  );
+
+  for await (const _ of streamConfirm('stale-id', true, {
+    fetchFn: mockFetch as any,
+  })) {
+    // drain
+  }
+
+  expect(mockedSaveConfig).toHaveBeenCalledWith(
+    expect.objectContaining({ thread_id: 'rotated-id' })
+  );
 });
