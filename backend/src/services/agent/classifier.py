@@ -8,9 +8,10 @@ classification, falling back to weighted keyword matching when the LLM is
 unavailable or returns low confidence.
 """
 
+import json
 import logging
 from dataclasses import dataclass
-from typing import Any, Dict, Literal
+from typing import Any, Dict, Literal, Optional
 
 from langchain_core.messages import HumanMessage, SystemMessage
 from pydantic import BaseModel, Field
@@ -144,6 +145,10 @@ Query: "What entities are mentioned in this paper?"
 Query: "Hello, can you help me?"
 → intent: general, confidence: 0.85, reasoning: "Greeting with no specific task."
 
+Query: "try again"
+Previous tool: ingest_arxiv_papers (status: skipped)
+→ intent: research, confidence: 0.85, reasoning: "Retry of the prior failed ingest call — same intent as the original tool."
+
 ## Common confusions
 
 - "search the knowledge graph" → knowledge_graph (NOT research)
@@ -151,12 +156,16 @@ Query: "Hello, can you help me?"
 - "write about papers I found" → writing (NOT research)
 - "create a note summarizing..." → writing (NOT general)
 - "import papers" or "ingest" → research (ingestion pipeline)
+- Short retry phrases ("try again", "retry", "do it", "again") inherit the intent of the previous tool call when one is shown below.
 
 ## Page context
 {page_context_text}
 
 ## Previous assistant turn
 {previous_turn_text}
+
+## Previous tool call
+{prior_tool_text}
 """
 
 
@@ -214,10 +223,36 @@ def classify_intent_keywords(query: str) -> ClassificationResult:
 # ---------------------------------------------------------------------------
 
 
+def _format_prior_tool(prior_tool: Optional[Dict[str, Any]]) -> str:
+    """Render the prior tool call as a compact text block for the prompt.
+
+    Returns "None" when no prior tool is available. Truncates large fields
+    to keep the prompt within ~150 extra tokens.
+    """
+    if not prior_tool:
+        return "None"
+    name = prior_tool.get("name") or "unknown"
+    raw_args = prior_tool.get("args") or {}
+    raw_result = prior_tool.get("result") or ""
+    try:
+        args_text = json.dumps(raw_args, default=str)[:200]
+    except (TypeError, ValueError):
+        args_text = str(raw_args)[:200]
+    result_text = (
+        raw_result if isinstance(raw_result, str) else json.dumps(raw_result, default=str)
+    )[:200]
+    return (
+        f"Tool: {name}\n"
+        f"Args: {args_text}\n"
+        f"Result (truncated): {result_text}"
+    )
+
+
 async def classify_intent_llm(
     query: str,
     page_context: Dict[str, Any],
     previous_turn: str = "",
+    prior_tool: Optional[Dict[str, Any]] = None,
 ) -> ClassificationResult:
     """Classify intent using a lightweight LLM with structured output.
 
@@ -225,6 +260,9 @@ async def classify_intent_llm(
         query:          The user's current query.
         page_context:   Page context dict (type, project_id, etc.).
         previous_turn:  The previous assistant message (for conversational context).
+        prior_tool:     Optional dict with keys ``name``, ``args``, ``result``
+                        describing the most recent tool call. Helps classify
+                        retry phrases like "try again".
 
     Returns:
         ClassificationResult with source="llm".
@@ -247,10 +285,12 @@ async def classify_intent_llm(
         page_context_text = "No specific page context."
 
     previous_turn_text = previous_turn if previous_turn else "None"
+    prior_tool_text = _format_prior_tool(prior_tool)
 
     system_text = _CLASSIFIER_SYSTEM_PROMPT.format(
         page_context_text=page_context_text,
         previous_turn_text=previous_turn_text,
+        prior_tool_text=prior_tool_text,
     )
 
     messages = [
@@ -277,6 +317,7 @@ async def classify_intent_with_fallback(
     query: str,
     page_context: Dict[str, Any],
     previous_turn: str = "",
+    prior_tool: Optional[Dict[str, Any]] = None,
 ) -> ClassificationResult:
     """Classify intent with keyword-first, LLM-escalation strategy.
 
@@ -289,6 +330,8 @@ async def classify_intent_with_fallback(
         query:          The user's current query.
         page_context:   Page context dict.
         previous_turn:  Previous assistant message for context.
+        prior_tool:     Optional prior tool call (name/args/result) — passed
+                        through to the LLM classifier for retry-style queries.
 
     Returns:
         ClassificationResult (never raises).
@@ -305,7 +348,9 @@ async def classify_intent_with_fallback(
 
     # Ambiguous query — escalate to LLM for better accuracy
     try:
-        llm_result = await classify_intent_llm(query, page_context, previous_turn)
+        llm_result = await classify_intent_llm(
+            query, page_context, previous_turn, prior_tool
+        )
 
         if llm_result.confidence >= _LLM_CONFIDENCE_THRESHOLD:
             return llm_result

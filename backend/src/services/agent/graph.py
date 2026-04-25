@@ -387,6 +387,39 @@ INTENT_KEYWORDS = {
 INTENT_PRIORITY = ["writing", "knowledge_graph", "research"]
 
 
+def _extract_prior_tool(messages: List[Any]) -> Optional[Dict[str, Any]]:
+    """Walk *messages* backwards and return the most recent tool call.
+
+    Returns a dict with keys ``name``, ``args``, and ``result`` (the matching
+    ToolMessage content as a string), or ``None`` if no tool call exists in
+    the conversation. Used to pass retry context to the intent classifier so
+    short follow-ups like "try again" route to the same intent as the prior
+    tool.
+    """
+    for msg in reversed(messages):
+        if not isinstance(msg, AIMessage):
+            continue
+        tool_calls = getattr(msg, "tool_calls", None)
+        if not tool_calls:
+            continue
+        first = tool_calls[0]
+        tool_call_id = first.get("id")
+        result = ""
+        for follow in messages:
+            if (
+                isinstance(follow, ToolMessage)
+                and follow.tool_call_id == tool_call_id
+            ):
+                result = str(follow.content)
+                break
+        return {
+            "name": first.get("name", ""),
+            "args": first.get("args", {}) or {},
+            "result": result,
+        }
+    return None
+
+
 @track_node_execution("intent_classifier_node")
 async def intent_classifier_node(state: AgentState, config: RunnableConfig) -> dict:
     """Classify user intent using LLM with keyword fallback."""
@@ -415,12 +448,14 @@ async def intent_classifier_node(state: AgentState, config: RunnableConfig) -> d
             previous_turn = msg.content
             break
 
+    prior_tool = _extract_prior_tool(state["messages"])
     page_context = config.get("configurable", {}).get("page_context", {})
 
     result = await classify_intent_with_fallback(
         query=last_user_msg,
         page_context=page_context,
         previous_turn=previous_turn,
+        prior_tool=prior_tool,
     )
 
     logger.debug(
@@ -457,11 +492,13 @@ async def _classify_core(state: AgentState, config: RunnableConfig) -> dict:
             previous_turn = msg.content
             break
 
+    prior_tool = _extract_prior_tool(state["messages"])
     page_context = config.get("configurable", {}).get("page_context", {})
     result = await classify_intent_with_fallback(
         query=last_user_msg,
         page_context=page_context,
         previous_turn=previous_turn,
+        prior_tool=prior_tool,
     )
     logger.debug(
         "Classified intent: %s (confidence=%.2f, source=%s)",
@@ -617,6 +654,14 @@ async def llm_node(state: AgentState, config: RunnableConfig) -> dict:
         f"{context_line}\n"
         "When the user is on a project page, the project_id is available from the "
         "page context and does not need to be asked for.\n\n"
+        "## Handling retry follow-ups\n"
+        "When the user says \"try again\", \"retry\", \"do it again\", \"one more time\", "
+        "\"again\", or any short follow-up that clearly references the previous action, "
+        "re-execute the MOST RECENT tool call (visible in the conversation as the last "
+        "AIMessage with tool_calls) with the SAME arguments. Do NOT pivot to a different "
+        "action like list_projects or search_documents unless the user explicitly asks. "
+        "If the prior tool returned an error or \"skipped\" status, attempt the same call "
+        "once before suggesting alternatives.\n\n"
         "## MANDATORY WORKFLOW for adding papers to a project:\n"
         "You CANNOT add a document that has not been ingested yet. Follow this order:\n"
         "1. **search_arxiv** — find papers matching the user's query\n"
