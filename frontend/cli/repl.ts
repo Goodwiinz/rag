@@ -97,17 +97,21 @@ async function streamToTerminal(
 
   type EventStream = AsyncGenerator<import('./stream').StreamEvent>;
   let current: EventStream = streamAgent(message, pageContext, { signal });
+  let isResumeIteration = false;
 
   while (true) {
     let pendingConfirmThreadId: string | null = null;
+    let renderedThisIteration = false;
 
     for await (const event of current) {
       if (event.type === 'token') {
         process.stdout.write(event.content);
+        renderedThisIteration = true;
       } else if (event.type === 'tool_start') {
         const s = p.spinner();
         s.start(event.tool);
         spinners.set(event.tool, s);
+        renderedThisIteration = true;
       } else if (event.type === 'tool_end') {
         const s = spinners.get(event.tool);
         if (s) {
@@ -122,9 +126,11 @@ async function streamToTerminal(
         } else {
           p.log.success(`✓ ${event.tool}`);
         }
+        renderedThisIteration = true;
       } else if (event.type === 'plan') {
         if (event.steps.length > 0) {
           p.log.info(`Plan: ${event.steps.join(' → ')}`);
+          renderedThisIteration = true;
         }
       } else if (event.type === 'reflection') {
         if (event.passed) {
@@ -134,9 +140,11 @@ async function streamToTerminal(
             `Reflection #${event.round}: ${event.issues.length > 0 ? event.issues.join('; ') : 'failed'}`,
           );
         }
+        renderedThisIteration = true;
       } else if (event.type === 'rag_context') {
         if (event.contexts.length > 0) {
           p.log.info(`Retrieved ${event.contexts.length} context(s)`);
+          renderedThisIteration = true;
         }
       } else if (event.type === 'confirmation') {
         for (const [tool, s] of spinners) {
@@ -153,6 +161,9 @@ async function streamToTerminal(
         pendingConfirmThreadId = event.threadId;
         break;
       } else if (event.type === 'done') {
+        if (isResumeIteration && !renderedThisIteration) {
+          p.log.message('Agent finished (no further output)');
+        }
         process.stdout.write('\n\n');
         return;
       } else if (event.type === 'error') {
@@ -165,6 +176,7 @@ async function streamToTerminal(
     if (pendingConfirmThreadId === null) break;
 
     current = streamConfirm(pendingConfirmThreadId, true, { signal });
+    isResumeIteration = true;
   }
 }
 

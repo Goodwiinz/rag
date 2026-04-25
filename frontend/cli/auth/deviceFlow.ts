@@ -1,4 +1,4 @@
-import { saveConfig } from './store';
+import { loadConfig, saveConfig, type NousConfig } from './store';
 
 const BACKEND_URL = process.env.NOUS_API_URL ?? 'http://localhost:8000/api/v1';
 
@@ -54,6 +54,26 @@ export async function pollForApproval(
   }
 }
 
+export function mergeLoginResult(
+  result: ApprovalResult,
+  existing: NousConfig | null,
+  defaultApiUrl: string,
+): NousConfig {
+  const sameIdentity =
+    existing != null &&
+    existing.user_email === result.user_email &&
+    existing.organization_id === result.organization_id;
+
+  return {
+    token: result.token,
+    user_email: result.user_email,
+    organization_id: result.organization_id,
+    expires_at: result.expires_at,
+    thread_id: sameIdentity ? existing.thread_id : null,
+    api_url: existing?.api_url ?? defaultApiUrl,
+  };
+}
+
 export async function login(): Promise<void> {
   const { session_id, poll_token, browser_url } = await startCliAuth();
 
@@ -65,14 +85,7 @@ export async function login(): Promise<void> {
 
   const result = await pollForApproval(session_id, poll_token);
 
-  saveConfig({
-    token: result.token,
-    user_email: result.user_email,
-    organization_id: result.organization_id,
-    expires_at: result.expires_at,
-    thread_id: null,
-    api_url: BACKEND_URL,
-  });
+  saveConfig(mergeLoginResult(result, loadConfig(), BACKEND_URL));
 
   console.log(`\n✓ Logged in as ${result.user_email}`);
 }
