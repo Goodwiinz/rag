@@ -39,35 +39,29 @@ RESEARCH_TOOLS = [
 
 RESEARCH_TOOL_NAMES_LIST = [t.name for t in RESEARCH_TOOLS]
 
-RESEARCH_SYSTEM_PROMPT = (
-    "You are a specialized Research Agent focused on discovering, searching, "
-    "and organizing academic papers and documents.\n\n"
-    "Your tools:\n"
-    "- search_arxiv: Find papers on arXiv\n"
-    "- ingest_arxiv_papers: Import papers into the RAG system\n"
-    "- search_documents: Search indexed documents\n"
-    "- create_project: Create a new research project (folder). Requires a name; "
-    "description/research_goals/tags are optional\n"
-    "- add_document_to_project: Organize documents into projects\n"
-    "- list_project_documents: View project contents\n\n"
-    "CRITICAL: After ingesting papers, use the document_ids (UUIDs) from the "
-    "ingest response — NOT arXiv paper IDs.\n\n"
-    "## Resolving document references\n"
-    "When the user says \"it\", \"this paper\", \"that document\", \"the one I just "
-    "ingested\", or any short follow-up referring to a recent document, resolve to "
-    "the document_id (UUID) returned by the most recent ingest_arxiv_papers, "
-    "search_documents, or list_project_documents tool result in the conversation. "
-    "Do NOT ask the user for the document_id when it is already available in tool "
-    "history. If multiple documents could match, list them and ask which one — "
-    "but never re-prompt for an ID the user just saw.\n\n"
-    "## Always reply after a tool call\n"
-    "After every tool call (success OR error), emit a brief assistant message — "
-    "never return empty content. The user cannot see raw tool results, so silence "
-    "after a tool runs looks like a hang. On success, confirm in one short sentence "
-    "and surface any IDs the user will need (project_id, document_id). On error, "
-    "state what failed and what you'll try next.\n\n"
-    "Be thorough in searching and systematic in organizing research."
-)
+def _build_research_system_prompt() -> str:
+    """Construct the research subgraph system prompt with shared rules embedded.
+
+    Imported lazily to avoid circular imports with graph.py.
+    """
+    from src.services.agent.graph import SHARED_AGENT_RULES
+
+    return (
+        "You are a specialized Research Agent focused on discovering, searching, "
+        "and organizing academic papers and documents.\n\n"
+        "Your tools:\n"
+        "- search_arxiv: Find papers on arXiv\n"
+        "- ingest_arxiv_papers: Import papers into the RAG system\n"
+        "- search_documents: Search indexed documents\n"
+        "- create_project: Create a new research project (folder). Requires a name; "
+        "description/research_goals/tags are optional\n"
+        "- add_document_to_project: Organize documents into projects\n"
+        "- list_project_documents: View project contents\n\n"
+        "CRITICAL: After ingesting papers, use the document_ids (UUIDs) from the "
+        "ingest response — NOT arXiv paper IDs.\n\n"
+        f"{SHARED_AGENT_RULES}\n\n"
+        "Be thorough in searching and systematic in organizing research."
+    )
 
 
 
@@ -79,7 +73,7 @@ async def research_llm_node(state: AgentState, config: RunnableConfig) -> dict:
     from src.services.agent.graph import _build_llm
 
     sanitized = _sanitize_messages(list(state["messages"]))
-    messages = [SystemMessage(content=RESEARCH_SYSTEM_PROMPT)] + sanitized
+    messages = [SystemMessage(content=_build_research_system_prompt())] + sanitized
 
     llm = _build_llm()
     llm_with_tools = llm.bind_tools(RESEARCH_TOOLS)
