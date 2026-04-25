@@ -1,7 +1,5 @@
 from unittest.mock import patch
 
-import pytest
-
 from src.services.evaluation.llm_judge_service import LLMJudgeService
 from src.services.infrastructure.azure_openai_service import AzureOpenAIService
 
@@ -71,15 +69,29 @@ def test_llm_judge_uses_openai_client_for_v1_base_url(
     mock_azure_openai.assert_not_called()
 
 
-def test_cognitiveservices_endpoint_is_rejected(monkeypatch):
+@patch("src.services.infrastructure.azure_openai_service.OpenAI")
+@patch("src.services.infrastructure.azure_openai_service.AzureOpenAI")
+def test_bare_cognitiveservices_endpoint_uses_azure_client(
+    mock_azure_openai,
+    mock_openai,
+    monkeypatch,
+):
+    """Bare cognitiveservices hosts route through AzureOpenAI so deployment names
+    are passed correctly (Azure SDK constructs the /deployments/<name>/... URL)."""
     _set_azure_settings(
         monkeypatch,
         AZURE_OPENAI_CHAT_ENDPOINT="https://example.cognitiveservices.azure.com",
         AZURE_OPENAI_CHAT_API_KEY="chat-key",
     )
 
-    with pytest.raises(ValueError, match="openai.azure.com"):
-        AzureOpenAIService()
+    AzureOpenAIService()
+
+    mock_azure_openai.assert_called_once_with(
+        api_key="chat-key",
+        azure_endpoint="https://example.cognitiveservices.azure.com",
+        api_version="2024-06-01",
+    )
+    mock_openai.assert_not_called()
 
 
 @patch("src.services.infrastructure.azure_openai_service.OpenAI")
