@@ -139,6 +139,9 @@ class TestIndividualNodes:
         # Honesty rule
         assert "Honest tool-call reporting" in system_text
         assert "Never invent troubleshooting steps" in system_text
+        # Always-reply-after-tool rule (prevents silent done after tool succeeds)
+        assert "Always reply after a tool call" in system_text
+        assert "never return empty content" in system_text
         # Retry rule (PR #394 — also part of this prompt; guard against accidental removal)
         assert "Handling retry follow-ups" in system_text
 

@@ -104,8 +104,12 @@ def _safe_json_loads(s: str) -> Any:
 # ---------------------------------------------------------------------------
 
 
-def _build_llm():
-    """Build a LangChain chat model from the existing Azure/OpenAI config."""
+def _build_llm(model_override: str | None = None):
+    """Build a LangChain chat model from the existing Azure/OpenAI config.
+
+    ``model_override`` lets a per-request deployment name win over the configured
+    default — used to make the agent honor ``request.model`` from the API.
+    """
     settings = get_settings()
 
     endpoint = (
@@ -122,6 +126,8 @@ def _build_llm():
         or settings.AZURE_OPENAI_DEPLOYMENT_NAME
         or "gpt-4o"
     )
+    if model_override:
+        deployment = model_override
 
     if not endpoint or not api_key:
         raise RuntimeError(
@@ -695,6 +701,16 @@ async def llm_node(state: AgentState, config: RunnableConfig) -> dict:
         "- If the tool returned an error or \"skipped\" status, report what actually happened "
         "rather than offering generic troubleshooting advice.\n"
         "Never invent troubleshooting steps for actions you did not take.\n\n"
+        "## Always reply after a tool call\n"
+        "After every tool call completes (success OR error), you MUST emit a brief "
+        "assistant message in your next turn — never return empty content. The user "
+        "cannot see raw tool results, so silence after a tool runs looks like a hang.\n"
+        "- On success: confirm what happened in one short sentence and, when natural, "
+        "  offer the obvious next step (e.g. \"Project created. Want me to add the "
+        "  paper to it?\").\n"
+        "- On error: state what failed and, if recoverable, what you'll try next.\n"
+        "- If the tool result already contains an ID the user will need (project_id, "
+        "  document_id), surface it in your reply so the user has it visible.\n\n"
         "## MANDATORY WORKFLOW for adding papers to a project:\n"
         "You CANNOT add a document that has not been ingested yet. Follow this order:\n"
         "1. **search_arxiv** — find papers matching the user's query\n"
@@ -760,7 +776,7 @@ async def llm_node(state: AgentState, config: RunnableConfig) -> dict:
     # Bind intent-specific tool subset
     intent_tools = _get_tools_for_intent(intent)
 
-    llm = _build_llm()
+    llm = _build_llm(model_override=state.get("model") or None)
     llm_with_tools = llm.bind_tools(intent_tools)
     response = await llm_with_tools.ainvoke(messages, config=config)
 
