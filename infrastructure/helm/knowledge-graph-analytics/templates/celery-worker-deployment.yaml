@@ -37,7 +37,7 @@ spec:
             - --loglevel=info
             - --concurrency=2
             - -Q
-            - celery,document_processing,high_priority,low_priority
+            - celery,document_processing,high_priority,low_priority,entity_processing,graph_processing
           envFrom:
             {{- if .Values.backend.envFrom }}
             {{- toYaml .Values.backend.envFrom | nindent 12 }}
