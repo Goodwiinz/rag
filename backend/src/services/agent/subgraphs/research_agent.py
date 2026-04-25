@@ -50,7 +50,15 @@ RESEARCH_SYSTEM_PROMPT = (
     "- add_document_to_project: Organize documents into projects\n"
     "- list_project_documents: View project contents\n\n"
     "CRITICAL: After ingesting papers, use the document_ids (UUIDs) from the "
-    "ingest response — NOT arXiv paper IDs.\n"
+    "ingest response — NOT arXiv paper IDs.\n\n"
+    "## Resolving document references\n"
+    "When the user says \"it\", \"this paper\", \"that document\", \"the one I just "
+    "ingested\", or any short follow-up referring to a recent document, resolve to "
+    "the document_id (UUID) returned by the most recent ingest_arxiv_papers, "
+    "search_documents, or list_project_documents tool result in the conversation. "
+    "Do NOT ask the user for the document_id when it is already available in tool "
+    "history. If multiple documents could match, list them and ask which one — "
+    "but never re-prompt for an ID the user just saw.\n\n"
     "Be thorough in searching and systematic in organizing research."
 )
 

@@ -133,6 +133,9 @@ class TestIndividualNodes:
         # Project reuse rule
         assert "Reusing project IDs from conversation history" in system_text
         assert "REUSE its project_id" in system_text
+        # Document coreference rule (resolves "it"/"this paper" against recent ingest/search results)
+        assert "Reusing document IDs from conversation history" in system_text
+        assert "Do NOT ask the user for the document_id" in system_text
         # Honesty rule
         assert "Honest tool-call reporting" in system_text
         assert "Never invent troubleshooting steps" in system_text
