@@ -127,9 +127,35 @@ def research_should_continue(state: AgentState) -> str:
 async def research_interrupt_node(state: AgentState, config: RunnableConfig) -> dict:
     """Pause for user confirmation before executing destructive research tools."""
     last = state["messages"][-1]
-    tool_names = [tc["name"] for tc in last.tool_calls if tc["name"] in RESEARCH_DESTRUCTIVE_TOOLS]
-    interrupt({"pending_tools": tool_names, "message": f"Confirm: {', '.join(tool_names)}?"})
-    return {}
+    destructive_calls = [
+        tc for tc in last.tool_calls if tc["name"] in RESEARCH_DESTRUCTIVE_TOOLS
+    ]
+    tool_names = [tc["name"] for tc in destructive_calls]
+
+    confirmation_details = {
+        "pending_tools": tool_names,
+        "tools": [
+            {"name": tc["name"], "args": tc["args"]} for tc in destructive_calls
+        ],
+        "message": f"Confirm: {', '.join(tool_names)}?",
+    }
+    user_response = interrupt(confirmation_details)
+
+    if user_response and user_response.get("confirmed"):
+        return {"pending_confirmation": {}, "user_confirmed": True}
+
+    return {
+        "messages": [
+            AIMessage(
+                content=(
+                    "Action cancelled by user. Let me know if you'd like to "
+                    "proceed differently."
+                ),
+            ),
+        ],
+        "pending_confirmation": {},
+        "user_confirmed": False,
+    }
 
 
 def research_after_interrupt(state: AgentState) -> str:
