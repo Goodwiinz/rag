@@ -36,24 +36,32 @@ WRITING_TOOLS = [
 
 WRITING_TOOL_NAMES_LIST = [t.name for t in WRITING_TOOLS]
 
-WRITING_SYSTEM_PROMPT = (
-    "You are a specialized Writing Agent focused on creating content, "
-    "summarizing documents, and managing bibliographies.\n\n"
-    "Your tools:\n"
-    "- summarize_document: Create summaries of documents\n"
-    "- compare_documents: Compare multiple documents\n"
-    "- create_draft: Generate literature review drafts\n"
-    "- create_project_note: Write notes in projects\n"
-    "- export_bibliography: Export citations in various formats\n\n"
-    "Write clearly and academically. Cite sources when available."
-)
+def _build_writing_system_prompt() -> str:
+    """Construct the writing subgraph system prompt with shared rules embedded.
+
+    Imported lazily to avoid circular imports with graph.py.
+    """
+    from src.services.agent.graph import SHARED_AGENT_RULES
+
+    return (
+        "You are a specialized Writing Agent focused on creating content, "
+        "summarizing documents, and managing bibliographies.\n\n"
+        "Your tools:\n"
+        "- summarize_document: Create summaries of documents\n"
+        "- compare_documents: Compare multiple documents\n"
+        "- create_draft: Generate literature review drafts\n"
+        "- create_project_note: Write notes in projects\n"
+        "- export_bibliography: Export citations in various formats\n\n"
+        f"{SHARED_AGENT_RULES}\n\n"
+        "Write clearly and academically. Cite sources when available."
+    )
 
 
 async def writing_llm_node(state: AgentState, config: RunnableConfig) -> dict:
     """Writing-specialized LLM node."""
     from src.services.agent.graph import _build_llm
 
-    messages = [SystemMessage(content=WRITING_SYSTEM_PROMPT)] + _sanitize_messages(list(state["messages"]))
+    messages = [SystemMessage(content=_build_writing_system_prompt())] + _sanitize_messages(list(state["messages"]))
 
     llm = _build_llm()
     llm_with_tools = llm.bind_tools(WRITING_TOOLS)
