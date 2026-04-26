@@ -253,16 +253,26 @@ describe('confirm flow happy path', () => {
 
     await runRepl();
 
-    const successCalls = mockedLog.success.mock.calls.map((c) => c[0] as string);
+    const successCalls = mockedLog.success.mock.calls.map(
+      (c) => c[0] as string
+    );
     expect(successCalls.every((m) => !m.includes('Actions completed.'))).toBe(
       true
     );
   });
 
   test('does not carry pre-confirm tokens into post-confirm markdown reformat', async () => {
-    const writeSpy = jest.spyOn(process.stdout, 'write').mockImplementation(() => true);
-    Object.defineProperty(process.stdout, 'isTTY', { value: true, configurable: true });
-    Object.defineProperty(process.stdout, 'columns', { value: 80, configurable: true });
+    const writeSpy = jest
+      .spyOn(process.stdout, 'write')
+      .mockImplementation(() => true);
+    Object.defineProperty(process.stdout, 'isTTY', {
+      value: true,
+      configurable: true,
+    });
+    Object.defineProperty(process.stdout, 'columns', {
+      value: 80,
+      configurable: true,
+    });
 
     const markdownBlock = '# Heading\n\n- item one\n- item two\n- item three\n';
     mockedStreamAgent.mockReturnValueOnce(
@@ -286,8 +296,14 @@ describe('confirm flow happy path', () => {
     const ansiMoveUp = allWrites.filter((s) => /\x1b\[\d+F/.test(s));
     expect(ansiMoveUp).toHaveLength(0);
 
-    Object.defineProperty(process.stdout, 'isTTY', { value: undefined, configurable: true });
-    Object.defineProperty(process.stdout, 'columns', { value: undefined, configurable: true });
+    Object.defineProperty(process.stdout, 'isTTY', {
+      value: undefined,
+      configurable: true,
+    });
+    Object.defineProperty(process.stdout, 'columns', {
+      value: undefined,
+      configurable: true,
+    });
   });
 });
 
@@ -730,5 +746,55 @@ describe('draft restore on startup', () => {
       (mockedText.mock.calls[0]?.[0] as { initialValue?: string }).initialValue
     ).toBe('half typed');
     expect(draft.readDraft()).toBe('');
+  });
+});
+
+describe('slash commands: /clear and unknown', () => {
+  test('/clear is recognized and does NOT forward to streamAgent', async () => {
+    mockedText.mockReset();
+    mockedText
+      .mockResolvedValueOnce('/clear' as never)
+      .mockResolvedValueOnce('__CANCEL__' as never);
+
+    await runRepl();
+
+    expect(mockedStreamAgent).not.toHaveBeenCalled();
+    // non-TTY path prints a separator instead of escape sequences
+    const messages = mockedLog.message.mock.calls.map((c) => c[0] as string);
+    expect(messages.some((m) => /cleared/i.test(m))).toBe(true);
+  });
+
+  test('unknown slash command warns the user and does NOT forward to streamAgent', async () => {
+    mockedText.mockReset();
+    mockedText
+      .mockResolvedValueOnce('/totallymadeup' as never)
+      .mockResolvedValueOnce('__CANCEL__' as never);
+
+    await runRepl();
+
+    expect(mockedStreamAgent).not.toHaveBeenCalled();
+    const warnings = mockedLog.warn.mock.calls.map((c) => c[0] as string);
+    expect(
+      warnings.some((m) => /Unknown command: \/totallymadeup/.test(m))
+    ).toBe(true);
+  });
+
+  test('plain prose still reaches streamAgent (regression guard)', async () => {
+    mockedText.mockReset();
+    mockedText
+      .mockResolvedValueOnce('hello there' as never)
+      .mockResolvedValueOnce('__CANCEL__' as never);
+    mockedStreamAgent.mockReturnValueOnce(
+      events([{ type: 'token', content: 'hi' }, { type: 'done' }])
+    );
+
+    await runRepl();
+
+    expect(mockedStreamAgent).toHaveBeenCalledTimes(1);
+    expect(mockedStreamAgent).toHaveBeenCalledWith(
+      'hello there',
+      expect.any(Object),
+      expect.any(Object)
+    );
   });
 });

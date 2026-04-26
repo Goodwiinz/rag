@@ -105,6 +105,7 @@ function currentToken(line: string): string {
 
 const SLASH_COMMANDS = [
   '/new',
+  '/clear',
   '/thread',
   '/threads',
   '/history',

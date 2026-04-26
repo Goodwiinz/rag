@@ -121,6 +121,10 @@ export async function runRepl(options: ReplOptions = {}): Promise<void> {
           },
         });
         if (done) continue;
+        // Unknown slash command — don't forward "/foo" to the agent as a
+        // user message. Print a hint and re-prompt.
+        p.log.warn(`Unknown command: /${parsed.command}. Try /help.`);
+        continue;
       }
 
       const previousThreadId = threadId;
@@ -526,9 +530,21 @@ async function handleSlashCommand(
     await ctx.retryLast();
     return true;
   }
+  if (command === 'clear') {
+    // Clear the visible scrollback; keep the active thread + project.
+    // Respect TTY: in non-TTY contexts (tests, pipes) just print a
+    // separator so the intent is visible but no escape sequences leak.
+    if (process.stdout.isTTY) {
+      // ESC[2J = erase entire screen, ESC[H = cursor home
+      process.stdout.write('\x1b[2J\x1b[H');
+    } else {
+      p.log.message('— cleared —');
+    }
+    return true;
+  }
   if (command === 'help') {
     p.log.message(
-      '/new  /thread  /threads  /history [n]  /forget [id]  /projects  /retry  /context project <id> [name]  /context clear  /settings [set api_url <url>]  /quit'
+      '/new  /clear  /thread  /threads  /history [n]  /forget [id]  /projects  /retry  /context project <id> [name]  /context clear  /settings [set api_url <url>]  /quit'
     );
     return true;
   }
