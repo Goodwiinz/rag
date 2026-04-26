@@ -12,6 +12,7 @@ from langchain_core.runnables import RunnableConfig
 from langgraph.graph import END, StateGraph
 
 from src.services.agent.compactor import make_compactor_node
+from src.services.agent.graph import _sanitize_messages
 from src.services.agent.planner import make_planner_node
 from src.services.agent.reflection import make_reflection_gate
 from src.services.agent.state import AgentState
@@ -60,7 +61,7 @@ async def data_llm_node(state: AgentState, config: RunnableConfig) -> dict:
     """Data-specialized LLM node."""
     from src.services.agent.graph import _build_llm
 
-    messages = [SystemMessage(content=DATA_SYSTEM_PROMPT)] + list(state["messages"])
+    messages = [SystemMessage(content=DATA_SYSTEM_PROMPT)] + _sanitize_messages(list(state["messages"]))
 
     llm = _build_llm()
     llm_with_tools = llm.bind_tools(DATA_TOOLS)

@@ -67,21 +67,25 @@ export async function runRepl(options: ReplOptions = {}): Promise<void> {
     }
 
     const ctx = activeProject
-      ? { type: 'project', project_id: activeProject.id, project_name: activeProject.name }
+      ? {
+          type: 'project',
+          project_id: activeProject.id,
+          project_name: activeProject.name,
+        }
       : { type: 'chat' };
 
     await streamToTerminal(input, ctx, abort.signal);
 
     const updated = loadConfig();
-    if (updated?.thread_id && updated.thread_id !== threadId) {
-      threadId = updated.thread_id;
+    if (updated && updated.thread_id !== threadId) {
+      threadId = updated.thread_id ?? null;
     }
   }
 }
 
 export async function runOneShot(
   query: string,
-  pageContext: Record<string, unknown> = {},
+  pageContext: Record<string, unknown> = {}
 ): Promise<void> {
   await streamToTerminal(query, pageContext);
 }
@@ -89,9 +93,11 @@ export async function runOneShot(
 async function streamToTerminal(
   message: string,
   pageContext: Record<string, unknown>,
-  signal?: AbortSignal,
+  signal?: AbortSignal
 ): Promise<void> {
   const spinners = new Map<string, ReturnType<typeof p.spinner>>();
+  let retriedAfterMissingThread = false;
+  let inConfirmFlow = false;
 
   process.stdout.write('\n');
 
@@ -100,6 +106,7 @@ async function streamToTerminal(
 
   while (true) {
     let pendingConfirmThreadId: string | null = null;
+    let retryFreshThread = false;
 
     for await (const event of current) {
       if (event.type === 'token') {
@@ -131,7 +138,7 @@ async function streamToTerminal(
           p.log.success(`Reflection #${event.round} passed`);
         } else {
           p.log.warn(
-            `Reflection #${event.round}: ${event.issues.length > 0 ? event.issues.join('; ') : 'failed'}`,
+            `Reflection #${event.round}: ${event.issues.length > 0 ? event.issues.join('; ') : 'failed'}`
           );
         }
       } else if (event.type === 'rag_context') {
@@ -144,7 +151,10 @@ async function streamToTerminal(
         }
         spinners.clear();
         process.stdout.write('\n');
-        const ok = await p.confirm({ message: 'Agent wants to proceed. Allow?' });
+        renderConfirmationDetails(event.details);
+        const ok = await p.confirm({
+          message: confirmationPromptMessage(event.details),
+        });
         if (p.isCancel(ok) || !ok) {
           p.log.warn('Cancelled.');
           return;
@@ -157,14 +167,44 @@ async function streamToTerminal(
         return;
       } else if (event.type === 'error') {
         process.stdout.write('\n');
+        if (
+          isMissingThreadError(event.message) &&
+          !retriedAfterMissingThread &&
+          !inConfirmFlow
+        ) {
+          clearCachedThreadId();
+          retriedAfterMissingThread = true;
+          retryFreshThread = true;
+          p.log.warn(
+            'Cached thread expired. Starting a new thread and retrying…'
+          );
+          break;
+        }
         p.log.error(event.message);
         return;
       }
     }
 
+    if (retryFreshThread) {
+      current = streamAgent(message, pageContext, { signal });
+      continue;
+    }
+
     if (pendingConfirmThreadId === null) break;
 
+    inConfirmFlow = true;
     current = streamConfirm(pendingConfirmThreadId, true, { signal });
+  }
+}
+
+function isMissingThreadError(message: string): boolean {
+  return /thread not found/i.test(message);
+}
+
+function clearCachedThreadId(): void {
+  const cfg = loadConfig();
+  if (cfg && cfg.thread_id !== null) {
+    saveConfig({ ...cfg, thread_id: null });
   }
 }
 
@@ -179,7 +219,7 @@ interface SlashContext {
 async function handleSlashCommand(
   command: string,
   args: string[],
-  ctx: SlashContext,
+  ctx: SlashContext
 ): Promise<boolean> {
   if (command === 'quit') {
     ctx.onExit();
@@ -209,8 +249,101 @@ async function handleSlashCommand(
     }
   }
   if (command === 'help') {
-    p.log.message('/new  /thread  /context project <id> [name]  /context clear  /quit');
+    p.log.message(
+      '/new  /thread  /context project <id> [name]  /context clear  /quit'
+    );
     return true;
   }
   return false;
+}
+
+const TOOL_LABELS: Record<string, string> = {
+  ingest_arxiv_papers: 'Download & index arXiv paper(s)',
+  add_document_to_project: 'Add document to project',
+  create_project: 'Create new project',
+  create_project_note: 'Save note to project',
+  create_draft: 'Generate draft document',
+  execute_code: 'Execute code',
+};
+
+interface PendingTool {
+  name: string;
+  args: Record<string, unknown>;
+}
+
+function extractPendingTools(details: Record<string, unknown>): PendingTool[] {
+  const raw = details.tools;
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter(
+      (t): t is PendingTool =>
+        typeof t === 'object' && t !== null && 'name' in t
+    )
+    .map((t) => ({
+      name: String((t as { name: unknown }).name ?? ''),
+      args:
+        typeof (t as { args?: unknown }).args === 'object' &&
+        (t as { args?: unknown }).args !== null
+          ? (t as { args: Record<string, unknown> }).args
+          : {},
+    }));
+}
+
+function summarizeArgs(args: Record<string, unknown>): string {
+  const entries = Object.entries(args);
+  if (entries.length === 0) return '';
+  return entries
+    .map(([k, v]) => {
+      let val: string;
+      if (Array.isArray(v)) {
+        val = v.length <= 3 ? `[${v.join(', ')}]` : `[${v.length} items]`;
+      } else if (typeof v === 'object' && v !== null) {
+        val = '{…}';
+      } else {
+        const s = String(v);
+        val = s.length > 60 ? `${s.slice(0, 57)}…` : s;
+      }
+      return `${k}=${val}`;
+    })
+    .join('  ');
+}
+
+export function renderConfirmationDetails(
+  details: Record<string, unknown>
+): void {
+  const tools = extractPendingTools(details);
+  const message = typeof details.message === 'string' ? details.message : '';
+
+  p.log.warn('⚠  Confirmation required');
+  if (tools.length === 0) {
+    if (message) p.log.message(message);
+    else
+      p.log.message('The agent is paused and needs your approval to continue.');
+    p.log.message('Reply  y  to allow,  n  to cancel.');
+    return;
+  }
+
+  p.log.message(
+    `The agent wants to run ${tools.length} action${tools.length === 1 ? '' : 's'} that will modify your data:`
+  );
+  for (const t of tools) {
+    const label = TOOL_LABELS[t.name] ?? t.name;
+    const argSummary = summarizeArgs(t.args);
+    p.log.message(
+      `  • ${label}  (${t.name})${argSummary ? `\n      ${argSummary}` : ''}`
+    );
+  }
+  p.log.message('Reply  y  to allow,  n  to cancel.');
+}
+
+export function confirmationPromptMessage(
+  details: Record<string, unknown>
+): string {
+  const tools = extractPendingTools(details);
+  if (tools.length === 0) return 'Allow the agent to continue?';
+  if (tools.length === 1) {
+    const label = TOOL_LABELS[tools[0].name] ?? tools[0].name;
+    return `Allow: ${label}?`;
+  }
+  return `Allow these ${tools.length} actions?`;
 }
