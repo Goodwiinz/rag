@@ -20,9 +20,11 @@ import {
   MessageSquare,
   Grid3X3,
   GitBranch,
+  Network,
 } from 'lucide-react';
 import { ProjectHeader } from '@/components/research/ProjectHeader';
 import { DocumentList } from '@/components/research/DocumentList';
+import { ProjectKnowledgeTree } from '@/components/research/ProjectKnowledgeTree';
 import { DraftGenerator } from '@/components/research/DraftGenerator';
 import { DraftViewer } from '@/components/research/DraftViewer';
 import { DraftGenerationProgress } from '@/components/research/DraftGenerationProgress';
@@ -52,7 +54,8 @@ type TabType =
   | 'drafts'
   | 'chat'
   | 'matrix'
-  | 'pipeline';
+  | 'pipeline'
+  | 'knowledge';
 
 export default function ProjectDetailPage() {
   const params = useParams();
@@ -490,6 +493,7 @@ export default function ProjectDetailPage() {
     { id: 'chat', label: 'Chat', icon: MessageSquare },
     { id: 'matrix', label: 'Matrix', icon: Grid3X3 },
     { id: 'pipeline', label: 'Pipeline', icon: GitBranch },
+    { id: 'knowledge', label: 'Knowledge', icon: Network },
   ];
 
   return (
@@ -930,6 +934,11 @@ export default function ProjectDetailPage() {
 
         {/* Pipeline Tab */}
         {activeTab === 'pipeline' && <ResearchPipeline projectId={projectId} />}
+
+        {/* Knowledge Tab */}
+        {activeTab === 'knowledge' && (
+          <ProjectKnowledgeTree projectId={projectId} />
+        )}
       </div>
 
       <NoteEditor
