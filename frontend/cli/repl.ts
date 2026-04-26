@@ -46,64 +46,74 @@ export async function runRepl(options: ReplOptions = {}): Promise<void> {
 
   p.intro(`NOUS  ·  ${formatStatus(threadId, activeProject)}`);
 
-  const abort = new AbortController();
-  process.once('SIGINT', () => {
-    abort.abort();
+  let activeAbort: AbortController | null = null;
+  const onSigint = () => {
+    if (activeAbort) {
+      activeAbort.abort();
+      return; // mid-stream → just cancel, don't exit
+    }
     p.outro('Bye.');
     process.exit(0);
-  });
+  };
+  process.on('SIGINT', onSigint);
 
-  while (true) {
-    const completer = buildCompleter({
-      knownThreadIds: listThreads().map((t) => t.id),
-    });
-    const raw = await readPrompt({ message: '>', completer });
-    if (isPromptCancel(raw) || p.isCancel(raw)) {
-      p.outro('Bye.');
-      break;
-    }
-
-    const input = (raw as string).trim();
-    if (!input) continue;
-
-    const parsed = parseSlashCommand(input);
-    if (parsed) {
-      const done = await handleSlashCommand(parsed.command, parsed.args, {
-        threadId,
-        activeProject,
-        onThreadChange: (t) => {
-          threadId = t;
-        },
-        onProjectChange: (proj) => {
-          activeProject = proj;
-        },
-        onExit: () => {
-          p.outro('Bye.');
-          process.exit(0);
-        },
+  try {
+    while (true) {
+      const completer = buildCompleter({
+        knownThreadIds: listThreads().map((t) => t.id),
       });
-      if (done) continue;
+      const raw = await readPrompt({ message: '>', completer });
+      if (isPromptCancel(raw) || p.isCancel(raw)) {
+        p.outro('Bye.');
+        break;
+      }
+
+      const input = (raw as string).trim();
+      if (!input) continue;
+
+      const parsed = parseSlashCommand(input);
+      if (parsed) {
+        const done = await handleSlashCommand(parsed.command, parsed.args, {
+          threadId,
+          activeProject,
+          onThreadChange: (t) => {
+            threadId = t;
+          },
+          onProjectChange: (proj) => {
+            activeProject = proj;
+          },
+          onExit: () => {
+            p.outro('Bye.');
+            process.exit(0);
+          },
+        });
+        if (done) continue;
+      }
+
+      const previousThreadId = threadId;
+      const ctx = activeProject
+        ? {
+            type: 'project',
+            project_id: activeProject.id,
+            project_name: activeProject.name,
+          }
+        : { type: 'chat' };
+
+      activeAbort = new AbortController();
+      await streamToTerminal(input, ctx, activeAbort.signal);
+      activeAbort = null;
+
+      const updated = loadConfig();
+      if (updated && updated.thread_id !== threadId) {
+        threadId = updated.thread_id ?? null;
+      }
+
+      if (threadId) {
+        recordThreadUse(threadId, previousThreadId, input, activeProject);
+      }
     }
-
-    const previousThreadId = threadId;
-    const ctx = activeProject
-      ? {
-          type: 'project',
-          project_id: activeProject.id,
-          project_name: activeProject.name,
-        }
-      : { type: 'chat' };
-
-    await streamToTerminal(input, ctx, abort.signal);
-
-    const updated = loadConfig();
-    if (updated && updated.thread_id !== threadId) {
-      threadId = updated.thread_id ?? null;
-    }
-
-    if (threadId) {
-      recordThreadUse(threadId, previousThreadId, input, activeProject);
-    }
+  } finally {
+    process.off('SIGINT', onSigint);
   }
 }
 
@@ -199,98 +209,108 @@ async function streamToTerminal(
     let pendingConfirmThreadId: string | null = null;
     let retryFreshThread = false;
 
-    for await (const event of current) {
-      if (event.type === 'token') {
-        process.stdout.write(event.content);
-        tokenBuffer += event.content;
-        if (inConfirmFlow) postConfirmTokens = true;
-      } else if (event.type === 'tool_start') {
-        const s = p.spinner();
-        s.start(formatToolLine(event.tool, event.args));
-        spinners.set(event.tool, s);
-      } else if (event.type === 'tool_end') {
-        const s = spinners.get(event.tool);
-        if (s) {
-          if (event.isError) {
-            s.error(event.tool);
+    try {
+      for await (const event of current) {
+        if (event.type === 'token') {
+          process.stdout.write(event.content);
+          tokenBuffer += event.content;
+          if (inConfirmFlow) postConfirmTokens = true;
+        } else if (event.type === 'tool_start') {
+          const s = p.spinner();
+          s.start(formatToolLine(event.tool, event.args));
+          spinners.set(event.tool, s);
+        } else if (event.type === 'tool_end') {
+          const s = spinners.get(event.tool);
+          if (s) {
+            if (event.isError) {
+              s.error(event.tool);
+            } else {
+              s.stop(event.tool);
+            }
+            spinners.delete(event.tool);
+          } else if (event.isError) {
+            p.log.error(`✗ ${event.tool}`);
           } else {
-            s.stop(event.tool);
+            p.log.success(`✓ ${event.tool}`);
           }
-          spinners.delete(event.tool);
-        } else if (event.isError) {
-          p.log.error(`✗ ${event.tool}`);
-        } else {
-          p.log.success(`✓ ${event.tool}`);
-        }
-      } else if (event.type === 'plan') {
-        if (event.steps.length > 0) {
-          p.log.info(`Plan: ${event.steps.join(' → ')}`);
-        }
-      } else if (event.type === 'reflection') {
-        if (event.passed) {
-          p.log.success(`Reflection #${event.round} passed`);
-        } else {
-          p.log.warn(
-            `Reflection #${event.round}: ${event.issues.length > 0 ? event.issues.join('; ') : 'failed'}`
-          );
-        }
-      } else if (event.type === 'rag_context') {
-        if (event.contexts.length > 0) {
-          collectedContexts.push(...event.contexts);
-          p.log.info(`Retrieved ${event.contexts.length} context(s)`);
-        }
-      } else if (event.type === 'usage') {
-        lastUsage = {
-          inputTokens: event.inputTokens,
-          outputTokens: event.outputTokens,
-          costUsd: event.costUsd,
-        };
-      } else if (event.type === 'confirmation') {
-        for (const [tool, s] of spinners) {
-          s.cancel(`${tool} (paused — awaiting confirmation)`);
-        }
-        spinners.clear();
-        process.stdout.write('\n');
-        renderConfirmationDetails(event.details);
-        const ok = await p.confirm({
-          message: confirmationPromptMessage(event.details),
-        });
-        if (p.isCancel(ok) || !ok) {
-          p.log.warn('Cancelled.');
+        } else if (event.type === 'plan') {
+          if (event.steps.length > 0) {
+            p.log.info(`Plan: ${event.steps.join(' → ')}`);
+          }
+        } else if (event.type === 'reflection') {
+          if (event.passed) {
+            p.log.success(`Reflection #${event.round} passed`);
+          } else {
+            p.log.warn(
+              `Reflection #${event.round}: ${event.issues.length > 0 ? event.issues.join('; ') : 'failed'}`
+            );
+          }
+        } else if (event.type === 'rag_context') {
+          if (event.contexts.length > 0) {
+            collectedContexts.push(...event.contexts);
+            p.log.info(`Retrieved ${event.contexts.length} context(s)`);
+          }
+        } else if (event.type === 'usage') {
+          lastUsage = {
+            inputTokens: event.inputTokens,
+            outputTokens: event.outputTokens,
+            costUsd: event.costUsd,
+          };
+        } else if (event.type === 'confirmation') {
+          for (const [tool, s] of spinners) {
+            s.cancel(`${tool} (paused — awaiting confirmation)`);
+          }
+          spinners.clear();
+          process.stdout.write('\n');
+          renderConfirmationDetails(event.details);
+          const ok = await p.confirm({
+            message: confirmationPromptMessage(event.details),
+          });
+          if (p.isCancel(ok) || !ok) {
+            p.log.warn('Cancelled.');
+            return;
+          }
+          p.log.info('Resuming agent…');
+          pendingConfirmThreadId = event.threadId;
+          break;
+        } else if (event.type === 'done') {
+          process.stdout.write('\n');
+          maybeReformatMarkdown(tokenBuffer);
+          renderCitationsFooter(collectedContexts);
+          renderUsageLine(lastUsage);
+          if (inConfirmFlow && !postConfirmTokens) {
+            p.log.success('Actions completed.');
+          }
+          process.stdout.write('\n');
+          return;
+        } else if (event.type === 'error') {
+          process.stdout.write('\n');
+          const classified = classifyError(event.message);
+          if (
+            classified.kind === 'not_found_thread' &&
+            !retriedAfterMissingThread
+          ) {
+            clearCachedThreadId();
+            retriedAfterMissingThread = true;
+            retryFreshThread = true;
+            p.log.warn(
+              `${classified.userMessage} ${classified.hint ?? ''}`.trim()
+            );
+            break;
+          }
+          p.log.error(classified.userMessage);
+          if (classified.hint) p.log.message(`  ${classified.hint}`);
           return;
         }
-        p.log.info('Resuming agent…');
-        pendingConfirmThreadId = event.threadId;
-        break;
-      } else if (event.type === 'done') {
+      }
+    } catch (e) {
+      const c = classifyError(e);
+      if (c.kind === 'cancelled') {
         process.stdout.write('\n');
-        maybeReformatMarkdown(tokenBuffer);
-        renderCitationsFooter(collectedContexts);
-        renderUsageLine(lastUsage);
-        if (inConfirmFlow && !postConfirmTokens) {
-          p.log.success('Actions completed.');
-        }
-        process.stdout.write('\n');
-        return;
-      } else if (event.type === 'error') {
-        process.stdout.write('\n');
-        const classified = classifyError(event.message);
-        if (
-          classified.kind === 'not_found_thread' &&
-          !retriedAfterMissingThread
-        ) {
-          clearCachedThreadId();
-          retriedAfterMissingThread = true;
-          retryFreshThread = true;
-          p.log.warn(
-            `${classified.userMessage} ${classified.hint ?? ''}`.trim()
-          );
-          break;
-        }
-        p.log.error(classified.userMessage);
-        if (classified.hint) p.log.message(`  ${classified.hint}`);
+        p.log.warn('Cancelled.');
         return;
       }
+      throw e;
     }
 
     if (retryFreshThread) {

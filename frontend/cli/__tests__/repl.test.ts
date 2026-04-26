@@ -544,3 +544,37 @@ describe('streamToTerminal: withRetry on initial call', () => {
     );
   });
 });
+
+describe('SIGINT scoping', () => {
+  test('SIGINT mid-stream aborts the stream and returns to prompt (does not exit)', async () => {
+    const exitSpy = jest
+      .spyOn(process, 'exit')
+      .mockImplementation((() => undefined) as never);
+
+    let abortRef: AbortSignal | undefined;
+    mockedStreamAgent.mockImplementationOnce((_msg, _ctx, opts) => {
+      abortRef = opts?.signal;
+      return (async function* () {
+        // wait until aborted
+        await new Promise<void>((resolve) => {
+          abortRef?.addEventListener('abort', () => resolve(), { once: true });
+        });
+        const e = new Error('aborted');
+        e.name = 'AbortError';
+        throw e;
+      })();
+    });
+    mockedStreamAgent.mockReturnValueOnce(
+      events([{ type: 'token', content: 'second' }, { type: 'done' }])
+    );
+
+    // After first prompt, send SIGINT during stream
+    setTimeout(() => process.emit('SIGINT' as never), 20);
+
+    await runRepl();
+
+    expect(exitSpy).not.toHaveBeenCalled();
+    expect(abortRef?.aborted).toBe(true);
+    exitSpy.mockRestore();
+  });
+});
