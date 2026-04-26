@@ -289,10 +289,6 @@ async function streamToTerminal(
   }
 }
 
-function isMissingThreadError(message: string): boolean {
-  return /thread not found/i.test(message);
-}
-
 function clearCachedThreadId(): void {
   const cfg = loadConfig();
   if (cfg && cfg.thread_id !== null) {
