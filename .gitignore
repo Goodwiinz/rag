@@ -276,3 +276,10 @@ backend/graphify-out/
 
 # Claude Code ephemeral worktrees
 .claude/worktrees/
+
+# Runtime artifact directories (generated outputs, downloaded data)
+outputs/
+visualizations/
+path/
+data/arxiv/
+data/archives/
