@@ -28,11 +28,29 @@ const nextConfig = {
 
   // Experimental features for better performance
   experimental: {
-    // Optimize CSS
     optimizeCss: true,
-    // Optimize package imports
     optimizePackageImports: ['lucide-react', '@radix-ui/react-icons'],
   },
+
+  // Granular import transforms for better tree-shaking
+  modularizeImports: {
+    'lucide-react': {
+      transform: 'lucide-react/dist/esm/icons/{{kebabCase member}}',
+      preventFullImport: true,
+    },
+    '@radix-ui/react-icons': {
+      transform: '@radix-ui/react-icons/dist/{{kebabCase member}}',
+      preventFullImport: true,
+    },
+  },
+
+  // Build compiler options
+  compiler: {
+    removeConsole: process.env.NODE_ENV === 'production',
+  },
+
+  // Remove the X-Powered-By header
+  poweredByHeader: false,
 
   // Image optimization
   images: {
@@ -128,18 +146,13 @@ const nextConfig = {
       {
         source: '/(.*)',
         headers: [
-          {
-            key: 'X-Frame-Options',
-            value: 'DENY',
-          },
-          {
-            key: 'X-Content-Type-Options',
-            value: 'nosniff',
-          },
-          {
-            key: 'Referrer-Policy',
-            value: 'origin-when-cross-origin',
-          },
+          { key: 'X-Frame-Options', value: 'DENY' },
+          { key: 'X-Content-Type-Options', value: 'nosniff' },
+          { key: 'Referrer-Policy', value: 'origin-when-cross-origin' },
+          { key: 'X-XSS-Protection', value: '1; mode=block' },
+          { key: 'X-DNS-Prefetch-Control', value: 'on' },
+          { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
+          { key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains; preload' },
         ],
       },
     ];

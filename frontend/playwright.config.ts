@@ -82,8 +82,6 @@ export default defineConfig({
       stripANSIControlSequences: true
     }],
     ['list'],
-    // Custom reporter for accessibility and performance metrics
-    ['./e2e/custom-reporter.ts']
   ],
 
   // Web server configuration
@@ -213,6 +211,18 @@ export default defineConfig({
     {
       name: 'setup',
       testMatch: '**/setup/**/*.spec.ts',
+    },
+
+    // NOUS critical-flow tests (chromium only, no auth setup dependency)
+    {
+      name: 'nous-flows',
+      testDir: './e2e/nous-flows',
+      use: {
+        ...devices['Desktop Chrome'],
+        viewport: { width: 1280, height: 800 },
+        actionTimeout: 15_000,
+        navigationTimeout: 20_000,
+      },
     },
   ],
 
