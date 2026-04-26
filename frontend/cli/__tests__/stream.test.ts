@@ -342,3 +342,31 @@ test('streamConfirm persists thread_id rotation from trace event', async () => {
     expect.objectContaining({ thread_id: 'rotated-id' })
   );
 });
+
+test('emits IDLE_TIMEOUT sentinel error when no events arrive within idleTimeoutMs', async () => {
+  const slowResponse = {
+    ok: true,
+    body: new ReadableStream<Uint8Array>({
+      start(controller) {
+        // never enqueue anything; stream hangs
+        void controller;
+      },
+    }),
+  };
+  const mockFetch = jest.fn().mockResolvedValue(slowResponse);
+
+  const events: unknown[] = [];
+  for await (const e of streamAgent(
+    'hi',
+    {},
+    { fetchFn: mockFetch as never, idleTimeoutMs: 50 }
+  )) {
+    events.push(e);
+    if ((e as { type: string }).type === 'error') break;
+  }
+
+  expect(events).toContainEqual({
+    type: 'error',
+    message: expect.stringMatching(/^IDLE_TIMEOUT:0$/),
+  });
+});
