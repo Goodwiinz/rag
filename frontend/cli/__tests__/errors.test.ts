@@ -21,8 +21,9 @@ describe('classifyError — network', () => {
   });
 
   test('nested cause with ECONNREFUSED → network', () => {
-    const err = new Error('wrapped');
-    (err as Error & { cause?: unknown }).cause = { code: 'ECONNREFUSED' };
+    const err = Object.assign(new Error('wrapped'), {
+      cause: { code: 'ECONNREFUSED' },
+    });
     expect(classifyError(err).kind).toBe('network');
   });
 });
@@ -37,6 +38,12 @@ describe('classifyError — auth', () => {
 
   test('message containing 401 → auth', () => {
     expect(classifyError('Stream failed: 401').kind).toBe('auth');
+  });
+
+  test('does NOT misclassify "401" embedded in a longer number', () => {
+    // word-boundary anchor prevents e.g. document ids or rate-limit
+    // counters like "4012/s" from being treated as auth failures
+    expect(classifyError('processed item 4012').kind).not.toBe('auth');
   });
 });
 

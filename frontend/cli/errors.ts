@@ -52,7 +52,7 @@ export function classifyError(input: unknown): ClassifiedError {
     return network(msg, input);
   }
 
-  if (/not logged in|401|403|unauthorized/i.test(msg)) {
+  if (/not logged in|\b401\b|\b403\b|unauthorized/i.test(msg)) {
     return {
       kind: 'auth',
       retryable: false,
