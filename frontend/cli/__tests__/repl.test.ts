@@ -211,6 +211,86 @@ describe('confirmation rendering', () => {
   });
 });
 
+describe('confirm flow happy path', () => {
+  test('shows "Actions completed." when LLM is silent after user confirms', async () => {
+    mockedStreamAgent.mockReturnValueOnce(
+      events([
+        {
+          type: 'confirmation',
+          threadId: 'thread-1',
+          details: { tools: [{ name: 'create_draft', args: {} }] },
+        },
+      ])
+    );
+    mockedStreamConfirm.mockReturnValueOnce(events([{ type: 'done' }]));
+
+    await runRepl();
+
+    expect(mockedStreamConfirm).toHaveBeenCalledWith(
+      'thread-1',
+      true,
+      expect.any(Object)
+    );
+    expect(mockedLog.success).toHaveBeenCalledWith('Actions completed.');
+  });
+
+  test('suppresses "Actions completed." when LLM emits tokens after confirmation', async () => {
+    mockedStreamAgent.mockReturnValueOnce(
+      events([
+        {
+          type: 'confirmation',
+          threadId: 'thread-2',
+          details: { tools: [{ name: 'ingest_arxiv_papers', args: {} }] },
+        },
+      ])
+    );
+    mockedStreamConfirm.mockReturnValueOnce(
+      events([
+        { type: 'token', content: 'Done — completed: ingest_arxiv_papers.' },
+        { type: 'done' },
+      ])
+    );
+
+    await runRepl();
+
+    const successCalls = mockedLog.success.mock.calls.map((c) => c[0] as string);
+    expect(successCalls.every((m) => !m.includes('Actions completed.'))).toBe(
+      true
+    );
+  });
+
+  test('does not carry pre-confirm tokens into post-confirm markdown reformat', async () => {
+    const writeSpy = jest.spyOn(process.stdout, 'write').mockImplementation(() => true);
+    Object.defineProperty(process.stdout, 'isTTY', { value: true, configurable: true });
+    Object.defineProperty(process.stdout, 'columns', { value: 80, configurable: true });
+
+    const markdownBlock = '# Heading\n\n- item one\n- item two\n- item three\n';
+    mockedStreamAgent.mockReturnValueOnce(
+      events([
+        { type: 'token', content: markdownBlock },
+        {
+          type: 'confirmation',
+          threadId: 'thread-3',
+          details: { tools: [{ name: 'create_project_note', args: {} }] },
+        },
+      ])
+    );
+    mockedStreamConfirm.mockReturnValueOnce(events([{ type: 'done' }]));
+
+    await runRepl();
+
+    // With the fix applied, tokenBuffer is reset before the confirm stream.
+    // maybeReformatMarkdown receives an empty buffer and exits early — no
+    // ANSI cursor-up escape should be written after the confirm done event.
+    const allWrites = writeSpy.mock.calls.map((c) => String(c[0]));
+    const ansiMoveUp = allWrites.filter((s) => /\x1b\[\d+F/.test(s));
+    expect(ansiMoveUp).toHaveLength(0);
+
+    Object.defineProperty(process.stdout, 'isTTY', { value: undefined, configurable: true });
+    Object.defineProperty(process.stdout, 'columns', { value: undefined, configurable: true });
+  });
+});
+
 describe('thread registry side effects', () => {
   test('records the user prompt as a thread title in the local registry', async () => {
     mockedText.mockReset();

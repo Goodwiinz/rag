@@ -357,6 +357,7 @@ async function streamToTerminal(
 
     inConfirmFlow = true;
     postConfirmTokens = false;
+    tokenBuffer = '';
     current = streamConfirm(pendingConfirmThreadId, true, { signal });
   }
 }
