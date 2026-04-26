@@ -22,6 +22,7 @@ import { fetchProjects, type RemoteProjectSummary } from './services/projects';
 import { countVisualRows, hasMarkdown, renderMarkdown } from './markdown';
 import { buildCompleter, isPromptCancel, readPrompt } from './prompt';
 import { classifyError } from './errors';
+import { withRetry } from './retry';
 
 interface ActiveProject {
   id: string;
@@ -176,7 +177,23 @@ async function streamToTerminal(
   process.stdout.write('\n');
 
   type EventStream = AsyncGenerator<import('./stream').StreamEvent>;
-  let current: EventStream = streamAgent(message, pageContext, { signal });
+  let current: EventStream;
+  try {
+    current = await withRetry(
+      () => Promise.resolve(streamAgent(message, pageContext, { signal })),
+      {
+        maxAttempts: 2,
+        signal: signal ?? new AbortController().signal,
+        predicate: (e) => classifyError(e).retryable,
+      }
+    );
+  } catch (e) {
+    process.stdout.write('\n');
+    const c = classifyError(e);
+    p.log.error(c.userMessage);
+    if (c.hint) p.log.message(`  ${c.hint}`);
+    return;
+  }
 
   while (true) {
     let pendingConfirmThreadId: string | null = null;

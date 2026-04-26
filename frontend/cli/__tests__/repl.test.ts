@@ -517,3 +517,30 @@ describe('slash commands: /projects', () => {
     );
   });
 });
+
+describe('streamToTerminal: withRetry on initial call', () => {
+  test('retries once on network error then succeeds', async () => {
+    const netErr = Object.assign(new Error('fetch failed'), {
+      code: 'ECONNREFUSED',
+    });
+    mockedStreamAgent.mockImplementationOnce(() => {
+      throw netErr;
+    });
+    mockedStreamAgent.mockReturnValueOnce(
+      events([{ type: 'token', content: 'hi' }, { type: 'done' }])
+    );
+    await runRepl();
+    expect(mockedStreamAgent).toHaveBeenCalledTimes(2);
+  });
+
+  test('does NOT retry on auth error', async () => {
+    mockedStreamAgent.mockImplementationOnce(() => {
+      throw new Error('Stream failed: 401');
+    });
+    await runRepl();
+    expect(mockedStreamAgent).toHaveBeenCalledTimes(1);
+    expect(mockedLog.error).toHaveBeenCalledWith(
+      expect.stringMatching(/expired or unauthorized/i)
+    );
+  });
+});
