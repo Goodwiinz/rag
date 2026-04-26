@@ -36,24 +36,6 @@ jest.mock('../navigation', () => ({
   ],
 }));
 
-// Known a11y issues in Sidebar component (tracked for future fix):
-// - landmark-unique: main nav and bottom nav are both <nav> without distinct aria-labels.
-//   TODO: Add unique aria-label to each <nav> (e.g. "Main navigation" / "Utility navigation").
-// - link-name: collapsed links rely on Tooltip for accessible name, which axe cannot detect in jsdom.
-//   TODO: Add aria-label to collapsed nav links so axe passes without disabling the rule.
-const KNOWN_SIDEBAR_RULES_TO_DISABLE = {
-  rules: {
-    'landmark-unique': { enabled: false },
-  },
-};
-
-const KNOWN_COLLAPSED_RULES_TO_DISABLE = {
-  rules: {
-    'landmark-unique': { enabled: false },
-    'link-name': { enabled: false },
-  },
-};
-
 describe('Sidebar a11y', () => {
   const mockSetIsOpen = jest.fn();
 
@@ -67,7 +49,7 @@ describe('Sidebar a11y', () => {
         <Sidebar isOpen={true} setIsOpen={mockSetIsOpen} />
       </MemoryRouter>
     );
-    await expectNoA11yViolations(container, KNOWN_SIDEBAR_RULES_TO_DISABLE);
+    await expectNoA11yViolations(container);
   });
 
   it('has no accessibility violations when collapsed', async () => {
@@ -76,6 +58,6 @@ describe('Sidebar a11y', () => {
         <Sidebar isOpen={false} setIsOpen={mockSetIsOpen} />
       </MemoryRouter>
     );
-    await expectNoA11yViolations(container, KNOWN_COLLAPSED_RULES_TO_DISABLE);
+    await expectNoA11yViolations(container);
   });
 });
