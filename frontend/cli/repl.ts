@@ -2,6 +2,7 @@ import * as p from '@clack/prompts';
 import { loadConfig, saveConfig } from './auth/store';
 import { parseSlashCommand } from './hooks/useSlashCommands';
 import { streamAgent, streamConfirm } from './stream';
+import { confirmKey } from './confirmKey';
 import {
   fetchThreadMessages,
   fetchThreads,
@@ -263,8 +264,9 @@ async function streamToTerminal(
           spinners.clear();
           process.stdout.write('\n');
           renderConfirmationDetails(event.details);
-          const ok = await p.confirm({
+          const ok = await confirmKey({
             message: confirmationPromptMessage(event.details),
+            default: true,
           });
           if (p.isCancel(ok) || !ok) {
             p.log.warn('Cancelled.');

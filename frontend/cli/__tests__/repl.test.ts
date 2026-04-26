@@ -578,3 +578,22 @@ describe('SIGINT scoping', () => {
     exitSpy.mockRestore();
   });
 });
+
+describe('confirmKey', () => {
+  test('non-TTY path delegates to p.confirm and existing mocks still work', async () => {
+    // Existing tests already mock p.confirm to return true. Just assert
+    // the confirmation flow still completes without raw-mode interaction.
+    mockedStreamAgent.mockReturnValueOnce(
+      events([
+        {
+          type: 'confirmation',
+          threadId: 'thread-x',
+          details: { tools: [{ name: 'create_project', args: {} }] },
+        },
+      ])
+    );
+    mockedStreamConfirm.mockReturnValueOnce(events([{ type: 'done' }]));
+    await runRepl();
+    expect(mockedConfirm).toHaveBeenCalled();
+  });
+});
