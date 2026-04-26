@@ -5,6 +5,14 @@ jest.mock('@clack/prompts', () => ({
   text: jest.fn(),
   isCancel: jest.fn(() => false),
 }));
+jest.mock('../services/draft');
+
+import { writeDraft, readDraft, clearDraft } from '../services/draft';
+
+const mockedWriteDraft = writeDraft as jest.MockedFunction<typeof writeDraft>;
+const mockedClearDraft = clearDraft as jest.MockedFunction<typeof clearDraft>;
+void mockedWriteDraft;
+void readDraft;
 
 import { buildCompleter, isPromptCancel, CANCEL } from '../prompt';
 
@@ -50,5 +58,29 @@ describe('buildCompleter', () => {
   test('returns no completions for plain prose', () => {
     const c = buildCompleter({ knownThreadIds: ['t'], knownProjectIds: ['p'] });
     expect(c('hello world')).toEqual([]);
+  });
+});
+
+describe('readPrompt — non-TTY initialValue passthrough', () => {
+  test('passes initialValue to clack text fallback', async () => {
+    // Already covered by clack mock in this file; verify the option is forwarded.
+    const { readPrompt } = await import('../prompt');
+    const prompts = await import('@clack/prompts');
+    const textMock = prompts.text as jest.Mock;
+    textMock.mockResolvedValueOnce('result');
+    await readPrompt({ message: '>', initialValue: 'restored' });
+    expect(textMock).toHaveBeenCalledWith(
+      expect.objectContaining({ initialValue: 'restored' })
+    );
+  });
+});
+
+describe('readPrompt — clears draft on submit (non-TTY)', () => {
+  test('clearDraft is called when prompt resolves to a string', async () => {
+    const { readPrompt } = await import('../prompt');
+    const prompts = await import('@clack/prompts');
+    (prompts.text as jest.Mock).mockResolvedValueOnce('hello');
+    await readPrompt({ message: '>' });
+    expect(mockedClearDraft).toHaveBeenCalled();
   });
 });

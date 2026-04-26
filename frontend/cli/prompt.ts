@@ -1,5 +1,6 @@
 import * as p from '@clack/prompts';
 import * as readline from 'readline';
+import { clearDraft, writeDraft } from './services/draft';
 import { appendHistory, loadHistory } from './services/promptHistory';
 
 export const CANCEL = Symbol.for('nous.prompt.cancel');
@@ -8,6 +9,7 @@ export type Cancel = typeof CANCEL;
 export interface PromptOptions {
   message: string;
   completer?: (line: string) => string[];
+  initialValue?: string;
 }
 
 export function isPromptCancel(value: unknown): value is Cancel {
@@ -24,8 +26,12 @@ export async function readPrompt(
   opts: PromptOptions
 ): Promise<string | Cancel> {
   if (!process.stdin.isTTY) {
-    const r = await p.text({ message: opts.message });
+    const r = await p.text({
+      message: opts.message,
+      initialValue: opts.initialValue,
+    });
     if (p.isCancel(r)) return CANCEL;
+    clearDraft();
     return r as string;
   }
 
@@ -47,6 +53,27 @@ export async function readPrompt(
         : undefined,
     });
 
+    // Debounced draft write on each keypress (TTY only)
+    let draftTimer: NodeJS.Timeout | null = null;
+    const scheduleDraftWrite = () => {
+      if (draftTimer) clearTimeout(draftTimer);
+      draftTimer = setTimeout(() => {
+        writeDraft((rl as unknown as { line: string }).line ?? '');
+      }, 300);
+    };
+    process.stdin.on('keypress', scheduleDraftWrite);
+    rl.on('close', () => {
+      if (draftTimer) clearTimeout(draftTimer);
+      process.stdin.off('keypress', scheduleDraftWrite);
+    });
+
+    // Prefill from initialValue after readline renders the question
+    if (opts.initialValue) {
+      setImmediate(() => {
+        rl.write(opts.initialValue ?? '');
+      });
+    }
+
     let done = false;
     const finish = (val: string | Cancel) => {
       if (done) return;
@@ -61,6 +88,7 @@ export async function readPrompt(
     rl.question(`${opts.message} `, (answer) => {
       const trimmed = answer.trim();
       if (trimmed) appendHistory(trimmed);
+      clearDraft();
       finish(answer);
     });
   });
