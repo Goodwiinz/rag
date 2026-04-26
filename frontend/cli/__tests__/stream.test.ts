@@ -95,7 +95,11 @@ test('yields tool_start and tool_end events', async () => {
     events.push(e);
   }
 
-  expect(events).toContainEqual({ type: 'tool_start', tool: 'search_arxiv' });
+  expect(events).toContainEqual({
+    type: 'tool_start',
+    tool: 'search_arxiv',
+    args: '',
+  });
   expect(events).toContainEqual({
     type: 'tool_end',
     tool: 'search_arxiv',

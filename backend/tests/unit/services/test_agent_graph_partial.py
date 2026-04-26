@@ -203,6 +203,63 @@ class TestIndividualNodes:
         )
         assert result["retrieved_contexts"] == []
 
+    async def test_rag_node_promotes_chat_context_to_project_when_uuid_in_text(self):
+        """When the user's message names a project UUID, rag_node must force
+        page_context.type='project' so llm_node tells the LLM about the active
+        project. Previously type='chat' was preserved, so the LLM ignored the
+        project_id and replied "I'm not using any project yet"."""
+        from src.services.agent.graph import rag_node
+
+        user = Mock(id=uuid4(), organization_id=uuid4())
+        config = {
+            "configurable": {
+                "thread_id": str(uuid4()),
+                "current_user": user,
+                "search_fn": AsyncMock(return_value=[]),
+            }
+        }
+
+        state = _make_initial_state(
+            "use RAG Research — id: 88e10696-bcc1-4921-b1f3-773b571365bd"
+        )
+        state["page_context"] = {"type": "chat"}
+
+        result = await rag_node(state, config)
+
+        assert result["current_project_id"] == "88e10696-bcc1-4921-b1f3-773b571365bd"
+        assert result["page_context"]["type"] == "project"
+        assert (
+            result["page_context"]["project_id"]
+            == "88e10696-bcc1-4921-b1f3-773b571365bd"
+        )
+
+    async def test_rag_node_keeps_carried_project_id_across_turns(self):
+        """If a previous turn already resolved current_project_id, the next
+        turn should keep type='project' even when the new message has no UUID
+        and the CLI still sends type='chat'."""
+        from src.services.agent.graph import rag_node
+
+        user = Mock(id=uuid4(), organization_id=uuid4())
+        config = {
+            "configurable": {
+                "thread_id": str(uuid4()),
+                "current_user": user,
+                "search_fn": AsyncMock(return_value=[]),
+            }
+        }
+
+        state = _make_initial_state("which project that are you using")
+        state["page_context"] = {"type": "chat"}
+        state["current_project_id"] = "88e10696-bcc1-4921-b1f3-773b571365bd"
+
+        result = await rag_node(state, config)
+
+        assert result["page_context"]["type"] == "project"
+        assert (
+            result["page_context"]["project_id"]
+            == "88e10696-bcc1-4921-b1f3-773b571365bd"
+        )
+
     async def test_rag_node_with_injected_search(self):
         """rag_node should use injected search_fn when provided."""
         from src.services.agent.graph import rag_node

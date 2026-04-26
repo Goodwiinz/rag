@@ -19,6 +19,8 @@ import {
   type ThreadEntry,
 } from './services/threadStore';
 import { fetchProjects, type RemoteProjectSummary } from './services/projects';
+import { countVisualRows, hasMarkdown, renderMarkdown } from './markdown';
+import { buildCompleter, isPromptCancel, readPrompt } from './prompt';
 
 interface ActiveProject {
   id: string;
@@ -50,8 +52,11 @@ export async function runRepl(options: ReplOptions = {}): Promise<void> {
   });
 
   while (true) {
-    const raw = await p.text({ message: '>' });
-    if (p.isCancel(raw)) {
+    const completer = buildCompleter({
+      knownThreadIds: listThreads().map((t) => t.id),
+    });
+    const raw = await readPrompt({ message: '>', completer });
+    if (isPromptCancel(raw) || p.isCancel(raw)) {
       p.outro('Bye.');
       break;
     }
@@ -162,8 +167,10 @@ async function streamToTerminal(
     outputTokens: number;
     costUsd: number | null;
   } | null = null;
+  let tokenBuffer = '';
   let retriedAfterMissingThread = false;
   let inConfirmFlow = false;
+  let postConfirmTokens = false;
 
   process.stdout.write('\n');
 
@@ -177,6 +184,8 @@ async function streamToTerminal(
     for await (const event of current) {
       if (event.type === 'token') {
         process.stdout.write(event.content);
+        tokenBuffer += event.content;
+        if (inConfirmFlow) postConfirmTokens = true;
       } else if (event.type === 'tool_start') {
         const s = p.spinner();
         s.start(formatToolLine(event.tool, event.args));
@@ -237,8 +246,12 @@ async function streamToTerminal(
         break;
       } else if (event.type === 'done') {
         process.stdout.write('\n');
+        maybeReformatMarkdown(tokenBuffer);
         renderCitationsFooter(collectedContexts);
         renderUsageLine(lastUsage);
+        if (inConfirmFlow && !postConfirmTokens) {
+          p.log.success('Actions completed.');
+        }
         process.stdout.write('\n');
         return;
       } else if (event.type === 'error') {
@@ -269,6 +282,7 @@ async function streamToTerminal(
     if (pendingConfirmThreadId === null) break;
 
     inConfirmFlow = true;
+    postConfirmTokens = false;
     current = streamConfirm(pendingConfirmThreadId, true, { signal });
   }
 }
@@ -287,6 +301,23 @@ function clearCachedThreadId(): void {
 function formatToolLine(tool: string, args: string): string {
   const compact = compactArgs(args);
   return compact ? `${tool} ${compact}` : tool;
+}
+
+const MD_INPLACE_MAX_ROWS = 200;
+const MD_DISABLED = process.env.NOUS_MD === '0';
+
+export function maybeReformatMarkdown(buffer: string): void {
+  if (MD_DISABLED) return;
+  if (!buffer || !hasMarkdown(buffer)) return;
+  const cols = process.stdout.columns ?? 80;
+  // We already wrote a trailing '\n' on done, so the cursor is one row
+  // below the last visible line of the buffer. Account for that.
+  const rows = countVisualRows(buffer, cols) + 1;
+  if (rows > MD_INPLACE_MAX_ROWS) return;
+  if (!process.stdout.isTTY) return;
+  process.stdout.write(`\x1b[${rows}F\x1b[J`);
+  process.stdout.write(renderMarkdown(buffer));
+  if (!buffer.endsWith('\n')) process.stdout.write('\n');
 }
 
 function compactArgs(raw: string): string {
