@@ -34,7 +34,7 @@ import {
 } from 'lucide-react';
 
 import { DocumentProcessingState, ProcessingStage, EnhancedProcessingStage } from '@/types/realtime-processing';
-import { formatDuration, formatFileSize, formatRelativeTime } from '@/lib/format-utils';
+import { formatDuration, formatFileSize, formatRelativeTime } from '@/utils/formatUtils';
 
 interface DocumentProgressVisualizerProps {
   document: DocumentProcessingState;

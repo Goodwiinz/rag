@@ -46,7 +46,7 @@ import {
 
 import { useRealtimeStore, useConnectionStatus, useDocuments, useSystemMetrics, useRealtimeActions } from '@/store/realtime-store';
 import { DocumentProcessingState, ProcessingStatus, WebSocketConnectionState, Channel, UpdateFrequency } from '@/types/realtime-processing';
-import { formatFileSize, formatDuration, formatRelativeTime } from '@/lib/format-utils';
+import { formatFileSize, formatDuration, formatRelativeTime } from '@/utils/formatUtils';
 
 interface RealtimeStatusDashboardProps {
   className?: string;
