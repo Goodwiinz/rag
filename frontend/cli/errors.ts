@@ -52,6 +52,46 @@ export function classifyError(input: unknown): ClassifiedError {
     return network(msg, input);
   }
 
+  if (input instanceof Error && input.name === 'AbortError') {
+    return {
+      kind: 'cancelled',
+      retryable: false,
+      userMessage: 'Cancelled.',
+      raw: input,
+    };
+  }
+
+  const idleMatch = msg.match(/^IDLE_TIMEOUT:(\d+)$/);
+  if (idleMatch) {
+    return {
+      kind: 'idle_timeout',
+      retryable: true,
+      userMessage: `Agent went silent at ${idleMatch[1]}s.`,
+      hint: 'Retrying once…',
+      raw: input,
+    };
+  }
+
+  if (/thread not found/i.test(msg)) {
+    return {
+      kind: 'not_found_thread',
+      retryable: true,
+      userMessage: 'Cached thread expired.',
+      hint: 'Starting a fresh thread…',
+      raw: input,
+    };
+  }
+
+  if (/Stream failed: 5\d\d/.test(msg) || /timeout|timed out/i.test(msg)) {
+    return {
+      kind: 'transient_5xx',
+      retryable: true,
+      userMessage: 'Backend hiccup (HTTP 5xx).',
+      hint: 'Retrying once…',
+      raw: input,
+    };
+  }
+
   if (/not logged in|\b401\b|\b403\b|unauthorized/i.test(msg)) {
     return {
       kind: 'auth',
