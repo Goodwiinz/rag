@@ -26,6 +26,16 @@ describe('classifyError — network', () => {
     });
     expect(classifyError(err).kind).toBe('network');
   });
+
+  test('network classification embeds URL from error message in hint', () => {
+    const err = Object.assign(
+      new Error('fetch failed at http://localhost:8000/api/v1/agent/stream'),
+      { code: 'ECONNREFUSED' }
+    );
+    const c = classifyError(err);
+    expect(c.kind).toBe('network');
+    expect(c.userMessage).toContain('http://localhost:8000');
+  });
 });
 
 describe('classifyError — auth', () => {

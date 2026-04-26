@@ -110,11 +110,15 @@ export function classifyError(input: unknown): ClassifiedError {
   };
 }
 
-function network(_msg: string, raw: unknown): ClassifiedError {
+function network(msg: string, raw: unknown): ClassifiedError {
+  const urlMatch = msg.match(/(https?:\/\/[^\s)]+)/);
+  const url = urlMatch ? urlMatch[1] : null;
   return {
     kind: 'network',
     retryable: true,
-    userMessage: 'Backend not reachable.',
+    userMessage: url
+      ? `Backend not reachable at ${url}.`
+      : 'Backend not reachable.',
     hint: 'Set NOUS_API_URL or run /settings.',
     raw,
   };

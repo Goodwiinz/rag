@@ -20,3 +20,23 @@ export function getApiBase(): string {
 }
 
 export const API_BASE = getApiBase();
+
+export async function safeFetch(
+  url: string,
+  init?: RequestInit,
+  fetchFn: typeof fetch = fetch
+): Promise<Response> {
+  try {
+    return await fetchFn(url, init);
+  } catch (err) {
+    const orig = err instanceof Error ? err.message : String(err);
+    const wrapped = new Error(`fetch failed at ${url}: ${orig}`);
+    if (err instanceof Error) {
+      (wrapped as Error & { code?: string }).code = (
+        err as Error & { code?: string }
+      ).code;
+      (wrapped as Error & { cause?: unknown }).cause = err;
+    }
+    throw wrapped;
+  }
+}
