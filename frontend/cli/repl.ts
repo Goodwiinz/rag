@@ -21,6 +21,7 @@ import {
 import { fetchProjects, type RemoteProjectSummary } from './services/projects';
 import { countVisualRows, hasMarkdown, renderMarkdown } from './markdown';
 import { buildCompleter, isPromptCancel, readPrompt } from './prompt';
+import { classifyError } from './errors';
 
 interface ActiveProject {
   id: string;
@@ -256,20 +257,21 @@ async function streamToTerminal(
         return;
       } else if (event.type === 'error') {
         process.stdout.write('\n');
+        const classified = classifyError(event.message);
         if (
-          isMissingThreadError(event.message) &&
-          !retriedAfterMissingThread &&
-          !inConfirmFlow
+          classified.kind === 'not_found_thread' &&
+          !retriedAfterMissingThread
         ) {
           clearCachedThreadId();
           retriedAfterMissingThread = true;
           retryFreshThread = true;
           p.log.warn(
-            'Cached thread expired. Starting a new thread and retrying…'
+            `${classified.userMessage} ${classified.hint ?? ''}`.trim()
           );
           break;
         }
-        p.log.error(event.message);
+        p.log.error(classified.userMessage);
+        if (classified.hint) p.log.message(`  ${classified.hint}`);
         return;
       }
     }
