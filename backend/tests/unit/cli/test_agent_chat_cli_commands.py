@@ -12,6 +12,7 @@ def test_clisessionstate_defaults_to_valid_baseline() -> None:
     assert state.page_context == {"type": "unknown"}
     assert state.latest_trace == {}
     assert state.should_quit is False
+    assert state.model == ""
 
 
 def test_apply_command_help_returns_available_commands() -> None:
@@ -25,6 +26,7 @@ def test_apply_command_help_returns_available_commands() -> None:
     assert new_state == state
     assert "/new" in output
     assert "/context project <id>" in output
+    assert "/model" in output
     assert "/quit" in output
 
 
@@ -211,6 +213,125 @@ def test_apply_command_thread_switch_clears_latest_trace() -> None:
     assert new_state.thread_id == "thread-new"
     assert new_state.latest_trace == {}
     assert "thread-new" in output
+
+
+def test_apply_command_model_without_args_reports_server_default() -> None:
+    from src.cli.agent_chat_cli import apply_command
+    from src.cli.types import CLISessionState
+
+    state = CLISessionState()
+
+    new_state, output = apply_command(state, "/model")
+
+    assert new_state == state
+    assert "(server default)" in output
+
+
+def test_apply_command_model_without_args_reports_current_model() -> None:
+    from src.cli.agent_chat_cli import apply_command
+    from src.cli.types import CLISessionState
+
+    state = CLISessionState(model="gpt-4o")
+
+    new_state, output = apply_command(state, "/model")
+
+    assert new_state == state
+    assert "gpt-4o" in output
+
+
+def test_apply_command_model_sets_known_model_without_warning() -> None:
+    from src.cli.agent_chat_cli import apply_command
+    from src.cli.types import CLISessionState
+
+    state = CLISessionState()
+
+    new_state, output = apply_command(state, "/model gpt-4o-mini")
+
+    assert new_state.model == "gpt-4o-mini"
+    assert "gpt-4o-mini" in output
+    assert "may reject" not in output
+
+
+def test_apply_command_model_accepts_claude_sonnet_without_warning() -> None:
+    from src.cli.agent_chat_cli import apply_command
+    from src.cli.types import CLISessionState
+
+    state = CLISessionState()
+
+    new_state, output = apply_command(state, "/model claude-sonnet-4-5")
+
+    assert new_state.model == "claude-sonnet-4-5"
+    assert "claude-sonnet-4-5" in output
+    assert "may reject" not in output
+
+
+def test_apply_command_model_warns_on_unrecognized_model() -> None:
+    from src.cli.agent_chat_cli import apply_command
+    from src.cli.types import CLISessionState
+
+    state = CLISessionState()
+
+    new_state, output = apply_command(state, "/model claude-opus-4-7")
+
+    assert new_state.model == "claude-opus-4-7"
+    assert "may reject" in output
+
+
+def test_apply_command_model_clear_resets_to_server_default() -> None:
+    from src.cli.agent_chat_cli import apply_command
+    from src.cli.types import CLISessionState
+
+    state = CLISessionState(model="gpt-4o-mini")
+
+    new_state, output = apply_command(state, "/model clear")
+
+    assert new_state.model == ""
+    assert "default" in output.lower()
+
+
+def test_apply_command_model_too_many_args_returns_usage_error() -> None:
+    from src.cli.agent_chat_cli import apply_command
+    from src.cli.types import CLISessionState
+
+    state = CLISessionState()
+
+    new_state, output = apply_command(state, "/model gpt-4o extra")
+
+    assert new_state == state
+    assert "Usage error" in output
+
+
+def test_status_includes_model_line() -> None:
+    from src.cli.agent_chat_cli import apply_command
+    from src.cli.types import CLISessionState
+
+    state = CLISessionState(model="gpt-4o-mini")
+
+    _, output = apply_command(state, "/status")
+
+    assert "model: gpt-4o-mini" in output
+
+
+def test_build_request_body_includes_model_when_set() -> None:
+    from src.cli.agent_chat_cli import build_request_body
+    from src.cli.types import CLISessionState
+
+    state = CLISessionState(model="gpt-4o-mini")
+
+    body = build_request_body(state, "hello")
+
+    assert body["model"] == "gpt-4o-mini"
+
+
+def test_build_request_body_omits_model_when_unset() -> None:
+    from src.cli.agent_chat_cli import build_request_body
+    from src.cli.types import CLISessionState
+
+    state = CLISessionState()
+
+    body = build_request_body(state, "hello")
+
+    assert "model" not in body
 
 
 def test_apply_command_quit_sets_exit_signal() -> None:

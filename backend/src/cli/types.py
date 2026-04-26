@@ -20,3 +20,4 @@ class CLISessionState:
     )
     latest_trace: dict[str, Any] = field(default_factory=dict)
     should_quit: bool = False
+    model: str = ""

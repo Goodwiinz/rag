@@ -18,6 +18,21 @@ from src.cli.agent_cli_renderer import render_event
 from src.cli.types import CLIEvent
 from src.cli.types import CLISessionState
 
+SUGGESTED_MODELS: tuple[str, ...] = (
+    "model-router",
+    "gpt-4o",
+    "gpt-4o-mini",
+    "gpt-5",
+    "gpt-5-mini",
+    "gpt-5-nano",
+    "gpt-5-chat",
+    "gpt-5.2",
+    "gpt-5.2-chat",
+    "o4-mini",
+    "claude-sonnet-4-5",
+    "claude-haiku-4-5",
+)
+
 HELP_TEXT = "\n".join(
     [
         "Commands:",
@@ -28,6 +43,9 @@ HELP_TEXT = "\n".join(
         "  /status               Show current session state.",
         "  /context project <id> Set the active project context.",
         "  /context clear        Clear the active page context.",
+        "  /model [<name>]       Show or set the chat model "
+        "(e.g. gpt-5, claude-sonnet-4-5, gpt-4o-mini).",
+        "  /model clear          Use the server default model.",
         "  /debug on|off         Toggle debug output.",
         "  /quit                 Exit the CLI.",
     ]
@@ -69,6 +87,7 @@ def _status_text(state: CLISessionState) -> str:
             f"  thread_id: {state.thread_id or '(empty)'}",
             f"  cli_session_id: {state.cli_session_id or '(empty)'}",
             f"  debug={debug_text}",
+            f"  model: {state.model or '(server default)'}",
             f"  page_context: {_format_page_context(state.page_context)}",
             f"  latest_trace: {_format_trace(state.latest_trace)}",
             f"  quitting: {'yes' if state.should_quit else 'no'}",
@@ -105,6 +124,8 @@ def build_request_body(state: CLISessionState, prompt: str) -> dict[str, object]
     }
     if state.thread_id:
         request_body["thread_id"] = state.thread_id
+    if state.model:
+        request_body["model"] = state.model
     return request_body
 
 
@@ -504,6 +525,39 @@ def apply_command(state: CLISessionState, raw_input: str) -> tuple[CLISessionSta
                 "Page context cleared.",
             )
         return state, _usage_text("/context project <id> | /context clear")
+
+    if command == "/model":
+        if not args:
+            return state, f"Current model: {state.model or '(server default)'}."
+        if len(args) != 1:
+            return state, _usage_text("/model [<name>] | /model clear")
+        choice = args[0]
+        nested = _clone_state_nested_data(state)
+        if choice.lower() == "clear":
+            return (
+                replace(
+                    state,
+                    model="",
+                    page_context=nested["page_context"],
+                    latest_trace=nested["latest_trace"],
+                    should_quit=False,
+                ),
+                "Model cleared. Server default will be used.",
+            )
+        message = f"Model set to {choice}."
+        if choice not in SUGGESTED_MODELS:
+            suggested = ", ".join(SUGGESTED_MODELS)
+            message += f" Note: not in suggested list ({suggested}); the server may reject it."
+        return (
+            replace(
+                state,
+                model=choice,
+                page_context=nested["page_context"],
+                latest_trace=nested["latest_trace"],
+                should_quit=False,
+            ),
+            message,
+        )
 
     if command == "/debug":
         if len(args) != 1:

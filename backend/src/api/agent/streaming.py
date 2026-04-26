@@ -105,6 +105,7 @@ async def stream_event_generator(
             "intent_confidence": 0.0,
             "last_error_info": {},
             "user_id": str(current_user.id),
+            "model": request_body.model,
         }
 
         stream_thread_id = request_body.thread_id or str(_uuid.uuid4())
@@ -407,6 +408,7 @@ async def stream_confirm_event_generator(
                         final_values.get("page_context", page_context)
                     )
                 ),
+                model=getattr(request_body, "model", "") or "",
                 thread_id=request_body.thread_id,
             )
             await _persist_thread_messages(

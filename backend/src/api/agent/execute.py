@@ -18,7 +18,7 @@ from uuid import UUID
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from langgraph.errors import GraphInterrupt  # noqa: F401  re-export for backward compat
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import select, desc, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -108,13 +108,48 @@ class PageContextRequest(BaseModel):
     metadata: Optional[Dict[str, Any]] = None
 
 
+# Azure Foundry deployment names exposed to the agent. Empty string means
+# "use the deployment configured in AZURE_OPENAI_CHAT_DEPLOYMENT_NAME".
+SUPPORTED_MODELS: frozenset[str] = frozenset({
+    "",
+    "model-router",
+    "gpt-4o",
+    "gpt-4o-mini",
+    "gpt-5",
+    "gpt-5-mini",
+    "gpt-5-nano",
+    "gpt-5-chat",
+    "gpt-5.2",
+    "gpt-5.2-chat",
+    "o4-mini",
+    "claude-sonnet-4-5",
+    "claude-haiku-4-5",
+})
+
+
 class AgentExecuteRequest(BaseModel):
     messages: List[AgentMessage] = Field(..., max_length=50, description="Conversation messages")
     page_context: PageContextRequest = Field(default_factory=PageContextRequest)
-    model: Literal["gpt-4o", "gpt-4o-mini"] = Field(default="gpt-4o")
+    model: str = Field(
+        default="",
+        description=(
+            "Azure deployment name to route the chat to. Empty string uses the "
+            "server-configured deployment. See SUPPORTED_MODELS for the allow-list."
+        ),
+    )
     use_rag: bool = Field(default=True)
     max_context_docs: int = Field(default=5, ge=1, le=10)
     thread_id: Optional[str] = None
+
+    @field_validator("model")
+    @classmethod
+    def _validate_model(cls, value: str) -> str:
+        if value not in SUPPORTED_MODELS:
+            supported = ", ".join(sorted(name for name in SUPPORTED_MODELS if name))
+            raise ValueError(
+                f"Unsupported model {value!r}. Supported deployments: {supported}."
+            )
+        return value
 
 
 class RetrievedContextResponse(BaseModel):

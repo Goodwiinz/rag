@@ -9,6 +9,7 @@ export interface NousConfig {
   expires_at: string;
   thread_id: string | null;
   api_url?: string;
+  model?: string;
 }
 
 function configDir(): string {

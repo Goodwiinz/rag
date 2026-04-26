@@ -3,12 +3,18 @@ import { getApiBase, getCliAuthHeaders } from './services/client';
 
 export type StreamEvent =
   | { type: 'token'; content: string }
-  | { type: 'tool_start'; tool: string }
+  | { type: 'tool_start'; tool: string; args: string }
   | { type: 'tool_end'; tool: string; isError: boolean }
   | { type: 'confirmation'; threadId: string; details: Record<string, unknown> }
   | { type: 'plan'; steps: string[]; reasoning: string }
   | { type: 'reflection'; passed: boolean; issues: string[]; round: number }
   | { type: 'rag_context'; contexts: Array<Record<string, unknown>> }
+  | {
+      type: 'usage';
+      inputTokens: number;
+      outputTokens: number;
+      costUsd: number | null;
+    }
   | { type: 'done' }
   | { type: 'error'; message: string };
 
@@ -52,7 +58,11 @@ async function* _parseSseBody(
             if (eventType === 'token' && data.content) {
               yield { type: 'token', content: data.content };
             } else if (eventType === 'tool_start') {
-              yield { type: 'tool_start', tool: data.tool };
+              yield {
+                type: 'tool_start',
+                tool: data.tool,
+                args: typeof data.args === 'string' ? data.args : '',
+              };
             } else if (eventType === 'tool_end') {
               yield {
                 type: 'tool_end',
@@ -69,7 +79,8 @@ async function* _parseSseBody(
               yield {
                 type: 'plan',
                 steps: Array.isArray(data.steps) ? data.steps : [],
-                reasoning: typeof data.reasoning === 'string' ? data.reasoning : '',
+                reasoning:
+                  typeof data.reasoning === 'string' ? data.reasoning : '',
               };
             } else if (eventType === 'reflection') {
               yield {
@@ -82,6 +93,18 @@ async function* _parseSseBody(
               yield {
                 type: 'rag_context',
                 contexts: Array.isArray(data.contexts) ? data.contexts : [],
+              };
+            } else if (eventType === 'usage') {
+              yield {
+                type: 'usage',
+                inputTokens:
+                  typeof data.input_tokens === 'number' ? data.input_tokens : 0,
+                outputTokens:
+                  typeof data.output_tokens === 'number'
+                    ? data.output_tokens
+                    : 0,
+                costUsd:
+                  typeof data.cost_usd === 'number' ? data.cost_usd : null,
               };
             } else if (eventType === 'trace' && data.thread_id) {
               onTrace?.(data.thread_id);
@@ -121,6 +144,7 @@ export async function* streamAgent(
       messages: [{ role: 'user', content: message }],
       page_context: pageContext,
       thread_id: config.thread_id ?? undefined,
+      model: config.model ?? '',
     }),
     signal,
   });
