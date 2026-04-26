@@ -36,3 +36,4 @@ class AgentState(TypedDict):
     current_project_id: str   # UUID of the project the user is currently discussing
                               # (extracted from URLs, inherited from page_context,
                               # or carried forward across turns via checkpoint)
+    model: str                # Per-request Azure deployment override; "" ⇒ server default

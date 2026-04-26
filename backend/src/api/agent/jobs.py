@@ -308,6 +308,7 @@ async def _run_agent_graph(
                 "intent_confidence": 0.0,
                 "last_error_info": {},
                 "user_id": str(current_user.id),
+                "model": request.model,
             }
 
             config = {
