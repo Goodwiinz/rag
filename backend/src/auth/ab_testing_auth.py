@@ -239,6 +239,16 @@ async def get_current_user_or_service(
 # ============================================================================
 
 
+def hash_api_key(raw_key: str) -> str:
+    """Hash the API key for secure storage and comparison"""
+    return hashlib.sha256(raw_key.encode()).hexdigest()
+
+
+def verify_api_key(raw_key: str, key_hash: str) -> bool:
+    """Verify API key against hash using constant-time comparison"""
+    return secrets.compare_digest(hash_api_key(raw_key), key_hash)
+
+
 async def authenticate_service(api_key: str, db: Session) -> Optional[Dict[str, Any]]:
     """
     Authenticate service using API key
@@ -251,17 +261,21 @@ async def authenticate_service(api_key: str, db: Session) -> Optional[Dict[str, 
         Service context or None if authentication fails
     """
     try:
-        # Hash the provided API key for comparison
-        api_key_hash = hashlib.sha256(api_key.encode()).hexdigest()
+        if not api_key or len(api_key) < 8:
+            return None
 
-        # Look up API key in database using the exact hash
-        # This prevents fetching thousands of keys for comparison in memory.
-        # Although string comparison in DB isn't constant-time, hashes mitigate
-        # the impact of timing attacks as they leak information about the hash,
-        # not the raw key.
+        # Hash the provided key
+        api_key_hash = hash_api_key(api_key)
+
+        # Look up API key in database using exact hash
+        # Hashes mitigate the impact of timing attacks as they leak
+        # information about the hash, not the raw key.
         api_key_record = (
             db.query(ApiKey)
-            .filter(ApiKey.key_hash == api_key_hash, ApiKey.is_active == True)
+            .filter(
+                ApiKey.key_hash == api_key_hash,
+                ApiKey.is_active == True
+            )
             .first()
         )
 
@@ -269,8 +283,10 @@ async def authenticate_service(api_key: str, db: Session) -> Optional[Dict[str, 
             return None
 
         # Double check using constant-time comparison in Python
-        # to ensure the hash absolutely matches the DB record
-        if not secrets.compare_digest(api_key_record.key_hash, api_key_hash):
+        # to ensure the hash absolutely matches the DB record.
+        # We compare the already computed hash with the DB record hash
+        # to avoid double-hashing.
+        if not secrets.compare_digest(api_key_hash, api_key_record.key_hash):
             return None
 
         # Check if API key has expired
@@ -699,7 +715,7 @@ def generate_api_key() -> Tuple[str, str, str]:
     api_key = f"ab_test_{secrets.token_urlsafe(32)}"
 
     # Create hash for storage
-    key_hash = hashlib.sha256(api_key.encode()).hexdigest()
+    key_hash = hash_api_key(api_key)
 
     # Store prefix for identification (first 8 characters)
     key_prefix = api_key[:8]
