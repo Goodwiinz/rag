@@ -170,7 +170,7 @@ def postgres_container():
     if not TESTCONTAINERS_AVAILABLE:
         pytest.skip("testcontainers not installed - run: pip install testcontainers[postgres]")
 
-    with PostgresContainer("public.ecr.aws/docker/library/postgres:15-alpine") as postgres:
+    with PostgresContainer("postgres:15-alpine") as postgres:
         yield {
             "url": postgres.get_connection_url(),
             "host": postgres.get_container_host_ip(),

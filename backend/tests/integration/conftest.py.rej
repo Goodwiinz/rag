@@ -1,0 +1,11 @@
+--- conftest.py
++++ conftest.py
+@@ -166,7 +166,7 @@
+     Requires: pip install testcontainers[postgres]
+     """
+     if not TESTCONTAINERS_AVAILABLE:
+         pytest.skip("testcontainers not installed - run: pip install testcontainers[postgres]")
+
+-    with PostgresContainer("postgres:15-alpine") as postgres:
++    with PostgresContainer("public.ecr.aws/docker/library/postgres:15-alpine") as postgres:
+         yield {
