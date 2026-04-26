@@ -21,7 +21,8 @@ describe('classifyError — network', () => {
   });
 
   test('nested cause with ECONNREFUSED → network', () => {
-    const err = new Error('wrapped', { cause: { code: 'ECONNREFUSED' } });
+    const err = new Error('wrapped');
+    (err as Error & { cause?: unknown }).cause = { code: 'ECONNREFUSED' };
     expect(classifyError(err).kind).toBe('network');
   });
 });
