@@ -143,6 +143,8 @@
     "app/components/AppNavbar.tsx",
     "src/stores/graphStore.ts",
     "src/stores/monitoringStore.ts",
+    "src/store/analytics/**/*",
+    "src/store/graphStore.ts",
     "src/test/setup.ts"
   ]
 }
