@@ -22,6 +22,7 @@ import {
 import { fetchProjects, type RemoteProjectSummary } from './services/projects';
 import { countVisualRows, hasMarkdown, renderMarkdown } from './markdown';
 import { buildCompleter, isPromptCancel, readPrompt } from './prompt';
+import { readDraft, clearDraft } from './services/draft';
 import { classifyError } from './errors';
 import { withRetry } from './retry';
 
@@ -47,6 +48,13 @@ export async function runRepl(options: ReplOptions = {}): Promise<void> {
 
   p.intro(`NOUS  ·  ${formatStatus(threadId, activeProject)}`);
 
+  let pendingDraft: string | null = null;
+  const initialDraft = readDraft();
+  if (initialDraft) {
+    pendingDraft = initialDraft;
+    clearDraft();
+  }
+
   let activeAbort: AbortController | null = null;
   let lastUserMessage: string | null = null;
   const onSigint = () => {
@@ -64,7 +72,9 @@ export async function runRepl(options: ReplOptions = {}): Promise<void> {
       const completer = buildCompleter({
         knownThreadIds: listThreads().map((t) => t.id),
       });
-      const raw = await readPrompt({ message: '>', completer });
+      const initialValue = pendingDraft ?? undefined;
+      pendingDraft = null;
+      const raw = await readPrompt({ message: '>', completer, initialValue });
       if (isPromptCancel(raw) || p.isCancel(raw)) {
         p.outro('Bye.');
         break;

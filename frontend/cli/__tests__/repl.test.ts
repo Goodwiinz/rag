@@ -638,3 +638,17 @@ describe('/retry', () => {
     expect(warnings.some((m) => /Nothing to retry/i.test(m))).toBe(true);
   });
 });
+
+describe('draft restore on startup', () => {
+  test('first readPrompt receives initialValue from ~/.nous/draft.txt; file is then empty', async () => {
+    const draft = require('../services/draft');
+    draft.writeDraft('half typed');
+    mockedText.mockReset();
+    mockedText.mockResolvedValueOnce('__CANCEL__' as never);
+    await runRepl();
+    expect(
+      (mockedText.mock.calls[0]?.[0] as { initialValue?: string }).initialValue
+    ).toBe('half typed');
+    expect(draft.readDraft()).toBe('');
+  });
+});
