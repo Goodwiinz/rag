@@ -110,6 +110,7 @@ const SLASH_COMMANDS = [
   '/history',
   '/forget',
   '/projects',
+  '/retry',
   '/context',
   '/settings',
   '/help',

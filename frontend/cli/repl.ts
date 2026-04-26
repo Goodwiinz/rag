@@ -48,6 +48,7 @@ export async function runRepl(options: ReplOptions = {}): Promise<void> {
   p.intro(`NOUS  ·  ${formatStatus(threadId, activeProject)}`);
 
   let activeAbort: AbortController | null = null;
+  let lastUserMessage: string | null = null;
   const onSigint = () => {
     if (activeAbort) {
       activeAbort.abort();
@@ -87,6 +88,27 @@ export async function runRepl(options: ReplOptions = {}): Promise<void> {
             p.outro('Bye.');
             process.exit(0);
           },
+          lastUserMessage,
+          retryLast: async () => {
+            if (!lastUserMessage) {
+              p.log.warn('Nothing to retry.');
+              return;
+            }
+            const retryCtx = activeProject
+              ? {
+                  type: 'project',
+                  project_id: activeProject.id,
+                  project_name: activeProject.name,
+                }
+              : { type: 'chat' };
+            activeAbort = new AbortController();
+            await streamToTerminal(
+              lastUserMessage,
+              retryCtx,
+              activeAbort.signal
+            );
+            activeAbort = null;
+          },
         });
         if (done) continue;
       }
@@ -103,6 +125,7 @@ export async function runRepl(options: ReplOptions = {}): Promise<void> {
       activeAbort = new AbortController();
       await streamToTerminal(input, ctx, activeAbort.signal);
       activeAbort = null;
+      lastUserMessage = input;
 
       const updated = loadConfig();
       if (updated && updated.thread_id !== threadId) {
@@ -420,6 +443,8 @@ interface SlashContext {
   onThreadChange: (t: string | null) => void;
   onProjectChange: (proj: ActiveProject | null) => void;
   onExit: () => void;
+  lastUserMessage: string | null;
+  retryLast: () => Promise<void>;
 }
 
 async function handleSlashCommand(
@@ -486,9 +511,13 @@ async function handleSlashCommand(
     await handleSettingsCommand(args);
     return true;
   }
+  if (command === 'retry') {
+    await ctx.retryLast();
+    return true;
+  }
   if (command === 'help') {
     p.log.message(
-      '/new  /thread  /threads  /history [n]  /forget [id]  /projects  /context project <id> [name]  /context clear  /settings [set api_url <url>]  /quit'
+      '/new  /thread  /threads  /history [n]  /forget [id]  /projects  /retry  /context project <id> [name]  /context clear  /settings [set api_url <url>]  /quit'
     );
     return true;
   }

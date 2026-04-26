@@ -597,3 +597,44 @@ describe('confirmKey', () => {
     expect(mockedConfirm).toHaveBeenCalled();
   });
 });
+
+describe('/retry', () => {
+  test('re-runs the last user prompt against streamAgent', async () => {
+    mockedText.mockReset();
+    mockedText
+      .mockResolvedValueOnce('hi' as never)
+      .mockResolvedValueOnce('/retry' as never)
+      .mockResolvedValueOnce('__CANCEL__' as never);
+    mockedStreamAgent.mockReturnValueOnce(
+      events([{ type: 'token', content: 'first' }, { type: 'done' }])
+    );
+    mockedStreamAgent.mockReturnValueOnce(
+      events([{ type: 'token', content: 'second' }, { type: 'done' }])
+    );
+    await runRepl();
+    expect(mockedStreamAgent).toHaveBeenCalledTimes(2);
+    expect(mockedStreamAgent).toHaveBeenNthCalledWith(
+      1,
+      'hi',
+      expect.any(Object),
+      expect.any(Object)
+    );
+    expect(mockedStreamAgent).toHaveBeenNthCalledWith(
+      2,
+      'hi',
+      expect.any(Object),
+      expect.any(Object)
+    );
+  });
+
+  test('/retry with no prior message logs a hint and does not call streamAgent', async () => {
+    mockedText.mockReset();
+    mockedText
+      .mockResolvedValueOnce('/retry' as never)
+      .mockResolvedValueOnce('__CANCEL__' as never);
+    await runRepl();
+    expect(mockedStreamAgent).not.toHaveBeenCalled();
+    const warnings = mockedLog.warn.mock.calls.map((c) => c[0] as string);
+    expect(warnings.some((m) => /Nothing to retry/i.test(m))).toBe(true);
+  });
+});
