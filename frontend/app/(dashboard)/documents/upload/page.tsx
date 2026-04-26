@@ -40,7 +40,7 @@ import {
   WebSocketProgressUpdate,
 } from '@/services/enhancedDocumentService';
 import { apiClient } from '@/services/apiClient';
-import { useAuthStore } from '@/stores/authStore';
+import { useAuthStore } from '@/store/authStore';
 import { cn } from '@/lib/utils';
 
 async function computeSHA256(file: File): Promise<string> {

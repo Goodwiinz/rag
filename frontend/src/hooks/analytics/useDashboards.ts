@@ -1,8 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState, useCallback } from 'react';
 import { dashboardApi } from '@/services/analytics';
-import { useAnalyticsStore } from '@/stores/analytics';
-import { Dashboard, Widget } from '@/stores/analytics';
+import { useAnalyticsStore } from '@/store/analytics';
+import { Dashboard, Widget } from '@/store/analytics';
 
 // Hook for fetching dashboards
 export const useDashboards = () => {

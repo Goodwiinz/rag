@@ -1,6 +1,6 @@
 'use client';
 
-import { useAgentActivityStore } from '@/stores/agentActivityStore';
+import { useAgentActivityStore } from '@/store/agentActivityStore';
 import { cn } from '@/lib/utils';
 import { ChevronRight, Wrench } from 'lucide-react';
 import { useState } from 'react';

@@ -1,7 +1,7 @@
 'use client';
 
 import { RetrievalDiagnosticsDashboard } from '@/components/diagnostics/RetrievalDiagnosticsDashboard';
-import { useAuthStore } from '@/stores/authStore';
+import { useAuthStore } from '@/store/authStore';
 
 export default function DiagnosticsPage() {
   const { user } = useAuthStore();

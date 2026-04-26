@@ -1,8 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState, useEffect } from 'react';
 import { metricsApi } from '@/services/analytics';
-import { useAnalyticsStore, useRealtimeStore } from '@/stores/analytics';
-import { AnalyticsMetric, TimeSeriesData } from '@/stores/analytics';
+import { useAnalyticsStore, useRealtimeStore } from '@/store/analytics';
+import { AnalyticsMetric, TimeSeriesData } from '@/store/analytics';
 
 // Hook for fetching metrics
 export const useMetrics = (timeRange?: { start: string; end: string }) => {

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { useRealtimeStore } from '@/stores/analytics';
-import { AnalyticsMetric, TimeSeriesData } from '@/stores/analytics';
+import { useRealtimeStore } from '@/store/analytics';
+import { AnalyticsMetric, TimeSeriesData } from '@/store/analytics';
 import { getPublicWebSocketOrigin } from '@/utils/publicEndpoints';
 
 // WebSocket Configuration

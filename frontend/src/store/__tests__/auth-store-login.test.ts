@@ -27,16 +27,16 @@ describe('useAuthStore signIn configuration handling', () => {
   it('does not throw while importing the auth store when browser Supabase config is missing', () => {
     expect(() => {
       jest.isolateModules(() => {
-        require('@/stores/authStore');
+        require('@/store/authStore');
       });
     }).not.toThrow();
   });
 
   it('rejects signIn with a build-time config error when browser Supabase config is missing', async () => {
-    let useAuthStore: typeof import('@/stores/authStore').useAuthStore;
+    let useAuthStore: typeof import('@/store/authStore').useAuthStore;
 
     jest.isolateModules(() => {
-      ({ useAuthStore } = require('@/stores/authStore'));
+      ({ useAuthStore } = require('@/store/authStore'));
     });
 
     await expect(

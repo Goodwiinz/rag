@@ -28,7 +28,7 @@ import {
   useCriticalAlerts,
   useActiveAlertsCount,
   useUnacknowledgedAlerts
-} from '../../stores/monitoringStore';
+} from '../../store/monitoringStore';
 
 // Test data
 const mockSystemHealth = {

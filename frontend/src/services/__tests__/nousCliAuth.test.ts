@@ -3,13 +3,13 @@ import {
   downloadStoredNousCliAuth,
 } from '@/services/nousCliAuth';
 import { createClient } from '@/lib/supabase/client';
-import { useAuthStore } from '@/stores/authStore';
+import { useAuthStore } from '@/store/authStore';
 
 jest.mock('@/lib/supabase/client', () => ({
   createClient: jest.fn(),
 }));
 
-jest.mock('@/stores/authStore', () => ({
+jest.mock('@/store/authStore', () => ({
   useAuthStore: {
     getState: jest.fn(),
   },

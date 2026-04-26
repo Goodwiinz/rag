@@ -13,7 +13,7 @@ import { CreateProjectModal } from '@/components/research/CreateProjectModal';
 import { ProjectList } from '@/components/research/ProjectList';
 import { useProjectStore } from '@/store/projectStore';
 import { useChatStore, selectCurrentWorkspace } from '@/store/chat-store';
-import { useAuthStore } from '@/stores/authStore';
+import { useAuthStore } from '@/store/authStore';
 import { workspaceService } from '@/services/workspaceService';
 import { getApiErrorMessage } from '@/utils/apiErrorMessage';
 

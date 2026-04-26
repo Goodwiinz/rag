@@ -11,7 +11,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
 import { entityService, ProcessingJobStatus } from '@/services/entityService';
-import { useAuthStore } from '@/stores/authStore';
+import { useAuthStore } from '@/store/authStore';
 
 const isActive = (status: string) =>
   ['queued', 'running', 'retrying'].includes(status);

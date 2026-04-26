@@ -8,7 +8,7 @@ import React, {
   ReactNode,
 } from 'react';
 import { User, Organization, RegisterRequest, RegisterResult } from '@/types';
-import { useAuthStore } from '@/stores/authStore';
+import { useAuthStore } from '@/store/authStore';
 
 interface AuthContextType {
   user: User | null;

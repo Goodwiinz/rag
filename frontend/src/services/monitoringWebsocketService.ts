@@ -4,7 +4,7 @@
  */
 
 import EventEmitter from 'events';
-import { useMonitoringStore } from '@/stores/monitoringStore';
+import { useMonitoringStore } from '@/store/monitoringStore';
 import {
   RealTimeUpdate,
   SystemHealthScore,

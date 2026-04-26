@@ -2,7 +2,7 @@
 import React from 'react';
 import { render, screen } from '@testing-library/react';
 import { AgentActivityPanel } from '../AgentActivityPanel';
-import { useAgentActivityStore } from '@/stores/agentActivityStore';
+import { useAgentActivityStore } from '@/store/agentActivityStore';
 
 describe('AgentActivityPanel', () => {
   beforeEach(() => {

@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/client';
-import { useAuthStore } from '@/stores/authStore';
+import { useAuthStore } from '@/store/authStore';
 import { APIResponse } from '@/types/api';
 import {
   Document,

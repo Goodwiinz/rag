@@ -7,7 +7,7 @@
 
 import React, { createContext, useContext, useEffect, useRef, useState, useCallback } from 'react';
 import { websocketService, WebSocketStatus } from '../../services/websocketService';
-import { useGraphStore } from '../../stores/graphStore';
+import { useGraphStore } from '../../store/graphStore';
 import { WebSocketGraphUpdate } from '../../types/graph-api';
 
 interface WebSocketContextValue {

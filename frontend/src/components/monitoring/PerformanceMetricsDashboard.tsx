@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
-import { useMonitoringStore } from '@/stores/monitoringStore';
+import { useMonitoringStore } from '@/store/monitoringStore';
 import MetricCard from './MetricCard';
 import {
   PerformanceMetrics,

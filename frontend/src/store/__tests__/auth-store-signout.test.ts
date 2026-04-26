@@ -21,9 +21,9 @@ describe('useAuthStore signOut', () => {
       clearWorkspaceServiceCache: mockClearWorkspaceServiceCache,
     }));
 
-    let useAuthStore: typeof import('@/stores/authStore').useAuthStore;
+    let useAuthStore: typeof import('@/store/authStore').useAuthStore;
     jest.isolateModules(() => {
-      ({ useAuthStore } = require('@/stores/authStore'));
+      ({ useAuthStore } = require('@/store/authStore'));
     });
 
     useAuthStore.setState({

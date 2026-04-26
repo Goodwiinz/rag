@@ -20,7 +20,7 @@ import { Network } from 'vis-network/standalone';
 import { useQuery } from '@tanstack/react-query';
 import { graphService } from '../../services/graphService';
 import { websocketService } from '../../services/websocketService';
-import { useGraphStore } from '../../stores/enhancedGraphStore';
+import { useGraphStore } from '../../store/enhancedGraphStore';
 import {
   KnowledgeGraphData,
   GraphNode,

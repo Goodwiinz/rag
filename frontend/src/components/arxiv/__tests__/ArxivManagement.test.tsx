@@ -14,7 +14,7 @@ jest.mock('@/services/apiClient', () => ({
   },
 }));
 
-jest.mock('@/stores/authStore', () => ({
+jest.mock('@/store/authStore', () => ({
   useAuthStore: (selector: (state: typeof mockAuthStoreState) => unknown) =>
     selector(mockAuthStoreState),
 }));

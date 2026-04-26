@@ -45,7 +45,7 @@ class ApiClient {
       const {
         data: { session },
       } = await supabase.auth.getSession();
-      const { useAuthStore } = await import('@/stores/authStore');
+      const { useAuthStore } = await import('@/store/authStore');
       const organizationId = useAuthStore.getState().organization?.id;
 
       return {
@@ -90,7 +90,7 @@ class ApiClient {
       async (error) => {
         if (error.response?.status === 401 && !error.config?._retry) {
           error.config._retry = true;
-          const { useAuthStore } = await import('@/stores/authStore');
+          const { useAuthStore } = await import('@/store/authStore');
           useAuthStore.getState().signOut();
         }
 
@@ -173,7 +173,7 @@ class ApiClient {
       async (error) => {
         if (error.response?.status === 401 && !error.config?._retry) {
           error.config._retry = true;
-          const { useAuthStore } = await import('@/stores/authStore');
+          const { useAuthStore } = await import('@/store/authStore');
           useAuthStore.getState().signOut();
         }
 

@@ -7,7 +7,7 @@ import {
   Widget,
   Report,
   AlertRule,
-} from '@/stores/analytics';
+} from '@/store/analytics';
 import { getPublicApiOrigin } from '@/utils/publicEndpoints';
 
 // API Configuration

@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
-import { useMonitoringStore } from '@/stores/monitoringStore';
+import { useMonitoringStore } from '@/store/monitoringStore';
 import { useMonitoringWebSocket } from '@/services/monitoringWebsocketService';
 import MetricCard from './MetricCard';
 import StatusGrid from './StatusGrid';

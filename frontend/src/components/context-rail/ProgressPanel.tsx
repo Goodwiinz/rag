@@ -1,6 +1,6 @@
 'use client';
 
-import { useAgentActivityStore } from '@/stores/agentActivityStore';
+import { useAgentActivityStore } from '@/store/agentActivityStore';
 import { cn } from '@/lib/utils';
 import { Check } from 'lucide-react';
 import { CollapsibleCard } from './CollapsibleCard';

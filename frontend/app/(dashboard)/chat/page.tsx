@@ -30,8 +30,8 @@ import { agentChatService } from '@/services/agentChatService';
 import { enhancedDocumentService } from '@/services/enhancedDocumentService';
 import { workspaceService } from '@/services/workspaceService';
 import { useChatStore } from '@/store/chat-store';
-import { useAuthStore } from '@/stores/authStore';
-import { useAgentActivityStore } from '@/stores/agentActivityStore';
+import { useAuthStore } from '@/store/authStore';
+import { useAgentActivityStore } from '@/store/agentActivityStore';
 import { deriveAgentName, deriveTask } from '@/components/context-rail';
 import {
   ChatMessage as DBChatMessage,

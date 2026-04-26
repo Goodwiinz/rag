@@ -1,5 +1,5 @@
 import { renderHook } from '@testing-library/react';
-import { useAnalyticsStore, useTimeRange, useAnalyticsFilters } from '@/stores/analyticsStore';
+import { useAnalyticsStore, useTimeRange, useAnalyticsFilters } from '@/store/analyticsStore';
 import analyticsService from '@/services/analyticsService';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRAGTriadMetrics, usePerformanceAnalytics, useAnalyticsActions } from '../useAnalytics';
@@ -18,7 +18,7 @@ jest.mock('@/services/analyticsService', () => ({
   },
 }));
 
-jest.mock('@/stores/analyticsStore', () => ({
+jest.mock('@/store/analyticsStore', () => ({
   useAnalyticsStore: jest.fn(),
   useTimeRange: jest.fn(),
   useAnalyticsFilters: jest.fn(),

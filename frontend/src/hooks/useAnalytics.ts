@@ -1,7 +1,7 @@
 import React from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useAnalyticsStore } from '@/stores/analyticsStore';
-import { useTimeRange, useAnalyticsFilters } from '@/stores/analyticsStore';
+import { useAnalyticsStore } from '@/store/analyticsStore';
+import { useTimeRange, useAnalyticsFilters } from '@/store/analyticsStore';
 import {
   RAGTriadMetrics,
   PerformanceAnalytics,

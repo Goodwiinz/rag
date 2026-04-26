@@ -1,5 +1,5 @@
 import { format, parseISO, isAfter, isBefore, subDays, subHours, subMinutes } from 'date-fns';
-import { AnalyticsMetric, TimeSeriesData, GraphNode, GraphEdge } from '@/stores/analytics';
+import { AnalyticsMetric, TimeSeriesData, GraphNode, GraphEdge } from '@/store/analytics';
 
 // Data transformation utilities
 

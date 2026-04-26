@@ -3,7 +3,7 @@ import { render, screen } from '@testing-library/react';
 
 import DiagnosticsPage from '../../../../app/(dashboard)/diagnostics/page';
 
-jest.mock('@/stores/authStore', () => ({
+jest.mock('@/store/authStore', () => ({
   useAuthStore: () => ({
     user: { role: 'admin' },
   }),

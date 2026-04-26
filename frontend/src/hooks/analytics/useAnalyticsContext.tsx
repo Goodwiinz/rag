@@ -1,7 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useEffect, ReactNode } from 'react';
-import { useAnalyticsStore, useGraphVisualizationStore, useRealtimeStore } from '@/stores/analytics';
+import { useAnalyticsStore, useGraphVisualizationStore, useRealtimeStore } from '@/store/analytics';
 import { useWebSocket } from '@/services/analytics';
 import { getPublicWebSocketOrigin } from '@/utils/publicEndpoints';
 

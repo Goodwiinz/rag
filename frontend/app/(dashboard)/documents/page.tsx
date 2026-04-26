@@ -1,6 +1,6 @@
 'use client';
 
-import { useAuthStore } from '@/stores/authStore';
+import { useAuthStore } from '@/store/authStore';
 import { useDocuments } from '@/hooks/useDocuments';
 import { Upload, RefreshCw, Folder, AlertTriangle } from 'lucide-react';
 import Link from 'next/link';

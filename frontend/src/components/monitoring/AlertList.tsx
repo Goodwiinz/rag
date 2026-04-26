@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 import { Alert, AlertAction } from '@/types/monitoring';
-import { useMonitoringStore } from '@/stores/monitoringStore';
+import { useMonitoringStore } from '@/store/monitoringStore';
 import {
   ExclamationTriangleIcon,
   InformationCircleIcon,

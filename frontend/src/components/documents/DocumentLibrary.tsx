@@ -12,7 +12,7 @@ import {
   FolderArrowDownIcon,
 } from '@heroicons/react/24/outline';
 import { useDocuments } from '@/hooks/useDocuments';
-import { useAuthStore } from '@/stores/authStore';
+import { useAuthStore } from '@/store/authStore';
 import { DocumentCard } from './DocumentCard';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';

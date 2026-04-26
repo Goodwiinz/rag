@@ -22,7 +22,7 @@ import { Maximize2, Minus, Plus } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { graphService } from '../../services/graphService';
 import { websocketService } from '../../services/websocketService';
-import { useGraphStore } from '../../stores/graphStore';
+import { useGraphStore } from '../../store/graphStore';
 import {
     GraphEdge,
     GraphFilters,

@@ -1,8 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState, useEffect, useCallback } from 'react';
 import { graphApi } from '@/services/analytics';
-import { useAnalyticsStore, useGraphVisualizationStore } from '@/stores/analytics';
-import { GraphData, GraphNode, GraphEdge } from '@/stores/analytics';
+import { useAnalyticsStore, useGraphVisualizationStore } from '@/store/analytics';
+import { GraphData, GraphNode, GraphEdge } from '@/store/analytics';
 
 // Hook for fetching graph data
 export const useGraphData = (filters?: {

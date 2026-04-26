@@ -7,7 +7,7 @@
 
 import toast from 'react-hot-toast';
 import { useChatStore } from '@/store/chat-store';
-import { useAuthStore } from '@/stores/authStore';
+import { useAuthStore } from '@/store/authStore';
 import {
   ChatMessage,
   MessageRole,

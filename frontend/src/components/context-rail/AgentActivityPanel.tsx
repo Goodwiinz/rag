@@ -1,7 +1,7 @@
 'use client';
 
 import { NousAgentStatusCard, type AgentStep } from '@/nous';
-import { useAgentActivityStore, type Step } from '@/stores/agentActivityStore';
+import { useAgentActivityStore, type Step } from '@/store/agentActivityStore';
 import { CollapsibleCard } from './CollapsibleCard';
 
 interface AgentActivityPanelProps {

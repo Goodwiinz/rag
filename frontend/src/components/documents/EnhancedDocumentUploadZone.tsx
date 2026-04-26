@@ -52,7 +52,7 @@ import {
   enhancedDocumentService,
   WebSocketProgressUpdate,
 } from '@/services/enhancedDocumentService';
-import { useAuthStore } from '@/stores/authStore';
+import { useAuthStore } from '@/store/authStore';
 
 interface UploadedFile {
   id: string;

@@ -25,7 +25,7 @@ jest.mock('@/services/apiClient', () => ({
   },
 }));
 
-import { useAuthStore } from '@/stores/authStore';
+import { useAuthStore } from '@/store/authStore';
 
 describe('useAuthStore signUp', () => {
   beforeEach(() => {

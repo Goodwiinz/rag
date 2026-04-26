@@ -12,7 +12,7 @@ jest.mock('next/navigation', () => ({
   useRouter: () => ({ push: mockPush }),
 }));
 
-jest.mock('@/stores/authStore', () => ({
+jest.mock('@/store/authStore', () => ({
   useAuthStore: () => ({ isAuthenticated: true }),
 }));
 

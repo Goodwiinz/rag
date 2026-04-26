@@ -43,7 +43,7 @@ import {
 } from '@/services/projectService';
 import { useProjectStore } from '@/store/projectStore';
 import { useAgentChatStore } from '@/store/agentChatStore';
-import { useAuthStore } from '@/stores/authStore';
+import { useAuthStore } from '@/store/authStore';
 import { APIErrorClass } from '@/types/api';
 import type { ProjectNote, ProjectNoteCreate } from '@/services/projectService';
 

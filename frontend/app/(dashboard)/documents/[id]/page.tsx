@@ -7,7 +7,7 @@
 
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { useAuthStore } from '@/stores/authStore';
+import { useAuthStore } from '@/store/authStore';
 import { apiClient } from '@/services/apiClient';
 import { Document, APIErrorClass } from '@/types';
 import { cn } from '@/lib/utils';

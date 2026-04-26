@@ -58,7 +58,7 @@ jest.mock('@/hooks/useDocuments', () => ({
 // ---------------------------------------------------------------------------
 let mockIsAuthenticated = true;
 
-jest.mock('@/stores/authStore', () => ({
+jest.mock('@/store/authStore', () => ({
   useAuthStore: () => ({ isAuthenticated: mockIsAuthenticated }),
 }));
 

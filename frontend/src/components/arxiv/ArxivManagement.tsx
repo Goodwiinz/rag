@@ -2,7 +2,7 @@
 
 import { cn } from '@/lib/utils';
 import { apiClient } from '@/services/apiClient';
-import { useAuthStore } from '@/stores/authStore';
+import { useAuthStore } from '@/store/authStore';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   Activity,

@@ -198,7 +198,7 @@ v2Client.interceptors.response.use(
       console.warn('[WorkspaceService] Authentication error - logging out');
       clearWorkspaceServiceCache();
       // Dynamic import to avoid circular dependencies
-      import('@/stores/authStore').then(({ useAuthStore }) => {
+      import('@/store/authStore').then(({ useAuthStore }) => {
         useAuthStore.getState().signOut();
       });
     }

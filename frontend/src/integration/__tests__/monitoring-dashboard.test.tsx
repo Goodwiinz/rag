@@ -25,7 +25,7 @@ import AlertsManagement from '../../components/monitoring/AlertsManagement';
 import UserAnalytics from '../../components/monitoring/UserAnalytics';
 
 // Monitoring store and services
-import { useMonitoringStore } from '../../stores/monitoringStore';
+import { useMonitoringStore } from '../../store/monitoringStore';
 import monitoringWebSocketService from '../../services/monitoringWebsocketService';
 
 // Mocks
