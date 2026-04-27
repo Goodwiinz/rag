@@ -104,6 +104,7 @@ test('yields tool_start and tool_end events', async () => {
     type: 'tool_end',
     tool: 'search_arxiv',
     isError: false,
+    result: '',
   });
 });
 
@@ -129,6 +130,7 @@ test('yields error event when tool_end has is_error=true', async () => {
     type: 'tool_end',
     tool: 'ingest_papers',
     isError: true,
+    result: '',
   });
 });
 
