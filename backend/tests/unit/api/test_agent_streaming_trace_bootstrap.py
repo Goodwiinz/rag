@@ -31,7 +31,7 @@ async def test_stream_event_generator_bootstraps_langsmith_before_compile():
         return _FakeGraph()
 
     request = SimpleNamespace(is_disconnected=AsyncMock(return_value=True))
-    body = SimpleNamespace(messages=[], page_context={"type": "general"}, thread_id="")
+    body = SimpleNamespace(messages=[], page_context={"type": "general"}, thread_id="", model="")
     current_user = Mock(id="user-1", organization_id="org-1")
     db = AsyncMock()
 
