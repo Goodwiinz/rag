@@ -439,6 +439,9 @@ jobs:
             -e JWT_SECRET_KEY=ci-test-jwt-secret-key-32chars! \
             -e CORS_ORIGINS=http://localhost:3000,http://frontend:3000 \
             -e ENABLE_AI_PROCESSING=false \
+            -e SEED_ADMIN_PASSWORD=admin123 \
+            -e SEED_DEMO_PASSWORD=demo123 \
+            -e SEED_LAB_ADMIN_PASSWORD=admin123 \
             rag-backend:test
 
           # Start frontend with pre-built image
@@ -474,6 +477,18 @@ jobs:
 
           echo "Checking frontend..."
           curl -f http://localhost:3000 || exit 1
+      - name: Initialize and seed test database
+        # Playwright globalSetup logs in as admin@multimodal-rag.com to populate
+        # storageState. The fresh postgres container has no schema or users, so
+        # without this step every E2E test fails at auth setup with a 10s
+        # waitForURL("**/dashboard") timeout. Creates schema via SQLAlchemy
+        # metadata + seeds admin/demo/lab users with the well-known passwords
+        # the tests expect (matching CLAUDE.md dev creds).
+        run: |
+          docker exec \
+            -e PYTHONPATH=/app \
+            backend-e2e \
+            python -c "from src.core.database import create_tables, init_database; create_tables(); init_database()"
       - name: Run E2E Tests
         env:
           EVENT_NAME: ${{ github.event_name }}
