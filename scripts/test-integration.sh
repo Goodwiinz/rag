@@ -15,7 +15,7 @@ CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
 # Test configuration
-COMPOSE_FILE="docker-compose.graph-services-corrected.yml"
+COMPOSE_FILE="docker-compose.graph-services.yml"
 PROJECT_NAME="rag-graph"
 TEST_ORG_ID="test-org-$(date +%s)"
 TEST_USER_ID="test-user-$(date +%s)"
