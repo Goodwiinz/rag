@@ -6,6 +6,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { SearchMetrics, SearchResult, SourceReference } from '@/types/search';
+import { IconButton, IconButtonSm } from '@/components/ui/icon-button';
 import {
   ArrowDownTrayIcon,
   ChartBarIcon,
@@ -82,22 +83,22 @@ const FeedbackDialog: React.FC<FeedbackDialogProps> = ({
             </label>
             <div className="flex space-x-1">
               {[1, 2, 3, 4, 5].map((star) => (
-                <button
+                <IconButton
                   key={star}
-                  type="button"
+                  icon={
+                    <StarIcon
+                      className={cn(
+                        'h-6 w-6',
+                        star <= rating
+                          ? 'text-amber-400 fill-amber-400'
+                          : 'text-gray-600'
+                      )}
+                    />
+                  }
+                  label={`Rate ${star} stars`}
                   onClick={() => setRating(star)}
-                  className="p-1 hover:scale-110 transition-transform"
-                  aria-label={`Rate ${star} stars`}
-                >
-                  <StarIcon
-                    className={cn(
-                      'h-6 w-6',
-                      star <= rating
-                        ? 'text-amber-400 fill-amber-400'
-                        : 'text-gray-600'
-                    )}
-                  />
-                </button>
+                  className="p-1 hover:scale-110 transition-transform bg-transparent hover:bg-transparent"
+                />
               ))}
             </div>
           </div>
@@ -537,20 +538,20 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
                 title: 'Rate',
               },
             ].map((action, i) => (
-              <button
+              <IconButton
                 key={i}
+                icon={
+                  <action.icon
+                    className={cn(
+                      'h-4 w-4',
+                      copiedAnswer && i === 0 && 'text-green-500'
+                    )}
+                  />
+                }
+                label={action.title}
                 onClick={action.onClick}
                 className="p-2 rounded-lg text-gray-500 hover:text-white hover:bg-white/5 transition-colors"
-                title={action.title}
-                aria-label={action.title}
-              >
-                <action.icon
-                  className={cn(
-                    'h-4 w-4',
-                    copiedAnswer && i === 0 && 'text-green-500'
-                  )}
-                />
-              </button>
+              />
             ))}
           </div>
         </div>
@@ -659,28 +660,24 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
                   )}
                 </div>
                 <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button
+                  <IconButtonSm
+                    icon={<EyeIcon className="h-3.5 w-3.5" />}
+                    label="Preview document"
                     onClick={(e) => {
                       e.stopPropagation();
                       handleDocumentPreview(source);
                     }}
                     className="p-1.5 rounded text-gray-500 hover:text-white hover:bg-white/5 transition-colors"
-                    title="Preview"
-                    aria-label="Preview document"
-                  >
-                    <EyeIcon className="h-3.5 w-3.5" />
-                  </button>
-                  <button
+                  />
+                  <IconButtonSm
+                    icon={<ClipboardDocumentIcon className="h-3.5 w-3.5" />}
+                    label="Copy source snippet"
                     onClick={(e) => {
                       e.stopPropagation();
                       handleCopySource(source);
                     }}
                     className="p-1.5 rounded text-gray-500 hover:text-white hover:bg-white/5 transition-colors"
-                    title="Copy"
-                    aria-label="Copy source snippet"
-                  >
-                    <ClipboardDocumentIcon className="h-3.5 w-3.5" />
-                  </button>
+                  />
                 </div>
               </div>
             </div>

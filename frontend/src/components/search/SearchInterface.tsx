@@ -17,6 +17,7 @@ import {
 } from '@/types/search';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
+import { IconButton } from '@/components/ui/icon-button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -409,14 +410,12 @@ export const SearchInterface: React.FC<SearchInterfaceProps> = ({
 
           {/* Clear Button / Keyboard Hint */}
           {query ? (
-            <button
-              type="button"
+            <IconButton
+              icon={<XMarkIcon className="h-4 w-4" />}
+              label="Clear search"
               onClick={handleClear}
-              className="absolute right-28 top-1/2 transform -translate-y-1/2 h-8 w-8 flex items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-              aria-label="Clear search"
-            >
-              <XMarkIcon className="h-4 w-4" />
-            </button>
+              className="absolute right-28 top-1/2 transform -translate-y-1/2 h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-muted"
+            />
           ) : (
             <div
               className="absolute right-28 top-1/2 transform -translate-y-1/2 hidden sm:flex pointer-events-none select-none items-center gap-1 rounded border border-muted-foreground/30 bg-muted/20 px-1.5 font-mono text-[10px] font-medium text-muted-foreground opacity-70"
