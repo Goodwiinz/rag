@@ -103,8 +103,12 @@ services:
       start_period: 20s
 
   # E2E Test Runner (Playwright)
+  # Image tag MUST match @playwright/test version in tests/e2e/package.json.
+  # Mismatched browsers in the bundled cache cause cryptic launch errors
+  # (e.g. "spawn /bin/sh ENOENT") because newer Playwright expects headless
+  # shell binaries that older base images don't ship.
   e2e-tests:
-    image: mcr.microsoft.com/playwright:v1.47.2-jammy
+    image: mcr.microsoft.com/playwright:v1.59.1-jammy
     working_dir: /app/tests/e2e
     volumes:
       - ./tests/e2e:/app/tests/e2e
@@ -134,7 +138,7 @@ services:
 
   # Smoke Test Runner (subset of E2E for PRs)
   smoke-tests:
-    image: mcr.microsoft.com/playwright:v1.47.2-jammy
+    image: mcr.microsoft.com/playwright:v1.59.1-jammy
     working_dir: /app/tests/e2e
     volumes:
       - ./tests/e2e:/app/tests/e2e
