@@ -95,7 +95,11 @@ test('yields tool_start and tool_end events', async () => {
     events.push(e);
   }
 
-  expect(events).toContainEqual({ type: 'tool_start', tool: 'search_arxiv', args: '' });
+  expect(events).toContainEqual({
+    type: 'tool_start',
+    tool: 'search_arxiv',
+    args: '',
+  });
   expect(events).toContainEqual({
     type: 'tool_end',
     tool: 'search_arxiv',
@@ -337,4 +341,32 @@ test('streamConfirm persists thread_id rotation from trace event', async () => {
   expect(mockedSaveConfig).toHaveBeenCalledWith(
     expect.objectContaining({ thread_id: 'rotated-id' })
   );
+});
+
+test('emits IDLE_TIMEOUT sentinel error when no events arrive within idleTimeoutMs', async () => {
+  const slowResponse = {
+    ok: true,
+    body: new ReadableStream<Uint8Array>({
+      start(controller) {
+        // never enqueue anything; stream hangs
+        void controller;
+      },
+    }),
+  };
+  const mockFetch = jest.fn().mockResolvedValue(slowResponse);
+
+  const events: unknown[] = [];
+  for await (const e of streamAgent(
+    'hi',
+    {},
+    { fetchFn: mockFetch as never, idleTimeoutMs: 50 }
+  )) {
+    events.push(e);
+    if ((e as { type: string }).type === 'error') break;
+  }
+
+  expect(events).toContainEqual({
+    type: 'error',
+    message: expect.stringMatching(/^IDLE_TIMEOUT:0$/),
+  });
 });
