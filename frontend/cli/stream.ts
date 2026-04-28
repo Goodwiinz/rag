@@ -4,7 +4,7 @@ import { getApiBase, getCliAuthHeaders } from './services/client';
 export type StreamEvent =
   | { type: 'token'; content: string }
   | { type: 'tool_start'; tool: string; args: string }
-  | { type: 'tool_end'; tool: string; isError: boolean }
+  | { type: 'tool_end'; tool: string; isError: boolean; result: string }
   | { type: 'confirmation'; threadId: string; details: Record<string, unknown> }
   | { type: 'plan'; steps: string[]; reasoning: string }
   | { type: 'reflection'; passed: boolean; issues: string[]; round: number }
@@ -75,6 +75,7 @@ async function* _parseSseBody(
                 type: 'tool_end',
                 tool: data.tool,
                 isError: data.is_error ?? false,
+                result: typeof data.result === 'string' ? data.result : '',
               };
             } else if (eventType === 'confirmation') {
               yield {

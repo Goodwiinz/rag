@@ -83,6 +83,23 @@ def _extract_usage_tokens(event: Dict[str, Any]) -> tuple[int, int]:
     return 0, 0
 
 
+def _encode_tool_result(output: Any) -> str:
+    """Render a tool's return value for the SSE ``tool_end.result`` field.
+
+    For dict/list outputs, emit JSON so the CLI can parse and summarize.
+    For everything else (strings, primitives, exotic objects), fall back
+    to ``str()`` — same as before. Catches serialization failures so an
+    unexpectedly non-JSON-able value (e.g. a tool that returns a
+    ``datetime``) never breaks the stream.
+    """
+    if isinstance(output, (dict, list)):
+        try:
+            return _json.dumps(output, default=str)[:500]
+        except (TypeError, ValueError):
+            pass
+    return str(output)[:500]
+
+
 def _format_sse_event(event_type: str, data: Dict[str, Any]) -> str:
     """Format a single SSE event frame."""
     return f"event: {event_type}\ndata: {_json.dumps(data)}\n\n"
@@ -204,7 +221,7 @@ async def stream_event_generator(
                     ) or (
                         getattr(output, "status", None) == "error"
                     )
-                    yield f"event: tool_end\ndata: {_json.dumps({'tool': name, 'result': str(output)[:500], 'is_error': is_error})}\n\n"
+                    yield f"event: tool_end\ndata: {_json.dumps({'tool': name, 'result': _encode_tool_result(output), 'is_error': is_error})}\n\n"
 
                 elif kind == "on_chain_end" and name == "rag_node":
                     output = event.get("data", {}).get("output", {})
@@ -413,7 +430,7 @@ async def stream_confirm_event_generator(
                     ) or (
                         getattr(output, "status", None) == "error"
                     )
-                    yield f"event: tool_end\ndata: {_json.dumps({'tool': name, 'result': str(output)[:500], 'is_error': is_error})}\n\n"
+                    yield f"event: tool_end\ndata: {_json.dumps({'tool': name, 'result': _encode_tool_result(output), 'is_error': is_error})}\n\n"
 
                 elif kind == "on_chain_end" and name == "planner_node":
                     output = event.get("data", {}).get("output", {})

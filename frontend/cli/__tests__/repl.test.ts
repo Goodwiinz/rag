@@ -7,6 +7,8 @@ import * as path from 'path';
 import * as prompts from '@clack/prompts';
 import {
   confirmationPromptMessage,
+  formatToolEndLine,
+  pickSummary,
   renderCitationsFooter,
   renderConfirmationDetails,
   renderUsageLine,
@@ -212,7 +214,7 @@ describe('confirmation rendering', () => {
 });
 
 describe('confirm flow happy path', () => {
-  test('shows "Actions completed." when LLM is silent after user confirms', async () => {
+  test('NEVER prints "Actions completed." after PR-D-1 — per-tool summaries replace it', async () => {
     mockedStreamAgent.mockReturnValueOnce(
       events([
         {
@@ -231,7 +233,10 @@ describe('confirm flow happy path', () => {
       true,
       expect.any(Object)
     );
-    expect(mockedLog.success).toHaveBeenCalledWith('Actions completed.');
+    const successCalls = mockedLog.success.mock.calls.map(
+      (c) => c[0] as string
+    );
+    expect(successCalls.every((m) => !/Actions completed/i.test(m))).toBe(true);
   });
 
   test('suppresses "Actions completed." when LLM emits tokens after confirmation', async () => {
@@ -432,7 +437,12 @@ describe('streamToTerminal: tool args, citations footer, usage', () => {
     mockedStreamAgent.mockReturnValueOnce(
       events([
         { type: 'tool_start', tool: 'search_documents', args: 'query=foo' },
-        { type: 'tool_end', tool: 'search_documents', isError: false },
+        {
+          type: 'tool_end',
+          tool: 'search_documents',
+          isError: false,
+          result: '',
+        },
         { type: 'done' },
       ])
     );
@@ -795,6 +805,110 @@ describe('slash commands: /clear and unknown', () => {
       'hello there',
       expect.any(Object),
       expect.any(Object)
+    );
+  });
+});
+
+describe('formatToolEndLine — pure rendering', () => {
+  test('JSON error result → tool ✗ message', () => {
+    const out = formatToolEndLine(
+      'ingest_arxiv_papers',
+      JSON.stringify({ error: 'Invalid arXiv ID format' }),
+      false
+    );
+    expect(out).toBe('ingest_arxiv_papers Invalid arXiv ID format');
+  });
+
+  test('isError=true with non-JSON result falls back to truncated raw', () => {
+    const out = formatToolEndLine('foo', 'something exploded', true);
+    expect(out).toBe('foo something exploded');
+  });
+
+  test('dict-success with documents_ingested + paper_ids → N of M ingested', () => {
+    const out = formatToolEndLine(
+      'ingest_arxiv_papers',
+      JSON.stringify({
+        documents_ingested: 0,
+        paper_ids: ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j'],
+      }),
+      false
+    );
+    expect(out).toBe('ingest_arxiv_papers · 0 of 10 ingested');
+  });
+
+  test('dict-success with total + projects → 7 projects', () => {
+    const out = formatToolEndLine(
+      'list_projects',
+      JSON.stringify({ total: 7, projects: [{}, {}, {}, {}, {}, {}, {}] }),
+      false
+    );
+    expect(out).toBe('list_projects · 7 projects');
+  });
+
+  test('dict-success with project_id and name → created "<name>"', () => {
+    const out = formatToolEndLine(
+      'create_project',
+      JSON.stringify({ project_id: 'abc12345-...', name: 'RAG Research' }),
+      false
+    );
+    expect(out).toBe('create_project · created RAG Research');
+  });
+
+  test('dict-success with no recognized keys → bare tool', () => {
+    const out = formatToolEndLine(
+      'add_document_to_project',
+      JSON.stringify({ ok: true }),
+      false
+    );
+    expect(out).toBe('add_document_to_project');
+  });
+
+  test('empty result → bare tool', () => {
+    expect(formatToolEndLine('search', '', false)).toBe('search');
+    expect(formatToolEndLine('search', '{}', false)).toBe('search');
+    expect(formatToolEndLine('search', '[]', false)).toBe('search');
+  });
+
+  test('explicit summary key beats heuristics', () => {
+    const out = formatToolEndLine(
+      'whatever',
+      JSON.stringify({ summary: 'all good', total: 999, papers: [] }),
+      false
+    );
+    expect(out).toBe('whatever · all good');
+  });
+
+  test('non-JSON string result → first 80 chars after ·', () => {
+    const out = formatToolEndLine('thing', 'plain text result', false);
+    expect(out).toBe('thing · plain text result');
+  });
+
+  test('long string result is truncated to 80 chars with ellipsis', () => {
+    const long = 'a'.repeat(120);
+    const out = formatToolEndLine('thing', long, false);
+    // 'thing · ' + truncated to 80 visible chars
+    expect(out.length).toBeLessThanOrEqual('thing · '.length + 80);
+    expect(out.endsWith('…')).toBe(true);
+  });
+});
+
+describe('pickSummary — heuristic priority', () => {
+  test('summary key wins over everything', () => {
+    expect(
+      pickSummary({ summary: 'X', documents_ingested: 5, paper_ids: [1, 2] })
+    ).toBe('X');
+  });
+  test('returns null when no recognized keys', () => {
+    expect(pickSummary({ random: true })).toBeNull();
+  });
+  test('uppercase Name wins over id slice', () => {
+    expect(pickSummary({ project_id: 'abc12345-...', name: 'Hello' })).toBe(
+      'created Hello'
+    );
+  });
+  test('falls back to id slice when name is empty', () => {
+    expect(pickSummary({ project_id: 'abc12345-tail', name: '' })).toBe(
+      'created abc12345'
     );
   });
 });

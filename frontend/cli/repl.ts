@@ -219,8 +219,6 @@ async function streamToTerminal(
   } | null = null;
   let tokenBuffer = '';
   let retriedAfterMissingThread = false;
-  let inConfirmFlow = false;
-  let postConfirmTokens = false;
 
   process.stdout.write('\n');
 
@@ -252,24 +250,28 @@ async function streamToTerminal(
         if (event.type === 'token') {
           process.stdout.write(event.content);
           tokenBuffer += event.content;
-          if (inConfirmFlow) postConfirmTokens = true;
         } else if (event.type === 'tool_start') {
           const s = p.spinner();
           s.start(formatToolLine(event.tool, event.args));
           spinners.set(event.tool, s);
         } else if (event.type === 'tool_end') {
+          const label = formatToolEndLine(
+            event.tool,
+            event.result,
+            event.isError
+          );
           const s = spinners.get(event.tool);
           if (s) {
             if (event.isError) {
-              s.error(event.tool);
+              s.error(label);
             } else {
-              s.stop(event.tool);
+              s.stop(label);
             }
             spinners.delete(event.tool);
           } else if (event.isError) {
-            p.log.error(`✗ ${event.tool}`);
+            p.log.error(`✗ ${label}`);
           } else {
-            p.log.success(`✓ ${event.tool}`);
+            p.log.success(`✓ ${label}`);
           }
         } else if (event.type === 'plan') {
           if (event.steps.length > 0) {
@@ -317,9 +319,6 @@ async function streamToTerminal(
           maybeReformatMarkdown(tokenBuffer);
           renderCitationsFooter(collectedContexts);
           renderUsageLine(lastUsage);
-          if (inConfirmFlow && !postConfirmTokens) {
-            p.log.success('Actions completed.');
-          }
           process.stdout.write('\n');
           return;
         } else if (event.type === 'error') {
@@ -359,8 +358,9 @@ async function streamToTerminal(
 
     if (pendingConfirmThreadId === null) break;
 
-    inConfirmFlow = true;
-    postConfirmTokens = false;
+    // Reset the markdown buffer between pre- and post-confirm halves so the
+    // post-confirm done-event re-render doesn't include the LLM's pre-confirm
+    // "I want to run this tool" preamble.
     tokenBuffer = '';
     current = streamConfirm(pendingConfirmThreadId, true, { signal });
   }
@@ -401,6 +401,96 @@ function compactArgs(raw: string): string {
   if (cleaned.length === 0) return '';
   const max = 80;
   return cleaned.length > max ? `${cleaned.slice(0, max - 1)}…` : cleaned;
+}
+
+const RESULT_PREVIEW_MAX = 80;
+const KNOWN_PLURAL_KEYS = [
+  'papers',
+  'projects',
+  'documents',
+  'notes',
+  'drafts',
+] as const;
+
+function tryParseJson(raw: string): unknown {
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+function compactPreview(text: string): string {
+  const cleaned = text.replace(/\s+/g, ' ').trim();
+  if (cleaned.length <= RESULT_PREVIEW_MAX) return cleaned;
+  return `${cleaned.slice(0, RESULT_PREVIEW_MAX - 1)}…`;
+}
+
+export function pickSummary(parsed: Record<string, unknown>): string | null {
+  if (typeof parsed.summary === 'string' && parsed.summary.length > 0) {
+    return parsed.summary;
+  }
+
+  const ingested = parsed.documents_ingested;
+  const paperIds = parsed.paper_ids;
+  if (typeof ingested === 'number' && Array.isArray(paperIds)) {
+    return `${ingested} of ${paperIds.length} ingested`;
+  }
+
+  if (typeof parsed.total === 'number') {
+    for (const key of KNOWN_PLURAL_KEYS) {
+      if (Array.isArray(parsed[key])) {
+        return `${parsed.total} ${key}`;
+      }
+    }
+  }
+
+  for (const [key, value] of Object.entries(parsed)) {
+    if (key.endsWith('_id') && typeof value === 'string') {
+      const name =
+        typeof parsed.name === 'string' && parsed.name.length > 0
+          ? parsed.name
+          : value.slice(0, 8);
+      return `created ${name}`;
+    }
+  }
+
+  return null;
+}
+
+export function formatToolEndLine(
+  tool: string,
+  result: string,
+  isError: boolean
+): string {
+  const parsed = tryParseJson(result);
+  const parsedObj =
+    parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+      ? (parsed as Record<string, unknown>)
+      : null;
+
+  // Errors win
+  if (isError || (parsedObj && typeof parsedObj.error === 'string')) {
+    const msg =
+      parsedObj && typeof parsedObj.error === 'string'
+        ? parsedObj.error
+        : compactPreview(result);
+    return `${tool} ${compactPreview(msg)}`;
+  }
+
+  // Empty / no useful payload
+  if (!result || result === '{}' || result === '[]') {
+    return tool;
+  }
+
+  // Structured success
+  if (parsedObj) {
+    const summary = pickSummary(parsedObj);
+    return summary ? `${tool} · ${summary}` : tool;
+  }
+
+  // String success
+  return `${tool} · ${compactPreview(result)}`;
 }
 
 export function renderCitationsFooter(
