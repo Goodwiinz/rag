@@ -2,10 +2,18 @@
 """
 Quick test script to verify all database connections
 Tests: PostgreSQL, Redis, Neo4j, and Qdrant
+
+Credentials are read from environment variables — see issue #379. Set
+DB_PASSWORD / REDIS_PASSWORD / NEO4J_PASSWORD / QDRANT_API_KEY before running.
 """
 
+import os
 import sys
 from datetime import datetime
+
+
+def _env(name: str, default: str = "") -> str:
+    return os.environ.get(name, default)
 
 def test_postgresql():
     """Test PostgreSQL connection"""
@@ -13,11 +21,11 @@ def test_postgresql():
         import psycopg2
         
         conn = psycopg2.connect(
-            host="localhost",
-            port=5432,
-            database="ragdb",
-            user="raguser",
-            password="rag_password_123"
+            host=_env("DB_HOST", "localhost"),
+            port=int(_env("DB_PORT", "5432")),
+            database=_env("DB_NAME", "ragdb"),
+            user=_env("DB_USER", "raguser"),
+            password=_env("DB_PASSWORD"),
         )
         cur = conn.cursor()
         cur.execute("SELECT version();")
@@ -41,10 +49,10 @@ def test_redis():
         import redis
         
         r = redis.Redis(
-            host='localhost',
-            port=6379,
-            password='redis_password_123',
-            decode_responses=True
+            host=_env("REDIS_HOST", "localhost"),
+            port=int(_env("REDIS_PORT", "6379")),
+            password=_env("REDIS_PASSWORD") or None,
+            decode_responses=True,
         )
         
         # Test ping
@@ -68,8 +76,8 @@ def test_neo4j():
         from neo4j import GraphDatabase
         
         driver = GraphDatabase.driver(
-            "bolt://localhost:7687",
-            auth=("neo4j", "neo4j_password_123")
+            _env("NEO4J_URI", "bolt://localhost:7687"),
+            auth=(_env("NEO4J_USER", "neo4j"), _env("NEO4J_PASSWORD")),
         )
         
         with driver.session() as session:
@@ -105,8 +113,8 @@ def test_qdrant():
         from qdrant_client import QdrantClient
         
         client = QdrantClient(
-            url="http://localhost:6333",
-            api_key="qdrant_api_key_123"
+            url=_env("QDRANT_URL", "http://localhost:6333"),
+            api_key=_env("QDRANT_API_KEY") or None,
         )
         
         # Get collections

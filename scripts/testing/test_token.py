@@ -1,5 +1,10 @@
 #!/usr/bin/env python
-"""Test token verification"""
+"""Test token verification.
+
+The JWT to verify is read from the TEST_JWT_TOKEN environment variable or the
+first CLI argument so that no signed admin token lives in source control
+(issue #379).
+"""
 import sys
 import os
 sys.path.insert(0, os.path.join(os.getcwd(), "backend"))
@@ -8,8 +13,11 @@ os.chdir(os.path.join(os.getcwd(), "backend"))
 from src.core.config import settings
 from src.core.security import verify_token
 
-# Token from successful login
-token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhNWU1YjJhYy0yMzQwLTQwYjgtYjIwOS1kYmQ3OWJkMTk2MDciLCJlbWFpbCI6ImFkbWluQG11bHRpbW9kYWwtcmFnLmNvbSIsIm9yZ2FuaXphdGlvbl9pZCI6IjFmNjA1M2JjLTk0NmYtNDY2MC1iYzdjLWNkM2MyODkwMTgwNiIsInJvbGUiOiJhZG1pbiIsImV4cCI6MTc2NjA4NDUwNX0.QUowR2SFF1G5Pt0izzfcnrA9rwVmIWPnAROKXX1WRMU"
+token = os.environ.get("TEST_JWT_TOKEN") or (sys.argv[1] if len(sys.argv) > 1 else None)
+if not token:
+    sys.exit(
+        "Usage: TEST_JWT_TOKEN=<jwt> python test_token.py  (or pass the token as the first argument)"
+    )
 
 print(f"JWT_SECRET_KEY from settings: {settings.JWT_SECRET_KEY[:20]}...")
 print(f"JWT_ALGORITHM: {settings.JWT_ALGORITHM}")

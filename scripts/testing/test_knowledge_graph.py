@@ -9,10 +9,12 @@ from neo4j import GraphDatabase
 def create_sample_knowledge_graph():
     """Create sample entities and relationships in Neo4j"""
 
-    # Neo4j connection
-    uri = "bolt://localhost:7687"
-    user = "neo4j"
-    password = "neo4jpassword"
+    # Neo4j connection (credentials sourced from environment — see issue #379)
+    uri = os.environ.get("NEO4J_URI", "bolt://localhost:7687")
+    user = os.environ.get("NEO4J_USER", "neo4j")
+    password = os.environ.get("NEO4J_PASSWORD")
+    if not password:
+        raise RuntimeError("NEO4J_PASSWORD environment variable is required.")
 
     try:
         driver = GraphDatabase.driver(uri, auth=(user, password))

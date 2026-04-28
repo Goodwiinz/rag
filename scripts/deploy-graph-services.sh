@@ -74,9 +74,9 @@ LOG_LEVEL=INFO
 FLOWER_USER=admin
 FLOWER_PASSWORD=admin-$(date +%s)
 
-# Additional configuration
-NEO4J_PASSWORD=ragpassword2024
-POSTGRES_PASSWORD=rag_password2024
+# Additional configuration — supply via environment, do not bake into source (issue #379)
+NEO4J_PASSWORD=${NEO4J_PASSWORD:-REPLACE_ME}
+POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-REPLACE_ME}
 EOF
         warning "Created .env file with default values. Please review and update as needed."
     fi

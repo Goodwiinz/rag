@@ -120,24 +120,41 @@ setup_backend_env() {
 
     cd backend
 
-    # Create environment file with correct settings
-    cat > .env.local << 'EOF'
+    # Issue #379: source secrets from the operator's environment instead of
+    # baking placeholder credentials into the script. Required values fail-fast
+    # via Bash's :? expansion when unset.
+    : "${DB_PASSWORD:?Set DB_PASSWORD before running this script}"
+    : "${NEO4J_PASSWORD:?Set NEO4J_PASSWORD before running this script}"
+    : "${SECRET_KEY:?Set SECRET_KEY before running this script}"
+
+    DB_HOST_VAL="${DB_HOST:-localhost}"
+    DB_PORT_VAL="${DB_PORT:-5432}"
+    DB_NAME_VAL="${DB_NAME:-ragdb}"
+    DB_USER_VAL="${DB_USER:-raguser}"
+    NEO4J_URI_VAL="${NEO4J_URI:-bolt://localhost:7687}"
+    NEO4J_USER_VAL="${NEO4J_USER:-neo4j}"
+    QDRANT_URL_VAL="${QDRANT_URL:-http://localhost:6333}"
+    QDRANT_API_KEY_VAL="${QDRANT_API_KEY:-}"
+    OPENAI_API_KEY_VAL="${OPENAI_API_KEY:-REPLACE_ME}"
+
+    # Create environment file with values sourced from the operator's environment.
+    cat > .env.local <<EOF
 # Database Configuration
-DATABASE_URL=postgresql://raguser:rag_password@localhost:5432/ragdb
-DB_HOST=localhost
-DB_PORT=5432
-DB_NAME=ragdb
-DB_USER=raguser
-DB_PASSWORD=rag_password
+DATABASE_URL=postgresql://${DB_USER_VAL}:${DB_PASSWORD}@${DB_HOST_VAL}:${DB_PORT_VAL}/${DB_NAME_VAL}
+DB_HOST=${DB_HOST_VAL}
+DB_PORT=${DB_PORT_VAL}
+DB_NAME=${DB_NAME_VAL}
+DB_USER=${DB_USER_VAL}
+DB_PASSWORD=${DB_PASSWORD}
 
 # Neo4j Configuration
-NEO4J_URI=bolt://localhost:7687
-NEO4J_USER=neo4j
-NEO4J_PASSWORD=neo4j_password
+NEO4J_URI=${NEO4J_URI_VAL}
+NEO4J_USER=${NEO4J_USER_VAL}
+NEO4J_PASSWORD=${NEO4J_PASSWORD}
 
 # Qdrant Configuration
-QDRANT_URL=http://localhost:6333
-QDRANT_API_KEY=
+QDRANT_URL=${QDRANT_URL_VAL}
+QDRANT_API_KEY=${QDRANT_API_KEY_VAL}
 
 # Redis Configuration
 REDIS_URL=redis://localhost:6379/0
@@ -152,10 +169,10 @@ DEBUG=false
 # API Configuration
 API_HOST=0.0.0.0
 API_PORT=8000
-SECRET_KEY=your-secret-key-change-in-production
+SECRET_KEY=${SECRET_KEY}
 
 # OpenAI Configuration
-OPENAI_API_KEY=your-openai-key
+OPENAI_API_KEY=${OPENAI_API_KEY_VAL}
 
 # CORS Configuration
 CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
