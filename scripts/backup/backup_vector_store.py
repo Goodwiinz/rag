@@ -105,7 +105,9 @@ class VectorStoreBackup:
     async def _backup_collection(self, collection_name: str, backup_path: Path) -> Dict[str, Any]:
         """Backup a single collection."""
         collection_info = self.client.get_collection(collection_name)
-        points_count = collection_info.points_count
+        # points_count is Optional[int] in qdrant-client and is None for empty
+        # collections; passing None to scroll(limit=...) raises TypeError.
+        points_count: int = collection_info.points_count or 0
 
         # Create collection directory
         collection_dir = backup_path / "collections" / collection_name
@@ -124,6 +126,18 @@ class VectorStoreBackup:
         # Export points in batches
         points_file = collection_dir / "points.jsonl.gz"
         exported_points = 0
+
+        if points_count == 0:
+            logger.info(f"Collection {collection_name} is empty, skipping point export")
+            # Still create an empty points file so downstream consumers can rely on its presence
+            with gzip.open(points_file, 'wt', encoding='utf-8') as f:
+                pass
+            return {
+                "name": collection_name,
+                "points_count": 0,
+                "config": config_data,
+                "backup_file": f"collections/{collection_name}/points.jsonl.gz",
+            }
 
         with gzip.open(points_file, 'wt', encoding='utf-8') as f:
             all_points = self.client.scroll(
@@ -187,8 +201,15 @@ class VectorStoreBackup:
 
         for backup_file in self.backup_dir.glob("qdrant_backup_*.tar.gz"):
             try:
-                # Extract timestamp from filename
-                timestamp_str = backup_file.stem.split('_')[-1]
+                # backup_file.stem on a .tar.gz only strips the outer .gz, leaving
+                # qdrant_backup_YYYYMMDD_HHMMSS.tar — and split('_')[-1] would yield
+                # "HHMMSS.tar". Strip the full compound suffix and re-join the two
+                # timestamp segments instead.
+                bare = backup_file.name.removesuffix('.tar.gz')
+                parts = bare.split('_')
+                if len(parts) < 2:
+                    raise ValueError(f"Unexpected backup filename layout: {backup_file.name}")
+                timestamp_str = '_'.join(parts[-2:])  # "YYYYMMDD_HHMMSS"
                 backup_date = datetime.strptime(timestamp_str, "%Y%m%d_%H%M%S")
 
                 if backup_date < cutoff_date:

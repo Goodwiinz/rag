@@ -11,6 +11,11 @@ LOG_FILE="/var/log/rag-backup.log"
 BACKUP_DIR="/var/backups/rag-system"
 MAX_BACKUP_RETENTION_DAYS=30
 ENCRYPTION_KEY_FILE="/etc/rag-backup/encryption.key"
+# Operator-managed passphrase used to wrap $ENCRYPTION_KEY_FILE so the wrapped
+# key remains decryptable if the on-disk key is lost. Source from a KMS, sealed
+# secret, or password manager — never generated here. See issue #378.
+WRAPPING_PASSPHRASE_FILE="${WRAPPING_PASSPHRASE_FILE:-/etc/rag-backup/wrapping-passphrase}"
+PBKDF2_ITER=200000
 SLACK_WEBHOOK="${SLACK_WEBHOOK}"
 
 # Colors for output
@@ -177,23 +182,33 @@ encrypt_backup() {
 
     if [[ ! -f "$ENCRYPTION_KEY_FILE" ]]; then
         # Generate new encryption key if it doesn't exist
-        openssl rand -hex 32 > "$ENCRYPTION_KEY_FILE"
+        ( umask 077 && openssl rand -hex 32 > "$ENCRYPTION_KEY_FILE" )
         chmod 600 "$ENCRYPTION_KEY_FILE"
         warning "Generated new encryption key"
     fi
 
-    # Encrypt each backup file
+    if [[ ! -f "$WRAPPING_PASSPHRASE_FILE" ]]; then
+        error_exit "Wrapping passphrase file not found: $WRAPPING_PASSPHRASE_FILE. Provision an operator-managed passphrase (e.g. from KMS) so backups remain recoverable if $ENCRYPTION_KEY_FILE is lost."
+    fi
+
+    # Encrypt each backup file using PBKDF2 with the on-disk key as a passphrase.
+    # -kfile uses a deprecated single-iteration MD5 KDF; -pass file: + -pbkdf2 is the modern equivalent.
     for file in "$BACKUP_PATH"/*.tar.gz "$BACKUP_PATH"/*.sql "$BACKUP_PATH"/dump*; do
         if [[ -f "$file" ]]; then
-            openssl enc -aes-256-cbc -salt -in "$file" -out "$BACKUP_DIR/encrypted/$(basename "$file").enc" \
-                -kfile "$ENCRYPTION_KEY_FILE"
+            openssl enc -aes-256-cbc -salt -pbkdf2 -iter "$PBKDF2_ITER" \
+                -in "$file" \
+                -out "$BACKUP_DIR/encrypted/$(basename "$file").enc" \
+                -pass "file:$ENCRYPTION_KEY_FILE"
             rm "$file"
         fi
     done
 
-    # Copy encryption key separately (encrypted)
-    openssl enc -aes-256-cbc -salt -in "$ENCRYPTION_KEY_FILE" \
-        -out "$BACKUP_DIR/encrypted/backup_key.enc" -kfile "$(openssl rand -hex 32)"
+    # Wrap the encryption key with the operator-managed passphrase so the
+    # encrypted bundle remains recoverable if $ENCRYPTION_KEY_FILE is lost.
+    openssl enc -aes-256-cbc -salt -pbkdf2 -iter "$PBKDF2_ITER" \
+        -in "$ENCRYPTION_KEY_FILE" \
+        -out "$BACKUP_DIR/encrypted/backup_key.enc" \
+        -pass "file:$WRAPPING_PASSPHRASE_FILE"
 
     success "Backup encryption completed"
 }
@@ -238,10 +253,15 @@ verify_backup() {
     # Test encryption/decryption
     local test_file="$BACKUP_DIR/encrypted/test.enc"
     if [[ -f "$test_file" ]]; then
-        openssl enc -d -aes-256-cbc -in "$test_file" -out /tmp/test.txt -kfile "$ENCRYPTION_KEY_FILE"
-        if [[ $? -eq 0 ]]; then
+        local tmp_decrypt
+        tmp_decrypt=$(mktemp -t rag-backup-verify.XXXXXX)
+        chmod 600 "$tmp_decrypt"
+        # shellcheck disable=SC2064 -- expand $tmp_decrypt now so the trap fires regardless
+        trap "rm -f '$tmp_decrypt'" RETURN
+        if openssl enc -d -aes-256-cbc -pbkdf2 -iter "$PBKDF2_ITER" \
+                -in "$test_file" -out "$tmp_decrypt" \
+                -pass "file:$ENCRYPTION_KEY_FILE"; then
             success "Encryption verification passed"
-            rm -f /tmp/test.txt
         else
             error_exit "Encryption verification failed"
         fi
@@ -278,19 +298,24 @@ Encryption: AES-256-CBC
 Retention Period: $MAX_BACKUP_RETENTION_DAYS days
 
 Recovery Instructions:
-1. Extract encrypted backup files using:
-   openssl enc -d -aes-256-cbc -in <file.enc> -out <output> -kfile <key>
+1. Unwrap the backup key with the operator-managed passphrase:
+   openssl enc -d -aes-256-cbc -pbkdf2 -iter $PBKDF2_ITER \\
+     -in backup_key.enc -out backup_key -pass file:<wrapping_passphrase>
 
-2. Restore PostgreSQL:
+2. Extract encrypted backup files using the unwrapped key:
+   openssl enc -d -aes-256-cbc -pbkdf2 -iter $PBKDF2_ITER \\
+     -in <file.enc> -out <output> -pass file:backup_key
+
+3. Restore PostgreSQL:
    docker exec -i rag-postgres-prod psql -U raguser ragdb < postgres_dump.sql
 
-3. Restore Neo4j:
+4. Restore Neo4j:
    docker exec rag-neo4j-prod neo4j-admin database restore --database=ragdb --from=neo4j_dump
 
-4. Restore Redis:
+5. Restore Redis:
    docker exec -i rag-redis-prod redis-cli < redis_dump.rdb
 
-5. Restore volumes:
+6. Restore volumes:
    docker run --rm -v <volume_name>:/data -v <backup_dir>:/backup alpine tar xzf /backup/<file> -C /data
 
 Backup completed successfully at $(date)
