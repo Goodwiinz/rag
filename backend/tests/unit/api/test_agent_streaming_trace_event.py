@@ -31,6 +31,7 @@ async def test_stream_event_generator_emits_trace_event_before_workflow_events()
         messages=[SimpleNamespace(role="user", content="hi")],
         page_context={"type": "general"},
         thread_id="thread-123",
+        model=None,
     )
     current_user = Mock(id="user-1", organization_id="org-1")
     db = AsyncMock()
