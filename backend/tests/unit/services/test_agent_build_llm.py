@@ -8,7 +8,16 @@ instead of the configured default. Without an override it falls back to
 
 from __future__ import annotations
 
-from unittest.mock import patch
+import sys
+import types
+from unittest.mock import MagicMock, patch
+
+
+def _make_langchain_openai_mock():
+    mock_module = types.ModuleType("langchain_openai")
+    setattr(mock_module, "ChatOpenAI", MagicMock())
+    setattr(mock_module, "AzureChatOpenAI", MagicMock())
+    return mock_module
 
 
 def _set_chat_settings(monkeypatch, **overrides):
@@ -31,59 +40,49 @@ def _set_chat_settings(monkeypatch, **overrides):
         monkeypatch.setattr(settings, key, value, raising=False)
 
 
-@patch("langchain_openai.ChatOpenAI")
-def test_build_llm_uses_configured_deployment_when_no_override(
-    mock_chat_openai,
-    monkeypatch,
-):
+def test_build_llm_uses_configured_deployment_when_no_override(monkeypatch):
     """No override → falls back to the configured deployment."""
     from src.services.agent.graph import _build_llm
 
     _set_chat_settings(monkeypatch)
+    mock_lc = _make_langchain_openai_mock()
+    with patch.dict(sys.modules, {"langchain_openai": mock_lc}):
+        _build_llm()
 
-    _build_llm()
-
-    mock_chat_openai.assert_called_once()
-    kwargs = mock_chat_openai.call_args.kwargs
+    mock_lc.ChatOpenAI.assert_called_once()
+    kwargs = mock_lc.ChatOpenAI.call_args.kwargs
     assert kwargs["model"] == "model-router"
 
 
-@patch("langchain_openai.ChatOpenAI")
-def test_build_llm_override_wins_over_settings(mock_chat_openai, monkeypatch):
+def test_build_llm_override_wins_over_settings(monkeypatch):
     """A per-request override deployment is what reaches ChatOpenAI."""
     from src.services.agent.graph import _build_llm
 
     _set_chat_settings(monkeypatch)
+    mock_lc = _make_langchain_openai_mock()
+    with patch.dict(sys.modules, {"langchain_openai": mock_lc}):
+        _build_llm(model_override="claude-sonnet-4-5")
 
-    _build_llm(model_override="claude-sonnet-4-5")
-
-    mock_chat_openai.assert_called_once()
-    kwargs = mock_chat_openai.call_args.kwargs
+    mock_lc.ChatOpenAI.assert_called_once()
+    kwargs = mock_lc.ChatOpenAI.call_args.kwargs
     assert kwargs["model"] == "claude-sonnet-4-5"
 
 
-@patch("langchain_openai.ChatOpenAI")
-def test_build_llm_empty_override_falls_back_to_settings(
-    mock_chat_openai,
-    monkeypatch,
-):
+def test_build_llm_empty_override_falls_back_to_settings(monkeypatch):
     """An empty-string override is treated as no override (server default wins)."""
     from src.services.agent.graph import _build_llm
 
     _set_chat_settings(monkeypatch)
+    mock_lc = _make_langchain_openai_mock()
+    with patch.dict(sys.modules, {"langchain_openai": mock_lc}):
+        _build_llm(model_override="")
 
-    _build_llm(model_override="")
-
-    mock_chat_openai.assert_called_once()
-    kwargs = mock_chat_openai.call_args.kwargs
+    mock_lc.ChatOpenAI.assert_called_once()
+    kwargs = mock_lc.ChatOpenAI.call_args.kwargs
     assert kwargs["model"] == "model-router"
 
 
-@patch("langchain_openai.AzureChatOpenAI")
-def test_build_llm_override_threads_through_azure_client(
-    mock_azure_chat,
-    monkeypatch,
-):
+def test_build_llm_override_threads_through_azure_client(monkeypatch):
     """When the endpoint is plain Azure (not openai-compatible), override
     still wins — threaded through as ``azure_deployment``."""
     from src.services.agent.graph import _build_llm
@@ -92,9 +91,10 @@ def test_build_llm_override_threads_through_azure_client(
         monkeypatch,
         AZURE_OPENAI_CHAT_ENDPOINT="https://example.openai.azure.com",
     )
+    mock_lc = _make_langchain_openai_mock()
+    with patch.dict(sys.modules, {"langchain_openai": mock_lc}):
+        _build_llm(model_override="gpt-5")
 
-    _build_llm(model_override="gpt-5")
-
-    mock_azure_chat.assert_called_once()
-    kwargs = mock_azure_chat.call_args.kwargs
+    mock_lc.AzureChatOpenAI.assert_called_once()
+    kwargs = mock_lc.AzureChatOpenAI.call_args.kwargs
     assert kwargs["azure_deployment"] == "gpt-5"
