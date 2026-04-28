@@ -44,6 +44,45 @@ def _bootstrap_langsmith() -> None:
         )
 
 
+def _extract_usage_tokens(event: Dict[str, Any]) -> tuple[int, int]:
+    """Pull (input_tokens, output_tokens) out of an `on_chat_model_end` event.
+
+    LangChain attaches usage metadata to the AIMessage in ``data.output`` —
+    either as ``usage_metadata`` (preferred, normalized across providers) or
+    on ``response_metadata.token_usage`` (raw provider payload). We try both,
+    defaulting to (0, 0) when the model didn't report usage.
+    """
+    output = event.get("data", {}).get("output")
+    if output is None:
+        return 0, 0
+
+    usage = getattr(output, "usage_metadata", None)
+    if isinstance(usage, dict):
+        return (
+            int(usage.get("input_tokens", 0) or 0),
+            int(usage.get("output_tokens", 0) or 0),
+        )
+
+    response_meta = getattr(output, "response_metadata", None)
+    if isinstance(response_meta, dict):
+        token_usage = response_meta.get("token_usage") or {}
+        if isinstance(token_usage, dict):
+            return (
+                int(
+                    token_usage.get("prompt_tokens")
+                    or token_usage.get("input_tokens")
+                    or 0
+                ),
+                int(
+                    token_usage.get("completion_tokens")
+                    or token_usage.get("output_tokens")
+                    or 0
+                ),
+            )
+
+    return 0, 0
+
+
 def _format_sse_event(event_type: str, data: Dict[str, Any]) -> str:
     """Format a single SSE event frame."""
     return f"event: {event_type}\ndata: {_json.dumps(data)}\n\n"
@@ -127,6 +166,12 @@ async def stream_event_generator(
             ),
         )
 
+        # Per-turn token accounting. Aggregated across every chat model call
+        # in the graph (planner, intent classifier, llm_node, reflection…)
+        # and emitted as a single `usage` SSE event right before `done`.
+        turn_input_tokens = 0
+        turn_output_tokens = 0
+
         async with asyncio.timeout(300):  # 5 minutes
             async for event in graph.astream_events(
                 initial_state, config=config, version="v2"
@@ -141,6 +186,11 @@ async def stream_event_generator(
                     chunk = event.get("data", {}).get("chunk")
                     if chunk and hasattr(chunk, "content") and chunk.content:
                         yield f"event: token\ndata: {_json.dumps({'content': chunk.content})}\n\n"
+
+                elif kind == "on_chat_model_end":
+                    inp, out = _extract_usage_tokens(event)
+                    turn_input_tokens += inp
+                    turn_output_tokens += out
 
                 elif kind == "on_tool_start":
                     tool_input = event.get("data", {}).get("input", {})
@@ -221,6 +271,12 @@ async def stream_event_generator(
             )
         except Exception as e:
             logger.warning("Failed to persist SSE thread messages", exc_info=e)
+
+        if turn_input_tokens > 0 or turn_output_tokens > 0:
+            yield (
+                "event: usage\n"
+                f"data: {_json.dumps({'input_tokens': turn_input_tokens, 'output_tokens': turn_output_tokens})}\n\n"
+            )
 
         yield f"event: done\ndata: {_json.dumps({'status': 'complete'})}\n\n"
 
@@ -319,6 +375,11 @@ async def stream_confirm_event_generator(
             ),
         )
 
+        # Per-turn token accounting for the confirm/resume stream.
+        turn_input_tokens = 0
+        turn_output_tokens = 0
+        tokens_emitted = False
+
         async with asyncio.timeout(300):
             async for event in graph.astream_events(
                 resume_input, config=config, version="v2"
@@ -333,6 +394,12 @@ async def stream_confirm_event_generator(
                     chunk = event.get("data", {}).get("chunk")
                     if chunk and hasattr(chunk, "content") and chunk.content:
                         yield f"event: token\ndata: {_json.dumps({'content': chunk.content})}\n\n"
+                        tokens_emitted = True
+
+                elif kind == "on_chat_model_end":
+                    inp, out = _extract_usage_tokens(event)
+                    turn_input_tokens += inp
+                    turn_output_tokens += out
 
                 elif kind == "on_tool_start":
                     tool_input = event.get("data", {}).get("input", {})
@@ -423,6 +490,18 @@ async def stream_confirm_event_generator(
                 "Failed to persist SSE confirmation thread messages",
                 exc_info=e,
             )
+
+        if turn_input_tokens > 0 or turn_output_tokens > 0:
+            yield (
+                "event: usage\n"
+                f"data: {_json.dumps({'input_tokens': turn_input_tokens, 'output_tokens': turn_output_tokens})}\n\n"
+            )
+
+        if not tokens_emitted and tool_executions_out:
+            names = ", ".join(
+                getattr(te, "tool_name", str(te)) for te in tool_executions_out
+            )
+            yield f"event: token\ndata: {_json.dumps({'content': f'Done — completed: {names}.'})}\n\n"
 
         yield f"event: done\ndata: {_json.dumps({'status': 'complete', 'tool_executions': [te.model_dump() for te in tool_executions_out] if tool_executions_out else []})}\n\n"
 

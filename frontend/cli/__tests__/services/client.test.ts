@@ -1,4 +1,4 @@
-import { getCliAuthHeaders } from '../../services/client';
+import { getCliAuthHeaders, safeFetch } from '../../services/client';
 
 jest.mock('../../auth/store');
 
@@ -22,4 +22,17 @@ test('returns Authorization header when token is present', () => {
 test('throws when not logged in', () => {
   mockLoadConfig.mockReturnValue(null);
   expect(() => getCliAuthHeaders()).toThrow('Not logged in');
+});
+
+test('safeFetch wraps fetch failures with the URL in the message', async () => {
+  const inner = Object.assign(new Error('connect ECONNREFUSED'), {
+    code: 'ECONNREFUSED',
+  });
+  const fetchFn = jest.fn().mockRejectedValue(inner);
+  await expect(
+    safeFetch('http://example.test/x', undefined, fetchFn as never)
+  ).rejects.toMatchObject({
+    message: expect.stringContaining('http://example.test/x'),
+    code: 'ECONNREFUSED',
+  });
 });

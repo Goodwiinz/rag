@@ -2,6 +2,7 @@ import * as p from '@clack/prompts';
 import { loadConfig, saveConfig } from './auth/store';
 import { parseSlashCommand } from './hooks/useSlashCommands';
 import { streamAgent, streamConfirm } from './stream';
+import { confirmKey, isConfirmCancel } from './confirmKey';
 import {
   fetchThreadMessages,
   fetchThreads,
@@ -19,6 +20,11 @@ import {
   type ThreadEntry,
 } from './services/threadStore';
 import { fetchProjects, type RemoteProjectSummary } from './services/projects';
+import { countVisualRows, hasMarkdown, renderMarkdown } from './markdown';
+import { buildCompleter, isPromptCancel, readPrompt } from './prompt';
+import { readDraft, clearDraft } from './services/draft';
+import { classifyError } from './errors';
+import { withRetry } from './retry';
 
 interface ActiveProject {
   id: string;
@@ -42,61 +48,110 @@ export async function runRepl(options: ReplOptions = {}): Promise<void> {
 
   p.intro(`NOUS  ·  ${formatStatus(threadId, activeProject)}`);
 
-  const abort = new AbortController();
-  process.once('SIGINT', () => {
-    abort.abort();
+  let pendingDraft: string | null = null;
+  const initialDraft = readDraft();
+  if (initialDraft) {
+    pendingDraft = initialDraft;
+    clearDraft();
+  }
+
+  let activeAbort: AbortController | null = null;
+  let lastUserMessage: string | null = null;
+  const onSigint = () => {
+    if (activeAbort) {
+      activeAbort.abort();
+      return; // mid-stream → just cancel, don't exit
+    }
     p.outro('Bye.');
     process.exit(0);
-  });
+  };
+  process.on('SIGINT', onSigint);
 
-  while (true) {
-    const raw = await p.text({ message: '>' });
-    if (p.isCancel(raw)) {
-      p.outro('Bye.');
-      break;
-    }
-
-    const input = (raw as string).trim();
-    if (!input) continue;
-
-    const parsed = parseSlashCommand(input);
-    if (parsed) {
-      const done = await handleSlashCommand(parsed.command, parsed.args, {
-        threadId,
-        activeProject,
-        onThreadChange: (t) => {
-          threadId = t;
-        },
-        onProjectChange: (proj) => {
-          activeProject = proj;
-        },
-        onExit: () => {
-          p.outro('Bye.');
-          process.exit(0);
-        },
+  try {
+    while (true) {
+      const completer = buildCompleter({
+        knownThreadIds: listThreads().map((t) => t.id),
       });
-      if (done) continue;
+      const initialValue = pendingDraft ?? undefined;
+      pendingDraft = null;
+      const raw = await readPrompt({ message: '>', completer, initialValue });
+      if (isPromptCancel(raw) || p.isCancel(raw)) {
+        p.outro('Bye.');
+        break;
+      }
+
+      const input = (raw as string).trim();
+      if (!input) continue;
+
+      const parsed = parseSlashCommand(input);
+      if (parsed) {
+        const done = await handleSlashCommand(parsed.command, parsed.args, {
+          threadId,
+          activeProject,
+          onThreadChange: (t) => {
+            threadId = t;
+          },
+          onProjectChange: (proj) => {
+            activeProject = proj;
+          },
+          onExit: () => {
+            p.outro('Bye.');
+            process.exit(0);
+          },
+          lastUserMessage,
+          retryLast: async () => {
+            if (!lastUserMessage) {
+              p.log.warn('Nothing to retry.');
+              return;
+            }
+            const retryCtx = activeProject
+              ? {
+                  type: 'project',
+                  project_id: activeProject.id,
+                  project_name: activeProject.name,
+                }
+              : { type: 'chat' };
+            activeAbort = new AbortController();
+            await streamToTerminal(
+              lastUserMessage,
+              retryCtx,
+              activeAbort.signal
+            );
+            activeAbort = null;
+          },
+        });
+        if (done) continue;
+        // Unknown slash command — don't forward "/foo" to the agent as a
+        // user message. Print a hint and re-prompt.
+        p.log.warn(`Unknown command: /${parsed.command}. Try /help.`);
+        continue;
+      }
+
+      const previousThreadId = threadId;
+      const ctx = activeProject
+        ? {
+            type: 'project',
+            project_id: activeProject.id,
+            project_name: activeProject.name,
+          }
+        : { type: 'chat' };
+
+      activeAbort = new AbortController();
+      await streamToTerminal(input, ctx, activeAbort.signal);
+      activeAbort = null;
+      lastUserMessage = input;
+
+      const updated = loadConfig();
+      if (updated && updated.thread_id !== threadId) {
+        threadId = updated.thread_id ?? null;
+      }
+
+      if (threadId) {
+        recordThreadUse(threadId, previousThreadId, input, activeProject);
+      }
     }
-
-    const previousThreadId = threadId;
-    const ctx = activeProject
-      ? {
-          type: 'project',
-          project_id: activeProject.id,
-          project_name: activeProject.name,
-        }
-      : { type: 'chat' };
-
-    await streamToTerminal(input, ctx, abort.signal);
-
-    const updated = loadConfig();
-    if (updated && updated.thread_id !== threadId) {
-      threadId = updated.thread_id ?? null;
-    }
-
-    if (threadId) {
-      recordThreadUse(threadId, previousThreadId, input, activeProject);
-    }
+  } finally {
+    process.off('SIGINT', onSigint);
   }
 }
 
@@ -162,103 +217,139 @@ async function streamToTerminal(
     outputTokens: number;
     costUsd: number | null;
   } | null = null;
+  let tokenBuffer = '';
   let retriedAfterMissingThread = false;
   let inConfirmFlow = false;
+  let postConfirmTokens = false;
 
   process.stdout.write('\n');
 
   type EventStream = AsyncGenerator<import('./stream').StreamEvent>;
-  let current: EventStream = streamAgent(message, pageContext, { signal });
+  let current: EventStream;
+  try {
+    current = await withRetry(
+      () => Promise.resolve(streamAgent(message, pageContext, { signal })),
+      {
+        maxAttempts: 2,
+        signal: signal ?? new AbortController().signal,
+        predicate: (e) => classifyError(e).retryable,
+      }
+    );
+  } catch (e) {
+    process.stdout.write('\n');
+    const c = classifyError(e);
+    p.log.error(c.userMessage);
+    if (c.hint) p.log.message(`  ${c.hint}`);
+    return;
+  }
 
   while (true) {
     let pendingConfirmThreadId: string | null = null;
     let retryFreshThread = false;
 
-    for await (const event of current) {
-      if (event.type === 'token') {
-        process.stdout.write(event.content);
-      } else if (event.type === 'tool_start') {
-        const s = p.spinner();
-        s.start(formatToolLine(event.tool, event.args));
-        spinners.set(event.tool, s);
-      } else if (event.type === 'tool_end') {
-        const s = spinners.get(event.tool);
-        if (s) {
-          if (event.isError) {
-            s.error(event.tool);
+    try {
+      for await (const event of current) {
+        if (event.type === 'token') {
+          process.stdout.write(event.content);
+          tokenBuffer += event.content;
+          if (inConfirmFlow) postConfirmTokens = true;
+        } else if (event.type === 'tool_start') {
+          const s = p.spinner();
+          s.start(formatToolLine(event.tool, event.args));
+          spinners.set(event.tool, s);
+        } else if (event.type === 'tool_end') {
+          const s = spinners.get(event.tool);
+          if (s) {
+            if (event.isError) {
+              s.error(event.tool);
+            } else {
+              s.stop(event.tool);
+            }
+            spinners.delete(event.tool);
+          } else if (event.isError) {
+            p.log.error(`✗ ${event.tool}`);
           } else {
-            s.stop(event.tool);
+            p.log.success(`✓ ${event.tool}`);
           }
-          spinners.delete(event.tool);
-        } else if (event.isError) {
-          p.log.error(`✗ ${event.tool}`);
-        } else {
-          p.log.success(`✓ ${event.tool}`);
-        }
-      } else if (event.type === 'plan') {
-        if (event.steps.length > 0) {
-          p.log.info(`Plan: ${event.steps.join(' → ')}`);
-        }
-      } else if (event.type === 'reflection') {
-        if (event.passed) {
-          p.log.success(`Reflection #${event.round} passed`);
-        } else {
-          p.log.warn(
-            `Reflection #${event.round}: ${event.issues.length > 0 ? event.issues.join('; ') : 'failed'}`
-          );
-        }
-      } else if (event.type === 'rag_context') {
-        if (event.contexts.length > 0) {
-          collectedContexts.push(...event.contexts);
-          p.log.info(`Retrieved ${event.contexts.length} context(s)`);
-        }
-      } else if (event.type === 'usage') {
-        lastUsage = {
-          inputTokens: event.inputTokens,
-          outputTokens: event.outputTokens,
-          costUsd: event.costUsd,
-        };
-      } else if (event.type === 'confirmation') {
-        for (const [tool, s] of spinners) {
-          s.cancel(`${tool} (paused — awaiting confirmation)`);
-        }
-        spinners.clear();
-        process.stdout.write('\n');
-        renderConfirmationDetails(event.details);
-        const ok = await p.confirm({
-          message: confirmationPromptMessage(event.details),
-        });
-        if (p.isCancel(ok) || !ok) {
-          p.log.warn('Cancelled.');
+        } else if (event.type === 'plan') {
+          if (event.steps.length > 0) {
+            p.log.info(`Plan: ${event.steps.join(' → ')}`);
+          }
+        } else if (event.type === 'reflection') {
+          if (event.passed) {
+            p.log.success(`Reflection #${event.round} passed`);
+          } else {
+            p.log.warn(
+              `Reflection #${event.round}: ${event.issues.length > 0 ? event.issues.join('; ') : 'failed'}`
+            );
+          }
+        } else if (event.type === 'rag_context') {
+          if (event.contexts.length > 0) {
+            collectedContexts.push(...event.contexts);
+            p.log.info(`Retrieved ${event.contexts.length} context(s)`);
+          }
+        } else if (event.type === 'usage') {
+          lastUsage = {
+            inputTokens: event.inputTokens,
+            outputTokens: event.outputTokens,
+            costUsd: event.costUsd,
+          };
+        } else if (event.type === 'confirmation') {
+          for (const [tool, s] of spinners) {
+            s.cancel(`${tool} (paused — awaiting confirmation)`);
+          }
+          spinners.clear();
+          process.stdout.write('\n');
+          renderConfirmationDetails(event.details);
+          const ok = await confirmKey({
+            message: confirmationPromptMessage(event.details),
+            default: true,
+          });
+          if (isConfirmCancel(ok) || p.isCancel(ok) || !ok) {
+            p.log.warn('Cancelled.');
+            return;
+          }
+          p.log.info('Resuming agent…');
+          pendingConfirmThreadId = event.threadId;
+          break;
+        } else if (event.type === 'done') {
+          process.stdout.write('\n');
+          maybeReformatMarkdown(tokenBuffer);
+          renderCitationsFooter(collectedContexts);
+          renderUsageLine(lastUsage);
+          if (inConfirmFlow && !postConfirmTokens) {
+            p.log.success('Actions completed.');
+          }
+          process.stdout.write('\n');
+          return;
+        } else if (event.type === 'error') {
+          process.stdout.write('\n');
+          const classified = classifyError(event.message);
+          if (
+            classified.kind === 'not_found_thread' &&
+            !retriedAfterMissingThread
+          ) {
+            clearCachedThreadId();
+            retriedAfterMissingThread = true;
+            retryFreshThread = true;
+            p.log.warn(
+              `${classified.userMessage} ${classified.hint ?? ''}`.trim()
+            );
+            break;
+          }
+          p.log.error(classified.userMessage);
+          if (classified.hint) p.log.message(`  ${classified.hint}`);
           return;
         }
-        p.log.info('Resuming agent…');
-        pendingConfirmThreadId = event.threadId;
-        break;
-      } else if (event.type === 'done') {
+      }
+    } catch (e) {
+      const c = classifyError(e);
+      if (c.kind === 'cancelled') {
         process.stdout.write('\n');
-        renderCitationsFooter(collectedContexts);
-        renderUsageLine(lastUsage);
-        process.stdout.write('\n');
-        return;
-      } else if (event.type === 'error') {
-        process.stdout.write('\n');
-        if (
-          isMissingThreadError(event.message) &&
-          !retriedAfterMissingThread &&
-          !inConfirmFlow
-        ) {
-          clearCachedThreadId();
-          retriedAfterMissingThread = true;
-          retryFreshThread = true;
-          p.log.warn(
-            'Cached thread expired. Starting a new thread and retrying…'
-          );
-          break;
-        }
-        p.log.error(event.message);
+        p.log.warn('Cancelled.');
         return;
       }
+      throw e;
     }
 
     if (retryFreshThread) {
@@ -269,12 +360,10 @@ async function streamToTerminal(
     if (pendingConfirmThreadId === null) break;
 
     inConfirmFlow = true;
+    postConfirmTokens = false;
+    tokenBuffer = '';
     current = streamConfirm(pendingConfirmThreadId, true, { signal });
   }
-}
-
-function isMissingThreadError(message: string): boolean {
-  return /thread not found/i.test(message);
 }
 
 function clearCachedThreadId(): void {
@@ -287,6 +376,23 @@ function clearCachedThreadId(): void {
 function formatToolLine(tool: string, args: string): string {
   const compact = compactArgs(args);
   return compact ? `${tool} ${compact}` : tool;
+}
+
+const MD_INPLACE_MAX_ROWS = 200;
+const MD_DISABLED = process.env.NOUS_MD === '0';
+
+export function maybeReformatMarkdown(buffer: string): void {
+  if (MD_DISABLED) return;
+  if (!buffer || !hasMarkdown(buffer)) return;
+  const cols = process.stdout.columns ?? 80;
+  // We already wrote a trailing '\n' on done, so the cursor is one row
+  // below the last visible line of the buffer. Account for that.
+  const rows = countVisualRows(buffer, cols) + 1;
+  if (rows > MD_INPLACE_MAX_ROWS) return;
+  if (!process.stdout.isTTY) return;
+  process.stdout.write(`\x1b[${rows}F\x1b[J`);
+  process.stdout.write(renderMarkdown(buffer));
+  if (!buffer.endsWith('\n')) process.stdout.write('\n');
 }
 
 function compactArgs(raw: string): string {
@@ -352,6 +458,8 @@ interface SlashContext {
   onThreadChange: (t: string | null) => void;
   onProjectChange: (proj: ActiveProject | null) => void;
   onExit: () => void;
+  lastUserMessage: string | null;
+  retryLast: () => Promise<void>;
 }
 
 async function handleSlashCommand(
@@ -418,9 +526,25 @@ async function handleSlashCommand(
     await handleSettingsCommand(args);
     return true;
   }
+  if (command === 'retry') {
+    await ctx.retryLast();
+    return true;
+  }
+  if (command === 'clear') {
+    // Clear the visible scrollback; keep the active thread + project.
+    // Respect TTY: in non-TTY contexts (tests, pipes) just print a
+    // separator so the intent is visible but no escape sequences leak.
+    if (process.stdout.isTTY) {
+      // ESC[2J = erase entire screen, ESC[H = cursor home
+      process.stdout.write('\x1b[2J\x1b[H');
+    } else {
+      p.log.message('— cleared —');
+    }
+    return true;
+  }
   if (command === 'help') {
     p.log.message(
-      '/new  /thread  /threads  /history [n]  /forget [id]  /projects  /context project <id> [name]  /context clear  /settings [set api_url <url>]  /quit'
+      '/new  /clear  /thread  /threads  /history [n]  /forget [id]  /projects  /retry  /context project <id> [name]  /context clear  /settings [set api_url <url>]  /quit'
     );
     return true;
   }

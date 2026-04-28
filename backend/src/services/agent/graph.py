@@ -320,10 +320,18 @@ async def rag_node(state: AgentState, config: RunnableConfig) -> dict:
         # Mirror into page_context so the system prompt built by llm_node
         # tells the LLM about the active project, and any tool that reads
         # page_context (e.g. list_project_documents) can resolve it.
-        if page_context.get("project_id") != resolved_project_id:
+        # When a project is resolved, force type="project" — otherwise the
+        # llm_node falls into the "chat" branch and never tells the LLM that
+        # a project is active. This is what was happening when users named
+        # a project in plain text after the CLI sent type="chat".
+        needs_update = (
+            page_context.get("project_id") != resolved_project_id
+            or page_context.get("type") != "project"
+        )
+        if needs_update:
             page_context = {
                 **page_context,
-                "type": page_context.get("type") or "project",
+                "type": "project",
                 "project_id": resolved_project_id,
             }
             state_update["page_context"] = page_context

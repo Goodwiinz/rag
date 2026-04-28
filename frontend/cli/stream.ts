@@ -21,7 +21,14 @@ export type StreamEvent =
 export interface StreamOptions {
   fetchFn?: typeof fetch;
   signal?: AbortSignal;
+  idleTimeoutMs?: number;
 }
+
+const DEFAULT_IDLE_MS = (() => {
+  const env = process.env.NOUS_STREAM_IDLE_MS;
+  const parsed = env ? Number.parseInt(env, 10) : NaN;
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 90000;
+})();
 
 function persistThreadId(threadId: string): void {
   const cfg = loadConfig();
@@ -126,6 +133,41 @@ async function* _parseSseBody(
   }
 }
 
+async function* _withIdleTimeout(
+  body: ReadableStream<Uint8Array>,
+  idleMs: number,
+  onTrace?: (threadId: string) => void
+): AsyncGenerator<StreamEvent> {
+  const inner = _parseSseBody(body, onTrace);
+  while (true) {
+    const next = inner.next();
+    let timer: NodeJS.Timeout | null = null;
+    const timeout = new Promise<{ done: true; idle: true }>((resolve) => {
+      timer = setTimeout(
+        () => resolve({ done: true, idle: true } as const),
+        idleMs
+      );
+    });
+    const winner = await Promise.race([next, timeout]);
+    if (timer) clearTimeout(timer);
+    if ((winner as { idle?: boolean }).idle) {
+      yield {
+        type: 'error',
+        message: `IDLE_TIMEOUT:${Math.round(idleMs / 1000)}`,
+      };
+      try {
+        await body.cancel();
+      } catch {
+        /* best effort */
+      }
+      return;
+    }
+    const r = winner as IteratorResult<StreamEvent>;
+    if (r.done) return;
+    yield r.value;
+  }
+}
+
 export async function* streamAgent(
   message: string,
   pageContext: Record<string, unknown> = {},
@@ -154,7 +196,8 @@ export async function* streamAgent(
     return;
   }
 
-  yield* _parseSseBody(res.body, persistThreadId);
+  const idleMs = options.idleTimeoutMs ?? DEFAULT_IDLE_MS;
+  yield* _withIdleTimeout(res.body, idleMs, persistThreadId);
 }
 
 export async function* streamConfirm(
@@ -180,5 +223,6 @@ export async function* streamConfirm(
     return;
   }
 
-  yield* _parseSseBody(res.body, persistThreadId);
+  const idleMs = options.idleTimeoutMs ?? DEFAULT_IDLE_MS;
+  yield* _withIdleTimeout(res.body, idleMs, persistThreadId);
 }
