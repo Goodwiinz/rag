@@ -420,11 +420,11 @@ jobs:
           -f frontend/Dockerfile.prod .
       - name: Start infrastructure services
         run: |
-          docker compose -p rag_system -f docker-compose.ci.yml up -d postgres redis
+          docker compose -p rag_system -f docker-compose.ci.yml up -d postgres redis neo4j qdrant
 
           # Wait for infrastructure to be healthy
           echo "Waiting for infrastructure services..."
-          timeout 60 bash -c 'until docker compose -p rag_system -f docker-compose.ci.yml ps | grep -E "(healthy)" | wc -l | grep -q "2"; do sleep 3; done'
+          timeout 120 bash -c 'until docker compose -p rag_system -f docker-compose.ci.yml ps | grep -E "(healthy)" | wc -l | grep -q "4"; do sleep 3; done'
       - name: Start application services
         run: |
           # Start backend with pre-built image
@@ -434,6 +434,11 @@ jobs:
             -p 8000:8000 \
             -e DATABASE_URL=postgresql://test:test@postgres:5432/test_db \
             -e REDIS_URL=redis://redis:6379/0 \
+            -e NEO4J_URI=bolt://neo4j:7687 \
+            -e NEO4J_USERNAME=neo4j \
+            -e NEO4J_PASSWORD= \
+            -e NEO4J_AUTH_DISABLED=true \
+            -e QDRANT_URL=http://qdrant:6333 \
             -e ENVIRONMENT=testing \
             -e SECRET_KEY=ci-test-secret-key-32-characters! \
             -e JWT_SECRET_KEY=ci-test-jwt-secret-key-32chars! \
