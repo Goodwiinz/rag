@@ -420,11 +420,11 @@ jobs:
           -f frontend/Dockerfile.prod .
       - name: Start infrastructure services
         run: |
-          docker compose -p rag_system -f docker-compose.ci.yml up -d postgres redis
+          docker compose -p rag_system -f docker-compose.ci.yml up -d postgres redis neo4j qdrant
 
           # Wait for infrastructure to be healthy
           echo "Waiting for infrastructure services..."
-          timeout 60 bash -c 'until docker compose -p rag_system -f docker-compose.ci.yml ps | grep -E "(healthy)" | wc -l | grep -q "2"; do sleep 3; done'
+          timeout 120 bash -c 'until docker compose -p rag_system -f docker-compose.ci.yml ps | grep -E "(healthy)" | wc -l | grep -q "4"; do sleep 3; done'
       - name: Start application services
         run: |
           # Start backend with pre-built image
@@ -434,11 +434,19 @@ jobs:
             -p 8000:8000 \
             -e DATABASE_URL=postgresql://test:test@postgres:5432/test_db \
             -e REDIS_URL=redis://redis:6379/0 \
+            -e NEO4J_URI=bolt://neo4j:7687 \
+            -e NEO4J_USERNAME=neo4j \
+            -e NEO4J_PASSWORD= \
+            -e NEO4J_AUTH_DISABLED=true \
+            -e QDRANT_URL=http://qdrant:6333 \
             -e ENVIRONMENT=testing \
             -e SECRET_KEY=ci-test-secret-key-32-characters! \
             -e JWT_SECRET_KEY=ci-test-jwt-secret-key-32chars! \
             -e CORS_ORIGINS=http://localhost:3000,http://frontend:3000 \
             -e ENABLE_AI_PROCESSING=false \
+            -e SEED_ADMIN_PASSWORD=admin123 \
+            -e SEED_DEMO_PASSWORD=demo123 \
+            -e SEED_LAB_ADMIN_PASSWORD=admin123 \
             rag-backend:test
 
           # Start frontend with pre-built image
@@ -474,6 +482,18 @@ jobs:
 
           echo "Checking frontend..."
           curl -f http://localhost:3000 || exit 1
+      - name: Initialize and seed test database
+        # Playwright globalSetup logs in as admin@multimodal-rag.com to populate
+        # storageState. The fresh postgres container has no schema or users, so
+        # without this step every E2E test fails at auth setup with a 10s
+        # waitForURL("**/dashboard") timeout. Creates schema via SQLAlchemy
+        # metadata + seeds admin/demo/lab users with the well-known passwords
+        # the tests expect (matching CLAUDE.md dev creds).
+        run: |
+          docker exec \
+            -e PYTHONPATH=/app \
+            backend-e2e \
+            python -c "from src.core.database import create_tables, init_database; create_tables(); init_database()"
       - name: Run E2E Tests
         env:
           EVENT_NAME: ${{ github.event_name }}
