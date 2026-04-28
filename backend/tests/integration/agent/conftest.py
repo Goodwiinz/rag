@@ -123,7 +123,10 @@ def make_mock_execute_tool(results: dict | None = None):
     """
     default_results = results or {}
 
-    async def _execute(tool_name, _tool_args, *, db=None, current_user=None, **_kw):
+    async def _execute(
+        *, tool_name, args, user_id=None, db=None, current_user=None, **_kw
+    ):
+        del args, user_id, db, current_user, _kw  # unused — captured for signature parity
         return default_results.get(tool_name, {"result": "ok"})
 
     return _execute
