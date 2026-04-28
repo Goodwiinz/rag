@@ -5,11 +5,11 @@ This script handles automated disaster recovery procedures
 """
 
 import os
+import re
 import sys
 import json
 import logging
 import argparse
-import subprocess
 import asyncio
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -17,9 +17,37 @@ from typing import Dict, Any, List, Optional
 from enum import Enum
 
 import asyncpg
-import aioredis
 from qdrant_client import QdrantClient
 from neo4j import GraphDatabase
+
+_VALID_PG_IDENT = re.compile(r'^[a-z_][a-z0-9_]{0,62}$')
+
+
+def _safe_pg_identifier(name: str, kind: str = "identifier") -> str:
+    """Validate a PostgreSQL identifier against an allowlist before interpolation."""
+    if not _VALID_PG_IDENT.match(name):
+        raise ValueError(f"Invalid PostgreSQL {kind}: {name!r}")
+    return name
+
+
+async def _run_subprocess(*cmd: str, env: Optional[Dict[str, str]] = None,
+                          check: bool = True) -> "asyncio.subprocess.Process":
+    """Run a subprocess without blocking the event loop."""
+    proc = await asyncio.create_subprocess_exec(
+        *cmd,
+        env=env,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    stdout, stderr = await proc.communicate()
+    if check and proc.returncode != 0:
+        raise RuntimeError(
+            f"Command {' '.join(cmd)!r} failed with exit code {proc.returncode}: "
+            f"{stderr.decode(errors='replace').strip()}"
+        )
+    proc._captured_stdout = stdout  # type: ignore[attr-defined]
+    proc._captured_stderr = stderr  # type: ignore[attr-defined]
+    return proc
 
 # Set up logging
 logging.basicConfig(
@@ -48,7 +76,7 @@ class DisasterRecovery:
         self.recovery_log = []
         self.start_time = datetime.now()
 
-    async def run_recovery(self, components: List[str] = None) -> Dict[str, Any]:
+    async def run_recovery(self, components: Optional[List[str]] = None) -> Dict[str, Any]:
         """
         Run disaster recovery for specified components.
         If no components specified, recover all components.
@@ -389,29 +417,31 @@ class DisasterRecovery:
 
     async def _stop_service(self, service: str):
         """Stop a specific service."""
+        cmd = ['docker', 'stop', service] if self.config.get('use_docker', True) \
+            else ['systemctl', 'stop', service]
         try:
-            if self.config.get('use_docker', True):
-                subprocess.run(['docker', 'stop', service], check=True, capture_output=True)
-            else:
-                subprocess.run(['systemctl', 'stop', service], check=True, capture_output=True)
+            await _run_subprocess(*cmd)
             logger.info(f"Stopped service: {service}")
-        except subprocess.CalledProcessError as e:
+        except RuntimeError as e:
             logger.warning(f"Failed to stop service {service}: {e}")
 
     async def _start_service(self, service: str) -> bool:
         """Start a specific service."""
+        cmd = ['docker', 'start', service] if self.config.get('use_docker', True) \
+            else ['systemctl', 'start', service]
         try:
-            if self.config.get('use_docker', True):
-                subprocess.run(['docker', 'start', service], check=True, capture_output=True)
-            else:
-                subprocess.run(['systemctl', 'start', service], check=True, capture_output=True)
+            await _run_subprocess(*cmd)
             return True
-        except subprocess.CalledProcessError as e:
+        except RuntimeError as e:
             logger.error(f"Failed to start service {service}: {e}")
             return False
 
     async def _drop_database(self):
         """Drop existing database."""
+        db_name = _safe_pg_identifier(
+            self.config.get('db_name', 'multimodal_rag'), 'database name'
+        )
+        conn = None
         try:
             conn = await asyncpg.connect(
                 host=self.config.get('db_host', 'localhost'),
@@ -426,17 +456,22 @@ class DisasterRecovery:
                 SELECT pg_terminate_backend(pid)
                 FROM pg_stat_activity
                 WHERE datname = $1
-            """, self.config.get('db_name', 'multimodal_rag'))
+            """, db_name)
 
-            # Drop the database
-            await conn.execute(f'DROP DATABASE IF EXISTS {self.config.get("db_name", "multimodal_rag")}')
-            await conn.close()
+            # Drop the database (identifier validated above)
+            await conn.execute(f'DROP DATABASE IF EXISTS {db_name}')
             logger.info("Dropped existing database")
         except Exception as e:
             logger.warning(f"Failed to drop database (may not exist): {e}")
+        finally:
+            if conn is not None:
+                await conn.close()
 
     async def _create_database(self):
         """Create new database."""
+        db_name = _safe_pg_identifier(
+            self.config.get('db_name', 'multimodal_rag'), 'database name'
+        )
         conn = await asyncpg.connect(
             host=self.config.get('db_host', 'localhost'),
             port=self.config.get('db_port', 5432),
@@ -444,10 +479,11 @@ class DisasterRecovery:
             password=self.config.get('db_password'),
             database='postgres'
         )
-
-        await conn.execute(f'CREATE DATABASE {self.config.get("db_name", "multimodal_rag")}')
-        await conn.close()
-        logger.info("Created new database")
+        try:
+            await conn.execute(f'CREATE DATABASE {db_name}')
+            logger.info("Created new database")
+        finally:
+            await conn.close()
 
     async def _restore_database(self, backup_file: Path) -> bool:
         """Restore database from backup file."""
@@ -461,21 +497,24 @@ class DisasterRecovery:
                 '--verbose',
                 '--no-owner',
                 '--no-privileges',
-                str(backup_file)
+                str(backup_file),
             ]
 
-            # Set password environment variable
+            # Pass DB password via env without overwriting an existing PGPASSWORD
+            # with None (os.environ rejects None values, raising TypeError).
             env = os.environ.copy()
-            env['PGPASSWORD'] = self.config.get('db_password')
+            db_password = self.config.get('db_password')
+            if db_password:
+                env['PGPASSWORD'] = db_password
 
-            result = subprocess.run(cmd, env=env, capture_output=True, text=True)
-
-            if result.returncode == 0:
-                logger.info("Database restore completed successfully")
-                return True
-            else:
-                logger.error(f"Database restore failed: {result.stderr}")
+            try:
+                await _run_subprocess(*cmd, env=env)
+            except RuntimeError as e:
+                logger.error(f"Database restore failed: {e}")
                 return False
+
+            logger.info("Database restore completed successfully")
+            return True
 
         except Exception as e:
             logger.error(f"Database restore error: {e}")
@@ -616,8 +655,7 @@ class DisasterRecovery:
             upload_dir = Path(self.config.get('upload_dir', '/app/uploads'))
             upload_dir.mkdir(parents=True, exist_ok=True)
 
-            # Extract backup
-            subprocess.run(['tar', 'xzf', str(backup_file), '-C', upload_dir.parent], check=True)
+            await _run_subprocess('tar', 'xzf', str(backup_file), '-C', str(upload_dir.parent))
             logger.info(f"Restored uploads from {backup_file}")
             return True
 
@@ -629,8 +667,8 @@ class DisasterRecovery:
         """Fix permissions for uploaded files."""
         try:
             upload_dir = Path(self.config.get('upload_dir', '/app/uploads'))
-            subprocess.run(['chown', '-R', 'www-data:www-data', str(upload_dir)], check=True)
-            subprocess.run(['chmod', '-R', '755', str(upload_dir)], check=True)
+            await _run_subprocess('chown', '-R', 'www-data:www-data', str(upload_dir))
+            await _run_subprocess('chmod', '-R', '755', str(upload_dir))
             logger.info("Fixed upload permissions")
         except Exception as e:
             logger.warning(f"Failed to fix upload permissions: {e}")
