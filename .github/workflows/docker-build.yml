@@ -147,6 +147,7 @@ jobs:
             BACKEND_URL=http://nous-dev-knowledge-graph-analytics-backend.rag-dev.svc.cluster.local:80
             NEXT_PUBLIC_SUPABASE_URL=${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
             NEXT_PUBLIC_SUPABASE_ANON_KEY=${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+            NEXT_PUBLIC_STATSIG_CLIENT_KEY=client-SEfCB81zQnvSAqRxfVi1nJNRmpJtrmOrvDKQPQm4UBx
           cache-from: type=s3,bucket=${{ env.SPACES_BUCKET }},region=${{ env.SPACES_REGION }},endpoint_url=${{ env.SPACES_ENDPOINT }},prefix=buildcache/frontend/
           cache-to: type=s3,bucket=${{ env.SPACES_BUCKET }},region=${{ env.SPACES_REGION }},endpoint_url=${{ env.SPACES_ENDPOINT }},prefix=buildcache/frontend/,mode=max
         env:
