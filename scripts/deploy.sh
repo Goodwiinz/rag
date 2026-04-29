@@ -126,19 +126,6 @@ pull_images() {
     success "Images pulled successfully"
 }
 
-# Build images (if needed)
-build_images() {
-    log "Building Docker images..."
-
-    cd "$PROJECT_ROOT"
-
-    if [[ -f "$COMPOSE_FILE" ]]; then
-        docker-compose -f "$COMPOSE_FILE" build || error_exit "Failed to build images"
-    fi
-
-    success "Images built successfully"
-}
-
 # Run pre-deployment tests
 run_pre_deploy_tests() {
     log "Running pre-deployment tests..."

@@ -4,24 +4,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 import os
 import sys
-from sklearn.cluster import KMeans, DBSCAN, AgglomerativeClustering
-from sklearn.mixture import GaussianMixture
+from sklearn.cluster import KMeans, DBSCAN
 from sklearn.manifold import TSNE
 from sklearn.metrics import silhouette_score
-import seaborn as sns
-
-# Try to import sentence_transformers, but if not available we can skip or use dummy embeddings?
-# Actually, the plan was to use AzureOpenAI for embeddings in this script too, or re-use existing ones.
-# The user prompt example used SentenceTransformer. I will stick to AzureOpenAI to be consistent with the app's services, 
-# BUT reusing the backend service here might be complex due to async.
-# Alternatively, I can use the 'cosine_similarity' logic which implies we already have embeddings, 
-# but the CSV doesn't store the full embedding vectors (usually).
-# Better to generate embeddings on the fly for the unique queries using the same service as data gen.
-
-# To simplify, I'll assume we can import the service again or use a local lightweight model like 'all-MiniLM-L6-v2' 
-# as requested in the user prompt example, which is easier for a standalone script if installed.
-# I'll check if sentence_transformers is installed or just use the backend service.
-# Using backend service is safer for consistency.
 
 # Add backend to path
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
@@ -73,17 +58,14 @@ def main():
     
     # Clustering
     print("Running Clustering Algorithms...")
-    
-    results = {}
-    
+
     # K-Means
     n_clusters = min(5, len(unique_queries))
     kmeans = KMeans(n_clusters=n_clusters, random_state=42)
     clusters_km = kmeans.fit_predict(query_embeddings)
     sil_km = silhouette_score(query_embeddings, clusters_km) if len(unique_queries) > n_clusters else 0
-    results['KMeans'] = sil_km
     print(f"K-Means Silhouette: {sil_km:.3f}")
-    
+
     # DBSCAN
     dbscan = DBSCAN(eps=0.5, min_samples=2)
     clusters_db = dbscan.fit_predict(query_embeddings)
@@ -92,17 +74,8 @@ def main():
         sil_db = silhouette_score(query_embeddings, clusters_db)
     else:
         sil_db = 0
-    results['DBSCAN'] = sil_db
     print(f"DBSCAN Silhouette: {sil_db:.3f}")
-    
-    # GMM
-    gmm = GaussianMixture(n_components=n_clusters, random_state=42)
-    clusters_gmm = gmm.fit_predict(query_embeddings)
-    
-    # Agglomerative
-    agg = AgglomerativeClustering(n_clusters=n_clusters)
-    clusters_agg = agg.fit_predict(query_embeddings)
-    
+
     # t-SNE Visualization
     print("Generating t-SNE visualization...")
     if len(unique_queries) > 5:  # t-SNE needs some samples

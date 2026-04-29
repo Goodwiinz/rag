@@ -12,7 +12,7 @@ import os
 import psutil
 import aiohttp
 import logging
-from datetime import datetime, timezone as dt_timezone
+from datetime import datetime
 from typing import Dict, List, Any, Optional
 from dataclasses import dataclass
 

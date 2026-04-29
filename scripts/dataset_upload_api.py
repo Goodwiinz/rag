@@ -9,12 +9,9 @@ import aiohttp
 import json
 import logging
 from pathlib import Path
-from typing import Dict, List, Optional, Any, AsyncGenerator
+from typing import Dict, List, Optional, Any
 from dataclasses import dataclass, asdict
 from datetime import datetime
-import base64
-import hashlib
-from concurrent.futures import ThreadPoolExecutor
 import time
 
 # Configure logging
