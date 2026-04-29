@@ -7,7 +7,10 @@ export default defineWorkspace([
     test: {
       name: 'unit',
       environment: 'jsdom',
-      include: ['src/**/__tests__/**/*.test.{ts,tsx}'],
+      // PR #1 ships only the Vitest infra + a single smoke test. PR #2 widens this
+      // glob back to 'src/**/__tests__/**/*.test.{ts,tsx}' as files are migrated
+      // off Jest globals.
+      include: ['src/test/__tests__/**/*.test.{ts,tsx}'],
       exclude: [
         'src/integration/**',
         'src/__tests__/App.routing.test.tsx',
@@ -21,7 +24,8 @@ export default defineWorkspace([
     test: {
       name: 'cli',
       environment: 'node',
-      include: ['cli/__tests__/**/*.test.{ts,tsx}'],
+      // PR #1: no CLI tests are migrated yet. PR #2 widens this back.
+      include: ['cli/__tests__/__vitest_only__/**/*.test.{ts,tsx}'],
       exclude: ['node_modules/**'],
     },
   },
