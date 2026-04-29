@@ -264,6 +264,53 @@ describe('confirmation rendering', () => {
     expect(messages.some((m) => m.includes('content=short body'))).toBe(true);
     expect(messages.some((m) => /content \(\d+ chars\):/.test(m))).toBe(false);
   });
+
+  test('summarizeArgs collapses newlines/control whitespace in short string values', () => {
+    // Below CONTENT_PREVIEW_MIN_CHARS (60) so it stays in the inline summary
+    // path rather than being rendered as a content preview block. Without the
+    // fix, the embedded \n would break the panel into multiple visual rows
+    // and make trailing args look like continuation of `summary`.
+    renderConfirmationDetails({
+      tools: [
+        {
+          name: 'create_draft',
+          args: { title: 't', summary: 'line1\nline2 line3' },
+        },
+      ],
+    });
+    const messages = mockedLog.message.mock.calls.map((c) => c[0] as string);
+    const inline = messages.find(
+      (m) => m.includes('title=') && m.includes('summary=')
+    );
+    expect(inline).toBeDefined();
+    expect(inline).toContain('summary=line1 line2 line3');
+    // A literal newline inside the summarized arg value would split the line.
+    const summaryFragment = (inline as string).slice(
+      (inline as string).indexOf('summary=')
+    );
+    expect(summaryFragment).not.toContain('\n');
+  });
+
+  test('summarizeArgs still truncates long single-line strings with an ellipsis', () => {
+    // 70-char single-line value, no newlines. Must be > 60 chars (truncation
+    // threshold) AND short enough to stay below CONTENT_PREVIEW_MIN_CHARS so
+    // it doesn't get diverted into the preview block path.
+    const longSingleLine = 'a'.repeat(70);
+    expect(longSingleLine.length).toBeGreaterThan(60);
+    renderConfirmationDetails({
+      tools: [
+        {
+          name: 'create_draft',
+          args: { title: longSingleLine },
+        },
+      ],
+    });
+    const messages = mockedLog.message.mock.calls.map((c) => c[0] as string);
+    const inline = messages.find((m) => m.includes('title='));
+    expect(inline).toBeDefined();
+    // Truncated to 57 chars + ellipsis = 58 visible chars after `title=`.
+    expect(inline).toMatch(/title=a{57}…/);
+  });
 });
 
 describe('buildContentPreviews', () => {

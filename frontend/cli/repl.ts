@@ -36,6 +36,11 @@ interface ReplOptions {
   projectName?: string;
 }
 
+// Drafts shorter than this (after trim) are treated as artifacts and not
+// restored on the next launch — a stray escape sequence, an empty line, or
+// a single keypress isn't worth replaying as a prefilled prompt.
+export const MIN_DRAFT_RESTORE_CHARS = 2;
+
 export async function runRepl(options: ReplOptions = {}): Promise<void> {
   const config = loadConfig();
   if (!config) throw new Error('Not logged in');
@@ -50,8 +55,13 @@ export async function runRepl(options: ReplOptions = {}): Promise<void> {
 
   let pendingDraft: string | null = null;
   const initialDraft = readDraft();
-  if (initialDraft) {
+  if (initialDraft && initialDraft.trim().length >= MIN_DRAFT_RESTORE_CHARS) {
     pendingDraft = initialDraft;
+    clearDraft();
+  } else if (initialDraft) {
+    // Tiny drafts (<2 chars) are almost always artifacts — a stray escape
+    // sequence or single keypress. Drop them silently so they don't get
+    // replayed as a prefilled prompt on the next launch.
     clearDraft();
   }
 
@@ -1056,7 +1066,11 @@ function summarizeArgs(args: Record<string, unknown>): string {
       } else if (typeof v === 'object' && v !== null) {
         val = '{…}';
       } else {
-        const s = String(v);
+        // Collapse newlines/tabs/other control whitespace to single spaces
+        // BEFORE truncating, so a multi-line short string doesn't break the
+        // confirmation panel into multiple visual rows (which makes the
+        // following args render as continuation of this value).
+        const s = String(v).replace(/\s+/g, ' ').trim();
         val = s.length > 60 ? `${s.slice(0, 57)}…` : s;
       }
       return `${k}=${val}`;
