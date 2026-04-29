@@ -117,6 +117,37 @@ def _get_latest_user_content(messages: List[Any]) -> Optional[str]:
     return None
 
 
+async def _clear_stale_pending_confirmation(graph: Any, config: Dict[str, Any]) -> bool:
+    """Wipe a stale HITL interrupt from the checkpoint before a fresh turn.
+
+    A pending confirmation can only be answered with ``Command(resume=...)``.
+    If the next request is a fresh ``HumanMessage`` instead, the user has
+    abandoned the interrupt — re-firing it would block the new turn forever.
+    Returns True when state was cleared so callers can log/observe.
+    """
+    try:
+        snapshot = await graph.aget_state(config)
+    except Exception:
+        return False
+    if not snapshot or not snapshot.values:
+        return False
+    if not snapshot.values.get("pending_confirmation"):
+        return False
+    try:
+        await graph.aupdate_state(
+            config,
+            {"pending_confirmation": {}, "user_confirmed": False},
+        )
+    except Exception:
+        logger.exception("Failed to clear stale pending_confirmation")
+        return False
+    logger.info(
+        "Cleared stale pending_confirmation for thread %s",
+        config.get("configurable", {}).get("thread_id"),
+    )
+    return True
+
+
 # ---------------------------------------------------------------------------
 # Thread persistence helper
 # ---------------------------------------------------------------------------
@@ -321,6 +352,12 @@ async def _run_agent_graph(
             }
 
             try:
+                # Drop any stale HITL interrupt left over from a previous turn
+                # the user abandoned (e.g. /new in the CLI). A fresh
+                # HumanMessage cannot resume an interrupt, so re-firing the
+                # old one would block this turn forever.
+                await _clear_stale_pending_confirmation(graph, config)
+
                 async with asyncio.timeout(360):
                     final_state = await graph.ainvoke(initial_state, config=config)
             except GraphInterrupt as exc:
