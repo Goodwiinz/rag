@@ -139,6 +139,63 @@ _REFLECTION_SYSTEM_PROMPT = (
 )
 
 
+# Minimum content length for reflection to be worthwhile. Responses shorter
+# than this with no tool calls are too trivial to benefit from critique.
+_REFLECTION_MIN_CONTENT_CHARS = 200
+
+
+def _last_ai_message(state: dict) -> AIMessage | None:
+    """Return the most recent AIMessage in state, or None."""
+    for msg in reversed(state.get("messages", [])):
+        if isinstance(msg, AIMessage):
+            return msg
+    return None
+
+
+def _should_skip_reflection(state: dict) -> tuple[bool, str]:
+    """Decide whether to skip the reflection LLM call.
+
+    Skip conditions (cheap, deterministic checks that avoid a ~944 token
+    critique LLM call when the response is too trivial to benefit from
+    one):
+
+    1. Latest AIMessage content is shorter than
+       ``_REFLECTION_MIN_CONTENT_CHARS`` AND has no tool_calls.
+    2. ``state["tool_executions"]`` is empty AND the latest AIMessage has
+       no tool_calls (no tools ran -> nothing tool-grounded to critique).
+
+    Args:
+        state: The current agent state dict.
+
+    Returns:
+        ``(skip, reason)`` — ``skip`` is True when the reflection LLM
+        call should be bypassed; ``reason`` is a short human-readable
+        string suitable for logging and test assertions.
+    """
+    last_ai = _last_ai_message(state)
+    if last_ai is None:
+        # Defer to existing missing-message handling in the node.
+        return (False, "no-ai-message")
+
+    tool_calls = getattr(last_ai, "tool_calls", None) or []
+    has_tool_calls = bool(tool_calls)
+
+    content = last_ai.content or ""
+    content_len = len(content) if isinstance(content, str) else 0
+
+    if not has_tool_calls and content_len < _REFLECTION_MIN_CONTENT_CHARS:
+        return (
+            True,
+            f"short-output ({content_len} < {_REFLECTION_MIN_CONTENT_CHARS} chars, no tool_calls)",
+        )
+
+    tool_executions = state.get("tool_executions", []) or []
+    if not has_tool_calls and not tool_executions:
+        return (True, "no-tools (tool_executions empty, no tool_calls)")
+
+    return (False, "")
+
+
 async def reflect_on_response(
     last_ai_message: AIMessage,
     original_user_message: str,
@@ -211,6 +268,9 @@ def make_reflection_gate(
         Skips reflection when:
         - The intent is not in the filter set.
         - The reflection count has reached the maximum (2).
+        - The latest AIMessage is too trivial to critique (see
+          ``_should_skip_reflection``): short content with no tool_calls,
+          or no tools were executed and no pending tool_calls.
         """
         intent = state.get("intent", "general")
         current_count = state.get("reflection_count", 0)
@@ -222,6 +282,17 @@ def make_reflection_gate(
         # Skip if max rounds reached
         if current_count >= 2:
             return {"reflection_count": current_count}
+
+        # Cheap pre-LLM gate: skip critique for trivial / tool-less turns.
+        skip, reason = _should_skip_reflection(state)
+        if skip:
+            logger.debug("Reflection skipped: %s", reason)
+            return {
+                "reflection_count": current_count,
+                "_reflection_result": ReflectionResult(
+                    passed=True, issues=[], severity="none"
+                ),
+            }
 
         # Find last AI message and original user message
         last_ai_message: AIMessage | None = None

@@ -4,6 +4,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from src.services.agent.reflection import (
     ReflectionResult,
+    _should_skip_reflection,
     make_reflection_gate,
     reflect_on_response,
 )
@@ -243,3 +244,115 @@ class TestMakeReflectionGate:
         state.update(updates)
         route = route_fn(state)
         assert route == "proceed"
+
+
+# ---------------------------------------------------------------------------
+# Skip-reflection heuristic
+# ---------------------------------------------------------------------------
+
+
+class TestShouldSkipReflection:
+    """Cheap, deterministic gate that runs before the reflection LLM call.
+
+    Saves ~944 tokens / call on trivial outputs and tool-less turns.
+    """
+
+    def test_skips_short_content_without_tool_calls(self):
+        from langchain_core.messages import AIMessage, HumanMessage
+
+        state = {
+            "messages": [
+                HumanMessage(content="hi"),
+                AIMessage(content="OK."),
+            ],
+            "tool_executions": [],
+        }
+        skip, reason = _should_skip_reflection(state)
+        assert skip is True
+        assert "short-output" in reason
+
+    def test_skips_when_no_tools_ran_and_no_pending_tool_calls(self):
+        from langchain_core.messages import AIMessage, HumanMessage
+
+        # Long content but no tools were executed AND no pending tool_calls.
+        long_text = "Here is a long substantive answer. " * 20  # > 200 chars
+        state = {
+            "messages": [
+                HumanMessage(content="quick question"),
+                AIMessage(content=long_text),
+            ],
+            "tool_executions": [],
+        }
+        skip, reason = _should_skip_reflection(state)
+        assert skip is True
+        assert "no-tools" in reason
+
+    def test_does_not_skip_when_tools_ran(self):
+        from langchain_core.messages import AIMessage, HumanMessage
+
+        long_text = "Detailed grounded answer. " * 20
+        state = {
+            "messages": [
+                HumanMessage(content="find papers"),
+                AIMessage(content=long_text),
+            ],
+            "tool_executions": [{"tool_name": "search_arxiv", "status": "completed"}],
+        }
+        skip, reason = _should_skip_reflection(state)
+        assert skip is False
+        assert reason == ""
+
+    def test_does_not_skip_when_pending_tool_calls(self):
+        from langchain_core.messages import AIMessage, HumanMessage
+
+        # Short content but the AIMessage carries pending tool_calls — the
+        # gate must NOT skip because the next turn will run those tools and
+        # we want reflection on the grounded result.
+        state = {
+            "messages": [
+                HumanMessage(content="search arxiv"),
+                AIMessage(
+                    content="",
+                    tool_calls=[
+                        {"id": "tc1", "name": "search_arxiv", "args": {"query": "x"}}
+                    ],
+                ),
+            ],
+            "tool_executions": [],
+        }
+        skip, reason = _should_skip_reflection(state)
+        assert skip is False
+
+    def test_no_ai_message_falls_through(self):
+        from langchain_core.messages import HumanMessage
+
+        state = {"messages": [HumanMessage(content="hi")], "tool_executions": []}
+        skip, _reason = _should_skip_reflection(state)
+        assert skip is False
+
+    @pytest.mark.asyncio
+    async def test_gate_node_skips_llm_for_trivial_writing_turn(self):
+        """End-to-end: the writing-intent gate must NOT call the critique LLM
+        when the response is a one-liner with no tools."""
+        from langchain_core.messages import AIMessage, HumanMessage
+
+        node_fn, _route_fn = make_reflection_gate(intent_filter={"writing"})
+        state = {
+            "messages": [
+                HumanMessage(content="thanks"),
+                AIMessage(content="You're welcome."),
+            ],
+            "intent": "writing",
+            "reflection_count": 0,
+            "tool_executions": [],
+        }
+
+        with patch(
+            "src.services.agent.reflection._build_reflection_llm"
+        ) as mock_build:
+            updates = await node_fn(state, {"configurable": {}})
+            assert mock_build.called is False
+
+        assert updates["_reflection_result"].passed is True
+        # Reflection counter unchanged when we skip.
+        assert updates["reflection_count"] == 0
