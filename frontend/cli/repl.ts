@@ -1027,8 +1027,26 @@ function extractPendingTools(details: Record<string, unknown>): PendingTool[] {
     }));
 }
 
+// Tool arg fields whose value is the user-meaningful body of the action
+// (e.g. the note text, the code to run). These render as a preview block
+// in the confirmation panel rather than getting truncated to ~60 chars
+// inside summarizeArgs — otherwise a 5k-token LLM-drafted note collapses
+// to "content=The paper proposes…" and the user approves blind.
+const CONTENT_ARG_FIELDS = new Set(['content', 'code', 'body', 'text', 'note']);
+const CONTENT_PREVIEW_MIN_CHARS = 60;
+
+function isPreviewableContent(key: string, value: unknown): value is string {
+  return (
+    CONTENT_ARG_FIELDS.has(key) &&
+    typeof value === 'string' &&
+    value.length > CONTENT_PREVIEW_MIN_CHARS
+  );
+}
+
 function summarizeArgs(args: Record<string, unknown>): string {
-  const entries = Object.entries(args);
+  const entries = Object.entries(args).filter(
+    ([k, v]) => !isPreviewableContent(k, v)
+  );
   if (entries.length === 0) return '';
   return entries
     .map(([k, v]) => {
@@ -1044,6 +1062,50 @@ function summarizeArgs(args: Record<string, unknown>): string {
       return `${k}=${val}`;
     })
     .join('  ');
+}
+
+interface ContentPreview {
+  field: string;
+  totalChars: number;
+  preview: string;
+  truncated: boolean;
+}
+
+const CONTENT_PREVIEW_MAX_LINES = 10;
+const CONTENT_PREVIEW_MAX_CHARS = 800;
+
+export function buildContentPreviews(
+  args: Record<string, unknown>
+): ContentPreview[] {
+  const out: ContentPreview[] = [];
+  for (const [k, v] of Object.entries(args)) {
+    if (!isPreviewableContent(k, v)) continue;
+    const lines = v.split('\n');
+    const taken: string[] = [];
+    let chars = 0;
+    let truncated = false;
+    for (const line of lines) {
+      if (taken.length >= CONTENT_PREVIEW_MAX_LINES) {
+        truncated = true;
+        break;
+      }
+      const remaining = CONTENT_PREVIEW_MAX_CHARS - chars;
+      if (line.length > remaining) {
+        taken.push(`${line.slice(0, Math.max(0, remaining - 1))}…`);
+        truncated = true;
+        break;
+      }
+      taken.push(line);
+      chars += line.length + 1;
+    }
+    out.push({
+      field: k,
+      totalChars: v.length,
+      preview: taken.join('\n'),
+      truncated: truncated || taken.join('\n').length < v.length,
+    });
+  }
+  return out;
 }
 
 export function renderConfirmationDetails(
@@ -1070,6 +1132,18 @@ export function renderConfirmationDetails(
     p.log.message(
       `  • ${label}  (${t.name})${argSummary ? `\n      ${argSummary}` : ''}`
     );
+    for (const cp of buildContentPreviews(t.args)) {
+      p.log.message(`      ${cp.field} (${cp.totalChars} chars):`);
+      for (const line of cp.preview.split('\n')) {
+        p.log.message(`        │ ${line}`);
+      }
+      if (cp.truncated) {
+        const omitted = cp.totalChars - cp.preview.length;
+        p.log.message(
+          `        │ … (truncated, ${omitted} more char${omitted === 1 ? '' : 's'})`
+        );
+      }
+    }
   }
   p.log.message('Reply  y  to allow,  n  to cancel.');
 }

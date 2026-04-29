@@ -10,6 +10,7 @@ import logging
 from langchain_core.messages import AIMessage, SystemMessage
 from langchain_core.runnables import RunnableConfig
 from langgraph.graph import END, StateGraph
+from langgraph.types import interrupt
 
 from src.services.agent.compactor import make_compactor_node
 from src.services.agent.graph import _sanitize_messages
@@ -35,6 +36,12 @@ WRITING_TOOLS = [
 ]
 
 WRITING_TOOL_NAMES_LIST = [t.name for t in WRITING_TOOLS]
+
+# Destructive tools written by the writing subgraph. The main graph's
+# DESTRUCTIVE_TOOLS gate only fires from the top-level interrupt_node and
+# is bypassed once intent routes us into a subgraph, so the subgraph has
+# to enforce HITL itself for any tool that mutates user data.
+WRITING_DESTRUCTIVE_TOOLS = {"create_project_note", "create_draft"}
 
 def _build_writing_system_prompt() -> str:
     """Construct the writing subgraph system prompt with shared rules embedded.
@@ -82,6 +89,48 @@ def writing_should_continue(state: AgentState) -> str:
         and last.tool_calls
         and state.get("tool_loop_count", 0) < 8
     ):
+        if any(tc["name"] in WRITING_DESTRUCTIVE_TOOLS for tc in last.tool_calls):
+            return "writing_interrupt_node"
+        return "writing_tool_node"
+    return "writing_reflection_gate"
+
+
+async def writing_interrupt_node(state: AgentState, config: RunnableConfig) -> dict:
+    """Pause for user confirmation before executing destructive writing tools."""
+    last = state["messages"][-1]
+    destructive_calls = [
+        tc for tc in last.tool_calls if tc["name"] in WRITING_DESTRUCTIVE_TOOLS
+    ]
+    tool_names = [tc["name"] for tc in destructive_calls]
+
+    confirmation_details = {
+        "pending_tools": tool_names,
+        "tools": [
+            {"name": tc["name"], "args": tc["args"]} for tc in destructive_calls
+        ],
+        "message": f"Confirm: {', '.join(tool_names)}?",
+    }
+    user_response = interrupt(confirmation_details)
+
+    if user_response and user_response.get("confirmed"):
+        return {"pending_confirmation": {}, "user_confirmed": True}
+
+    return {
+        "messages": [
+            AIMessage(
+                content=(
+                    "Action cancelled by user. Let me know if you'd like to "
+                    "proceed differently."
+                ),
+            ),
+        ],
+        "pending_confirmation": {},
+        "user_confirmed": False,
+    }
+
+
+def writing_after_interrupt(state: AgentState) -> str:
+    if state.get("user_confirmed", False):
         return "writing_tool_node"
     return "writing_reflection_gate"
 
@@ -103,6 +152,7 @@ def build_writing_subgraph() -> StateGraph:
 
     Flow:
       writing_planner_node -> writing_llm_node -> writing_should_continue ->
+        | writing_interrupt_node -> writing_after_interrupt -> writing_tool_node
         | writing_tool_node -> writing_compactor_node -> writing_llm_node (loop)
         | writing_reflection_gate -> END (or revise -> writing_llm_node)
     """
@@ -124,6 +174,7 @@ def build_writing_subgraph() -> StateGraph:
     graph.add_node("writing_planner_node", planner)
     graph.add_node("writing_llm_node", writing_llm_node)
     graph.add_node("writing_tool_node", filtered_tool)
+    graph.add_node("writing_interrupt_node", writing_interrupt_node)
     graph.add_node("writing_compactor_node", compactor)
     graph.add_node("writing_reflection_gate", reflection_node)
 
@@ -134,6 +185,16 @@ def build_writing_subgraph() -> StateGraph:
     graph.add_conditional_edges(
         "writing_llm_node",
         writing_should_continue,
+        {
+            "writing_tool_node": "writing_tool_node",
+            "writing_interrupt_node": "writing_interrupt_node",
+            "writing_reflection_gate": "writing_reflection_gate",
+        },
+    )
+
+    graph.add_conditional_edges(
+        "writing_interrupt_node",
+        writing_after_interrupt,
         {
             "writing_tool_node": "writing_tool_node",
             "writing_reflection_gate": "writing_reflection_gate",
