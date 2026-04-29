@@ -15,22 +15,39 @@ def _make_state(
     intent: str = "research",
     reflection_count: int = 0,
     messages: list | None = None,
+    tool_executions: list | None = None,
     _reflection_result: "ReflectionResult | None" = None,
 ) -> dict:
-    """Build a minimal AgentState dict for reflection tests."""
+    """Build a minimal AgentState dict for reflection tests.
+
+    Defaults represent a substantive, tool-grounded research turn so the
+    pre-LLM skip gate (``_should_skip_reflection``) does not short-circuit
+    tests that exercise the reflection LLM path. Tests that want the skip
+    behaviour pass shorter content / empty ``tool_executions`` explicitly.
+    """
     from langchain_core.messages import AIMessage, HumanMessage
 
     if messages is None:
         messages = [
             HumanMessage(content="Find papers on transformers"),
-            AIMessage(content="I found several papers about transformers."),
+            AIMessage(
+                content=(
+                    "I found several papers about transformer architectures. "
+                    "The key contributions span attention mechanisms, scaling "
+                    "behaviour, and downstream task transfer. Below is a brief "
+                    "synthesis of the most cited results so you can decide "
+                    "which to read first."
+                )
+            ),
         ]
+    if tool_executions is None:
+        tool_executions = [{"tool_name": "search_arxiv", "status": "completed"}]
 
     state: dict = {
         "messages": messages,
         "page_context": {},
         "retrieved_contexts": [],
-        "tool_executions": [],
+        "tool_executions": tool_executions,
         "thread_id": "test-thread",
         "tool_loop_count": 0,
         "error_count": 0,
