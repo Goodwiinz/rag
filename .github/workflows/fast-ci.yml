@@ -89,10 +89,45 @@ jobs:
           npm run type-check 2>/dev/null || echo "Type check done"
           npm test -- --passWithNoTests 2>/dev/null || echo "Tests done"
 
+  test-frontend-vitest:
+    name: Frontend Tests (Vitest)
+    runs-on: ${{ github.event.inputs.runner || vars.FAST_CI_RUNNER || 'ubuntu-latest' }}
+    continue-on-error: true   # PR #1 only; PR #2 makes it required.
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Install
+        working-directory: frontend
+        run: pnpm install --frozen-lockfile
+
+      - name: Run Vitest
+        working-directory: frontend
+        run: pnpm test:vitest
+
+      - name: Upload JUnit
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vitest-junit
+          path: frontend/coverage/junit-vitest.xml
+          if-no-files-found: ignore
+
   summary:
     name: CI Summary
     runs-on: ${{ github.event.inputs.runner || vars.FAST_CI_RUNNER || 'ubuntu-latest' }}
-    needs: [lint, test-backend, test-frontend]
+    needs: [lint, test-backend, test-frontend, test-frontend-vitest]
     if: always()
     env:
       RUNNER_LABEL: ${{ github.event.inputs.runner || vars.FAST_CI_RUNNER || 'ubuntu-latest' }}
