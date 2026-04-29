@@ -4,23 +4,17 @@ Evaluation Framework for RAG System Datasets
 Supports evaluation of DocVQA, PubLayNet, LAION-400M and custom datasets
 """
 
-import asyncio
 import json
 import time
 import logging
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-import seaborn as sns
 from pathlib import Path
 from typing import Dict, List, Optional, Any, Tuple
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass
 from datetime import datetime
 import requests
-from sklearn.metrics import accuracy_score, precision_recall_fscore_support, confusion_matrix
-import plotly.graph_objects as go
-import plotly.express as px
-from plotly.subplots import make_subplots
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -462,7 +456,7 @@ class RAGEvaluator:
 
         fig, ax = plt.subplots(figsize=(12, 8))
         bars1 = ax.bar(x - width/2, actual_values, width, label='Actual', alpha=0.7)
-        bars2 = ax.bar(x + width/2, thresholds, width, label='Threshold', alpha=0.7)
+        ax.bar(x + width/2, thresholds, width, label='Threshold', alpha=0.7)
 
         ax.set_xlabel('Metrics')
         ax.set_ylabel('Values')
