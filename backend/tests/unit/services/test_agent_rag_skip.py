@@ -55,7 +55,7 @@ class TestIsRetrievalQuery:
 @pytest.mark.asyncio
 class TestRagNodeFastPath:
     async def test_rag_node_skips_search_for_trivial_query(self):
-        from unittest.mock import AsyncMock, patch
+        from unittest.mock import AsyncMock
 
         from langchain_core.messages import HumanMessage
 
@@ -67,19 +67,16 @@ class TestRagNodeFastPath:
             "retrieved_contexts": [],
             "thread_id": "t-1",
         }
-        config = {"configurable": {}}
+        mock_search = AsyncMock(return_value=[])
+        config = {"configurable": {"search_fn": mock_search}}
 
-        with patch(
-            "src.services.agent.graph.hybrid_search",
-            new_callable=AsyncMock,
-        ) as mock_search:
-            result = await rag_node(state, config)
+        result = await rag_node(state, config)
 
         assert mock_search.called is False
         assert result.get("retrieved_contexts", []) == []
 
     async def test_rag_node_runs_search_for_retrieval_query(self):
-        from unittest.mock import AsyncMock, patch
+        from unittest.mock import AsyncMock, MagicMock
 
         from langchain_core.messages import HumanMessage
 
@@ -91,13 +88,12 @@ class TestRagNodeFastPath:
             "retrieved_contexts": [],
             "thread_id": "t-2",
         }
-        config = {"configurable": {}}
+        mock_user = MagicMock()
+        mock_user.id = "user-test-1"
+        mock_user.organization_id = None
+        mock_search = AsyncMock(return_value=[])
+        config = {"configurable": {"search_fn": mock_search, "current_user": mock_user}}
 
-        with patch(
-            "src.services.agent.graph.hybrid_search",
-            new_callable=AsyncMock,
-            return_value=[],
-        ) as mock_search:
-            await rag_node(state, config)
+        await rag_node(state, config)
 
         assert mock_search.called is True
