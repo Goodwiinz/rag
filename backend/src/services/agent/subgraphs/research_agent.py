@@ -22,6 +22,7 @@ from src.services.agent.tools import (
     create_project,
     ingest_arxiv_papers,
     list_project_documents,
+    list_projects,
     search_arxiv,
     search_documents,
 )
@@ -33,6 +34,7 @@ RESEARCH_TOOLS = [
     ingest_arxiv_papers,
     search_documents,
     create_project,
+    list_projects,
     add_document_to_project,
     list_project_documents,
 ]
@@ -102,7 +104,12 @@ def research_should_continue(state: AgentState) -> str:
 
 async def research_interrupt_node(state: AgentState, config: RunnableConfig) -> dict:
     """Pause for user confirmation before executing destructive research tools."""
-    last = state["messages"][-1]
+    last = state["messages"][-1] if state.get("messages") else None
+    if not isinstance(last, AIMessage) or not getattr(last, "tool_calls", None):
+        # Defensive guard — should_continue routes here only when the
+        # last message is an AIMessage with tool_calls, but a stale
+        # checkpoint or an out-of-order edge could violate that contract.
+        return {"pending_confirmation": {}, "user_confirmed": False}
     destructive_calls = [
         tc for tc in last.tool_calls if tc["name"] in RESEARCH_DESTRUCTIVE_TOOLS
     ]

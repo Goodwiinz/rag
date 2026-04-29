@@ -97,7 +97,10 @@ def writing_should_continue(state: AgentState) -> str:
 
 async def writing_interrupt_node(state: AgentState, config: RunnableConfig) -> dict:
     """Pause for user confirmation before executing destructive writing tools."""
-    last = state["messages"][-1]
+    last = state["messages"][-1] if state.get("messages") else None
+    if not isinstance(last, AIMessage) or not getattr(last, "tool_calls", None):
+        # Defensive guard — see ``research_interrupt_node`` for rationale.
+        return {"pending_confirmation": {}, "user_confirmed": False}
     destructive_calls = [
         tc for tc in last.tool_calls if tc["name"] in WRITING_DESTRUCTIVE_TOOLS
     ]
