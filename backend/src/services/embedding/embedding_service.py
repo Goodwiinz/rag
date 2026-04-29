@@ -78,7 +78,7 @@ class EmbeddingService:
         try:
             logger.info(f"Loading embedding model: {self.model_name}")
             self.model = SentenceTransformer(self.model_name, device=self.device)
-            self.embedding_dimension = self.model.get_sentence_embedding_dimension()
+            self.embedding_dimension = self.model.get_embedding_dimension()
             logger.info(
                 f"Model loaded successfully. Dimension: {self.embedding_dimension}"
             )
@@ -90,7 +90,7 @@ class EmbeddingService:
                 logger.info(f"Trying fallback model: {fallback_model}")
                 self.model = SentenceTransformer(fallback_model, device=self.device)
                 self.model_name = fallback_model
-                self.embedding_dimension = self.model.get_sentence_embedding_dimension()
+                self.embedding_dimension = self.model.get_embedding_dimension()
                 logger.info(
                     f"Fallback model loaded. Dimension: {self.embedding_dimension}"
                 )
@@ -341,7 +341,7 @@ class EmbeddingService:
                     logger.info(f"Loading different model: {model_to_use}")
                     temp_model = SentenceTransformer(model_to_use, device=self.device)
                     embedding = temp_model.encode(request.text, convert_to_tensor=True)
-                    embedding_dimension = temp_model.get_sentence_embedding_dimension()
+                    embedding_dimension = temp_model.get_embedding_dimension()
                 else:
                     embedding = self.model.encode(request.text, convert_to_tensor=True)
                     embedding_dimension = self.embedding_dimension
@@ -427,7 +427,7 @@ class EmbeddingService:
                 logger.info(f"Loading different model for batch: {model_to_use}")
                 temp_model = SentenceTransformer(model_to_use, device=self.device)
                 embeddings = temp_model.encode(valid_texts, convert_to_tensor=True)
-                embedding_dimension = temp_model.get_sentence_embedding_dimension()
+                embedding_dimension = temp_model.get_embedding_dimension()
             else:
                 embeddings = self.model.encode(valid_texts, convert_to_tensor=True)
                 embedding_dimension = self.embedding_dimension

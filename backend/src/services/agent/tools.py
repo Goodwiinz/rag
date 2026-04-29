@@ -5,8 +5,11 @@ Each tool delegates to the existing implementation in
 ``page_context`` from the LangGraph ``RunnableConfig.configurable`` dict.
 """
 
+import asyncio
 import functools
+import inspect
 import logging
+import re
 from typing import Any, Dict, List, Optional, Tuple
 
 from langchain_core.runnables import RunnableConfig
@@ -28,8 +31,16 @@ except Exception:  # pragma: no cover - exercised in tests via module stubs
             self.coroutine = fn
             self.name = fn.__name__
             self.description = (fn.__doc__ or "").strip()
+            self._is_coroutine = inspect.iscoroutinefunction(fn)
 
         def __call__(self, *args, **kwargs):
+            # Async functions must be awaited — calling them synchronously
+            # would otherwise return a coroutine object (unawaited).
+            return self.func(*args, **kwargs)
+
+        async def ainvoke(self, *args, **kwargs):
+            if self._is_coroutine:
+                return await self.func(*args, **kwargs)
             return self.func(*args, **kwargs)
 
     def tool(func=None, **_kwargs):
@@ -39,6 +50,53 @@ except Exception:  # pragma: no cover - exercised in tests via module stubs
         if func is None:
             return decorator
         return decorator(func)
+
+
+# ---------------------------------------------------------------------------
+# Input bounds and validation
+# ---------------------------------------------------------------------------
+
+# Conservative caps for numeric LLM-controlled tool arguments. Without these,
+# an LLM hallucination of ``max_depth=999`` or ``limit=10000`` can DoS the
+# Neo4j / Qdrant / external connectors by triggering an unbounded fan-out.
+_MAX_RESULTS_CAP = 50
+_MAX_RESULTS_EXTERNAL_CAP = 100
+_MAX_GRAPH_DEPTH = 5
+_MAX_GRAPH_LIMIT = 100
+_MAX_INGEST_BATCH = 10
+_MAX_COMPARE_DOCUMENTS = 10
+_MAX_PROJECT_LIMIT = 100
+
+# External database connector / domain identifiers must be alphanumeric +
+# underscore + dash; rejecting anything else stops path-traversal-style
+# inputs from bleeding into the dynamic dispatch in the implementation.
+_CONNECTOR_NAME_RE = re.compile(r"^[a-zA-Z0-9_\-]{1,64}$")
+
+
+def _clamp_int(value: int, *, lo: int, hi: int) -> int:
+    """Clamp ``value`` into the inclusive range ``[lo, hi]``."""
+    if value < lo:
+        return lo
+    if value > hi:
+        return hi
+    return value
+
+
+def _validate_connector_name(value: Optional[str]) -> Optional[str]:
+    """Return ``value`` if it matches the allowlist regex, else ``None``.
+
+    Treating an invalid value as "unspecified" matches the original
+    behaviour for missing connectors (fan-out across all) without ever
+    forwarding adversarial input downstream.
+    """
+    if not value:
+        return None
+    if not _CONNECTOR_NAME_RE.match(value):
+        logger.warning(
+            "Rejecting invalid external-database identifier: %r", value
+        )
+        return None
+    return value
 
 
 # ---------------------------------------------------------------------------
@@ -70,6 +128,24 @@ def _resolve_project_id(
     return None
 
 
+def _missing_project_error(tool_name: str) -> Dict[str, Any]:
+    """Standard error payload when no project_id can be resolved.
+
+    Returning a structured error keeps the LLM aware that it must either
+    supply a project_id explicitly or call list_projects to discover one,
+    instead of forwarding ``""`` downstream where it surfaces as an
+    opaque ``invalid UUID`` error.
+    """
+    return {
+        "error": (
+            f"{tool_name} requires a project_id but none was provided and "
+            "no project page is active. Call list_projects to choose one, "
+            "or include project_id explicitly."
+        ),
+        "error_type": "user_fixable",
+    }
+
+
 # ---------------------------------------------------------------------------
 # Tool definitions
 # ---------------------------------------------------------------------------
@@ -90,7 +166,10 @@ async def search_arxiv(
     config = config or {}
     from src.api.agent.execute import _tool_search_arxiv
 
-    args: Dict[str, Any] = {"query": query, "max_results": max_results}
+    args: Dict[str, Any] = {
+        "query": query,
+        "max_results": _clamp_int(max_results, lo=1, hi=_MAX_RESULTS_CAP),
+    }
     if categories:
         args["categories"] = categories
     return await _tool_search_arxiv(args)
@@ -111,8 +190,11 @@ async def ingest_arxiv_papers(
 
     db, current_user, _page_ctx = _get_context(config)
     user_id = str(current_user.id) if current_user else ""
+    # Cap batch size — ingestion is heavy and a hallucinated 100-paper
+    # batch will saturate the worker pool and trip downstream timeouts.
+    capped_ids = list(paper_ids or [])[:_MAX_INGEST_BATCH]
     return await _tool_ingest_arxiv(
-        {"paper_ids": paper_ids}, user_id, db, current_user
+        {"paper_ids": capped_ids}, user_id, db, current_user
     )
 
 
@@ -128,7 +210,12 @@ async def search_documents(
 
     db, current_user, _page_ctx = _get_context(config)
     return await _tool_search_documents(
-        {"query": query, "max_results": max_results}, db, current_user
+        {
+            "query": query,
+            "max_results": _clamp_int(max_results, lo=1, hi=_MAX_RESULTS_CAP),
+        },
+        db,
+        current_user,
     )
 
 
@@ -148,8 +235,10 @@ async def add_document_to_project(
 
     db, current_user, page_ctx = _get_context(config)
     resolved_pid = _resolve_project_id(project_id, page_ctx)
+    if not resolved_pid:
+        return _missing_project_error("add_document_to_project")
     return await _tool_add_document_to_project(
-        {"document_id": document_id, "project_id": resolved_pid or ""},
+        {"document_id": document_id, "project_id": resolved_pid},
         db,
         current_user,
     )
@@ -202,10 +291,12 @@ async def create_project_note(
 
     db, current_user, page_ctx = _get_context(config)
     resolved_pid = _resolve_project_id(project_id, page_ctx)
+    if not resolved_pid:
+        return _missing_project_error("create_project_note")
     args: Dict[str, Any] = {
         "title": title,
         "content": content,
-        "project_id": resolved_pid or "",
+        "project_id": resolved_pid,
     }
     if tags:
         args["tags"] = tags
@@ -230,7 +321,9 @@ async def list_projects(
     from src.api.agent.execute import _tool_list_projects
 
     db, current_user, _page_ctx = _get_context(config)
-    args: Dict[str, Any] = {"limit": limit}
+    args: Dict[str, Any] = {
+        "limit": _clamp_int(limit, lo=1, hi=_MAX_PROJECT_LIMIT),
+    }
     if status:
         args["status"] = status
     if tag:
@@ -255,8 +348,10 @@ async def list_project_documents(
 
     db, current_user, page_ctx = _get_context(config)
     resolved_pid = _resolve_project_id(project_id, page_ctx)
+    if not resolved_pid:
+        return _missing_project_error("list_project_documents")
     return await _tool_list_project_documents(
-        {"project_id": resolved_pid or ""}, db, current_user
+        {"project_id": resolved_pid}, db, current_user
     )
 
 
@@ -293,8 +388,9 @@ async def compare_documents(
     from src.api.agent.execute import _tool_compare_documents
 
     db, current_user, _page_ctx = _get_context(config)
+    capped_ids = list(document_ids or [])[:_MAX_COMPARE_DOCUMENTS]
     return await _tool_compare_documents(
-        {"document_ids": document_ids, "type": type}, db, current_user
+        {"document_ids": capped_ids, "type": type}, db, current_user
     )
 
 
@@ -355,7 +451,11 @@ async def explore_entity_neighborhood(
     from src.api.agent.execute import _tool_explore_entity_neighborhood
 
     return await _tool_explore_entity_neighborhood(
-        {"entity_id": entity_id, "max_depth": max_depth, "limit": limit}
+        {
+            "entity_id": entity_id,
+            "max_depth": _clamp_int(max_depth, lo=1, hi=_MAX_GRAPH_DEPTH),
+            "limit": _clamp_int(limit, lo=1, hi=_MAX_GRAPH_LIMIT),
+        }
     )
 
 
@@ -376,7 +476,11 @@ async def find_entity_paths(
     from src.api.agent.execute import _tool_find_entity_paths
 
     return await _tool_find_entity_paths(
-        {"source_entity_id": source_entity_id, "target_entity_id": target_entity_id, "max_depth": max_depth}
+        {
+            "source_entity_id": source_entity_id,
+            "target_entity_id": target_entity_id,
+            "max_depth": _clamp_int(max_depth, lo=1, hi=_MAX_GRAPH_DEPTH),
+        }
     )
 
 
@@ -413,8 +517,10 @@ async def create_draft(
 
     db, current_user, page_ctx = _get_context(config)
     resolved_pid = _resolve_project_id(project_id, page_ctx)
+    if not resolved_pid:
+        return _missing_project_error("create_draft")
     return await _tool_create_draft(
-        {"project_id": resolved_pid or "", "themes": themes, "style": style},
+        {"project_id": resolved_pid, "themes": themes, "style": style},
         db,
         current_user,
     )
@@ -512,13 +618,29 @@ async def search_external_database(
     config = config or {}
     from src.api.agent.execute import _tool_search_external_database
 
-    args: Dict[str, Any] = {"query": query, "max_results": max_results}
-    if connector:
-        args["connector"] = connector
-    if domain:
-        args["domain"] = domain
-    if filters:
-        args["filters"] = filters
+    args: Dict[str, Any] = {
+        "query": query,
+        "max_results": _clamp_int(
+            max_results, lo=1, hi=_MAX_RESULTS_EXTERNAL_CAP
+        ),
+    }
+    safe_connector = _validate_connector_name(connector)
+    if safe_connector:
+        args["connector"] = safe_connector
+    safe_domain = _validate_connector_name(domain)
+    if safe_domain:
+        args["domain"] = safe_domain
+    # Filters are an opaque mapping; only pass through scalar values to
+    # keep the dispatch surface small and prevent nested-payload abuse.
+    if filters and isinstance(filters, dict):
+        scalar_filters = {
+            k: v
+            for k, v in filters.items()
+            if isinstance(k, str)
+            and isinstance(v, (str, int, float, bool))
+        }
+        if scalar_filters:
+            args["filters"] = scalar_filters
     return await _tool_search_external_database(args)
 
 
@@ -537,8 +659,9 @@ async def list_external_databases(
     from src.api.agent.execute import _tool_list_external_databases
 
     args: Dict[str, Any] = {}
-    if domain:
-        args["domain"] = domain
+    safe_domain = _validate_connector_name(domain)
+    if safe_domain:
+        args["domain"] = safe_domain
     return await _tool_list_external_databases(args)
 
 
@@ -559,6 +682,9 @@ ALL_TOOLS = [
     compare_documents,
     extract_entities,
     search_knowledge_graph,
+    explore_entity_neighborhood,
+    find_entity_paths,
+    get_graph_stats,
     create_draft,
     export_bibliography,
     execute_code,

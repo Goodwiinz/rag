@@ -75,31 +75,61 @@ def get_langsmith_base_url() -> str:
 # ---------------------------------------------------------------------------
 
 try:
-    from prometheus_client import Counter, Histogram
+    from prometheus_client import REGISTRY, Counter, Histogram
 
-    AGENT_EXECUTION_DURATION = Histogram(
+    def _get_or_create_counter(name: str, doc: str, labels: list[str]) -> Counter:
+        """Return an existing Counter (if already registered) or create one.
+
+        Module re-imports during dev hot-reload would otherwise raise
+        ``ValueError: Duplicated timeseries`` from the global registry and
+        crash the process on restart.
+        """
+        existing = getattr(REGISTRY, "_names_to_collectors", {}).get(name)
+        if existing is not None:
+            return existing  # type: ignore[return-value]
+        return Counter(name, doc, labels)
+
+    def _get_or_create_histogram(
+        name: str, doc: str, labels: list[str], buckets: list[float]
+    ) -> Histogram:
+        existing = getattr(REGISTRY, "_names_to_collectors", {}).get(name)
+        if existing is not None:
+            return existing  # type: ignore[return-value]
+        return Histogram(name, doc, labels, buckets=buckets)
+
+    AGENT_EXECUTION_DURATION = _get_or_create_histogram(
         "agent_execution_duration_seconds",
         "Duration of agent graph execution",
         ["intent", "status"],
-        buckets=[0.5, 1, 2, 5, 10, 30, 60, 120],
+        [0.5, 1, 2, 5, 10, 30, 60, 120],
     )
 
-    AGENT_TOOL_CALLS = Counter(
+    AGENT_NODE_DURATION = _get_or_create_histogram(
+        "agent_node_duration_seconds",
+        "Duration of an individual agent node execution",
+        ["node", "status"],
+        [0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10, 30],
+    )
+
+    AGENT_TOOL_CALLS = _get_or_create_counter(
         "agent_tool_calls_total",
         "Total number of tool calls made by the agent",
         ["tool_name", "status"],
     )
 
-    AGENT_TOKEN_USAGE = Counter(
+    AGENT_TOKEN_USAGE = _get_or_create_counter(
         "agent_token_usage_total",
         "Total token usage by the agent",
         ["model", "type"],
     )
 
-    AGENT_ERRORS = Counter(
+    AGENT_ERRORS = _get_or_create_counter(
         "agent_error_total",
         "Total number of agent errors",
-        ["error_type"],
+        # ``node`` records WHERE the error occurred; ``error_type`` records
+        # WHAT class of failure it was (kept separate so dashboards don't
+        # conflate location with cause).
+        ["node", "error_type"],
     )
 
     _METRICS_AVAILABLE = True
@@ -114,7 +144,11 @@ except ImportError:
 
 
 def track_node_execution(node_name: str):
-    """Decorator to track node execution time and errors."""
+    """Decorator to track node execution time and errors.
+
+    Records both the success and the error paths into Prometheus so node
+    latency dashboards have data even when no error is raised.
+    """
     def decorator(func: Callable):
         @wraps(func)
         async def wrapper(*args, **kwargs):
@@ -125,6 +159,10 @@ def track_node_execution(node_name: str):
                 logger.debug(
                     "Node %s completed in %.2fs", node_name, duration
                 )
+                if _METRICS_AVAILABLE:
+                    AGENT_NODE_DURATION.labels(
+                        node=node_name, status="success"
+                    ).observe(duration)
                 return result
             except Exception as e:
                 duration = time.monotonic() - t0
@@ -135,7 +173,12 @@ def track_node_execution(node_name: str):
                     e,
                 )
                 if _METRICS_AVAILABLE:
-                    AGENT_ERRORS.labels(error_type=node_name).inc()
+                    AGENT_NODE_DURATION.labels(
+                        node=node_name, status="error"
+                    ).observe(duration)
+                    AGENT_ERRORS.labels(
+                        node=node_name, error_type=type(e).__name__
+                    ).inc()
                 raise
         return wrapper
     return decorator
@@ -164,10 +207,15 @@ def record_token_usage(model: str, prompt_tokens: int, completion_tokens: int):
         )
 
 
-def record_error(error_type: str):
-    """Record an agent error."""
+def record_error(error_type: str, node: str = "unknown"):
+    """Record an agent error.
+
+    ``node`` records WHERE the error happened (which graph node) so
+    dashboards can pivot by location independently of the error class
+    captured in ``error_type``.
+    """
     if _METRICS_AVAILABLE:
-        AGENT_ERRORS.labels(error_type=error_type).inc()
+        AGENT_ERRORS.labels(node=node, error_type=error_type).inc()
 
 
 @asynccontextmanager

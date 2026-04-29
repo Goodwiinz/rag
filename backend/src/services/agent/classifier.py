@@ -8,6 +8,7 @@ classification, falling back to weighted keyword matching when the LLM is
 unavailable or returns low confidence.
 """
 
+import asyncio
 import json
 import logging
 from dataclasses import dataclass
@@ -27,6 +28,20 @@ IntentType = Literal["research", "writing", "knowledge_graph", "general"]
 # Confidence threshold below which the LLM result is discarded in favour of
 # the keyword classifier.
 _LLM_CONFIDENCE_THRESHOLD = 0.7
+
+# Hard wall-clock cap on the LLM classifier call. Prevents a hung Azure
+# endpoint from blocking the agent turn — keyword fallback handles timeouts.
+_CLASSIFIER_LLM_TIMEOUT_SECONDS = 10.0
+
+# Maximum length (chars) for any user-supplied string interpolated into the
+# classifier system prompt. Truncating + neutralising braces/newlines is the
+# minimum defence against prompt-injection via previous_turn / prior_tool /
+# page_context. Longer values are clipped with an ellipsis.
+_PROMPT_FIELD_MAX_CHARS = 400
+
+# Cache the classifier LLM at module scope (rebuilding the client per call
+# costs ~50ms and creates pointless connection churn).
+_CLASSIFIER_LLM = None
 
 
 # ---------------------------------------------------------------------------
@@ -66,13 +81,18 @@ class ClassificationResult:
 
 
 def _build_classifier_llm():
-    """Build a lightweight LangChain chat model for intent classification.
+    """Build (or return cached) lightweight LangChain chat model for classification.
 
     Uses the same Azure/OpenAI config resolution as ``_build_llm`` in
-    ``graph.py`` but targets gpt-4o-mini with temperature=0 for
-    deterministic, fast classification.
+    ``graph.py`` but targets gpt-4o-mini with temperature=0 and a
+    ``request_timeout`` so a hung endpoint cannot block the agent turn.
+    The instance is memoised at module scope.
     """
     from src.core.openai_endpoint import classify_openai_endpoint
+
+    global _CLASSIFIER_LLM
+    if _CLASSIFIER_LLM is not None:
+        return _CLASSIFIER_LLM
 
     settings = get_settings()
 
@@ -96,24 +116,27 @@ def _build_classifier_llm():
     if classify_openai_endpoint(endpoint) == "openai_compatible":
         from langchain_openai import ChatOpenAI
 
-        return ChatOpenAI(
+        _CLASSIFIER_LLM = ChatOpenAI(
             model="gpt-4o-mini",
             api_key=api_key,
             base_url=endpoint,
             temperature=0,
             max_tokens=256,
+            request_timeout=_CLASSIFIER_LLM_TIMEOUT_SECONDS,
         )
     else:
         from langchain_openai import AzureChatOpenAI
 
-        return AzureChatOpenAI(
+        _CLASSIFIER_LLM = AzureChatOpenAI(
             azure_deployment="gpt-4o-mini",
             azure_endpoint=endpoint,
             api_key=api_key,
             api_version=api_version,
             temperature=0,
             max_tokens=256,
+            request_timeout=_CLASSIFIER_LLM_TIMEOUT_SECONDS,
         )
+    return _CLASSIFIER_LLM
 
 
 # ---------------------------------------------------------------------------
@@ -223,6 +246,30 @@ def classify_intent_keywords(query: str) -> ClassificationResult:
 # ---------------------------------------------------------------------------
 
 
+def _sanitize_prompt_field(value: str) -> str:
+    """Neutralise user-controlled text before interpolating into a prompt.
+
+    Strips characters that could either break the ``str.format()`` call
+    (``{`` / ``}``) or attempt to escape the surrounding section header in
+    the system prompt (newlines, markdown headings). Truncates to
+    ``_PROMPT_FIELD_MAX_CHARS`` so an attacker cannot drown the actual
+    classification prompt by stuffing thousands of tokens through one of
+    the dynamic context fields.
+    """
+    if not value:
+        return ""
+    text = str(value)
+    if len(text) > _PROMPT_FIELD_MAX_CHARS:
+        text = text[: _PROMPT_FIELD_MAX_CHARS] + "..."
+    # ``str.format`` interprets ``{`` / ``}`` as field delimiters — escape
+    # them to literal braces.
+    text = text.replace("{", "{{").replace("}", "}}")
+    # Collapse newlines so dynamic content cannot start a new markdown
+    # heading and visually impersonate prompt sections.
+    text = text.replace("\r", " ").replace("\n", " ")
+    return text
+
+
 def _format_prior_tool(prior_tool: Optional[Dict[str, Any]]) -> str:
     """Render the prior tool call as a compact text block for the prompt.
 
@@ -273,8 +320,10 @@ async def classify_intent_llm(
     llm = _build_classifier_llm()
     chain = llm.with_structured_output(IntentClassification)
 
-    page_type = page_context.get("type", "unknown")
-    project_id = page_context.get("project_id", "")
+    # All dynamic page-context strings come from the client and must be
+    # sanitised before being interpolated into the system prompt.
+    page_type = _sanitize_prompt_field(str(page_context.get("type", "unknown")))
+    project_id = _sanitize_prompt_field(str(page_context.get("project_id", "")))
     if page_type == "project" and project_id:
         page_context_text = (
             f"User is on a project page (project_id={project_id})."
@@ -284,8 +333,10 @@ async def classify_intent_llm(
     else:
         page_context_text = "No specific page context."
 
-    previous_turn_text = previous_turn if previous_turn else "None"
-    prior_tool_text = _format_prior_tool(prior_tool)
+    previous_turn_text = (
+        _sanitize_prompt_field(previous_turn) if previous_turn else "None"
+    )
+    prior_tool_text = _sanitize_prompt_field(_format_prior_tool(prior_tool))
 
     system_text = _CLASSIFIER_SYSTEM_PROMPT.format(
         page_context_text=page_context_text,
@@ -336,6 +387,17 @@ async def classify_intent_with_fallback(
     Returns:
         ClassificationResult (never raises).
     """
+    # Empty / whitespace-only query: nothing to classify, the LLM has zero
+    # signal to work with. Fall straight to the deterministic ``general``
+    # default and skip the wasted round-trip.
+    if not query or not query.strip():
+        return ClassificationResult(
+            intent="general",
+            confidence=0.0,
+            reasoning="Empty query — defaulted to general.",
+            source="fallback",
+        )
+
     keyword_result = classify_intent_keywords(query)
 
     if keyword_result.confidence >= _LLM_CONFIDENCE_THRESHOLD:
@@ -346,10 +408,30 @@ async def classify_intent_with_fallback(
         )
         return keyword_result
 
-    # Ambiguous query — escalate to LLM for better accuracy
+    # Zero-evidence shortcut: no keywords matched AND short query AND no prior-tool
+    # context → provably "general" without an LLM round-trip. A 1-word "hi" has
+    # zero signal for any specialised intent; skipping the LLM saves ~1 s.
+    # Guard on ``prior_tool`` because retry phrases ("try again", 2 words, 0 keywords)
+    # inherit intent from the prior tool call — the LLM needs that context.
+    if keyword_result.confidence == 0.0 and len(query.split()) < 8 and not prior_tool:
+        logger.debug(
+            "Short zero-confidence query (%d words, no prior tool) — skipping LLM classifier",
+            len(query.split()),
+        )
+        return ClassificationResult(
+            intent="general",
+            confidence=0.9,
+            reasoning="Short query with no keyword signal.",
+            source="shortcut",
+        )
+
+    # Ambiguous query — escalate to LLM for better accuracy. Guard with a
+    # wall-clock timeout so a slow/hung Azure endpoint cannot block the
+    # whole agent turn.
     try:
-        llm_result = await classify_intent_llm(
-            query, page_context, previous_turn, prior_tool
+        llm_result = await asyncio.wait_for(
+            classify_intent_llm(query, page_context, previous_turn, prior_tool),
+            timeout=_CLASSIFIER_LLM_TIMEOUT_SECONDS,
         )
 
         if llm_result.confidence >= _LLM_CONFIDENCE_THRESHOLD:
@@ -360,6 +442,14 @@ async def classify_intent_with_fallback(
             llm_result.confidence,
             _LLM_CONFIDENCE_THRESHOLD,
         )
+    except asyncio.TimeoutError:
+        logger.warning(
+            "LLM classifier timed out after %.1fs, using keyword result",
+            _CLASSIFIER_LLM_TIMEOUT_SECONDS,
+        )
+    except asyncio.CancelledError:
+        # Caller aborted the request — propagate, don't swallow.
+        raise
     except Exception as exc:
         logger.warning("LLM classifier failed, using keyword result: %s", exc)
 

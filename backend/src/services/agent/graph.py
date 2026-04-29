@@ -448,13 +448,21 @@ async def rag_node(state: AgentState, config: RunnableConfig) -> dict:
             )
             uid = str(current_user.id)
 
-            search_response = await loop.run_in_executor(
-                None,
-                lambda: hybrid_search_service.search(
-                    search_request=search_request,
-                    user_id=uid,
-                    organization_id=org_id,
+            # ``run_in_executor`` futures cannot be cancelled mid-flight
+            # (the worker thread keeps running after a client disconnect),
+            # but wrapping in ``asyncio.wait_for`` at least bounds how
+            # long this coroutine blocks the event loop and frees the
+            # connection from the agent's perspective.
+            search_response = await asyncio.wait_for(
+                loop.run_in_executor(
+                    None,
+                    lambda: hybrid_search_service.search(
+                        search_request=search_request,
+                        user_id=uid,
+                        organization_id=org_id,
+                    ),
                 ),
+                timeout=15.0,
             )
 
             contexts: List[dict] = []
@@ -526,7 +534,8 @@ def _extract_prior_tool(messages: List[Any]) -> Optional[Dict[str, Any]]:
     short follow-ups like "try again" route to the same intent as the prior
     tool.
     """
-    for msg in reversed(messages):
+    for ai_idx in range(len(messages) - 1, -1, -1):
+        msg = messages[ai_idx]
         if not isinstance(msg, AIMessage):
             continue
         tool_calls = getattr(msg, "tool_calls", None)
@@ -535,7 +544,11 @@ def _extract_prior_tool(messages: List[Any]) -> Optional[Dict[str, Any]]:
         first = tool_calls[0]
         tool_call_id = first.get("id")
         result = ""
-        for follow in messages:
+        # Only scan AFTER the AIMessage we found — otherwise a stale
+        # ToolMessage from a previous turn that happens to share an id
+        # (or a synthetic placeholder) gets returned, misleading the
+        # classifier about what just happened.
+        for follow in messages[ai_idx + 1 :]:
             if (
                 isinstance(follow, ToolMessage)
                 and follow.tool_call_id == tool_call_id
@@ -641,7 +654,21 @@ async def _classify_core(state: AgentState, config: RunnableConfig) -> dict:
 
 @track_node_execution("preprocessing_node")
 async def preprocessing_node(state: AgentState, config: RunnableConfig) -> dict:
-    """Run RAG retrieval, intent classification, and memory retrieval in parallel."""
+    """Run RAG retrieval, intent classification, and memory retrieval in parallel.
+
+    Also resets per-turn ephemeral state (``plan``, ``reflection_count``,
+    ``_reflection_result``, ``tool_loop_count``, ``error_count``,
+    ``user_confirmed``) so that values carried over from the previous turn
+    via the checkpointer cannot:
+
+    - block the planner from re-planning against the new query (H-11);
+    - trigger a spurious revision at the start of the next turn from a
+      stale ``_reflection_result`` (H-01 / M-06);
+    - bypass the destructive-tool HITL gate via a stale ``user_confirmed``
+      flag (H-17);
+    - count this turn's first error against last turn's accumulated
+      ``error_count``.
+    """
     rag_task = asyncio.create_task(rag_node(state, config))
     classify_task = asyncio.create_task(_classify_core(state, config))
     memory_task = asyncio.create_task(memory_retrieval_node(state, config))
@@ -653,7 +680,19 @@ async def preprocessing_node(state: AgentState, config: RunnableConfig) -> dict:
         {"intent": "general", "intent_confidence": 0.0},
         {"user_memories": []},
     ]
-    merged: dict = {}
+    merged: dict = {
+        # Per-turn resets — must come BEFORE merging subtask results so a
+        # subtask that explicitly sets one of these keys still wins.
+        "plan": [],
+        "reflection_count": 0,
+        "_reflection_result": None,
+        "tool_loop_count": 0,
+        "error_count": 0,
+        "last_error": "",
+        "last_error_info": {},
+        "user_confirmed": False,
+        "pending_confirmation": {},
+    }
     for result, default in zip(results, defaults):
         if isinstance(result, Exception):
             logger.warning("Preprocessing subtask failed: %s", result)
@@ -1120,12 +1159,15 @@ async def tool_node(state: AgentState, config: RunnableConfig) -> dict:
     results = await asyncio.gather(*tasks, return_exceptions=True)
 
     tool_messages: List[ToolMessage] = []
-    any_success = False
+    any_failure = False
+    all_success = True
     for i, r in enumerate(results):
         if isinstance(r, BaseException):
             logger.error("Parallel tool execution error: %s", r)
             error_count += 1
             last_error = str(r)
+            any_failure = True
+            all_success = False
             tc = last_message.tool_calls[i]
             tool_messages.append(ToolMessage(
                 content=json.dumps({"error": str(r)}),
@@ -1139,11 +1181,16 @@ async def tool_node(state: AgentState, config: RunnableConfig) -> dict:
             last_error = r["error_text"]
         if r.get("error_info"):
             last_error_info = r["error_info"]
-        if r["error_increment"] == 0:
-            any_success = True
+        if r["error_increment"] != 0:
+            any_failure = True
+            all_success = False
 
-    # Consecutive error counter: reset to 0 after any successful tool call
-    if any_success:
+    # Reset the consecutive-error counter ONLY when every tool in this
+    # batch succeeded. A mixed-success batch (some succeed, some fail) is
+    # still a failing batch from the circuit-breaker's perspective —
+    # otherwise an LLM stuck in a "1 success + N failures" loop would
+    # keep zeroing out the counter and never trip MAX_ERRORS.
+    if all_success and not any_failure:
         error_count = 0
         last_error = ""
 
@@ -1218,11 +1265,15 @@ def make_filtered_tool_node(allowed_tool_names: set[str]):
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
         tool_messages = list(skipped_messages)
+        any_failure = False
+        all_success = True
         for i, r in enumerate(results):
             if isinstance(r, BaseException):
                 logger.error("Parallel tool execution error: %s", r)
                 error_count += 1
                 last_error = str(r)
+                any_failure = True
+                all_success = False
                 tc = allowed_calls[i]
                 tool_messages.append(
                     ToolMessage(
@@ -1238,6 +1289,16 @@ def make_filtered_tool_node(allowed_tool_names: set[str]):
                 last_error = r["error_text"]
             if r.get("error_info"):
                 last_error_info = r["error_info"]
+            if r["error_increment"] != 0:
+                any_failure = True
+                all_success = False
+
+        # Reset the consecutive-error counter only when EVERY tool in
+        # this batch succeeded (mirrors the main ``tool_node`` logic so
+        # the subgraph circuit-breaker behaves identically).
+        if all_success and not any_failure:
+            error_count = 0
+            last_error = ""
 
         # Prune to last 20 entries to prevent unbounded growth
         tool_executions = tool_executions[-20:]
@@ -1400,13 +1461,34 @@ def build_agent_graph() -> StateGraph:
 
 
 def compile_agent_graph(checkpointer=None, **kwargs):
-    """Compile the agent graph, optionally with a checkpointer."""
+    """Compile the agent graph, optionally with a checkpointer.
+
+    ``checkpointer`` may be ``None`` (no checkpointing), an instance of
+    ``BaseCheckpointSaver``, or ``True`` to opt into the default in-memory
+    saver. Anything else is rejected with a clear error rather than
+    silently passing a bool to ``graph.compile()`` (which would crash with
+    ``AttributeError`` deep inside LangGraph at runtime).
+    """
     graph = build_agent_graph()
     from langgraph.checkpoint.base import BaseCheckpointSaver
 
-    if isinstance(checkpointer, BaseCheckpointSaver) or checkpointer is True:
+    if checkpointer is None or checkpointer is False:
+        return graph.compile()
+
+    if checkpointer is True:
+        # Convenience: ``True`` opts into the in-memory default so callers
+        # don't have to import MemorySaver themselves.
+        from langgraph.checkpoint.memory import MemorySaver
+
+        return graph.compile(checkpointer=MemorySaver())
+
+    if isinstance(checkpointer, BaseCheckpointSaver):
         return graph.compile(checkpointer=checkpointer)
-    return graph.compile()
+
+    raise TypeError(
+        "compile_agent_graph(checkpointer=...) must be None, True, False, "
+        f"or a BaseCheckpointSaver instance — got {type(checkpointer).__name__}"
+    )
 
 
 def create_graph():
