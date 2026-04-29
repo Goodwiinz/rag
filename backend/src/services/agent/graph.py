@@ -293,6 +293,76 @@ async def memory_save_node(state: AgentState, config: RunnableConfig) -> dict:
 # ---------------------------------------------------------------------------
 
 
+# Verbs / phrases that strongly imply the user wants document retrieval. Kept as
+# a frozenset to make membership checks O(1) and the literal hard to mutate.
+_RETRIEVAL_VERBS: frozenset[str] = frozenset(
+    {
+        "find",
+        "search",
+        "show",
+        "list",
+        "lookup",
+        "summarize",
+        "compare",
+        "explore",
+        "ingest",
+        "what is",
+        "tell me about",
+    }
+)
+
+# Tool-name prefixes — if the user pasted/typed something like ``list_projects``
+# or ``search_arxiv`` we should treat that as a retrieval-style query and skip
+# the heuristic shortcut.
+_TOOL_NAME_PREFIXES: tuple[str, ...] = (
+    "search_",
+    "list_",
+    "summarize_",
+    "compare_",
+    "explore_",
+    "extract_",
+    "ingest_",
+)
+
+# Length threshold (in whitespace-delimited tokens) below which a query is
+# considered "short". Short queries without a retrieval verb skip RAG.
+_SHORT_QUERY_TOKEN_LIMIT: int = 8
+
+
+def _is_retrieval_query(content: str) -> bool:
+    """Return ``True`` when *content* looks like it needs document retrieval.
+
+    Used by :func:`rag_node` to skip the (expensive) hybrid search whenever the
+    latest user message is clearly conversational — e.g. ``"hi"``, ``"thanks!"``
+    or a one-word ack. The heuristic is intentionally conservative: any
+    long-ish message OR any message containing a retrieval verb / tool-name
+    prefix is treated as retrieval to avoid degrading recall.
+
+    Rules (a query is treated as retrieval when ANY of these hold):
+      1. token count >= ``_SHORT_QUERY_TOKEN_LIMIT`` (8)
+      2. lowercased content contains any ``_RETRIEVAL_VERBS`` substring
+      3. lowercased content starts with any ``_TOOL_NAME_PREFIXES`` prefix
+    """
+    if not content or not content.strip():
+        return False
+
+    lowered = content.lower()
+    tokens = content.split()
+
+    if len(tokens) >= _SHORT_QUERY_TOKEN_LIMIT:
+        return True
+
+    for prefix in _TOOL_NAME_PREFIXES:
+        if lowered.startswith(prefix):
+            return True
+
+    for verb in _RETRIEVAL_VERBS:
+        if verb in lowered:
+            return True
+
+    return False
+
+
 @track_node_execution("rag_node")
 async def rag_node(state: AgentState, config: RunnableConfig) -> dict:
     """Retrieve relevant documents via hybrid search and store in state."""
@@ -306,11 +376,24 @@ async def rag_node(state: AgentState, config: RunnableConfig) -> dict:
             last_user_msg = msg.content
             break
 
+    # Fast-path: skip retrieval entirely for short, clearly-conversational
+    # queries (e.g. "hi", "thanks!"). Saves an embedding + hybrid search call
+    # and avoids injecting ~935 retrieval tokens into the system prompt.
+    # NOTE: skip only when there is no project context to propagate — both
+    # a UUID in the message text AND a carried current_project_id from state.
+    page_context = dict(state.get("page_context") or {})
+    existing_project_id = state.get("current_project_id") or page_context.get("project_id")
+    if last_user_msg and not _is_retrieval_query(last_user_msg):
+        if not _extract_project_id_from_text(last_user_msg) and not existing_project_id:
+            logger.debug(
+                "rag_node: skipping retrieval for trivial query: %r",
+                last_user_msg[:80],
+            )
+            return {"retrieved_contexts": []}
+
     # Extract a project UUID from the latest user message (e.g. a pasted
     # /projects/<uuid> URL) so downstream nodes carry the context across
     # turns without depending on the client always re-sending page_context.
-    page_context = dict(state.get("page_context") or {})
-    existing_project_id = state.get("current_project_id") or page_context.get("project_id")
     extracted_pid = _extract_project_id_from_text(last_user_msg or "")
 
     resolved_project_id: Optional[str] = extracted_pid or existing_project_id or None
