@@ -260,6 +260,56 @@ class TestSubgraphErrorCountCheck:
         }
         assert research_should_continue(state) == "research_tool_node"
 
+    def test_writing_should_continue_routes_destructive_to_interrupt(self):
+        """create_project_note / create_draft must hit the writing
+        interrupt gate before the tool runs — otherwise the destructive
+        write happens silently when intent routes us into the writing
+        subgraph (the top-level interrupt_node only fires for the main
+        graph)."""
+        from langchain_core.messages import AIMessage
+
+        from src.services.agent.subgraphs.writing_agent import (
+            writing_should_continue,
+        )
+
+        for tool_name in ("create_project_note", "create_draft"):
+            state = {
+                "messages": [
+                    AIMessage(
+                        content="",
+                        tool_calls=[
+                            {"id": "tc1", "name": tool_name, "args": {}}
+                        ],
+                    )
+                ],
+                "tool_loop_count": 1,
+                "error_count": 0,
+            }
+            assert (
+                writing_should_continue(state) == "writing_interrupt_node"
+            ), f"{tool_name} must be gated by writing_interrupt_node"
+
+    def test_writing_should_continue_skips_interrupt_for_read_tools(self):
+        from langchain_core.messages import AIMessage
+
+        from src.services.agent.subgraphs.writing_agent import (
+            writing_should_continue,
+        )
+
+        state = {
+            "messages": [
+                AIMessage(
+                    content="",
+                    tool_calls=[
+                        {"id": "tc1", "name": "summarize_document", "args": {}}
+                    ],
+                )
+            ],
+            "tool_loop_count": 1,
+            "error_count": 0,
+        }
+        assert writing_should_continue(state) == "writing_tool_node"
+
 
 class TestSubgraphLlmNodeNoLoopIncrement:
     """2.1 — Subgraph LLM nodes should NOT increment tool_loop_count."""

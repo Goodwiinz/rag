@@ -6,6 +6,7 @@ import * as os from 'os';
 import * as path from 'path';
 import * as prompts from '@clack/prompts';
 import {
+  buildContentPreviews,
   confirmationPromptMessage,
   formatToolEndLine,
   pickSummary,
@@ -210,6 +211,90 @@ describe('confirmation rendering', () => {
       })
     ).toBe('Allow these 2 actions?');
     expect(confirmationPromptMessage({})).toBe('Allow the agent to continue?');
+  });
+
+  test('renders long content arg as a preview block instead of truncating', () => {
+    const longContent = Array.from(
+      { length: 12 },
+      (_, i) => `Paragraph ${i + 1}: this is a non-trivial body of text.`
+    ).join('\n');
+
+    renderConfirmationDetails({
+      tools: [
+        {
+          name: 'create_project_note',
+          args: {
+            project_id: 'ce83e229-3f5f-45b3-81cb-6bfccf0ba252',
+            title: 'Modular supercuspidal lifts',
+            content: longContent,
+          },
+        },
+      ],
+    });
+
+    const messages = mockedLog.message.mock.calls.map((c) => c[0] as string);
+    // Inline summary keeps short fields and SUPPRESSES the long content
+    // field so the user isn't approving 5k tokens of "content=Paragraph 1:…".
+    const inlineSummary = messages.find(
+      (m) => m.includes('project_id=') && m.includes('title=')
+    );
+    expect(inlineSummary).toBeDefined();
+    expect(inlineSummary).not.toMatch(/content=/);
+
+    // Block-rendered content with chars header + at least one preview line.
+    expect(messages.some((m) => /content \(\d+ chars\):/.test(m))).toBe(true);
+    expect(
+      messages.some((m) => /Paragraph 1: this is a non-trivial/.test(m))
+    ).toBe(true);
+    expect(messages.some((m) => /truncated, \d+ more chars?/.test(m))).toBe(
+      true
+    );
+  });
+
+  test('does NOT preview short content fields — keeps them inline', () => {
+    renderConfirmationDetails({
+      tools: [
+        {
+          name: 'create_project_note',
+          args: { title: 't', content: 'short body' },
+        },
+      ],
+    });
+    const messages = mockedLog.message.mock.calls.map((c) => c[0] as string);
+    expect(messages.some((m) => m.includes('content=short body'))).toBe(true);
+    expect(messages.some((m) => /content \(\d+ chars\):/.test(m))).toBe(false);
+  });
+});
+
+describe('buildContentPreviews', () => {
+  test('extracts only previewable content fields above the threshold', () => {
+    const previews = buildContentPreviews({
+      content: 'a'.repeat(200),
+      title: 'irrelevant short value',
+      project_id: 'p-1',
+      code: 'tiny',
+    });
+    expect(previews).toHaveLength(1);
+    expect(previews[0].field).toBe('content');
+    expect(previews[0].totalChars).toBe(200);
+    expect(previews[0].truncated).toBe(false);
+  });
+
+  test('caps preview at line and char limits and reports truncation', () => {
+    const longLine = 'x'.repeat(2000);
+    const [preview] = buildContentPreviews({ content: longLine });
+    expect(preview.truncated).toBe(true);
+    expect(preview.preview.length).toBeLessThan(longLine.length);
+    expect(preview.totalChars).toBe(2000);
+  });
+
+  test('ignores non-string and non-content fields', () => {
+    expect(
+      buildContentPreviews({
+        content: 12345,
+        meta: { content: 'a'.repeat(200) },
+      })
+    ).toEqual([]);
   });
 });
 
