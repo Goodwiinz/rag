@@ -1,10 +1,28 @@
-// frontend/vitest.config.ts
+// frontend/vitest.config.mts
+import { fileURLToPath } from 'node:url';
+import { dirname, resolve } from 'node:path';
 import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 import tsconfigPaths from 'vite-tsconfig-paths';
 
+// `import.meta.url`-based __dirname replacement (ESM has no __dirname).
+const __dirname = dirname(fileURLToPath(import.meta.url));
+
 export default defineConfig({
-  plugins: [react(), tsconfigPaths()],
+  // `loose: true` makes vite-tsconfig-paths resolve aliases for ALL files,
+  // not just those matched by tsconfig.json's `include`. The base tsconfig.json
+  // excludes test files (e.g. `**/*.test.ts`), so without `loose` the `@/*`
+  // aliases would not resolve inside Vitest tests.
+  plugins: [react(), tsconfigPaths({ loose: true })],
+  // Backstop alias: tsconfig has `@/*` mapping to multiple targets
+  // (`./src/*` and `./app/*`), which vite-tsconfig-paths does not always
+  // handle reliably. Pin `@` → `./src` here so test imports like
+  // `@/types/schemas` resolve deterministically.
+  resolve: {
+    alias: {
+      '@': resolve(__dirname, './src'),
+    },
+  },
   test: {
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.ts'],

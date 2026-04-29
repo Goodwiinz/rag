@@ -1,9 +1,9 @@
-// frontend/vitest.workspace.ts
+// frontend/vitest.workspace.mts
 import { defineWorkspace } from 'vitest/config';
 
 export default defineWorkspace([
   {
-    extends: './vitest.config.ts',
+    extends: './vitest.config.mts',
     test: {
       name: 'unit',
       environment: 'jsdom',
@@ -17,7 +17,7 @@ export default defineWorkspace([
     },
   },
   {
-    extends: './vitest.config.ts',
+    extends: './vitest.config.mts',
     test: {
       name: 'cli',
       environment: 'node',
