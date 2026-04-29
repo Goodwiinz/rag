@@ -78,6 +78,14 @@ export async function readPrompt(
     const finish = (val: string | Cancel) => {
       if (done) return;
       done = true;
+      // Clear the persisted draft on every successful prompt resolution
+      // (string answers). The keypress debounce above writes rl.line to
+      // disk so we can survive an unexpected exit; once we've actually
+      // resolved a value, that draft has been consumed and must NOT
+      // persist into the next launch as a prefilled prompt.
+      if (typeof val === 'string') {
+        clearDraft();
+      }
       rl.close();
       resolve(val);
     };
@@ -88,7 +96,6 @@ export async function readPrompt(
     rl.question(`${opts.message} `, (answer) => {
       const trimmed = answer.trim();
       if (trimmed) appendHistory(trimmed);
-      clearDraft();
       finish(answer);
     });
   });
