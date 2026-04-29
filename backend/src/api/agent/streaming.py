@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.models.user import User
 
 from .jobs import (
+    _clear_stale_pending_confirmation,
     _get_latest_user_content,
     _page_context_to_dict,
     _persist_thread_messages,
@@ -188,6 +189,11 @@ async def stream_event_generator(
         # and emitted as a single `usage` SSE event right before `done`.
         turn_input_tokens = 0
         turn_output_tokens = 0
+
+        # Drop any stale HITL interrupt left over from a previous turn the
+        # user abandoned (e.g. /new in the CLI). A fresh HumanMessage cannot
+        # resume an interrupt, so re-firing it would block this turn.
+        await _clear_stale_pending_confirmation(graph, config)
 
         async with asyncio.timeout(300):  # 5 minutes
             async for event in graph.astream_events(
