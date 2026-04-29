@@ -313,8 +313,51 @@ class TestFallbackClassifier:
             )
 
         assert result.intent == "general"
-        # Could be keyword or fallback source
-        assert result.source in ("keyword", "fallback")
+        # Could be keyword, fallback, or shortcut source
+        assert result.source in ("keyword", "fallback", "shortcut")
+
+    async def test_shortcut_skips_llm_for_short_zero_confidence_query(self):
+        """Short queries with no keyword signal should return general without an LLM call."""
+        from src.services.agent.classifier import classify_intent_with_fallback
+
+        with patch(
+            "src.services.agent.classifier.classify_intent_llm",
+            new_callable=AsyncMock,
+        ) as mock_llm:
+            result = await classify_intent_with_fallback("hi", {"type": "unknown"})
+
+        mock_llm.assert_not_called()
+        assert result.intent == "general"
+        assert result.source == "shortcut"
+        assert result.confidence >= 0.7
+
+    async def test_shortcut_does_not_fire_with_prior_tool(self):
+        """Retry phrases (short, zero keywords) must still reach the LLM when prior_tool exists."""
+        from src.services.agent.classifier import (
+            ClassificationResult,
+            classify_intent_with_fallback,
+        )
+
+        llm_result = ClassificationResult(
+            intent="research",
+            confidence=0.85,
+            reasoning="retry of prior ingest",
+            source="llm",
+        )
+
+        with patch(
+            "src.services.agent.classifier.classify_intent_llm",
+            new_callable=AsyncMock,
+            return_value=llm_result,
+        ) as mock_llm:
+            result = await classify_intent_with_fallback(
+                "try again",
+                {"type": "unknown"},
+                prior_tool={"name": "ingest_arxiv_papers", "args": {}, "result": ""},
+            )
+
+        mock_llm.assert_called_once()
+        assert result.intent == "research"
 
 
 # ---------------------------------------------------------------------------

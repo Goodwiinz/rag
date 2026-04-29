@@ -9,7 +9,8 @@
     "src/**/*.test.ts",
     "src/**/*.test.tsx",
     "src/**/__tests__/**/*",
-    "src/**/*.d.ts"
+    "src/**/*.d.ts",
+    "cli/**/*.ts"
   ],
   "exclude": ["node_modules", ".next"]
 }
