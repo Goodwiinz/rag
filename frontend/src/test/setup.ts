@@ -1,53 +1,39 @@
-import '@testing-library/jest-dom';
-import { vi } from 'vitest';
+// frontend/src/test/setup.ts
+import '@testing-library/jest-dom/vitest';
+import { TextEncoder, TextDecoder } from 'util';
+import { TransformStream as WebTransformStream } from 'node:stream/web';
 
-// Mock IntersectionObserver
-global.IntersectionObserver = vi.fn().mockImplementation(() => ({
-  observe: vi.fn(),
-  unobserve: vi.fn(),
-  disconnect: vi.fn(),
-}));
+// Polyfills missing in jsdom
+Object.assign(globalThis, { TextEncoder, TextDecoder });
 
-// Mock ResizeObserver
-global.ResizeObserver = vi.fn().mockImplementation(() => ({
-  observe: vi.fn(),
-  unobserve: vi.fn(),
-  disconnect: vi.fn(),
-}));
+const g = globalThis as unknown as {
+  TransformStream?: typeof globalThis.TransformStream;
+  PerformanceObserver?: typeof globalThis.PerformanceObserver;
+};
 
-// Mock matchMedia
-Object.defineProperty(window, 'matchMedia', {
-  writable: true,
-  value: vi.fn().mockImplementation(query => ({
-    matches: false,
-    media: query,
-    onchange: null,
-    addListener: vi.fn(), // deprecated
-    removeListener: vi.fn(), // deprecated
-    addEventListener: vi.fn(),
-    removeEventListener: vi.fn(),
-    dispatchEvent: vi.fn(),
-  })),
-});
+if (typeof g.TransformStream === 'undefined') {
+  g.TransformStream =
+    WebTransformStream as unknown as typeof globalThis.TransformStream;
+}
 
-// Mock WebSocket
-const createWebSocketMock = vi.fn().mockImplementation(() => ({
-  close: vi.fn(),
-  send: vi.fn(),
-  addEventListener: vi.fn(),
-  removeEventListener: vi.fn(),
-  readyState: 1,
-}));
+if (typeof g.PerformanceObserver === 'undefined') {
+  class MockPerformanceObserver {
+    static readonly supportedEntryTypes: string[] = [];
+    observe(): void {}
+    disconnect(): void {}
+    takeRecords(): PerformanceEntryList {
+      return [];
+    }
+  }
+  g.PerformanceObserver =
+    MockPerformanceObserver as unknown as typeof globalThis.PerformanceObserver;
+}
 
-Object.assign(createWebSocketMock, {
-  CONNECTING: 0,
-  OPEN: 1,
-  CLOSING: 2,
-  CLOSED: 3
-});
-
-global.WebSocket = createWebSocketMock as any;
-
-// Suppress console warnings in tests
-vi.spyOn(console, 'warn').mockImplementation(() => vi.fn());
-vi.spyOn(console, 'error').mockImplementation(() => vi.fn());
+// Mirror existing Supabase test env behavior from src/setupTests.ts.
+// Without this the Supabase client module throws at import in tests.
+if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
+  process.env.NEXT_PUBLIC_SUPABASE_URL = 'http://localhost:54321';
+}
+if (!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = 'test-anon-key';
+}
