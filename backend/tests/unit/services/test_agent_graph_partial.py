@@ -284,12 +284,12 @@ class TestIndividualNodes:
         }
 
         result = await rag_node(
-            _make_initial_state("test query"),
+            _make_initial_state("find papers about test query"),
             config,
         )
         assert len(result["retrieved_contexts"]) == 1
         assert result["retrieved_contexts"][0]["title"] == "Test Document"
-        assert "test query" in result["retrieved_contexts"][0]["content"]
+        assert "find papers about test query" in result["retrieved_contexts"][0]["content"]
 
     async def test_memory_retrieval_node_without_user(self):
         """memory_retrieval_node should return empty when no user in config."""
