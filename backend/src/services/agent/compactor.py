@@ -9,7 +9,7 @@ import logging
 import re
 from typing import Any, Callable
 
-from langchain_core.messages import AIMessage, BaseMessage, ToolMessage
+from langchain_core.messages import AIMessage, BaseMessage, RemoveMessage, ToolMessage
 from langchain_core.runnables import RunnableConfig
 
 from src.core.config import get_settings
@@ -29,6 +29,16 @@ _UUID_RE = re.compile(
 _ARXIV_RE = re.compile(r"\d{4}\.\d{4,5}(?:v\d+)?")
 
 _COMPACTED_PREFIX = "[Compacted]"
+
+# Synthetic placeholder content emitted by ``_sanitize_messages`` when an
+# AIMessage tool_call has no matching ToolMessage. These placeholders are
+# already minimal (~25 chars) and contain no useful content to summarise,
+# so they're filtered out of compaction candidates.
+_PLACEHOLDER_CONTENTS: frozenset[str] = frozenset({'{"status": "skipped"}'})
+
+# Cap the LLM compaction summary length. Generous enough that summaries do not
+# get cut mid-sentence, but small enough to deliver meaningful token savings.
+_COMPACT_MAX_TOKENS = 320
 
 
 # ---------------------------------------------------------------------------
@@ -112,6 +122,9 @@ def find_compaction_candidates(messages: list[BaseMessage]) -> list[ToolMessage]
         content = msg.content if isinstance(msg.content, str) else ""
         if content.startswith(_COMPACTED_PREFIX):
             continue
+        if content.strip() in _PLACEHOLDER_CONTENTS:
+            # Synthetic skipped-tool placeholder — nothing to summarise.
+            continue
         if msg.tool_call_id in protected_tc_ids:
             continue
         candidates.append(msg)
@@ -186,7 +199,7 @@ def _build_compactor_llm():
             api_key=api_key,
             base_url=endpoint,
             temperature=0,
-            max_tokens=200,
+            max_tokens=_COMPACT_MAX_TOKENS,
         )
     else:
         from langchain_openai import AzureChatOpenAI
@@ -197,7 +210,7 @@ def _build_compactor_llm():
             api_key=api_key,
             api_version=api_version,
             temperature=0,
-            max_tokens=200,
+            max_tokens=_COMPACT_MAX_TOKENS,
         )
 
 
@@ -220,26 +233,38 @@ async def compact_messages(
 
     For each candidate:
     1. Extract IDs from original content
-    2. Call gpt-4o-mini to summarise
+    2. Call gpt-4o-mini to summarise (failure is isolated per-item — a
+       single LLM error skips that candidate but allows the rest to
+       proceed)
     3. Validate/fix compacted output
-    4. Return new ToolMessage with ``[Compacted]`` prefix
+    4. Return new ToolMessage with ``[Compacted]`` prefix and the same
+       ``id`` as the original (so the LangGraph reducer can replace it).
     """
     llm = _build_compactor_llm()
     compacted: list[ToolMessage] = []
+
+    from langchain_core.messages import HumanMessage, SystemMessage
 
     for msg in candidates:
         original_content = msg.content if isinstance(msg.content, str) else ""
         original_ids = extract_ids(original_content)
 
-        from langchain_core.messages import HumanMessage, SystemMessage
-
-        response = await llm.ainvoke(
-            [
-                SystemMessage(content=_COMPACTION_SYSTEM_PROMPT),
-                HumanMessage(content=original_content),
-            ],
-            config=config,
-        )
+        try:
+            response = await llm.ainvoke(
+                [
+                    SystemMessage(content=_COMPACTION_SYSTEM_PROMPT),
+                    HumanMessage(content=original_content),
+                ],
+                config=config,
+            )
+        except Exception:
+            logger.warning(
+                "Compaction LLM call failed for tool_call_id=%s; "
+                "leaving original message intact",
+                msg.tool_call_id,
+                exc_info=True,
+            )
+            continue
 
         summary = (
             response.content if isinstance(response.content, str) else str(response.content)
@@ -288,19 +313,27 @@ def make_compactor_node() -> Callable:
 
         compacted = await compact_messages(candidates, config)
 
-        # Build a lookup from original id -> compacted replacement
-        replacement_map = {m.id: m for m in compacted}
+        if not compacted:
+            return {}
 
-        # Reconstruct messages list with replacements
-        new_messages: list[BaseMessage] = []
-        for msg in messages:
-            if isinstance(msg, ToolMessage) and msg.id in replacement_map:
-                new_messages.append(replacement_map[msg.id])
-            else:
-                new_messages.append(msg)
+        # The ``messages`` channel uses the ``add_messages`` reducer which
+        # APPENDS new messages by default and only replaces existing ones
+        # when the new message's ``id`` matches an existing message's ``id``.
+        # Returning the full reconstructed list here would have doubled the
+        # history (every untouched message is appended again — and the
+        # `add_messages` dedup-by-id only catches messages with explicit
+        # IDs). The correct pattern is to emit ``RemoveMessage`` deletions
+        # for each compacted candidate followed by the replacement
+        # ToolMessages.
+        compacted_ids = {m.id for m in compacted if m.id is not None}
+        removes: list[BaseMessage] = [
+            RemoveMessage(id=msg.id)
+            for msg in candidates
+            if msg.id is not None and msg.id in compacted_ids
+        ]
 
         return {
-            "messages": new_messages,
+            "messages": removes + list(compacted),
             "compaction_count": compaction_count + 1,
         }
 

@@ -176,7 +176,10 @@ def make_planner_node(
     """
 
     async def planner_node(state: Dict[str, Any], config: RunnableConfig) -> dict:
-        # 1. Skip if plan already exists
+        # Skip if a plan already exists for THIS turn. ``preprocessing_node``
+        # clears stale plans at the start of every new user turn, so any
+        # ``state["plan"]`` we see here was produced by an earlier pass
+        # within the current turn (e.g. a revise loop) and must be reused.
         if state.get("plan"):
             return {}
 
@@ -221,9 +224,17 @@ def make_planner_node(
         # 3. Generate plan
         try:
             plan = await generate_plan(query, tool_names, page_context)
-            return {"plan": [step.model_dump() for step in plan.steps]}
         except Exception:
             logger.warning("Plan generation failed, skipping planner", exc_info=True)
             return {}
+
+        # Defensive guard: an empty plan adds no value but does occupy the
+        # ``plan`` slot, which would skip planning on subsequent turns and
+        # confuse the reflection-prompt rendering. Treat it as no-plan.
+        if not plan.steps:
+            logger.info("Planner returned 0-step plan; treating as no plan")
+            return {}
+
+        return {"plan": [step.model_dump() for step in plan.steps]}
 
     return planner_node

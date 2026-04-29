@@ -6,6 +6,7 @@ to memory save / END.  When quality is insufficient, the gate routes
 back to the LLM node for another attempt (max 2 rounds).
 """
 
+import asyncio
 import logging
 from typing import Any, Callable, Literal, Optional
 
@@ -17,6 +18,16 @@ from src.core.config import get_settings
 from src.core.openai_endpoint import classify_openai_endpoint
 
 logger = logging.getLogger(__name__)
+
+# Hard wall-clock cap for a single reflection LLM call. Prevents a hung
+# Azure endpoint from blocking the whole agent turn.
+_REFLECTION_LLM_TIMEOUT_SECONDS = 20.0
+
+# Cache the reflection LLM at module scope. The settings/endpoint are
+# resolved at import time once and reused across every reflection call,
+# saving a ~50ms client-build round-trip per turn.
+_REFLECTION_LLM = None
+_REFLECTION_LLM_LOCK = asyncio.Lock()
 
 
 # ---------------------------------------------------------------------------
@@ -38,11 +49,17 @@ class ReflectionResult(BaseModel):
 
 
 def _build_reflection_llm():
-    """Build a lightweight LLM (gpt-4o-mini) for reflection evaluation.
+    """Build (or return cached) lightweight LLM (gpt-4o-mini) for reflection.
 
-    Follows the same Azure/OpenAI endpoint resolution as ``_build_llm``
-    in ``graph.py`` but forces model=gpt-4o-mini and temperature=0.
+    Memoised at module scope so we don't pay the ~50ms client-build cost on
+    every reflection call. ``request_timeout`` provides a client-level safety
+    net for the underlying HTTP layer; ``asyncio.wait_for`` in the caller
+    enforces the wall-clock cap.
     """
+    global _REFLECTION_LLM
+    if _REFLECTION_LLM is not None:
+        return _REFLECTION_LLM
+
     settings = get_settings()
 
     endpoint = (
@@ -65,24 +82,27 @@ def _build_reflection_llm():
     if classify_openai_endpoint(endpoint) == "openai_compatible":
         from langchain_openai import ChatOpenAI
 
-        return ChatOpenAI(
+        _REFLECTION_LLM = ChatOpenAI(
             model="gpt-4o-mini",
             api_key=api_key,
             base_url=endpoint,
             temperature=0,
             max_tokens=512,
+            request_timeout=_REFLECTION_LLM_TIMEOUT_SECONDS,
         )
     else:
         from langchain_openai import AzureChatOpenAI
 
-        return AzureChatOpenAI(
+        _REFLECTION_LLM = AzureChatOpenAI(
             azure_deployment="gpt-4o-mini",
             azure_endpoint=endpoint,
             api_key=api_key,
             api_version=api_version,
             temperature=0,
             max_tokens=512,
+            request_timeout=_REFLECTION_LLM_TIMEOUT_SECONDS,
         )
+    return _REFLECTION_LLM
 
 
 # ---------------------------------------------------------------------------
@@ -221,14 +241,38 @@ async def reflect_on_response(
 
     plan_text = ""
     if plan:
-        plan_items = "\n".join(
-            f"  {i + 1}. {step.get('step', step)}" for i, step in enumerate(plan)
-        )
-        plan_text = f"\n\nAdvisory plan the agent was following:\n{plan_items}"
+        plan_lines: list[str] = []
+        for i, step in enumerate(plan):
+            if isinstance(step, dict):
+                summary = step.get("description") or step.get("step") or str(step)
+            else:
+                # Plan items can occasionally be raw strings (e.g. when an
+                # external producer skips the dict envelope). Fall back to
+                # ``str(step)`` instead of crashing with ``AttributeError``.
+                summary = str(step)
+            plan_lines.append(f"  {i + 1}. {summary}")
+        plan_text = "\n\nAdvisory plan the agent was following:\n" + "\n".join(plan_lines)
+
+    raw_content = last_ai_message.content
+    if isinstance(raw_content, list):
+        # Multimodal content (list of content blocks). Render only the text
+        # parts so the reflection prompt stays human-readable.
+        text_parts: list[str] = []
+        for block in raw_content:
+            if isinstance(block, str):
+                text_parts.append(block)
+            elif isinstance(block, dict):
+                if block.get("type") == "text" and isinstance(block.get("text"), str):
+                    text_parts.append(block["text"])
+        rendered_content = "\n".join(text_parts) or "(no text content)"
+    elif isinstance(raw_content, str) and raw_content:
+        rendered_content = raw_content
+    else:
+        rendered_content = "(no content)"
 
     user_prompt = (
         f"## User's original request\n{original_user_message}\n\n"
-        f"## Assistant's response\n{last_ai_message.content or '(no content)'}"
+        f"## Assistant's response\n{rendered_content}"
         f"{plan_text}"
     )
 
@@ -294,7 +338,11 @@ def make_reflection_gate(
                 ),
             }
 
-        # Find last AI message and original user message
+        # Find last AI message and most recent user message (the request
+        # being addressed in this turn). The reverse scan intentionally
+        # picks the latest HumanMessage so multi-turn conversations
+        # critique the response against the current turn's question, not
+        # the very first one.
         last_ai_message: AIMessage | None = None
         original_user_message: str = ""
 
@@ -313,15 +361,38 @@ def make_reflection_gate(
         plan = state.get("plan")
 
         try:
-            result = await reflect_on_response(
-                last_ai_message=last_ai_message,
-                original_user_message=original_user_message,
-                plan=plan,
-                intent=intent,
+            result = await asyncio.wait_for(
+                reflect_on_response(
+                    last_ai_message=last_ai_message,
+                    original_user_message=original_user_message,
+                    plan=plan,
+                    intent=intent,
+                ),
+                timeout=_REFLECTION_LLM_TIMEOUT_SECONDS,
             )
+        except asyncio.TimeoutError:
+            logger.warning(
+                "Reflection LLM timed out after %.1fs; proceeding without revision",
+                _REFLECTION_LLM_TIMEOUT_SECONDS,
+            )
+            # Don't burn a retry budget slot for an infrastructure failure.
+            return {
+                "reflection_count": current_count,
+                "_reflection_result": ReflectionResult(
+                    passed=True, issues=[], severity="none"
+                ),
+            }
         except Exception as e:
             logger.warning("Reflection failed, proceeding anyway: %s", e)
-            return {"reflection_count": current_count + 1}
+            # Don't burn a retry budget slot — let the agent recover on the
+            # next turn with full budget, and clear any stale result so the
+            # router defaults to ``proceed``.
+            return {
+                "reflection_count": current_count,
+                "_reflection_result": ReflectionResult(
+                    passed=True, issues=[], severity="none"
+                ),
+            }
 
         return {
             "reflection_count": current_count + 1,

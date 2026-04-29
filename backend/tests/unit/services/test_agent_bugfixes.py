@@ -492,9 +492,9 @@ class TestGatherExceptionToolMessages:
         content = json.loads(error_msg.content)
         assert "error" in content
         assert "Connection failed" in content["error"]
-        # Error count resets to 0 because at least one tool succeeded
-        # (consecutive error counter resets on any success)
-        assert result["error_count"] == 0
+        # Mixed-success batch: counter does NOT reset (only a fully-clean batch
+        # resets it so a "1 success + N failures" loop cannot suppress MAX_ERRORS).
+        assert result["error_count"] == 1
 
 
 class TestCheckpointerLock:

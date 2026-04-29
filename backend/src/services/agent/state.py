@@ -1,5 +1,5 @@
 """Agent state schema for LangGraph."""
-from typing import Annotated
+from typing import Annotated, Any
 
 from typing_extensions import TypedDict
 from langgraph.graph import add_messages
@@ -37,3 +37,8 @@ class AgentState(TypedDict):
                               # (extracted from URLs, inherited from page_context,
                               # or carried forward across turns via checkpoint)
     model: str                # Per-request Azure deployment override; "" ⇒ server default
+    # Reflection result of the latest LLM response; cleared at the start of
+    # each turn so a stale value from turn N cannot trigger a spurious
+    # revision at the start of turn N+1. Stored as ``Any`` to avoid a
+    # circular import on ``ReflectionResult``.
+    _reflection_result: Any
