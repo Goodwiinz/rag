@@ -7,7 +7,6 @@ Supports DocVQA, PubLayNet, LAION-400M and custom datasets
 import os
 import json
 import requests
-import asyncio
 import aiohttp
 import logging
 from pathlib import Path
@@ -104,9 +103,7 @@ class DatasetDownloader:
                     "hash": f"hash_{i}",
                     "similarity": 0.95 - (i * 0.01),
                     "language": "en",
-                    "nsfw": 0.0,
-                    "width": 640,
-                    "height": 480
+                    "nsfw": 0.0
                 }
                 for i in range(100)
             ]
@@ -170,7 +167,7 @@ class DatasetProcessor:
             logger.error(f"Failed to upload {file_path}: {str(e)}")
             return False
 
-    def process_docvqa(self, data_path: Path, token: str) -> int:
+    def process_docvqa(self, data_path: Path) -> int:
         """Process DocVQA dataset for RAG system"""
         logger.info("Processing DocVQA dataset...")
 
@@ -215,7 +212,7 @@ class DatasetProcessor:
         logger.info(f"Processed {processed_count} DocVQA items")
         return processed_count
 
-    def process_publaynet(self, data_path: Path, token: str) -> int:
+    def process_publaynet(self, data_path: Path) -> int:
         """Process PubLayNet dataset for RAG system"""
         logger.info("Processing PubLayNet dataset...")
 
@@ -284,7 +281,7 @@ class DatasetProcessor:
 
         return "\n".join(content_parts)
 
-    def process_laion(self, data_path: Path, token: str) -> int:
+    def process_laion(self, data_path: Path) -> int:
         """Process LAION dataset for RAG system"""
         logger.info("Processing LAION dataset...")
 
@@ -404,11 +401,11 @@ class DatasetIntegrator:
             # For now, we'll process without upload
 
             if dataset_name == "docvqa":
-                processed_count = processor.process_docvqa(Path(data_file), None)
+                processed_count = processor.process_docvqa(Path(data_file))
             elif dataset_name == "publaynet":
-                processed_count = processor.process_publaynet(Path(data_file), None)
+                processed_count = processor.process_publaynet(Path(data_file))
             elif dataset_name == "laion":
-                processed_count = processor.process_laion(Path(data_file), None)
+                processed_count = processor.process_laion(Path(data_file))
 
             logger.info(f"Successfully integrated {dataset_name}: {processed_count} items processed")
             return True

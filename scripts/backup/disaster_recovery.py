@@ -17,7 +17,6 @@ from typing import Dict, Any, List, Optional
 from enum import Enum
 
 import asyncpg
-import aioredis
 from qdrant_client import QdrantClient
 from neo4j import GraphDatabase
 
