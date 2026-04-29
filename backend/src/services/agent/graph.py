@@ -715,14 +715,13 @@ def _get_tools_for_intent(intent: str) -> list:
     return [t for t in ALL_TOOLS if t.name in name_set]
 
 
-@track_node_execution("llm_node")
-async def llm_node(state: AgentState, config: RunnableConfig) -> dict:
-    """Call the LLM with system prompt, RAG context, and bound tools."""
-    page_context = state.get("page_context", {})
-    retrieved = state.get("retrieved_contexts", [])
+def _build_page_context_line(page_context: dict) -> str:
+    """Render a single-line page-context fact for the LLM.
 
-    # Build system prompt with rich page context
-    context_line = ""
+    Lives outside ``llm_node`` so the static prompt prefix below stays a
+    pure module constant — Azure OpenAI prefix caching is automatic but
+    only kicks in when the prefix is byte-identical across requests.
+    """
     page_type = page_context.get("type", "unknown")
     project_id = page_context.get("project_id")
     project_name = page_context.get("project_name", "")
@@ -731,100 +730,125 @@ async def llm_node(state: AgentState, config: RunnableConfig) -> dict:
     active_tab = page_metadata.get("activeTab", "")
 
     if page_type == "project" and project_id:
-        context_line = f'The user is viewing the project "{project_name}" (ID: {project_id}).'
+        line = f'The user is viewing the project "{project_name}" (ID: {project_id}).'
         if active_tab:
-            context_line += f" They are currently on the {active_tab} tab."
+            line += f" They are currently on the {active_tab} tab."
         doc_count = page_metadata.get("documentCount")
         if doc_count is not None:
-            context_line += f" The project has {doc_count} documents."
+            line += f" The project has {doc_count} documents."
         description = page_metadata.get("description")
         if description:
-            context_line += f' Project description: "{description}".'
-        context_line += (
+            line += f' Project description: "{description}".'
+        line += (
             "\nWhen the user refers to 'this project' or 'my project', use this project_id. "
             "Do NOT ask for the project ID — you already have it."
         )
-    elif page_type != "unknown":
-        context_line = f"The user is on the {page_label or page_type} page."
+        return line
+    if page_type != "unknown":
+        return f"The user is on the {page_label or page_type} page."
+    return ""
 
-    system_text = (
-        "You are an AI research agent for a RAG-powered academic research system.\n"
-        "You help users search documents, manage research projects, find ArXiv papers, "
-        "create notes, and analyze research.\n\n"
-        "You have access to the following tools:\n"
-        "- **search_arxiv**: Search arXiv for academic papers.\n"
-        "- **ingest_arxiv_papers**: Ingest arXiv papers into the RAG system.\n"
-        "- **search_documents**: Search the user's indexed documents.\n"
-        "- **create_project**: Create a NEW research project (folder). Use when the user asks to "
-        "create, start, or set up a project/folder. Requires a name; optional description, research_goals, tags.\n"
-        "- **list_projects**: List the user's existing research projects. Call this when the user asks "
-        "'what projects do I have', 'list my projects', or wants to pick a project — do NOT ask them "
-        "to provide a project_id, look it up yourself.\n"
-        "- **add_document_to_project**: Add an ALREADY-INGESTED document to a project. "
-        "The document MUST already exist in the system. document_id MUST be a UUID.\n"
-        "- **create_project_note**: Create a markdown note in a project.\n"
-        "- **list_project_documents**: List all documents in a project.\n"
-        "- **summarize_document**: Summarize a document's content (requires document UUID).\n"
-        "- **compare_documents**: Compare 2-5 documents to find similarities, differences, and themes.\n"
-        "- **extract_entities**: Extract named entities (people, organizations, concepts) from a document.\n"
-        "- **search_knowledge_graph**: Search the knowledge graph for entities and relationships.\n"
-        "- **create_draft**: Generate a literature review draft from project documents around specific themes.\n"
-        "- **export_bibliography**: Export bibliography for documents in bibtex, apa, ieee, or mla format.\n\n"
-        f"{context_line}\n"
-        "When the user is on a project page, the project_id is available from the "
-        "page context and does not need to be asked for.\n\n"
-        f"{SHARED_AGENT_RULES}\n\n"
-        "## MANDATORY WORKFLOW for adding papers to a project:\n"
-        "You CANNOT add a document that has not been ingested yet. Follow this order:\n"
-        "1. **search_arxiv** — find papers matching the user's query\n"
-        "2. **ingest_arxiv_papers** — ingest the papers (this creates documents in the system)\n"
-        "3. **add_document_to_project** — use the `document_ids` (UUIDs) from the ingest response\n\n"
-        "NEVER skip step 2. NEVER pass arXiv IDs to add_document_to_project.\n"
-        "NEVER fabricate UUIDs. Only use UUIDs returned by ingest_arxiv_papers or search_documents.\n"
-        "If a tool returns an error, report the error honestly to the user — do NOT claim success.\n\n"
-        "## Honest result reporting\n"
-        "When a tool returns documents_ingested=0, total=0, an empty array, "
-        "or any structured indicator that nothing was added/created/found, you "
-        "MUST tell the user explicitly what happened (e.g. 'No papers were "
-        "ingested — the IDs I tried weren't valid'). Do NOT respond with a "
-        "generic 'done', 'completed', or stay silent. The CLI now surfaces the "
-        "raw tool result, so any vague summary will visibly contradict what the "
-        "user can already see.\n\n"
-        "## Project-name disambiguation\n"
-        "If the user names a project that matches multiple entries from the "
-        "most recent list_projects result (e.g. 'RAG Research' matches both "
-        "'RAG Research' and 'RAG Research 2025'), ask which one they mean "
-        "before acting. Do NOT silently pick the first match.\n\n"
-        "## /clear is a CLI primitive\n"
-        "If the user message is exactly '/clear' or asks you to 'clear the "
-        "chat' / 'clear history' / 'reset the screen', reply with one short "
-        "sentence: \"That's a CLI command — type /clear at the prompt.\" Do "
-        "NOT pretend you cleared anything.\n\n"
-        "When answering questions, use retrieved document context when available.\n"
-        "Cite sources using [Doc N] format inline.\n"
-        "Be concise and action-oriented."
-    )
 
-    # Add intent-specific prompt augmentation
+# Module-level static prompt — every byte stable across requests so the
+# Azure OpenAI gpt-4o family caches the prefix automatically (≥1024-token
+# stable prefix triggers ``cached_tokens`` in the response usage). Anything
+# state-derived (page context, intent, memories, retrieved docs) is appended
+# in ``llm_node`` AFTER this block to keep it cacheable.
+_LLM_NODE_STATIC_PROMPT = (
+    "You are an AI research agent for a RAG-powered academic research system.\n"
+    "You help users search documents, manage research projects, find ArXiv papers, "
+    "create notes, and analyze research.\n\n"
+    "You have access to the following tools:\n"
+    "- **search_arxiv**: Search arXiv for academic papers.\n"
+    "- **ingest_arxiv_papers**: Ingest arXiv papers into the RAG system.\n"
+    "- **search_documents**: Search the user's indexed documents.\n"
+    "- **create_project**: Create a NEW research project (folder). Use when the user asks to "
+    "create, start, or set up a project/folder. Requires a name; optional description, research_goals, tags.\n"
+    "- **list_projects**: List the user's existing research projects. Call this when the user asks "
+    "'what projects do I have', 'list my projects', or wants to pick a project — do NOT ask them "
+    "to provide a project_id, look it up yourself.\n"
+    "- **add_document_to_project**: Add an ALREADY-INGESTED document to a project. "
+    "The document MUST already exist in the system. document_id MUST be a UUID.\n"
+    "- **create_project_note**: Create a markdown note in a project.\n"
+    "- **list_project_documents**: List all documents in a project.\n"
+    "- **summarize_document**: Summarize a document's content (requires document UUID).\n"
+    "- **compare_documents**: Compare 2-5 documents to find similarities, differences, and themes.\n"
+    "- **extract_entities**: Extract named entities (people, organizations, concepts) from a document.\n"
+    "- **search_knowledge_graph**: Search the knowledge graph for entities and relationships.\n"
+    "- **create_draft**: Generate a literature review draft from project documents around specific themes.\n"
+    "- **export_bibliography**: Export bibliography for documents in bibtex, apa, ieee, or mla format.\n\n"
+    "When the user is on a project page, the project_id is available from the "
+    "page context and does not need to be asked for.\n\n"
+    f"{SHARED_AGENT_RULES}\n\n"
+    "## MANDATORY WORKFLOW for adding papers to a project:\n"
+    "You CANNOT add a document that has not been ingested yet. Follow this order:\n"
+    "1. **search_arxiv** — find papers matching the user's query\n"
+    "2. **ingest_arxiv_papers** — ingest the papers (this creates documents in the system)\n"
+    "3. **add_document_to_project** — use the `document_ids` (UUIDs) from the ingest response\n\n"
+    "NEVER skip step 2. NEVER pass arXiv IDs to add_document_to_project.\n"
+    "NEVER fabricate UUIDs. Only use UUIDs returned by ingest_arxiv_papers or search_documents.\n"
+    "If a tool returns an error, report the error honestly to the user — do NOT claim success.\n\n"
+    "## Honest result reporting\n"
+    "When a tool returns documents_ingested=0, total=0, an empty array, "
+    "or any structured indicator that nothing was added/created/found, you "
+    "MUST tell the user explicitly what happened (e.g. 'No papers were "
+    "ingested — the IDs I tried weren't valid'). Do NOT respond with a "
+    "generic 'done', 'completed', or stay silent. The CLI now surfaces the "
+    "raw tool result, so any vague summary will visibly contradict what the "
+    "user can already see.\n\n"
+    "## Project-name disambiguation\n"
+    "If the user names a project that matches multiple entries from the "
+    "most recent list_projects result (e.g. 'RAG Research' matches both "
+    "'RAG Research' and 'RAG Research 2025'), ask which one they mean "
+    "before acting. Do NOT silently pick the first match.\n\n"
+    "## /clear is a CLI primitive\n"
+    "If the user message is exactly '/clear' or asks you to 'clear the "
+    "chat' / 'clear history' / 'reset the screen', reply with one short "
+    "sentence: \"That's a CLI command — type /clear at the prompt.\" Do "
+    "NOT pretend you cleared anything.\n\n"
+    "When answering questions, use retrieved document context when available.\n"
+    "Cite sources using [Doc N] format inline.\n"
+    "Be concise and action-oriented."
+)
+
+
+@track_node_execution("llm_node")
+async def llm_node(state: AgentState, config: RunnableConfig) -> dict:
+    """Call the LLM with system prompt, RAG context, and bound tools."""
+    page_context = state.get("page_context", {})
+    retrieved = state.get("retrieved_contexts", [])
+
+    # Static prefix first — must be byte-identical across requests so the
+    # provider's automatic prefix cache hits on every turn after the first.
+    # Dynamic state-derived content goes AFTER the prefix below.
+    dynamic_parts: list[str] = []
+
+    context_line = _build_page_context_line(page_context)
+    if context_line:
+        dynamic_parts.append(context_line)
+
     intent = state.get("intent", "general")
     intent_guidance = INTENT_PROMPTS.get(intent, INTENT_PROMPTS["general"])
-    system_text += f"\n\nCurrent intent: {intent}. {intent_guidance}"
+    dynamic_parts.append(f"Current intent: {intent}. {intent_guidance}")
 
-    # Inject user memories if available
     user_memories = state.get("user_memories", [])
     if user_memories:
         mem_text = "\n".join(
             f"- {m.get('value', {}).get('query', '')}" for m in user_memories if m.get("value")
         )
         if mem_text.strip():
-            system_text += f"\n\nRelevant past interactions:\n{mem_text}"
+            dynamic_parts.append(f"Relevant past interactions:\n{mem_text}")
 
     if retrieved:
         context_text = "\n\n".join(
             f"[Doc {i + 1}] {ctx['title']}:\n{ctx['content']}"
             for i, ctx in enumerate(retrieved)
         )
-        system_text += f"\n\nRetrieved context:\n{context_text}"
+        dynamic_parts.append(f"Retrieved context:\n{context_text}")
+
+    system_text = _LLM_NODE_STATIC_PROMPT
+    if dynamic_parts:
+        system_text += "\n\n" + "\n\n".join(dynamic_parts)
 
     sanitized = _sanitize_messages(list(state["messages"]))
     messages = [SystemMessage(content=system_text)] + sanitized
