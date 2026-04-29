@@ -36,6 +36,9 @@ os.environ.setdefault("DATABASE_URL", "postgresql://test:test@localhost:5432/tes
 os.environ.setdefault("REDIS_URL", "redis://localhost:6379/15")
 os.environ.setdefault("NEO4J_URI", "bolt://localhost:7687")
 os.environ.setdefault("QDRANT_URL", "http://localhost:6333")
+# Required by create_cli_token() at /cli-auth/approve. The empty default
+# refuses to mint, so tests that exercise that path need a real value here.
+os.environ.setdefault("JWT_SECRET_KEY", "test-jwt-secret-key-32-characters")
 
 # ============================================================================
 # Test Auth Helper — Supabase-compatible JWT generation

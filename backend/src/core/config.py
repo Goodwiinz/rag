@@ -99,6 +99,7 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7  # Default refresh token lifetime
     REMEMBER_ME_REFRESH_TOKEN_DAYS: int = 30  # Extended session for "Remember Me"
+    CLI_TOKEN_EXPIRE_DAYS: int = 30  # Long-lived CLI device tokens
 
     @model_validator(mode="after")
     def _override_database_url_from_supabase(self):
