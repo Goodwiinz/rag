@@ -1,14 +1,19 @@
 """
 Security utilities for authentication and authorization.
 
-Supabase-only JWT verification — custom token creation has been removed.
-The frontend uses Supabase SSR with cookie-based sessions; the backend
-only verifies Supabase-issued JWTs (HS256 via shared secret or ES256 via JWKS).
+The backend accepts two JWT shapes:
+
+1. Supabase-issued JWTs (HS256 via shared secret or ES256 via JWKS) — used
+   by the frontend via Supabase SSR with cookie-based sessions.
+2. Long-lived CLI tokens (HS256 signed with ``JWT_SECRET_KEY``) — issued at
+   ``/cli-auth/approve`` time so the device-flow CLI doesn't have to
+   re-authenticate every Supabase access-token refresh (~1h). CLI tokens
+   carry ``scope=cli`` so they can be revoked / rate-limited separately.
 """
 
 import logging
 import secrets
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Optional
 
 import bcrypt  # Changed from passlib
@@ -157,12 +162,97 @@ def _extract_supabase_token_data(payload: dict) -> Optional[TokenData]:
     return None
 
 
-def verify_token(token: str) -> Optional[TokenData]:
-    """Verify a Supabase JWT token (HS256 via shared secret or ES256 via JWKS).
+_CLI_TOKEN_SCOPE = "cli"
+_CLI_TOKEN_ISSUER = "nous-backend"
 
-    Custom JWT creation/verification has been removed — only Supabase-issued
-    tokens are accepted.
+
+def create_cli_token(
+    user_id: str,
+    email: str,
+    organization_id: str,
+    role: str = "USER",
+) -> tuple[str, datetime]:
+    """Mint a long-lived CLI access token.
+
+    Returns ``(token, expires_at)`` where ``expires_at`` is the absolute UTC
+    expiry. ``CLI_TOKEN_EXPIRE_DAYS`` (default 30) governs the lifetime —
+    long enough that the CLI feels permanent without being non-expiring.
+
+    Payload mirrors the Supabase JWT shape so ``_extract_supabase_token_data``
+    can decode it unchanged. The ``scope=cli`` claim is the only marker
+    distinguishing CLI tokens from a (real) Supabase token; combined with the
+    HS256 signature using ``JWT_SECRET_KEY`` (not ``SUPABASE_JWT_SECRET``)
+    this prevents cross-confusion.
+
+    Raises ``RuntimeError`` if ``JWT_SECRET_KEY`` is unset — refusing to mint
+    rather than silently issuing tokens with a default-empty signing key.
     """
+    if not settings.JWT_SECRET_KEY:
+        raise RuntimeError(
+            "JWT_SECRET_KEY must be configured to mint CLI tokens"
+        )
+
+    now = datetime.now(timezone.utc)
+    expires_at = now + timedelta(days=settings.CLI_TOKEN_EXPIRE_DAYS)
+
+    payload = {
+        "sub": user_id,
+        "email": email,
+        "app_metadata": {
+            "organization_id": organization_id,
+            "role": role,
+        },
+        "scope": _CLI_TOKEN_SCOPE,
+        "iss": _CLI_TOKEN_ISSUER,
+        "iat": int(now.timestamp()),
+        "exp": int(expires_at.timestamp()),
+    }
+    token = jwt.encode(
+        payload, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM
+    )
+    return token, expires_at
+
+
+def _extract_cli_token_data(payload: dict) -> Optional[TokenData]:
+    """Extract TokenData from a decoded CLI JWT payload."""
+    user_id = payload.get("sub")
+    if not user_id:
+        return None
+    app_metadata = payload.get("app_metadata", {}) or {}
+    exp = payload.get("exp")
+    return TokenData(
+        user_id=user_id,
+        email=payload.get("email"),
+        organization_id=app_metadata.get("organization_id"),
+        role=app_metadata.get("role", "USER"),
+        exp=datetime.utcfromtimestamp(exp) if exp else None,
+    )
+
+
+def verify_token(token: str) -> Optional[TokenData]:
+    """Verify a Supabase JWT (HS256 / ES256) or a long-lived CLI token (HS256).
+
+    Tries each path in turn; the first match wins. Returns ``None`` when no
+    path validates (caller should map to 401).
+    """
+    # Try CLI token first — cheap (no JWKS fetch) and lets us short-circuit
+    # before falling through to the more expensive Supabase paths.
+    if settings.JWT_SECRET_KEY:
+        try:
+            payload = jwt.decode(
+                token,
+                settings.JWT_SECRET_KEY,
+                algorithms=[settings.JWT_ALGORITHM],
+                issuer=_CLI_TOKEN_ISSUER,
+                options={"verify_aud": False},
+            )
+            if payload.get("scope") == _CLI_TOKEN_SCOPE:
+                result = _extract_cli_token_data(payload)
+                if result:
+                    return result
+        except JWTError:
+            pass  # Fall through to Supabase paths
+
     # Try Supabase JWT — HS256 with shared secret
     if settings.SUPABASE_JWT_SECRET:
         try:

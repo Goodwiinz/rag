@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from datetime import timedelta
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
@@ -13,7 +12,7 @@ import redis as redis_lib
 
 from src.core.config import settings
 from src.core.dependencies import get_current_user
-from src.core.security import auth_rate_limiter
+from src.core.security import auth_rate_limiter, create_cli_token
 from src.services.auth.cli_auth_sessions import (
     InMemoryCLIAuthSessionStore,
     RedisCLIAuthSessionStore,
@@ -109,7 +108,6 @@ async def get_cli_auth_status(
 @router.post("/approve")
 async def approve_cli_auth(
     request: CLIAuthApproveRequest,
-    http_request: Request,
     store: InMemoryCLIAuthSessionStore = Depends(get_cli_auth_session_store),
     current_user: Any = Depends(get_current_user),
 ) -> dict[str, Any]:
@@ -120,22 +118,22 @@ async def approve_cli_auth(
             detail="Authenticated user must belong to an organization",
         )
 
-    # Pass through the caller's Supabase access token to the CLI client
-    auth_header = http_request.headers.get("Authorization", "")
-    supabase_token = auth_header.removeprefix("Bearer ").strip()
-    if not supabase_token:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Missing authorization token",
-        )
+    # Mint a long-lived CLI token rather than passing the caller's short-lived
+    # Supabase access token through. CLI users would otherwise have to
+    # re-run device-flow login every time the Supabase token expires (~1h).
+    role = getattr(current_user, "role", None)
+    cli_token, expires_at = create_cli_token(
+        user_id=str(current_user.id),
+        email=str(current_user.email),
+        organization_id=organization_id,
+        role=str(role.value) if hasattr(role, "value") else (str(role) if role else "USER"),
+    )
 
     credential_payload = {
-        "token": supabase_token,
+        "token": cli_token,
         "organization_id": organization_id,
         "user_email": str(current_user.email),
-        "expires_at": _serialize_datetime(
-            datetime.now(UTC) + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-        ),
+        "expires_at": _serialize_datetime(expires_at),
     }
     session = store.approve_session(
         request.session_id,
