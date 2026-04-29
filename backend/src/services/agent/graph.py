@@ -379,10 +379,12 @@ async def rag_node(state: AgentState, config: RunnableConfig) -> dict:
     # Fast-path: skip retrieval entirely for short, clearly-conversational
     # queries (e.g. "hi", "thanks!"). Saves an embedding + hybrid search call
     # and avoids injecting ~935 retrieval tokens into the system prompt.
-    # NOTE: we still need to run project-id extraction below, so only short
-    # circuit when there's no UUID-bearing content to resolve.
+    # NOTE: skip only when there is no project context to propagate — both
+    # a UUID in the message text AND a carried current_project_id from state.
+    page_context = dict(state.get("page_context") or {})
+    existing_project_id = state.get("current_project_id") or page_context.get("project_id")
     if last_user_msg and not _is_retrieval_query(last_user_msg):
-        if not _extract_project_id_from_text(last_user_msg):
+        if not _extract_project_id_from_text(last_user_msg) and not existing_project_id:
             logger.debug(
                 "rag_node: skipping retrieval for trivial query: %r",
                 last_user_msg[:80],
@@ -392,8 +394,6 @@ async def rag_node(state: AgentState, config: RunnableConfig) -> dict:
     # Extract a project UUID from the latest user message (e.g. a pasted
     # /projects/<uuid> URL) so downstream nodes carry the context across
     # turns without depending on the client always re-sending page_context.
-    page_context = dict(state.get("page_context") or {})
-    existing_project_id = state.get("current_project_id") or page_context.get("project_id")
     extracted_pid = _extract_project_id_from_text(last_user_msg or "")
 
     resolved_project_id: Optional[str] = extracted_pid or existing_project_id or None
