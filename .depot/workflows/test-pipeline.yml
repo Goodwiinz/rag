@@ -442,6 +442,7 @@ jobs:
             -e ENVIRONMENT=testing \
             -e SECRET_KEY=ci-test-secret-key-32-characters! \
             -e JWT_SECRET_KEY=ci-test-jwt-secret-key-32chars! \
+            -e ENCRYPTION_MASTER_KEY=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA= \
             -e CORS_ORIGINS=http://localhost:3000,http://frontend:3000 \
             -e ENABLE_AI_PROCESSING=false \
             -e SEED_ADMIN_PASSWORD=admin123 \
@@ -489,11 +490,26 @@ jobs:
         # waitForURL("**/dashboard") timeout. Creates schema via SQLAlchemy
         # metadata + seeds admin/demo/lab users with the well-known passwords
         # the tests expect (matching CLAUDE.md dev creds).
+        #
+        # User.first_name/last_name are EncryptedString columns, so SQLAlchemy
+        # invokes get_field_encryption() during INSERT. The encryption module
+        # uses lazy globals that must be wired up via initialize_encryption()
+        # before any encrypted write — and it needs an active DATA key. This
+        # mirrors backend/tests/integration/conftest.py.
         run: |
           docker exec \
             -e PYTHONPATH=/app \
             backend-e2e \
-            python -c "from src.core.database import create_tables, init_database; create_tables(); init_database()"
+            python -c "
+          from src.core.encryption import EncryptionKeyType, get_key_manager, initialize_encryption
+          initialize_encryption()
+          km = get_key_manager()
+          if km.get_active_key(EncryptionKeyType.DATA) is None:
+              km.generate_key(EncryptionKeyType.DATA)
+          from src.core.database import create_tables, init_database
+          create_tables()
+          init_database()
+          "
       - name: Run E2E Tests
         env:
           EVENT_NAME: ${{ github.event_name }}
