@@ -124,6 +124,14 @@ async def _clear_stale_pending_confirmation(graph: Any, config: Dict[str, Any]) 
     A pending confirmation can only be answered with ``Command(resume=...)``.
     If the next request is a fresh ``HumanMessage`` instead, the user has
     abandoned the interrupt — re-firing it would block the new turn forever.
+
+    Also resets the per-turn ephemeral counters (``tool_loop_count``,
+    ``error_count``, ``reflection_count``). ``preprocessing_node`` already
+    resets these on a normal turn entry, but clearing them here makes the
+    invariant local to this function so future graph refactors that bypass
+    ``preprocessing_node`` cannot silently inherit a stale counter from the
+    abandoned turn.
+
     Returns True when state was cleared so callers can log/observe.
     """
     try:
@@ -137,7 +145,13 @@ async def _clear_stale_pending_confirmation(graph: Any, config: Dict[str, Any]) 
     try:
         await graph.aupdate_state(
             config,
-            {"pending_confirmation": {}, "user_confirmed": False},
+            {
+                "pending_confirmation": {},
+                "user_confirmed": False,
+                "tool_loop_count": 0,
+                "error_count": 0,
+                "reflection_count": 0,
+            },
         )
     except Exception:
         logger.exception("Failed to clear stale pending_confirmation")
@@ -518,6 +532,28 @@ async def _resume_agent_graph(
                         {
                             "status": "error",
                             "error": "Thread not found",
+                        },
+                    )
+                    return
+
+                # Idempotency guard: if the interrupt has already been
+                # consumed (e.g. by a prior resume that completed without
+                # updating the in-memory job, or by a stale background
+                # task firing late), short-circuit instead of issuing a
+                # second Command(resume=...) that would have nothing to
+                # resume against.
+                if not snapshot.values.get("pending_confirmation"):
+                    logger.warning(
+                        "Resume requested for job %s but no pending_confirmation in "
+                        "checkpoint; interrupt already consumed",
+                        job_id,
+                    )
+                    _set_job(
+                        job_id,
+                        {
+                            "status": "error",
+                            "error": "Interrupt already consumed",
+                            "user_id": str(current_user.id),
                         },
                     )
                     return
