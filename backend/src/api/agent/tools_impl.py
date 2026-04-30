@@ -5,12 +5,13 @@ Each function performs a specific action (search, ingest, summarize, etc.)
 and returns a dict result.
 """
 
+import asyncio
 import logging
 from datetime import datetime
 from typing import Any, Dict, Optional
 from uuid import UUID
 
-from sqlalchemy import desc, select
+from sqlalchemy import desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models.citation import Citation
@@ -31,6 +32,23 @@ logger = logging.getLogger(__name__)
 def _escape_like(value: str) -> str:
     """Escape special LIKE pattern characters for safe ilike() queries."""
     return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
+# Cache the LLM client used by summarize/compare tools at module scope so
+# we don't pay the ~50ms client-build cost on every invocation. Mirrors the
+# `_REFLECTION_LLM` pattern in src/services/agent/reflection.py.
+_TOOL_LLM = None
+
+
+def _get_tool_llm():
+    """Return a cached LangChain chat model for use in tool implementations."""
+    global _TOOL_LLM
+    if _TOOL_LLM is not None:
+        return _TOOL_LLM
+    from src.services.agent.graph import _build_llm
+
+    _TOOL_LLM = _build_llm()
+    return _TOOL_LLM
 
 
 # ---------------------------------------------------------------------------
@@ -594,15 +612,17 @@ async def _tool_search_arxiv(args: Dict[str, Any]) -> Dict[str, Any]:
             )
             results = []
             for p in papers[:max_results]:
-                results.append({
-                    "id": p.get("id", ""),
-                    "title": p.get("title", ""),
-                    "authors": p.get("authors", [])[:5],
-                    "abstract": (p.get("abstract", "") or "")[:500],
-                    "published": str(p.get("published", "")),
-                    "categories": p.get("categories", []),
-                    "pdf_url": p.get("pdf_url", ""),
-                })
+                results.append(
+                    {
+                        "id": p.get("id", ""),
+                        "title": p.get("title", ""),
+                        "authors": p.get("authors", [])[:5],
+                        "abstract": (p.get("abstract", "") or "")[:500],
+                        "published": str(p.get("published", "")),
+                        "categories": p.get("categories", []),
+                        "pdf_url": p.get("pdf_url", ""),
+                    }
+                )
             return {"papers": results, "total": len(results), "query": query}
     except Exception as e:
         logger.error("ArXiv search tool failed", exc_info=e)
@@ -627,28 +647,39 @@ async def _tool_ingest_arxiv(
 
     try:
         async with ArXivIngestionService() as service:
-            # Fetch paper metadata for each ID, then ingest
-            papers_to_ingest = []
-            for pid in paper_ids:
-                # Search by ID to get full paper dict
-                results = await service.search_papers(
-                    query=f"id:{pid}",
-                    max_results=1,
-                )
+            # Fetch paper metadata in parallel; cap concurrency to be polite
+            # to the arXiv API (no batched id_list endpoint available).
+            metadata_semaphore = asyncio.Semaphore(5)
+
+            async def _fetch_one(pid: str) -> Dict[str, Any]:
+                async with metadata_semaphore:
+                    try:
+                        results = await service.search_papers(
+                            query=f"id:{pid}",
+                            max_results=1,
+                        )
+                    except Exception as exc:
+                        logger.warning(
+                            "arXiv metadata fetch failed for %s: %s", pid, exc
+                        )
+                        results = None
                 if results:
-                    papers_to_ingest.append(results[0])
-                else:
-                    # Build minimal paper dict from ID
-                    papers_to_ingest.append({
-                        "id": pid,
-                        "title": f"arXiv:{pid}",
-                        "authors": [],
-                        "abstract": "",
-                        "published": "",
-                        "updated": "",
-                        "categories": [],
-                        "links": {"pdf": f"https://arxiv.org/pdf/{pid}"},
-                    })
+                    return results[0]
+                # Fallback: minimal paper dict so ingest can still proceed
+                return {
+                    "id": pid,
+                    "title": f"arXiv:{pid}",
+                    "authors": [],
+                    "abstract": "",
+                    "published": "",
+                    "updated": "",
+                    "categories": [],
+                    "links": {"pdf": f"https://arxiv.org/pdf/{pid}"},
+                }
+
+            papers_to_ingest = list(
+                await asyncio.gather(*[_fetch_one(pid) for pid in paper_ids])
+            )
 
             ingested = await service.ingest_papers(
                 papers=papers_to_ingest,
@@ -670,15 +701,22 @@ async def _tool_ingest_arxiv(
                                     title=getattr(doc, "title", "Untitled"),
                                     filename=getattr(doc, "filename", ""),
                                     file_path=getattr(
-                                        doc, "file_path",
+                                        doc,
+                                        "file_path",
                                         getattr(doc, "filename", ""),
                                     ),
                                     file_size_bytes=getattr(doc, "file_size_bytes", 0),
-                                    mime_type=getattr(doc, "mime_type", "application/pdf"),
+                                    mime_type=getattr(
+                                        doc, "mime_type", "application/pdf"
+                                    ),
                                     document_type=DocumentType.PDF,
                                     content_text=getattr(doc, "content_text", None),
-                                    content_summary=getattr(doc, "content_summary", None),
-                                    document_metadata=_sanitize_metadata(getattr(doc, "document_metadata", {})),
+                                    content_summary=getattr(
+                                        doc, "content_summary", None
+                                    ),
+                                    document_metadata=_sanitize_metadata(
+                                        getattr(doc, "document_metadata", {})
+                                    ),
                                     processing_status=ProcessingStatus.COMPLETED,
                                     uploaded_by_user_id=current_user.id,
                                     organization_id=current_user.organization_id,
@@ -688,11 +726,19 @@ async def _tool_ingest_arxiv(
                                 await fresh_db.flush()
                                 document_ids.append(str(document.id))
                             # begin() auto-commits on exit
-                    logger.info("Ingested %d documents to DB: %s", len(document_ids), document_ids)
+                    logger.info(
+                        "Ingested %d documents to DB: %s",
+                        len(document_ids),
+                        document_ids,
+                    )
                 except Exception as db_err:
-                    logger.error("Failed to persist ingested documents to DB", exc_info=db_err)
+                    logger.error(
+                        "Failed to persist ingested documents to DB", exc_info=db_err
+                    )
                     document_ids = []
-                    return {"error": f"Papers downloaded but DB persist failed: {str(db_err)}"}
+                    return {
+                        "error": f"Papers downloaded but DB persist failed: {str(db_err)}"
+                    }
             elif ingested:
                 # Fallback: no current_user, return paper_ids only
                 for doc in ingested:
@@ -748,7 +794,9 @@ async def _tool_search_documents(
                     "id": str(d.id),
                     "title": d.title,
                     "type": d.document_type.value if d.document_type else None,
-                    "status": d.processing_status.value if d.processing_status else None,
+                    "status": (
+                        d.processing_status.value if d.processing_status else None
+                    ),
                     "created_at": d.created_at.isoformat() if d.created_at else None,
                 }
                 for d in docs
@@ -796,7 +844,9 @@ async def _tool_add_document_to_project(
             doc_uuid = doc.id
 
             # Verify project ownership (resolves UUID or name)
-            project = await _verify_project_ownership(project_id, fresh_db, current_user)
+            project = await _verify_project_ownership(
+                project_id, fresh_db, current_user
+            )
             if not project:
                 return {"error": "Project not found or access denied"}
 
@@ -923,7 +973,9 @@ async def _tool_create_project_note(
     try:
         async with AsyncSessionLocal() as fresh_db:
             # Verify project ownership (resolves UUID or name)
-            project = await _verify_project_ownership(project_id, fresh_db, current_user)
+            project = await _verify_project_ownership(
+                project_id, fresh_db, current_user
+            )
             if not project:
                 return {"error": "Project not found or access denied"}
 
@@ -962,20 +1014,43 @@ async def _tool_list_project_documents(
     if not project_id:
         return {"error": "project_id is required"}
 
+    raw_limit = args.get("limit", 100)
+    try:
+        limit = max(1, min(int(raw_limit), 500))
+    except (TypeError, ValueError):
+        limit = 100
+    raw_offset = args.get("offset", 0)
+    try:
+        offset = max(0, int(raw_offset))
+    except (TypeError, ValueError):
+        offset = 0
+
     try:
         # Verify project ownership (resolves UUID or name)
         project = await _verify_project_ownership(project_id, db, current_user)
         if not project:
             return {"error": "Project not found or access denied"}
 
+        base_where = (
+            CollectionDocument.collection_id == project.id,
+            Document.is_deleted == False,
+        )
+
+        count_stmt = (
+            select(func.count())
+            .select_from(Document)
+            .join(CollectionDocument, CollectionDocument.document_id == Document.id)
+            .where(*base_where)
+        )
+        total = (await db.execute(count_stmt)).scalar_one()
+
         stmt = (
             select(Document)
             .join(CollectionDocument, CollectionDocument.document_id == Document.id)
-            .where(
-                CollectionDocument.collection_id == project.id,
-                Document.is_deleted == False,
-            )
+            .where(*base_where)
             .order_by(desc(Document.created_at))
+            .offset(offset)
+            .limit(limit)
         )
         result = await db.execute(stmt)
         docs = result.scalars().all()
@@ -987,11 +1062,17 @@ async def _tool_list_project_documents(
                     "id": str(d.id),
                     "title": d.title,
                     "type": d.document_type.value if d.document_type else None,
-                    "status": d.processing_status.value if d.processing_status else None,
+                    "status": (
+                        d.processing_status.value if d.processing_status else None
+                    ),
                 }
                 for d in docs
             ],
-            "total": len(docs),
+            "total": int(total),
+            "returned": len(docs),
+            "limit": limit,
+            "offset": offset,
+            "has_more": offset + len(docs) < int(total),
         }
     except Exception as e:
         logger.error("list_project_documents tool failed", exc_info=e)
@@ -1097,15 +1178,17 @@ async def _tool_summarize_document(
 
         # Use LLM to summarize
         try:
-            from src.services.agent.graph import _build_llm
-
-            llm = _build_llm()
             from langchain_core.messages import HumanMessage, SystemMessage
 
-            response = await llm.ainvoke([
-                SystemMessage(content="You are a research assistant. Provide a concise summary of the following document in 3-5 paragraphs. Focus on key findings, methodology, and conclusions."),
-                HumanMessage(content=text_for_summary),
-            ])
+            llm = _get_tool_llm()
+            response = await llm.ainvoke(
+                [
+                    SystemMessage(
+                        content="You are a research assistant. Provide a concise summary of the following document in 3-5 paragraphs. Focus on key findings, methodology, and conclusions."
+                    ),
+                    HumanMessage(content=text_for_summary),
+                ]
+            )
             summary = response.content
         except Exception:
             # Fallback: first 500 words
@@ -1143,10 +1226,43 @@ async def _tool_compare_documents(
         from src.services.documents.file_service import FileService
 
         file_service = FileService(db)
-        doc_texts = []
 
+        # Resolve all UUID-shaped IDs in a single batched query; only fall
+        # back to per-id title lookups for non-UUID inputs. AsyncSession is
+        # not safe for concurrent statements, so we keep title fallbacks
+        # serial.
+        uuid_inputs: list[tuple[str, UUID]] = []
+        title_inputs: list[str] = []
         for did in document_ids:
-            doc = await _resolve_document_id(did, db, current_user)
+            try:
+                uuid_inputs.append((did, UUID(did)))
+            except (ValueError, AttributeError, TypeError):
+                title_inputs.append(did)
+
+        docs_by_uuid: Dict[UUID, Document] = {}
+        if uuid_inputs:
+            uuid_stmt = select(Document).where(
+                Document.id.in_([u for _, u in uuid_inputs]),
+                Document.organization_id == current_user.organization_id,
+                Document.is_deleted == False,
+            )
+            for doc in (await db.execute(uuid_stmt)).scalars().all():
+                docs_by_uuid[doc.id] = doc
+
+        resolved: Dict[str, Document] = {}
+        for raw_id, parsed in uuid_inputs:
+            doc = docs_by_uuid.get(parsed)
+            if doc is not None:
+                resolved[raw_id] = doc
+
+        for raw_id in title_inputs:
+            doc = await _resolve_document_id(raw_id, db, current_user)
+            if doc is not None:
+                resolved[raw_id] = doc
+
+        doc_texts = []
+        for did in document_ids:
+            doc = resolved.get(did)
             if not doc:
                 return {"error": f"Document not found: {did}"}
 
@@ -1154,26 +1270,30 @@ async def _tool_compare_documents(
             if not text:
                 text = file_service.extract_text_content(doc)
 
-            doc_texts.append({
-                "id": str(doc.id),
-                "title": doc.title or "Untitled",
-                "text": text[:4000],
-            })
+            doc_texts.append(
+                {
+                    "id": str(doc.id),
+                    "title": doc.title or "Untitled",
+                    "text": text[:4000],
+                }
+            )
 
         # Use LLM to compare
         try:
-            from src.services.agent.graph import _build_llm
-
-            llm = _build_llm()
             from langchain_core.messages import HumanMessage, SystemMessage
 
+            llm = _get_tool_llm()
             docs_content = "\n\n---\n\n".join(
                 f"Document: {d['title']}\n{d['text']}" for d in doc_texts
             )
-            response = await llm.ainvoke([
-                SystemMessage(content=f"You are a research assistant. Compare the following documents ({comparison_type} comparison). Identify similarities, differences, and key themes across them. Be structured and concise."),
-                HumanMessage(content=docs_content),
-            ])
+            response = await llm.ainvoke(
+                [
+                    SystemMessage(
+                        content=f"You are a research assistant. Compare the following documents ({comparison_type} comparison). Identify similarities, differences, and key themes across them. Be structured and concise."
+                    ),
+                    HumanMessage(content=docs_content),
+                ]
+            )
             comparison = response.content
         except Exception:
             comparison = "Comparison could not be generated. Documents were retrieved successfully."
@@ -1220,7 +1340,9 @@ async def _tool_extract_entities(
         # Truncate for entity extraction
         text_for_extraction = text[:10000]
 
-        from src.services.documents.enhanced_document_processing_service import EntityExtractor
+        from src.services.documents.enhanced_document_processing_service import (
+            EntityExtractor,
+        )
 
         extractor = EntityExtractor()
         result = await extractor.extract_entities(text_for_extraction, str(doc.id))
@@ -1256,10 +1378,10 @@ async def _tool_search_knowledge_graph(args: Dict[str, Any]) -> Dict[str, Any]:
         return {"error": "query is required"}
 
     try:
-        from src.services.knowledge_graph.knowledge_graph_service import KnowledgeGraphService
         from src.models.graph import EntityType
-
-        kg_service = KnowledgeGraphService()
+        from src.services.knowledge_graph.knowledge_graph_service import (
+            knowledge_graph_service,
+        )
 
         type_filters = None
         if entity_types:
@@ -1270,10 +1392,17 @@ async def _tool_search_knowledge_graph(args: Dict[str, Any]) -> Dict[str, Any]:
                 except ValueError:
                     pass
 
-        entities = kg_service.search_entities(
-            query=query,
-            entity_types=type_filters,
-            limit=limit,
+        loop = asyncio.get_running_loop()
+        entities = await asyncio.wait_for(
+            loop.run_in_executor(
+                None,
+                lambda: knowledge_graph_service.search_entities(
+                    query=query,
+                    entity_types=type_filters,
+                    limit=limit,
+                ),
+            ),
+            timeout=15.0,
         )
 
         return {
@@ -1304,12 +1433,21 @@ async def _tool_explore_entity_neighborhood(args: Dict[str, Any]) -> Dict[str, A
         return {"error": "entity_id is required"}
 
     try:
-        from src.services.knowledge_graph.knowledge_graph_service import knowledge_graph_service
+        from src.services.knowledge_graph.knowledge_graph_service import (
+            knowledge_graph_service,
+        )
 
-        neighborhood = knowledge_graph_service.get_neighborhood(
-            entity_id=entity_id,
-            max_depth=max_depth,
-            limit=limit,
+        loop = asyncio.get_running_loop()
+        neighborhood = await asyncio.wait_for(
+            loop.run_in_executor(
+                None,
+                lambda: knowledge_graph_service.get_neighborhood(
+                    entity_id=entity_id,
+                    max_depth=max_depth,
+                    limit=limit,
+                ),
+            ),
+            timeout=15.0,
         )
 
         entities = neighborhood.get("entities", [])
@@ -1330,7 +1468,11 @@ async def _tool_explore_entity_neighborhood(args: Dict[str, Any]) -> Dict[str, A
                 {
                     "source": r.source_entity_id,
                     "target": r.target_entity_id,
-                    "type": r.relationship_type.value if r.relationship_type else "RELATED_TO",
+                    "type": (
+                        r.relationship_type.value
+                        if r.relationship_type
+                        else "RELATED_TO"
+                    ),
                     "strength": r.strength,
                 }
                 for r in relationships
@@ -1353,12 +1495,21 @@ async def _tool_find_entity_paths(args: Dict[str, Any]) -> Dict[str, Any]:
         return {"error": "source_entity_id and target_entity_id are required"}
 
     try:
-        from src.services.knowledge_graph.knowledge_graph_service import knowledge_graph_service
+        from src.services.knowledge_graph.knowledge_graph_service import (
+            knowledge_graph_service,
+        )
 
-        paths = knowledge_graph_service.find_paths(
-            source_id=source_id,
-            target_id=target_id,
-            max_depth=max_depth,
+        loop = asyncio.get_running_loop()
+        paths = await asyncio.wait_for(
+            loop.run_in_executor(
+                None,
+                lambda: knowledge_graph_service.find_paths(
+                    source_id=source_id,
+                    target_id=target_id,
+                    max_depth=max_depth,
+                ),
+            ),
+            timeout=15.0,
         )
 
         return {
@@ -1371,14 +1522,22 @@ async def _tool_find_entity_paths(args: Dict[str, Any]) -> Dict[str, Any]:
                     "strength": p.total_strength,
                     "confidence": p.confidence_score,
                     "entities": [
-                        {"id": e.id, "name": e.name, "type": e.entity_type.value if e.entity_type else "UNKNOWN"}
+                        {
+                            "id": e.id,
+                            "name": e.name,
+                            "type": e.entity_type.value if e.entity_type else "UNKNOWN",
+                        }
                         for e in p.entities
                     ],
                     "relationships": [
                         {
                             "source": r.source_entity_id,
                             "target": r.target_entity_id,
-                            "type": r.relationship_type.value if r.relationship_type else "RELATED_TO",
+                            "type": (
+                                r.relationship_type.value
+                                if r.relationship_type
+                                else "RELATED_TO"
+                            ),
                         }
                         for r in p.relationships
                     ],
@@ -1394,9 +1553,15 @@ async def _tool_find_entity_paths(args: Dict[str, Any]) -> Dict[str, Any]:
 async def _tool_get_graph_stats(args: Dict[str, Any]) -> Dict[str, Any]:
     """Get knowledge graph statistics."""
     try:
-        from src.services.knowledge_graph.knowledge_graph_service import knowledge_graph_service
+        from src.services.knowledge_graph.knowledge_graph_service import (
+            knowledge_graph_service,
+        )
 
-        analytics = knowledge_graph_service.get_graph_analytics()
+        loop = asyncio.get_running_loop()
+        analytics = await asyncio.wait_for(
+            loop.run_in_executor(None, knowledge_graph_service.get_graph_analytics),
+            timeout=15.0,
+        )
 
         return {
             "total_entities": analytics.total_entities,
@@ -1435,7 +1600,9 @@ async def _tool_create_draft(
             return {"error": "Project not found or access denied"}
 
         from src.core.database import AsyncSessionLocal
-        from src.services.research.draft_generation_service import DraftGenerationService
+        from src.services.research.draft_generation_service import (
+            DraftGenerationService,
+        )
 
         # Use a fresh independent session for draft generation — the agent's
         # session may be rolled back before the async background task completes.
@@ -1475,34 +1642,46 @@ async def _tool_export_bibliography(
     if not document_ids:
         return {"error": "At least one document_id is required"}
     if bib_format not in ("bibtex", "apa", "ieee", "mla"):
-        return {"error": f"Unsupported format: {bib_format}. Use bibtex, apa, ieee, or mla."}
+        return {
+            "error": f"Unsupported format: {bib_format}. Use bibtex, apa, ieee, or mla."
+        }
+
+    # Parse and dedupe UUIDs in one pass; ignore malformed inputs
+    valid_uuids: list[UUID] = []
+    for did in document_ids:
+        try:
+            valid_uuids.append(UUID(did))
+        except (ValueError, AttributeError, TypeError):
+            continue
+    if not valid_uuids:
+        return {
+            "bibliography": "",
+            "format": bib_format,
+            "count": 0,
+            "message": "No valid document IDs supplied.",
+        }
 
     try:
-        # Fetch citations for the given documents
-        citations = []
-        for did in document_ids:
-            try:
-                doc_uuid = UUID(did)
-            except (ValueError, AttributeError):
-                continue
+        # Batch ownership check: only documents in the user's organization
+        owned_stmt = select(Document.id).where(
+            Document.id.in_(valid_uuids),
+            Document.organization_id == current_user.organization_id,
+            Document.is_deleted == False,
+        )
+        owned_result = await db.execute(owned_stmt)
+        owned_ids = [row[0] for row in owned_result.all()]
+        if not owned_ids:
+            return {
+                "bibliography": "",
+                "format": bib_format,
+                "count": 0,
+                "message": "No accessible documents found for the given IDs.",
+            }
 
-            # Verify document belongs to user's organization before fetching citations
-            doc_stmt = select(Document).where(
-                Document.id == doc_uuid,
-                Document.organization_id == current_user.organization_id,
-                Document.is_deleted == False,
-            )
-            doc_result = await db.execute(doc_stmt)
-            if not doc_result.scalar_one_or_none():
-                continue  # skip documents user doesn't have access to
-
-            stmt = (
-                select(Citation)
-                .where(Citation.document_id == doc_uuid)
-            )
-            result = await db.execute(stmt)
-            doc_citations = result.scalars().all()
-            citations.extend(doc_citations)
+        # Batch citation fetch for accessible documents
+        citation_stmt = select(Citation).where(Citation.document_id.in_(owned_ids))
+        citation_result = await db.execute(citation_stmt)
+        citations = list(citation_result.scalars().all())
 
         if not citations:
             return {
@@ -1553,9 +1732,7 @@ async def _tool_execute_code(
     manager = get_sandbox_manager()
 
     if not manager.is_available:
-        return {
-            "error": "Code execution is not available. E2B_API_KEY not configured."
-        }
+        return {"error": "Code execution is not available. E2B_API_KEY not configured."}
 
     # Install extra packages if requested
     if packages:
@@ -1654,16 +1831,18 @@ async def _tool_search_external_database(args: Dict[str, Any]) -> Dict[str, Any]
                 )
                 continue
             for r in result:
-                results.append({
-                    "id": r.id,
-                    "title": r.title,
-                    "source": r.source,
-                    "url": r.url,
-                    "content": r.content[:300],
-                    "authors": r.authors[:5],
-                    "published_date": r.published_date,
-                    "document_type": r.document_type,
-                })
+                results.append(
+                    {
+                        "id": r.id,
+                        "title": r.title,
+                        "source": r.source,
+                        "url": r.url,
+                        "content": r.content[:300],
+                        "authors": r.authors[:5],
+                        "published_date": r.published_date,
+                        "document_type": r.document_type,
+                    }
+                )
 
         return {
             "query": query,
