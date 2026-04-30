@@ -7,7 +7,7 @@ referenced IDs (UUIDs and arXiv IDs).
 
 import logging
 import re
-from typing import Any, Callable
+from typing import Any, Callable, Optional
 
 from langchain_core.messages import AIMessage, BaseMessage, RemoveMessage, ToolMessage
 from langchain_core.runnables import RunnableConfig
@@ -177,9 +177,7 @@ def _build_compactor_llm():
     endpoint = (
         settings.AZURE_OPENAI_CHAT_ENDPOINT or settings.AZURE_OPENAI_ENDPOINT or ""
     )
-    api_key = (
-        settings.AZURE_OPENAI_CHAT_API_KEY or settings.AZURE_OPENAI_API_KEY or ""
-    )
+    api_key = settings.AZURE_OPENAI_CHAT_API_KEY or settings.AZURE_OPENAI_API_KEY or ""
     api_version = (
         settings.AZURE_OPENAI_CHAT_API_VERSION or settings.AZURE_OPENAI_API_VERSION
     )
@@ -225,6 +223,9 @@ _COMPACTION_SYSTEM_PROMPT = (
 )
 
 
+_COMPACTION_PARALLELISM = 5
+
+
 async def compact_messages(
     candidates: list[ToolMessage],
     config: RunnableConfig,
@@ -239,24 +240,30 @@ async def compact_messages(
     3. Validate/fix compacted output
     4. Return new ToolMessage with ``[Compacted]`` prefix and the same
        ``id`` as the original (so the LangGraph reducer can replace it).
+
+    Per-message compaction calls run concurrently bounded by
+    ``_COMPACTION_PARALLELISM`` to avoid burst-rate-limiting.
     """
-    llm = _build_compactor_llm()
-    compacted: list[ToolMessage] = []
+    import asyncio
 
     from langchain_core.messages import HumanMessage, SystemMessage
 
-    for msg in candidates:
+    llm = _build_compactor_llm()
+    semaphore = asyncio.Semaphore(_COMPACTION_PARALLELISM)
+
+    async def _compact_one(msg: ToolMessage) -> Optional[ToolMessage]:
         original_content = msg.content if isinstance(msg.content, str) else ""
         original_ids = extract_ids(original_content)
 
         try:
-            response = await llm.ainvoke(
-                [
-                    SystemMessage(content=_COMPACTION_SYSTEM_PROMPT),
-                    HumanMessage(content=original_content),
-                ],
-                config=config,
-            )
+            async with semaphore:
+                response = await llm.ainvoke(
+                    [
+                        SystemMessage(content=_COMPACTION_SYSTEM_PROMPT),
+                        HumanMessage(content=original_content),
+                    ],
+                    config=config,
+                )
         except Exception:
             logger.warning(
                 "Compaction LLM call failed for tool_call_id=%s; "
@@ -264,22 +271,23 @@ async def compact_messages(
                 msg.tool_call_id,
                 exc_info=True,
             )
-            continue
+            return None
 
         summary = (
-            response.content if isinstance(response.content, str) else str(response.content)
+            response.content
+            if isinstance(response.content, str)
+            else str(response.content)
         )
         summary = validate_and_fix_compacted(summary, original_ids)
 
-        compacted.append(
-            ToolMessage(
-                content=f"{_COMPACTED_PREFIX} {summary}",
-                tool_call_id=msg.tool_call_id,
-                id=msg.id,
-            )
+        return ToolMessage(
+            content=f"{_COMPACTED_PREFIX} {summary}",
+            tool_call_id=msg.tool_call_id,
+            id=msg.id,
         )
 
-    return compacted
+    results = await asyncio.gather(*[_compact_one(msg) for msg in candidates])
+    return [r for r in results if r is not None]
 
 
 # ---------------------------------------------------------------------------

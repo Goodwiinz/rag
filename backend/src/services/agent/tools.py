@@ -22,6 +22,7 @@ logger = logging.getLogger(__name__)
 try:
     from langchain_core.tools import tool
 except Exception:  # pragma: no cover - exercised in tests via module stubs
+
     class _FallbackTool:
         """Small StructuredTool-like wrapper for test environments."""
 
@@ -92,9 +93,7 @@ def _validate_connector_name(value: Optional[str]) -> Optional[str]:
     if not value:
         return None
     if not _CONNECTOR_NAME_RE.match(value):
-        logger.warning(
-            "Rejecting invalid external-database identifier: %r", value
-        )
+        logger.warning("Rejecting invalid external-database identifier: %r", value)
         return None
     return value
 
@@ -336,12 +335,20 @@ async def list_projects(
 @tool
 async def list_project_documents(
     project_id: Optional[str] = None,
+    limit: int = 100,
+    offset: int = 0,
     config: RunnableConfig | None = None,
 ) -> Dict[str, Any]:
-    """List all documents in a research project.
+    """List documents in a research project, ordered newest first.
 
-    If *project_id* is omitted and the user is on a project page, the
-    project is inferred from the page context.
+    Args:
+        project_id: Project UUID. If omitted and the user is on a project
+            page, the project is inferred from the page context.
+        limit: Maximum number of documents to return (default 100, max 500).
+        offset: Number of documents to skip for pagination (default 0).
+
+    The response includes ``total``, ``returned``, ``limit``, ``offset``, and
+    ``has_more`` so subsequent calls can paginate when needed.
     """
     config = config or {}
     from src.api.agent.execute import _tool_list_project_documents
@@ -351,7 +358,9 @@ async def list_project_documents(
     if not resolved_pid:
         return _missing_project_error("list_project_documents")
     return await _tool_list_project_documents(
-        {"project_id": resolved_pid}, db, current_user
+        {"project_id": resolved_pid, "limit": limit, "offset": offset},
+        db,
+        current_user,
     )
 
 
@@ -408,9 +417,7 @@ async def extract_entities(
     from src.api.agent.execute import _tool_extract_entities
 
     db, current_user, _page_ctx = _get_context(config)
-    return await _tool_extract_entities(
-        {"document_id": document_id}, db, current_user
-    )
+    return await _tool_extract_entities({"document_id": document_id}, db, current_user)
 
 
 @tool
@@ -620,9 +627,7 @@ async def search_external_database(
 
     args: Dict[str, Any] = {
         "query": query,
-        "max_results": _clamp_int(
-            max_results, lo=1, hi=_MAX_RESULTS_EXTERNAL_CAP
-        ),
+        "max_results": _clamp_int(max_results, lo=1, hi=_MAX_RESULTS_EXTERNAL_CAP),
     }
     safe_connector = _validate_connector_name(connector)
     if safe_connector:
@@ -636,8 +641,7 @@ async def search_external_database(
         scalar_filters = {
             k: v
             for k, v in filters.items()
-            if isinstance(k, str)
-            and isinstance(v, (str, int, float, bool))
+            if isinstance(k, str) and isinstance(v, (str, int, float, bool))
         }
         if scalar_filters:
             args["filters"] = scalar_filters

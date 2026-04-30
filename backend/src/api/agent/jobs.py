@@ -11,7 +11,7 @@ import logging
 import time
 import uuid as _uuid
 from collections import OrderedDict
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from threading import Lock
 from typing import Any, Dict, List, Optional
 
@@ -75,6 +75,7 @@ def _get_schemas():
         RetrievedContextResponse,
         ToolExecutionResponse,
     )
+
     return {
         "AgentExecuteRequest": AgentExecuteRequest,
         "AgentExecuteResponse": AgentExecuteResponse,
@@ -193,9 +194,9 @@ async def _persist_thread_messages(
 
     if thread is None:
         # Need a workspace + conversation for the thread
-        ws_stmt = select(Workspace).where(
-            Workspace.owner_id == current_user.id
-        ).limit(1)
+        ws_stmt = (
+            select(Workspace).where(Workspace.owner_id == current_user.id).limit(1)
+        )
         ws_result = await db.execute(ws_stmt)
         workspace = ws_result.scalar_one_or_none()
 
@@ -230,19 +231,38 @@ async def _persist_thread_messages(
         thread_id = str(thread.id)
         conversation_id = str(thread.conversation_id)
 
-        # Save user message (only the latest one)
+        # Save user message (only the latest one). Skip the insert if an
+        # identical user message was already persisted within the last 60s
+        # — this can happen when a client reconnects mid-stream or retries
+        # a request that already wrote the user turn.
         last_user_content = next(
             (m.content for m in reversed(request.messages) if m.role == "user"),
             None,
         )
+        wrote_user_message = False
         if last_user_content:
-            user_msg = ChatMessage(
-                thread_id=thread.id,
-                user_id=current_user.id,
-                role=MessageRole.USER,
-                content=last_user_content,
+            recent_cutoff = datetime.now(timezone.utc) - timedelta(seconds=60)
+            dup_stmt = (
+                select(ChatMessage.id)
+                .where(
+                    ChatMessage.thread_id == thread.id,
+                    ChatMessage.user_id == current_user.id,
+                    ChatMessage.role == MessageRole.USER,
+                    ChatMessage.content == last_user_content,
+                    ChatMessage.created_at >= recent_cutoff,
+                )
+                .limit(1)
             )
-            db.add(user_msg)
+            dup_result = await db.execute(dup_stmt)
+            if dup_result.scalar_one_or_none() is None:
+                user_msg = ChatMessage(
+                    thread_id=thread.id,
+                    user_id=current_user.id,
+                    role=MessageRole.USER,
+                    content=last_user_content,
+                )
+                db.add(user_msg)
+                wrote_user_message = True
 
         # Save assistant message with tool executions
         tool_exec_data = None
@@ -269,8 +289,9 @@ async def _persist_thread_messages(
         )
         db.add(asst_msg)
 
-        # Update thread stats
-        thread.message_count = (thread.message_count or 0) + 2
+        # Update thread stats — count only what we actually inserted.
+        inserted = 1 + (1 if wrote_user_message else 0)
+        thread.message_count = (thread.message_count or 0) + inserted
         thread.last_message_at = datetime.now(timezone.utc)
 
         await db.commit()
@@ -365,13 +386,16 @@ async def _run_agent_graph(
                 confirmation_details = {}
                 if interrupts:
                     confirmation_details = getattr(interrupts[0], "value", {})
-                _set_job(job_id, {
-                    "status": "awaiting_confirmation",
-                    "confirmation": confirmation_details,
-                    "tool_executions": [],
-                    "user_id": str(current_user.id),
-                    "request": request.model_dump(),
-                })
+                _set_job(
+                    job_id,
+                    {
+                        "status": "awaiting_confirmation",
+                        "confirmation": confirmation_details,
+                        "tool_executions": [],
+                        "user_id": str(current_user.id),
+                        "request": request.model_dump(),
+                    },
+                )
                 return
 
             # Extract assistant content from the last AI message
@@ -389,7 +413,11 @@ async def _run_agent_graph(
                     for te in final_state.get("tool_executions", [])
                 ] or None
                 thread_id, conversation_id = await _persist_thread_messages(
-                    db, current_user, request, assistant_content, tool_executions_out,
+                    db,
+                    current_user,
+                    request,
+                    assistant_content,
+                    tool_executions_out,
                 )
             except Exception as e:
                 logger.warning("Failed to persist thread", exc_info=e)
@@ -405,20 +433,25 @@ async def _run_agent_graph(
                 retrieved_contexts=[
                     RetrievedContextResponse(**rc)
                     for rc in final_state.get("retrieved_contexts", [])
-                ] or None,
+                ]
+                or None,
                 tool_executions=[
                     ToolExecutionResponse(**te)
                     for te in final_state.get("tool_executions", [])
-                ] or None,
+                ]
+                or None,
                 thread_id=thread_id,
                 conversation_id=conversation_id,
             )
 
-            _set_job(job_id, {
-                "status": "completed",
-                "result": result.model_dump(),
-                "tool_executions": list(final_state.get("tool_executions", [])),
-            })
+            _set_job(
+                job_id,
+                {
+                    "status": "completed",
+                    "result": result.model_dump(),
+                    "tool_executions": list(final_state.get("tool_executions", [])),
+                },
+            )
         except Exception as e:
             logger.error("Agent graph execution failed", exc_info=e)
             _set_job(job_id, {"status": "failed", "error": str(e)})
@@ -480,10 +513,13 @@ async def _resume_agent_graph(
                         snapshot_user_id,
                         current_user.id,
                     )
-                    _set_job(job_id, {
-                        "status": "error",
-                        "error": "Thread not found",
-                    })
+                    _set_job(
+                        job_id,
+                        {
+                            "status": "error",
+                            "error": "Thread not found",
+                        },
+                    )
                     return
 
             async with asyncio.timeout(360):
@@ -508,10 +544,16 @@ async def _resume_agent_graph(
                         for te in final_state.get("tool_executions", [])
                     ] or None
                     thread_id, conversation_id = await _persist_thread_messages(
-                        db, current_user, original_request, assistant_content, tool_executions_out,
+                        db,
+                        current_user,
+                        original_request,
+                        assistant_content,
+                        tool_executions_out,
                     )
             except Exception as e:
-                logger.warning("Failed to persist confirmation thread messages", exc_info=e)
+                logger.warning(
+                    "Failed to persist confirmation thread messages", exc_info=e
+                )
 
             result = AgentExecuteResponse(
                 message=AgentMessage(role="assistant", content=assistant_content),
@@ -522,16 +564,20 @@ async def _resume_agent_graph(
                 tool_executions=[
                     ToolExecutionResponse(**te)
                     for te in final_state.get("tool_executions", [])
-                ] or None,
+                ]
+                or None,
                 thread_id=thread_id,
                 conversation_id=conversation_id,
             )
 
-            _set_job(job_id, {
-                "status": "completed",
-                "result": result.model_dump(),
-                "tool_executions": list(final_state.get("tool_executions", [])),
-            })
+            _set_job(
+                job_id,
+                {
+                    "status": "completed",
+                    "result": result.model_dump(),
+                    "tool_executions": list(final_state.get("tool_executions", [])),
+                },
+            )
         except Exception as e:
             logger.error("Agent graph resume failed", exc_info=e)
             _set_job(job_id, {"status": "failed", "error": str(e)})

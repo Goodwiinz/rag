@@ -7,6 +7,7 @@ Builds a ``StateGraph`` that chains:
 import asyncio
 import json
 import logging
+import os
 import re
 import time
 from typing import Any, Dict, List, Optional
@@ -36,6 +37,7 @@ def _extract_project_id_from_text(text: str) -> Optional[str]:
     bare_match = _UUID_RE.search(text)
     return bare_match.group(1).lower() if bare_match else None
 
+
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 from langchain_core.runnables import RunnableConfig
 from langgraph.graph import END, StateGraph
@@ -60,12 +62,18 @@ def _sanitize_messages(raw: list) -> list:
             for tc in msg.tool_calls:
                 if tc["id"] not in answered:
                     filled.append(
-                        ToolMessage(content='{"status": "skipped"}', tool_call_id=tc["id"])
+                        ToolMessage(
+                            content='{"status": "skipped"}', tool_call_id=tc["id"]
+                        )
                     )
 
     merged: list = []
     for msg in filled:
-        if merged and isinstance(merged[-1], HumanMessage) and isinstance(msg, HumanMessage):
+        if (
+            merged
+            and isinstance(merged[-1], HumanMessage)
+            and isinstance(msg, HumanMessage)
+        ):
             merged[-1] = HumanMessage(content=f"{merged[-1].content}\n{msg.content}")
         else:
             merged.append(msg)
@@ -107,6 +115,7 @@ def _get_execute_tool():
 
     if execute_tool is None:
         from src.api.agent.execute import execute_tool as _et
+
         execute_tool = _et
         _default_execute_tool = _et
         return execute_tool
@@ -118,6 +127,7 @@ def _get_execute_tool():
         _default_execute_tool = _et
 
     return execute_tool
+
 
 logger = logging.getLogger(__name__)
 
@@ -148,9 +158,7 @@ def _build_llm(model_override: str | None = None):
     endpoint = (
         settings.AZURE_OPENAI_CHAT_ENDPOINT or settings.AZURE_OPENAI_ENDPOINT or ""
     )
-    api_key = (
-        settings.AZURE_OPENAI_CHAT_API_KEY or settings.AZURE_OPENAI_API_KEY or ""
-    )
+    api_key = settings.AZURE_OPENAI_CHAT_API_KEY or settings.AZURE_OPENAI_API_KEY or ""
     api_version = (
         settings.AZURE_OPENAI_CHAT_API_VERSION or settings.AZURE_OPENAI_API_VERSION
     )
@@ -382,7 +390,9 @@ async def rag_node(state: AgentState, config: RunnableConfig) -> dict:
     # NOTE: skip only when there is no project context to propagate — both
     # a UUID in the message text AND a carried current_project_id from state.
     page_context = dict(state.get("page_context") or {})
-    existing_project_id = state.get("current_project_id") or page_context.get("project_id")
+    existing_project_id = state.get("current_project_id") or page_context.get(
+        "project_id"
+    )
     if last_user_msg and not _is_retrieval_query(last_user_msg):
         if not _extract_project_id_from_text(last_user_msg) and not existing_project_id:
             logger.debug(
@@ -504,20 +514,37 @@ async def rag_node(state: AgentState, config: RunnableConfig) -> dict:
 # Action verbs get higher weight; ambiguous nouns get lower weight
 INTENT_KEYWORDS = {
     "research": [
-        ("search", 2), ("find", 2), ("look up", 2), ("discover", 2),
-        ("ingest", 2), ("import", 2),
-        ("arxiv", 2), ("paper", 1), ("papers", 1),
+        ("search", 2),
+        ("find", 2),
+        ("look up", 2),
+        ("discover", 2),
+        ("ingest", 2),
+        ("import", 2),
+        ("arxiv", 2),
+        ("paper", 1),
+        ("papers", 1),
     ],
     "writing": [
-        ("write", 2), ("draft", 2), ("summarize", 2), ("summary", 2),
-        ("create note", 2), ("literature review", 2),
-        ("export", 2), ("bibliography", 2), ("cite", 2),
+        ("write", 2),
+        ("draft", 2),
+        ("summarize", 2),
+        ("summary", 2),
+        ("create note", 2),
+        ("literature review", 2),
+        ("export", 2),
+        ("bibliography", 2),
+        ("cite", 2),
         ("note", 1),
     ],
     "knowledge_graph": [
-        ("extract entities", 2), ("knowledge graph", 2),
-        ("entity", 2), ("entities", 2), ("relationship", 2),
-        ("ontology", 2), ("concept", 1), ("graph", 1),
+        ("extract entities", 2),
+        ("knowledge graph", 2),
+        ("entity", 2),
+        ("entities", 2),
+        ("relationship", 2),
+        ("ontology", 2),
+        ("concept", 1),
+        ("graph", 1),
     ],
 }
 
@@ -549,10 +576,7 @@ def _extract_prior_tool(messages: List[Any]) -> Optional[Dict[str, Any]]:
         # (or a synthetic placeholder) gets returned, misleading the
         # classifier about what just happened.
         for follow in messages[ai_idx + 1 :]:
-            if (
-                isinstance(follow, ToolMessage)
-                and follow.tool_call_id == tool_call_id
-            ):
+            if isinstance(follow, ToolMessage) and follow.tool_call_id == tool_call_id:
                 result = str(follow.content)
                 break
         return {
@@ -673,7 +697,9 @@ async def preprocessing_node(state: AgentState, config: RunnableConfig) -> dict:
     classify_task = asyncio.create_task(_classify_core(state, config))
     memory_task = asyncio.create_task(memory_retrieval_node(state, config))
 
-    results = await asyncio.gather(rag_task, classify_task, memory_task, return_exceptions=True)
+    results = await asyncio.gather(
+        rag_task, classify_task, memory_task, return_exceptions=True
+    )
 
     defaults = [
         {"retrieved_contexts": []},
@@ -719,18 +745,30 @@ def route_by_intent(state: AgentState) -> str:
 # ---------------------------------------------------------------------------
 
 RESEARCH_TOOLS_NAMES = {
-    "search_arxiv", "ingest_arxiv_papers", "search_documents",
-    "create_project", "list_projects", "add_document_to_project",
-    "list_project_documents", "execute_code",
+    "search_arxiv",
+    "ingest_arxiv_papers",
+    "search_documents",
+    "create_project",
+    "list_projects",
+    "add_document_to_project",
+    "list_project_documents",
+    "execute_code",
 }
 WRITING_TOOLS_NAMES = {
-    "create_draft", "create_project_note", "export_bibliography",
-    "summarize_document", "compare_documents",
+    "create_draft",
+    "create_project_note",
+    "export_bibliography",
+    "summarize_document",
+    "compare_documents",
 }
 KG_TOOLS_NAMES = {
-    "extract_entities", "search_knowledge_graph",
-    "explore_entity_neighborhood", "find_entity_paths", "get_graph_stats",
-    "search_documents", "execute_code",
+    "extract_entities",
+    "search_knowledge_graph",
+    "explore_entity_neighborhood",
+    "find_entity_paths",
+    "get_graph_stats",
+    "search_documents",
+    "execute_code",
 }
 
 INTENT_PROMPTS = {
@@ -762,12 +800,12 @@ INTENT_PROMPTS = {
 
 SHARED_AGENT_RULES = (
     "## Handling retry follow-ups\n"
-    "When the user says \"try again\", \"retry\", \"do it again\", \"one more time\", "
-    "\"again\", or any short follow-up that clearly references the previous action, "
+    'When the user says "try again", "retry", "do it again", "one more time", '
+    '"again", or any short follow-up that clearly references the previous action, '
     "re-execute the MOST RECENT tool call (visible in the conversation as the last "
     "AIMessage with tool_calls) with the SAME arguments. Do NOT pivot to a different "
     "action like list_projects or search_documents unless the user explicitly asks. "
-    "If the prior tool returned an error or \"skipped\" status, attempt the same call "
+    'If the prior tool returned an error or "skipped" status, attempt the same call '
     "once before suggesting alternatives.\n\n"
     "## Reusing project IDs from conversation history\n"
     "Before calling create_project, scan the conversation for the most recent "
@@ -775,8 +813,8 @@ SHARED_AGENT_RULES = (
     "(case-insensitive) already exists, REUSE its project_id — do not create a duplicate. "
     "If the existing project is archived and the user wants to use it, mention the "
     "archived status to the user before proceeding.\n"
-    "When the user refers to a project by name (\"use ML in FinTech\", \"add this to my "
-    "FinTech project\", \"the project\"), look up the project_id from the most recent "
+    'When the user refers to a project by name ("use ML in FinTech", "add this to my '
+    'FinTech project", "the project"), look up the project_id from the most recent '
     "list_projects or create_project tool result in the conversation. Do NOT ask the user "
     "for the project_id when it is already available in tool history.\n"
     "When a tool returns a project_id, treat that project as the active context for "
@@ -784,24 +822,24 @@ SHARED_AGENT_RULES = (
     "## Honest tool-call reporting\n"
     "Before claiming you completed an action (created a note, added a document, generated "
     "a draft, etc.), verify your conversation contains the corresponding successful "
-    "ToolMessage. If the user reports something is missing (\"I don't see the note\", "
-    "\"the doc isn't in the project\"), check your tool execution history first:\n"
+    'ToolMessage. If the user reports something is missing ("I don\'t see the note", '
+    '"the doc isn\'t in the project"), check your tool execution history first:\n'
     "- If you never actually called the tool, acknowledge it: \"I haven't created that "
-    "yet — let me do it now\" and call the tool.\n"
-    "- If the tool returned an error or \"skipped\" status, report what actually happened "
+    'yet — let me do it now" and call the tool.\n'
+    '- If the tool returned an error or "skipped" status, report what actually happened '
     "rather than offering generic troubleshooting advice.\n"
     "Never invent troubleshooting steps for actions you did not take.\n\n"
     "## Deriving search queries from active context\n"
-    "When the user asks for papers \"related to that\", \"about this project\", \"for the "
-    "project\", or any short phrase referencing the active context, derive the search_arxiv "
-    "query from the active project's NAME and DESCRIPTION (e.g. \"machine learning fintech\" "
-    "for a project named \"ML in FinTech\"). Do NOT use arXiv paper IDs that appear in "
+    'When the user asks for papers "related to that", "about this project", "for the '
+    'project", or any short phrase referencing the active context, derive the search_arxiv '
+    'query from the active project\'s NAME and DESCRIPTION (e.g. "machine learning fintech" '
+    'for a project named "ML in FinTech"). Do NOT use arXiv paper IDs that appear in '
     "conversation history as the search_arxiv query — arXiv IDs are inputs to "
     "ingest_arxiv_papers, not search_arxiv. If you need to fetch one specific known paper, "
     "use ingest_arxiv_papers directly with that ID.\n\n"
     "## Reusing document IDs from conversation history\n"
-    "When the user says \"it\", \"this paper\", \"that document\", \"the one I just "
-    "ingested\", or any short follow-up referring to a recent document, resolve to "
+    'When the user says "it", "this paper", "that document", "the one I just '
+    'ingested", or any short follow-up referring to a recent document, resolve to '
     "the document_id (UUID) returned by the most recent ingest_arxiv_papers, "
     "search_documents, or list_project_documents tool result in the conversation. "
     "Do NOT ask the user for the document_id when it is already available in tool "
@@ -815,8 +853,8 @@ SHARED_AGENT_RULES = (
     "assistant message in your next turn — never return empty content. The user "
     "cannot see raw tool results, so silence after a tool runs looks like a hang.\n"
     "- On success: confirm what happened in one short sentence and, when natural, "
-    "  offer the obvious next step (e.g. \"Project created. Want me to add the "
-    "  paper to it?\").\n"
+    '  offer the obvious next step (e.g. "Project created. Want me to add the '
+    '  paper to it?").\n'
     "- On error: state what failed and, if recoverable, what you'll try next.\n"
     "- If the tool result already contains an ID the user will need (project_id, "
     "  document_id), surface it in your reply so the user has it visible."
@@ -926,7 +964,7 @@ _LLM_NODE_STATIC_PROMPT = (
     "## /clear is a CLI primitive\n"
     "If the user message is exactly '/clear' or asks you to 'clear the "
     "chat' / 'clear history' / 'reset the screen', reply with one short "
-    "sentence: \"That's a CLI command — type /clear at the prompt.\" Do "
+    'sentence: "That\'s a CLI command — type /clear at the prompt." Do '
     "NOT pretend you cleared anything.\n\n"
     "When answering questions, use retrieved document context when available.\n"
     "Cite sources using [Doc N] format inline.\n"
@@ -956,7 +994,9 @@ async def llm_node(state: AgentState, config: RunnableConfig) -> dict:
     user_memories = state.get("user_memories", [])
     if user_memories:
         mem_text = "\n".join(
-            f"- {m.get('value', {}).get('query', '')}" for m in user_memories if m.get("value")
+            f"- {m.get('value', {}).get('query', '')}"
+            for m in user_memories
+            if m.get("value")
         )
         if mem_text.strip():
             dynamic_parts.append(f"Relevant past interactions:\n{mem_text}")
@@ -1012,9 +1052,7 @@ async def interrupt_node(state: AgentState, config: RunnableConfig) -> dict:
         return {"pending_confirmation": {}, "user_confirmed": True}
 
     confirmation_details = {
-        "tools": [
-            {"name": tc["name"], "args": tc["args"]} for tc in destructive_calls
-        ],
+        "tools": [{"name": tc["name"], "args": tc["args"]} for tc in destructive_calls],
         "message": f"The agent wants to execute {len(destructive_calls)} action(s) that modify your data. Please confirm.",
     }
 
@@ -1027,7 +1065,9 @@ async def interrupt_node(state: AgentState, config: RunnableConfig) -> dict:
     # User denied — add a message explaining and skip tool execution
     return {
         "messages": [
-            AIMessage(content="Action cancelled by user. Let me know if you'd like to proceed differently."),
+            AIMessage(
+                content="Action cancelled by user. Let me know if you'd like to proceed differently."
+            ),
         ],
         "pending_confirmation": {},
         "user_confirmed": False,
@@ -1037,7 +1077,21 @@ async def interrupt_node(state: AgentState, config: RunnableConfig) -> dict:
 TOOL_TIMEOUT_SECONDS = 30
 _SLOW_TOOL_TIMEOUT_SECONDS = 120  # ingest, draft generation, etc.
 _SLOW_TOOLS = {"ingest_arxiv_papers", "create_draft", "compare_documents"}
-_TOOL_SEMAPHORE = asyncio.Semaphore(3)
+
+
+def _resolve_tool_concurrency(default: int = 10) -> int:
+    """Read AGENT_TOOL_CONCURRENCY from env, falling back to *default*."""
+    raw = os.getenv("AGENT_TOOL_CONCURRENCY")
+    if raw is None:
+        return default
+    try:
+        value = int(raw)
+    except ValueError:
+        return default
+    return max(1, value)
+
+
+_TOOL_SEMAPHORE = asyncio.Semaphore(_resolve_tool_concurrency())
 
 
 def _record_tool_metrics(tool_name: str, status: str):
@@ -1075,7 +1129,9 @@ async def _execute_single_tool(
     error_text = ""
     error_info: dict = {}
 
-    timeout = _SLOW_TOOL_TIMEOUT_SECONDS if tool_name in _SLOW_TOOLS else TOOL_TIMEOUT_SECONDS
+    timeout = (
+        _SLOW_TOOL_TIMEOUT_SECONDS if tool_name in _SLOW_TOOLS else TOOL_TIMEOUT_SECONDS
+    )
 
     async with _TOOL_SEMAPHORE:
         try:
@@ -1086,7 +1142,11 @@ async def _execute_single_tool(
                     tool_executor(
                         tool_name=tool_name,
                         args=tool_args,
-                        user_id=str(configurable.get("current_user").id) if configurable.get("current_user") else "",
+                        user_id=(
+                            str(configurable.get("current_user").id)
+                            if configurable.get("current_user")
+                            else ""
+                        ),
                         db=configurable.get("db"),
                         current_user=configurable.get("current_user"),
                     ),
@@ -1096,7 +1156,9 @@ async def _execute_single_tool(
             # retry_transient handles TimeoutError/ConnectionError with backoff
             result = await retry_transient(_call_tool, max_attempts=3, base_delay=1.0)
 
-            result_content = json.dumps(result) if isinstance(result, dict) else str(result)
+            result_content = (
+                json.dumps(result) if isinstance(result, dict) else str(result)
+            )
             status = "completed"
 
             # Check if the result payload itself indicates an error
@@ -1111,7 +1173,13 @@ async def _execute_single_tool(
                 # Transient payload errors: already retried by retry_transient above
         except Exception as e:
             tool_error = classify_error(tool_name, e)
-            logger.error("Tool %s failed (%s): %s", tool_name, tool_error.category, e, exc_info=True)
+            logger.error(
+                "Tool %s failed (%s): %s",
+                tool_name,
+                tool_error.category,
+                e,
+                exc_info=True,
+            )
             status = "failed"
             error_increment = 1 if tool_error.category != "transient" else 0
             error_text = tool_error.message
@@ -1153,8 +1221,7 @@ async def tool_node(state: AgentState, config: RunnableConfig) -> dict:
 
     # Execute all tool calls concurrently with semaphore limiting
     tasks = [
-        _execute_single_tool(tc, config, page_context)
-        for tc in last_message.tool_calls
+        _execute_single_tool(tc, config, page_context) for tc in last_message.tool_calls
     ]
     results = await asyncio.gather(*tasks, return_exceptions=True)
 
@@ -1169,10 +1236,12 @@ async def tool_node(state: AgentState, config: RunnableConfig) -> dict:
             any_failure = True
             all_success = False
             tc = last_message.tool_calls[i]
-            tool_messages.append(ToolMessage(
-                content=json.dumps({"error": str(r)}),
-                tool_call_id=tc["id"],
-            ))
+            tool_messages.append(
+                ToolMessage(
+                    content=json.dumps({"error": str(r)}),
+                    tool_call_id=tc["id"],
+                )
+            )
             continue
         tool_messages.append(r["message"])
         tool_executions.append(r["execution"])
@@ -1259,9 +1328,7 @@ def make_filtered_tool_node(allowed_tool_names: set[str]):
         last_error_info: dict = {}
         page_context = state.get("page_context", {})
 
-        tasks = [
-            _execute_single_tool(tc, config, page_context) for tc in allowed_calls
-        ]
+        tasks = [_execute_single_tool(tc, config, page_context) for tc in allowed_calls]
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
         tool_messages = list(skipped_messages)
@@ -1341,9 +1408,7 @@ def should_continue(state: AgentState) -> str:
         and state.get("tool_loop_count", 0) < MAX_TOOL_LOOPS
     ):
         # Check if any tool call is destructive — route through interrupt
-        has_destructive = any(
-            tc["name"] in DESTRUCTIVE_TOOLS for tc in last.tool_calls
-        )
+        has_destructive = any(tc["name"] in DESTRUCTIVE_TOOLS for tc in last.tool_calls)
         if has_destructive:
             return "interrupt_node"
         return "tool_node"
