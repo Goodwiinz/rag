@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import '@testing-library/jest-dom';
+import '@testing-library/jest-dom/vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
 import SettingsPage from '../../../../app/(dashboard)/settings/page';
 

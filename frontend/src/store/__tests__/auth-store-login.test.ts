@@ -26,24 +26,18 @@ describe('useAuthStore signIn configuration handling', () => {
   });
 
   it('does not throw while importing the auth store when browser Supabase config is missing', async () => {
+    vi.resetModules();
     await expect(
-      vi.isolateModulesAsync(async () => {
-        await vi.importActual<typeof import('@/stores/authStore')>(
-          '@/stores/authStore'
-        );
-      })
-    ).resolves.not.toThrow();
+      vi.importActual<typeof import('@/stores/authStore')>('@/stores/authStore')
+    ).resolves.toBeDefined();
   });
 
   it('rejects signIn with a build-time config error when browser Supabase config is missing', async () => {
-    let useAuthStore: typeof import('@/stores/authStore').useAuthStore;
-
-    await vi.isolateModulesAsync(async () => {
-      ({ useAuthStore } =
-        await vi.importActual<typeof import('@/stores/authStore')>(
-          '@/stores/authStore'
-        ));
-    });
+    vi.resetModules();
+    const { useAuthStore } =
+      await vi.importActual<typeof import('@/stores/authStore')>(
+        '@/stores/authStore'
+      );
 
     await expect(
       useAuthStore.getState().signIn('admin@test.com', 'wrong-password')

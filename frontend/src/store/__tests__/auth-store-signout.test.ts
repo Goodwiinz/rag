@@ -22,13 +22,10 @@ describe('useAuthStore signOut', () => {
       clearWorkspaceServiceCache: mockClearWorkspaceServiceCache,
     }));
 
-    let useAuthStore: typeof import('@/stores/authStore').useAuthStore;
-    await vi.isolateModulesAsync(async () => {
-      ({ useAuthStore } =
-        await vi.importActual<typeof import('@/stores/authStore')>(
-          '@/stores/authStore'
-        ));
-    });
+    const { useAuthStore } =
+      await vi.importActual<typeof import('@/stores/authStore')>(
+        '@/stores/authStore'
+      );
 
     useAuthStore.setState({
       user: { id: 'user-1' } as any,

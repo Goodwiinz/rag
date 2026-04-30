@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import '@testing-library/jest-dom';
+import '@testing-library/jest-dom/vitest';
 import { render, screen } from '@testing-library/react';
 import OrganizationSettingsPage from '@/page-components/settings/OrganizationSettingsPage';
 

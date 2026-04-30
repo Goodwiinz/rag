@@ -1,5 +1,5 @@
 import { Mock, beforeEach, describe, expect, it, vi } from 'vitest';
-import '@testing-library/jest-dom';
+import '@testing-library/jest-dom/vitest';
 import type { ReactNode } from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import LoginPage from '@/page-components/auth/LoginPage';
