@@ -6,10 +6,12 @@ describe('vitest smoke', () => {
     expect(1 + 1).toBe(2);
   });
 
-  it('can import a TS path alias', async () => {
-    // tsconfig has @/* → src/* — proves vite-tsconfig-paths is wired
+  it('can import a TS path alias and resolves to src/, not app/', async () => {
     const mod = await import('@/types/schemas');
-    expect(typeof mod).toBe('object');
+    // DocumentSchema is defined in src/types/schemas.ts; if @/* ever
+    // silently re-resolves to app/, this assertion catches it.
+    expect(mod.DocumentSchema).toBeDefined();
+    expect(typeof mod.DocumentSchema.parse).toBe('function');
   });
 
   it('has a working DOM', () => {
