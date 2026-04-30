@@ -31,18 +31,37 @@ _jobs: OrderedDict[str, dict] = OrderedDict()
 _jobs_lock = Lock()
 MAX_JOBS = 500
 
+# Throttle so reads don't run the cleanup loop on every request when the
+# server is hot — at most once per minute is enough to evict expired jobs
+# in a quiet steady state.
+_CLEANUP_INTERVAL_SECONDS = 60.0
+_last_cleanup_at: float = 0.0
+
 
 def _cleanup_jobs():
     """Remove expired jobs (>1 hour) and evict oldest when over MAX_JOBS.
 
     Must be called while holding ``_jobs_lock``.
     """
+    global _last_cleanup_at
     now = time.time()
     expired = [k for k, v in _jobs.items() if now - v.get("created_at", now) > 3600]
     for k in expired:
         del _jobs[k]
     while len(_jobs) > MAX_JOBS:
         _jobs.popitem(last=False)
+    _last_cleanup_at = now
+
+
+def _maybe_cleanup_jobs():
+    """Throttled cleanup invoked from read paths.
+
+    Without this, ``_cleanup_jobs`` only runs on writes, so a server that
+    stops receiving new jobs would hold stale entries until restart.
+    Must be called while holding ``_jobs_lock``.
+    """
+    if time.time() - _last_cleanup_at >= _CLEANUP_INTERVAL_SECONDS:
+        _cleanup_jobs()
 
 
 def _set_job(job_id: str, data: dict):
@@ -54,6 +73,7 @@ def _set_job(job_id: str, data: dict):
 
 def _get_job(job_id: str) -> dict | None:
     with _jobs_lock:
+        _maybe_cleanup_jobs()
         return _jobs.get(job_id)
 
 
