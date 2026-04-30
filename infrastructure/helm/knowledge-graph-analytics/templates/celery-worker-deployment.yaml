@@ -57,17 +57,17 @@ spec:
               cpu: 200m
               memory: 512Mi
             {{- end }}
+          # Targets the local worker only (-d celery@$HOSTNAME) instead of broadcasting to the
+          # whole cluster — avoids false kills under CPU pressure when the control-plane
+          # round-trip exceeds the probe timeout.
           livenessProbe:
             exec:
               command:
-                - celery
-                - -A
-                - src.tasks.celery_app
-                - inspect
-                - ping
-                - --timeout={{ .Values.celeryWorker.livenessProbe.commandTimeout | default 10 }}
+                - sh
+                - -c
+                - celery -A src.tasks.celery_app inspect ping -d celery@$HOSTNAME --timeout={{ .Values.celeryWorker.livenessProbe.commandTimeout | default 60 }}
             initialDelaySeconds: {{ .Values.celeryWorker.livenessProbe.initialDelaySeconds | default 60 }}
-            periodSeconds: {{ .Values.celeryWorker.livenessProbe.periodSeconds | default 120 }}
-            timeoutSeconds: {{ .Values.celeryWorker.livenessProbe.timeoutSeconds | default 30 }}
-            failureThreshold: {{ .Values.celeryWorker.livenessProbe.failureThreshold | default 5 }}
+            periodSeconds: {{ .Values.celeryWorker.livenessProbe.periodSeconds | default 180 }}
+            timeoutSeconds: {{ .Values.celeryWorker.livenessProbe.timeoutSeconds | default 90 }}
+            failureThreshold: {{ .Values.celeryWorker.livenessProbe.failureThreshold | default 10 }}
 {{- end }}
