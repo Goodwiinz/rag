@@ -263,11 +263,11 @@ celeryWorker:
     maxReplicas: 3
     targetCPUUtilizationPercentage: 90
   livenessProbe:
-    commandTimeout: 15
+    commandTimeout: 60
     initialDelaySeconds: 60
-    periodSeconds: 120
-    timeoutSeconds: 30
-    failureThreshold: 5
+    periodSeconds: 180
+    timeoutSeconds: 90
+    failureThreshold: 10
   resources:
     limits:
       cpu: "1"
