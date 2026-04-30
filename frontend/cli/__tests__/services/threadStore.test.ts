@@ -10,11 +10,11 @@ describe('threadStore', () => {
   let tmpDir: string;
   let store: typeof import('../../services/threadStore');
 
-  beforeEach(() => {
+  beforeEach(async () => {
     tmpDir = mkdtempSync(path.join(os.tmpdir(), 'nous-threadstore-'));
     process.env.NOUS_CONFIG_DIR = tmpDir;
     vi.resetModules();
-    store = require('../../services/threadStore');
+    store = await import('../../services/threadStore');
   });
 
   afterEach(() => {

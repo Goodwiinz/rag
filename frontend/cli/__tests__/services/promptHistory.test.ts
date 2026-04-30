@@ -10,11 +10,11 @@ describe('promptHistory', () => {
   let tmpDir: string;
   let store: typeof import('../../services/promptHistory');
 
-  beforeEach(() => {
+  beforeEach(async () => {
     tmpDir = mkdtempSync(path.join(os.tmpdir(), 'nous-prompthistory-'));
     process.env.NOUS_CONFIG_DIR = tmpDir;
     vi.resetModules();
-    store = require('../../services/promptHistory');
+    store = await import('../../services/promptHistory');
   });
 
   afterEach(() => {

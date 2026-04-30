@@ -10,11 +10,11 @@ describe('draft store', () => {
   let tmp: string;
   let store: typeof import('../../services/draft');
 
-  beforeEach(() => {
+  beforeEach(async () => {
     tmp = mkdtempSync(path.join(os.tmpdir(), 'nous-draft-'));
     process.env.NOUS_CONFIG_DIR = tmp;
     vi.resetModules();
-    store = require('../../services/draft');
+    store = await import('../../services/draft');
   });
 
   afterEach(() => {

@@ -1,7 +1,17 @@
 /**
  * @vitest-environment node
  */
-import { Mock, Mocked, MockedFunction, afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
+import {
+  Mock,
+  Mocked,
+  MockedFunction,
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  test,
+  vi,
+} from 'vitest';
 import { mkdtempSync, rmSync } from 'fs';
 import * as os from 'os';
 import * as path from 'path';
@@ -18,6 +28,8 @@ import {
 } from '../repl';
 import * as store from '../auth/store';
 import * as stream from '../stream';
+import * as threadsService from '../services/threads';
+import * as projectsService from '../services/projects';
 
 vi.mock('@clack/prompts', () => ({
   text: vi.fn(),
@@ -54,9 +66,7 @@ vi.mock('../services/projects', () => ({
 let tmpConfigDir: string;
 
 const mockedText = prompts.text as MockedFunction<typeof prompts.text>;
-const mockedConfirm = prompts.confirm as MockedFunction<
-  typeof prompts.confirm
->;
+const mockedConfirm = prompts.confirm as MockedFunction<typeof prompts.confirm>;
 const mockedLog = prompts.log as Mocked<typeof prompts.log>;
 const mockedLoadConfig = store.loadConfig as MockedFunction<
   typeof store.loadConfig
@@ -400,7 +410,8 @@ describe('confirm flow happy path', () => {
   });
 
   test('does not carry pre-confirm tokens into post-confirm markdown reformat', async () => {
-    const writeSpy = vi.spyOn(process.stdout, 'write')
+    const writeSpy = vi
+      .spyOn(process.stdout, 'write')
       .mockImplementation(() => true);
     Object.defineProperty(process.stdout, 'isTTY', {
       value: true,
@@ -456,7 +467,7 @@ describe('thread registry side effects', () => {
 
     await runRepl();
 
-    const reg = require('../services/threadStore').loadRegistry();
+    const reg = (await import('../services/threadStore')).loadRegistry();
     expect(reg.entries).toHaveLength(1);
     expect(reg.entries[0].id).toBe('stale-thread');
     expect(reg.entries[0].title).toBe('Summarise the latest arXiv on RAG');
@@ -464,13 +475,9 @@ describe('thread registry side effects', () => {
 });
 
 describe('slash commands: threads/history/forget', () => {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const threadsModule = require('../services/threads') as {
-    fetchThreads: Mock;
-    fetchThreadMessages: Mock;
-  };
-  const fetchThreadsMock = threadsModule.fetchThreads;
-  const fetchMessagesMock = threadsModule.fetchThreadMessages;
+  const fetchThreadsMock = threadsService.fetchThreads as unknown as Mock;
+  const fetchMessagesMock =
+    threadsService.fetchThreadMessages as unknown as Mock;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const mockedSelect = (prompts as any).select as Mock;
 
@@ -481,7 +488,7 @@ describe('slash commands: threads/history/forget', () => {
   });
 
   test('/threads switches to the picked thread', async () => {
-    const store = require('../services/threadStore');
+    const store = await import('../services/threadStore');
     store.upsertThread({ id: 'thread-A', title: 'Older' });
     store.upsertThread({ id: 'thread-B', title: 'Newer' });
 
@@ -537,7 +544,7 @@ describe('slash commands: threads/history/forget', () => {
   });
 
   test('/forget removes from registry and clears the active thread', async () => {
-    const store = require('../services/threadStore');
+    const store = await import('../services/threadStore');
     store.upsertThread({ id: 'stale-thread', title: 'To remove' });
 
     mockedText.mockReset();
@@ -670,11 +677,7 @@ describe('renderCitationsFooter / renderUsageLine (pure helpers)', () => {
 });
 
 describe('slash commands: /projects', () => {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const projectsModule = require('../services/projects') as {
-    fetchProjects: Mock;
-  };
-  const fetchProjectsMock = projectsModule.fetchProjects;
+  const fetchProjectsMock = projectsService.fetchProjects as unknown as Mock;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const mockedSelect = (prompts as any).select as Mock;
 
@@ -785,7 +788,8 @@ describe('streamToTerminal: withRetry on initial call', () => {
 
 describe('SIGINT scoping', () => {
   test('SIGINT mid-stream aborts the stream and returns to prompt (does not exit)', async () => {
-    const exitSpy = vi.spyOn(process, 'exit')
+    const exitSpy = vi
+      .spyOn(process, 'exit')
       .mockImplementation((() => undefined) as never);
 
     let abortRef: AbortSignal | undefined;
@@ -878,7 +882,7 @@ describe('/retry', () => {
 
 describe('draft restore on startup', () => {
   test('first readPrompt receives initialValue from ~/.nous/draft.txt; file is then empty', async () => {
-    const draft = require('../services/draft');
+    const draft = await import('../services/draft');
     draft.writeDraft('half typed');
     mockedText.mockReset();
     mockedText.mockResolvedValueOnce('__CANCEL__' as never);
