@@ -1,3 +1,4 @@
+import { Mocked, beforeEach, describe, expect, it, vi } from 'vitest';
 import ArxivManagement from '@/components/arxiv/ArxivManagement';
 import { apiClient } from '@/services/apiClient';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
@@ -7,19 +8,19 @@ let mockAuthStoreState = {
   isLoading: false,
 };
 
-jest.mock('@/services/apiClient', () => ({
+vi.mock('@/services/apiClient', () => ({
   apiClient: {
-    get: jest.fn(),
-    postWithLongTimeout: jest.fn(),
+    get: vi.fn(),
+    postWithLongTimeout: vi.fn(),
   },
 }));
 
-jest.mock('@/stores/authStore', () => ({
+vi.mock('@/stores/authStore', () => ({
   useAuthStore: (selector: (state: typeof mockAuthStoreState) => unknown) =>
     selector(mockAuthStoreState),
 }));
 
-jest.mock('framer-motion', () => {
+vi.mock('framer-motion', () => {
   const MotionDiv = ({ children, ...props }: any) => {
     const { initial, animate, exit, transition, layoutId, ...domProps } = props;
     void initial;
@@ -49,7 +50,7 @@ jest.mock('framer-motion', () => {
   };
 });
 
-const mockApiClient = apiClient as jest.Mocked<typeof apiClient>;
+const mockApiClient = apiClient as Mocked<typeof apiClient>;
 
 const statsResponse = {
   status: 'success',
@@ -70,7 +71,7 @@ const statsResponse = {
 
 describe('ArxivManagement', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     mockAuthStoreState = {
       isAuthenticated: true,
       isLoading: false,

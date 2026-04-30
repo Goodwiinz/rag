@@ -1,20 +1,21 @@
 /**
- * @jest-environment node
+ * @vitest-environment node
  */
+import { MockedFunction, afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { streamAgent, streamConfirm } from '../stream';
 import * as store from '../auth/store';
 import * as client from '../services/client';
 
-jest.mock('../auth/store');
-jest.mock('../services/client');
+vi.mock('../auth/store');
+vi.mock('../services/client');
 
-const mockedLoadConfig = store.loadConfig as jest.MockedFunction<
+const mockedLoadConfig = store.loadConfig as MockedFunction<
   typeof store.loadConfig
 >;
-const mockedSaveConfig = store.saveConfig as jest.MockedFunction<
+const mockedSaveConfig = store.saveConfig as MockedFunction<
   typeof store.saveConfig
 >;
-const mockedGetHeaders = client.getCliAuthHeaders as jest.MockedFunction<
+const mockedGetHeaders = client.getCliAuthHeaders as MockedFunction<
   typeof client.getCliAuthHeaders
 >;
 
@@ -54,10 +55,10 @@ beforeEach(() => {
   mockedGetHeaders.mockReturnValue(HEADERS);
 });
 
-afterEach(() => jest.clearAllMocks());
+afterEach(() => vi.clearAllMocks());
 
 test('yields token events', async () => {
-  const mockFetch = jest.fn().mockResolvedValue(
+  const mockFetch = vi.fn().mockResolvedValue(
     sseResponse([
       { event: 'token', data: { content: 'Hello ' } },
       { event: 'token', data: { content: 'world' } },
@@ -78,7 +79,7 @@ test('yields token events', async () => {
 });
 
 test('yields tool_start and tool_end events', async () => {
-  const mockFetch = jest.fn().mockResolvedValue(
+  const mockFetch = vi.fn().mockResolvedValue(
     sseResponse([
       { event: 'tool_start', data: { tool: 'search_arxiv' } },
       { event: 'tool_end', data: { tool: 'search_arxiv', is_error: false } },
@@ -109,7 +110,7 @@ test('yields tool_start and tool_end events', async () => {
 });
 
 test('yields error event when tool_end has is_error=true', async () => {
-  const mockFetch = jest.fn().mockResolvedValue(
+  const mockFetch = vi.fn().mockResolvedValue(
     sseResponse([
       { event: 'tool_start', data: { tool: 'ingest_papers' } },
       { event: 'tool_end', data: { tool: 'ingest_papers', is_error: true } },
@@ -135,7 +136,7 @@ test('yields error event when tool_end has is_error=true', async () => {
 });
 
 test('yields confirmation event', async () => {
-  const mockFetch = jest.fn().mockResolvedValue(
+  const mockFetch = vi.fn().mockResolvedValue(
     sseResponse([
       {
         event: 'confirmation',
@@ -158,8 +159,7 @@ test('yields confirmation event', async () => {
 });
 
 test('yields error event on non-ok response', async () => {
-  const mockFetch = jest
-    .fn()
+  const mockFetch = vi.fn()
     .mockResolvedValue({ ok: false, status: 401, body: null });
 
   const events: unknown[] = [];
@@ -181,7 +181,7 @@ test('throws when not logged in', async () => {
 });
 
 test('skips token events with empty content', async () => {
-  const mockFetch = jest.fn().mockResolvedValue(
+  const mockFetch = vi.fn().mockResolvedValue(
     sseResponse([
       { event: 'token', data: { content: '' } },
       { event: 'token', data: { content: 'real' } },
@@ -202,7 +202,7 @@ test('skips token events with empty content', async () => {
 test('persists thread_id from trace event on first turn', async () => {
   mockedLoadConfig.mockReturnValue({ ...CONFIG, thread_id: null });
 
-  const mockFetch = jest.fn().mockResolvedValue(
+  const mockFetch = vi.fn().mockResolvedValue(
     sseResponse([
       { event: 'trace', data: { thread_id: 'abc-123' } },
       { event: 'token', data: { content: 'hi' } },
@@ -222,7 +222,7 @@ test('persists thread_id from trace event on first turn', async () => {
 test('updates thread_id when backend returns a different one', async () => {
   mockedLoadConfig.mockReturnValue({ ...CONFIG, thread_id: 'stale-id' });
 
-  const mockFetch = jest.fn().mockResolvedValue(
+  const mockFetch = vi.fn().mockResolvedValue(
     sseResponse([
       { event: 'trace', data: { thread_id: 'fresh-id' } },
       { event: 'done', data: {} },
@@ -241,7 +241,7 @@ test('updates thread_id when backend returns a different one', async () => {
 test('skips save when trace thread_id matches cached thread_id', async () => {
   mockedLoadConfig.mockReturnValue({ ...CONFIG, thread_id: 'same-id' });
 
-  const mockFetch = jest.fn().mockResolvedValue(
+  const mockFetch = vi.fn().mockResolvedValue(
     sseResponse([
       { event: 'trace', data: { thread_id: 'same-id' } },
       { event: 'done', data: {} },
@@ -256,7 +256,7 @@ test('skips save when trace thread_id matches cached thread_id', async () => {
 });
 
 test('yields plan event with steps and reasoning', async () => {
-  const mockFetch = jest.fn().mockResolvedValue(
+  const mockFetch = vi.fn().mockResolvedValue(
     sseResponse([
       {
         event: 'plan',
@@ -279,7 +279,7 @@ test('yields plan event with steps and reasoning', async () => {
 });
 
 test('yields reflection event with passed/issues/round', async () => {
-  const mockFetch = jest.fn().mockResolvedValue(
+  const mockFetch = vi.fn().mockResolvedValue(
     sseResponse([
       {
         event: 'reflection',
@@ -303,7 +303,7 @@ test('yields reflection event with passed/issues/round', async () => {
 });
 
 test('yields rag_context event with contexts array', async () => {
-  const mockFetch = jest.fn().mockResolvedValue(
+  const mockFetch = vi.fn().mockResolvedValue(
     sseResponse([
       {
         event: 'rag_context',
@@ -327,7 +327,7 @@ test('yields rag_context event with contexts array', async () => {
 test('streamConfirm persists thread_id rotation from trace event', async () => {
   mockedLoadConfig.mockReturnValue({ ...CONFIG, thread_id: 'stale-id' });
 
-  const mockFetch = jest.fn().mockResolvedValue(
+  const mockFetch = vi.fn().mockResolvedValue(
     sseResponse([
       { event: 'trace', data: { thread_id: 'rotated-id' } },
       { event: 'done', data: {} },
@@ -355,7 +355,7 @@ test('emits IDLE_TIMEOUT sentinel error when no events arrive within idleTimeout
       },
     }),
   };
-  const mockFetch = jest.fn().mockResolvedValue(slowResponse);
+  const mockFetch = vi.fn().mockResolvedValue(slowResponse);
 
   const events: unknown[] = [];
   for await (const e of streamAgent(

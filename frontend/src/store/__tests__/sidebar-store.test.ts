@@ -5,6 +5,7 @@
  * mobile/tablet responsive handling, computed values, and animation states.
  */
 
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act } from '@testing-library/react';
 import { useSidebarStore } from '../sidebar-store';
 
@@ -13,7 +14,7 @@ import { useSidebarStore } from '../sidebar-store';
 // ---------------------------------------------------------------------------
 
 beforeEach(() => {
-  jest.useFakeTimers();
+  vi.useFakeTimers();
 
   // Reset the store to a known initial state
   act(() => {
@@ -29,8 +30,8 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  jest.runAllTimers();
-  jest.useRealTimers();
+  vi.runAllTimers();
+  vi.useRealTimers();
 });
 
 // ---------------------------------------------------------------------------
@@ -84,7 +85,7 @@ describe('useSidebarStore', () => {
       expect(useSidebarStore.getState().isAnimating).toBe(true);
 
       act(() => {
-        jest.advanceTimersByTime(300);
+        vi.advanceTimersByTime(300);
       });
 
       expect(useSidebarStore.getState().isAnimating).toBe(false);

@@ -5,6 +5,7 @@
  * pagination, selection, and authentication handling.
  */
 
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderHook, act, waitFor } from '@testing-library/react';
 import { useDocuments } from '../useDocuments';
 
@@ -12,11 +13,11 @@ import { useDocuments } from '../useDocuments';
 // Mocks
 // ---------------------------------------------------------------------------
 
-const mockGet = jest.fn();
-const mockDelete = jest.fn();
-const mockPost = jest.fn();
+const mockGet = vi.fn();
+const mockDelete = vi.fn();
+const mockPost = vi.fn();
 
-jest.mock('@/services/apiClient', () => ({
+vi.mock('@/services/apiClient', () => ({
   apiClient: {
     get: (...args: unknown[]) => mockGet(...args),
     delete: (...args: unknown[]) => mockDelete(...args),
@@ -24,9 +25,9 @@ jest.mock('@/services/apiClient', () => ({
   },
 }));
 
-const mockHandleAuthError = jest.fn();
+const mockHandleAuthError = vi.fn();
 
-jest.mock('@/hooks/useAuth', () => ({
+vi.mock('@/hooks/useAuth', () => ({
   useAuth: () => ({
     isAuthenticated: true,
     isLoading: false,
@@ -40,14 +41,14 @@ jest.mock('@/hooks/useAuth', () => ({
 
 /** Suppress console noise during tests */
 beforeEach(() => {
-  jest.clearAllMocks();
-  jest.spyOn(console, 'log').mockImplementation();
-  jest.spyOn(console, 'warn').mockImplementation();
-  jest.spyOn(console, 'error').mockImplementation();
+  vi.clearAllMocks();
+  vi.spyOn(console, 'log').mockImplementation();
+  vi.spyOn(console, 'warn').mockImplementation();
+  vi.spyOn(console, 'error').mockImplementation();
 });
 
 afterEach(() => {
-  jest.restoreAllMocks();
+  vi.restoreAllMocks();
 });
 
 /** Create a realistic backend document response. */

@@ -4,6 +4,7 @@
  * Tests API client calls with mocked responses
  */
 
+import { Mocked, beforeEach, describe, expect, it, vi } from 'vitest';
 import { projectChatService } from '../projectChatService';
 import { apiClient } from '../apiClient';
 import type {
@@ -16,15 +17,15 @@ import type {
 } from '@/types/project-chat';
 
 // Mock the API client
-jest.mock('../apiClient', () => ({
+vi.mock('../apiClient', () => ({
   apiClient: {
-    get: jest.fn(),
-    post: jest.fn(),
-    delete: jest.fn(),
+    get: vi.fn(),
+    post: vi.fn(),
+    delete: vi.fn(),
   },
 }));
 
-const mockApiClient = apiClient as jest.Mocked<typeof apiClient>;
+const mockApiClient = apiClient as Mocked<typeof apiClient>;
 
 // ============================================================================
 // Test Data Factories
@@ -59,7 +60,7 @@ const createMockStartResponse = (overrides: Partial<StartChatFromProjectResponse
 
 describe('projectChatService', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   // ==========================================================================

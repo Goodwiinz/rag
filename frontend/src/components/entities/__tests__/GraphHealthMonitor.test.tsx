@@ -1,28 +1,29 @@
+import { Mock, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { GraphHealthMonitor } from '@/components/entities/GraphHealthMonitor';
 import { apiClient } from '@/services/apiClient';
 
-jest.mock('react-hot-toast', () => ({
+vi.mock('react-hot-toast', () => ({
   __esModule: true,
   default: {
-    success: jest.fn(),
-    error: jest.fn(),
+    success: vi.fn(),
+    error: vi.fn(),
   },
 }));
 
-jest.mock('@/services/apiClient', () => ({
+vi.mock('@/services/apiClient', () => ({
   apiClient: {
-    get: jest.fn(),
+    get: vi.fn(),
   },
 }));
 
 describe('GraphHealthMonitor', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   it('renders health metrics when API returns backend health shape', async () => {
-    (apiClient.get as jest.Mock).mockResolvedValue({
+    (apiClient.get as Mock).mockResolvedValue({
       status: 'healthy',
       neo4j_version: '5.0',
       database_size: '1.2 GB',

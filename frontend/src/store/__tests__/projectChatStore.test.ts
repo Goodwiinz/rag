@@ -4,6 +4,7 @@
  * Tests Zustand store state management, actions, and selectors
  */
 
+import { Mocked, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act } from '@testing-library/react';
 import {
   useProjectChatStore,
@@ -19,17 +20,17 @@ import type {
 } from '@/types/project-chat';
 
 // Mock the service
-jest.mock('@/services/projectChatService', () => ({
+vi.mock('@/services/projectChatService', () => ({
   projectChatService: {
-    listProjectThreads: jest.fn(),
-    startChatFromProject: jest.fn(),
-    linkThreadToProject: jest.fn(),
-    unlinkThreadFromProject: jest.fn(),
-    saveThreadToNote: jest.fn(),
+    listProjectThreads: vi.fn(),
+    startChatFromProject: vi.fn(),
+    linkThreadToProject: vi.fn(),
+    unlinkThreadFromProject: vi.fn(),
+    saveThreadToNote: vi.fn(),
   },
 }));
 
-const mockService = projectChatService as jest.Mocked<typeof projectChatService>;
+const mockService = projectChatService as Mocked<typeof projectChatService>;
 
 // ============================================================================
 // Test Data Factories
@@ -63,7 +64,7 @@ const createMockStartResponse = (): StartChatFromProjectResponse => ({
 
 describe('useProjectChatStore', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     // Reset store to initial state
     act(() => {
       useProjectChatStore.getState().reset();
@@ -145,7 +146,7 @@ describe('useProjectChatStore', () => {
     });
 
     it('should guard against invalid project ID', async () => {
-      const consoleSpy = jest.spyOn(console, 'warn').mockImplementation();
+      const consoleSpy = vi.spyOn(console, 'warn').mockImplementation();
 
       await act(async () => {
         await useProjectChatStore.getState().fetchProjectThreads('');
@@ -161,7 +162,7 @@ describe('useProjectChatStore', () => {
     });
 
     it('should guard against undefined project ID', async () => {
-      const consoleSpy = jest.spyOn(console, 'warn').mockImplementation();
+      const consoleSpy = vi.spyOn(console, 'warn').mockImplementation();
 
       await act(async () => {
         await useProjectChatStore.getState().fetchProjectThreads('undefined');

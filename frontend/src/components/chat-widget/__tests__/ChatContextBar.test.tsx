@@ -1,10 +1,11 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, fireEvent } from '@/test/test-utils';
 import { ChatContextBar } from '../ChatContextBar';
 import type { ContextChip } from '@/types/chat-widget';
 import { expectNoA11yViolations } from '@/test/a11y';
 
 // Mock lucide-react icons
-jest.mock('lucide-react', () => ({
+vi.mock('lucide-react', () => ({
   FileText: (props: React.SVGAttributes<SVGElement>) => (
     <svg data-testid="icon-file-text" {...props} />
   ),
@@ -17,7 +18,7 @@ jest.mock('lucide-react', () => ({
 }));
 
 // Mock tooltip (renders children directly without Radix portal overhead)
-jest.mock('@/components/ui/tooltip', () => ({
+vi.mock('@/components/ui/tooltip', () => ({
   Tooltip: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   TooltipContent: ({ children }: { children: React.ReactNode }) => (
     <>{children}</>
@@ -61,12 +62,12 @@ const mockChips: ContextChip[] = [
 describe('ChatContextBar', () => {
   const defaultProps = {
     chips: mockChips,
-    onToggleChip: jest.fn(),
-    onToggleAll: jest.fn(),
+    onToggleChip: vi.fn(),
+    onToggleAll: vi.fn(),
   };
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   it('renders "Chatting with:" label', () => {
@@ -86,7 +87,7 @@ describe('ChatContextBar', () => {
   });
 
   it('calls onToggleChip when chip clicked', () => {
-    const onToggleChip = jest.fn();
+    const onToggleChip = vi.fn();
     render(<ChatContextBar {...defaultProps} onToggleChip={onToggleChip} />);
 
     fireEvent.click(
@@ -101,7 +102,7 @@ describe('ChatContextBar', () => {
   });
 
   it('renders "All" button that toggles all chips', () => {
-    const onToggleAll = jest.fn();
+    const onToggleAll = vi.fn();
     render(<ChatContextBar {...defaultProps} onToggleAll={onToggleAll} />);
 
     const allButton = screen.getByText('All');
@@ -139,8 +140,8 @@ describe('ChatContextBar a11y', () => {
     const { container } = render(
       <ChatContextBar
         chips={mockChips}
-        onToggleChip={jest.fn()}
-        onToggleAll={jest.fn()}
+        onToggleChip={vi.fn()}
+        onToggleAll={vi.fn()}
       />
     );
     await expectNoA11yViolations(container);

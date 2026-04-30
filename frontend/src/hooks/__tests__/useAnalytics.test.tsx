@@ -1,46 +1,47 @@
+import { Mock, Mocked, beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderHook } from '@testing-library/react';
 import { useAnalyticsStore, useTimeRange, useAnalyticsFilters } from '@/stores/analyticsStore';
 import analyticsService from '@/services/analyticsService';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRAGTriadMetrics, usePerformanceAnalytics, useAnalyticsActions } from '../useAnalytics';
 
-jest.mock('@tanstack/react-query', () => ({
-  useQuery: jest.fn(),
-  useMutation: jest.fn(),
-  useQueryClient: jest.fn(),
+vi.mock('@tanstack/react-query', () => ({
+  useQuery: vi.fn(),
+  useMutation: vi.fn(),
+  useQueryClient: vi.fn(),
 }));
 
-jest.mock('@/services/analyticsService', () => ({
+vi.mock('@/services/analyticsService', () => ({
   __esModule: true,
   default: {
-    getRAGTriadMetrics: jest.fn(),
-    getPerformanceAnalytics: jest.fn(),
+    getRAGTriadMetrics: vi.fn(),
+    getPerformanceAnalytics: vi.fn(),
   },
 }));
 
-jest.mock('@/stores/analyticsStore', () => ({
-  useAnalyticsStore: jest.fn(),
-  useTimeRange: jest.fn(),
-  useAnalyticsFilters: jest.fn(),
+vi.mock('@/stores/analyticsStore', () => ({
+  useAnalyticsStore: vi.fn(),
+  useTimeRange: vi.fn(),
+  useAnalyticsFilters: vi.fn(),
 }));
 
-const mockUseQuery = useQuery as jest.Mock;
-const mockUseQueryClient = useQueryClient as jest.Mock;
-const mockUseAnalyticsStore = useAnalyticsStore as unknown as jest.Mock;
-const mockUseTimeRange = useTimeRange as unknown as jest.Mock;
-const mockUseAnalyticsFilters = useAnalyticsFilters as unknown as jest.Mock;
-const mockAnalyticsService = analyticsService as jest.Mocked<typeof analyticsService>;
+const mockUseQuery = useQuery as Mock;
+const mockUseQueryClient = useQueryClient as Mock;
+const mockUseAnalyticsStore = useAnalyticsStore as unknown as Mock;
+const mockUseTimeRange = useTimeRange as unknown as Mock;
+const mockUseAnalyticsFilters = useAnalyticsFilters as unknown as Mock;
+const mockAnalyticsService = analyticsService as Mocked<typeof analyticsService>;
 
 const storeActions = {
-  setTimeRange: jest.fn(),
-  setFilters: jest.fn(),
-  setRealTimeMetrics: jest.fn(),
-  setRealTimeConnection: jest.fn(),
+  setTimeRange: vi.fn(),
+  setFilters: vi.fn(),
+  setRealTimeMetrics: vi.fn(),
+  setRealTimeConnection: vi.fn(),
 };
 
 describe('useAnalytics', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
 
     mockUseQuery.mockReturnValue({
       data: undefined,
@@ -50,7 +51,7 @@ describe('useAnalytics', () => {
     });
 
     mockUseQueryClient.mockReturnValue({
-      invalidateQueries: jest.fn(),
+      invalidateQueries: vi.fn(),
     });
 
     mockUseTimeRange.mockReturnValue({
@@ -121,7 +122,7 @@ describe('useAnalytics', () => {
   });
 
   it('updates time range and invalidates related queries', () => {
-    const invalidateQueries = jest.fn();
+    const invalidateQueries = vi.fn();
     mockUseQueryClient.mockReturnValue({ invalidateQueries });
 
     const { result } = renderHook(() => useAnalyticsActions());
@@ -140,7 +141,7 @@ describe('useAnalytics', () => {
   });
 
   it('updates filters and invalidates performance query', () => {
-    const invalidateQueries = jest.fn();
+    const invalidateQueries = vi.fn();
     mockUseQueryClient.mockReturnValue({ invalidateQueries });
 
     const { result } = renderHook(() => useAnalyticsActions());

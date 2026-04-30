@@ -5,10 +5,11 @@
  * `onAttach` with the selected FileList.
  */
 
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, fireEvent } from '@testing-library/react';
 
 // Mock framer-motion to avoid animation issues in tests
-jest.mock('framer-motion', () => ({
+vi.mock('framer-motion', () => ({
   motion: {
     div: ({ children, ...props }: any) => <div {...props}>{children}</div>,
     span: ({ children, ...props }: any) => <span {...props}>{children}</span>,
@@ -17,26 +18,26 @@ jest.mock('framer-motion', () => ({
     ),
   },
   AnimatePresence: ({ children }: any) => <>{children}</>,
-  useMotionValue: () => ({ set: jest.fn(), get: () => 0 }),
+  useMotionValue: () => ({ set: vi.fn(), get: () => 0 }),
   useSpring: (v: any) => v,
-  useTransform: () => ({ set: jest.fn(), get: () => 0 }),
+  useTransform: () => ({ set: vi.fn(), get: () => 0 }),
 }));
 
 import { ChatInput } from '../ChatInput';
 
 const baseProps = {
   value: '',
-  onChange: jest.fn(),
-  onSubmit: jest.fn(),
-  onStop: jest.fn(),
+  onChange: vi.fn(),
+  onSubmit: vi.fn(),
+  onStop: vi.fn(),
   isLoading: false,
   enableRAG: true,
-  onRAGToggle: jest.fn(),
+  onRAGToggle: vi.fn(),
 };
 
 describe('ChatInput file attach', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   it('renders a hidden file input wired into the Paperclip control', () => {
@@ -49,7 +50,7 @@ describe('ChatInput file attach', () => {
   });
 
   it('calls onAttach with selected files', () => {
-    const onAttach = jest.fn();
+    const onAttach = vi.fn();
     const { container } = render(
       <ChatInput {...baseProps} onAttach={onAttach} />
     );
@@ -70,7 +71,7 @@ describe('ChatInput file attach', () => {
   });
 
   it('does not call onAttach when no files selected', () => {
-    const onAttach = jest.fn();
+    const onAttach = vi.fn();
     const { container } = render(
       <ChatInput {...baseProps} onAttach={onAttach} />
     );
@@ -86,7 +87,7 @@ describe('ChatInput file attach', () => {
   });
 
   it('resets the input value so selecting the same file twice re-fires onAttach', () => {
-    const onAttach = jest.fn();
+    const onAttach = vi.fn();
     const { container } = render(
       <ChatInput {...baseProps} onAttach={onAttach} />
     );

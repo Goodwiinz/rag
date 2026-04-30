@@ -1,6 +1,7 @@
 /**
- * @jest-environment node
+ * @vitest-environment node
  */
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { mkdtempSync, rmSync } from 'fs';
 import * as os from 'os';
 import * as path from 'path';
@@ -12,7 +13,7 @@ describe('threadStore', () => {
   beforeEach(() => {
     tmpDir = mkdtempSync(path.join(os.tmpdir(), 'nous-threadstore-'));
     process.env.NOUS_CONFIG_DIR = tmpDir;
-    jest.resetModules();
+    vi.resetModules();
     store = require('../../services/threadStore');
   });
 

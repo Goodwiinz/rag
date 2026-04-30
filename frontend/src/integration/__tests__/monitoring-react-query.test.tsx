@@ -12,6 +12,7 @@
  * - Performance under concurrent queries
  */
 
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest';
 import React from 'react';
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -103,7 +104,7 @@ const TestWrapper: React.FC<{ children: React.ReactNode; client?: QueryClient }>
 );
 
 // Mock WebSocket service
-jest.mock('../../services/monitoringWebsocketService', () => ({
+vi.mock('../../services/monitoringWebsocketService', () => ({
   default: mockWebSocketService
 }));
 
@@ -1053,16 +1054,16 @@ describe('React Query - WebSocket Integration', () => {
 
     const mockWebSocketServiceWithReconnect = {
       ...mockWebSocketService,
-      connect: jest.fn(() => {
+      connect: vi.fn(() => {
         connectionCount++;
         return Promise.resolve();
       }),
-      disconnect: jest.fn(() => Promise.resolve()),
-      on: jest.fn(),
-      off: jest.fn()
+      disconnect: vi.fn(() => Promise.resolve()),
+      on: vi.fn(),
+      off: vi.fn()
     };
 
-    jest.mock('../../services/monitoringWebsocketService', () => ({
+    vi.mock('../../services/monitoringWebsocketService', () => ({
       default: mockWebSocketServiceWithReconnect
     }));
 

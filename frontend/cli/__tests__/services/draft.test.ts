@@ -1,6 +1,7 @@
 /**
- * @jest-environment node
+ * @vitest-environment node
  */
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { mkdtempSync, rmSync, writeFileSync } from 'fs';
 import * as os from 'os';
 import * as path from 'path';
@@ -12,7 +13,7 @@ describe('draft store', () => {
   beforeEach(() => {
     tmp = mkdtempSync(path.join(os.tmpdir(), 'nous-draft-'));
     process.env.NOUS_CONFIG_DIR = tmp;
-    jest.resetModules();
+    vi.resetModules();
     store = require('../../services/draft');
   });
 

@@ -8,6 +8,7 @@
  * - stopStreaming resets streaming state
  */
 
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { act } from '@testing-library/react';
 import { enableMapSet } from 'immer';
 
@@ -15,29 +16,29 @@ import { enableMapSet } from 'immer';
 enableMapSet();
 
 // Mock workspace service (required by store module)
-jest.mock('@/services/workspaceService', () => ({
+vi.mock('@/services/workspaceService', () => ({
   workspaceService: {
-    listWorkspaces: jest.fn(),
-    createWorkspace: jest.fn(),
-    updateWorkspace: jest.fn(),
-    deleteWorkspace: jest.fn(),
-    getOrCreateDefaultWorkspace: jest.fn(),
-    listConversations: jest.fn(),
-    createConversation: jest.fn(),
-    updateConversation: jest.fn(),
-    deleteConversation: jest.fn(),
-    listThreads: jest.fn(),
-    createThread: jest.fn(),
-    updateThread: jest.fn(),
-    deleteThread: jest.fn(),
-    bulkResolveThreads: jest.fn(),
-    bulkArchiveThreads: jest.fn(),
-    bulkSummarizeThreads: jest.fn(),
-    bulkDeleteThreads: jest.fn(),
-    listMessages: jest.fn(),
-    createMessage: jest.fn(),
-    updateMessage: jest.fn(),
-    deleteMessage: jest.fn(),
+    listWorkspaces: vi.fn(),
+    createWorkspace: vi.fn(),
+    updateWorkspace: vi.fn(),
+    deleteWorkspace: vi.fn(),
+    getOrCreateDefaultWorkspace: vi.fn(),
+    listConversations: vi.fn(),
+    createConversation: vi.fn(),
+    updateConversation: vi.fn(),
+    deleteConversation: vi.fn(),
+    listThreads: vi.fn(),
+    createThread: vi.fn(),
+    updateThread: vi.fn(),
+    deleteThread: vi.fn(),
+    bulkResolveThreads: vi.fn(),
+    bulkArchiveThreads: vi.fn(),
+    bulkSummarizeThreads: vi.fn(),
+    bulkDeleteThreads: vi.fn(),
+    listMessages: vi.fn(),
+    createMessage: vi.fn(),
+    updateMessage: vi.fn(),
+    deleteMessage: vi.fn(),
   },
 }));
 

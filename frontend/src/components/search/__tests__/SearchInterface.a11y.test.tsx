@@ -1,11 +1,12 @@
+import { beforeEach, describe, it, vi } from 'vitest';
 import React from 'react';
 import { render } from '@/test/test-utils';
 import { expectNoA11yViolations } from '@/test/a11y';
 import SearchInterface from '../SearchInterface';
 
 describe('SearchInterface a11y', () => {
-  const mockOnSearch = jest.fn().mockResolvedValue(undefined);
-  const mockOnGetHistory = jest.fn().mockResolvedValue([]);
+  const mockOnSearch = vi.fn().mockResolvedValue(undefined);
+  const mockOnGetHistory = vi.fn().mockResolvedValue([]);
 
   const defaultProps = {
     onSearch: mockOnSearch,
@@ -13,7 +14,7 @@ describe('SearchInterface a11y', () => {
   };
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   it('has no accessibility violations', async () => {

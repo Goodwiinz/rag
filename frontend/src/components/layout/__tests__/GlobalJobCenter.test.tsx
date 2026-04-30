@@ -1,3 +1,4 @@
+import { MockedFunction, beforeEach, describe, expect, it, vi } from 'vitest';
 import { GlobalJobCenter } from '@/components/layout/GlobalJobCenter';
 import { entityService } from '@/services/entityService';
 import { render, waitFor } from '@testing-library/react';
@@ -7,23 +8,23 @@ let mockAuthStoreState = {
   isLoading: false,
 };
 
-jest.mock('@/services/entityService', () => ({
+vi.mock('@/services/entityService', () => ({
   entityService: {
-    listProcessingJobs: jest.fn(),
+    listProcessingJobs: vi.fn(),
   },
 }));
 
-jest.mock('@/stores/authStore', () => ({
+vi.mock('@/stores/authStore', () => ({
   useAuthStore: (selector: (state: typeof mockAuthStoreState) => unknown) =>
     selector(mockAuthStoreState),
 }));
 
 const mockListProcessingJobs = entityService
-  .listProcessingJobs as jest.MockedFunction<typeof entityService.listProcessingJobs>;
+  .listProcessingJobs as MockedFunction<typeof entityService.listProcessingJobs>;
 
 describe('GlobalJobCenter', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     mockAuthStoreState = {
       isAuthenticated: true,
       isLoading: false,

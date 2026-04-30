@@ -2,19 +2,20 @@
  * Unit tests for error tracking utility
  */
 
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { errorTracker } from '../errorTracking';
 
-const mockConsoleError = jest.spyOn(console, 'error').mockImplementation();
-const mockConsoleWarn = jest.spyOn(console, 'warn').mockImplementation();
-const mockConsoleInfo = jest.spyOn(console, 'info').mockImplementation();
-const mockConsoleDebug = jest.spyOn(console, 'debug').mockImplementation();
+const mockConsoleError = vi.spyOn(console, 'error').mockImplementation();
+const mockConsoleWarn = vi.spyOn(console, 'warn').mockImplementation();
+const mockConsoleInfo = vi.spyOn(console, 'info').mockImplementation();
+const mockConsoleDebug = vi.spyOn(console, 'debug').mockImplementation();
 
 const mockLocalStorage = {
-  getItem: jest.fn(),
-  setItem: jest.fn(),
-  removeItem: jest.fn(),
-  clear: jest.fn(),
-  key: jest.fn(),
+  getItem: vi.fn(),
+  setItem: vi.fn(),
+  removeItem: vi.fn(),
+  clear: vi.fn(),
+  key: vi.fn(),
   length: 0,
 };
 
@@ -37,7 +38,7 @@ delete (window as any).location;
 
 describe('ErrorTracker', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     errorTracker.setEnabled(true);
     errorTracker.clearLogs();
     errorTracker.clearMetrics();

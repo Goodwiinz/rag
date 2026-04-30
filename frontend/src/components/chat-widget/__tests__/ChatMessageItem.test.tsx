@@ -1,3 +1,4 @@
+import { describe, expect, it } from 'vitest';
 import { render, screen } from '@/test/test-utils';
 import { ChatMessageItem } from '../ChatMessageItem';
 import type { WidgetMessage } from '@/types/chat-widget';

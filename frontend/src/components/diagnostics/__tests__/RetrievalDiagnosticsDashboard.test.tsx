@@ -1,14 +1,15 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import '@testing-library/jest-dom';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 
 import { RetrievalDiagnosticsDashboard } from '@/components/diagnostics/RetrievalDiagnosticsDashboard';
 
-const mockGetRecentTraces = jest.fn();
-const mockGetTrace = jest.fn();
-const mockGetAggregateStats = jest.fn();
-const mockExperimentWeights = jest.fn();
+const mockGetRecentTraces = vi.fn();
+const mockGetTrace = vi.fn();
+const mockGetAggregateStats = vi.fn();
+const mockExperimentWeights = vi.fn();
 
-jest.mock('@/services/diagnosticsService', () => ({
+vi.mock('@/services/diagnosticsService', () => ({
   diagnosticsService: {
     getRecentTraces: (...args: unknown[]) => mockGetRecentTraces(...args),
     getTrace: (...args: unknown[]) => mockGetTrace(...args),
@@ -19,7 +20,7 @@ jest.mock('@/services/diagnosticsService', () => ({
 
 describe('RetrievalDiagnosticsDashboard', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     mockGetRecentTraces.mockResolvedValue({ traces: [], count: 0 });
     mockGetTrace.mockResolvedValue({
       trace: {

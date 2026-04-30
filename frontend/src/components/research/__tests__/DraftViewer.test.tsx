@@ -8,6 +8,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 // Mock draft data
+import { describe, expect, it, vi } from 'vitest';
 const mockDraft = {
   id: 'draft-1',
   projectId: 'project-1',
@@ -83,7 +84,7 @@ describe('DraftViewer', () => {
 
     it('test_select_older_version', () => {
       // Test selecting an older version
-      const onVersionSelect = jest.fn();
+      const onVersionSelect = vi.fn();
       const selectedVersion = mockVersions[2]; // Version 1
 
       onVersionSelect(selectedVersion.id);
@@ -109,7 +110,7 @@ describe('DraftViewer', () => {
 
     it('test_citation_click_handler', () => {
       // Test clicking a citation
-      const onCitationClick = jest.fn();
+      const onCitationClick = vi.fn();
       const citationIndex = 1;
 
       onCitationClick(citationIndex);
@@ -135,7 +136,7 @@ describe('DraftViewer', () => {
 
     it('test_export_triggers_download', () => {
       // Test export functionality
-      const onExport = jest.fn();
+      const onExport = vi.fn();
       const format = 'latex';
 
       onExport(mockDraft.id, format);

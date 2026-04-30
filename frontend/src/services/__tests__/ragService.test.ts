@@ -1,18 +1,19 @@
+import { Mocked, beforeEach, describe, expect, it, vi } from 'vitest';
 import { APIErrorClass } from '@/types/api';
 import { retrieveRAGContext } from '../ragService';
 import { apiClient } from '../apiClient';
 
-jest.mock('../apiClient', () => ({
+vi.mock('../apiClient', () => ({
   apiClient: {
-    post: jest.fn(),
+    post: vi.fn(),
   },
 }));
 
-const mockApiClient = apiClient as jest.Mocked<typeof apiClient>;
+const mockApiClient = apiClient as Mocked<typeof apiClient>;
 
 describe('retrieveRAGContext', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   it('calls authenticated hybrid search endpoint', async () => {
@@ -46,7 +47,7 @@ describe('retrieveRAGContext', () => {
   });
 
   it('logs APIErrorClass status/details when retrieval fails', async () => {
-    const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     mockApiClient.post.mockRejectedValue(
       new APIErrorClass({
         message: 'Not Found',

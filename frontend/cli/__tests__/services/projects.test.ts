@@ -1,15 +1,16 @@
 /**
- * @jest-environment node
+ * @vitest-environment node
  */
+import { MockedFunction, afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { fetchProjects } from '../../services/projects';
 import * as client from '../../services/client';
 
-jest.mock('../../services/client');
+vi.mock('../../services/client');
 
-const mockedHeaders = client.getCliAuthHeaders as jest.MockedFunction<
+const mockedHeaders = client.getCliAuthHeaders as MockedFunction<
   typeof client.getCliAuthHeaders
 >;
-const mockedBase = client.getApiBase as jest.MockedFunction<
+const mockedBase = client.getApiBase as MockedFunction<
   typeof client.getApiBase
 >;
 
@@ -22,7 +23,7 @@ beforeEach(() => {
   mockedBase.mockReturnValue('http://api.test/api/v1');
 });
 
-afterEach(() => jest.clearAllMocks());
+afterEach(() => vi.clearAllMocks());
 
 function jsonResponse(body: unknown, status = 200) {
   return {
@@ -34,7 +35,7 @@ function jsonResponse(body: unknown, status = 200) {
 
 describe('fetchProjects', () => {
   test('returns projects array on success and uses limit query param', async () => {
-    const fetchFn = jest.fn().mockResolvedValue(
+    const fetchFn = vi.fn().mockResolvedValue(
       jsonResponse({
         projects: [
           {
@@ -62,13 +63,13 @@ describe('fetchProjects', () => {
   });
 
   test('returns empty array when payload omits projects', async () => {
-    const fetchFn = jest.fn().mockResolvedValue(jsonResponse({}));
+    const fetchFn = vi.fn().mockResolvedValue(jsonResponse({}));
     const out = await fetchProjects({ fetchFn: fetchFn as never });
     expect(out).toEqual([]);
   });
 
   test('honors a custom limit', async () => {
-    const fetchFn = jest.fn().mockResolvedValue(jsonResponse({ projects: [] }));
+    const fetchFn = vi.fn().mockResolvedValue(jsonResponse({ projects: [] }));
     await fetchProjects({ fetchFn: fetchFn as never, limit: 10 });
     expect(fetchFn).toHaveBeenCalledWith(
       'http://api.test/api/v1/projects?limit=10',
@@ -77,7 +78,7 @@ describe('fetchProjects', () => {
   });
 
   test('throws on non-ok response', async () => {
-    const fetchFn = jest.fn().mockResolvedValue(jsonResponse({}, 500));
+    const fetchFn = vi.fn().mockResolvedValue(jsonResponse({}, 500));
     await expect(fetchProjects({ fetchFn: fetchFn as never })).rejects.toThrow(
       /500/
     );

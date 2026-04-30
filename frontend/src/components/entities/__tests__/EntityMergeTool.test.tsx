@@ -1,3 +1,4 @@
+import { Mock, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { EntityMergeTool } from '@/components/entities/EntityMergeTool';
 import { entityService } from '@/services/entityService';
@@ -12,7 +13,7 @@ class MockResizeObserver {
 (global as typeof global & { ResizeObserver?: typeof MockResizeObserver }).ResizeObserver =
   MockResizeObserver;
 
-jest.mock('@/hooks/useEntityPermissions', () => ({
+vi.mock('@/hooks/useEntityPermissions', () => ({
   useEntityPermissions: () => ({
     canCreate: true,
     canEdit: true,
@@ -22,30 +23,30 @@ jest.mock('@/hooks/useEntityPermissions', () => ({
   }),
 }));
 
-jest.mock('@/services/entityService', () => ({
+vi.mock('@/services/entityService', () => ({
   entityService: {
-    getEntities: jest.fn(),
-    createMergeJob: jest.fn(),
-    getProcessingJob: jest.fn(),
+    getEntities: vi.fn(),
+    createMergeJob: vi.fn(),
+    getProcessingJob: vi.fn(),
   },
 }));
 
-jest.mock('react-hot-toast', () => ({
+vi.mock('react-hot-toast', () => ({
   __esModule: true,
   default: {
-    success: jest.fn(),
-    error: jest.fn(),
+    success: vi.fn(),
+    error: vi.fn(),
   },
 }));
 
 describe('EntityMergeTool', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
-    (entityService.createMergeJob as jest.Mock).mockResolvedValue({
+    vi.clearAllMocks();
+    (entityService.createMergeJob as Mock).mockResolvedValue({
       job_id: 'job-1',
       status: 'queued',
     });
-    (entityService.getProcessingJob as jest.Mock).mockResolvedValue({
+    (entityService.getProcessingJob as Mock).mockResolvedValue({
       id: 'job-1',
       status: 'queued',
       progress_percentage: 10,
@@ -54,7 +55,7 @@ describe('EntityMergeTool', () => {
   });
 
   it('selects only filtered duplicate groups when using select all', async () => {
-    (entityService.getEntities as jest.Mock).mockResolvedValue({
+    (entityService.getEntities as Mock).mockResolvedValue({
       entities: [
         {
           id: 'e1',
@@ -123,8 +124,8 @@ describe('EntityMergeTool', () => {
   });
 
   it('shows only one confirmation dialog for batch merge', async () => {
-    const confirmSpy = jest.spyOn(window, 'confirm').mockReturnValue(true);
-    (entityService.getEntities as jest.Mock).mockResolvedValue({
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    (entityService.getEntities as Mock).mockResolvedValue({
       entities: [
         {
           id: 'e1',
@@ -169,9 +170,9 @@ describe('EntityMergeTool', () => {
   });
 
   it('handles circuit-breaker API errors without console.error spam', async () => {
-    const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
-    const consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
-    (entityService.getEntities as jest.Mock).mockRejectedValue(
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    (entityService.getEntities as Mock).mockRejectedValue(
       new APIErrorClass({
         message: 'Neo4j circuit breaker is open - service unavailable',
         status_code: 503,

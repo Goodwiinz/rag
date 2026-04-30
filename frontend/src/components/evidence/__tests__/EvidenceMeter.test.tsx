@@ -1,23 +1,24 @@
 /**
  * Unit tests for EvidenceMeter component
- * 
+ *
  * Tests the visual evidence agreement meter that displays consensus
  * level across retrieved sources for research claims.
  */
 
+import { Mock, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { 
-  EvidenceMeter, 
-  EvidenceMeterSkeleton, 
-  EvidenceMeterEmpty 
+import {
+  EvidenceMeter,
+  EvidenceMeterSkeleton,
+  EvidenceMeterEmpty,
 } from '../EvidenceMeter';
 import * as useEvidenceMeterModule from '@/hooks/useEvidenceMeter';
 import type { EvidenceMeterData } from '@/types/evidence';
 
 // Mock framer-motion to avoid animation issues in tests
-jest.mock('framer-motion', () => ({
+vi.mock('framer-motion', () => ({
   motion: {
     div: ({ children, ...props }: any) => <div {...props}>{children}</div>,
     span: ({ children, ...props }: any) => <span {...props}>{children}</span>,
@@ -26,31 +27,30 @@ jest.mock('framer-motion', () => ({
 }));
 
 // Mock the hook module
-jest.mock('@/hooks/useEvidenceMeter', () => ({
-  useEvidenceMeter: jest.fn(),
-  useEvidenceBreakdown: jest.fn(),
-  getConsensusText: jest.fn(),
-  getConsensusColor: jest.fn(),
-  getConsensusEmoji: jest.fn(),
+vi.mock('@/hooks/useEvidenceMeter', () => ({
+  useEvidenceMeter: vi.fn(),
+  useEvidenceBreakdown: vi.fn(),
+  getConsensusText: vi.fn(),
+  getConsensusColor: vi.fn(),
+  getConsensusEmoji: vi.fn(),
 }));
 
 // Create test query client
-const createTestQueryClient = () => new QueryClient({
-  defaultOptions: {
-    queries: {
-      retry: false,
-      gcTime: 0,
+const createTestQueryClient = () =>
+  new QueryClient({
+    defaultOptions: {
+      queries: {
+        retry: false,
+        gcTime: 0,
+      },
     },
-  },
-});
+  });
 
 // Test wrapper
 const TestWrapper = ({ children }: { children: React.ReactNode }) => {
   const queryClient = createTestQueryClient();
   return (
-    <QueryClientProvider client={queryClient}>
-      {children}
-    </QueryClientProvider>
+    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
   );
 };
 
@@ -90,13 +90,17 @@ const mockRetractedData: EvidenceMeterData = {
 
 describe('EvidenceMeter', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
-    
+    vi.clearAllMocks();
+
     // Default mock implementations
-    (useEvidenceMeterModule.getConsensusText as jest.Mock).mockReturnValue('7 of 10 sources agree');
-    (useEvidenceMeterModule.getConsensusColor as jest.Mock).mockReturnValue('text-green-500');
-    (useEvidenceMeterModule.getConsensusEmoji as jest.Mock).mockReturnValue('🟢');
-    (useEvidenceMeterModule.useEvidenceBreakdown as jest.Mock).mockReturnValue({
+    (useEvidenceMeterModule.getConsensusText as Mock).mockReturnValue(
+      '7 of 10 sources agree'
+    );
+    (useEvidenceMeterModule.getConsensusColor as Mock).mockReturnValue(
+      'text-green-500'
+    );
+    (useEvidenceMeterModule.getConsensusEmoji as Mock).mockReturnValue('🟢');
+    (useEvidenceMeterModule.useEvidenceBreakdown as Mock).mockReturnValue({
       data: null,
       isLoading: false,
       error: null,
@@ -105,7 +109,7 @@ describe('EvidenceMeter', () => {
 
   describe('Loading State', () => {
     it('renders loading skeleton while fetching data', () => {
-      (useEvidenceMeterModule.useEvidenceMeter as jest.Mock).mockReturnValue({
+      (useEvidenceMeterModule.useEvidenceMeter as Mock).mockReturnValue({
         data: null,
         isLoading: true,
         error: null,
@@ -123,7 +127,7 @@ describe('EvidenceMeter', () => {
 
   describe('Error State', () => {
     it('renders error message when fetch fails', () => {
-      (useEvidenceMeterModule.useEvidenceMeter as jest.Mock).mockReturnValue({
+      (useEvidenceMeterModule.useEvidenceMeter as Mock).mockReturnValue({
         data: null,
         isLoading: false,
         error: new Error('API error'),
@@ -136,13 +140,15 @@ describe('EvidenceMeter', () => {
       );
 
       expect(screen.getByTestId('evidence-meter-error')).toBeInTheDocument();
-      expect(screen.getByText('Failed to load evidence meter')).toBeInTheDocument();
+      expect(
+        screen.getByText('Failed to load evidence meter')
+      ).toBeInTheDocument();
     });
   });
 
   describe('Empty State', () => {
     it('renders empty state when no sources found', () => {
-      (useEvidenceMeterModule.useEvidenceMeter as jest.Mock).mockReturnValue({
+      (useEvidenceMeterModule.useEvidenceMeter as Mock).mockReturnValue({
         data: { ...mockMeterData, total_sources: 0 },
         isLoading: false,
         error: null,
@@ -160,7 +166,7 @@ describe('EvidenceMeter', () => {
 
   describe('Success State', () => {
     it('renders meter with consensus text', () => {
-      (useEvidenceMeterModule.useEvidenceMeter as jest.Mock).mockReturnValue({
+      (useEvidenceMeterModule.useEvidenceMeter as Mock).mockReturnValue({
         data: mockMeterData,
         isLoading: false,
         error: null,
@@ -177,7 +183,7 @@ describe('EvidenceMeter', () => {
     });
 
     it('displays correct emoji for consensus level', () => {
-      (useEvidenceMeterModule.useEvidenceMeter as jest.Mock).mockReturnValue({
+      (useEvidenceMeterModule.useEvidenceMeter as Mock).mockReturnValue({
         data: mockMeterData,
         isLoading: false,
         error: null,
@@ -193,7 +199,7 @@ describe('EvidenceMeter', () => {
     });
 
     it('shows legend with correct counts', () => {
-      (useEvidenceMeterModule.useEvidenceMeter as jest.Mock).mockReturnValue({
+      (useEvidenceMeterModule.useEvidenceMeter as Mock).mockReturnValue({
         data: mockMeterData,
         isLoading: false,
         error: null,
@@ -213,7 +219,7 @@ describe('EvidenceMeter', () => {
 
   describe('Accessibility', () => {
     it('has proper ARIA attributes on meter', () => {
-      (useEvidenceMeterModule.useEvidenceMeter as jest.Mock).mockReturnValue({
+      (useEvidenceMeterModule.useEvidenceMeter as Mock).mockReturnValue({
         data: mockMeterData,
         isLoading: false,
         error: null,
@@ -233,7 +239,7 @@ describe('EvidenceMeter', () => {
     });
 
     it('expand button has aria-expanded attribute', () => {
-      (useEvidenceMeterModule.useEvidenceMeter as jest.Mock).mockReturnValue({
+      (useEvidenceMeterModule.useEvidenceMeter as Mock).mockReturnValue({
         data: mockMeterData,
         isLoading: false,
         error: null,
@@ -250,7 +256,7 @@ describe('EvidenceMeter', () => {
     });
 
     it('has screen reader text for expand/collapse', () => {
-      (useEvidenceMeterModule.useEvidenceMeter as jest.Mock).mockReturnValue({
+      (useEvidenceMeterModule.useEvidenceMeter as Mock).mockReturnValue({
         data: mockMeterData,
         isLoading: false,
         error: null,
@@ -268,7 +274,7 @@ describe('EvidenceMeter', () => {
 
   describe('Confidence Warning', () => {
     it('shows confidence warning when below 85%', () => {
-      (useEvidenceMeterModule.useEvidenceMeter as jest.Mock).mockReturnValue({
+      (useEvidenceMeterModule.useEvidenceMeter as Mock).mockReturnValue({
         data: mockLowConfidenceData,
         isLoading: false,
         error: null,
@@ -284,7 +290,7 @@ describe('EvidenceMeter', () => {
     });
 
     it('does not show confidence warning when above 85%', () => {
-      (useEvidenceMeterModule.useEvidenceMeter as jest.Mock).mockReturnValue({
+      (useEvidenceMeterModule.useEvidenceMeter as Mock).mockReturnValue({
         data: mockMeterData,
         isLoading: false,
         error: null,
@@ -296,13 +302,15 @@ describe('EvidenceMeter', () => {
         </TestWrapper>
       );
 
-      expect(screen.queryByTestId('confidence-indicator')).not.toBeInTheDocument();
+      expect(
+        screen.queryByTestId('confidence-indicator')
+      ).not.toBeInTheDocument();
     });
   });
 
   describe('Retracted Sources Warning', () => {
     it('shows warning when retracted sources found', () => {
-      (useEvidenceMeterModule.useEvidenceMeter as jest.Mock).mockReturnValue({
+      (useEvidenceMeterModule.useEvidenceMeter as Mock).mockReturnValue({
         data: mockRetractedData,
         isLoading: false,
         error: null,
@@ -320,7 +328,7 @@ describe('EvidenceMeter', () => {
 
   describe('Expand/Collapse Breakdown', () => {
     it('toggles breakdown panel on button click', () => {
-      (useEvidenceMeterModule.useEvidenceMeter as jest.Mock).mockReturnValue({
+      (useEvidenceMeterModule.useEvidenceMeter as Mock).mockReturnValue({
         data: mockMeterData,
         isLoading: false,
         error: null,
@@ -333,14 +341,14 @@ describe('EvidenceMeter', () => {
       );
 
       const button = screen.getByRole('button');
-      
+
       // Initially collapsed
       expect(button).toHaveAttribute('aria-expanded', 'false');
-      
+
       // Click to expand
       fireEvent.click(button);
       expect(button).toHaveAttribute('aria-expanded', 'true');
-      
+
       // Click to collapse
       fireEvent.click(button);
       expect(button).toHaveAttribute('aria-expanded', 'false');
@@ -356,7 +364,9 @@ describe('EvidenceMeterSkeleton', () => {
 
   it('accepts custom className', () => {
     render(<EvidenceMeterSkeleton className="custom-class" />);
-    expect(screen.getByTestId('evidence-meter-skeleton')).toHaveClass('custom-class');
+    expect(screen.getByTestId('evidence-meter-skeleton')).toHaveClass(
+      'custom-class'
+    );
   });
 });
 
@@ -364,17 +374,27 @@ describe('EvidenceMeterEmpty', () => {
   it('renders empty state message', () => {
     render(<EvidenceMeterEmpty />);
     expect(screen.getByTestId('evidence-meter-empty')).toBeInTheDocument();
-    expect(screen.getByText('No sources found for this claim')).toBeInTheDocument();
+    expect(
+      screen.getByText('No sources found for this claim')
+    ).toBeInTheDocument();
   });
 
   it('accepts custom className', () => {
     render(<EvidenceMeterEmpty className="custom-class" />);
-    expect(screen.getByTestId('evidence-meter-empty')).toHaveClass('custom-class');
+    expect(screen.getByTestId('evidence-meter-empty')).toHaveClass(
+      'custom-class'
+    );
   });
 });
 
 describe('getConsensusText helper', () => {
-  const { getConsensusText } = jest.requireActual('@/hooks/useEvidenceMeter');
+  let getConsensusText: (data: EvidenceMeterData) => string;
+  beforeAll(async () => {
+    const mod = (await vi.importActual('@/hooks/useEvidenceMeter')) as {
+      getConsensusText: (data: EvidenceMeterData) => string;
+    };
+    getConsensusText = mod.getConsensusText;
+  });
 
   it('returns correct text for strong agreement', () => {
     const data: EvidenceMeterData = {

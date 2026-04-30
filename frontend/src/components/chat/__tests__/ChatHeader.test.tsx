@@ -1,6 +1,7 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 
-jest.mock('@/components/ui/sidebar', () => ({
+vi.mock('@/components/ui/sidebar', () => ({
   SidebarTrigger: ({ className }: { className?: string }) => (
     <button data-testid="sidebar-trigger" className={className}>
       Toggle
@@ -12,11 +13,11 @@ import { ChatHeader } from '../ChatHeader';
 
 describe('ChatHeader', () => {
   beforeEach(() => {
-    jest.useFakeTimers();
+    vi.useFakeTimers();
   });
 
   afterEach(() => {
-    jest.useRealTimers();
+    vi.useRealTimers();
   });
 
   it('renders breadcrumb with Dashboard / Chat', () => {
@@ -36,7 +37,7 @@ describe('ChatHeader', () => {
   });
 
   it('no longer renders a connected-status clock', () => {
-    jest.setSystemTime(new Date('2026-03-08T14:30:00'));
+    vi.setSystemTime(new Date('2026-03-08T14:30:00'));
     render(<ChatHeader />);
     expect(screen.queryByTitle('Connected')).not.toBeInTheDocument();
   });

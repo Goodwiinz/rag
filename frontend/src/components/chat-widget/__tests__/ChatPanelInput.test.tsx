@@ -1,9 +1,10 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, fireEvent } from '@/test/test-utils';
 import { ChatPanelInput } from '../ChatPanelInput';
 import { expectNoA11yViolations } from '@/test/a11y';
 
 // Mock lucide-react icons
-jest.mock('lucide-react', () => ({
+vi.mock('lucide-react', () => ({
   Send: (props: React.SVGAttributes<SVGElement>) => (
     <svg data-testid="icon-send" {...props} />
   ),
@@ -12,13 +13,13 @@ jest.mock('lucide-react', () => ({
 describe('ChatPanelInput', () => {
   const defaultProps = {
     value: '',
-    onChange: jest.fn(),
-    onSend: jest.fn(),
+    onChange: vi.fn(),
+    onSend: vi.fn(),
     disabled: false,
   };
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   it('renders input field and send button', () => {
@@ -32,7 +33,7 @@ describe('ChatPanelInput', () => {
   });
 
   it('calls onChange when typing', () => {
-    const onChange = jest.fn();
+    const onChange = vi.fn();
     render(<ChatPanelInput {...defaultProps} onChange={onChange} />);
 
     const textarea = screen.getByRole('textbox', {
@@ -43,7 +44,7 @@ describe('ChatPanelInput', () => {
   });
 
   it('calls onSend when Enter pressed', () => {
-    const onSend = jest.fn();
+    const onSend = vi.fn();
     render(<ChatPanelInput {...defaultProps} value="hello" onSend={onSend} />);
 
     const textarea = screen.getByRole('textbox', {
@@ -54,7 +55,7 @@ describe('ChatPanelInput', () => {
   });
 
   it('does not send on Shift+Enter', () => {
-    const onSend = jest.fn();
+    const onSend = vi.fn();
     render(<ChatPanelInput {...defaultProps} value="hello" onSend={onSend} />);
 
     const textarea = screen.getByRole('textbox', {
@@ -77,7 +78,7 @@ describe('ChatPanelInput', () => {
   });
 
   it('does not call onSend when disabled', () => {
-    const onSend = jest.fn();
+    const onSend = vi.fn();
     render(
       <ChatPanelInput
         {...defaultProps}
@@ -100,8 +101,8 @@ describe('ChatPanelInput a11y', () => {
     const { container } = render(
       <ChatPanelInput
         value=""
-        onChange={jest.fn()}
-        onSend={jest.fn()}
+        onChange={vi.fn()}
+        onSend={vi.fn()}
         disabled={false}
       />
     );

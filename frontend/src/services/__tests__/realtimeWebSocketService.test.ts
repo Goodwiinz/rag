@@ -2,6 +2,7 @@
  * Real-time WebSocket Service Tests
  */
 
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { RealtimeWebSocketService } from '../realtimeWebSocketService';
 import type { WebSocketMessage } from '@/types/realtime-processing';
 
@@ -68,14 +69,14 @@ describe('RealtimeWebSocketService', () => {
   };
 
   beforeEach(() => {
-    jest.useFakeTimers();
+    vi.useFakeTimers();
     service = new RealtimeWebSocketService(testConfig);
   });
 
   afterEach(() => {
     service.destroy();
-    jest.useRealTimers();
-    jest.clearAllMocks();
+    vi.useRealTimers();
+    vi.clearAllMocks();
   });
 
   it('initializes disconnected', () => {
@@ -88,7 +89,7 @@ describe('RealtimeWebSocketService', () => {
     await service.connect(testToken);
 
     expect(service.getConnectionState().status).toBe('connecting');
-    jest.advanceTimersByTime(20);
+    vi.advanceTimersByTime(20);
     expect(service.getConnectionState().status).toBe('connected');
 
     const ws = (service as any).ws as MockWebSocket;
@@ -110,9 +111,9 @@ describe('RealtimeWebSocketService', () => {
 
   it('dispatches subscribed message handlers', async () => {
     await service.connect(testToken);
-    jest.advanceTimersByTime(20);
+    vi.advanceTimersByTime(20);
 
-    const handler = jest.fn();
+    const handler = vi.fn();
     const unsubscribe = service.subscribe('test_type', handler);
 
     const msg: WebSocketMessage = {
@@ -133,7 +134,7 @@ describe('RealtimeWebSocketService', () => {
 
   it('ignores malformed JSON messages without throwing', async () => {
     await service.connect(testToken);
-    jest.advanceTimersByTime(20);
+    vi.advanceTimersByTime(20);
 
     const ws = (service as any).ws as MockWebSocket;
 
@@ -144,12 +145,12 @@ describe('RealtimeWebSocketService', () => {
 
   it('attempts reconnection on unexpected close', async () => {
     await service.connect(testToken);
-    jest.advanceTimersByTime(20);
+    vi.advanceTimersByTime(20);
 
     const ws = (service as any).ws as MockWebSocket;
     ws.simulateClose(1006);
 
-    jest.advanceTimersByTime(testConfig.reconnectInterval);
+    vi.advanceTimersByTime(testConfig.reconnectInterval);
 
     expect(service.getConnectionState().reconnectionAttempts).toBeGreaterThan(
       0
@@ -158,12 +159,12 @@ describe('RealtimeWebSocketService', () => {
 
   it('does not reconnect on clean close', async () => {
     await service.connect(testToken);
-    jest.advanceTimersByTime(20);
+    vi.advanceTimersByTime(20);
 
     const ws = (service as any).ws as MockWebSocket;
     ws.simulateClose(1000);
 
-    jest.advanceTimersByTime(testConfig.reconnectInterval * 2);
+    vi.advanceTimersByTime(testConfig.reconnectInterval * 2);
 
     expect(service.getConnectionState().status).toBe('disconnected');
     expect(service.getConnectionState().reconnectionAttempts).toBe(0);
@@ -171,7 +172,7 @@ describe('RealtimeWebSocketService', () => {
 
   it('destroy cleans up and disconnects', async () => {
     await service.connect(testToken);
-    jest.advanceTimersByTime(20);
+    vi.advanceTimersByTime(20);
 
     service.destroy();
 

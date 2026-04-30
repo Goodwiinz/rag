@@ -1,21 +1,22 @@
+import { Mock, MockedFunction, beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderHook, act } from '@/test/test-utils';
 import { useProjectStore } from '@/store/projectStore';
 import { projectChatService } from '@/services/projectChatService';
 import { useProjectChatWidget } from '../useProjectChatWidget';
 
-jest.mock('@/services/projectChatService', () => ({
+vi.mock('@/services/projectChatService', () => ({
   projectChatService: {
-    startChatFromProject: jest.fn(),
+    startChatFromProject: vi.fn(),
   },
 }));
 
-jest.mock('@/store/projectStore', () => ({
-  useProjectStore: jest.fn(),
+vi.mock('@/store/projectStore', () => ({
+  useProjectStore: vi.fn(),
 }));
 
-const mockUseProjectStore = useProjectStore as unknown as jest.Mock;
+const mockUseProjectStore = useProjectStore as unknown as Mock;
 const mockStartChat =
-  projectChatService.startChatFromProject as jest.MockedFunction<
+  projectChatService.startChatFromProject as MockedFunction<
     typeof projectChatService.startChatFromProject
   >;
 
@@ -38,7 +39,7 @@ const defaultProps = { projectId: 'proj-1', activeTab: 'documents' as const };
 
 describe('useProjectChatWidget', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     mockUseProjectStore.mockReturnValue(defaultStoreData);
   });
 

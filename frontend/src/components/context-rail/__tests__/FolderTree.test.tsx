@@ -1,8 +1,9 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { FolderTree } from '../folder-tree/FolderTree';
 import type { FolderNode, Node } from '../folder-tree/types';
 
-const onSelect = jest.fn();
+const onSelect = vi.fn();
 
 function buildTree(overrides: Partial<FolderNode> = {}): Node[] {
   return [

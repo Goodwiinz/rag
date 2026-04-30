@@ -12,6 +12,7 @@
  * - Error handling and recovery
  */
 
+import { describe, expect, test } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { create } from 'zustand';
 import { persist, subscribeWithSelector } from 'zustand/middleware';

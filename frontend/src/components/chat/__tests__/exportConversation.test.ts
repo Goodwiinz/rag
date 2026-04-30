@@ -1,3 +1,4 @@
+import { describe, expect, it, vi } from 'vitest';
 import {
   ExportableMessage,
   downloadFile,
@@ -55,8 +56,8 @@ describe('exportAsJson', () => {
 
 describe('downloadFile', () => {
   it('creates and clicks an anchor element, then revokes the URL', () => {
-    const createObjectURL = jest.fn(() => 'blob:mock');
-    const revokeObjectURL = jest.fn();
+    const createObjectURL = vi.fn(() => 'blob:mock');
+    const revokeObjectURL = vi.fn();
     // Override URL methods
     (
       URL as unknown as { createObjectURL: typeof createObjectURL }
@@ -64,10 +65,9 @@ describe('downloadFile', () => {
     (
       URL as unknown as { revokeObjectURL: typeof revokeObjectURL }
     ).revokeObjectURL = revokeObjectURL;
-    const clickSpy = jest.fn();
+    const clickSpy = vi.fn();
     const origCreateElement = document.createElement.bind(document);
-    const createElementSpy = jest
-      .spyOn(document, 'createElement')
+    const createElementSpy = vi.spyOn(document, 'createElement')
       .mockImplementation((tag: string) => {
         const el = origCreateElement(tag);
         if (tag === 'a') {

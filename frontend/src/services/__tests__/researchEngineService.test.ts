@@ -1,3 +1,4 @@
+import { Mocked, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   listProjects,
   createProject,
@@ -15,20 +16,20 @@ import {
 } from '../researchEngineService';
 import { apiClient } from '../apiClient';
 
-jest.mock('../apiClient', () => ({
+vi.mock('../apiClient', () => ({
   apiClient: {
-    get: jest.fn(),
-    post: jest.fn(),
+    get: vi.fn(),
+    post: vi.fn(),
   },
 }));
 
-const mockApiClient = apiClient as jest.Mocked<typeof apiClient>;
+const mockApiClient = apiClient as Mocked<typeof apiClient>;
 
 const BASE = '/api/v1/research-engine';
 
 describe('researchEngineService', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   describe('listProjects', () => {

@@ -1,3 +1,4 @@
+import { beforeEach, describe, expect, it } from 'vitest';
 import { useAgentChatStore } from '@/store/agentChatStore';
 
 describe('agentChatStore', () => {

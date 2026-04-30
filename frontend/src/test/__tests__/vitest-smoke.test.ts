@@ -1,5 +1,5 @@
 // frontend/src/test/__tests__/vitest-smoke.test.ts
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
 describe('vitest smoke', () => {
   it('runs basic assertions', () => {

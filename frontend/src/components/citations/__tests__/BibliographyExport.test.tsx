@@ -5,6 +5,7 @@
  * needs-review warnings, and export/download behavior.
  */
 
+import { Mock, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { BibliographyExport } from '../BibliographyExport';
@@ -15,15 +16,15 @@ import type { CitationResponse } from '@/types/research';
 // Mocks
 // ---------------------------------------------------------------------------
 
-jest.mock('@/services/citationService', () => ({
+vi.mock('@/services/citationService', () => ({
   citationService: {
-    downloadBibliography: jest.fn().mockResolvedValue(undefined),
-    exportBibliography: jest.fn().mockResolvedValue(''),
+    downloadBibliography: vi.fn().mockResolvedValue(undefined),
+    exportBibliography: vi.fn().mockResolvedValue(''),
   },
 }));
 
 // Mock shadcn Select since it uses Radix portal
-jest.mock('@/components/ui/select', () => ({
+vi.mock('@/components/ui/select', () => ({
   Select: ({ children, value, onValueChange }: any) => (
     <div data-testid="select-root">{children}</div>
   ),
@@ -39,7 +40,7 @@ jest.mock('@/components/ui/select', () => ({
   ),
 }));
 
-const mockDownload = citationService.downloadBibliography as jest.Mock;
+const mockDownload = citationService.downloadBibliography as Mock;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -70,7 +71,7 @@ function makeCitation(
 
 describe('BibliographyExport', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   describe('Rendering', () => {
@@ -209,7 +210,7 @@ describe('BibliographyExport', () => {
 
     it('calls downloadBibliography on click', async () => {
       const citation = makeCitation({ id: 'cit-abc' });
-      const onComplete = jest.fn();
+      const onComplete = vi.fn();
 
       render(
         <BibliographyExport
@@ -256,7 +257,7 @@ describe('BibliographyExport', () => {
 
     it('handles export error gracefully', async () => {
       mockDownload.mockRejectedValueOnce(new Error('Network error'));
-      const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation();
 
       render(<BibliographyExport citations={[makeCitation()]} />);
 

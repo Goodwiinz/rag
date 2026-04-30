@@ -1,10 +1,11 @@
+import { Mock, beforeEach, describe, expect, it, vi } from 'vitest';
 import '@testing-library/jest-dom';
 import type { ReactNode } from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import LoginPage from '@/page-components/auth/LoginPage';
 import { downloadStoredNousCliAuth } from '@/services/nousCliAuth';
 
-const mockLogin = jest.fn();
+const mockLogin = vi.fn();
 
 const mockedAuth = {
   login: mockLogin,
@@ -12,15 +13,15 @@ const mockedAuth = {
   isLoading: false,
 };
 
-jest.mock('@/hooks/useAuth', () => ({
+vi.mock('@/hooks/useAuth', () => ({
   useAuth: () => mockedAuth,
 }));
 
-jest.mock('@/services/nousCliAuth', () => ({
-  downloadStoredNousCliAuth: jest.fn(),
+vi.mock('@/services/nousCliAuth', () => ({
+  downloadStoredNousCliAuth: vi.fn(),
 }));
 
-jest.mock('react-router-dom', () => ({
+vi.mock('react-router-dom', () => ({
   Link: ({ children, to }: { children: ReactNode; to: string }) => (
     <a href={to}>{children}</a>
   ),
@@ -32,7 +33,7 @@ describe('LoginPage', () => {
     mockLogin.mockReset();
     mockedAuth.isAuthenticated = false;
     mockedAuth.isLoading = false;
-    (downloadStoredNousCliAuth as jest.Mock).mockReset();
+    (downloadStoredNousCliAuth as Mock).mockReset();
   });
 
   it('downloads NOUS CLI auth when the option is selected', async () => {

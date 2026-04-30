@@ -1,10 +1,11 @@
+import { MockedFunction, expect, test, vi } from 'vitest';
 import { getCliAuthHeaders, safeFetch } from '../../services/client';
 
-jest.mock('../../auth/store');
+vi.mock('../../auth/store');
 
 import { loadConfig } from '../../auth/store';
 
-const mockLoadConfig = loadConfig as jest.MockedFunction<typeof loadConfig>;
+const mockLoadConfig = loadConfig as MockedFunction<typeof loadConfig>;
 
 test('returns Authorization header when token is present', () => {
   mockLoadConfig.mockReturnValue({
@@ -28,7 +29,7 @@ test('safeFetch wraps fetch failures with the URL in the message', async () => {
   const inner = Object.assign(new Error('connect ECONNREFUSED'), {
     code: 'ECONNREFUSED',
   });
-  const fetchFn = jest.fn().mockRejectedValue(inner);
+  const fetchFn = vi.fn().mockRejectedValue(inner);
   await expect(
     safeFetch('http://example.test/x', undefined, fetchFn as never)
   ).rejects.toMatchObject({

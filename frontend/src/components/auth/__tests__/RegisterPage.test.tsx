@@ -1,3 +1,4 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import '@testing-library/jest-dom';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import RegisterPage from '../../../../app/(auth)/register/page';
@@ -6,8 +7,8 @@ type RegisterResult = {
   requiresEmailConfirmation: boolean;
 };
 
-const mockPush = jest.fn();
-const mockRegister = jest.fn<Promise<RegisterResult>, [unknown]>();
+const mockPush = vi.fn();
+const mockRegister = vi.fn<Promise<RegisterResult>, [unknown]>();
 
 const mockedAuth = {
   register: mockRegister,
@@ -16,11 +17,11 @@ const mockedAuth = {
   pendingEmailConfirmation: false,
 };
 
-jest.mock('@/hooks/useAuth', () => ({
+vi.mock('@/hooks/useAuth', () => ({
   useAuth: () => mockedAuth,
 }));
 
-jest.mock('next/navigation', () => ({
+vi.mock('next/navigation', () => ({
   useRouter: () => ({
     push: mockPush,
   }),
@@ -28,7 +29,7 @@ jest.mock('next/navigation', () => ({
 
 describe('RegisterPage', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     mockedAuth.pendingEmailConfirmation = false;
   });
 

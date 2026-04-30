@@ -1,15 +1,16 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderHook } from '@testing-library/react';
 
 // Mock next/navigation
-const mockPathname = jest.fn<string, []>();
-jest.mock('next/navigation', () => ({
+const mockPathname = vi.fn<string, []>();
+vi.mock('next/navigation', () => ({
   usePathname: () => mockPathname(),
   useParams: () => ({}),
 }));
 
 // Mock project store
-const mockCurrentProject = jest.fn();
-jest.mock('@/store/projectStore', () => ({
+const mockCurrentProject = vi.fn();
+vi.mock('@/store/projectStore', () => ({
   useProjectStore: (selector: (s: Record<string, unknown>) => unknown) =>
     selector({ currentProject: mockCurrentProject() }),
 }));

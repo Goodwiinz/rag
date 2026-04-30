@@ -1,3 +1,4 @@
+import { beforeEach, describe, it, vi } from 'vitest';
 import React from 'react';
 import { render } from '@/test/test-utils';
 import { MemoryRouter } from 'react-router-dom';
@@ -5,7 +6,7 @@ import { expectNoA11yViolations } from '@/test/a11y';
 import { Sidebar } from '../Sidebar';
 
 // Mock Lucide icons
-jest.mock('lucide-react', () => ({
+vi.mock('lucide-react', () => ({
   Layers: () => <svg data-testid="layers-icon" />,
   Menu: () => <svg data-testid="menu-icon" />,
   __esModule: true,
@@ -18,7 +19,7 @@ jest.mock('lucide-react', () => ({
 }));
 
 // Mock navigation to avoid importing real icons
-jest.mock('../navigation', () => ({
+vi.mock('../navigation', () => ({
   mainNavigation: [
     { name: 'Dashboard', href: '/', icon: () => <svg aria-hidden="true" /> },
     {
@@ -55,10 +56,10 @@ const KNOWN_COLLAPSED_RULES_TO_DISABLE = {
 };
 
 describe('Sidebar a11y', () => {
-  const mockSetIsOpen = jest.fn();
+  const mockSetIsOpen = vi.fn();
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   it('has no accessibility violations when expanded', async () => {

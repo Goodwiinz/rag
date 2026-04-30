@@ -1,15 +1,16 @@
 /**
- * @jest-environment node
+ * @vitest-environment node
  */
+import { MockedFunction, afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { fetchThreadMessages, fetchThreads } from '../../services/threads';
 import * as client from '../../services/client';
 
-jest.mock('../../services/client');
+vi.mock('../../services/client');
 
-const mockedHeaders = client.getCliAuthHeaders as jest.MockedFunction<
+const mockedHeaders = client.getCliAuthHeaders as MockedFunction<
   typeof client.getCliAuthHeaders
 >;
-const mockedBase = client.getApiBase as jest.MockedFunction<
+const mockedBase = client.getApiBase as MockedFunction<
   typeof client.getApiBase
 >;
 
@@ -22,7 +23,7 @@ beforeEach(() => {
   mockedBase.mockReturnValue('http://api.test/api/v1');
 });
 
-afterEach(() => jest.clearAllMocks());
+afterEach(() => vi.clearAllMocks());
 
 function jsonResponse(body: unknown, status = 200) {
   return {
@@ -34,7 +35,7 @@ function jsonResponse(body: unknown, status = 200) {
 
 describe('fetchThreads', () => {
   test('returns the threads array on success', async () => {
-    const fetchFn = jest.fn().mockResolvedValue(
+    const fetchFn = vi.fn().mockResolvedValue(
       jsonResponse({
         threads: [
           {
@@ -62,13 +63,13 @@ describe('fetchThreads', () => {
   });
 
   test('returns empty array when payload omits threads', async () => {
-    const fetchFn = jest.fn().mockResolvedValue(jsonResponse({}));
+    const fetchFn = vi.fn().mockResolvedValue(jsonResponse({}));
     const out = await fetchThreads({ fetchFn: fetchFn as never });
     expect(out).toEqual([]);
   });
 
   test('throws on non-ok response', async () => {
-    const fetchFn = jest.fn().mockResolvedValue(jsonResponse({}, 500));
+    const fetchFn = vi.fn().mockResolvedValue(jsonResponse({}, 500));
     await expect(fetchThreads({ fetchFn: fetchFn as never })).rejects.toThrow(
       /500/
     );
@@ -77,7 +78,7 @@ describe('fetchThreads', () => {
 
 describe('fetchThreadMessages', () => {
   test('returns messages array on success', async () => {
-    const fetchFn = jest.fn().mockResolvedValue(
+    const fetchFn = vi.fn().mockResolvedValue(
       jsonResponse({
         messages: [
           {
@@ -105,14 +106,14 @@ describe('fetchThreadMessages', () => {
   });
 
   test('translates 404 into "Thread not found"', async () => {
-    const fetchFn = jest.fn().mockResolvedValue(jsonResponse({}, 404));
+    const fetchFn = vi.fn().mockResolvedValue(jsonResponse({}, 404));
     await expect(
       fetchThreadMessages('missing', { fetchFn: fetchFn as never })
     ).rejects.toThrow(/Thread not found/);
   });
 
   test('url-encodes the thread id', async () => {
-    const fetchFn = jest.fn().mockResolvedValue(jsonResponse({ messages: [] }));
+    const fetchFn = vi.fn().mockResolvedValue(jsonResponse({ messages: [] }));
     await fetchThreadMessages('weird/id', { fetchFn: fetchFn as never });
     expect(fetchFn).toHaveBeenCalledWith(
       'http://api.test/api/v1/agent/threads/weird%2Fid/messages',
