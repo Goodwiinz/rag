@@ -41,6 +41,7 @@ RESEARCH_TOOLS = [
 
 RESEARCH_TOOL_NAMES_LIST = [t.name for t in RESEARCH_TOOLS]
 
+
 def _build_research_system_prompt() -> str:
     """Construct the research subgraph system prompt with shared rules embedded.
 
@@ -66,8 +67,12 @@ def _build_research_system_prompt() -> str:
     )
 
 
-
-RESEARCH_DESTRUCTIVE_TOOLS = {"ingest_arxiv_papers", "add_document_to_project", "create_project"}
+RESEARCH_DESTRUCTIVE_TOOLS = {
+    "ingest_arxiv_papers",
+    "add_document_to_project",
+    "create_project",
+    "execute_code",
+}
 
 
 async def research_llm_node(state: AgentState, config: RunnableConfig) -> dict:
@@ -117,9 +122,7 @@ async def research_interrupt_node(state: AgentState, config: RunnableConfig) -> 
 
     confirmation_details = {
         "pending_tools": tool_names,
-        "tools": [
-            {"name": tc["name"], "args": tc["args"]} for tc in destructive_calls
-        ],
+        "tools": [{"name": tc["name"], "args": tc["args"]} for tc in destructive_calls],
         "message": f"Confirm: {', '.join(tool_names)}?",
     }
     user_response = interrupt(confirmation_details)
