@@ -25,7 +25,7 @@ jobs:
       NPM_CONFIG_CACHE: ${{ github.workspace }}/.npm-cache
       PIP_CACHE_DIR: ${{ github.workspace }}/.pip-cache
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v6.0.2
 
       - name: Setup Python
         run: |
@@ -56,7 +56,7 @@ jobs:
       NPM_CONFIG_CACHE: ${{ github.workspace }}/.npm-cache
       PIP_CACHE_DIR: ${{ github.workspace }}/.pip-cache
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v6.0.2
 
       - name: Install Dependencies
         working-directory: backend
@@ -79,7 +79,7 @@ jobs:
       NPM_CONFIG_CACHE: ${{ github.workspace }}/.npm-cache
       PIP_CACHE_DIR: ${{ github.workspace }}/.pip-cache
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v6.0.2
 
       - name: Install & Test
         working-directory: frontend
@@ -94,15 +94,15 @@ jobs:
     runs-on: ${{ github.event.inputs.runner || vars.FAST_CI_RUNNER || 'ubuntu-latest' }}
     continue-on-error: true   # PR #1 only; PR #2 makes it required.
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v6.0.2
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6
         with:
           version: 9
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: '20'
           cache: 'pnpm'
@@ -118,7 +118,7 @@ jobs:
 
       - name: Upload JUnit
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: vitest-junit
           path: frontend/coverage/junit-vitest.xml
