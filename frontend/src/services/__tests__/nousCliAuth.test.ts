@@ -1,4 +1,5 @@
-import { Mock, afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { Mock } from 'vitest';
 import {
   buildNousCliAuthPayload,
   downloadStoredNousCliAuth,

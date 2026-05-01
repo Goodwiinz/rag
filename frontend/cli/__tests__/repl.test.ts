@@ -1,17 +1,8 @@
 /**
  * @vitest-environment node
  */
-import {
-  Mock,
-  Mocked,
-  MockedFunction,
-  afterEach,
-  beforeEach,
-  describe,
-  expect,
-  test,
-  vi,
-} from 'vitest';
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
+import type { Mock, Mocked, MockedFunction } from 'vitest';
 import { mkdtempSync, rmSync } from 'fs';
 import * as os from 'os';
 import * as path from 'path';

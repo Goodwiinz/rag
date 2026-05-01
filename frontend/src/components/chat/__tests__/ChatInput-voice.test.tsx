@@ -6,7 +6,8 @@
  * available on `window`, the button should be disabled.
  */
 
-import { Mock, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { Mock } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
 
 // Mock framer-motion to avoid animation issues in tests

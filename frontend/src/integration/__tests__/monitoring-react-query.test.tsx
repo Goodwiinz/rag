@@ -12,9 +12,24 @@
  * - Performance under concurrent queries
  */
 
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest';
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  test,
+  vi,
+} from 'vitest';
 import React from 'react';
-import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
+import {
+  render,
+  screen,
+  fireEvent,
+  waitFor,
+  act,
+} from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { BrowserRouter } from 'react-router-dom';
 
@@ -41,22 +56,22 @@ const mockSystemHealth = {
   components: {
     database: { status: 'healthy', score: 90 },
     vector_store: { status: 'healthy', score: 88 },
-    graph_db: { status: 'warning', score: 75 }
+    graph_db: { status: 'warning', score: 75 },
   },
-  timestamp: new Date().toISOString()
+  timestamp: new Date().toISOString(),
 };
 
 const mockMetrics = {
   performance: {
     response_time: { current: 245, trend: 'decreasing' },
     throughput: { current: 1250, trend: 'stable' },
-    error_rate: { current: 0.8, trend: 'decreasing' }
+    error_rate: { current: 0.8, trend: 'decreasing' },
   },
   business: {
     total_queries: 15420,
     user_satisfaction: 4.6,
-    daily_active_users: 342
-  }
+    daily_active_users: 342,
+  },
 };
 
 const mockAlerts = [
@@ -66,7 +81,7 @@ const mockAlerts = [
     severity: 'warning',
     status: 'active',
     message: 'CPU usage exceeded threshold',
-    created_at: new Date().toISOString()
+    created_at: new Date().toISOString(),
   },
   {
     id: 'alert-2',
@@ -74,38 +89,37 @@ const mockAlerts = [
     severity: 'critical',
     status: 'active',
     message: 'Memory usage approaching limit',
-    created_at: new Date().toISOString()
-  }
+    created_at: new Date().toISOString(),
+  },
 ];
 
 // Test wrapper with QueryClient
-const createTestQueryClient = () => new QueryClient({
-  defaultOptions: {
-    queries: {
-      retry: false,
-      gcTime: 1000, // 1 second for testing
-      staleTime: 5000, // 5 seconds
+const createTestQueryClient = () =>
+  new QueryClient({
+    defaultOptions: {
+      queries: {
+        retry: false,
+        gcTime: 1000, // 1 second for testing
+        staleTime: 5000, // 5 seconds
+      },
+      mutations: {
+        retry: false,
+      },
     },
-    mutations: {
-      retry: false,
-    }
-  }
-});
+  });
 
-const TestWrapper: React.FC<{ children: React.ReactNode; client?: QueryClient }> = ({
-  children,
-  client = createTestQueryClient()
-}) => (
+const TestWrapper: React.FC<{
+  children: React.ReactNode;
+  client?: QueryClient;
+}> = ({ children, client = createTestQueryClient() }) => (
   <QueryClientProvider client={client}>
-    <BrowserRouter>
-      {children}
-    </BrowserRouter>
+    <BrowserRouter>{children}</BrowserRouter>
   </QueryClientProvider>
 );
 
 // Mock WebSocket service
 vi.mock('../../services/monitoringWebsocketService', () => ({
-  default: mockWebSocketService
+  default: mockWebSocketService,
 }));
 
 // Establish API mocking
@@ -176,7 +190,9 @@ describe('React Query - Basic Query Functionality', () => {
 
     function TestComponent() {
       const { data } = useSystemHealthQuery();
-      return data ? <div data-testid="health-score">{data.overall_score}</div> : null;
+      return data ? (
+        <div data-testid="health-score">{data.overall_score}</div>
+      ) : null;
     }
 
     function TestApp() {
@@ -290,17 +306,19 @@ describe('React Query - Background Refetching', () => {
     server.use(
       rest.get('/api/monitoring/health', (req, res, ctx) => {
         requestCount++;
-        return res(ctx.json({
-          ...mockSystemHealth,
-          overall_score: 85 + requestCount // Increment score each request
-        }));
+        return res(
+          ctx.json({
+            ...mockSystemHealth,
+            overall_score: 85 + requestCount, // Increment score each request
+          })
+        );
       })
     );
 
     function TestComponent() {
       const { data, isFetching } = useSystemHealthQuery({
         staleTime: 1000, // 1 second stale time
-        refetchInterval: 2000 // Refetch every 2 seconds
+        refetchInterval: 2000, // Refetch every 2 seconds
       });
 
       return (
@@ -341,19 +359,23 @@ describe('React Query - Background Refetching', () => {
     server.use(
       rest.get('/api/monitoring/health', (req, res, ctx) => {
         requestCount++;
-        return res(ctx.json({
-          ...mockSystemHealth,
-          overall_score: 85 + requestCount
-        }));
+        return res(
+          ctx.json({
+            ...mockSystemHealth,
+            overall_score: 85 + requestCount,
+          })
+        );
       })
     );
 
     function TestComponent() {
       const { data } = useSystemHealthQuery({
-        refetchOnWindowFocus: true
+        refetchOnWindowFocus: true,
       });
 
-      return data ? <div data-testid="health-score">{data.overall_score}</div> : null;
+      return data ? (
+        <div data-testid="health-score">{data.overall_score}</div>
+      ) : null;
     }
 
     render(
@@ -387,19 +409,23 @@ describe('React Query - Background Refetching', () => {
     server.use(
       rest.get('/api/monitoring/health', (req, res, ctx) => {
         requestCount++;
-        return res(ctx.json({
-          ...mockSystemHealth,
-          overall_score: 85 + requestCount
-        }));
+        return res(
+          ctx.json({
+            ...mockSystemHealth,
+            overall_score: 85 + requestCount,
+          })
+        );
       })
     );
 
     function TestComponent() {
       const { data } = useSystemHealthQuery({
-        refetchOnReconnect: true
+        refetchOnReconnect: true,
       });
 
-      return data ? <div data-testid="health-score">{data.overall_score}</div> : null;
+      return data ? (
+        <div data-testid="health-score">{data.overall_score}</div>
+      ) : null;
     }
 
     render(
@@ -442,19 +468,22 @@ describe('React Query - Mutations and Optimistic Updates', () => {
       rest.get('/api/monitoring/alerts', (req, res, ctx) => {
         return res(ctx.json({ alerts: mockAlerts }));
       }),
-      rest.post('/api/monitoring/alerts/:alertId/acknowledge', (req, res, ctx) => {
-        mutationCount++;
-        const { alertId } = req.params;
+      rest.post(
+        '/api/monitoring/alerts/:alertId/acknowledge',
+        (req, res, ctx) => {
+          mutationCount++;
+          const { alertId } = req.params;
 
-        // Simulate server delay
-        return res(
-          ctx.delay(100),
-          ctx.json({
-            message: `Alert ${alertId} acknowledged`,
-            acknowledged_at: new Date().toISOString()
-          })
-        );
-      })
+          // Simulate server delay
+          return res(
+            ctx.delay(100),
+            ctx.json({
+              message: `Alert ${alertId} acknowledged`,
+              acknowledged_at: new Date().toISOString(),
+            })
+          );
+        }
+      )
     );
 
     function TestComponent() {
@@ -465,14 +494,14 @@ describe('React Query - Mutations and Optimistic Updates', () => {
         acknowledgeAlert.mutate({
           alertId,
           action: 'acknowledge',
-          message: 'Test acknowledgment'
+          message: 'Test acknowledgment',
         });
       };
 
       return (
         <div>
           <div data-testid="alert-count">{alerts?.alerts.length || 0}</div>
-          {alerts?.alerts.map(alert => (
+          {alerts?.alerts.map((alert) => (
             <div key={alert.id} data-testid={`alert-${alert.id}`}>
               <span data-testid={`status-${alert.id}`}>{alert.status}</span>
               <button
@@ -484,7 +513,9 @@ describe('React Query - Mutations and Optimistic Updates', () => {
               </button>
             </div>
           ))}
-          {acknowledgeAlert.isPending && <div data-testid="pending">Pending...</div>}
+          {acknowledgeAlert.isPending && (
+            <div data-testid="pending">Pending...</div>
+          )}
         </div>
       );
     }
@@ -508,7 +539,9 @@ describe('React Query - Mutations and Optimistic Updates', () => {
 
     // Should show optimistic update immediately (status changes to acknowledged)
     await waitFor(() => {
-      expect(screen.getByTestId('status-alert-1')).toHaveTextContent('acknowledged');
+      expect(screen.getByTestId('status-alert-1')).toHaveTextContent(
+        'acknowledged'
+      );
     });
 
     // Should show pending state
@@ -528,12 +561,15 @@ describe('React Query - Mutations and Optimistic Updates', () => {
       rest.get('/api/monitoring/alerts', (req, res, ctx) => {
         return res(ctx.json({ alerts: mockAlerts }));
       }),
-      rest.post('/api/monitoring/alerts/:alertId/acknowledge', (req, res, ctx) => {
-        return res(
-          ctx.status(500),
-          ctx.json({ error: 'Failed to acknowledge alert' })
-        );
-      })
+      rest.post(
+        '/api/monitoring/alerts/:alertId/acknowledge',
+        (req, res, ctx) => {
+          return res(
+            ctx.status(500),
+            ctx.json({ error: 'Failed to acknowledge alert' })
+          );
+        }
+      )
     );
 
     function TestComponent() {
@@ -544,13 +580,13 @@ describe('React Query - Mutations and Optimistic Updates', () => {
         acknowledgeAlert.mutate({
           alertId,
           action: 'acknowledge',
-          message: 'Test acknowledgment'
+          message: 'Test acknowledgment',
         });
       };
 
       return (
         <div>
-          {alerts?.alerts.map(alert => (
+          {alerts?.alerts.map((alert) => (
             <div key={alert.id} data-testid={`alert-${alert.id}`}>
               <span data-testid={`status-${alert.id}`}>{alert.status}</span>
               <button
@@ -586,12 +622,16 @@ describe('React Query - Mutations and Optimistic Updates', () => {
 
     // Should show optimistic update
     await waitFor(() => {
-      expect(screen.getByTestId('status-alert-1')).toHaveTextContent('acknowledged');
+      expect(screen.getByTestId('status-alert-1')).toHaveTextContent(
+        'acknowledged'
+      );
     });
 
     // Wait for error and rollback
     await waitFor(() => {
-      expect(screen.getByTestId('status-alert-1')).toHaveTextContent(initialStatus);
+      expect(screen.getByTestId('status-alert-1')).toHaveTextContent(
+        initialStatus
+      );
     });
 
     // Should show error state
@@ -633,7 +673,7 @@ describe('React Query - Query Invalidation and Cache Management', () => {
         resolveAlert.mutate({
           alertId,
           action: 'resolve',
-          message: 'Test resolution'
+          message: 'Test resolution',
         });
       };
 
@@ -660,7 +700,9 @@ describe('React Query - Query Invalidation and Cache Management', () => {
     // Wait for initial queries
     await waitFor(() => {
       expect(screen.getByTestId('alerts-request-count')).toHaveTextContent('1');
-      expect(screen.getByTestId('metrics-request-count')).toHaveTextContent('1');
+      expect(screen.getByTestId('metrics-request-count')).toHaveTextContent(
+        '1'
+      );
     });
 
     // Resolve alert (should invalidate related queries)
@@ -669,7 +711,9 @@ describe('React Query - Query Invalidation and Cache Management', () => {
     // Wait for refetch of invalidated queries
     await waitFor(() => {
       expect(screen.getByTestId('alerts-request-count')).toHaveTextContent('2');
-      expect(screen.getByTestId('metrics-request-count')).toHaveTextContent('2');
+      expect(screen.getByTestId('metrics-request-count')).toHaveTextContent(
+        '2'
+      );
     });
   });
 
@@ -679,10 +723,12 @@ describe('React Query - Query Invalidation and Cache Management', () => {
     server.use(
       rest.get('/api/monitoring/health', (req, res, ctx) => {
         requestCount++;
-        return res(ctx.json({
-          ...mockSystemHealth,
-          overall_score: 85 + requestCount
-        }));
+        return res(
+          ctx.json({
+            ...mockSystemHealth,
+            overall_score: 85 + requestCount,
+          })
+        );
       })
     );
 
@@ -799,22 +845,24 @@ describe('React Query - Pagination and Infinite Queries', () => {
           id: `alert-${i}`,
           name: `Alert ${i}`,
           severity: i % 3 === 0 ? 'critical' : 'warning',
-          status: 'active'
+          status: 'active',
         }));
 
         const startIndex = (page - 1) * pageSize;
         const endIndex = startIndex + pageSize;
         const pageAlerts = allAlerts.slice(startIndex, endIndex);
 
-        return res(ctx.json({
-          alerts: pageAlerts,
-          pagination: {
-            page,
-            pageSize,
-            total: allAlerts.length,
-            totalPages: Math.ceil(allAlerts.length / pageSize)
-          }
-        }));
+        return res(
+          ctx.json({
+            alerts: pageAlerts,
+            pagination: {
+              page,
+              pageSize,
+              total: allAlerts.length,
+              totalPages: Math.ceil(allAlerts.length / pageSize),
+            },
+          })
+        );
       })
     );
 
@@ -831,14 +879,14 @@ describe('React Query - Pagination and Infinite Queries', () => {
           <div data-testid="page-alerts">{data?.alerts.length || 0}</div>
           <button
             data-testid="next-page"
-            onClick={() => setPage(p => p + 1)}
+            onClick={() => setPage((p) => p + 1)}
             disabled={page >= (data?.pagination.totalPages || 1)}
           >
             Next Page
           </button>
           <button
             data-testid="prev-page"
-            onClick={() => setPage(p => Math.max(1, p - 1))}
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
             disabled={page <= 1}
           >
             Previous Page
@@ -900,7 +948,7 @@ describe('React Query - Pagination and Infinite Queries', () => {
           id: `log-${i}`,
           level: ['INFO', 'WARNING', 'ERROR'][i % 3],
           message: `Log message ${i}`,
-          timestamp: new Date(Date.now() - i * 60000).toISOString()
+          timestamp: new Date(Date.now() - i * 60000).toISOString(),
         }));
 
         const startIndex = (pageParam - 1) * pageSize;
@@ -909,10 +957,12 @@ describe('React Query - Pagination and Infinite Queries', () => {
 
         const hasNextPage = endIndex < logs.length;
 
-        return res(ctx.json({
-          logs: pageLogs,
-          nextPage: hasNextPage ? pageParam + 1 : null
-        }));
+        return res(
+          ctx.json({
+            logs: pageLogs,
+            nextPage: hasNextPage ? pageParam + 1 : null,
+          })
+        );
       })
     );
 
@@ -922,7 +972,7 @@ describe('React Query - Pagination and Infinite Queries', () => {
         fetchNextPage,
         hasNextPage,
         isFetchingNextPage,
-        isFetching
+        isFetching,
       } = useInfiniteLogsQuery();
 
       return (
@@ -937,7 +987,9 @@ describe('React Query - Pagination and Infinite Queries', () => {
             Load More
           </button>
           {isFetching && <div data-testid="fetching">Fetching...</div>}
-          {isFetchingNextPage && <div data-testid="fetching-next">Fetching next...</div>}
+          {isFetchingNextPage && (
+            <div data-testid="fetching-next">Fetching next...</div>
+          )}
         </div>
       );
     }
@@ -947,9 +999,11 @@ describe('React Query - Pagination and Infinite Queries', () => {
       return useInfiniteQuery({
         queryKey: ['logs'],
         queryFn: ({ pageParam = 1 }) =>
-          fetch(`/api/monitoring/logs?page=${pageParam}`).then(res => res.json()),
+          fetch(`/api/monitoring/logs?page=${pageParam}`).then((res) =>
+            res.json()
+          ),
         getNextPageParam: (lastPage) => lastPage.nextPage,
-        initialPageParam: 1
+        initialPageParam: 1,
       });
     };
 
@@ -977,12 +1031,17 @@ describe('React Query - Pagination and Infinite Queries', () => {
 
     // Continue loading until no more pages
     let loadCount = 2;
-    while (screen.getByTestId('load-more')).isEnabled && loadCount < 6) {
+    while (
+      !(screen.getByTestId('load-more') as HTMLButtonElement).disabled &&
+      loadCount < 6
+    ) {
       fireEvent.click(screen.getByTestId('load-more'));
       loadCount++;
 
       await waitFor(() => {
-        const currentLogs = parseInt(screen.getByTestId('total-logs').textContent || '0');
+        const currentLogs = parseInt(
+          screen.getByTestId('total-logs').textContent || '0'
+        );
         expect(currentLogs).toBeGreaterThan(0);
       });
     }
@@ -1014,9 +1073,7 @@ describe('React Query - WebSocket Integration', () => {
 
       return (
         <div>
-          {data && (
-            <div data-testid="health-score">{data.overall_score}</div>
-          )}
+          {data && <div data-testid="health-score">{data.overall_score}</div>}
         </div>
       );
     }
@@ -1038,8 +1095,8 @@ describe('React Query - WebSocket Integration', () => {
         type: 'health_update',
         data: {
           ...mockSystemHealth,
-          overall_score: 92
-        }
+          overall_score: 92,
+        },
       });
     });
 
@@ -1060,11 +1117,11 @@ describe('React Query - WebSocket Integration', () => {
       }),
       disconnect: vi.fn(() => Promise.resolve()),
       on: vi.fn(),
-      off: vi.fn()
+      off: vi.fn(),
     };
 
     vi.mock('../../services/monitoringWebsocketService', () => ({
-      default: mockWebSocketServiceWithReconnect
+      default: mockWebSocketServiceWithReconnect,
     }));
 
     function TestComponent() {
@@ -1205,7 +1262,7 @@ describe('React Query - Performance and Concurrent Queries', () => {
           ctx.delay(delay),
           ctx.json({
             ...mockSystemHealth,
-            overall_score: 85 + requestCount
+            overall_score: 85 + requestCount,
           })
         );
       })
@@ -1214,7 +1271,7 @@ describe('React Query - Performance and Concurrent Queries', () => {
     function TestComponent() {
       const { data, isFetching } = useSystemHealthQuery({
         refetchInterval: 100, // Very frequent refetch for testing
-        staleTime: 0
+        staleTime: 0,
       });
 
       return (
@@ -1238,10 +1295,12 @@ describe('React Query - Performance and Concurrent Queries', () => {
     });
 
     // Let it run for a bit to test background refetching
-    await new Promise(resolve => setTimeout(resolve, 500));
+    await new Promise((resolve) => setTimeout(resolve, 500));
 
     // Should have made multiple requests
-    const finalRequestCount = parseInt(screen.getByTestId('request-count').textContent);
+    const finalRequestCount = parseInt(
+      screen.getByTestId('request-count').textContent
+    );
     expect(finalRequestCount).toBeGreaterThan(3);
 
     // Should handle concurrent requests gracefully
@@ -1272,7 +1331,7 @@ describe('React Query - Error Recovery and Retry Logic', () => {
     function TestComponent() {
       const { data, isLoading, error, failureCount } = useSystemHealthQuery({
         retry: 3,
-        retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000)
+        retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
       });
 
       return (
@@ -1284,7 +1343,7 @@ describe('React Query - Error Recovery and Retry Logic', () => {
           <div data-testid="failure-count">{failureCount || 0}</div>
         </div>
       );
-    });
+    }
 
     render(
       <TestWrapper client={queryClient}>
@@ -1293,9 +1352,12 @@ describe('React Query - Error Recovery and Retry Logic', () => {
     );
 
     // Should retry and eventually succeed
-    await waitFor(() => {
-      expect(screen.getByTestId('health-score')).toHaveTextContent('85');
-    }, { timeout: 5000 });
+    await waitFor(
+      () => {
+        expect(screen.getByTestId('health-score')).toHaveTextContent('85');
+      },
+      { timeout: 5000 }
+    );
 
     // Should have made 3 attempts
     expect(screen.getByTestId('attempt-count')).toHaveTextContent('3');
@@ -1305,14 +1367,14 @@ describe('React Query - Error Recovery and Retry Logic', () => {
     // Simulate offline state
     Object.defineProperty(navigator, 'onLine', {
       writable: true,
-      value: false
+      value: false,
     });
 
     function TestComponent() {
       const { data, isLoading, error, isPaused } = useSystemHealthQuery({
         retry: false,
         refetchOnWindowFocus: false,
-        refetchOnReconnect: false
+        refetchOnReconnect: false,
       });
 
       return (
@@ -1337,7 +1399,7 @@ describe('React Query - Error Recovery and Retry Logic', () => {
     // Go back online
     Object.defineProperty(navigator, 'onLine', {
       writable: true,
-      value: true
+      value: true,
     });
 
     act(() => {
@@ -1361,10 +1423,10 @@ describe('React Query - Cache Persistence', () => {
           state: {
             data: mockSystemHealth,
             status: 'success',
-            lastUpdated: Date.now()
-          }
-        }
-      ]
+            lastUpdated: Date.now(),
+          },
+        },
+      ],
     };
 
     // In a real implementation, this would use React Query persistor
@@ -1375,7 +1437,7 @@ describe('React Query - Cache Persistence', () => {
     function TestComponent() {
       const { data, isLoading } = useSystemHealthQuery({
         staleTime: Infinity, // Always use cached data
-        gcTime: Infinity
+        gcTime: Infinity,
       });
 
       return (

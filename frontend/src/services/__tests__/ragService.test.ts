@@ -1,4 +1,5 @@
-import { Mocked, beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { Mocked } from 'vitest';
 import { APIErrorClass } from '@/types/api';
 import { retrieveRAGContext } from '../ragService';
 import { apiClient } from '../apiClient';

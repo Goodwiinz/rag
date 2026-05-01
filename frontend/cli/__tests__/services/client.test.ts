@@ -1,4 +1,5 @@
-import { MockedFunction, expect, test, vi } from 'vitest';
+import { expect, test, vi } from 'vitest';
+import type { MockedFunction } from 'vitest';
 import { getCliAuthHeaders, safeFetch } from '../../services/client';
 
 vi.mock('../../auth/store');

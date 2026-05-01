@@ -1,10 +1,13 @@
+// TODO(vitest-migration): re-enable this suite once App is loadable under
+// jsdom + Vitest. Currently excluded from `unit` in vitest.workspace.mts;
+// see PR #443 task 8.
 import { describe, expect, it, vi } from 'vitest';
 import React from 'react';
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 // Mock fetch for /health used in App BEFORE importing App
 const mockFetch = vi.fn().mockResolvedValue({
-  json: () => Promise.resolve({ status: 'ok' })
+  json: () => Promise.resolve({ status: 'ok' }),
 });
 (global as any).fetch = mockFetch as any;
 (window as any).fetch = mockFetch as any;
@@ -15,19 +18,21 @@ vi.mock('../services/analyticsService', () => ({
   default: {
     getQualityMetrics: vi.fn().mockResolvedValue({
       metrics: [],
-      alerts: []
-    })
-  }
+      alerts: [],
+    }),
+  },
 }));
 
 describe('App routing', () => {
   it('renders app shell and shows Analytics entry points', async () => {
     const App = require('../App').default;
     render(
-      <MemoryRouter initialEntries={["/"]}>
+      <MemoryRouter initialEntries={['/']}>
         <App />
       </MemoryRouter>
     );
-    expect(await screen.findByText(/Open Analytics Dashboard/i)).toBeInTheDocument();
+    expect(
+      await screen.findByText(/Open Analytics Dashboard/i)
+    ).toBeInTheDocument();
   });
 });

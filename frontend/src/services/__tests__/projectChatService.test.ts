@@ -4,7 +4,8 @@
  * Tests API client calls with mocked responses
  */
 
-import { Mocked, beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { Mocked } from 'vitest';
 import { projectChatService } from '../projectChatService';
 import { apiClient } from '../apiClient';
 import type {

@@ -1,4 +1,5 @@
-import { MockedFunction, beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { MockedFunction } from 'vitest';
 import { GlobalJobCenter } from '@/components/layout/GlobalJobCenter';
 import { entityService } from '@/services/entityService';
 import { render, waitFor } from '@testing-library/react';

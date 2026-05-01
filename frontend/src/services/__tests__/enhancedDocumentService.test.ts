@@ -1,4 +1,5 @@
-import { Mocked, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { Mocked } from 'vitest';
 import { EnhancedDocumentService } from '@/services/enhancedDocumentService';
 import { apiClient } from '@/services/apiClient';
 

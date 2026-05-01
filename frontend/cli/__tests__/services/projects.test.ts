@@ -1,7 +1,8 @@
 /**
  * @vitest-environment node
  */
-import { MockedFunction, afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
+import type { MockedFunction } from 'vitest';
 import { fetchProjects } from '../../services/projects';
 import * as client from '../../services/client';
 

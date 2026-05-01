@@ -5,7 +5,8 @@
  * needs-review warnings, and export/download behavior.
  */
 
-import { Mock, beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { Mock } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { BibliographyExport } from '../BibliographyExport';

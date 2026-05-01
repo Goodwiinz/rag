@@ -1,7 +1,8 @@
 /**
  * @vitest-environment node
  */
-import { MockedFunction, afterEach, beforeEach, expect, test, vi } from 'vitest';
+import { afterEach, beforeEach, expect, test, vi } from 'vitest';
+import type { MockedFunction } from 'vitest';
 import { streamAgent, streamConfirm } from '../stream';
 import * as store from '../auth/store';
 import * as client from '../services/client';
