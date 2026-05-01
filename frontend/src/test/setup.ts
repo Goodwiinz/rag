@@ -1,7 +1,18 @@
 // frontend/src/test/setup.ts
 import '@testing-library/jest-dom/vitest';
+import { afterEach } from 'vitest';
+import { cleanup } from '@testing-library/react';
 import { TextEncoder, TextDecoder } from 'util';
 import { TransformStream as WebTransformStream } from 'node:stream/web';
+
+// `@testing-library/react`'s automatic cleanup only fires when test globals
+// are present (Jest's `afterEach`). Vitest is configured with
+// `globals: false`, so the library never registers. Run cleanup explicitly
+// after every test — without this, every test leaks its rendered DOM into
+// the next, breaking `getByRole(...)` queries that expect a unique match.
+afterEach(() => {
+  cleanup();
+});
 
 // Polyfills missing in jsdom
 Object.assign(globalThis, { TextEncoder, TextDecoder });
