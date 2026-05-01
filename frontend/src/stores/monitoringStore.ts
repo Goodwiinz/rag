@@ -4,6 +4,7 @@
  */
 
 import { create } from 'zustand';
+import { useShallow } from 'zustand/react/shallow';
 import { subscribeWithSelector } from 'zustand/middleware';
 import {
   SystemHealthScore,
@@ -18,7 +19,7 @@ import {
   TimeRangePreset,
   LoadingState,
   RealTimeUpdate,
-  MonitoringIntegration
+  MonitoringIntegration,
 } from '@/types/monitoring';
 
 // ============================================================================
@@ -100,16 +101,25 @@ interface MonitoringState {
 
   // Dashboard Actions
   setActiveDashboard: (dashboardId: string) => void;
-  updateDashboardConfig: (dashboardId: string, config: Partial<DashboardConfig>) => void;
+  updateDashboardConfig: (
+    dashboardId: string,
+    config: Partial<DashboardConfig>
+  ) => void;
   createDashboard: (config: DashboardConfig) => void;
   deleteDashboard: (dashboardId: string) => void;
   toggleEditMode: () => void;
   setDraggedWidget: (widgetId: string | null) => void;
 
   // Time Range Actions
-  setTimeRange: (timeRange: TimeRange, scope?: 'performance' | 'business' | 'userAnalytics' | 'global') => void;
+  setTimeRange: (
+    timeRange: TimeRange,
+    scope?: 'performance' | 'business' | 'userAnalytics' | 'global'
+  ) => void;
   setPresetTimeRange: (preset: TimeRangePreset) => void;
-  setTimeRangeForScope: (scope: 'performance' | 'business' | 'userAnalytics' | 'global', timeRange: TimeRange) => void;
+  setTimeRangeForScope: (
+    scope: 'performance' | 'business' | 'userAnalytics' | 'global',
+    timeRange: TimeRange
+  ) => void;
 
   // Real-time Actions
   addRealTimeUpdate: (update: RealTimeUpdate) => void;
@@ -129,7 +139,10 @@ interface MonitoringState {
   setRefreshInterval: (interval: number) => void;
 
   // Notification Actions
-  showNotification: (message: string, type?: 'success' | 'error' | 'warning' | 'info') => void;
+  showNotification: (
+    message: string,
+    type?: 'success' | 'error' | 'warning' | 'info'
+  ) => void;
   clearNotifications: () => void;
   dismissNotification: (index: number) => void;
 
@@ -148,10 +161,49 @@ interface MonitoringState {
 const getInitialTimeRange = (): TimeRange => ({
   start: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
   end: new Date().toISOString(),
-  preset: '24h'
+  preset: '24h',
 });
 
-const initialState: Omit<MonitoringState, 'updateSystemHealth' | 'updatePerformanceMetrics' | 'updateBusinessMetrics' | 'updateInfrastructureMetrics' | 'updateActiveAlerts' | 'updateAlertHistory' | 'updateUserAnalytics' | 'acknowledgeAlert' | 'resolveAlert' | 'suppressAlert' | 'unacknowledgeAlert' | 'setActiveDashboard' | 'updateDashboardConfig' | 'createDashboard' | 'deleteDashboard' | 'toggleEditMode' | 'setDraggedWidget' | 'setTimeRange' | 'setPresetTimeRange' | 'setTimeRangeForScope' | 'addRealTimeUpdate' | 'clearRealTimeUpdates' | 'setRealTimeConnection' | 'updateIntegrations' | 'toggleIntegration' | 'updateIntegrationConfig' | 'setGlobalFilters' | 'updateGlobalFilter' | 'clearGlobalFilters' | 'toggleAutoRefresh' | 'setRefreshInterval' | 'showNotification' | 'clearNotifications' | 'dismissNotification' | 'setLoading' | 'clearAllLoading' | 'resetState'> = {
+const initialState: Omit<
+  MonitoringState,
+  | 'updateSystemHealth'
+  | 'updatePerformanceMetrics'
+  | 'updateBusinessMetrics'
+  | 'updateInfrastructureMetrics'
+  | 'updateActiveAlerts'
+  | 'updateAlertHistory'
+  | 'updateUserAnalytics'
+  | 'acknowledgeAlert'
+  | 'resolveAlert'
+  | 'suppressAlert'
+  | 'unacknowledgeAlert'
+  | 'setActiveDashboard'
+  | 'updateDashboardConfig'
+  | 'createDashboard'
+  | 'deleteDashboard'
+  | 'toggleEditMode'
+  | 'setDraggedWidget'
+  | 'setTimeRange'
+  | 'setPresetTimeRange'
+  | 'setTimeRangeForScope'
+  | 'addRealTimeUpdate'
+  | 'clearRealTimeUpdates'
+  | 'setRealTimeConnection'
+  | 'updateIntegrations'
+  | 'toggleIntegration'
+  | 'updateIntegrationConfig'
+  | 'setGlobalFilters'
+  | 'updateGlobalFilter'
+  | 'clearGlobalFilters'
+  | 'toggleAutoRefresh'
+  | 'setRefreshInterval'
+  | 'showNotification'
+  | 'clearNotifications'
+  | 'dismissNotification'
+  | 'setLoading'
+  | 'clearAllLoading'
+  | 'resetState'
+> = {
   // System Overview
   systemHealth: null,
   systemHealthLoading: { loading: false },
@@ -220,8 +272,8 @@ export const useMonitoringStore = create<MonitoringState>()(
         systemHealth: health,
         systemHealthLoading: {
           loading: false,
-          last_updated: new Date().toISOString()
-        }
+          last_updated: new Date().toISOString(),
+        },
       }));
     },
 
@@ -231,8 +283,8 @@ export const useMonitoringStore = create<MonitoringState>()(
         performanceMetrics: metrics,
         performanceLoading: {
           loading: false,
-          last_updated: new Date().toISOString()
-        }
+          last_updated: new Date().toISOString(),
+        },
       }));
     },
 
@@ -242,8 +294,8 @@ export const useMonitoringStore = create<MonitoringState>()(
         businessMetrics: metrics,
         businessLoading: {
           loading: false,
-          last_updated: new Date().toISOString()
-        }
+          last_updated: new Date().toISOString(),
+        },
       }));
     },
 
@@ -253,8 +305,8 @@ export const useMonitoringStore = create<MonitoringState>()(
         infrastructureMetrics: metrics,
         infrastructureLoading: {
           loading: false,
-          last_updated: new Date().toISOString()
-        }
+          last_updated: new Date().toISOString(),
+        },
       }));
     },
 
@@ -262,15 +314,16 @@ export const useMonitoringStore = create<MonitoringState>()(
     updateActiveAlerts: (alerts) => {
       set((state) => {
         // Filter out acknowledged alerts that are no longer active
-        const filteredAlerts = alerts.filter(alert =>
-          !state.acknowledgedAlerts.has(alert.id) || alert.status === 'active'
+        const filteredAlerts = alerts.filter(
+          (alert) =>
+            !state.acknowledgedAlerts.has(alert.id) || alert.status === 'active'
         );
         return {
           activeAlerts: filteredAlerts,
           alertsLoading: {
             loading: false,
-            last_updated: new Date().toISOString()
-          }
+            last_updated: new Date().toISOString(),
+          },
         };
       });
     },
@@ -280,35 +333,42 @@ export const useMonitoringStore = create<MonitoringState>()(
         alertHistory: history,
         alertsLoading: {
           loading: false,
-          last_updated: new Date().toISOString()
-        }
+          last_updated: new Date().toISOString(),
+        },
       }));
     },
 
     acknowledgeAlert: (alertId) => {
       set((state) => ({
-        acknowledgedAlerts: new Set([...state.acknowledgedAlerts, alertId])
+        acknowledgedAlerts: new Set([...state.acknowledgedAlerts, alertId]),
       }));
     },
 
     resolveAlert: (alertId, resolvedBy) => {
       set((state) => ({
-        activeAlerts: state.activeAlerts.map(alert =>
+        activeAlerts: state.activeAlerts.map((alert) =>
           alert.id === alertId
-            ? { ...alert, status: 'resolved', resolved_at: new Date().toISOString(), resolved_by: resolvedBy }
+            ? {
+                ...alert,
+                status: 'resolved',
+                resolved_at: new Date().toISOString(),
+                resolved_by: resolvedBy,
+              }
             : alert
         ),
-        acknowledgedAlerts: new Set([...state.acknowledgedAlerts].filter(id => id !== alertId))
+        acknowledgedAlerts: new Set(
+          [...state.acknowledgedAlerts].filter((id) => id !== alertId)
+        ),
       }));
     },
 
     suppressAlert: (alertId, durationMinutes) => {
       set((state) => ({
-        activeAlerts: state.activeAlerts.map(alert =>
+        activeAlerts: state.activeAlerts.map((alert) =>
           alert.id === alertId
             ? { ...alert, status: 'suppressed' as const }
             : alert
-        )
+        ),
       }));
     },
 
@@ -325,8 +385,8 @@ export const useMonitoringStore = create<MonitoringState>()(
         userAnalytics: analytics,
         userAnalyticsLoading: {
           loading: false,
-          last_updated: new Date().toISOString()
-        }
+          last_updated: new Date().toISOString(),
+        },
       }));
     },
 
@@ -341,9 +401,9 @@ export const useMonitoringStore = create<MonitoringState>()(
           ...state.dashboardConfigs,
           [dashboardId]: {
             ...state.dashboardConfigs[dashboardId],
-            ...config
-          }
-        }
+            ...config,
+          },
+        },
       }));
     },
 
@@ -351,8 +411,8 @@ export const useMonitoringStore = create<MonitoringState>()(
       set((state) => ({
         dashboardConfigs: {
           ...state.dashboardConfigs,
-          [config.id]: config
-        }
+          [config.id]: config,
+        },
       }));
     },
 
@@ -362,7 +422,10 @@ export const useMonitoringStore = create<MonitoringState>()(
         delete newConfigs[dashboardId];
         return {
           dashboardConfigs: newConfigs,
-          activeDashboardId: state.activeDashboardId === dashboardId ? null : state.activeDashboardId
+          activeDashboardId:
+            state.activeDashboardId === dashboardId
+              ? null
+              : state.activeDashboardId,
         };
       });
     },
@@ -371,8 +434,8 @@ export const useMonitoringStore = create<MonitoringState>()(
       set((state) => ({
         dashboardLayout: {
           ...state.dashboardLayout,
-          isEditing: !state.dashboardLayout.isEditing
-        }
+          isEditing: !state.dashboardLayout.isEditing,
+        },
       }));
     },
 
@@ -380,8 +443,8 @@ export const useMonitoringStore = create<MonitoringState>()(
       set((state) => ({
         dashboardLayout: {
           ...state.dashboardLayout,
-          draggedWidget: widgetId
-        }
+          draggedWidget: widgetId,
+        },
       }));
     },
 
@@ -443,7 +506,7 @@ export const useMonitoringStore = create<MonitoringState>()(
       const timeRange: TimeRange = {
         start: start.toISOString(),
         end: now.toISOString(),
-        preset
+        preset,
       };
 
       get().setTimeRange(timeRange, 'global');
@@ -457,14 +520,14 @@ export const useMonitoringStore = create<MonitoringState>()(
     addRealTimeUpdate: (update) => {
       set((state) => ({
         realTimeUpdates: [...state.realTimeUpdates.slice(-99), update], // Keep last 100 updates
-        lastRealTimeUpdate: update.timestamp
+        lastRealTimeUpdate: update.timestamp,
       }));
     },
 
     clearRealTimeUpdates: () => {
       set({
         realTimeUpdates: [],
-        lastRealTimeUpdate: null
+        lastRealTimeUpdate: null,
       });
     },
 
@@ -478,28 +541,28 @@ export const useMonitoringStore = create<MonitoringState>()(
         integrations,
         integrationsLoading: {
           loading: false,
-          last_updated: new Date().toISOString()
-        }
+          last_updated: new Date().toISOString(),
+        },
       });
     },
 
     toggleIntegration: (integrationId) => {
       set((state) => ({
-        integrations: state.integrations.map(integration =>
+        integrations: state.integrations.map((integration) =>
           integration.id === integrationId
             ? { ...integration, enabled: !integration.enabled }
             : integration
-        )
+        ),
       }));
     },
 
     updateIntegrationConfig: (integrationId, config) => {
       set((state) => ({
-        integrations: state.integrations.map(integration =>
+        integrations: state.integrations.map((integration) =>
           integration.id === integrationId
             ? { ...integration, config: { ...integration.config, ...config } }
             : integration
-        )
+        ),
       }));
     },
 
@@ -512,8 +575,8 @@ export const useMonitoringStore = create<MonitoringState>()(
       set((state) => ({
         globalFilters: {
           ...state.globalFilters,
-          [key]: value
-        }
+          [key]: value,
+        },
       }));
     },
 
@@ -532,7 +595,7 @@ export const useMonitoringStore = create<MonitoringState>()(
     // Notification Actions
     showNotification: (message, type = 'info') => {
       set((state) => ({
-        notifications: [...state.notifications, { show: true, message, type }]
+        notifications: [...state.notifications, { show: true, message, type }],
       }));
     },
 
@@ -542,7 +605,7 @@ export const useMonitoringStore = create<MonitoringState>()(
 
     dismissNotification: (index) => {
       set((state) => ({
-        notifications: state.notifications.filter((_, i) => i !== index)
+        notifications: state.notifications.filter((_, i) => i !== index),
       }));
     },
 
@@ -552,8 +615,8 @@ export const useMonitoringStore = create<MonitoringState>()(
         [`${key}Loading`]: {
           loading,
           error: error || undefined,
-          last_updated: loading ? undefined : new Date().toISOString()
-        }
+          last_updated: loading ? undefined : new Date().toISOString(),
+        },
       }));
     },
 
@@ -572,7 +635,7 @@ export const useMonitoringStore = create<MonitoringState>()(
     // Reset Actions
     resetState: () => {
       set(initialState);
-    }
+    },
   }))
 );
 
@@ -581,73 +644,129 @@ export const useMonitoringStore = create<MonitoringState>()(
 // ============================================================================
 
 // System Overview Selectors
-export const useSystemHealth = () => useMonitoringStore((state) => state.systemHealth);
-export const useSystemHealthLoading = () => useMonitoringStore((state) => state.systemHealthLoading);
+export const useSystemHealth = () =>
+  useMonitoringStore((state) => state.systemHealth);
+export const useSystemHealthLoading = () =>
+  useMonitoringStore((state) => state.systemHealthLoading);
 
 // Performance Selectors
-export const usePerformanceMetrics = () => useMonitoringStore((state) => state.performanceMetrics);
-export const usePerformanceLoading = () => useMonitoringStore((state) => state.performanceLoading);
-export const usePerformanceTimeRange = () => useMonitoringStore((state) => state.performanceTimeRange);
+export const usePerformanceMetrics = () =>
+  useMonitoringStore((state) => state.performanceMetrics);
+export const usePerformanceLoading = () =>
+  useMonitoringStore((state) => state.performanceLoading);
+export const usePerformanceTimeRange = () =>
+  useMonitoringStore((state) => state.performanceTimeRange);
 
 // Business Selectors
-export const useBusinessMetrics = () => useMonitoringStore((state) => state.businessMetrics);
-export const useBusinessLoading = () => useMonitoringStore((state) => state.businessLoading);
-export const useBusinessTimeRange = () => useMonitoringStore((state) => state.businessTimeRange);
+export const useBusinessMetrics = () =>
+  useMonitoringStore((state) => state.businessMetrics);
+export const useBusinessLoading = () =>
+  useMonitoringStore((state) => state.businessLoading);
+export const useBusinessTimeRange = () =>
+  useMonitoringStore((state) => state.businessTimeRange);
 
 // Infrastructure Selectors
-export const useInfrastructureMetrics = () => useMonitoringStore((state) => state.infrastructureMetrics);
-export const useInfrastructureLoading = () => useMonitoringStore((state) => state.infrastructureLoading);
+export const useInfrastructureMetrics = () =>
+  useMonitoringStore((state) => state.infrastructureMetrics);
+export const useInfrastructureLoading = () =>
+  useMonitoringStore((state) => state.infrastructureLoading);
 
 // Alert Selectors
-export const useActiveAlerts = () => useMonitoringStore((state) => state.activeAlerts);
-export const useAlertHistory = () => useMonitoringStore((state) => state.alertHistory);
-export const useAlertsLoading = () => useMonitoringStore((state) => state.alertsLoading);
-export const useAcknowledgedAlerts = () => useMonitoringStore((state) => state.acknowledgedAlerts);
+export const useActiveAlerts = () =>
+  useMonitoringStore((state) => state.activeAlerts);
+export const useAlertHistory = () =>
+  useMonitoringStore((state) => state.alertHistory);
+export const useAlertsLoading = () =>
+  useMonitoringStore((state) => state.alertsLoading);
+export const useAcknowledgedAlerts = () =>
+  useMonitoringStore((state) => state.acknowledgedAlerts);
 
 // User Analytics Selectors
-export const useUserAnalytics = () => useMonitoringStore((state) => state.userAnalytics);
-export const useUserAnalyticsLoading = () => useMonitoringStore((state) => state.userAnalyticsLoading);
-export const useUserAnalyticsTimeRange = () => useMonitoringStore((state) => state.userAnalyticsTimeRange);
+export const useUserAnalytics = () =>
+  useMonitoringStore((state) => state.userAnalytics);
+export const useUserAnalyticsLoading = () =>
+  useMonitoringStore((state) => state.userAnalyticsLoading);
+export const useUserAnalyticsTimeRange = () =>
+  useMonitoringStore((state) => state.userAnalyticsTimeRange);
 
 // Dashboard Selectors
-export const useDashboardConfigs = () => useMonitoringStore((state) => state.dashboardConfigs);
-export const useActiveDashboardId = () => useMonitoringStore((state) => state.activeDashboardId);
-export const useActiveDashboard = () => useMonitoringStore((state) =>
-  state.activeDashboardId ? state.dashboardConfigs[state.activeDashboardId] : null
-);
-export const useDashboardLayout = () => useMonitoringStore((state) => state.dashboardLayout);
+export const useDashboardConfigs = () =>
+  useMonitoringStore((state) => state.dashboardConfigs);
+export const useActiveDashboardId = () =>
+  useMonitoringStore((state) => state.activeDashboardId);
+export const useActiveDashboard = () =>
+  useMonitoringStore((state) =>
+    state.activeDashboardId
+      ? state.dashboardConfigs[state.activeDashboardId]
+      : null
+  );
+export const useDashboardLayout = () =>
+  useMonitoringStore((state) => state.dashboardLayout);
 
 // Real-time Selectors
-export const useRealTimeUpdates = () => useMonitoringStore((state) => state.realTimeUpdates);
-export const useRealTimeConnection = () => useMonitoringStore((state) => state.isRealTimeConnected);
-export const useLastRealTimeUpdate = () => useMonitoringStore((state) => state.lastRealTimeUpdate);
+export const useRealTimeUpdates = () =>
+  useMonitoringStore((state) => state.realTimeUpdates);
+export const useRealTimeConnection = () =>
+  useMonitoringStore((state) => state.isRealTimeConnected);
+export const useLastRealTimeUpdate = () =>
+  useMonitoringStore((state) => state.lastRealTimeUpdate);
 
 // Integration Selectors
-export const useIntegrations = () => useMonitoringStore((state) => state.integrations);
-export const useIntegrationsLoading = () => useMonitoringStore((state) => state.integrationsLoading);
+export const useIntegrations = () =>
+  useMonitoringStore((state) => state.integrations);
+export const useIntegrationsLoading = () =>
+  useMonitoringStore((state) => state.integrationsLoading);
 
 // UI Selectors
-export const useSelectedTimeRange = () => useMonitoringStore((state) => state.selectedTimeRange);
-export const useGlobalFilters = () => useMonitoringStore((state) => state.globalFilters);
-export const useAutoRefresh = () => useMonitoringStore((state) => state.autoRefresh);
-export const useRefreshInterval = () => useMonitoringStore((state) => state.refreshInterval);
-export const useNotifications = () => useMonitoringStore((state) => state.notifications);
+export const useSelectedTimeRange = () =>
+  useMonitoringStore((state) => state.selectedTimeRange);
+export const useGlobalFilters = () =>
+  useMonitoringStore((state) => state.globalFilters);
+export const useAutoRefresh = () =>
+  useMonitoringStore((state) => state.autoRefresh);
+export const useRefreshInterval = () =>
+  useMonitoringStore((state) => state.refreshInterval);
+export const useNotifications = () =>
+  useMonitoringStore((state) => state.notifications);
 
 // Computed Selectors
-export const useCriticalAlerts = () => useMonitoringStore((state) =>
-  state.activeAlerts.filter(alert => alert.severity === 'critical' && alert.status === 'active')
-);
-export const useWarningAlerts = () => useMonitoringStore((state) =>
-  state.activeAlerts.filter(alert => alert.severity === 'warning' && alert.status === 'active')
-);
-export const useActiveAlertsCount = () => useMonitoringStore((state) =>
-  state.activeAlerts.filter(alert => alert.status === 'active').length
-);
-export const useUnacknowledgedAlerts = () => useMonitoringStore((state) =>
-  state.activeAlerts.filter(alert =>
-    alert.status === 'active' && !state.acknowledgedAlerts.has(alert.id)
-  )
-);
+//
+// These return filtered arrays computed from store state. Without
+// `useShallow`, the selector returns a fresh array reference on every
+// store update, so Zustand's default reference equality always reports
+// "changed" and triggers re-renders — which under React 18 strict mode
+// can spiral into "Maximum update depth exceeded". `useShallow` does
+// element-wise equality and breaks the loop.
+export const useCriticalAlerts = () =>
+  useMonitoringStore(
+    useShallow((state) =>
+      state.activeAlerts.filter(
+        (alert) => alert.severity === 'critical' && alert.status === 'active'
+      )
+    )
+  );
+export const useWarningAlerts = () =>
+  useMonitoringStore(
+    useShallow((state) =>
+      state.activeAlerts.filter(
+        (alert) => alert.severity === 'warning' && alert.status === 'active'
+      )
+    )
+  );
+export const useActiveAlertsCount = () =>
+  useMonitoringStore(
+    (state) =>
+      state.activeAlerts.filter((alert) => alert.status === 'active').length
+  );
+export const useUnacknowledgedAlerts = () =>
+  useMonitoringStore(
+    useShallow((state) =>
+      state.activeAlerts.filter(
+        (alert) =>
+          alert.status === 'active' && !state.acknowledgedAlerts.has(alert.id)
+      )
+    )
+  );
 
 // Export default store
 export default useMonitoringStore;
