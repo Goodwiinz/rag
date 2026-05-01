@@ -2,6 +2,7 @@
  * Test utilities for React components
  */
 
+import { vi } from 'vitest';
 import React, { ReactElement } from 'react';
 import { render, RenderOptions } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -10,32 +11,33 @@ import { Toaster } from 'react-hot-toast';
 
 // Mock WebSocket for tests
 const mockWebSocket = {
-  addEventListener: jest.fn(),
-  removeEventListener: jest.fn(),
-  send: jest.fn(),
-  close: jest.fn(),
+  addEventListener: vi.fn(),
+  removeEventListener: vi.fn(),
+  send: vi.fn(),
+  close: vi.fn(),
   readyState: 1,
   CONNECTING: 0,
   OPEN: 1,
   CLOSING: 2,
-  CLOSED: 3
+  CLOSED: 3,
 };
 
 // Global WebSocket mock
-global.WebSocket = jest.fn(() => mockWebSocket) as any;
+global.WebSocket = vi.fn(() => mockWebSocket) as any;
 
 // Create a test query client
-const createTestQueryClient = () => new QueryClient({
-  defaultOptions: {
-    queries: {
-      retry: false,
-      gcTime: 0,
+const createTestQueryClient = () =>
+  new QueryClient({
+    defaultOptions: {
+      queries: {
+        retry: false,
+        gcTime: 0,
+      },
+      mutations: {
+        retry: false,
+      },
     },
-    mutations: {
-      retry: false,
-    },
-  },
-});
+  });
 
 // Test wrapper with providers
 const AllTheProviders = ({ children }: { children: React.ReactNode }) => {
@@ -72,8 +74,8 @@ export const createMockDocument = (overrides = {}) => ({
     extractedText: 'Sample document content for testing',
     entities: ['Test', 'Document'],
     tags: ['test', 'document'],
-    ...overrides
-  }
+    ...overrides,
+  },
 });
 
 export const createMockSearchResult = (overrides = {}) => ({
@@ -86,8 +88,8 @@ export const createMockSearchResult = (overrides = {}) => ({
     page: 1,
     chunk: 1,
     confidence: 0.95,
-    ...overrides
-  }
+    ...overrides,
+  },
 });
 
 export const createMockUser = (overrides = {}) => ({
@@ -98,7 +100,7 @@ export const createMockUser = (overrides = {}) => ({
   permissions: ['read', 'write'],
   createdAt: '2025-01-01T00:00:00Z',
   lastLogin: '2025-01-18T10:30:00Z',
-  ...overrides
+  ...overrides,
 });
 
 export const createMockGraphData = (overrides = {}) => ({
@@ -110,9 +112,9 @@ export const createMockGraphData = (overrides = {}) => ({
       properties: {
         name: 'Test Node',
         type: 'Person',
-        ...overrides
-      }
-    }
+        ...overrides,
+      },
+    },
   ],
   edges: [
     {
@@ -124,25 +126,25 @@ export const createMockGraphData = (overrides = {}) => ({
       properties: {
         relationship: 'RELATED_TO',
         confidence: 0.8,
-        ...overrides
-      }
-    }
-  ]
+        ...overrides,
+      },
+    },
+  ],
 });
 
 export const createMockEvaluationMetric = (overrides = {}) => ({
   name: 'answer_relevancy',
   value: 0.85,
-  target: 0.70,
+  target: 0.7,
   unit: 'score',
   status: 'good' as const,
   trend: 'improving' as const,
   lastUpdated: '2025-01-18T10:30:00Z',
   history: [
     { timestamp: '2025-01-17T10:30:00Z', value: 0.82 },
-    { timestamp: '2025-01-18T10:30:00Z', value: 0.85 }
+    { timestamp: '2025-01-18T10:30:00Z', value: 0.85 },
   ],
-  ...overrides
+  ...overrides,
 });
 
 // Mock API responses
@@ -151,7 +153,7 @@ export const createMockApiResponse = (data: any, status = 200) => ({
   status,
   statusText: 'OK',
   headers: {},
-  config: {}
+  config: {},
 });
 
 // Mock fetch responses
@@ -162,12 +164,16 @@ export const mockFetchResponse = (data: any, status = 200) => {
     json: () => Promise.resolve(data),
     text: () => Promise.resolve(JSON.stringify(data)),
     headers: new Headers(),
-    url: 'http://localhost:8000/api/test'
+    url: 'http://localhost:8000/api/test',
   });
 };
 
 // File mock helpers
-export const createMockFile = (name = 'test.pdf', type = 'application/pdf', size = 1024) => {
+export const createMockFile = (
+  name = 'test.pdf',
+  type = 'application/pdf',
+  size = 1024
+) => {
   const content = new Array(size).fill('a').join('');
   const file = new File([content], name, { type });
   Object.defineProperty(file, 'size', { value: size });
@@ -182,7 +188,7 @@ export const createMockFileList = (files: File[]) => {
       for (const file of files) {
         yield file;
       }
-    }
+    },
   };
   Object.setPrototypeOf(fileList, FileList.prototype);
   return fileList as FileList;
@@ -196,39 +202,44 @@ export const createMockPerformanceMetrics = () => ({
   cls: 0.1,
   ttfb: 300,
   loadTime: 3200,
-  domInteractive: 1800
+  domInteractive: 1800,
 });
 
 // Error boundary testing utilities
-export const createMockError = (message = 'Test error', stack = 'Error: Test error\n    at test') => {
+export const createMockError = (
+  message = 'Test error',
+  stack = 'Error: Test error\n    at test'
+) => {
   const error = new Error(message);
   error.stack = stack;
   return error;
 };
 
 // Intersection Observer mock
-const createMockIntersectionObserver = jest.fn().mockImplementation((callback) => ({
-  observe: jest.fn(),
-  unobserve: jest.fn(),
-  disconnect: jest.fn()
-}));
+const createMockIntersectionObserver = vi
+  .fn()
+  .mockImplementation((callback) => ({
+    observe: vi.fn(),
+    unobserve: vi.fn(),
+    disconnect: vi.fn(),
+  }));
 
 global.IntersectionObserver = createMockIntersectionObserver as any;
 
 // Resize Observer mock
-const createMockResizeObserver = jest.fn().mockImplementation((callback) => ({
-  observe: jest.fn(),
-  unobserve: jest.fn(),
-  disconnect: jest.fn()
+const createMockResizeObserver = vi.fn().mockImplementation((callback) => ({
+  observe: vi.fn(),
+  unobserve: vi.fn(),
+  disconnect: vi.fn(),
 }));
 
 global.ResizeObserver = createMockResizeObserver as any;
 
 // Mutation Observer mock
-const createMockMutationObserver = jest.fn().mockImplementation((callback) => ({
-  observe: jest.fn(),
-  disconnect: jest.fn(),
-  takeRecords: jest.fn(() => [])
+const createMockMutationObserver = vi.fn().mockImplementation((callback) => ({
+  observe: vi.fn(),
+  disconnect: vi.fn(),
+  takeRecords: vi.fn(() => []),
 }));
 
 global.MutationObserver = createMockMutationObserver as any;
@@ -237,39 +248,43 @@ global.MutationObserver = createMockMutationObserver as any;
 const createMockCanvas = (width = 100, height = 100) => {
   const mockContext2D = {
     canvas: null,
-    fillRect: jest.fn(),
-    clearRect: jest.fn(),
-    getImageData: jest.fn(() => ({
+    fillRect: vi.fn(),
+    clearRect: vi.fn(),
+    getImageData: vi.fn(() => ({
       data: new Array(width * height * 4).fill(0),
       width,
       height,
-      colorSpace: 'srgb'
+      colorSpace: 'srgb',
     })),
-    putImageData: jest.fn(),
-    createImageData: jest.fn(() => ({
+    putImageData: vi.fn(),
+    createImageData: vi.fn(() => ({
       data: new Array(width * height * 4).fill(0),
       width,
       height,
-      colorSpace: 'srgb'
+      colorSpace: 'srgb',
     })),
-    setTransform: jest.fn(),
-    drawImage: jest.fn(),
-    save: jest.fn(),
-    fillText: jest.fn(),
-    restore: jest.fn(),
-    beginPath: jest.fn(),
-    moveTo: jest.fn(),
-    lineTo: jest.fn(),
-    closePath: jest.fn(),
-    stroke: jest.fn(),
-    translate: jest.fn(),
-    scale: jest.fn(),
-    rotate: jest.fn(),
-    arc: jest.fn(),
-    fill: jest.fn(),
-    measureText: jest.fn(() => ({ width: 0, actualBoundingBoxLeft: 0, actualBoundingBoxRight: 0 })),
-    transform: jest.fn(),
-    rect: jest.fn(),
+    setTransform: vi.fn(),
+    drawImage: vi.fn(),
+    save: vi.fn(),
+    fillText: vi.fn(),
+    restore: vi.fn(),
+    beginPath: vi.fn(),
+    moveTo: vi.fn(),
+    lineTo: vi.fn(),
+    closePath: vi.fn(),
+    stroke: vi.fn(),
+    translate: vi.fn(),
+    scale: vi.fn(),
+    rotate: vi.fn(),
+    arc: vi.fn(),
+    fill: vi.fn(),
+    measureText: vi.fn(() => ({
+      width: 0,
+      actualBoundingBoxLeft: 0,
+      actualBoundingBoxRight: 0,
+    })),
+    transform: vi.fn(),
+    rect: vi.fn(),
     // Additional context properties
     globalAlpha: 1,
     globalCompositeOperation: 'source-over',
@@ -289,53 +304,56 @@ const createMockCanvas = (width = 100, height = 100) => {
     direction: 'ltr',
     imageSmoothingEnabled: true,
     // Additional methods
-    createLinearGradient: jest.fn(() => ({
-      addColorStop: jest.fn()
+    createLinearGradient: vi.fn(() => ({
+      addColorStop: vi.fn(),
     })),
-    createRadialGradient: jest.fn(() => ({
-      addColorStop: jest.fn()
+    createRadialGradient: vi.fn(() => ({
+      addColorStop: vi.fn(),
     })),
-    createPattern: jest.fn(),
-    getContextAttributes: jest.fn(() => ({})),
-    isPointInPath: jest.fn(),
-    isPointInStroke: jest.fn(),
-    quadraticCurveTo: jest.fn(),
-    bezierCurveTo: jest.fn(),
-    arcTo: jest.fn(),
-    ellipse: jest.fn(),
-    clearHitRegions: jest.fn(),
-    drawFocusIfNeeded: jest.fn(),
-    createImageData_fromImage: jest.fn(),
-    getLineDash: jest.fn(() => []),
-    setLineDash: jest.fn(),
-    scrollPathIntoView: jest.fn(),
-    clip: jest.fn(),
-    reset: jest.fn(),
-    roundRect: jest.fn(),
-    isContextLost: jest.fn(() => false),
-    commit: jest.fn(),
-    drawWidget: jest.fn(),
-    setPath: jest.fn(),
-    hitTest: jest.fn()
+    createPattern: vi.fn(),
+    getContextAttributes: vi.fn(() => ({})),
+    isPointInPath: vi.fn(),
+    isPointInStroke: vi.fn(),
+    quadraticCurveTo: vi.fn(),
+    bezierCurveTo: vi.fn(),
+    arcTo: vi.fn(),
+    ellipse: vi.fn(),
+    clearHitRegions: vi.fn(),
+    drawFocusIfNeeded: vi.fn(),
+    createImageData_fromImage: vi.fn(),
+    getLineDash: vi.fn(() => []),
+    setLineDash: vi.fn(),
+    scrollPathIntoView: vi.fn(),
+    clip: vi.fn(),
+    reset: vi.fn(),
+    roundRect: vi.fn(),
+    isContextLost: vi.fn(() => false),
+    commit: vi.fn(),
+    drawWidget: vi.fn(),
+    setPath: vi.fn(),
+    hitTest: vi.fn(),
   };
 
   const canvas = {
     width,
     height,
-    getContext: jest.fn((contextId) => {
+    getContext: vi.fn((contextId) => {
       if (contextId === '2d') return mockContext2D;
       return null;
     }),
-    toDataURL: jest.fn(() => 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg=='),
-    toBlob: jest.fn(),
-    toOffscreen: jest.fn(),
-    transferControlToOffscreen: jest.fn(),
-    convertToBlob: jest.fn(),
-    getContextAttributes: jest.fn(),
-    isPointInPath: jest.fn(),
-    isPointInStroke: jest.fn(),
-    drawFocusIfNeeded: jest.fn(),
-    createImageBitmap: jest.fn(),
+    toDataURL: vi.fn(
+      () =>
+        'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg=='
+    ),
+    toBlob: vi.fn(),
+    toOffscreen: vi.fn(),
+    transferControlToOffscreen: vi.fn(),
+    convertToBlob: vi.fn(),
+    getContextAttributes: vi.fn(),
+    isPointInPath: vi.fn(),
+    isPointInStroke: vi.fn(),
+    drawFocusIfNeeded: vi.fn(),
+    createImageBitmap: vi.fn(),
     // Additional HTMLCanvasElement properties
     style: {},
     className: '',
@@ -344,14 +362,23 @@ const createMockCanvas = (width = 100, height = 100) => {
     textContent: '',
     parentElement: null,
     parentNode: null,
-    appendChild: jest.fn(),
-    removeChild: jest.fn(),
-    querySelector: jest.fn(),
-    querySelectorAll: jest.fn(() => []),
-    addEventListener: jest.fn(),
-    removeEventListener: jest.fn(),
-    dispatchEvent: jest.fn(),
-    getBoundingClientRect: jest.fn(() => ({ x: 0, y: 0, width, height, top: 0, left: 0, right: width, bottom: height })),
+    appendChild: vi.fn(),
+    removeChild: vi.fn(),
+    querySelector: vi.fn(),
+    querySelectorAll: vi.fn(() => []),
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    dispatchEvent: vi.fn(),
+    getBoundingClientRect: vi.fn(() => ({
+      x: 0,
+      y: 0,
+      width,
+      height,
+      top: 0,
+      left: 0,
+      right: width,
+      bottom: height,
+    })),
     clientWidth: width,
     clientHeight: height,
     offsetWidth: width,
@@ -360,26 +387,26 @@ const createMockCanvas = (width = 100, height = 100) => {
     scrollHeight: height,
     scrollTop: 0,
     scrollLeft: 0,
-    focus: jest.fn(),
-    blur: jest.fn(),
-    click: jest.fn(),
-    cloneNode: jest.fn(),
-    hasAttribute: jest.fn(),
-    getAttribute: jest.fn(),
-    setAttribute: jest.fn(),
-    removeAttribute: jest.fn(),
-    hasAttributes: jest.fn(),
-    getAttributeNames: jest.fn(() => []),
-    toggleAttribute: jest.fn(),
-    matches: jest.fn(),
-    closest: jest.fn(),
+    focus: vi.fn(),
+    blur: vi.fn(),
+    click: vi.fn(),
+    cloneNode: vi.fn(),
+    hasAttribute: vi.fn(),
+    getAttribute: vi.fn(),
+    setAttribute: vi.fn(),
+    removeAttribute: vi.fn(),
+    hasAttributes: vi.fn(),
+    getAttributeNames: vi.fn(() => []),
+    toggleAttribute: vi.fn(),
+    matches: vi.fn(),
+    closest: vi.fn(),
     classList: {
-      add: jest.fn(),
-      remove: jest.fn(),
-      contains: jest.fn(),
-      toggle: jest.fn(),
+      add: vi.fn(),
+      remove: vi.fn(),
+      contains: vi.fn(),
+      toggle: vi.fn(),
     },
-    dataset: {}
+    dataset: {},
   };
 
   mockContext2D.canvas = canvas;
@@ -387,70 +414,70 @@ const createMockCanvas = (width = 100, height = 100) => {
 };
 
 // Mock HTMLCanvasElement
-global.HTMLCanvasElement = jest.fn(createMockCanvas) as any;
+global.HTMLCanvasElement = vi.fn(createMockCanvas) as any;
 
 // localStorage mock
 const createLocalStorageMock = () => {
   let store: Record<string, string> = {};
 
   return {
-    getItem: jest.fn((key: string) => store[key] || null),
-    setItem: jest.fn((key: string, value: string) => {
+    getItem: vi.fn((key: string) => store[key] || null),
+    setItem: vi.fn((key: string, value: string) => {
       store[key] = value.toString();
     }),
-    removeItem: jest.fn((key: string) => {
+    removeItem: vi.fn((key: string) => {
       delete store[key];
     }),
-    clear: jest.fn(() => {
+    clear: vi.fn(() => {
       store = {};
     }),
-    key: jest.fn((index: number) => {
+    key: vi.fn((index: number) => {
       const keys = Object.keys(store);
       return keys[index] || null;
     }),
     get length() {
       return Object.keys(store).length;
-    }
+    },
   };
 };
 
 Object.defineProperty(window, 'localStorage', {
-  value: createLocalStorageMock()
+  value: createLocalStorageMock(),
 });
 
 // sessionStorage mock
 Object.defineProperty(window, 'sessionStorage', {
-  value: createLocalStorageMock()
+  value: createLocalStorageMock(),
 });
 
 // Performance API mock
 const createMockPerformance = () => ({
-  now: jest.fn(() => Date.now()),
-  mark: jest.fn(),
-  measure: jest.fn(),
-  getEntriesByName: jest.fn(() => []),
-  getEntriesByType: jest.fn(() => []),
+  now: vi.fn(() => Date.now()),
+  mark: vi.fn(),
+  measure: vi.fn(),
+  getEntriesByName: vi.fn(() => []),
+  getEntriesByType: vi.fn(() => []),
   timing: {
     navigationStart: 0,
     domContentLoadedEventEnd: 1000,
     loadEventEnd: 2000,
     domInteractive: 800,
-    responseStart: 300
+    responseStart: 300,
   },
   navigation: {
     type: 0,
-    redirectCount: 0
-  }
+    redirectCount: 0,
+  },
 });
 
 Object.defineProperty(window, 'performance', {
-  value: createMockPerformance()
+  value: createMockPerformance(),
 });
 
 // Mock URL constructor
 global.URL = {
-  createObjectURL: jest.fn(() => 'blob:http://localhost:3000/test-file'),
-  revokeObjectURL: jest.fn()
+  createObjectURL: vi.fn(() => 'blob:http://localhost:3000/test-file'),
+  revokeObjectURL: vi.fn(),
 } as any;
 
 // Mock Blob
@@ -462,10 +489,10 @@ global.Blob = class Blob {
   parts: any[];
   type: string;
   size = 0;
-  stream = jest.fn();
-  text = jest.fn();
-  arrayBuffer = jest.fn();
-  slice = jest.fn();
+  stream = vi.fn();
+  text = vi.fn();
+  arrayBuffer = vi.fn();
+  slice = vi.fn();
 } as any;
 
 // Mock File
@@ -499,25 +526,25 @@ global.FileReader = class FileReader {
   onloadend: any = null;
   onprogress: any = null;
 
-  readAsDataURL = jest.fn(() => {
+  readAsDataURL = vi.fn(() => {
     this.result = 'data:text/plain;base64,dGVzdA==';
     this.readyState = this.DONE;
     if (this.onload) this.onload({ target: this });
   });
 
-  readAsText = jest.fn(() => {
+  readAsText = vi.fn(() => {
     this.result = 'test';
     this.readyState = this.DONE;
     if (this.onload) this.onload({ target: this });
   });
 
-  readAsArrayBuffer = jest.fn(() => {
+  readAsArrayBuffer = vi.fn(() => {
     this.result = new ArrayBuffer(4);
     this.readyState = this.DONE;
     if (this.onload) this.onload({ target: this });
   });
 
-  abort = jest.fn();
+  abort = vi.fn();
 } as any;
 
 // Re-export everything
@@ -527,7 +554,10 @@ export { AllTheProviders };
 export { mockWebSocket, createTestQueryClient };
 
 // Helper functions for testing
-export const waitForElement = (selector: string, timeout = 5000): Promise<Element> => {
+export const waitForElement = (
+  selector: string,
+  timeout = 5000
+): Promise<Element> => {
   return new Promise((resolve, reject) => {
     const element = document.querySelector(selector);
     if (element) {
@@ -545,7 +575,7 @@ export const waitForElement = (selector: string, timeout = 5000): Promise<Elemen
 
     observer.observe(document.body, {
       childList: true,
-      subtree: true
+      subtree: true,
     });
 
     setTimeout(() => {
@@ -555,7 +585,8 @@ export const waitForElement = (selector: string, timeout = 5000): Promise<Elemen
   });
 };
 
-export const flushPromises = () => new Promise(resolve => setTimeout(resolve, 0));
+export const flushPromises = () =>
+  new Promise((resolve) => setTimeout(resolve, 0));
 
 export const act = async (callback: () => void | Promise<void>) => {
   await callback();
