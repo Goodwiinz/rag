@@ -543,12 +543,7 @@ describe('Monitoring Store - Selectors', () => {
     expect(result.current.preset).toBe('24h');
   });
 
-  // TODO(monitoring-store): `useCriticalAlerts` returns a fresh `.filter()`
-  // array on every store change without `useShallow`/memoisation. Under
-  // Vitest + React 18 strict mode this triggers React's
-  // "Maximum update depth exceeded" loop. Fix the selector with
-  // `useShallow` from `zustand/react/shallow` and re-enable.
-  test.skip('useCriticalAlerts returns only critical active alerts', () => {
+  test('useCriticalAlerts returns only critical active alerts', () => {
     const { result } = renderHook(() => useCriticalAlerts());
 
     expect(result.current).toEqual([]);
@@ -560,7 +555,9 @@ describe('Monitoring Store - Selectors', () => {
     });
 
     const criticalAlerts = result.current;
-    expect(criticalAlerts).toHaveLength(2); // Two critical alerts
+    // mockAlerts has two critical entries but only alert-1 is active;
+    // alert-3 is acknowledged. The selector filters for active+critical.
+    expect(criticalAlerts).toHaveLength(1);
     expect(
       criticalAlerts.every(
         (alert) => alert.severity === 'critical' && alert.status === 'active'
@@ -582,9 +579,7 @@ describe('Monitoring Store - Selectors', () => {
     expect(result.current).toBe(2); // Two active alerts
   });
 
-  // TODO(monitoring-store): same un-memoised `.filter()` selector bug as
-  // `useCriticalAlerts` above — fix with `useShallow` and re-enable.
-  test.skip('useUnacknowledgedAlerts returns unacknowledged active alerts', () => {
+  test('useUnacknowledgedAlerts returns unacknowledged active alerts', () => {
     const { result } = renderHook(() => useUnacknowledgedAlerts());
 
     expect(result.current).toEqual([]);
