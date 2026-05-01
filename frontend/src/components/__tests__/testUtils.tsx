@@ -215,34 +215,42 @@ export const createMockError = (
   return error;
 };
 
-// Intersection Observer mock
-const createMockIntersectionObserver = vi
-  .fn()
-  .mockImplementation((callback) => ({
-    observe: vi.fn(),
-    unobserve: vi.fn(),
-    disconnect: vi.fn(),
-  }));
+// Intersection Observer / Resize Observer / Mutation Observer mocks.
+// These can't be `vi.fn().mockImplementation(...)` because the global
+// vitest config has `restoreMocks: true`, which wipes the implementation
+// between tests — leaving `new XObserver(cb)` returning undefined and
+// callers tripping over `.observe is not a function`. Use plain classes
+// whose lifecycle isn't owned by Vitest's mock registry.
+class MockIntersectionObserver {
+  observe(): void {}
+  unobserve(): void {}
+  disconnect(): void {}
+  takeRecords(): IntersectionObserverEntry[] {
+    return [];
+  }
+  readonly root: Element | null = null;
+  readonly rootMargin = '';
+  readonly thresholds: ReadonlyArray<number> = [];
+}
+global.IntersectionObserver =
+  MockIntersectionObserver as unknown as typeof IntersectionObserver;
 
-global.IntersectionObserver = createMockIntersectionObserver as any;
+class MockResizeObserver {
+  observe(): void {}
+  unobserve(): void {}
+  disconnect(): void {}
+}
+global.ResizeObserver = MockResizeObserver as unknown as typeof ResizeObserver;
 
-// Resize Observer mock
-const createMockResizeObserver = vi.fn().mockImplementation((callback) => ({
-  observe: vi.fn(),
-  unobserve: vi.fn(),
-  disconnect: vi.fn(),
-}));
-
-global.ResizeObserver = createMockResizeObserver as any;
-
-// Mutation Observer mock
-const createMockMutationObserver = vi.fn().mockImplementation((callback) => ({
-  observe: vi.fn(),
-  disconnect: vi.fn(),
-  takeRecords: vi.fn(() => []),
-}));
-
-global.MutationObserver = createMockMutationObserver as any;
+class MockMutationObserver {
+  observe(): void {}
+  disconnect(): void {}
+  takeRecords(): MutationRecord[] {
+    return [];
+  }
+}
+global.MutationObserver =
+  MockMutationObserver as unknown as typeof MutationObserver;
 
 // Canvas mock
 const createMockCanvas = (width = 100, height = 100) => {

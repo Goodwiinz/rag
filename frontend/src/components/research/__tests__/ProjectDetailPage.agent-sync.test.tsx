@@ -94,6 +94,19 @@ describe('ProjectDetailPage agent sync', () => {
   beforeEach(() => {
     useAgentChatStore.getState().reset();
     vi.clearAllMocks();
+    // Vitest config has `restoreMocks: true`, which resets `.mockResolvedValue`
+    // set on bare `vi.fn()` between tests. Re-arm the resolutions here so the
+    // page component's `fetchProject(...).then(...)` chain doesn't see undefined.
+    mockFetchProject.mockResolvedValue(undefined);
+    mockFetchProjectDocuments.mockResolvedValue(undefined);
+    mockFetchProjectNotes.mockResolvedValue(undefined);
+    mockFetchBibliography.mockResolvedValue(undefined);
+    mockDownloadBibliography.mockResolvedValue(undefined);
+    mockRemoveDocument.mockResolvedValue(undefined);
+    mockCreateNote.mockResolvedValue(undefined);
+    mockUpdateNote.mockResolvedValue(undefined);
+    mockDeleteNote.mockResolvedValue(undefined);
+    mockToggleNotePin.mockResolvedValue(undefined);
 
     mockUseProjectStore.mockReturnValue({
       currentProject: {
