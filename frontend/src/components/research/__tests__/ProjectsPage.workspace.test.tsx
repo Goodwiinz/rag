@@ -4,14 +4,13 @@ import { render, screen, waitFor } from '@/test/test-utils';
 import ProjectsPage from '../../../../app/(dashboard)/projects/page';
 
 const mockPush = vi.fn();
-const mockFetchProjects = vi.fn().mockResolvedValue(undefined);
-const mockCreateProject = vi.fn().mockResolvedValue({ id: 'project-1' });
-const mockUpdateProject = vi.fn().mockResolvedValue(undefined);
-const mockDeleteProject = vi.fn().mockResolvedValue(undefined);
+const mockFetchProjects = vi.fn();
+const mockCreateProject = vi.fn();
+const mockUpdateProject = vi.fn();
+const mockDeleteProject = vi.fn();
 const mockClearError = vi.fn();
-const mockLoadWorkspaces = vi.fn().mockResolvedValue(undefined);
-const mockGetOrCreateDefaultWorkspace = vi.fn()
-  .mockResolvedValue({ id: 'default-ws' });
+const mockLoadWorkspaces = vi.fn();
+const mockGetOrCreateDefaultWorkspace = vi.fn();
 
 let mockChatState: {
   currentWorkspaceId: string | null;
@@ -85,6 +84,14 @@ vi.mock('react-hot-toast', () => ({
 describe('ProjectsPage workspace behavior', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // Vitest config has `restoreMocks: true`, so `.mockResolvedValue` set
+    // at module scope gets blown away between tests. Re-arm here.
+    mockFetchProjects.mockResolvedValue(undefined);
+    mockCreateProject.mockResolvedValue({ id: 'project-1' });
+    mockUpdateProject.mockResolvedValue(undefined);
+    mockDeleteProject.mockResolvedValue(undefined);
+    mockLoadWorkspaces.mockResolvedValue(undefined);
+    mockGetOrCreateDefaultWorkspace.mockResolvedValue({ id: 'default-ws' });
     mockChatState = {
       currentWorkspaceId: 'ws-selected',
       workspaces: [],

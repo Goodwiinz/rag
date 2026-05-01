@@ -29,6 +29,57 @@ if (typeof g.PerformanceObserver === 'undefined') {
     MockPerformanceObserver as unknown as typeof globalThis.PerformanceObserver;
 }
 
+// jsdom doesn't implement matchMedia / IntersectionObserver / ResizeObserver.
+// Several UI libs (Radix, framer-motion, virtualizers) read these at module
+// scope, so polyfilling globally beats per-test setup.
+if (typeof window !== 'undefined' && typeof window.matchMedia !== 'function') {
+  Object.defineProperty(window, 'matchMedia', {
+    writable: true,
+    configurable: true,
+    value: (query: string) => ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addListener: () => {},
+      removeListener: () => {},
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      dispatchEvent: () => false,
+    }),
+  });
+}
+
+class MockIntersectionObserver {
+  readonly root: Element | null = null;
+  readonly rootMargin: string = '';
+  readonly thresholds: ReadonlyArray<number> = [];
+  observe(): void {}
+  unobserve(): void {}
+  disconnect(): void {}
+  takeRecords(): IntersectionObserverEntry[] {
+    return [];
+  }
+}
+
+class MockResizeObserver {
+  observe(): void {}
+  unobserve(): void {}
+  disconnect(): void {}
+}
+
+const gObservers = globalThis as unknown as {
+  IntersectionObserver?: typeof globalThis.IntersectionObserver;
+  ResizeObserver?: typeof globalThis.ResizeObserver;
+};
+if (typeof gObservers.IntersectionObserver === 'undefined') {
+  gObservers.IntersectionObserver =
+    MockIntersectionObserver as unknown as typeof globalThis.IntersectionObserver;
+}
+if (typeof gObservers.ResizeObserver === 'undefined') {
+  gObservers.ResizeObserver =
+    MockResizeObserver as unknown as typeof globalThis.ResizeObserver;
+}
+
 // Mirror existing Supabase test env behavior from src/setupTests.ts.
 // Without this the Supabase client module throws at import in tests.
 if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
