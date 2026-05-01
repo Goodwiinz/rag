@@ -587,55 +587,14 @@ def _extract_prior_tool(messages: List[Any]) -> Optional[Dict[str, Any]]:
     return None
 
 
-@track_node_execution("intent_classifier_node")
-async def intent_classifier_node(state: AgentState, config: RunnableConfig) -> dict:
-    """Classify user intent using LLM with keyword fallback."""
-    from src.services.agent.classifier import classify_intent_with_fallback
-
-    # Extract the last user message
-    last_user_msg = ""
-    for msg in reversed(state["messages"]):
-        if isinstance(msg, HumanMessage):
-            last_user_msg = msg.content
-            break
-
-    if not last_user_msg:
-        return {"intent": "general", "intent_confidence": 0.0}
-
-    # Extract previous assistant turn for conversational context
-    previous_turn = ""
-    found_user = False
-    for msg in reversed(state["messages"]):
-        if isinstance(msg, HumanMessage):
-            if found_user:
-                break
-            found_user = True
-            continue
-        if found_user and isinstance(msg, AIMessage) and msg.content:
-            previous_turn = msg.content
-            break
-
-    prior_tool = _extract_prior_tool(state["messages"])
-    page_context = config.get("configurable", {}).get("page_context", {})
-
-    result = await classify_intent_with_fallback(
-        query=last_user_msg,
-        page_context=page_context,
-        previous_turn=previous_turn,
-        prior_tool=prior_tool,
-    )
-
-    logger.debug(
-        "Classified intent: %s (confidence=%.2f, source=%s)",
-        result.intent,
-        result.confidence,
-        result.source,
-    )
-    return {"intent": result.intent, "intent_confidence": result.confidence}
-
-
 async def _classify_core(state: AgentState, config: RunnableConfig) -> dict:
-    """Extract intent classification logic for use inside preprocessing_node."""
+    """Classify user intent using LLM with keyword fallback.
+
+    Used directly inside ``preprocessing_node`` (which composes its own
+    parallel tracking) and indirectly via ``intent_classifier_node``,
+    which wraps this with ``@track_node_execution`` for callers that
+    invoke it as a graph node.
+    """
     from src.services.agent.classifier import classify_intent_with_fallback
 
     last_user_msg = ""
@@ -674,6 +633,13 @@ async def _classify_core(state: AgentState, config: RunnableConfig) -> dict:
         result.source,
     )
     return {"intent": result.intent, "intent_confidence": result.confidence}
+
+
+# ``intent_classifier_node`` is the tracked graph-node version of
+# ``_classify_core``. Production wiring uses ``_classify_core`` directly via
+# ``preprocessing_node``; the tracked alias is kept for tests and any future
+# wiring that wants the per-node Prometheus metrics.
+intent_classifier_node = track_node_execution("intent_classifier_node")(_classify_core)
 
 
 @track_node_execution("preprocessing_node")
