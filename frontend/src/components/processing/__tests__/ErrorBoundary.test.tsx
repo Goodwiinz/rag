@@ -7,6 +7,8 @@
  * The error boundaries work correctly in production - this is a test environment limitation.
  */
 
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { MockInstance } from 'vitest';
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import {
@@ -20,10 +22,10 @@ import {
 } from '../ErrorBoundary';
 
 // Suppress console.error for error boundary tests
-let consoleErrorSpy: jest.SpyInstance;
+let consoleErrorSpy: MockInstance;
 
 beforeEach(() => {
-  consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+  consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 });
 
 afterEach(() => {
@@ -67,7 +69,7 @@ const ComponentWithErrorHandler: React.FC<{ shouldThrow?: boolean }> = ({ should
 
 describe('ErrorBoundary', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   it('renders children when there is no error', () => {
@@ -92,7 +94,7 @@ describe('ErrorBoundary', () => {
   });
 
   it.skip('calls custom error handler when error occurs', () => {
-    const onError = jest.fn();
+    const onError = vi.fn();
     render(
       <ErrorBoundary component="TestComponent" onError={onError}>
         <ThrowErrorComponent shouldThrow={true} />
@@ -233,7 +235,7 @@ describe('Error boundary behavior', () => {
   });
 
   it.skip('calls onError callback when error occurs', () => {
-    const onError = jest.fn();
+    const onError = vi.fn();
     render(
       <ErrorBoundary component="TestComponent" onError={onError}>
         <ThrowErrorComponent shouldThrow={true} />

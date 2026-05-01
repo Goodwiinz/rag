@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import { beforeEach, describe, expect, it } from 'vitest';
 import React from 'react';
 import { render, screen } from '@testing-library/react';
 import { AgentActivityPanel } from '../AgentActivityPanel';

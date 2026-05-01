@@ -1,3 +1,4 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { Document } from '@/types';
@@ -5,17 +6,17 @@ import type { Document } from '@/types';
 // ---------------------------------------------------------------------------
 // Mock useDocuments hook
 // ---------------------------------------------------------------------------
-const mockFetchDocuments = jest.fn();
-const mockUpdateFilters = jest.fn();
-const mockUpdatePage = jest.fn();
-const mockUpdatePageSize = jest.fn();
-const mockSelectDocument = jest.fn();
-const mockSelectAllDocuments = jest.fn();
-const mockClearSelection = jest.fn();
-const mockDeleteDocument = jest.fn();
-const mockDeleteSelectedDocuments = jest.fn();
-const mockRefreshDocuments = jest.fn();
-const mockRetryDocument = jest.fn();
+const mockFetchDocuments = vi.fn();
+const mockUpdateFilters = vi.fn();
+const mockUpdatePage = vi.fn();
+const mockUpdatePageSize = vi.fn();
+const mockSelectDocument = vi.fn();
+const mockSelectAllDocuments = vi.fn();
+const mockClearSelection = vi.fn();
+const mockDeleteDocument = vi.fn();
+const mockDeleteSelectedDocuments = vi.fn();
+const mockRefreshDocuments = vi.fn();
+const mockRetryDocument = vi.fn();
 
 const defaultHookReturn = {
   documents: [] as Document[],
@@ -49,7 +50,7 @@ const defaultHookReturn = {
 
 let hookOverrides: Partial<typeof defaultHookReturn> = {};
 
-jest.mock('@/hooks/useDocuments', () => ({
+vi.mock('@/hooks/useDocuments', () => ({
   useDocuments: () => ({ ...defaultHookReturn, ...hookOverrides }),
 }));
 
@@ -58,14 +59,14 @@ jest.mock('@/hooks/useDocuments', () => ({
 // ---------------------------------------------------------------------------
 let mockIsAuthenticated = true;
 
-jest.mock('@/stores/authStore', () => ({
+vi.mock('@/stores/authStore', () => ({
   useAuthStore: () => ({ isAuthenticated: mockIsAuthenticated }),
 }));
 
 // ---------------------------------------------------------------------------
 // Mock DocumentCard to keep tests focused on DocumentLibrary logic
 // ---------------------------------------------------------------------------
-jest.mock('../DocumentCard', () => ({
+vi.mock('../DocumentCard', () => ({
   DocumentCard: ({
     document,
     selected,

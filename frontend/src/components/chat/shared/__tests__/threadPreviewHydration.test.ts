@@ -1,3 +1,4 @@
+import { describe, expect, it } from 'vitest';
 import { hydrateThreadPreviews } from '../threadPreviewHydration';
 
 describe('threadPreviewHydration', () => {

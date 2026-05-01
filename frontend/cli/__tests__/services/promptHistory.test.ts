@@ -1,6 +1,7 @@
 /**
- * @jest-environment node
+ * @vitest-environment node
  */
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { mkdtempSync, rmSync } from 'fs';
 import * as os from 'os';
 import * as path from 'path';
@@ -9,11 +10,11 @@ describe('promptHistory', () => {
   let tmpDir: string;
   let store: typeof import('../../services/promptHistory');
 
-  beforeEach(() => {
+  beforeEach(async () => {
     tmpDir = mkdtempSync(path.join(os.tmpdir(), 'nous-prompthistory-'));
     process.env.NOUS_CONFIG_DIR = tmpDir;
-    jest.resetModules();
-    store = require('../../services/promptHistory');
+    vi.resetModules();
+    store = await import('../../services/promptHistory');
   });
 
   afterEach(() => {

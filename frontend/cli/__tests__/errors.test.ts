@@ -1,6 +1,7 @@
 /**
- * @jest-environment node
+ * @vitest-environment node
  */
+import { describe, expect, test } from 'vitest';
 import { classifyError } from '../errors';
 
 describe('classifyError — network', () => {

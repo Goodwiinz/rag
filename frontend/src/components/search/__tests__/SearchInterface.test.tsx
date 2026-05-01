@@ -1,12 +1,13 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import React from 'react';
 import { render, screen, fireEvent } from '../../__tests__/testUtils';
 import SearchInterface from '../SearchInterface';
 
 describe('SearchInterface', () => {
-  const mockOnSearch = jest.fn();
-  const mockOnGetSuggestions = jest.fn();
-  const mockOnGetHistory = jest.fn().mockResolvedValue([]);
-  const mockOnSaveSearch = jest.fn();
+  const mockOnSearch = vi.fn();
+  const mockOnGetSuggestions = vi.fn();
+  const mockOnGetHistory = vi.fn().mockResolvedValue([]);
+  const mockOnSaveSearch = vi.fn();
 
   const defaultProps = {
     onSearch: mockOnSearch,
@@ -16,7 +17,7 @@ describe('SearchInterface', () => {
   };
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   it('renders correctly', () => {

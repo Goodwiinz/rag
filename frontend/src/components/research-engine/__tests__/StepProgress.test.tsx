@@ -1,3 +1,4 @@
+import { describe, expect, it } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { StepProgress, type StepData } from '../StepProgress';
 

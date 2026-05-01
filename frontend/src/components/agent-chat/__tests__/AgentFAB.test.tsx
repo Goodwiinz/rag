@@ -1,3 +1,4 @@
+import { beforeEach, describe, expect, it } from 'vitest';
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { AgentFAB } from '../AgentFAB';

@@ -1,25 +1,27 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { Mocked } from 'vitest';
 import { EnhancedDocumentService } from '@/services/enhancedDocumentService';
 import { apiClient } from '@/services/apiClient';
 
-jest.mock('@/services/apiClient', () => ({
+vi.mock('@/services/apiClient', () => ({
   apiClient: {
-    post: jest.fn(),
-    get: jest.fn(),
-    delete: jest.fn(),
+    post: vi.fn(),
+    get: vi.fn(),
+    delete: vi.fn(),
   },
 }));
 
-const mockedApiClient = apiClient as jest.Mocked<typeof apiClient>;
+const mockedApiClient = apiClient as Mocked<typeof apiClient>;
 
 describe('EnhancedDocumentService', () => {
   beforeEach(() => {
-    jest.useFakeTimers();
-    jest.clearAllMocks();
+    vi.useFakeTimers();
+    vi.clearAllMocks();
   });
 
   afterEach(async () => {
-    await jest.runOnlyPendingTimersAsync();
-    jest.useRealTimers();
+    await vi.runOnlyPendingTimersAsync();
+    vi.useRealTimers();
   });
 
   it('polls document status when upload completes without a websocket', async () => {
@@ -53,7 +55,7 @@ describe('EnhancedDocumentService', () => {
       });
 
     const service = new EnhancedDocumentService();
-    const onProgress = jest.fn();
+    const onProgress = vi.fn();
     const file = new File(['hello upload test'], 'upload-test.txt', {
       type: 'text/plain',
     });
@@ -67,7 +69,7 @@ describe('EnhancedDocumentService', () => {
     expect(result.response.document_id).toBe('doc-123');
     expect(result.websocket).toBeNull();
 
-    await jest.advanceTimersByTimeAsync(4000);
+    await vi.advanceTimersByTimeAsync(4000);
 
     expect(mockedApiClient.get).toHaveBeenNthCalledWith(
       1,

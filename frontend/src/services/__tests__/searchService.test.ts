@@ -1,26 +1,28 @@
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { Mocked } from 'vitest';
 import { APIErrorClass } from '@/types/api';
 import { apiClient } from '../apiClient';
 import { searchService } from '../searchService';
 
-jest.mock('../apiClient', () => ({
+vi.mock('../apiClient', () => ({
   apiClient: {
-    post: jest.fn(),
-    get: jest.fn(),
-    delete: jest.fn(),
+    post: vi.fn(),
+    get: vi.fn(),
+    delete: vi.fn(),
     client: {
-      post: jest.fn(),
+      post: vi.fn(),
     },
-    createWebSocket: jest.fn(),
+    createWebSocket: vi.fn(),
   },
 }));
 
-const mockApiClient = apiClient as jest.Mocked<typeof apiClient>;
+const mockApiClient = apiClient as Mocked<typeof apiClient>;
 
 describe('searchService deterministic routing', () => {
   const originalResearchIds = process.env.NEXT_PUBLIC_RESEARCH_DOCUMENT_IDS;
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     process.env.NEXT_PUBLIC_RESEARCH_DOCUMENT_IDS = originalResearchIds;
   });
 

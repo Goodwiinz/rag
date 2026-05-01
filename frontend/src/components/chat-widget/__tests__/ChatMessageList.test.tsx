@@ -1,21 +1,22 @@
+import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@/test/test-utils';
 import { ChatMessageList } from '../ChatMessageList';
 import type { WidgetMessage } from '@/types/chat-widget';
 
 // jsdom does not implement scrollIntoView
 beforeAll(() => {
-  Element.prototype.scrollIntoView = jest.fn();
+  Element.prototype.scrollIntoView = vi.fn();
 });
 
 // Mock lucide-react icons
-jest.mock('lucide-react', () => ({
+vi.mock('lucide-react', () => ({
   MessageSquare: (props: React.SVGAttributes<SVGElement>) => (
     <svg data-testid="icon-message-square" {...props} />
   ),
 }));
 
 // Mock ScrollArea to render children directly
-jest.mock('@/components/ui/scroll-area', () => ({
+vi.mock('@/components/ui/scroll-area', () => ({
   ScrollArea: ({
     children,
     className,
@@ -26,7 +27,7 @@ jest.mock('@/components/ui/scroll-area', () => ({
 }));
 
 // Mock ChatMessageItem to render content directly
-jest.mock('../ChatMessageItem', () => ({
+vi.mock('../ChatMessageItem', () => ({
   ChatMessageItem: ({ message }: { message: WidgetMessage }) => (
     <div data-testid={`message-${message.id}`}>{message.content}</div>
   ),

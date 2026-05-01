@@ -1,6 +1,7 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 describe('workspaceService default workspace cache', () => {
   beforeEach(() => {
-    jest.resetModules();
+    vi.resetModules();
     localStorage.clear();
   });
 
@@ -11,9 +12,10 @@ describe('workspaceService default workspace cache', () => {
   it('revalidates a cached workspace before returning it', async () => {
     let workspaceService: typeof import('@/services/workspaceService').workspaceService;
 
-    jest.isolateModules(() => {
-      ({ workspaceService } = require('@/services/workspaceService'));
-    });
+    vi.resetModules();
+    ({ workspaceService } = await vi.importActual<
+      typeof import('@/services/workspaceService')
+    >('@/services/workspaceService'));
 
     const cachedWorkspace = {
       id: 'ws-1',
@@ -32,15 +34,12 @@ describe('workspaceService default workspace cache', () => {
       'default-workspace-object',
       JSON.stringify(cachedWorkspace)
     );
-    localStorage.setItem(
-      'default-workspace-cached-at',
-      String(Date.now())
-    );
+    localStorage.setItem('default-workspace-cached-at', String(Date.now()));
 
-    const getWorkspaceSpy = jest
+    const getWorkspaceSpy = vi
       .spyOn(workspaceService, 'getWorkspace')
       .mockResolvedValue(freshWorkspace as any);
-    const listWorkspacesSpy = jest
+    const listWorkspacesSpy = vi
       .spyOn(workspaceService, 'listWorkspaces')
       .mockResolvedValue([]);
 
@@ -54,9 +53,10 @@ describe('workspaceService default workspace cache', () => {
   it('drops a deleted cached workspace and falls back to the server list', async () => {
     let workspaceService: typeof import('@/services/workspaceService').workspaceService;
 
-    jest.isolateModules(() => {
-      ({ workspaceService } = require('@/services/workspaceService'));
-    });
+    vi.resetModules();
+    ({ workspaceService } = await vi.importActual<
+      typeof import('@/services/workspaceService')
+    >('@/services/workspaceService'));
 
     localStorage.setItem(
       'default-workspace-object',
@@ -67,12 +67,9 @@ describe('workspaceService default workspace cache', () => {
         updated_at: '2026-04-01T00:00:00Z',
       })
     );
-    localStorage.setItem(
-      'default-workspace-cached-at',
-      String(Date.now())
-    );
+    localStorage.setItem('default-workspace-cached-at', String(Date.now()));
 
-    jest.spyOn(workspaceService, 'getWorkspace').mockRejectedValue({
+    vi.spyOn(workspaceService, 'getWorkspace').mockRejectedValue({
       response: { status: 404 },
     });
 
@@ -85,7 +82,7 @@ describe('workspaceService default workspace cache', () => {
       updated_at: '2026-04-02T00:00:00Z',
     };
 
-    const listWorkspacesSpy = jest
+    const listWorkspacesSpy = vi
       .spyOn(workspaceService, 'listWorkspaces')
       .mockResolvedValue([liveWorkspace as any]);
 

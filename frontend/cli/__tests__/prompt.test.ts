@@ -1,16 +1,18 @@
 /**
- * @jest-environment node
+ * @vitest-environment node
  */
-jest.mock('@clack/prompts', () => ({
-  text: jest.fn(),
-  isCancel: jest.fn(() => false),
+import { describe, expect, test, vi } from 'vitest';
+import type { Mock, MockedFunction } from 'vitest';
+vi.mock('@clack/prompts', () => ({
+  text: vi.fn(),
+  isCancel: vi.fn(() => false),
 }));
-jest.mock('../services/draft');
+vi.mock('../services/draft');
 
 import { writeDraft, readDraft, clearDraft } from '../services/draft';
 
-const mockedWriteDraft = writeDraft as jest.MockedFunction<typeof writeDraft>;
-const mockedClearDraft = clearDraft as jest.MockedFunction<typeof clearDraft>;
+const mockedWriteDraft = writeDraft as MockedFunction<typeof writeDraft>;
+const mockedClearDraft = clearDraft as MockedFunction<typeof clearDraft>;
 void mockedWriteDraft;
 void readDraft;
 
@@ -66,7 +68,7 @@ describe('readPrompt — non-TTY initialValue passthrough', () => {
     // Already covered by clack mock in this file; verify the option is forwarded.
     const { readPrompt } = await import('../prompt');
     const prompts = await import('@clack/prompts');
-    const textMock = prompts.text as jest.Mock;
+    const textMock = prompts.text as Mock;
     textMock.mockResolvedValueOnce('result');
     await readPrompt({ message: '>', initialValue: 'restored' });
     expect(textMock).toHaveBeenCalledWith(
@@ -79,7 +81,7 @@ describe('readPrompt — clears draft on submit (non-TTY)', () => {
   test('clearDraft is called when prompt resolves to a string', async () => {
     const { readPrompt } = await import('../prompt');
     const prompts = await import('@clack/prompts');
-    (prompts.text as jest.Mock).mockResolvedValueOnce('hello');
+    (prompts.text as Mock).mockResolvedValueOnce('hello');
     await readPrompt({ message: '>' });
     expect(mockedClearDraft).toHaveBeenCalled();
   });

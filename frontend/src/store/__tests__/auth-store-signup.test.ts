@@ -1,27 +1,28 @@
-const mockSignUp = jest.fn();
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+const mockSignUp = vi.fn();
 
-jest.mock('@/lib/supabase/client', () => ({
+vi.mock('@/lib/supabase/client', () => ({
   createClient: () => ({
     auth: {
-      signInWithPassword: jest.fn(),
+      signInWithPassword: vi.fn(),
       signUp: (...args: unknown[]) => mockSignUp(...args),
-      signOut: jest.fn(),
-      resetPasswordForEmail: jest.fn(),
-      getSession: jest.fn().mockResolvedValue({
+      signOut: vi.fn(),
+      resetPasswordForEmail: vi.fn(),
+      getSession: vi.fn().mockResolvedValue({
         data: { session: null },
         error: null,
       }),
-      onAuthStateChange: jest.fn(() => ({
-        data: { subscription: { unsubscribe: jest.fn() } },
+      onAuthStateChange: vi.fn(() => ({
+        data: { subscription: { unsubscribe: vi.fn() } },
       })),
     },
   }),
 }));
 
-jest.mock('@/services/apiClient', () => ({
+vi.mock('@/services/apiClient', () => ({
   apiClient: {
-    get: jest.fn(),
-    post: jest.fn(),
+    get: vi.fn(),
+    post: vi.fn(),
   },
 }));
 
@@ -29,7 +30,7 @@ import { useAuthStore } from '@/stores/authStore';
 
 describe('useAuthStore signUp', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     useAuthStore.setState({
       user: null,
       organization: null,

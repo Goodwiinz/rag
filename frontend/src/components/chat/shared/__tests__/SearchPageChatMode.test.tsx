@@ -1,27 +1,28 @@
+import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import SearchPage from '../../../../../app/(dashboard)/search/page';
 
-jest.mock('@/lib/analytics', () => ({
+vi.mock('@/lib/analytics', () => ({
   getAnalytics: () => ({
-    trackPageView: jest.fn(),
-    trackSearch: jest.fn(),
+    trackPageView: vi.fn(),
+    trackSearch: vi.fn(),
   }),
 }));
 
-jest.mock('@/components/search/ResultsPanel', () => ({
+vi.mock('@/components/search/ResultsPanel', () => ({
   ResultsPanel: () => <div>Results Panel</div>,
 }));
 
-jest.mock('@/components/chat/shared/TerminalChatBubble', () => ({
+vi.mock('@/components/chat/shared/TerminalChatBubble', () => ({
   TerminalChatBubble: () => <div>Bubble</div>,
 }));
 
-jest.mock('@/components/chat/CitationPanel', () => ({
+vi.mock('@/components/chat/CitationPanel', () => ({
   CitationPanel: () => <div>Citation Panel</div>,
 }));
 
-jest.mock('next/navigation', () => ({
-  useRouter: () => ({ push: jest.fn() }),
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ push: vi.fn() }),
 }));
 
 describe('SearchPage chat mode', () => {

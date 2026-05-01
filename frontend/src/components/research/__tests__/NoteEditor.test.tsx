@@ -1,16 +1,17 @@
+import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { NoteEditor } from '@/components/research/NoteEditor';
 import type { ProjectDocument, ProjectNote } from '@/services/projectService';
 
-jest.mock('react-markdown', () => ({
+vi.mock('react-markdown', () => ({
   __esModule: true,
   default: ({ children }: { children: ReactNode }) => <div>{children}</div>,
 }));
 
-jest.mock('remark-gfm', () => ({
+vi.mock('remark-gfm', () => ({
   __esModule: true,
-  default: jest.fn(),
+  default: vi.fn(),
 }));
 
 const mockNote: ProjectNote = {
@@ -62,8 +63,8 @@ describe('NoteEditor', () => {
         isOpen
         initialNote={mockNote}
         availableDocuments={mockDocuments}
-        onClose={jest.fn()}
-        onSave={jest.fn().mockResolvedValue(undefined)}
+        onClose={vi.fn()}
+        onSave={vi.fn().mockResolvedValue(undefined)}
       />
     );
 
@@ -80,8 +81,8 @@ describe('NoteEditor', () => {
         isOpen
         initialNote={mockNote}
         availableDocuments={mockDocuments}
-        onClose={jest.fn()}
-        onSave={jest.fn().mockResolvedValue(undefined)}
+        onClose={vi.fn()}
+        onSave={vi.fn().mockResolvedValue(undefined)}
       />
     );
 
@@ -94,8 +95,8 @@ describe('NoteEditor', () => {
   });
 
   it('submits updated note payload with tags and linked docs', async () => {
-    const onSave = jest.fn().mockResolvedValue(undefined);
-    const onClose = jest.fn();
+    const onSave = vi.fn().mockResolvedValue(undefined);
+    const onClose = vi.fn();
 
     render(
       <NoteEditor

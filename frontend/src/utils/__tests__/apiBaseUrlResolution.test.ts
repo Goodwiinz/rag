@@ -1,3 +1,4 @@
+import { afterEach, describe, expect, it, vi } from 'vitest';
 describe('API_CONFIG base URL resolution', () => {
   const originalApiUrl = process.env.NEXT_PUBLIC_API_URL;
   const originalApiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
@@ -21,7 +22,7 @@ describe('API_CONFIG base URL resolution', () => {
   };
 
   afterEach(() => {
-    jest.resetModules();
+    vi.resetModules();
     restoreEnv('NEXT_PUBLIC_API_URL', originalApiUrl);
     restoreEnv('NEXT_PUBLIC_API_BASE_URL', originalApiBaseUrl);
     (

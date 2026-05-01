@@ -1,30 +1,31 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 describe('useAuthStore signOut', () => {
   beforeEach(() => {
-    jest.resetModules();
-    jest.clearAllMocks();
+    vi.resetModules();
+    vi.clearAllMocks();
   });
 
-  it('clears workspace-scoped caches when signing out', () => {
-    const mockBrowserSignOut = jest.fn().mockResolvedValue(undefined);
-    const mockClearWorkspaceServiceCache = jest.fn();
+  it('clears workspace-scoped caches when signing out', async () => {
+    const mockBrowserSignOut = vi.fn().mockResolvedValue(undefined);
+    const mockClearWorkspaceServiceCache = vi.fn();
 
-    jest.doMock('@/lib/supabase/client', () => ({
+    vi.doMock('@/lib/supabase/client', () => ({
       createClient: () => ({
         auth: {
-          onAuthStateChange: jest.fn(),
+          onAuthStateChange: vi.fn(),
           signOut: mockBrowserSignOut,
         },
       }),
     }));
 
-    jest.doMock('@/services/workspaceService', () => ({
+    vi.doMock('@/services/workspaceService', () => ({
       clearWorkspaceServiceCache: mockClearWorkspaceServiceCache,
     }));
 
-    let useAuthStore: typeof import('@/stores/authStore').useAuthStore;
-    jest.isolateModules(() => {
-      ({ useAuthStore } = require('@/stores/authStore'));
-    });
+    const { useAuthStore } =
+      await vi.importActual<typeof import('@/stores/authStore')>(
+        '@/stores/authStore'
+      );
 
     useAuthStore.setState({
       user: { id: 'user-1' } as any,

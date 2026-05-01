@@ -1,3 +1,4 @@
+import { describe, expect, it, vi } from 'vitest';
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '../../__tests__/testUtils';
 import ResultsPanel from '../ResultsPanel';
@@ -42,11 +43,11 @@ describe('ResultsPanel Accessibility', () => {
 
   const defaultProps = {
     result: mockResult as any,
-    onSourceClick: jest.fn(),
-    onDocumentPreview: jest.fn(),
-    onShare: jest.fn(),
-    onExport: jest.fn(),
-    onFeedback: jest.fn(),
+    onSourceClick: vi.fn(),
+    onDocumentPreview: vi.fn(),
+    onShare: vi.fn(),
+    onExport: vi.fn(),
+    onFeedback: vi.fn(),
   };
 
   it('has accessible labels for main action buttons', () => {

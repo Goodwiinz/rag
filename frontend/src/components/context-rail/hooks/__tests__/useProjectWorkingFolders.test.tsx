@@ -1,13 +1,14 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ReactNode } from 'react';
 import { useProjectWorkingFolders } from '../useProjectWorkingFolders';
 
-jest.mock('@/services/projectService', () => ({
+vi.mock('@/services/projectService', () => ({
   projectService: {
-    listProjectDocuments: jest.fn(),
-    listProjectNotes: jest.fn(),
-    listDrafts: jest.fn(),
+    listProjectDocuments: vi.fn(),
+    listProjectNotes: vi.fn(),
+    listDrafts: vi.fn(),
   },
 }));
 
@@ -22,7 +23,7 @@ function wrapper({ children }: { children: ReactNode }) {
 }
 
 describe('useProjectWorkingFolders', () => {
-  beforeEach(() => jest.clearAllMocks());
+  beforeEach(() => vi.clearAllMocks());
 
   it('returns undefined lists before the queries resolve', () => {
     projectService.listProjectDocuments.mockReturnValue(new Promise(() => {}));

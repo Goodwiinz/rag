@@ -1,3 +1,4 @@
+import { expect, test } from 'vitest';
 import { parseSlashCommand } from '../../hooks/useSlashCommands';
 
 test('parses /new', () => {

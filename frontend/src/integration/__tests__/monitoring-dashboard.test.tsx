@@ -10,6 +10,7 @@
  * 6. User Analytics Component
  */
 
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest';
 import React from 'react';
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -142,16 +143,16 @@ const TestWrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 };
 
 // Mock WebSocket service
-jest.mock('../../services/monitoringWebsocketService', () => ({
+vi.mock('../../services/monitoringWebsocketService', () => ({
   __esModule: true,
   default: {
-    connect: jest.fn(),
-    disconnect: jest.fn(),
-    subscribe: jest.fn(),
-    unsubscribe: jest.fn(),
-    isConnected: jest.fn(() => true),
-    on: jest.fn(),
-    off: jest.fn()
+    connect: vi.fn(),
+    disconnect: vi.fn(),
+    subscribe: vi.fn(),
+    unsubscribe: vi.fn(),
+    isConnected: vi.fn(() => true),
+    on: vi.fn(),
+    off: vi.fn()
   }
 }));
 

@@ -1,13 +1,15 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { Mock } from 'vitest';
 import { projectService } from '../projectService';
 
 describe('projectService.downloadBibliography', () => {
-  const createObjectURL = jest.fn(() => 'blob:download-url');
-  const revokeObjectURL = jest.fn();
-  const appendChild = jest.spyOn(document.body, 'appendChild');
-  const removeChild = jest.spyOn(document.body, 'removeChild');
+  const createObjectURL = vi.fn(() => 'blob:download-url');
+  const revokeObjectURL = vi.fn();
+  const appendChild = vi.spyOn(document.body, 'appendChild');
+  const removeChild = vi.spyOn(document.body, 'removeChild');
 
   beforeEach(() => {
-    jest.restoreAllMocks();
+    vi.restoreAllMocks();
     appendChild.mockImplementation(() => document.createElement('div'));
     removeChild.mockImplementation(() => document.createElement('div'));
     Object.defineProperty(window, 'URL', {
@@ -20,8 +22,7 @@ describe('projectService.downloadBibliography', () => {
   });
 
   it('uses the .bib extension for bibtex downloads', async () => {
-    jest
-      .spyOn(projectService, 'getProjectBibliography')
+    vi.spyOn(projectService, 'getProjectBibliography')
       .mockResolvedValue({
         project_id: 'proj-1',
         project_name: 'alpha-project',
@@ -31,12 +32,12 @@ describe('projectService.downloadBibliography', () => {
         generated_at: new Date().toISOString(),
       });
 
-    const click = jest.fn();
+    const click = vi.fn();
     const originalCreateElement = document.createElement.bind(document);
-    jest.spyOn(document, 'createElement').mockImplementation((tagName: string) => {
+    vi.spyOn(document, 'createElement').mockImplementation((tagName: string) => {
       if (tagName === 'a') {
         const anchor = originalCreateElement('a');
-        jest.spyOn(anchor, 'click').mockImplementation(click);
+        vi.spyOn(anchor, 'click').mockImplementation(click);
         return anchor;
       }
       return originalCreateElement(tagName);
@@ -44,7 +45,7 @@ describe('projectService.downloadBibliography', () => {
 
     await projectService.downloadBibliography('proj-1', 'bibtex');
 
-    const createdAnchor = (document.createElement as jest.Mock).mock.results[0]
+    const createdAnchor = (document.createElement as Mock).mock.results[0]
       .value as HTMLAnchorElement;
     expect(createdAnchor.download).toBe('alpha-project-bibliography.bib');
     expect(click).toHaveBeenCalledTimes(1);

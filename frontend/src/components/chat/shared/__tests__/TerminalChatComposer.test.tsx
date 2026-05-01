@@ -1,16 +1,17 @@
+import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { TerminalChatComposer } from '../TerminalChatComposer';
 
 describe('TerminalChatComposer', () => {
   it('submits on Enter without Shift', () => {
-    const onSubmit = jest.fn();
+    const onSubmit = vi.fn();
 
     render(
       <TerminalChatComposer
         value="hello"
-        onChange={jest.fn()}
+        onChange={vi.fn()}
         onSubmit={onSubmit}
-        onStop={jest.fn()}
+        onStop={vi.fn()}
         isLoading={false}
       />
     );
@@ -23,14 +24,14 @@ describe('TerminalChatComposer', () => {
   });
 
   it('does not submit on Shift+Enter', () => {
-    const onSubmit = jest.fn();
+    const onSubmit = vi.fn();
 
     render(
       <TerminalChatComposer
         value="hello"
-        onChange={jest.fn()}
+        onChange={vi.fn()}
         onSubmit={onSubmit}
-        onStop={jest.fn()}
+        onStop={vi.fn()}
         isLoading={false}
       />
     );
