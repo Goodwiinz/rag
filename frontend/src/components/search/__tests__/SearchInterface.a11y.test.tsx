@@ -15,6 +15,10 @@ describe('SearchInterface a11y', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    // restoreMocks: true wipes module-scope `.mockResolvedValue` setups
+    // between tests; component's mount effect calls `onGetHistory().then(...)`.
+    mockOnSearch.mockResolvedValue(undefined);
+    mockOnGetHistory.mockResolvedValue([]);
   });
 
   it('has no accessibility violations', async () => {

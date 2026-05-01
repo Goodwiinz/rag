@@ -18,7 +18,8 @@ describe('withRetry', () => {
 
   test('retries when predicate is true; returns on success', async () => {
     vi.useFakeTimers();
-    const fn = vi.fn()
+    const fn = vi
+      .fn()
       .mockRejectedValueOnce(new Error('boom'))
       .mockResolvedValueOnce('ok');
     const promise = withRetry(fn, {
@@ -69,8 +70,14 @@ describe('withRetry', () => {
       signal: new AbortController().signal,
       predicate: () => true,
     });
+    // Attach the rejection assertion BEFORE advancing timers. Otherwise
+    // Vitest 2.x logs the rejection as unhandled during `advanceTimersByTimeAsync`
+    // (the rejection fires inside that drain, but `expect(...).rejects` hasn't
+    // attached its handler yet), which makes the run exit non-zero even
+    // though the assertion itself eventually succeeds.
+    const assertion = expect(promise).rejects.toBe(err);
     await vi.advanceTimersByTimeAsync(250);
-    await expect(promise).rejects.toBe(err);
+    await assertion;
     expect(fn).toHaveBeenCalledTimes(2);
     vi.useRealTimers();
   });

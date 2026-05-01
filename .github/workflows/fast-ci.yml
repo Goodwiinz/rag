@@ -92,7 +92,6 @@ jobs:
   test-frontend-vitest:
     name: Frontend Tests (Vitest)
     runs-on: ${{ github.event.inputs.runner || vars.FAST_CI_RUNNER || 'ubuntu-latest' }}
-    continue-on-error: true   # PR #1 only; PR #2 makes it required.
     steps:
       - uses: actions/checkout@v6.0.2
 
