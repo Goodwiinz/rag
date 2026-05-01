@@ -1,4 +1,5 @@
-import { Mock, MockedFunction, beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { Mock, MockedFunction } from 'vitest';
 import { renderHook, act } from '@/test/test-utils';
 import { useProjectStore } from '@/store/projectStore';
 import { projectChatService } from '@/services/projectChatService';

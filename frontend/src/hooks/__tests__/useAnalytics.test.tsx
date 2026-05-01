@@ -1,4 +1,5 @@
-import { Mock, Mocked, beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { Mock, Mocked } from 'vitest';
 import { renderHook } from '@testing-library/react';
 import { useAnalyticsStore, useTimeRange, useAnalyticsFilters } from '@/stores/analyticsStore';
 import analyticsService from '@/services/analyticsService';

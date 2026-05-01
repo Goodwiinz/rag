@@ -1,4 +1,5 @@
-import { Mock, beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { Mock } from 'vitest';
 import React from 'react';
 import { act, fireEvent, render, screen, waitFor } from '@/test/test-utils';
 import { useAgentChatStore } from '@/store/agentChatStore';

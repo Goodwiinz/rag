@@ -1,7 +1,8 @@
 /**
  * @vitest-environment node
  */
-import { Mock, MockedFunction, describe, expect, test, vi } from 'vitest';
+import { describe, expect, test, vi } from 'vitest';
+import type { Mock, MockedFunction } from 'vitest';
 vi.mock('@clack/prompts', () => ({
   text: vi.fn(),
   isCancel: vi.fn(() => false),

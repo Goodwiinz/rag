@@ -4,7 +4,8 @@
  * Tests Zustand store state management, actions, and selectors
  */
 
-import { Mocked, beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { Mocked } from 'vitest';
 import { act } from '@testing-library/react';
 import {
   useProjectChatStore,

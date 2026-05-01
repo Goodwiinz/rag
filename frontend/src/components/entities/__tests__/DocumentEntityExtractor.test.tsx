@@ -1,4 +1,5 @@
-import { Mock, beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { Mock } from 'vitest';
 import { render, waitFor } from '@testing-library/react';
 import { DocumentEntityExtractor } from '@/components/entities/DocumentEntityExtractor';
 import toast from 'react-hot-toast';

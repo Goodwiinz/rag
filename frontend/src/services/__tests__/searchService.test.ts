@@ -1,4 +1,5 @@
-import { Mocked, afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { Mocked } from 'vitest';
 import { APIErrorClass } from '@/types/api';
 import { apiClient } from '../apiClient';
 import { searchService } from '../searchService';

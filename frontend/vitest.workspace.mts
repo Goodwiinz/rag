@@ -22,6 +22,15 @@ export default defineWorkspace([
   {
     extends: './vitest.config.mts',
     test: {
+      name: 'integration',
+      environment: 'jsdom',
+      include: ['src/integration/**/__tests__/**/*.test.{ts,tsx}'],
+      exclude: ['node_modules/**', 'e2e/**'],
+    },
+  },
+  {
+    extends: './vitest.config.mts',
+    test: {
       name: 'cli',
       environment: 'node',
       include: ['cli/__tests__/**/*.test.{ts,tsx}'],

@@ -1,4 +1,5 @@
-import { Mocked, beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { Mocked } from 'vitest';
 import ArxivManagement from '@/components/arxiv/ArxivManagement';
 import { apiClient } from '@/services/apiClient';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';

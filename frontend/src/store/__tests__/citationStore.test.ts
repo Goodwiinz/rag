@@ -5,7 +5,8 @@
  * fetching citations for messages, and error handling.
  */
 
-import { Mocked, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { Mocked } from 'vitest';
 import { act } from '@testing-library/react';
 import { useCitationStore } from '../citationStore';
 import { citationService } from '@/services/citationService';
