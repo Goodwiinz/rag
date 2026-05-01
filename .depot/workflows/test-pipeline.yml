@@ -191,10 +191,9 @@ jobs:
           cache-dependency-path: frontend/pnpm-lock.yaml
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-      - name: Run tests (Vitest)
-        # Vitest is the source of truth post-PR #443. The legacy `pnpm test`
-        # is `jest --passWithNoTests` until Tasks 9-15 fully remove Jest.
-        run: pnpm test:vitest:coverage
+      - name: Run tests
+        # Vitest is the source of truth — `pnpm test` is `vitest run`.
+        run: pnpm test:coverage
         env:
           CI: true
       - name: Upload coverage
