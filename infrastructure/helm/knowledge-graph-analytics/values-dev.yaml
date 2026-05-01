@@ -21,7 +21,7 @@ frontend:
   replicaCount: 1
   image:
     repository: registry.digitalocean.com/ragsystemregistry/frontend
-    tag: "c79a1b2"
+    tag: "c8710ab"
     pullPolicy: IfNotPresent
   service:
     type: ClusterIP
@@ -73,7 +73,7 @@ backend:
   replicaCount: 1
   image:
     repository: registry.digitalocean.com/ragsystemregistry/backend
-    tag: "c79a1b2"
+    tag: "c8710ab"
     pullPolicy: IfNotPresent
   service:
     type: ClusterIP
