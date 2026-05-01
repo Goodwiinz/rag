@@ -25,7 +25,7 @@ vi.mock('../services/analyticsService', () => ({
 
 describe('App routing', () => {
   it('renders app shell and shows Analytics entry points', async () => {
-    const App = require('../App').default;
+    const App = (await import('../App')).default;
     render(
       <MemoryRouter initialEntries={['/']}>
         <App />

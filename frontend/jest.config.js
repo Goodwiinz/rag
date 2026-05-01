@@ -10,18 +10,12 @@ const customJestConfig = {
   testEnvironment: 'jsdom',
   setupFilesAfterEnv: ['<rootDir>/src/setupTests.ts'],
 
-  // Allow tests to be discovered anywhere (src and app imports supported by next/jest)
-  // Include sanity tests, component unit tests, service tests, and store tests
-  testMatch: [
-    '<rootDir>/src/__tests__/sanity.test.ts',
-    '<rootDir>/src/components/**/__tests__/**/*.test.{ts,tsx}',
-    '<rootDir>/src/services/__tests__/**/*.test.{ts,tsx}',
-    '<rootDir>/src/store/__tests__/**/*.test.{ts,tsx}',
-    '<rootDir>/src/stores/__tests__/**/*.test.{ts,tsx}',
-    '<rootDir>/src/hooks/__tests__/**/*.test.{ts,tsx}',
-    '<rootDir>/src/utils/__tests__/**/*.test.{ts,tsx}',
-    '<rootDir>/cli/__tests__/**/*.test.{ts,tsx}',
-  ],
+  // PR #443 codemod migrated every test to `import { ... } from 'vitest'`,
+  // which crashes Jest at module load (Vitest's runtime is ESM-only and
+  // refuses CJS require). Jest is kept around for a clean removal in a
+  // later PR (Tasks 9-15), but for now it has nothing to run — match a
+  // non-existent path and rely on `--passWithNoTests`.
+  testMatch: ['<rootDir>/__jest_only__/**/*.test.{ts,tsx}'],
 
   // Ignore Playwright e2e and heavy integration suites in Jest
   testPathIgnorePatterns: [
