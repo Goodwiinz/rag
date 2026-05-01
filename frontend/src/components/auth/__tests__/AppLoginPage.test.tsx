@@ -1,11 +1,13 @@
-import '@testing-library/jest-dom';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { Mock } from 'vitest';
+import '@testing-library/jest-dom/vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import LoginPage from '../../../../app/(auth)/login/page';
 import { downloadStoredNousCliAuth } from '@/services/nousCliAuth';
 
-const mockLogin = jest.fn();
-const mockPush = jest.fn();
+const mockLogin = vi.fn();
+const mockPush = vi.fn();
 let mockSearchParams = new URLSearchParams();
 
 const mockedAuth = {
@@ -14,22 +16,22 @@ const mockedAuth = {
   isLoading: false,
 };
 
-jest.mock('@/hooks/useAuth', () => ({
+vi.mock('@/hooks/useAuth', () => ({
   useAuth: () => mockedAuth,
 }));
 
-jest.mock('@/services/nousCliAuth', () => ({
-  downloadStoredNousCliAuth: jest.fn(),
+vi.mock('@/services/nousCliAuth', () => ({
+  downloadStoredNousCliAuth: vi.fn(),
 }));
 
-jest.mock('next/navigation', () => ({
+vi.mock('next/navigation', () => ({
   useRouter: () => ({
     push: mockPush,
   }),
   useSearchParams: () => mockSearchParams,
 }));
 
-jest.mock('next/link', () => ({
+vi.mock('next/link', () => ({
   __esModule: true,
   default: ({
     children,
@@ -52,18 +54,18 @@ describe('App login page', () => {
     mockSearchParams = new URLSearchParams();
     mockedAuth.isAuthenticated = false;
     mockedAuth.isLoading = false;
-    (downloadStoredNousCliAuth as jest.Mock).mockReset();
+    (downloadStoredNousCliAuth as Mock).mockReset();
     Object.defineProperty(window, 'matchMedia', {
       writable: true,
-      value: jest.fn().mockImplementation(() => ({
+      value: vi.fn().mockImplementation(() => ({
         matches: false,
         media: '(prefers-reduced-motion: reduce)',
         onchange: null,
-        addListener: jest.fn(),
-        removeListener: jest.fn(),
-        addEventListener: jest.fn(),
-        removeEventListener: jest.fn(),
-        dispatchEvent: jest.fn(),
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        dispatchEvent: vi.fn(),
       })),
     });
   });

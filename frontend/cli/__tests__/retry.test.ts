@@ -1,11 +1,12 @@
 /**
- * @jest-environment node
+ * @vitest-environment node
  */
+import { describe, expect, test, vi } from 'vitest';
 import { withRetry } from '../retry';
 
 describe('withRetry', () => {
   test('returns immediately when first attempt succeeds', async () => {
-    const fn = jest.fn().mockResolvedValue('ok');
+    const fn = vi.fn().mockResolvedValue('ok');
     const out = await withRetry(fn, {
       maxAttempts: 3,
       signal: new AbortController().signal,
@@ -16,9 +17,8 @@ describe('withRetry', () => {
   });
 
   test('retries when predicate is true; returns on success', async () => {
-    jest.useFakeTimers();
-    const fn = jest
-      .fn()
+    vi.useFakeTimers();
+    const fn = vi.fn()
       .mockRejectedValueOnce(new Error('boom'))
       .mockResolvedValueOnce('ok');
     const promise = withRetry(fn, {
@@ -27,15 +27,15 @@ describe('withRetry', () => {
       predicate: () => true,
     });
     // advance backoff (250ms for first retry)
-    await jest.advanceTimersByTimeAsync(250);
+    await vi.advanceTimersByTimeAsync(250);
     const out = await promise;
     expect(out).toBe('ok');
     expect(fn).toHaveBeenCalledTimes(2);
-    jest.useRealTimers();
+    vi.useRealTimers();
   });
 
   test('does NOT retry when predicate returns false', async () => {
-    const fn = jest.fn().mockRejectedValue(new Error('nope'));
+    const fn = vi.fn().mockRejectedValue(new Error('nope'));
     await expect(
       withRetry(fn, {
         maxAttempts: 3,
@@ -49,7 +49,7 @@ describe('withRetry', () => {
   test('throws AbortError when signal is already aborted', async () => {
     const ac = new AbortController();
     ac.abort();
-    const fn = jest.fn();
+    const fn = vi.fn();
     await expect(
       withRetry(fn, {
         maxAttempts: 3,
@@ -61,17 +61,17 @@ describe('withRetry', () => {
   });
 
   test('stops retrying after maxAttempts and rethrows last error', async () => {
-    jest.useFakeTimers();
+    vi.useFakeTimers();
     const err = new Error('persistent');
-    const fn = jest.fn().mockRejectedValue(err);
+    const fn = vi.fn().mockRejectedValue(err);
     const promise = withRetry(fn, {
       maxAttempts: 2,
       signal: new AbortController().signal,
       predicate: () => true,
     });
-    await jest.advanceTimersByTimeAsync(250);
+    await vi.advanceTimersByTimeAsync(250);
     await expect(promise).rejects.toBe(err);
     expect(fn).toHaveBeenCalledTimes(2);
-    jest.useRealTimers();
+    vi.useRealTimers();
   });
 });

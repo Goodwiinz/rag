@@ -1,13 +1,14 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 
 describe('APIClient auth bootstrapping', () => {
   beforeEach(() => {
-    jest.resetModules();
-    jest.clearAllMocks();
+    vi.resetModules();
+    vi.clearAllMocks();
   });
 
   it('loads auth before requestWithValidation', async () => {
-    const getSession = jest.fn().mockResolvedValue({
+    const getSession = vi.fn().mockResolvedValue({
       data: {
         session: {
           access_token: 'session-token',
@@ -16,7 +17,7 @@ describe('APIClient auth bootstrapping', () => {
       },
     });
 
-    jest.doMock('@/lib/supabase/client', () => ({
+    vi.doMock('@/lib/supabase/client', () => ({
       createClient: () => ({
         auth: {
           getSession,
@@ -24,7 +25,7 @@ describe('APIClient auth bootstrapping', () => {
       }),
     }));
 
-    const fetchMock = jest.fn().mockResolvedValue({
+    const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
       status: 200,
       headers: new Headers({ 'content-type': 'application/json' }),
@@ -49,7 +50,7 @@ describe('APIClient auth bootstrapping', () => {
   });
 
   it('loads auth before uploadWithProgress requests', async () => {
-    const getSession = jest.fn().mockResolvedValue({
+    const getSession = vi.fn().mockResolvedValue({
       data: {
         session: {
           access_token: 'upload-token',
@@ -58,7 +59,7 @@ describe('APIClient auth bootstrapping', () => {
       },
     });
 
-    jest.doMock('@/lib/supabase/client', () => ({
+    vi.doMock('@/lib/supabase/client', () => ({
       createClient: () => ({
         auth: {
           getSession,
@@ -66,7 +67,7 @@ describe('APIClient auth bootstrapping', () => {
       }),
     }));
 
-    const setRequestHeader = jest.fn();
+    const setRequestHeader = vi.fn();
     class MockXMLHttpRequest {
       upload = { onprogress: null as ((e: ProgressEvent) => void) | null };
       onload: (() => void) | null = null;

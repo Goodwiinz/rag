@@ -1,9 +1,10 @@
 // frontend/cli/__tests__/auth/deviceFlow.test.ts
+import { expect, test, vi } from 'vitest';
 import { pollForApproval } from '../../auth/deviceFlow';
 
 test('resolves with token when status becomes approved', async () => {
   let callCount = 0;
-  const mockFetch = jest.fn().mockImplementation(() => {
+  const mockFetch = vi.fn().mockImplementation(() => {
     callCount++;
     const status = callCount >= 3 ? 'approved' : 'pending';
     const extra =
@@ -30,7 +31,7 @@ test('resolves with token when status becomes approved', async () => {
 });
 
 test('rejects when status is expired', async () => {
-  const mockFetch = jest.fn().mockResolvedValue({
+  const mockFetch = vi.fn().mockResolvedValue({
     ok: true,
     json: () => Promise.resolve({ status: 'expired' }),
   });

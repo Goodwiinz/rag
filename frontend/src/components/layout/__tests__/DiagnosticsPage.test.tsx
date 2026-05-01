@@ -1,15 +1,17 @@
-import '@testing-library/jest-dom';
+import { describe, expect, it, vi } from 'vitest';
+import type { Mocked } from 'vitest';
+import '@testing-library/jest-dom/vitest';
 import { render, screen } from '@testing-library/react';
 
 import DiagnosticsPage from '../../../../app/(dashboard)/diagnostics/page';
 
-jest.mock('@/stores/authStore', () => ({
+vi.mock('@/stores/authStore', () => ({
   useAuthStore: () => ({
     user: { role: 'admin' },
   }),
 }));
 
-jest.mock('@/components/diagnostics/RetrievalDiagnosticsDashboard', () => ({
+vi.mock('@/components/diagnostics/RetrievalDiagnosticsDashboard', () => ({
   RetrievalDiagnosticsDashboard: () => <div>Mocked Diagnostics Dashboard</div>,
 }));
 

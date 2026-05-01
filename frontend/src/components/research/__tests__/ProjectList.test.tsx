@@ -1,3 +1,4 @@
+import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ProjectList } from '@/components/research/ProjectList';
@@ -32,13 +33,13 @@ const mockProjects: Project[] = [
 
 describe('ProjectList', () => {
   it('renders projects and opens selected project', () => {
-    const onOpenProject = jest.fn();
+    const onOpenProject = vi.fn();
 
     render(
       <ProjectList
         projects={mockProjects}
         viewMode="grid"
-        onViewModeChange={jest.fn()}
+        onViewModeChange={vi.fn()}
         onOpenProject={onOpenProject}
       />
     );
@@ -51,14 +52,14 @@ describe('ProjectList', () => {
   });
 
   it('changes view mode when toggle is clicked', () => {
-    const onViewModeChange = jest.fn();
+    const onViewModeChange = vi.fn();
 
     render(
       <ProjectList
         projects={mockProjects}
         viewMode="grid"
         onViewModeChange={onViewModeChange}
-        onOpenProject={jest.fn()}
+        onOpenProject={vi.fn()}
       />
     );
 
@@ -68,15 +69,15 @@ describe('ProjectList', () => {
 
   it('triggers archive and delete actions', async () => {
     const user = userEvent.setup();
-    const onArchiveProject = jest.fn();
-    const onDeleteProject = jest.fn();
+    const onArchiveProject = vi.fn();
+    const onDeleteProject = vi.fn();
 
     render(
       <ProjectList
         projects={mockProjects}
         viewMode="grid"
-        onViewModeChange={jest.fn()}
-        onOpenProject={jest.fn()}
+        onViewModeChange={vi.fn()}
+        onOpenProject={vi.fn()}
         onArchiveProject={onArchiveProject}
         onDeleteProject={onDeleteProject}
       />

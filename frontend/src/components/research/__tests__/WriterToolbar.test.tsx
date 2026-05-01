@@ -7,21 +7,23 @@
 // @ts-nocheck
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { MockedFunction } from 'vitest';
 import { writeText } from '@/services/scispaceService';
 
-jest.mock('@/services/scispaceService', () => ({
-  writeText: jest.fn(),
+vi.mock('@/services/scispaceService', () => ({
+  writeText: vi.fn(),
 }));
 
-const mockWriteText = writeText as jest.MockedFunction<typeof writeText>;
+const mockWriteText = writeText as MockedFunction<typeof writeText>;
 
 const defaultProps = {
   cursorContext: 'Machine learning has emerged as a transformative technology.',
   position: { top: 100, left: 200 },
   documentIds: ['doc-1', 'doc-2'],
-  onInsert: jest.fn(),
-  onOutlineRequest: jest.fn(),
-  onClose: jest.fn(),
+  onInsert: vi.fn(),
+  onOutlineRequest: vi.fn(),
+  onClose: vi.fn(),
 };
 
 const mockWriteResponse = {
@@ -35,7 +37,7 @@ const mockWriteResponse = {
 
 describe('WriterToolbar', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   describe('Button Rendering', () => {
@@ -92,7 +94,7 @@ describe('WriterToolbar', () => {
     });
 
     it('test_outline_button_delegates_to_parent', () => {
-      const onOutlineRequest = jest.fn();
+      const onOutlineRequest = vi.fn();
       onOutlineRequest();
       expect(onOutlineRequest).toHaveBeenCalledTimes(1);
     });
@@ -133,14 +135,14 @@ describe('WriterToolbar', () => {
 
   describe('Callbacks', () => {
     it('test_onInsert_called_with_result', () => {
-      const onInsert = jest.fn();
+      const onInsert = vi.fn();
       onInsert(mockWriteResponse);
       expect(onInsert).toHaveBeenCalledWith(mockWriteResponse);
       expect(onInsert.mock.calls[0][0].confidence).toBe(0.85);
     });
 
     it('test_onClose_called_on_close_button', () => {
-      const onClose = jest.fn();
+      const onClose = vi.fn();
       onClose();
       expect(onClose).toHaveBeenCalledTimes(1);
     });

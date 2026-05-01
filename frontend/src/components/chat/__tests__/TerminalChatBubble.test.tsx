@@ -1,7 +1,8 @@
+import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { TerminalChatBubble } from '../shared/TerminalChatBubble';
 
-jest.mock('../CitationRenderer', () => ({
+vi.mock('../CitationRenderer', () => ({
   CitationRenderer: ({ content }: { content: string }) => <p>{content}</p>,
 }));
 
@@ -28,7 +29,7 @@ describe('TerminalChatBubble regenerate action', () => {
   });
 
   it('calls onRetry when regenerate button clicked on assistant message', () => {
-    const onRetry = jest.fn();
+    const onRetry = vi.fn();
     render(
       <TerminalChatBubble
         message={{ role: 'assistant', content: 'hi', timestamp: Date.now() }}

@@ -1,16 +1,17 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import React from 'react';
 import { render, screen } from '@testing-library/react';
 import { AllCitationsPanel } from '../AllCitationsPanel';
 
-jest.mock('@/hooks', () => ({
-  useCitationsForThread: jest.fn(),
+vi.mock('@/hooks', () => ({
+  useCitationsForThread: vi.fn(),
 }));
 
 const { useCitationsForThread } = require('@/hooks');
 
 describe('AllCitationsPanel', () => {
-  beforeEach(() => jest.clearAllMocks());
+  beforeEach(() => vi.clearAllMocks());
 
   it('renders nothing when no citations (Cowork-style — hide empty cards)', () => {
     useCitationsForThread.mockReturnValue({

@@ -1,11 +1,12 @@
-import '@testing-library/jest-dom';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import '@testing-library/jest-dom/vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { apiClient } from '@/services/apiClient';
 
 import CliAuthPage from '../../../../app/(auth)/cli-auth/page';
 
-const mockPush = jest.fn();
+const mockPush = vi.fn();
 
 const mockedAuth = {
   isAuthenticated: true,
@@ -16,18 +17,18 @@ const mockSearchParams = new URLSearchParams(
   'session_id=session-1&code=ABCD-1234'
 );
 
-jest.mock('@/hooks/useAuth', () => ({
+vi.mock('@/hooks/useAuth', () => ({
   useAuth: () => mockedAuth,
 }));
 
-jest.mock('next/navigation', () => ({
+vi.mock('next/navigation', () => ({
   useRouter: () => ({
     push: mockPush,
   }),
   useSearchParams: () => mockSearchParams,
 }));
 
-jest.mock('next/link', () => ({
+vi.mock('next/link', () => ({
   __esModule: true,
   default: ({
     children,
@@ -46,7 +47,7 @@ jest.mock('next/link', () => ({
 describe('CliAuthPage', () => {
   beforeEach(() => {
     mockPush.mockReset();
-    jest.restoreAllMocks();
+    vi.restoreAllMocks();
     mockedAuth.isAuthenticated = true;
     mockedAuth.isLoading = false;
   });
@@ -60,8 +61,7 @@ describe('CliAuthPage', () => {
   });
 
   it('approves the CLI login and shows the connected state', async () => {
-    const postSpy = jest
-      .spyOn(apiClient, 'post')
+    const postSpy = vi.spyOn(apiClient, 'post')
       .mockResolvedValue({ status: 'approved' } as never);
 
     render(<CliAuthPage />);

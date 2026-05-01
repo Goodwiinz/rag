@@ -55,5 +55,8 @@ export default defineConfig({
     reporters: process.env.CI
       ? ['default', ['junit', { outputFile: 'coverage/junit-vitest.xml' }]]
       : ['default'],
+    typecheck: {
+      tsconfig: './tsconfig.vitest.json',
+    },
   },
 });

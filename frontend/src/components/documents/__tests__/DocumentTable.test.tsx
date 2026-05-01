@@ -1,3 +1,4 @@
+import { describe, expect, it, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { DocumentTable } from '../DocumentTable';
@@ -178,7 +179,7 @@ describe('DocumentTable', () => {
   // ---------------------------------------------------------------
   it('calls onView when the View menu item is clicked', async () => {
     const user = userEvent.setup();
-    const onView = jest.fn();
+    const onView = vi.fn();
     const docs = makeDocs([
       { id: 'v1', name: 'viewable.pdf', status: 'completed' },
     ]);
@@ -204,7 +205,7 @@ describe('DocumentTable', () => {
   // ---------------------------------------------------------------
   it('calls onDownload when the Download menu item is clicked', async () => {
     const user = userEvent.setup();
-    const onDownload = jest.fn();
+    const onDownload = vi.fn();
     const docs = makeDocs([
       { id: 'd1', name: 'downloadable.pdf', status: 'completed' },
     ]);
@@ -228,7 +229,7 @@ describe('DocumentTable', () => {
   // ---------------------------------------------------------------
   it('calls onDelete when the Delete menu item is clicked', async () => {
     const user = userEvent.setup();
-    const onDelete = jest.fn();
+    const onDelete = vi.fn();
     const docs = makeDocs([
       { id: 'del1', name: 'removable.pdf', status: 'failed' },
     ]);

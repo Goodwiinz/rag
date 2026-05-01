@@ -5,6 +5,7 @@
  * input element filtering, and cleanup on unmount.
  */
 
+import { describe, expect, it, vi } from 'vitest';
 import { renderHook } from '@testing-library/react';
 import { useKeyboardShortcuts } from '../useKeyboardShortcuts';
 
@@ -62,7 +63,7 @@ describe('useKeyboardShortcuts', () => {
 
   describe('basic shortcut registration', () => {
     it('fires callback when the matching key is pressed', () => {
-      const action = jest.fn();
+      const action = vi.fn();
       const shortcuts = [
         { key: 'g', action, description: 'Toggle graph view' },
       ];
@@ -75,7 +76,7 @@ describe('useKeyboardShortcuts', () => {
     });
 
     it('does not fire callback for non-matching keys', () => {
-      const action = jest.fn();
+      const action = vi.fn();
       const shortcuts = [
         { key: 'g', action, description: 'Toggle graph view' },
       ];
@@ -88,7 +89,7 @@ describe('useKeyboardShortcuts', () => {
     });
 
     it('matches keys case-insensitively', () => {
-      const action = jest.fn();
+      const action = vi.fn();
       const shortcuts = [
         { key: 'G', action, description: 'Toggle graph view' },
       ];
@@ -101,8 +102,8 @@ describe('useKeyboardShortcuts', () => {
     });
 
     it('supports multiple shortcuts simultaneously', () => {
-      const actionA = jest.fn();
-      const actionB = jest.fn();
+      const actionA = vi.fn();
+      const actionB = vi.fn();
       const shortcuts = [
         { key: 'a', action: actionA, description: 'Action A' },
         { key: 'b', action: actionB, description: 'Action B' },
@@ -118,7 +119,7 @@ describe('useKeyboardShortcuts', () => {
     });
 
     it('calls preventDefault on matching shortcut events', () => {
-      const action = jest.fn();
+      const action = vi.fn();
       const shortcuts = [
         { key: 'k', ctrl: true, action, description: 'Focus search' },
       ];
@@ -131,7 +132,7 @@ describe('useKeyboardShortcuts', () => {
         key: 'k',
         ctrlKey: true,
       });
-      const spy = jest.spyOn(event, 'preventDefault');
+      const spy = vi.spyOn(event, 'preventDefault');
       window.dispatchEvent(event);
 
       expect(spy).toHaveBeenCalled();
@@ -144,7 +145,7 @@ describe('useKeyboardShortcuts', () => {
 
   describe('modifier keys', () => {
     it('matches Ctrl modifier when ctrl: true is specified', () => {
-      const action = jest.fn();
+      const action = vi.fn();
       const shortcuts = [
         { key: 'n', ctrl: true, action, description: 'Create new entity' },
       ];
@@ -161,7 +162,7 @@ describe('useKeyboardShortcuts', () => {
     });
 
     it('matches Meta key as alternative to Ctrl (macOS Cmd)', () => {
-      const action = jest.fn();
+      const action = vi.fn();
       const shortcuts = [
         { key: 'k', ctrl: true, action, description: 'Focus search' },
       ];
@@ -174,7 +175,7 @@ describe('useKeyboardShortcuts', () => {
     });
 
     it('matches Shift modifier when shift: true is specified', () => {
-      const action = jest.fn();
+      const action = vi.fn();
       const shortcuts = [
         {
           key: 'e',
@@ -197,7 +198,7 @@ describe('useKeyboardShortcuts', () => {
     });
 
     it('rejects Shift when shift is not specified (defaults to requiring no-shift)', () => {
-      const action = jest.fn();
+      const action = vi.fn();
       const shortcuts = [{ key: 'g', action, description: 'Toggle graph' }];
 
       renderHook(() => useKeyboardShortcuts(shortcuts));
@@ -212,7 +213,7 @@ describe('useKeyboardShortcuts', () => {
     });
 
     it('matches Alt modifier when alt: true is specified', () => {
-      const action = jest.fn();
+      const action = vi.fn();
       const shortcuts = [
         { key: 'a', alt: true, action, description: 'Alt action' },
       ];
@@ -229,7 +230,7 @@ describe('useKeyboardShortcuts', () => {
     });
 
     it('rejects Alt when alt is not specified (defaults to requiring no-alt)', () => {
-      const action = jest.fn();
+      const action = vi.fn();
       const shortcuts = [{ key: 'p', action, description: 'Open path finder' }];
 
       renderHook(() => useKeyboardShortcuts(shortcuts));
@@ -248,7 +249,7 @@ describe('useKeyboardShortcuts', () => {
 
   describe('input element filtering', () => {
     it('ignores shortcuts when event target is an INPUT element', () => {
-      const action = jest.fn();
+      const action = vi.fn();
       const shortcuts = [
         { key: 'g', action, description: 'Toggle graph view' },
       ];
@@ -261,7 +262,7 @@ describe('useKeyboardShortcuts', () => {
     });
 
     it('ignores shortcuts when event target is a TEXTAREA element', () => {
-      const action = jest.fn();
+      const action = vi.fn();
       const shortcuts = [
         { key: 'g', action, description: 'Toggle graph view' },
       ];
@@ -274,7 +275,7 @@ describe('useKeyboardShortcuts', () => {
     });
 
     it('ignores shortcuts when event target is contentEditable', () => {
-      const action = jest.fn();
+      const action = vi.fn();
       const shortcuts = [
         { key: 'g', action, description: 'Toggle graph view' },
       ];
@@ -307,7 +308,7 @@ describe('useKeyboardShortcuts', () => {
 
   describe('enabled parameter', () => {
     it('does not fire callbacks when enabled is false', () => {
-      const action = jest.fn();
+      const action = vi.fn();
       const shortcuts = [
         { key: 'g', action, description: 'Toggle graph view' },
       ];
@@ -320,7 +321,7 @@ describe('useKeyboardShortcuts', () => {
     });
 
     it('fires callbacks when enabled is true (default)', () => {
-      const action = jest.fn();
+      const action = vi.fn();
       const shortcuts = [
         { key: 'g', action, description: 'Toggle graph view' },
       ];
@@ -339,7 +340,7 @@ describe('useKeyboardShortcuts', () => {
 
   describe('cleanup on unmount', () => {
     it('removes the event listener when the hook unmounts', () => {
-      const action = jest.fn();
+      const action = vi.fn();
       const shortcuts = [
         { key: 'g', action, description: 'Toggle graph view' },
       ];

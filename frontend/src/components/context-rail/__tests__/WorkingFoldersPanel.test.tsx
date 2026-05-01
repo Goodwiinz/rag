@@ -1,12 +1,13 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { WorkingFoldersPanel } from '../WorkingFoldersPanel';
 
-jest.mock('@/hooks', () => ({
-  useCitationsForThread: jest.fn(),
+vi.mock('@/hooks', () => ({
+  useCitationsForThread: vi.fn(),
 }));
-jest.mock('../hooks/useProjectWorkingFolders', () => ({
-  useProjectWorkingFolders: jest.fn(),
+vi.mock('../hooks/useProjectWorkingFolders', () => ({
+  useProjectWorkingFolders: vi.fn(),
 }));
 
 const { useCitationsForThread } = require('@/hooks');
@@ -14,7 +15,7 @@ const { useProjectWorkingFolders } = require('../hooks/useProjectWorkingFolders'
 
 describe('WorkingFoldersPanel', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     useCitationsForThread.mockReturnValue({
       allCitations: [],
       relatedResults: [],
