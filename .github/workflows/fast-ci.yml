@@ -113,7 +113,7 @@ jobs:
 
       - name: Run Vitest
         working-directory: frontend
-        run: pnpm test:vitest
+        run: pnpm test
 
       - name: Upload JUnit
         if: always()
