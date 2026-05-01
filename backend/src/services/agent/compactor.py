@@ -165,13 +165,23 @@ def validate_and_fix_compacted(
 # ---------------------------------------------------------------------------
 
 
+# Cache the compactor LLM at module scope so we don't pay the ~50ms
+# client-build cost on every compaction cycle. Mirrors the
+# ``_REFLECTION_LLM`` pattern in src/services/agent/reflection.py.
+_COMPACTOR_LLM = None
+
+
 def _build_compactor_llm():
-    """Build a lightweight LLM for compaction summaries.
+    """Build (or return cached) lightweight LLM for compaction summaries.
 
     Uses the same Azure/OpenAI config pattern as ``graph._build_llm`` but
     targets **gpt-4o-mini** with ``temperature=0`` for deterministic,
-    cost-efficient summarisation.
+    cost-efficient summarisation. Memoised at module scope.
     """
+    global _COMPACTOR_LLM
+    if _COMPACTOR_LLM is not None:
+        return _COMPACTOR_LLM
+
     settings = get_settings()
 
     endpoint = (
@@ -192,7 +202,7 @@ def _build_compactor_llm():
     if classify_openai_endpoint(endpoint) == "openai_compatible":
         from langchain_openai import ChatOpenAI
 
-        return ChatOpenAI(
+        _COMPACTOR_LLM = ChatOpenAI(
             model="gpt-4o-mini",
             api_key=api_key,
             base_url=endpoint,
@@ -202,7 +212,7 @@ def _build_compactor_llm():
     else:
         from langchain_openai import AzureChatOpenAI
 
-        return AzureChatOpenAI(
+        _COMPACTOR_LLM = AzureChatOpenAI(
             azure_deployment="gpt-4o-mini",
             azure_endpoint=endpoint,
             api_key=api_key,
@@ -210,6 +220,7 @@ def _build_compactor_llm():
             temperature=0,
             max_tokens=_COMPACT_MAX_TOKENS,
         )
+    return _COMPACTOR_LLM
 
 
 # ---------------------------------------------------------------------------
