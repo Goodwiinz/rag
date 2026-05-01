@@ -174,11 +174,6 @@ jobs:
     name: Frontend Tests
     runs-on: depot-ubuntu-24.04
     needs: lint-frontend
-    # Informational while Vitest migration finishes — 182 known failures
-    # tracked in follow-up PRs (#3 MSW, #4 Zod fixtures, #5 coverage).
-    # Mirrors fast-ci.yml's Frontend Tests (Vitest) job. Flip to false
-    # alongside Task 14 once Vitest is fully green.
-    continue-on-error: true
     defaults:
       run:
         working-directory: frontend
