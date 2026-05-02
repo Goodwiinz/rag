@@ -7,10 +7,9 @@ export default defineWorkspace([
     test: {
       name: 'unit',
       environment: 'jsdom',
-      // PR #1 ships only the Vitest infra + a single smoke test. PR #2 widens this
-      // glob back to 'src/**/__tests__/**/*.test.{ts,tsx}' as files are migrated
-      // off Jest globals.
-      include: ['src/test/__tests__/**/*.test.{ts,tsx}'],
+      // Widened from 'src/test/__tests__/**' to cover all __tests__ directories
+      // under src/ as component test files are added (e.g. ui/__tests__/).
+      include: ['src/**/__tests__/**/*.test.{ts,tsx}'],
       exclude: [
         'src/integration/**',
         'src/__tests__/App.routing.test.tsx',
