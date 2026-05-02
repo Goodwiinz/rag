@@ -136,7 +136,7 @@ jobs:
             --cov-fail-under=27 \
             -n auto \
             -v
-        # Note: Coverage threshold raised from 8% to 27% (actual measured: ~30%, floor = actual - 2).
+        # Note: Coverage threshold raised from 8% to 27% (actual measured: ~30%, floor rounded down to 27).
         # Originally lowered to 8% after excluding integration tests from norecursedirs
         # to prevent Qdrant connection errors during unit test collection (GOO-151).
         # Per-file floors enforced by check_coverage_ratchet.py step below.
@@ -421,6 +421,7 @@ jobs:
           docker build
           --build-arg NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
           --build-arg NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+          --build-arg NEXT_PUBLIC_STATSIG_CLIENT_KEY=client-SEfCB81zQnvSAqRxfVi1nJNRmpJtrmOrvDKQPQm4UBx
           -t rag-frontend:test
           -f frontend/Dockerfile.prod .
       - name: Start infrastructure services

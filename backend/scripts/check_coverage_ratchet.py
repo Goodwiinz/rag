@@ -7,7 +7,8 @@ The FLOORS dict is seeded from an actual coverage run. Never lower a floor —
 only raise it when coverage genuinely improves and you want to lock it in.
 
 Generated from a coverage run on 2026-05-02 (total coverage: 29.98%).
-Includes all non-trivial source files (>= 10 statements) at >= 30% coverage.
+Includes all non-trivial source files (>= 10 statements) at >= 30% actual
+coverage (floors may be up to 2 points lower due to the fluctuation buffer).
 Floor = int(actual_pct) - 2 for a small fluctuation buffer.
 """
 import json
@@ -195,13 +196,20 @@ def main() -> None:
         print("Usage: check_coverage_ratchet.py <coverage.json>")
         sys.exit(1)
 
-    data = json.loads(Path(sys.argv[1]).read_text())
-    files = data.get("files", {})
+    path = Path(sys.argv[1])
+    if not path.exists():
+        print(f"ERROR: coverage report not found: {path}")
+        sys.exit(1)
+    data = json.loads(path.read_text())
+    files = data.get("files")
+    if not files:
+        print("ERROR: coverage.json has no 'files' key or is empty — wrong format?")
+        sys.exit(1)
     failures: list[str] = []
 
     for rel_path, floor in FLOORS.items():
         match = next(
-            (k for k in files if k.endswith(rel_path)), None
+            (k for k in files if k == rel_path or k.endswith("/" + rel_path)), None
         )
         if match is None:
             failures.append(f"MISSING  {rel_path} (not in coverage report)")
