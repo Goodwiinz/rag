@@ -29,6 +29,7 @@ sys.path.insert(0, str(tests_dir.parent))  # Add parent of tests for 'tests.mock
 
 # Set test environment variables before importing application code
 os.environ.setdefault("ENVIRONMENT", "testing")
+os.environ.setdefault("DEBUG", "false")
 os.environ.setdefault("LOG_LEVEL", "WARNING")
 os.environ.setdefault("DATABASE_URL", "postgresql://test:test@localhost:5432/test_db")
 os.environ.setdefault("REDIS_URL", "redis://localhost:6379/15")
