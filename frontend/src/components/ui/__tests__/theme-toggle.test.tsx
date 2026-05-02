@@ -1,5 +1,4 @@
-import React from 'react';
-import { render, screen, cleanup, act } from '@testing-library/react';
+import { render, screen, cleanup } from '@testing-library/react';
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { useTheme } from 'next-themes';
 
@@ -67,15 +66,13 @@ describe('ThemeToggle', () => {
     expect(html).toBe('');
   });
 
-  it('renders the toggle button after mount when theme is set', async () => {
+  it('renders the toggle button after mount when theme is set', () => {
     mockedUseTheme.mockReturnValue({
       theme: 'light',
       setTheme: vi.fn(),
     } as unknown as ReturnType<typeof useTheme>);
 
-    await act(async () => {
-      render(<ThemeToggle />);
-    });
+    render(<ThemeToggle />);
 
     const button = screen.getByRole('button', { name: /toggle theme/i });
     expect(button).toBeInTheDocument();
