@@ -22,6 +22,7 @@ httpx==0.25.2
 requests-mock==1.12.1
 responses==0.25.0
 aioresponses==0.7.6
+respx==0.21.1
 
 # Database Testing
 pytest-postgresql==6.1.0

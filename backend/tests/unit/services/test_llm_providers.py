@@ -1,6 +1,8 @@
 """Unit tests for LLM provider abstraction layer."""
 
 import pytest
+import httpx
+import respx
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from src.services.research_engine.providers.base import (
@@ -293,7 +295,9 @@ class TestOllamaProvider:
     """Test OllamaProvider with mocked httpx client."""
 
     @pytest.mark.asyncio
+    @respx.mock
     async def test_complete_sends_correct_payload(self):
+        """respx intercepts the POST to /api/chat and validates URL + response."""
         config = ProviderConfig(
             provider_type="ollama",
             model_id="llama3",
@@ -301,27 +305,27 @@ class TestOllamaProvider:
         )
         provider = OllamaProvider(config)
 
-        mock_json = {
-            "message": {"content": "Ollama response"},
-            "model": "llama3",
-            "prompt_eval_count": 12,
-            "eval_count": 6,
-        }
+        route = respx.post("http://localhost:11434/api/chat").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "message": {"content": "Ollama response"},
+                    "model": "llama3",
+                    "prompt_eval_count": 12,
+                    "eval_count": 6,
+                },
+            )
+        )
 
-        mock_response = MagicMock()
-        mock_response.json.return_value = mock_json
-        mock_response.raise_for_status = MagicMock()
+        response = await provider.complete(LLMRequest(prompt="Hello"))
 
-        mock_client = AsyncMock()
-        mock_client.post = AsyncMock(return_value=mock_response)
-        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-        mock_client.__aexit__ = AsyncMock(return_value=None)
+        assert route.called
+        assert respx.calls.call_count == 1
 
-        with patch("src.services.research_engine.providers.ollama_provider.httpx.AsyncClient", return_value=mock_client):
-            response = await provider.complete(LLMRequest(prompt="Hello"))
-
-        call_args = mock_client.post.call_args
-        payload = call_args[1]["json"]
+        # Verify the payload that was actually sent to the endpoint
+        sent_payload = respx.calls.last.request.content
+        import json as _json
+        payload = _json.loads(sent_payload)
 
         assert payload["model"] == "llama3"
         assert payload["stream"] is False
@@ -342,7 +346,9 @@ class TestOllamaProvider:
         assert provider.base_url == "http://localhost:11434"
 
     @pytest.mark.asyncio
+    @respx.mock
     async def test_is_model_available_success(self):
+        """respx intercepts GET /api/tags and returns a model list containing llama3."""
         config = ProviderConfig(
             provider_type="ollama",
             model_id="llama3",
@@ -350,24 +356,22 @@ class TestOllamaProvider:
         )
         provider = OllamaProvider(config)
 
-        mock_response = MagicMock()
-        mock_response.json.return_value = {
-            "models": [{"name": "llama3"}, {"name": "mistral"}]
-        }
-        mock_response.raise_for_status = MagicMock()
+        respx.get("http://localhost:11434/api/tags").mock(
+            return_value=httpx.Response(
+                200,
+                json={"models": [{"name": "llama3"}, {"name": "mistral"}]},
+            )
+        )
 
-        mock_client = AsyncMock()
-        mock_client.get = AsyncMock(return_value=mock_response)
-        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-        mock_client.__aexit__ = AsyncMock(return_value=None)
-
-        with patch("src.services.research_engine.providers.ollama_provider.httpx.AsyncClient", return_value=mock_client):
-            result = await provider.is_model_available()
+        result = await provider.is_model_available()
 
         assert result is True
+        assert respx.calls.call_count == 1
 
     @pytest.mark.asyncio
+    @respx.mock
     async def test_is_model_available_model_not_found(self):
+        """respx intercepts GET /api/tags; model absent from list → False."""
         config = ProviderConfig(
             provider_type="ollama",
             model_id="nonexistent",
@@ -375,18 +379,14 @@ class TestOllamaProvider:
         )
         provider = OllamaProvider(config)
 
-        mock_response = MagicMock()
-        mock_response.json.return_value = {
-            "models": [{"name": "llama3"}]
-        }
-        mock_response.raise_for_status = MagicMock()
+        respx.get("http://localhost:11434/api/tags").mock(
+            return_value=httpx.Response(
+                200,
+                json={"models": [{"name": "llama3"}]},
+            )
+        )
 
-        mock_client = AsyncMock()
-        mock_client.get = AsyncMock(return_value=mock_response)
-        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-        mock_client.__aexit__ = AsyncMock(return_value=None)
-
-        with patch("src.services.research_engine.providers.ollama_provider.httpx.AsyncClient", return_value=mock_client):
-            result = await provider.is_model_available()
+        result = await provider.is_model_available()
 
         assert result is False
+        assert respx.calls.call_count == 1
