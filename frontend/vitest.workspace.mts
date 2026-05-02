@@ -7,7 +7,7 @@ export default defineWorkspace([
     test: {
       name: 'unit',
       environment: 'jsdom',
-include: [
+      include: [
         'src/**/__tests__/**/*.test.{ts,tsx}',
         'src/__tests__/sanity.test.ts',
       ],
