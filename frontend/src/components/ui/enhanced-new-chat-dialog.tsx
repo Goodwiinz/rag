@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { motion, AnimatePresence, useAnimation } from 'framer-motion';
 import {
   Search,
@@ -311,7 +311,7 @@ export function EnhancedNewChatDialog({
   );
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const controls = useAnimation();
-  const autoSelectedRef = React.useRef(false);
+  const autoSelectedRef = useRef(false);
 
   // Reset state when dialog opens/closes
   useEffect(() => {

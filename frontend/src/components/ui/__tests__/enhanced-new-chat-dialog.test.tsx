@@ -1,6 +1,6 @@
 import React from 'react';
-import { render, screen } from '@testing-library/react';
-import { vi, describe, it, expect } from 'vitest';
+import { render, screen, fireEvent, cleanup } from '@testing-library/react';
+import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 import type { Assistant } from '@/types/chat';
 
 // ---------------------------------------------------------------------------
@@ -44,13 +44,18 @@ function makeMotionComponent(tag: string) {
   };
 }
 
+// Stable mock object so `controls` keeps the same reference across renders
+// (a fresh object would change identity each render and trigger spurious
+// effect re-runs).
+const mockControls = { start: vi.fn() };
+
 vi.mock('framer-motion', () => ({
   motion: new Proxy(
     {},
     { get: (_target, tag: string) => makeMotionComponent(tag) }
   ),
   AnimatePresence: ({ children }: React.PropsWithChildren) => <>{children}</>,
-  useAnimation: () => ({ start: vi.fn() }),
+  useAnimation: () => mockControls,
 }));
 
 // ---------------------------------------------------------------------------
@@ -94,6 +99,16 @@ const mockAssistant: Assistant = {
   isActive: true,
 };
 
+const secondAssistant: Assistant = {
+  id: 'assistant-2',
+  name: 'Second Assistant',
+  description: 'A second test assistant',
+  category: 'general',
+  capabilities: ['chat'],
+  color: 'from-green-400 to-green-600',
+  isActive: true,
+};
+
 const defaultProps = {
   open: true,
   onOpenChange: vi.fn(),
@@ -106,71 +121,113 @@ const defaultProps = {
 // Tests
 // ---------------------------------------------------------------------------
 describe('EnhancedNewChatDialog', () => {
-  it('auto-selects the first recently-used assistant only once on open (no spurious re-selection)', () => {
-    // Bug: selectedAssistant in the useEffect dep array causes the effect to
-    // re-fire every time selectedAssistant changes. With the fix (useRef guard +
-    // selectedAssistant removed from deps) the effect should only run once per
-    // open cycle. We verify that the auto-selection fires exactly once by
-    // checking the card is selected after first render and stays selected on
-    // rerender (not cleared and re-set).
-    const { rerender } = render(<EnhancedNewChatDialog {...defaultProps} />);
+  beforeEach(() => {
+    mockControls.start.mockClear();
+  });
 
-    // The first assistant card should be auto-selected (aria-pressed="true").
-    const selectButton = screen.getByRole('button', {
+  afterEach(() => {
+    cleanup();
+  });
+
+  it('does not snap user selection back to recentlyUsed[0] when recentlyUsed array reference changes', () => {
+    // Bug: without the ref guard, the effect re-fires whenever the
+    // recentlyUsed reference changes (e.g., parent rerenders with a new
+    // array of identical content). The buggy effect would then call
+    // setSelectedAssistant(recentlyUsed[0].id), overriding the user's
+    // explicit choice of a different assistant.
+    const recentlyUsed = [mockAssistant, secondAssistant];
+    const props = {
+      ...defaultProps,
+      assistants: [mockAssistant, secondAssistant],
+      recentlyUsed,
+    };
+
+    const { rerender } = render(<EnhancedNewChatDialog {...props} />);
+
+    // Auto-selection should pick recentlyUsed[0] (assistant-1) initially.
+    const firstButton = screen.getByRole('button', {
       name: /select test assistant/i,
     });
-    expect(selectButton).toHaveAttribute('aria-pressed', 'true');
+    expect(firstButton).toHaveAttribute('aria-pressed', 'true');
 
-    // Rerender with same props — if selectedAssistant in deps caused a
-    // spurious reset+reselect cycle, the card may transiently deselect.
-    // After the fix it must remain stably selected.
-    rerender(<EnhancedNewChatDialog {...defaultProps} />);
+    // User picks the SECOND assistant explicitly.
+    const secondButton = screen.getByRole('button', {
+      name: /select second assistant/i,
+    });
+    fireEvent.click(secondButton);
 
+    // Verify the second assistant is now selected.
+    expect(
+      screen.getByRole('button', { name: /select second assistant/i })
+    ).toHaveAttribute('aria-pressed', 'true');
     expect(
       screen.getByRole('button', { name: /select test assistant/i })
-    ).toHaveAttribute('aria-pressed', 'true');
+    ).toHaveAttribute('aria-pressed', 'false');
 
-    // The dialog renders without throwing (guards against "too many re-renders").
+    // Parent rerenders with a NEW array reference (same content).
+    // With the buggy code (no ref guard, recentlyUsed in deps) the effect
+    // re-fires and resets selection to recentlyUsed[0].
+    // With the fix (ref guard) selection must stay on the user's choice.
+    rerender(
+      <EnhancedNewChatDialog {...props} recentlyUsed={[...recentlyUsed]} />
+    );
+
+    expect(
+      screen.getByRole('button', { name: /select second assistant/i })
+    ).toHaveAttribute('aria-pressed', 'true');
+    expect(
+      screen.getByRole('button', { name: /select test assistant/i })
+    ).toHaveAttribute('aria-pressed', 'false');
+
+    // Sanity: dialog still rendering.
     expect(screen.getByTestId('dialog')).toBeInTheDocument();
   });
 
-  it('search input resets to empty string (not null) when dialog closes and reopens', () => {
-    // Bug: setSearchQuery(null) in the else-branch sets string state to null,
-    // which is a type error and can cause React to emit a console warning about
-    // a controlled input receiving a null value.
+  it('search input resets to empty string when dialog closes and reopens', () => {
+    // Bug: setSearchQuery(null) on string state is a type error. We assert
+    // both behaviors that prove the reset is correct: (1) after type +
+    // close + reopen, the input value reads as "" (string), and (2) React
+    // does not warn about a controlled input switching to null.
     const consoleError = vi
       .spyOn(console, 'error')
       .mockImplementation(() => {});
 
     const { rerender } = render(<EnhancedNewChatDialog {...defaultProps} />);
 
-    // Verify the input is present and starts empty.
-    const inputs = screen.getAllByPlaceholderText(
+    const initialInput = screen.getByPlaceholderText(
       /search by name, capability, or category/i
     );
-    expect(inputs.length).toBeGreaterThan(0);
-    expect(inputs[0]).toHaveValue('');
+    expect(initialInput).toHaveValue('');
 
-    // Close the dialog — buggy code runs setSearchQuery(null).
+    // Type something so searchQuery is non-empty before the reset effect.
+    fireEvent.change(initialInput, { target: { value: 'hello' } });
+    expect(
+      screen.getByPlaceholderText(/search by name, capability, or category/i)
+    ).toHaveValue('hello');
+
+    // Close the dialog — the reset effect should run setSearchQuery("").
     rerender(<EnhancedNewChatDialog {...defaultProps} open={false} />);
 
-    // Re-open.
+    // Re-open the dialog.
     rerender(<EnhancedNewChatDialog {...defaultProps} open={true} />);
 
-    // With the bug: React logs a warning about null on a controlled input.
-    // With the fix: setSearchQuery("") — no warning, value is "".
-    const nullControlledWarning = consoleError.mock.calls.some((args) =>
-      String(args[0]).includes('null')
-    );
-    expect(nullControlledWarning).toBe(false);
-
-    // The input value must be an empty string after re-open.
-    const reopenedInputs = screen.getAllByPlaceholderText(
+    // After reopen, the input must be empty.
+    const reopenedInput = screen.getByPlaceholderText(
       /search by name, capability, or category/i
     );
-    for (const input of reopenedInputs) {
-      expect(input).toHaveValue('');
-    }
+    expect(reopenedInput).toHaveValue('');
+
+    // With the bug (setSearchQuery(null)), React logs a warning that the
+    // input switched from controlled to uncontrolled because `value` is
+    // null. Asserting no such warning catches the bug directly.
+    const nullControlledWarning = consoleError.mock.calls.some((args) => {
+      const message = String(args[0] ?? '');
+      return (
+        message.includes('`value` prop on') &&
+        message.includes('should not be null')
+      );
+    });
+    expect(nullControlledWarning).toBe(false);
 
     consoleError.mockRestore();
   });
