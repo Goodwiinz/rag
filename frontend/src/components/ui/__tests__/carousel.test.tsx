@@ -25,23 +25,29 @@ describe('Carousel cleanup', () => {
   beforeEach(() => {
     mockOn.mockClear();
     mockOff.mockClear();
+    mockRefCallback.mockClear();
+    mockApi.canScrollPrev.mockClear();
+    mockApi.canScrollNext.mockClear();
   });
 
-  it('removes both "reInit" and "select" listeners on unmount', () => {
+  it('removes both "reInit" and "select" listeners on unmount with the same handler reference', () => {
     const { unmount } = render(
       <Carousel>
         <CarouselContent />
       </Carousel>
     );
 
-    // Verify listeners were registered
-    expect(mockOn).toHaveBeenCalledWith('reInit', expect.any(Function));
-    expect(mockOn).toHaveBeenCalledWith('select', expect.any(Function));
+    // Capture the exact handler references passed to on()
+    const reInitHandler = mockOn.mock.calls.find(([e]) => e === 'reInit')?.[1];
+    const selectHandler = mockOn.mock.calls.find(([e]) => e === 'select')?.[1];
 
-    // Unmount — cleanup should call off for both events
+    expect(reInitHandler).toBeTypeOf('function');
+    expect(selectHandler).toBeTypeOf('function');
+
     unmount();
 
-    expect(mockOff).toHaveBeenCalledWith('reInit', expect.any(Function));
-    expect(mockOff).toHaveBeenCalledWith('select', expect.any(Function));
+    // Cleanup must call off() with the same references — not just any function
+    expect(mockOff).toHaveBeenCalledWith('reInit', reInitHandler);
+    expect(mockOff).toHaveBeenCalledWith('select', selectHandler);
   });
 });
