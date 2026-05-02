@@ -52,6 +52,9 @@ yarn-error.log*
 .env.test.local
 .env.production.local
 
+# Sentry build-time auth token (never commit)
+.env.sentry-build-plugin
+
 # IDE files
 .vscode/
 .idea/

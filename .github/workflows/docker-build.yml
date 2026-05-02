@@ -148,6 +148,12 @@ jobs:
             NEXT_PUBLIC_SUPABASE_URL=${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
             NEXT_PUBLIC_SUPABASE_ANON_KEY=${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
             NEXT_PUBLIC_STATSIG_CLIENT_KEY=client-SEfCB81zQnvSAqRxfVi1nJNRmpJtrmOrvDKQPQm4UBx
+            NEXT_PUBLIC_SENTRY_DSN=${{ secrets.NEXT_PUBLIC_SENTRY_DSN }}
+            NEXT_PUBLIC_APP_ENV=development
+            SENTRY_ORG=goodwiinz-uk
+            SENTRY_PROJECT=nous-frontend
+          secrets: |
+            sentry_auth_token=${{ secrets.SENTRY_AUTH_TOKEN }}
           cache-from: type=s3,bucket=${{ env.SPACES_BUCKET }},region=${{ env.SPACES_REGION }},endpoint_url=${{ env.SPACES_ENDPOINT }},prefix=buildcache/frontend/
           cache-to: type=s3,bucket=${{ env.SPACES_BUCKET }},region=${{ env.SPACES_REGION }},endpoint_url=${{ env.SPACES_ENDPOINT }},prefix=buildcache/frontend/,mode=max
         env:
