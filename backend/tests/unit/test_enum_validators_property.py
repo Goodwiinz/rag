@@ -9,7 +9,7 @@ Uses Hypothesis to generate adversarial inputs automatically, including
 strings that may resemble SQL injection payloads.
 """
 import pytest
-from hypothesis import given, settings, HealthCheck
+from hypothesis import given
 from hypothesis import strategies as st
 
 from src.shared.enums import (
