@@ -47,7 +47,10 @@ interface EnhancedNewChatDialogProps {
   recentlyUsed?: Assistant[];
 }
 
-const categoryIcons: Record<string, any> = {
+const categoryIcons: Record<
+  string,
+  React.ComponentType<{ className?: string }>
+> = {
   general: Sparkles,
   development: Code,
   creative: PenTool,
