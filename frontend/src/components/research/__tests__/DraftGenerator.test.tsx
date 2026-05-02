@@ -1,9 +1,10 @@
+import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { DraftGenerator } from '@/components/research/DraftGenerator';
 
 describe('DraftGenerator', () => {
   it('renders initial state with disabled generate button', () => {
-    render(<DraftGenerator onGenerate={jest.fn()} documentCount={3} />);
+    render(<DraftGenerator onGenerate={vi.fn()} documentCount={3} />);
 
     expect(
       screen.getByRole('heading', { name: 'Generate Literature Review' })
@@ -17,7 +18,7 @@ describe('DraftGenerator', () => {
   });
 
   it('adds theme via Enter and enables generate', () => {
-    const onGenerate = jest.fn();
+    const onGenerate = vi.fn();
     render(<DraftGenerator onGenerate={onGenerate} />);
 
     const themeInput = screen.getByPlaceholderText(
@@ -33,7 +34,7 @@ describe('DraftGenerator', () => {
   });
 
   it('submits selected style, sections and abstract options', () => {
-    const onGenerate = jest.fn();
+    const onGenerate = vi.fn();
     render(<DraftGenerator onGenerate={onGenerate} />);
 
     const themeInput = screen.getByPlaceholderText(
@@ -62,7 +63,7 @@ describe('DraftGenerator', () => {
   });
 
   it('shows loading state label', () => {
-    render(<DraftGenerator onGenerate={jest.fn()} loading />);
+    render(<DraftGenerator onGenerate={vi.fn()} loading />);
     expect(screen.getByText('Generating...')).toBeInTheDocument();
   });
 });

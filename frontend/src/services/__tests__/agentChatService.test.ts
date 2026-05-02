@@ -5,14 +5,15 @@
  * reader.read() calls must still parse as one event.
  */
 
-jest.mock('@/services/apiClient', () => ({
+import { afterEach, describe, expect, it, vi } from 'vitest';
+vi.mock('@/services/apiClient', () => ({
   apiClient: {
-    get: jest.fn(),
-    post: jest.fn(),
+    get: vi.fn(),
+    post: vi.fn(),
   },
 }));
 
-jest.mock('@/lib/supabase/client', () => ({
+vi.mock('@/lib/supabase/client', () => ({
   createClient: () => ({
     auth: {
       getSession: async () => ({ data: { session: null } }),
@@ -36,7 +37,7 @@ function makeReader(chunks: string[]) {
 }
 
 function fetchWith(chunks: string[]): typeof fetch {
-  return jest.fn(async () => ({
+  return vi.fn(async () => ({
     ok: true,
     status: 200,
     body: { getReader: () => makeReader(chunks) },
@@ -60,7 +61,7 @@ describe('agentChatService.streamMessage SSE parsing', () => {
       'event: done\ndata: {"status":"complete"}\n\n',
     ]);
     const tokens: string[] = [];
-    const done = jest.fn();
+    const done = vi.fn();
     await agentChatService.streamMessage(request, {
       onToken: (c) => tokens.push(c),
       onDone: done,
@@ -99,7 +100,7 @@ describe('agentChatService.streamMessage SSE parsing', () => {
     global.fetch = fetchWith([
       'event: tool_end\ndata: {"tool":"search","result":"err","is_error":true}\n\n',
     ]);
-    const onToolEnd = jest.fn();
+    const onToolEnd = vi.fn();
     await agentChatService.streamMessage(request, { onToolEnd });
     expect(onToolEnd).toHaveBeenCalledWith('search', 'err', true);
   });
@@ -108,7 +109,7 @@ describe('agentChatService.streamMessage SSE parsing', () => {
     global.fetch = fetchWith([
       'event: tool_end\ndata: {"tool":"search","result":"ok"}\n\n',
     ]);
-    const onToolEnd = jest.fn();
+    const onToolEnd = vi.fn();
     await agentChatService.streamMessage(request, { onToolEnd });
     expect(onToolEnd).toHaveBeenCalledWith('search', 'ok', false);
   });

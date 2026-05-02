@@ -1,7 +1,8 @@
 /**
- * @jest-environment node
+ * @vitest-environment node
  */
-import { mkdtempSync, rmSync } from 'fs';
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
+import { mkdtempSync, rmSync, writeFileSync } from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 
@@ -9,11 +10,11 @@ describe('threadStore', () => {
   let tmpDir: string;
   let store: typeof import('../../services/threadStore');
 
-  beforeEach(() => {
+  beforeEach(async () => {
     tmpDir = mkdtempSync(path.join(os.tmpdir(), 'nous-threadstore-'));
     process.env.NOUS_CONFIG_DIR = tmpDir;
-    jest.resetModules();
-    store = require('../../services/threadStore');
+    vi.resetModules();
+    store = await import('../../services/threadStore');
   });
 
   afterEach(() => {
@@ -114,8 +115,7 @@ describe('threadStore', () => {
   });
 
   test('survives a corrupted registry file', () => {
-    const fs = require('fs');
-    fs.writeFileSync(path.join(tmpDir, 'threads.json'), '{not json', 'utf-8');
+    writeFileSync(path.join(tmpDir, 'threads.json'), '{not json', 'utf-8');
     expect(store.listThreads()).toEqual([]);
   });
 });

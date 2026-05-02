@@ -1,31 +1,32 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { GlobalAgentChat } from '../GlobalAgentChat';
 import { useAgentChatStore } from '@/store/agentChatStore';
 
 // Mock ESM-only dependencies that Jest cannot transform
-jest.mock('react-markdown', () => {
+vi.mock('react-markdown', () => {
   return {
     __esModule: true,
     default: ({ children }: { children: string }) =>
       React.createElement('div', { 'data-testid': 'markdown' }, children),
   };
 });
-jest.mock('react-syntax-highlighter', () => ({
+vi.mock('react-syntax-highlighter', () => ({
   Prism: ({ children }: { children: string }) =>
     React.createElement('pre', null, children),
 }));
-jest.mock('react-syntax-highlighter/dist/esm/styles/prism', () => ({
+vi.mock('react-syntax-highlighter/dist/esm/styles/prism', () => ({
   oneDark: {},
 }));
 
 // Mock usePageContext
-jest.mock('@/hooks/usePageContext', () => ({
+vi.mock('@/hooks/usePageContext', () => ({
   usePageContext: () => ({ type: 'overview', label: 'Overview' }),
 }));
 
 // Mock next/navigation
-jest.mock('next/navigation', () => ({
+vi.mock('next/navigation', () => ({
   usePathname: () => '/',
   useParams: () => ({}),
 }));

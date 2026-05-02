@@ -5,6 +5,8 @@
  * fetching citations for messages, and error handling.
  */
 
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { Mocked } from 'vitest';
 import { act } from '@testing-library/react';
 import { useCitationStore } from '../citationStore';
 import { citationService } from '@/services/citationService';
@@ -14,13 +16,13 @@ import type { CitationResponse } from '@/types/research';
 // Mocks
 // ---------------------------------------------------------------------------
 
-jest.mock('@/services/citationService', () => ({
+vi.mock('@/services/citationService', () => ({
   citationService: {
-    getCitationsForMessage: jest.fn(),
+    getCitationsForMessage: vi.fn(),
   },
 }));
 
-const mockService = citationService as jest.Mocked<typeof citationService>;
+const mockService = citationService as Mocked<typeof citationService>;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -52,8 +54,8 @@ function createMockCitation(
 // ---------------------------------------------------------------------------
 
 beforeEach(() => {
-  jest.clearAllMocks();
-  jest.spyOn(console, 'error').mockImplementation();
+  vi.clearAllMocks();
+  vi.spyOn(console, 'error').mockImplementation();
 
   // Reset store to initial state between tests
   act(() => {
@@ -67,7 +69,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  jest.restoreAllMocks();
+  vi.restoreAllMocks();
 });
 
 // ---------------------------------------------------------------------------

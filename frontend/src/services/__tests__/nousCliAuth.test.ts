@@ -1,3 +1,5 @@
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { Mock } from 'vitest';
 import {
   buildNousCliAuthPayload,
   downloadStoredNousCliAuth,
@@ -5,19 +7,19 @@ import {
 import { createClient } from '@/lib/supabase/client';
 import { useAuthStore } from '@/stores/authStore';
 
-jest.mock('@/lib/supabase/client', () => ({
-  createClient: jest.fn(),
+vi.mock('@/lib/supabase/client', () => ({
+  createClient: vi.fn(),
 }));
 
-jest.mock('@/stores/authStore', () => ({
+vi.mock('@/stores/authStore', () => ({
   useAuthStore: {
-    getState: jest.fn(),
+    getState: vi.fn(),
   },
 }));
 
 describe('nousCliAuth', () => {
   afterEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   it('falls back to user.organization_id when organization is missing', () => {
@@ -68,10 +70,9 @@ describe('nousCliAuth', () => {
   it('downloads auth using the current Supabase session and store metadata', async () => {
     const originalCreateObjectURL = URL.createObjectURL;
     const originalRevokeObjectURL = URL.revokeObjectURL;
-    const createObjectURLMock = jest.fn(() => 'blob:mock');
-    const revokeObjectURLMock = jest.fn();
-    const clickSpy = jest
-      .spyOn(HTMLAnchorElement.prototype, 'click')
+    const createObjectURLMock = vi.fn(() => 'blob:mock');
+    const revokeObjectURLMock = vi.fn();
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click')
       .mockImplementation(() => {});
 
     Object.defineProperty(URL, 'createObjectURL', {
@@ -85,7 +86,7 @@ describe('nousCliAuth', () => {
       value: revokeObjectURLMock,
     });
 
-    (useAuthStore.getState as jest.Mock).mockReturnValue({
+    (useAuthStore.getState as Mock).mockReturnValue({
       organization: { id: 'org-123', name: 'Acme' },
       user: {
         email: 'user@example.com',
@@ -93,9 +94,9 @@ describe('nousCliAuth', () => {
       },
     });
 
-    (createClient as jest.Mock).mockReturnValue({
+    (createClient as Mock).mockReturnValue({
       auth: {
-        getSession: jest.fn().mockResolvedValue({
+        getSession: vi.fn().mockResolvedValue({
           data: {
             session: {
               access_token: 'supabase-access-token',

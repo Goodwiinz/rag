@@ -1,15 +1,16 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 describe('useAuthStore signIn configuration handling', () => {
   const originalSupabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const originalSupabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   beforeEach(() => {
-    jest.resetModules();
+    vi.resetModules();
     delete process.env.NEXT_PUBLIC_SUPABASE_URL;
     delete process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   });
 
   afterEach(() => {
-    jest.resetModules();
+    vi.resetModules();
 
     if (originalSupabaseUrl === undefined) {
       delete process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -24,20 +25,19 @@ describe('useAuthStore signIn configuration handling', () => {
     }
   });
 
-  it('does not throw while importing the auth store when browser Supabase config is missing', () => {
-    expect(() => {
-      jest.isolateModules(() => {
-        require('@/stores/authStore');
-      });
-    }).not.toThrow();
+  it('does not throw while importing the auth store when browser Supabase config is missing', async () => {
+    vi.resetModules();
+    await expect(
+      vi.importActual<typeof import('@/stores/authStore')>('@/stores/authStore')
+    ).resolves.toBeDefined();
   });
 
   it('rejects signIn with a build-time config error when browser Supabase config is missing', async () => {
-    let useAuthStore: typeof import('@/stores/authStore').useAuthStore;
-
-    jest.isolateModules(() => {
-      ({ useAuthStore } = require('@/stores/authStore'));
-    });
+    vi.resetModules();
+    const { useAuthStore } =
+      await vi.importActual<typeof import('@/stores/authStore')>(
+        '@/stores/authStore'
+      );
 
     await expect(
       useAuthStore.getState().signIn('admin@test.com', 'wrong-password')

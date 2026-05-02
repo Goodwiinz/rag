@@ -1,3 +1,4 @@
+import { describe, expect, it, vi } from 'vitest';
 import {
   mapChatMessageToViewModel,
   mapSearchResultToChatMessages,
@@ -64,8 +65,7 @@ describe('messageViewModel', () => {
   });
 
   it('uses one timestamp for both mapped messages', () => {
-    const nowSpy = jest
-      .spyOn(Date, 'now')
+    const nowSpy = vi.spyOn(Date, 'now')
       .mockReturnValueOnce(1700000000000)
       .mockReturnValueOnce(1700000000001);
 

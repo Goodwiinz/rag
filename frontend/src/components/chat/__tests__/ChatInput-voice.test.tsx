@@ -6,10 +6,12 @@
  * available on `window`, the button should be disabled.
  */
 
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { Mock } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
 
 // Mock framer-motion to avoid animation issues in tests
-jest.mock('framer-motion', () => ({
+vi.mock('framer-motion', () => ({
   motion: {
     div: ({ children, ...props }: any) => <div {...props}>{children}</div>,
     span: ({ children, ...props }: any) => <span {...props}>{children}</span>,
@@ -18,9 +20,9 @@ jest.mock('framer-motion', () => ({
     ),
   },
   AnimatePresence: ({ children }: any) => <>{children}</>,
-  useMotionValue: () => ({ set: jest.fn(), get: () => 0 }),
+  useMotionValue: () => ({ set: vi.fn(), get: () => 0 }),
   useSpring: (v: any) => v,
-  useTransform: () => ({ set: jest.fn(), get: () => 0 }),
+  useTransform: () => ({ set: vi.fn(), get: () => 0 }),
 }));
 
 import { ChatInput } from '../ChatInput';
@@ -32,13 +34,13 @@ type MockRecognition = {
   onresult: ((event: { results: [[{ transcript: string }]] }) => void) | null;
   onend: (() => void) | null;
   onerror: (() => void) | null;
-  start: jest.Mock;
-  stop: jest.Mock;
+  start: Mock;
+  stop: Mock;
 };
 
 function installSpeechRecognition(): { instances: MockRecognition[] } {
   const instances: MockRecognition[] = [];
-  const Ctor = jest.fn(() => {
+  const Ctor = vi.fn(() => {
     const recognition: MockRecognition = {
       continuous: false,
       interimResults: false,
@@ -46,8 +48,8 @@ function installSpeechRecognition(): { instances: MockRecognition[] } {
       onresult: null,
       onend: null,
       onerror: null,
-      start: jest.fn(),
-      stop: jest.fn(),
+      start: vi.fn(),
+      stop: vi.fn(),
     };
     instances.push(recognition);
     return recognition;
@@ -64,17 +66,17 @@ function uninstallSpeechRecognition(): void {
 
 const baseProps = {
   value: '',
-  onChange: jest.fn(),
-  onSubmit: jest.fn(),
-  onStop: jest.fn(),
+  onChange: vi.fn(),
+  onSubmit: vi.fn(),
+  onStop: vi.fn(),
   isLoading: false,
   enableRAG: true,
-  onRAGToggle: jest.fn(),
+  onRAGToggle: vi.fn(),
 };
 
 describe('ChatInput voice input', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     uninstallSpeechRecognition();
   });
   afterEach(uninstallSpeechRecognition);
@@ -87,7 +89,7 @@ describe('ChatInput voice input', () => {
 
   it('starts recognition when Mic is clicked and surfaces transcript via onChange', () => {
     const { instances } = installSpeechRecognition();
-    const onChange = jest.fn();
+    const onChange = vi.fn();
     render(<ChatInput {...baseProps} onChange={onChange} />);
     fireEvent.click(screen.getByLabelText('Voice input'));
     expect(instances).toHaveLength(1);

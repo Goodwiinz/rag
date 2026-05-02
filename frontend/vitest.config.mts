@@ -17,11 +17,15 @@ export default defineConfig({
   // Backstop alias: tsconfig has `@/*` mapping to multiple targets
   // (`./src/*` and `./app/*`), which vite-tsconfig-paths does not always
   // handle reliably. Pin `@` → `./src` here so test imports like
-  // `@/types/schemas` resolve deterministically.
+  // `@/types/schemas` resolve deterministically. The narrow alias for
+  // `@/nous` must come *first* — Vite matches longest prefix wins, but
+  // listing it first is defensive and matches what tsconfig's specific
+  // entry says (`./app/components/nous`).
   resolve: {
-    alias: {
-      '@': resolve(__dirname, './src'),
-    },
+    alias: [
+      { find: '@/nous', replacement: resolve(__dirname, './app/components/nous') },
+      { find: /^@\//, replacement: resolve(__dirname, './src') + '/' },
+    ],
   },
   test: {
     environment: 'jsdom',
@@ -55,5 +59,8 @@ export default defineConfig({
     reporters: process.env.CI
       ? ['default', ['junit', { outputFile: 'coverage/junit-vitest.xml' }]]
       : ['default'],
+    typecheck: {
+      tsconfig: './tsconfig.vitest.json',
+    },
   },
 });

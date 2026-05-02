@@ -1,3 +1,4 @@
+import { describe, expect, it } from 'vitest';
 import { getSafeAuthRedirect } from '@/utils/authRedirect';
 
 describe('getSafeAuthRedirect', () => {

@@ -21,7 +21,7 @@ frontend:
   replicaCount: 1
   image:
     repository: registry.digitalocean.com/ragsystemregistry/frontend
-    tag: "dec3be6"
+    tag: "c8710ab"
     pullPolicy: IfNotPresent
   service:
     type: ClusterIP
@@ -73,7 +73,7 @@ backend:
   replicaCount: 1
   image:
     repository: registry.digitalocean.com/ragsystemregistry/backend
-    tag: "dec3be6"
+    tag: "c8710ab"
     pullPolicy: IfNotPresent
   service:
     type: ClusterIP
@@ -260,8 +260,8 @@ celeryWorker:
   autoscaling:
     enabled: true
     minReplicas: 1
-    maxReplicas: 3
-    targetCPUUtilizationPercentage: 90
+    maxReplicas: 5
+    targetCPUUtilizationPercentage: 75
   livenessProbe:
     commandTimeout: 60
     initialDelaySeconds: 60
@@ -270,10 +270,10 @@ celeryWorker:
     failureThreshold: 10
   resources:
     limits:
-      cpu: "1"
+      cpu: "2"
       memory: 2Gi
     requests:
-      cpu: 250m
+      cpu: 500m
       memory: 1Gi
 celeryBeat:
   enabled: true

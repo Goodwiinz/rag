@@ -5,6 +5,8 @@
  * on a claim, with click-to-navigate functionality.
  */
 
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { Mock } from 'vitest';
 import React from 'react';
 import { render, screen, fireEvent, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -15,7 +17,7 @@ import * as useEvidenceMeterModule from '@/hooks/useEvidenceMeter';
 import type { StanceClassification } from '@/types/evidence';
 
 // Mock framer-motion
-jest.mock('framer-motion', () => ({
+vi.mock('framer-motion', () => ({
   motion: {
     div: ({ children, ...props }: any) => <div {...props}>{children}</div>,
     span: ({ children, ...props }: any) => <span {...props}>{children}</span>,
@@ -24,8 +26,8 @@ jest.mock('framer-motion', () => ({
 }));
 
 // Mock the hook
-jest.mock('@/hooks/useEvidenceMeter', () => ({
-  useEvidenceBreakdown: jest.fn(),
+vi.mock('@/hooks/useEvidenceMeter', () => ({
+  useEvidenceBreakdown: vi.fn(),
 }));
 
 // Test query client
@@ -90,8 +92,8 @@ const mockSources: StanceClassification[] = [
 
 describe('EvidenceBreakdown', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
-    (useEvidenceMeterModule.useEvidenceBreakdown as jest.Mock).mockReturnValue({
+    vi.clearAllMocks();
+    (useEvidenceMeterModule.useEvidenceBreakdown as Mock).mockReturnValue({
       data: null,
       isLoading: false,
       error: null,
@@ -176,7 +178,7 @@ describe('EvidenceBreakdown', () => {
 
   describe('Loading state', () => {
     it('shows skeleton when loading from API', () => {
-      (useEvidenceMeterModule.useEvidenceBreakdown as jest.Mock).mockReturnValue({
+      (useEvidenceMeterModule.useEvidenceBreakdown as Mock).mockReturnValue({
         data: null,
         isLoading: true,
         error: null,
@@ -198,7 +200,7 @@ describe('EvidenceBreakdown', () => {
 
   describe('Error state', () => {
     it('shows error message when API fails', () => {
-      (useEvidenceMeterModule.useEvidenceBreakdown as jest.Mock).mockReturnValue({
+      (useEvidenceMeterModule.useEvidenceBreakdown as Mock).mockReturnValue({
         data: null,
         isLoading: false,
         error: new Error('API error'),
@@ -220,7 +222,7 @@ describe('EvidenceBreakdown', () => {
 
   describe('Empty state', () => {
     it('shows empty message when no sources', () => {
-      (useEvidenceMeterModule.useEvidenceBreakdown as jest.Mock).mockReturnValue({
+      (useEvidenceMeterModule.useEvidenceBreakdown as Mock).mockReturnValue({
         data: { sources: [] },
         isLoading: false,
         error: null,
@@ -242,7 +244,7 @@ describe('EvidenceBreakdown', () => {
 
   describe('Click to navigate', () => {
     it('calls onSourceClick when source is clicked', () => {
-      const handleClick = jest.fn();
+      const handleClick = vi.fn();
 
       render(
         <TestWrapper>
@@ -262,7 +264,7 @@ describe('EvidenceBreakdown', () => {
     });
 
     it('handles keyboard navigation', () => {
-      const handleClick = jest.fn();
+      const handleClick = vi.fn();
 
       render(
         <TestWrapper>
@@ -282,7 +284,7 @@ describe('EvidenceBreakdown', () => {
     });
 
     it('has correct role and aria-label when clickable', () => {
-      const handleClick = jest.fn();
+      const handleClick = vi.fn();
 
       render(
         <TestWrapper>

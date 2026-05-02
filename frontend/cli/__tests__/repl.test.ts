@@ -1,6 +1,8 @@
 /**
- * @jest-environment node
+ * @vitest-environment node
  */
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
+import type { Mock, Mocked, MockedFunction } from 'vitest';
 import { mkdtempSync, rmSync } from 'fs';
 import * as os from 'os';
 import * as path from 'path';
@@ -17,56 +19,56 @@ import {
 } from '../repl';
 import * as store from '../auth/store';
 import * as stream from '../stream';
+import * as threadsService from '../services/threads';
+import * as projectsService from '../services/projects';
 
-jest.mock('@clack/prompts', () => ({
-  text: jest.fn(),
-  confirm: jest.fn(),
-  select: jest.fn(),
-  isCancel: jest.fn((value) => value === '__CANCEL__'),
-  intro: jest.fn(),
-  outro: jest.fn(),
-  spinner: jest.fn(() => ({
-    start: jest.fn(),
-    stop: jest.fn(),
-    error: jest.fn(),
-    cancel: jest.fn(),
+vi.mock('@clack/prompts', () => ({
+  text: vi.fn(),
+  confirm: vi.fn(),
+  select: vi.fn(),
+  isCancel: vi.fn((value) => value === '__CANCEL__'),
+  intro: vi.fn(),
+  outro: vi.fn(),
+  spinner: vi.fn(() => ({
+    start: vi.fn(),
+    stop: vi.fn(),
+    error: vi.fn(),
+    cancel: vi.fn(),
   })),
   log: {
-    error: jest.fn(),
-    info: jest.fn(),
-    message: jest.fn(),
-    success: jest.fn(),
-    warn: jest.fn(),
+    error: vi.fn(),
+    info: vi.fn(),
+    message: vi.fn(),
+    success: vi.fn(),
+    warn: vi.fn(),
   },
 }));
 
-jest.mock('../auth/store');
-jest.mock('../stream');
-jest.mock('../services/threads', () => ({
-  fetchThreads: jest.fn(),
-  fetchThreadMessages: jest.fn(),
+vi.mock('../auth/store');
+vi.mock('../stream');
+vi.mock('../services/threads', () => ({
+  fetchThreads: vi.fn(),
+  fetchThreadMessages: vi.fn(),
 }));
-jest.mock('../services/projects', () => ({
-  fetchProjects: jest.fn(),
+vi.mock('../services/projects', () => ({
+  fetchProjects: vi.fn(),
 }));
 
 let tmpConfigDir: string;
 
-const mockedText = prompts.text as jest.MockedFunction<typeof prompts.text>;
-const mockedConfirm = prompts.confirm as jest.MockedFunction<
-  typeof prompts.confirm
->;
-const mockedLog = prompts.log as jest.Mocked<typeof prompts.log>;
-const mockedLoadConfig = store.loadConfig as jest.MockedFunction<
+const mockedText = prompts.text as MockedFunction<typeof prompts.text>;
+const mockedConfirm = prompts.confirm as MockedFunction<typeof prompts.confirm>;
+const mockedLog = prompts.log as Mocked<typeof prompts.log>;
+const mockedLoadConfig = store.loadConfig as MockedFunction<
   typeof store.loadConfig
 >;
-const mockedSaveConfig = store.saveConfig as jest.MockedFunction<
+const mockedSaveConfig = store.saveConfig as MockedFunction<
   typeof store.saveConfig
 >;
-const mockedStreamAgent = stream.streamAgent as jest.MockedFunction<
+const mockedStreamAgent = stream.streamAgent as MockedFunction<
   typeof stream.streamAgent
 >;
-const mockedStreamConfirm = stream.streamConfirm as jest.MockedFunction<
+const mockedStreamConfirm = stream.streamConfirm as MockedFunction<
   typeof stream.streamConfirm
 >;
 
@@ -105,11 +107,11 @@ beforeEach(() => {
     .mockResolvedValueOnce('hi' as never)
     .mockResolvedValueOnce('__CANCEL__' as never);
   mockedConfirm.mockResolvedValue(true as never);
-  jest.spyOn(process.stdout, 'write').mockImplementation(() => true);
+  vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
 });
 
 afterEach(() => {
-  jest.restoreAllMocks();
+  vi.restoreAllMocks();
   rmSync(tmpConfigDir, { recursive: true, force: true });
   delete process.env.NOUS_CONFIG_DIR;
 });
@@ -399,7 +401,7 @@ describe('confirm flow happy path', () => {
   });
 
   test('does not carry pre-confirm tokens into post-confirm markdown reformat', async () => {
-    const writeSpy = jest
+    const writeSpy = vi
       .spyOn(process.stdout, 'write')
       .mockImplementation(() => true);
     Object.defineProperty(process.stdout, 'isTTY', {
@@ -456,7 +458,7 @@ describe('thread registry side effects', () => {
 
     await runRepl();
 
-    const reg = require('../services/threadStore').loadRegistry();
+    const reg = (await import('../services/threadStore')).loadRegistry();
     expect(reg.entries).toHaveLength(1);
     expect(reg.entries[0].id).toBe('stale-thread');
     expect(reg.entries[0].title).toBe('Summarise the latest arXiv on RAG');
@@ -464,15 +466,11 @@ describe('thread registry side effects', () => {
 });
 
 describe('slash commands: threads/history/forget', () => {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const threadsModule = require('../services/threads') as {
-    fetchThreads: jest.Mock;
-    fetchThreadMessages: jest.Mock;
-  };
-  const fetchThreadsMock = threadsModule.fetchThreads;
-  const fetchMessagesMock = threadsModule.fetchThreadMessages;
+  const fetchThreadsMock = threadsService.fetchThreads as unknown as Mock;
+  const fetchMessagesMock =
+    threadsService.fetchThreadMessages as unknown as Mock;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const mockedSelect = (prompts as any).select as jest.Mock;
+  const mockedSelect = (prompts as any).select as Mock;
 
   beforeEach(() => {
     fetchThreadsMock.mockReset();
@@ -481,7 +479,7 @@ describe('slash commands: threads/history/forget', () => {
   });
 
   test('/threads switches to the picked thread', async () => {
-    const store = require('../services/threadStore');
+    const store = await import('../services/threadStore');
     store.upsertThread({ id: 'thread-A', title: 'Older' });
     store.upsertThread({ id: 'thread-B', title: 'Newer' });
 
@@ -537,7 +535,7 @@ describe('slash commands: threads/history/forget', () => {
   });
 
   test('/forget removes from registry and clears the active thread', async () => {
-    const store = require('../services/threadStore');
+    const store = await import('../services/threadStore');
     store.upsertThread({ id: 'stale-thread', title: 'To remove' });
 
     mockedText.mockReset();
@@ -556,14 +554,14 @@ describe('slash commands: threads/history/forget', () => {
 
 describe('streamToTerminal: tool args, citations footer, usage', () => {
   test('passes tool args into the spinner label', async () => {
-    const startSpy = jest.fn();
-    const stopSpy = jest.fn();
-    const spinnerFactory = prompts.spinner as unknown as jest.Mock;
+    const startSpy = vi.fn();
+    const stopSpy = vi.fn();
+    const spinnerFactory = prompts.spinner as unknown as Mock;
     spinnerFactory.mockImplementation(() => ({
       start: startSpy,
       stop: stopSpy,
-      error: jest.fn(),
-      cancel: jest.fn(),
+      error: vi.fn(),
+      cancel: vi.fn(),
     }));
 
     mockedStreamAgent.mockReturnValueOnce(
@@ -670,13 +668,9 @@ describe('renderCitationsFooter / renderUsageLine (pure helpers)', () => {
 });
 
 describe('slash commands: /projects', () => {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const projectsModule = require('../services/projects') as {
-    fetchProjects: jest.Mock;
-  };
-  const fetchProjectsMock = projectsModule.fetchProjects;
+  const fetchProjectsMock = projectsService.fetchProjects as unknown as Mock;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const mockedSelect = (prompts as any).select as jest.Mock;
+  const mockedSelect = (prompts as any).select as Mock;
 
   beforeEach(() => {
     fetchProjectsMock.mockReset();
@@ -785,7 +779,7 @@ describe('streamToTerminal: withRetry on initial call', () => {
 
 describe('SIGINT scoping', () => {
   test('SIGINT mid-stream aborts the stream and returns to prompt (does not exit)', async () => {
-    const exitSpy = jest
+    const exitSpy = vi
       .spyOn(process, 'exit')
       .mockImplementation((() => undefined) as never);
 
@@ -879,7 +873,7 @@ describe('/retry', () => {
 
 describe('draft restore on startup', () => {
   test('first readPrompt receives initialValue from ~/.nous/draft.txt; file is then empty', async () => {
-    const draft = require('../services/draft');
+    const draft = await import('../services/draft');
     draft.writeDraft('half typed');
     mockedText.mockReset();
     mockedText.mockResolvedValueOnce('__CANCEL__' as never);

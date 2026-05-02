@@ -11,7 +11,7 @@ import logging
 import time
 import uuid as _uuid
 from collections import OrderedDict
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from threading import Lock
 from typing import Any, Dict, List, Optional
 
@@ -31,18 +31,37 @@ _jobs: OrderedDict[str, dict] = OrderedDict()
 _jobs_lock = Lock()
 MAX_JOBS = 500
 
+# Throttle so reads don't run the cleanup loop on every request when the
+# server is hot — at most once per minute is enough to evict expired jobs
+# in a quiet steady state.
+_CLEANUP_INTERVAL_SECONDS = 60.0
+_last_cleanup_at: float = 0.0
+
 
 def _cleanup_jobs():
     """Remove expired jobs (>1 hour) and evict oldest when over MAX_JOBS.
 
     Must be called while holding ``_jobs_lock``.
     """
+    global _last_cleanup_at
     now = time.time()
     expired = [k for k, v in _jobs.items() if now - v.get("created_at", now) > 3600]
     for k in expired:
         del _jobs[k]
     while len(_jobs) > MAX_JOBS:
         _jobs.popitem(last=False)
+    _last_cleanup_at = now
+
+
+def _maybe_cleanup_jobs():
+    """Throttled cleanup invoked from read paths.
+
+    Without this, ``_cleanup_jobs`` only runs on writes, so a server that
+    stops receiving new jobs would hold stale entries until restart.
+    Must be called while holding ``_jobs_lock``.
+    """
+    if time.time() - _last_cleanup_at >= _CLEANUP_INTERVAL_SECONDS:
+        _cleanup_jobs()
 
 
 def _set_job(job_id: str, data: dict):
@@ -54,6 +73,7 @@ def _set_job(job_id: str, data: dict):
 
 def _get_job(job_id: str) -> dict | None:
     with _jobs_lock:
+        _maybe_cleanup_jobs()
         return _jobs.get(job_id)
 
 
@@ -75,6 +95,7 @@ def _get_schemas():
         RetrievedContextResponse,
         ToolExecutionResponse,
     )
+
     return {
         "AgentExecuteRequest": AgentExecuteRequest,
         "AgentExecuteResponse": AgentExecuteResponse,
@@ -123,6 +144,14 @@ async def _clear_stale_pending_confirmation(graph: Any, config: Dict[str, Any]) 
     A pending confirmation can only be answered with ``Command(resume=...)``.
     If the next request is a fresh ``HumanMessage`` instead, the user has
     abandoned the interrupt — re-firing it would block the new turn forever.
+
+    Also resets the per-turn ephemeral counters (``tool_loop_count``,
+    ``error_count``, ``reflection_count``). ``preprocessing_node`` already
+    resets these on a normal turn entry, but clearing them here makes the
+    invariant local to this function so future graph refactors that bypass
+    ``preprocessing_node`` cannot silently inherit a stale counter from the
+    abandoned turn.
+
     Returns True when state was cleared so callers can log/observe.
     """
     try:
@@ -136,7 +165,13 @@ async def _clear_stale_pending_confirmation(graph: Any, config: Dict[str, Any]) 
     try:
         await graph.aupdate_state(
             config,
-            {"pending_confirmation": {}, "user_confirmed": False},
+            {
+                "pending_confirmation": {},
+                "user_confirmed": False,
+                "tool_loop_count": 0,
+                "error_count": 0,
+                "reflection_count": 0,
+            },
         )
     except Exception:
         logger.exception("Failed to clear stale pending_confirmation")
@@ -193,9 +228,9 @@ async def _persist_thread_messages(
 
     if thread is None:
         # Need a workspace + conversation for the thread
-        ws_stmt = select(Workspace).where(
-            Workspace.owner_id == current_user.id
-        ).limit(1)
+        ws_stmt = (
+            select(Workspace).where(Workspace.owner_id == current_user.id).limit(1)
+        )
         ws_result = await db.execute(ws_stmt)
         workspace = ws_result.scalar_one_or_none()
 
@@ -230,19 +265,38 @@ async def _persist_thread_messages(
         thread_id = str(thread.id)
         conversation_id = str(thread.conversation_id)
 
-        # Save user message (only the latest one)
+        # Save user message (only the latest one). Skip the insert if an
+        # identical user message was already persisted within the last 60s
+        # — this can happen when a client reconnects mid-stream or retries
+        # a request that already wrote the user turn.
         last_user_content = next(
             (m.content for m in reversed(request.messages) if m.role == "user"),
             None,
         )
+        wrote_user_message = False
         if last_user_content:
-            user_msg = ChatMessage(
-                thread_id=thread.id,
-                user_id=current_user.id,
-                role=MessageRole.USER,
-                content=last_user_content,
+            recent_cutoff = datetime.now(timezone.utc) - timedelta(seconds=60)
+            dup_stmt = (
+                select(ChatMessage.id)
+                .where(
+                    ChatMessage.thread_id == thread.id,
+                    ChatMessage.user_id == current_user.id,
+                    ChatMessage.role == MessageRole.USER,
+                    ChatMessage.content == last_user_content,
+                    ChatMessage.created_at >= recent_cutoff,
+                )
+                .limit(1)
             )
-            db.add(user_msg)
+            dup_result = await db.execute(dup_stmt)
+            if dup_result.scalar_one_or_none() is None:
+                user_msg = ChatMessage(
+                    thread_id=thread.id,
+                    user_id=current_user.id,
+                    role=MessageRole.USER,
+                    content=last_user_content,
+                )
+                db.add(user_msg)
+                wrote_user_message = True
 
         # Save assistant message with tool executions
         tool_exec_data = None
@@ -269,8 +323,9 @@ async def _persist_thread_messages(
         )
         db.add(asst_msg)
 
-        # Update thread stats
-        thread.message_count = (thread.message_count or 0) + 2
+        # Update thread stats — count only what we actually inserted.
+        inserted = 1 + (1 if wrote_user_message else 0)
+        thread.message_count = (thread.message_count or 0) + inserted
         thread.last_message_at = datetime.now(timezone.utc)
 
         await db.commit()
@@ -365,13 +420,16 @@ async def _run_agent_graph(
                 confirmation_details = {}
                 if interrupts:
                     confirmation_details = getattr(interrupts[0], "value", {})
-                _set_job(job_id, {
-                    "status": "awaiting_confirmation",
-                    "confirmation": confirmation_details,
-                    "tool_executions": [],
-                    "user_id": str(current_user.id),
-                    "request": request.model_dump(),
-                })
+                _set_job(
+                    job_id,
+                    {
+                        "status": "awaiting_confirmation",
+                        "confirmation": confirmation_details,
+                        "tool_executions": [],
+                        "user_id": str(current_user.id),
+                        "request": request.model_dump(),
+                    },
+                )
                 return
 
             # Extract assistant content from the last AI message
@@ -389,7 +447,11 @@ async def _run_agent_graph(
                     for te in final_state.get("tool_executions", [])
                 ] or None
                 thread_id, conversation_id = await _persist_thread_messages(
-                    db, current_user, request, assistant_content, tool_executions_out,
+                    db,
+                    current_user,
+                    request,
+                    assistant_content,
+                    tool_executions_out,
                 )
             except Exception as e:
                 logger.warning("Failed to persist thread", exc_info=e)
@@ -405,20 +467,25 @@ async def _run_agent_graph(
                 retrieved_contexts=[
                     RetrievedContextResponse(**rc)
                     for rc in final_state.get("retrieved_contexts", [])
-                ] or None,
+                ]
+                or None,
                 tool_executions=[
                     ToolExecutionResponse(**te)
                     for te in final_state.get("tool_executions", [])
-                ] or None,
+                ]
+                or None,
                 thread_id=thread_id,
                 conversation_id=conversation_id,
             )
 
-            _set_job(job_id, {
-                "status": "completed",
-                "result": result.model_dump(),
-                "tool_executions": list(final_state.get("tool_executions", [])),
-            })
+            _set_job(
+                job_id,
+                {
+                    "status": "completed",
+                    "result": result.model_dump(),
+                    "tool_executions": list(final_state.get("tool_executions", [])),
+                },
+            )
         except Exception as e:
             logger.error("Agent graph execution failed", exc_info=e)
             _set_job(job_id, {"status": "failed", "error": str(e)})
@@ -480,10 +547,35 @@ async def _resume_agent_graph(
                         snapshot_user_id,
                         current_user.id,
                     )
-                    _set_job(job_id, {
-                        "status": "error",
-                        "error": "Thread not found",
-                    })
+                    _set_job(
+                        job_id,
+                        {
+                            "status": "error",
+                            "error": "Thread not found",
+                        },
+                    )
+                    return
+
+                # Idempotency guard: if the interrupt has already been
+                # consumed (e.g. by a prior resume that completed without
+                # updating the in-memory job, or by a stale background
+                # task firing late), short-circuit instead of issuing a
+                # second Command(resume=...) that would have nothing to
+                # resume against.
+                if not snapshot.values.get("pending_confirmation"):
+                    logger.warning(
+                        "Resume requested for job %s but no pending_confirmation in "
+                        "checkpoint; interrupt already consumed",
+                        job_id,
+                    )
+                    _set_job(
+                        job_id,
+                        {
+                            "status": "error",
+                            "error": "Interrupt already consumed",
+                            "user_id": str(current_user.id),
+                        },
+                    )
                     return
 
             async with asyncio.timeout(360):
@@ -508,10 +600,16 @@ async def _resume_agent_graph(
                         for te in final_state.get("tool_executions", [])
                     ] or None
                     thread_id, conversation_id = await _persist_thread_messages(
-                        db, current_user, original_request, assistant_content, tool_executions_out,
+                        db,
+                        current_user,
+                        original_request,
+                        assistant_content,
+                        tool_executions_out,
                     )
             except Exception as e:
-                logger.warning("Failed to persist confirmation thread messages", exc_info=e)
+                logger.warning(
+                    "Failed to persist confirmation thread messages", exc_info=e
+                )
 
             result = AgentExecuteResponse(
                 message=AgentMessage(role="assistant", content=assistant_content),
@@ -522,16 +620,20 @@ async def _resume_agent_graph(
                 tool_executions=[
                     ToolExecutionResponse(**te)
                     for te in final_state.get("tool_executions", [])
-                ] or None,
+                ]
+                or None,
                 thread_id=thread_id,
                 conversation_id=conversation_id,
             )
 
-            _set_job(job_id, {
-                "status": "completed",
-                "result": result.model_dump(),
-                "tool_executions": list(final_state.get("tool_executions", [])),
-            })
+            _set_job(
+                job_id,
+                {
+                    "status": "completed",
+                    "result": result.model_dump(),
+                    "tool_executions": list(final_state.get("tool_executions", [])),
+                },
+            )
         except Exception as e:
             logger.error("Agent graph resume failed", exc_info=e)
             _set_job(job_id, {"status": "failed", "error": str(e)})

@@ -1,17 +1,16 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import React from 'react';
 import { render, screen, waitFor } from '@/test/test-utils';
 import ProjectsPage from '../../../../app/(dashboard)/projects/page';
 
-const mockPush = jest.fn();
-const mockFetchProjects = jest.fn().mockResolvedValue(undefined);
-const mockCreateProject = jest.fn().mockResolvedValue({ id: 'project-1' });
-const mockUpdateProject = jest.fn().mockResolvedValue(undefined);
-const mockDeleteProject = jest.fn().mockResolvedValue(undefined);
-const mockClearError = jest.fn();
-const mockLoadWorkspaces = jest.fn().mockResolvedValue(undefined);
-const mockGetOrCreateDefaultWorkspace = jest
-  .fn()
-  .mockResolvedValue({ id: 'default-ws' });
+const mockPush = vi.fn();
+const mockFetchProjects = vi.fn();
+const mockCreateProject = vi.fn();
+const mockUpdateProject = vi.fn();
+const mockDeleteProject = vi.fn();
+const mockClearError = vi.fn();
+const mockLoadWorkspaces = vi.fn();
+const mockGetOrCreateDefaultWorkspace = vi.fn();
 
 let mockChatState: {
   currentWorkspaceId: string | null;
@@ -19,15 +18,15 @@ let mockChatState: {
   loadWorkspaces: typeof mockLoadWorkspaces;
 };
 
-jest.mock('next/navigation', () => ({
+vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: mockPush }),
 }));
 
-jest.mock('@/stores/authStore', () => ({
+vi.mock('@/stores/authStore', () => ({
   useAuthStore: () => ({ isAuthenticated: true }),
 }));
 
-jest.mock('@/store/projectStore', () => ({
+vi.mock('@/store/projectStore', () => ({
   useProjectStore: () => ({
     projects: [],
     loading: false,
@@ -41,25 +40,25 @@ jest.mock('@/store/projectStore', () => ({
   }),
 }));
 
-jest.mock('@/store/chat-store', () => ({
+vi.mock('@/store/chat-store', () => ({
   useChatStore: (selector?: (state: typeof mockChatState) => unknown) =>
     selector ? selector(mockChatState) : mockChatState,
   selectCurrentWorkspace: (state: typeof mockChatState) =>
     state.workspaces.find((w) => w.id === state.currentWorkspaceId) || null,
 }));
 
-jest.mock('@/services/workspaceService', () => ({
+vi.mock('@/services/workspaceService', () => ({
   workspaceService: {
     getOrCreateDefaultWorkspace: (...args: unknown[]) =>
       mockGetOrCreateDefaultWorkspace(...args),
   },
 }));
 
-jest.mock('@/components/research/ProjectList', () => ({
+vi.mock('@/components/research/ProjectList', () => ({
   ProjectList: () => <div>Project List</div>,
 }));
 
-jest.mock('@/components/research/CreateProjectModal', () => ({
+vi.mock('@/components/research/CreateProjectModal', () => ({
   CreateProjectModal: ({
     isOpen,
     onCreate,
@@ -74,17 +73,25 @@ jest.mock('@/components/research/CreateProjectModal', () => ({
     ) : null,
 }));
 
-jest.mock('react-hot-toast', () => ({
+vi.mock('react-hot-toast', () => ({
   __esModule: true,
   default: {
-    success: jest.fn(),
-    error: jest.fn(),
+    success: vi.fn(),
+    error: vi.fn(),
   },
 }));
 
 describe('ProjectsPage workspace behavior', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
+    // Vitest config has `restoreMocks: true`, so `.mockResolvedValue` set
+    // at module scope gets blown away between tests. Re-arm here.
+    mockFetchProjects.mockResolvedValue(undefined);
+    mockCreateProject.mockResolvedValue({ id: 'project-1' });
+    mockUpdateProject.mockResolvedValue(undefined);
+    mockDeleteProject.mockResolvedValue(undefined);
+    mockLoadWorkspaces.mockResolvedValue(undefined);
+    mockGetOrCreateDefaultWorkspace.mockResolvedValue({ id: 'default-ws' });
     mockChatState = {
       currentWorkspaceId: 'ws-selected',
       workspaces: [],

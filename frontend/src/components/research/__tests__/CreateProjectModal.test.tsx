@@ -1,3 +1,4 @@
+import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { CreateProjectModal } from '@/components/research/CreateProjectModal';
 
@@ -6,8 +7,8 @@ describe('CreateProjectModal', () => {
     const { container } = render(
       <CreateProjectModal
         isOpen={false}
-        onClose={jest.fn()}
-        onCreate={jest.fn().mockResolvedValue(undefined)}
+        onClose={vi.fn()}
+        onCreate={vi.fn().mockResolvedValue(undefined)}
       />
     );
 
@@ -15,8 +16,8 @@ describe('CreateProjectModal', () => {
   });
 
   it('submits form payload including tags and type', async () => {
-    const onCreate = jest.fn().mockResolvedValue(undefined);
-    const onClose = jest.fn();
+    const onCreate = vi.fn().mockResolvedValue(undefined);
+    const onClose = vi.fn();
 
     render(
       <CreateProjectModal

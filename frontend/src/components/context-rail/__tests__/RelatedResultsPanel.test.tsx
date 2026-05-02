@@ -1,19 +1,20 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import React from 'react';
 import { render, screen } from '@testing-library/react';
 import { RelatedResultsPanel } from '../RelatedResultsPanel';
+import { useCitationsForThread } from '@/hooks';
 
-jest.mock('@/hooks', () => ({
-  useCitationsForThread: jest.fn(),
+vi.mock('@/hooks', () => ({
+  useCitationsForThread: vi.fn(),
 }));
 
-const { useCitationsForThread } = require('@/hooks');
+const mockedUseCitationsForThread = vi.mocked(useCitationsForThread);
 
 describe('RelatedResultsPanel', () => {
-  beforeEach(() => jest.clearAllMocks());
+  beforeEach(() => vi.clearAllMocks());
 
   it('renders nothing when no related results (Cowork-style — hide empty cards)', () => {
-    useCitationsForThread.mockReturnValue({
+    mockedUseCitationsForThread.mockReturnValue({
       allCitations: [],
       activeDocument: null,
       relatedResults: [],
@@ -23,7 +24,7 @@ describe('RelatedResultsPanel', () => {
   });
 
   it('renders populated list with titles and scores', () => {
-    useCitationsForThread.mockReturnValue({
+    mockedUseCitationsForThread.mockReturnValue({
       allCitations: [],
       activeDocument: null,
       relatedResults: [

@@ -1,19 +1,20 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import React from 'react';
 import { render, screen } from '@testing-library/react';
 import { AllCitationsPanel } from '../AllCitationsPanel';
+import { useCitationsForThread } from '@/hooks';
 
-jest.mock('@/hooks', () => ({
-  useCitationsForThread: jest.fn(),
+vi.mock('@/hooks', () => ({
+  useCitationsForThread: vi.fn(),
 }));
 
-const { useCitationsForThread } = require('@/hooks');
+const mockedUseCitationsForThread = vi.mocked(useCitationsForThread);
 
 describe('AllCitationsPanel', () => {
-  beforeEach(() => jest.clearAllMocks());
+  beforeEach(() => vi.clearAllMocks());
 
   it('renders nothing when no citations (Cowork-style — hide empty cards)', () => {
-    useCitationsForThread.mockReturnValue({
+    mockedUseCitationsForThread.mockReturnValue({
       allCitations: [],
       activeDocument: null,
       relatedResults: [],
@@ -23,10 +24,20 @@ describe('AllCitationsPanel', () => {
   });
 
   it('renders title and source for each citation with source count', () => {
-    useCitationsForThread.mockReturnValue({
+    mockedUseCitationsForThread.mockReturnValue({
       allCitations: [
-        { documentId: 'd1', title: 'Internal doc', score: 0.9, source: 'upload' },
-        { externalReferenceId: 'e1', title: 'External paper', score: 0.6, source: 'arxiv' },
+        {
+          documentId: 'd1',
+          title: 'Internal doc',
+          score: 0.9,
+          source: 'upload',
+        },
+        {
+          externalReferenceId: 'e1',
+          title: 'External paper',
+          score: 0.6,
+          source: 'arxiv',
+        },
       ],
       activeDocument: null,
       relatedResults: [],
@@ -38,10 +49,8 @@ describe('AllCitationsPanel', () => {
   });
 
   it('renders singular "source" when count is 1', () => {
-    useCitationsForThread.mockReturnValue({
-      allCitations: [
-        { documentId: 'd1', title: 'Lonely doc', score: 0.9 },
-      ],
+    mockedUseCitationsForThread.mockReturnValue({
+      allCitations: [{ documentId: 'd1', title: 'Lonely doc', score: 0.9 }],
       activeDocument: null,
       relatedResults: [],
     });

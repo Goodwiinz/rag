@@ -13,7 +13,9 @@ import pytest
 from src.api.agent.jobs import _clear_stale_pending_confirmation
 
 
-def _make_graph(pending: dict | None, *, raise_on_get: bool = False, raise_on_update: bool = False) -> MagicMock:
+def _make_graph(
+    pending: dict | None, *, raise_on_get: bool = False, raise_on_update: bool = False
+) -> MagicMock:
     """Build a graph mock with a configurable checkpoint snapshot."""
     snapshot = MagicMock()
     snapshot.values = {"pending_confirmation": pending or {}}
@@ -41,7 +43,13 @@ class TestClearStalePendingConfirmation:
         assert cleared is True
         graph.aupdate_state.assert_awaited_once_with(
             config,
-            {"pending_confirmation": {}, "user_confirmed": False},
+            {
+                "pending_confirmation": {},
+                "user_confirmed": False,
+                "tool_loop_count": 0,
+                "error_count": 0,
+                "reflection_count": 0,
+            },
         )
 
     async def test_noop_when_pending_confirmation_empty(self) -> None:

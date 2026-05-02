@@ -7,7 +7,7 @@ referenced IDs (UUIDs and arXiv IDs).
 
 import logging
 import re
-from typing import Any, Callable
+from typing import Any, Callable, Optional
 
 from langchain_core.messages import AIMessage, BaseMessage, RemoveMessage, ToolMessage
 from langchain_core.runnables import RunnableConfig
@@ -165,21 +165,29 @@ def validate_and_fix_compacted(
 # ---------------------------------------------------------------------------
 
 
+# Cache the compactor LLM at module scope so we don't pay the ~50ms
+# client-build cost on every compaction cycle. Mirrors the
+# ``_REFLECTION_LLM`` pattern in src/services/agent/reflection.py.
+_COMPACTOR_LLM = None
+
+
 def _build_compactor_llm():
-    """Build a lightweight LLM for compaction summaries.
+    """Build (or return cached) lightweight LLM for compaction summaries.
 
     Uses the same Azure/OpenAI config pattern as ``graph._build_llm`` but
     targets **gpt-4o-mini** with ``temperature=0`` for deterministic,
-    cost-efficient summarisation.
+    cost-efficient summarisation. Memoised at module scope.
     """
+    global _COMPACTOR_LLM
+    if _COMPACTOR_LLM is not None:
+        return _COMPACTOR_LLM
+
     settings = get_settings()
 
     endpoint = (
         settings.AZURE_OPENAI_CHAT_ENDPOINT or settings.AZURE_OPENAI_ENDPOINT or ""
     )
-    api_key = (
-        settings.AZURE_OPENAI_CHAT_API_KEY or settings.AZURE_OPENAI_API_KEY or ""
-    )
+    api_key = settings.AZURE_OPENAI_CHAT_API_KEY or settings.AZURE_OPENAI_API_KEY or ""
     api_version = (
         settings.AZURE_OPENAI_CHAT_API_VERSION or settings.AZURE_OPENAI_API_VERSION
     )
@@ -194,7 +202,7 @@ def _build_compactor_llm():
     if classify_openai_endpoint(endpoint) == "openai_compatible":
         from langchain_openai import ChatOpenAI
 
-        return ChatOpenAI(
+        _COMPACTOR_LLM = ChatOpenAI(
             model="gpt-4o-mini",
             api_key=api_key,
             base_url=endpoint,
@@ -204,7 +212,7 @@ def _build_compactor_llm():
     else:
         from langchain_openai import AzureChatOpenAI
 
-        return AzureChatOpenAI(
+        _COMPACTOR_LLM = AzureChatOpenAI(
             azure_deployment="gpt-4o-mini",
             azure_endpoint=endpoint,
             api_key=api_key,
@@ -212,6 +220,7 @@ def _build_compactor_llm():
             temperature=0,
             max_tokens=_COMPACT_MAX_TOKENS,
         )
+    return _COMPACTOR_LLM
 
 
 # ---------------------------------------------------------------------------
@@ -223,6 +232,9 @@ _COMPACTION_SYSTEM_PROMPT = (
     "under 200 tokens. Preserve ALL document IDs (UUIDs), arXiv IDs, "
     "titles, status codes, and key facts. Omit verbose formatting."
 )
+
+
+_COMPACTION_PARALLELISM = 5
 
 
 async def compact_messages(
@@ -239,24 +251,30 @@ async def compact_messages(
     3. Validate/fix compacted output
     4. Return new ToolMessage with ``[Compacted]`` prefix and the same
        ``id`` as the original (so the LangGraph reducer can replace it).
+
+    Per-message compaction calls run concurrently bounded by
+    ``_COMPACTION_PARALLELISM`` to avoid burst-rate-limiting.
     """
-    llm = _build_compactor_llm()
-    compacted: list[ToolMessage] = []
+    import asyncio
 
     from langchain_core.messages import HumanMessage, SystemMessage
 
-    for msg in candidates:
+    llm = _build_compactor_llm()
+    semaphore = asyncio.Semaphore(_COMPACTION_PARALLELISM)
+
+    async def _compact_one(msg: ToolMessage) -> Optional[ToolMessage]:
         original_content = msg.content if isinstance(msg.content, str) else ""
         original_ids = extract_ids(original_content)
 
         try:
-            response = await llm.ainvoke(
-                [
-                    SystemMessage(content=_COMPACTION_SYSTEM_PROMPT),
-                    HumanMessage(content=original_content),
-                ],
-                config=config,
-            )
+            async with semaphore:
+                response = await llm.ainvoke(
+                    [
+                        SystemMessage(content=_COMPACTION_SYSTEM_PROMPT),
+                        HumanMessage(content=original_content),
+                    ],
+                    config=config,
+                )
         except Exception:
             logger.warning(
                 "Compaction LLM call failed for tool_call_id=%s; "
@@ -264,22 +282,23 @@ async def compact_messages(
                 msg.tool_call_id,
                 exc_info=True,
             )
-            continue
+            return None
 
         summary = (
-            response.content if isinstance(response.content, str) else str(response.content)
+            response.content
+            if isinstance(response.content, str)
+            else str(response.content)
         )
         summary = validate_and_fix_compacted(summary, original_ids)
 
-        compacted.append(
-            ToolMessage(
-                content=f"{_COMPACTED_PREFIX} {summary}",
-                tool_call_id=msg.tool_call_id,
-                id=msg.id,
-            )
+        return ToolMessage(
+            content=f"{_COMPACTED_PREFIX} {summary}",
+            tool_call_id=msg.tool_call_id,
+            id=msg.id,
         )
 
-    return compacted
+    results = await asyncio.gather(*[_compact_one(msg) for msg in candidates])
+    return [r for r in results if r is not None]
 
 
 # ---------------------------------------------------------------------------

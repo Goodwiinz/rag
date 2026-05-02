@@ -5,11 +5,12 @@
  * when the component is in loading mode (isLoading=true).
  */
 
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 
 // Mock framer-motion to avoid animation issues in tests
-jest.mock('framer-motion', () => ({
+vi.mock('framer-motion', () => ({
   motion: {
     div: ({ children, ...props }: any) => <div {...props}>{children}</div>,
     span: ({ children, ...props }: any) => <span {...props}>{children}</span>,
@@ -18,9 +19,9 @@ jest.mock('framer-motion', () => ({
     ),
   },
   AnimatePresence: ({ children }: any) => <>{children}</>,
-  useMotionValue: () => ({ set: jest.fn(), get: () => 0 }),
+  useMotionValue: () => ({ set: vi.fn(), get: () => 0 }),
   useSpring: (v: any) => v,
-  useTransform: () => ({ set: jest.fn(), get: () => 0 }),
+  useTransform: () => ({ set: vi.fn(), get: () => 0 }),
 }));
 
 import { ChatInput } from '../ChatInput';
@@ -28,17 +29,17 @@ import { ChatInput } from '../ChatInput';
 // Default props for all tests
 const defaultProps = {
   value: '',
-  onChange: jest.fn(),
-  onSubmit: jest.fn(),
-  onStop: jest.fn(),
+  onChange: vi.fn(),
+  onSubmit: vi.fn(),
+  onStop: vi.fn(),
   isLoading: false,
   enableRAG: true,
-  onRAGToggle: jest.fn(),
+  onRAGToggle: vi.fn(),
 };
 
 describe('ChatInput streaming behavior', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   describe('when isLoading is true', () => {
@@ -50,7 +51,7 @@ describe('ChatInput streaming behavior', () => {
     });
 
     it('calls onStop when HALT button is clicked', () => {
-      const onStop = jest.fn();
+      const onStop = vi.fn();
 
       render(<ChatInput {...defaultProps} onStop={onStop} isLoading={true} />);
 

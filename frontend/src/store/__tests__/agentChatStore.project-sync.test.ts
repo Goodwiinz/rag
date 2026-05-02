@@ -1,11 +1,12 @@
-jest.mock('@/services/agentChatService', () => ({
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+vi.mock('@/services/agentChatService', () => ({
   agentChatService: {
-    streamMessage: jest.fn(),
-    startJob: jest.fn(),
-    pollJob: jest.fn(),
-    confirmAction: jest.fn(),
-    listThreads: jest.fn().mockResolvedValue({ threads: [], total: 0 }),
-    getThreadMessages: jest.fn().mockResolvedValue({
+    streamMessage: vi.fn(),
+    startJob: vi.fn(),
+    pollJob: vi.fn(),
+    confirmAction: vi.fn(),
+    listThreads: vi.fn().mockResolvedValue({ threads: [], total: 0 }),
+    getThreadMessages: vi.fn().mockResolvedValue({
       messages: [],
       total: 0,
     }),
@@ -16,12 +17,12 @@ import { act } from '@testing-library/react';
 import { useAgentChatStore } from '@/store/agentChatStore';
 import { agentChatService } from '@/services/agentChatService';
 
-const mockAgentChatService = jest.mocked(agentChatService);
+const mockAgentChatService = vi.mocked(agentChatService);
 
 describe('agentChatStore project sync', () => {
   beforeEach(() => {
     useAgentChatStore.getState().reset();
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     mockAgentChatService.listThreads.mockResolvedValue({ threads: [], total: 0 });
     mockAgentChatService.getThreadMessages.mockResolvedValue({
       messages: [],

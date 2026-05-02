@@ -1,3 +1,4 @@
+import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { ChatSidebar } from '../ChatSidebar';
 
@@ -37,8 +38,8 @@ describe('ChatSidebar', () => {
   const defaultProps = {
     conversations: mockConversations,
     activeId: null,
-    onSelect: jest.fn(),
-    onNew: jest.fn(),
+    onSelect: vi.fn(),
+    onNew: vi.fn(),
   };
 
   it('renders all conversations', () => {
@@ -160,7 +161,7 @@ describe('ChatSidebar', () => {
   });
 
   it('calls onRename when rename hover action clicked', () => {
-    const onRename = jest.fn();
+    const onRename = vi.fn();
     render(<ChatSidebar {...defaultProps} onRename={onRename} />);
     const row = screen.getByText('Alpha Chat').closest('button')!;
     fireEvent.mouseEnter(row);
@@ -169,7 +170,7 @@ describe('ChatSidebar', () => {
   });
 
   it('calls onDelete when delete hover action clicked', () => {
-    const onDelete = jest.fn();
+    const onDelete = vi.fn();
     render(<ChatSidebar {...defaultProps} onDelete={onDelete} />);
     const row = screen.getByText('Alpha Chat').closest('button')!;
     fireEvent.mouseEnter(row);
@@ -184,7 +185,7 @@ describe('ChatSidebar', () => {
   });
 
   it('calls onBulkDelete with selected ids from multi-select mode', () => {
-    const onBulkDelete = jest.fn();
+    const onBulkDelete = vi.fn();
     render(<ChatSidebar {...defaultProps} onBulkDelete={onBulkDelete} />);
     fireEvent.click(screen.getByRole('button', { name: /^Select$/i }));
     fireEvent.click(screen.getAllByRole('checkbox')[0]);

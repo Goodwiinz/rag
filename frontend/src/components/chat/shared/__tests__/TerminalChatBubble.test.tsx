@@ -1,7 +1,8 @@
+import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { TerminalChatBubble } from '../TerminalChatBubble';
 
-jest.mock('../../CitationRenderer', () => ({
+vi.mock('../../CitationRenderer', () => ({
   CitationRenderer: ({ content }: { content: string }) => <p>{content}</p>,
 }));
 
@@ -42,7 +43,7 @@ describe('TerminalChatBubble', () => {
   });
 
   it('invokes citation click handler from citation chips', () => {
-    const onCitationClick = jest.fn();
+    const onCitationClick = vi.fn();
     const citations = [
       {
         documentId: 'doc-1',
