@@ -183,6 +183,32 @@ describe('EnhancedNewChatDialog', () => {
     expect(screen.getByTestId('dialog')).toBeInTheDocument();
   });
 
+  it('does not render any element with mangled Tailwind from/ or to/ class patterns', () => {
+    // Bug: assistant.color (e.g. "from-blue-400 to-blue-600") was passed
+    // through `.replace('to-', 'to/').replace('from-', 'from/')`, producing
+    // "from/blue-400 to/blue-600" — invalid Tailwind that does nothing.
+    // That branch fires only on UNSELECTED cards, so render with no
+    // recentlyUsed (no auto-select) and a second assistant.
+    render(
+      <EnhancedNewChatDialog
+        {...defaultProps}
+        assistants={[mockAssistant, secondAssistant]}
+        recentlyUsed={[]}
+      />
+    );
+
+    const elements = document.querySelectorAll('[class]');
+    const offenders: string[] = [];
+    elements.forEach((el) => {
+      const className = el.getAttribute('class') ?? '';
+      if (/\bfrom\//.test(className) || /\bto\//.test(className)) {
+        offenders.push(className);
+      }
+    });
+
+    expect(offenders).toEqual([]);
+  });
+
   it('search input resets to empty string when dialog closes and reopens', () => {
     // Bug: setSearchQuery(null) on string state is a type error. We assert
     // both behaviors that prove the reset is correct: (1) after type +

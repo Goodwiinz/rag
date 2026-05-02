@@ -151,9 +151,7 @@ const EnhancedAssistantCard = React.forwardRef<
                     'absolute inset-0 rounded-full bg-gradient-to-br opacity-0',
                     isSelected
                       ? 'from-orange-400 to-amber-500 opacity-30'
-                      : assistant.color
-                          .replace('to-', 'to/')
-                          .replace('from-', 'from/')
+                      : `${assistant.color} opacity-20`
                   )}
                   animate={isSelected ? { scale: [1, 1.2, 1] } : {}}
                   transition={{ duration: 2, repeat: Infinity }}
