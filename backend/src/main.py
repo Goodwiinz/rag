@@ -79,7 +79,7 @@ from src.api.search import (
     search_router,
     vectors_router,
 )
-from src.api.diagnostics import diagnostics_router
+from src.api.diagnostics import diagnostics_router, sentry_debug_router
 from src.api.security import compliance_router, encryption_router, rbac_router
 from src.api.threads import (
     stream_router,
@@ -96,6 +96,15 @@ from src.health.endpoints import router as health_router
 from src.core.security import auth_rate_limiter
 
 # from src.services.documents.file_service import redis_client  # Not exported, not needed here
+
+# Initialize Sentry early so the SDK can patch frameworks before app creation.
+# No-op when SENTRY_DSN is unset.
+try:
+    from src.observability.sentry import init_sentry
+
+    init_sentry()
+except Exception as _sentry_err:  # noqa: BLE001
+    print(f"Warning: Sentry init failed: {_sentry_err}")
 
 # Configure observability (optional)
 try:
@@ -374,6 +383,7 @@ app.include_router(compliance_router, prefix="/api/v1/security")
 app.include_router(rbac_router, prefix="/api/v1/rbac")
 app.include_router(evaluation_router, prefix="/api/v1")
 app.include_router(diagnostics_router, prefix="/api/v1")  # Retrieval diagnostics endpoints
+app.include_router(sentry_debug_router, prefix="/api/v1")  # Sentry verify endpoint
 app.include_router(websocket_router)  # Legacy WebSocket routes
 app.include_router(websocket_v2_router)  # Enhanced WebSocket v2 routes
 app.include_router(realtime_status_router)  # Real-time document status API

@@ -169,6 +169,13 @@ backend:
       value: "300"
     - name: CORS_ORIGINS
       value: "https://app.gen-text.app,https://gen-text.app"
+    # Sentry: SENTRY_DSN comes from the `app-secrets` external secret via envFrom.
+    - name: SENTRY_ENVIRONMENT
+      value: "production"
+    - name: SENTRY_TRACES_SAMPLE_RATE
+      value: "0.1"
+    - name: SENTRY_PROFILES_SAMPLE_RATE
+      value: "0.0"
     - name: QDRANT_URL
       value: "http://knowledge-graph-analytics-qdrant:6333"
     # Cache tuning

@@ -11,6 +11,7 @@ This module provides comprehensive observability capabilities including:
 
 from .config import ObservabilityConfig, config
 from .logging import configure_logging, correlation_context, get_logger
+from .sentry import init_sentry
 from .metrics import (
     configure_metrics,
     get_meter,
@@ -48,6 +49,8 @@ __all__ = [
     "configure_logging",
     "get_logger",
     "correlation_context",
+    # Sentry
+    "init_sentry",
     # SLO Monitoring
     "get_slo_monitor",
     "record_slo_metrics",
