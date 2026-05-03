@@ -78,6 +78,44 @@ services:
     tmpfs:
       - /qdrant/storage
 
+  # Supabase GoTrue (Auth)
+  # Stands in for the local supabase-cli stack devs run via `supabase start`.
+  # The frontend's signInWithPassword call hits this; the JWTs it issues are
+  # validated by the backend with the same shared HS256 secret.
+  gotrue:
+    image: supabase/gotrue:v2.151.0
+    environment:
+      GOTRUE_API_HOST: 0.0.0.0
+      GOTRUE_API_PORT: "9999"
+      API_EXTERNAL_URL: http://gotrue:9999
+      GOTRUE_DB_DRIVER: postgres
+      GOTRUE_DB_DATABASE_URL: postgres://test:test@postgres:5432/test_db?sslmode=disable
+      GOTRUE_DB_NAMESPACE: auth
+      GOTRUE_SITE_URL: http://localhost:3000
+      GOTRUE_URI_ALLOW_LIST: http://localhost:3000,http://frontend:3000
+      GOTRUE_DISABLE_SIGNUP: "false"
+      GOTRUE_JWT_SECRET: ci-test-supabase-jwt-secret-not-for-prod-use
+      GOTRUE_JWT_EXP: "3600"
+      GOTRUE_JWT_AUD: authenticated
+      GOTRUE_JWT_DEFAULT_GROUP_NAME: authenticated
+      GOTRUE_JWT_ADMIN_ROLES: service_role
+      GOTRUE_MAILER_AUTOCONFIRM: "true"
+      GOTRUE_EXTERNAL_EMAIL_ENABLED: "true"
+      GOTRUE_LOG_LEVEL: info
+    ports:
+      - "9999:9999"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - ci-network
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:9999/health || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+
   # Backend API Service
   backend:
     build:
@@ -93,6 +131,10 @@ services:
       ENVIRONMENT: testing
       SECRET_KEY: ci-test-secret-key-32-characters!
       JWT_SECRET_KEY: ci-test-jwt-secret-key-32chars!
+      # Shared HS256 secret with gotrue — backend's verify_token decodes
+      # Supabase-issued JWTs with this and binds them to local users via sub.
+      SUPABASE_URL: http://gotrue:9999
+      SUPABASE_JWT_SECRET: ci-test-supabase-jwt-secret-not-for-prod-use
       DEBUG: "false"
       LOG_LEVEL: WARNING
       CORS_ORIGINS: http://localhost:3000,http://frontend:3000
@@ -104,6 +146,8 @@ services:
       postgres:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      gotrue:
         condition: service_healthy
     networks:
       - ci-network
@@ -120,8 +164,12 @@ services:
       context: .
       dockerfile: frontend/Dockerfile.prod
       args:
-        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL:-http://localhost:54321}
-        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY:-ci-test-anon-key}
+        # Browser inside the Playwright container reaches gotrue via docker DNS.
+        # The anon JWT is signed with SUPABASE_JWT_SECRET — gotrue accepts it
+        # as the apikey on /auth/v1/* endpoints.
+        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL:-http://gotrue:9999}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY:-JWT_REDACTED}
+        NEXT_PUBLIC_STATSIG_CLIENT_KEY: ${NEXT_PUBLIC_STATSIG_CLIENT_KEY:-client-SEfCB81zQnvSAqRxfVi1nJNRmpJtrmOrvDKQPQm4UBx}
     ports:
       - "3000:3000"
     environment:

@@ -312,7 +312,7 @@ app.add_middleware(MultiTenancyMiddleware)
 if not settings.DEBUG:
     app.add_middleware(
         TrustedHostMiddleware,
-        allowed_hosts=["localhost", "127.0.0.1", "*.gen-text.app"],
+        allowed_hosts=["localhost", "127.0.0.1", "testserver", "*.gen-text.app"],
     )
 
 

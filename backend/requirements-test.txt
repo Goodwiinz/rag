@@ -22,11 +22,13 @@ httpx==0.25.2
 requests-mock==1.12.1
 responses==0.25.0
 aioresponses==0.7.6
+respx==0.21.1
 
 # Database Testing
 pytest-postgresql==6.1.0
 pytest-redis==3.1.2
 freezegun==1.5.1
+hypothesis==6.112.2
 sqlalchemy-utils==0.41.2
 
 # Async Testing
