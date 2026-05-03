@@ -87,7 +87,8 @@ def test_resolve_cli_auth_finds_latest_downloaded_frontend_export(
     )
 
     monkeypatch.setenv("HOME", str(home_dir))
-    import os, time
+    import os
+    import time
     now = time.time()
     os.utime(older_export, (now - 10, now - 10))
     os.utime(newer_export, (now, now))
