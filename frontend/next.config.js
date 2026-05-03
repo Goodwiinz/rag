@@ -1,4 +1,5 @@
 const path = require('path');
+const { withSentryConfig } = require('@sentry/nextjs');
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
@@ -157,4 +158,22 @@ const nextConfig = {
   },
 };
 
-module.exports = nextConfig;
+module.exports = withSentryConfig(nextConfig, {
+  org: process.env.SENTRY_ORG || 'goodwiinz-uk',
+  project: process.env.SENTRY_PROJECT || 'nous-frontend',
+
+  // Quiet local builds; CI surfaces logs.
+  silent: !process.env.CI,
+
+  // Upload a larger set of source maps so client errors symbolicate cleanly.
+  widenClientFileUpload: true,
+
+  // Route Sentry events through /monitoring to bypass adblockers.
+  tunnelRoute: '/monitoring',
+
+  // Strip Sentry SDK logger statements to shrink the client bundle.
+  disableLogger: true,
+
+  // Vercel-specific cron monitoring — off (we deploy to DOKS).
+  automaticVercelMonitors: false,
+});
