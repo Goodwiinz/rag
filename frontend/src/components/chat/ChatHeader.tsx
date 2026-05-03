@@ -15,6 +15,7 @@ import {
   Search,
 } from 'lucide-react';
 import { memo, useEffect, useRef, useState } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
 
 interface ExportableMessage {
   role: string;
@@ -125,27 +126,33 @@ export const ChatHeader = memo(function ChatHeader({
               className="p-1.5 text-[var(--terminal-text-dim)] hover:text-[var(--terminal-text)] transition-colors"
               onClick={() => setExportOpen((v) => !v)}
             />
-            {exportOpen && (
-              <div
-                className="absolute right-0 top-full mt-1 w-44 rounded border border-[var(--terminal-border)] bg-[var(--terminal-surface)] shadow-lg z-50 overflow-hidden"
-                style={{ fontFamily: "'JetBrains Mono', monospace" }}
-              >
-                <button
-                  onClick={handleExportMarkdown}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-xs text-[var(--terminal-text)] hover:bg-[var(--terminal-elevated)] transition-colors"
+            <AnimatePresence>
+              {exportOpen && (
+                <motion.div
+                  initial={{ opacity: 0, y: -5 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -5 }}
+                  transition={{ duration: 0.15 }}
+                  className="absolute right-0 top-full mt-1 w-44 rounded border border-[var(--terminal-border)] bg-[var(--terminal-surface)] shadow-lg z-50 overflow-hidden"
+                  style={{ fontFamily: "'JetBrains Mono', monospace" }}
                 >
-                  <FileText className="w-3.5 h-3.5 text-[var(--terminal-text-dim)]" />
-                  Export as Markdown
-                </button>
-                <button
-                  onClick={handleExportJson}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-xs text-[var(--terminal-text)] hover:bg-[var(--terminal-elevated)] transition-colors"
-                >
-                  <FileJson className="w-3.5 h-3.5 text-[var(--terminal-text-dim)]" />
-                  Export as JSON
-                </button>
-              </div>
-            )}
+                  <button
+                    onClick={handleExportMarkdown}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-xs text-[var(--terminal-text)] hover:bg-[var(--terminal-elevated)] focus-visible:bg-[var(--terminal-elevated)] focus-visible:outline-none transition-colors"
+                  >
+                    <FileText className="w-3.5 h-3.5 text-[var(--terminal-text-dim)]" />
+                    Export as Markdown
+                  </button>
+                  <button
+                    onClick={handleExportJson}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-xs text-[var(--terminal-text)] hover:bg-[var(--terminal-elevated)] focus-visible:bg-[var(--terminal-elevated)] focus-visible:outline-none transition-colors"
+                  >
+                    <FileJson className="w-3.5 h-3.5 text-[var(--terminal-text-dim)]" />
+                    Export as JSON
+                  </button>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         )}
 
