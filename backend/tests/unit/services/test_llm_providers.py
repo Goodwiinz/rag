@@ -1,6 +1,11 @@
 """Unit tests for LLM provider abstraction layer."""
 
 import pytest
+
+# CI jobs that pytest-collect backend/tests/ but don't install respx
+# (resilience-tests, performance-tests) would error on collection without this.
+pytest.importorskip("respx")
+
 import httpx
 import respx
 from unittest.mock import AsyncMock, MagicMock, patch

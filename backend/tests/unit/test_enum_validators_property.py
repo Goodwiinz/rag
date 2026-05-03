@@ -9,6 +9,11 @@ Uses Hypothesis to generate adversarial inputs automatically, including
 strings that may resemble SQL injection payloads.
 """
 import pytest
+
+# CI jobs that pytest-collect backend/tests/ but don't install hypothesis
+# (resilience-tests, performance-tests) would error on collection without this.
+pytest.importorskip("hypothesis")
+
 from hypothesis import given
 from hypothesis import strategies as st
 
