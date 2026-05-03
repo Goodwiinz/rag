@@ -138,6 +138,14 @@ backend:
       value: "300"
     - name: CORS_ORIGINS
       value: "https://dev-app.gen-text.app,http://localhost:3000,http://127.0.0.1:3000"
+    # Sentry: SENTRY_DSN comes from the `app-secrets` external secret via envFrom.
+    # No-op if the key is absent.
+    - name: SENTRY_ENVIRONMENT
+      value: "dev"
+    - name: SENTRY_TRACES_SAMPLE_RATE
+      value: "1.0"
+    - name: SENTRY_PROFILES_SAMPLE_RATE
+      value: "0.0"
     - name: NEO4J_URI
       value: "bolt://nous-dev-knowledge-graph-analytics-neo4j:7687"
     - name: QDRANT_URL
