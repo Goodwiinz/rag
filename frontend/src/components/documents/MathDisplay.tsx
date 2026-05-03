@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { AlertTriangle } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import DOMPurify from 'dompurify';
 
 interface MathDisplayProps {
   content: string;
@@ -35,7 +36,22 @@ export const MathDisplay: React.FC<MathDisplayProps> = ({
           throwOnError: false,
           displayMode: block,
         });
-        setKatexHtml(html);
+
+        // Prevent XSS vulnerabilities by sanitizing the KaTeX HTML output.
+        // MUST include mathMl: true and explicit ALLOWED_TAGS, otherwise
+        // DOMPurify strips necessary markup and breaks math rendering.
+        const safeHtml = DOMPurify.sanitize(html, {
+          USE_PROFILES: { mathMl: true, html: true },
+          ALLOWED_TAGS: [
+            'math', 'semantics', 'annotation', 'span', 'svg', 'path', 'g',
+            'mspace', 'mn', 'mo', 'mi', 'mover', 'munder', 'munderover',
+            'mfrac', 'msqrt', 'mroot', 'mstyle', 'merror', 'mpadded',
+            'mphantom', 'mrow', 'menclose', 'msub', 'msup', 'msubsup',
+            'mtext', 'br', 'table', 'tbody', 'tr', 'td'
+          ]
+        });
+
+        setKatexHtml(safeHtml);
         setKatexLoaded(true);
       } catch {
         if (!cancelled) {
