@@ -38,8 +38,12 @@ env:
   DOCKER_BUILDKIT: "1"
   PIP_NO_CACHE_DIR: "1"
   PIP_DISABLE_PIP_VERSION_CHECK: "1"
-  NEXT_PUBLIC_SUPABASE_URL: "http://localhost:54321"
-  NEXT_PUBLIC_SUPABASE_ANON_KEY: "ci-test-anon-key"
+  # Frontend reaches gotrue (CI's stand-in for the local supabase-cli stack)
+  # via docker DNS from inside the Playwright container's browser. Anon JWT
+  # is signed with the same secret gotrue uses for HS256 verification —
+  # see docker-compose.ci.yml gotrue service for the matching env.
+  NEXT_PUBLIC_SUPABASE_URL: "http://gotrue:9999"
+  NEXT_PUBLIC_SUPABASE_ANON_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlzcyI6InN1cGFiYXNlLWRlbW8iLCJpYXQiOjAsImV4cCI6OTk5OTk5OTk5OX0.ftr3vuorC5IkT1ThfxwJJx3aTqjK8Mz9UOYW_QmILyE"
 defaults:
   run:
     shell: bash
@@ -122,7 +126,7 @@ jobs:
             ${{ runner.os }}-pip-
       - name: Install dependencies
         run: |
-          pip install pytest pytest-asyncio pytest-cov pytest-xdist
+          pip install pytest pytest-asyncio pytest-cov pytest-xdist respx==0.21.1 hypothesis==6.112.2
           pip install --build-constraint backend/constraints-ci.txt -r backend/requirements.txt
       - name: Run unit tests
         run: |
@@ -131,12 +135,15 @@ jobs:
             -m "unit or not (integration or e2e or slow)" \
             --cov=backend/src \
             --cov-report=xml \
+            --cov-report=json \
             --cov-report=term-missing \
-            --cov-fail-under=8 \
+            --cov-fail-under=20 \
             -n auto \
             -v
-        # Note: Coverage threshold lowered to 8% after excluding integration tests from norecursedirs
-        # to prevent Qdrant connection errors during unit test collection (GOO-151)
+        # Note: Coverage threshold set to 20% (actual measured ~30% on local seed run,
+        # but CI selection differs slightly so we leave a buffer here and let
+        # check_coverage_ratchet.py enforce the per-file floors below).
+        # Per-file floors enforced by check_coverage_ratchet.py step below.
         env:
           ENVIRONMENT: testing
           DATABASE_URL: "sqlite:///:memory:"
@@ -146,6 +153,8 @@ jobs:
           files: coverage.xml
           flags: unit
           name: unit-tests
+      - name: Check per-file coverage ratchet
+        run: python backend/scripts/check_coverage_ratchet.py coverage.json
   # ==========================================================================
   # Security Scan
   # ==========================================================================
@@ -418,15 +427,16 @@ jobs:
           docker build
           --build-arg NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
           --build-arg NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+          --build-arg NEXT_PUBLIC_STATSIG_CLIENT_KEY=client-SEfCB81zQnvSAqRxfVi1nJNRmpJtrmOrvDKQPQm4UBx
           -t rag-frontend:test
           -f frontend/Dockerfile.prod .
       - name: Start infrastructure services
         run: |
-          docker compose -p rag_system -f docker-compose.ci.yml up -d postgres redis neo4j qdrant
+          docker compose -p rag_system -f docker-compose.ci.yml up -d postgres redis neo4j qdrant gotrue
 
-          # Wait for infrastructure to be healthy
+          # Wait for infrastructure to be healthy (5 services: postgres, redis, neo4j, qdrant, gotrue)
           echo "Waiting for infrastructure services..."
-          timeout 120 bash -c 'until docker compose -p rag_system -f docker-compose.ci.yml ps | grep -E "(healthy)" | wc -l | grep -q "4"; do sleep 3; done'
+          timeout 180 bash -c 'until docker compose -p rag_system -f docker-compose.ci.yml ps | grep -E "(healthy)" | wc -l | grep -q "5"; do sleep 3; done'
       - name: Start application services
         run: |
           # Start backend with pre-built image
@@ -444,6 +454,8 @@ jobs:
             -e ENVIRONMENT=testing \
             -e SECRET_KEY=ci-test-secret-key-32-characters! \
             -e JWT_SECRET_KEY=ci-test-jwt-secret-key-32chars! \
+            -e SUPABASE_URL=http://gotrue:9999 \
+            -e SUPABASE_JWT_SECRET=ci-test-supabase-jwt-secret-not-for-prod-use \
             -e ENCRYPTION_MASTER_KEY=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA= \
             -e CORS_ORIGINS=http://localhost:3000,http://frontend:3000 \
             -e ENABLE_AI_PROCESSING=false \
@@ -511,6 +523,45 @@ jobs:
           from src.core.database import create_tables, init_database
           create_tables()
           init_database()
+          "
+      - name: Mirror seeded users into gotrue
+        # init_database() seeds admin/demo/lab users into the backend's users
+        # table with random UUIDs. Frontend login goes through Supabase
+        # (gotrue here), so each user must also exist in gotrue's auth.users
+        # with the SAME id — the JWT's "sub" claim is what backend's
+        # get_current_user looks up. Email-confirm so signInWithPassword works
+        # without an inbox flow.
+        run: |
+          docker exec \
+            -e PYTHONPATH=/app \
+            -e SERVICE_ROLE_JWT=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoic2VydmljZV9yb2xlIiwiaXNzIjoic3VwYWJhc2UtZGVtbyIsImlhdCI6MCwiZXhwIjo5OTk5OTk5OTk5fQ.h2fkqBtuKwhDivmz5vXwEGxQgcpFlMXhYlVNAH2TL6c \
+            backend-e2e \
+            python -c "
+          import os, httpx
+          from src.core.database import SessionLocal
+          from src.models.user import User
+
+          PASSWORDS = {
+              'admin@multimodal-rag.com': 'admin123',
+              'demo@multimodal-rag.com': 'demo123',
+              'lab-admin@multimodal-rag.com': 'admin123',
+          }
+          headers = {'Authorization': f\"Bearer {os.environ['SERVICE_ROLE_JWT']}\"}
+          with SessionLocal() as db:
+              users = db.query(User).filter(User.email.in_(list(PASSWORDS))).all()
+              assert len(users) == len(PASSWORDS), f'expected {len(PASSWORDS)} seeded users, got {len(users)}'
+              for u in users:
+                  payload = {
+                      'id': str(u.id),
+                      'email': u.email,
+                      'password': PASSWORDS[u.email],
+                      'email_confirm': True,
+                  }
+                  r = httpx.post('http://gotrue:9999/admin/users', headers=headers, json=payload, timeout=10.0)
+                  print(f'gotrue seed {u.email} -> {r.status_code}')
+                  if r.status_code >= 400:
+                      print(r.text)
+                      r.raise_for_status()
           "
       - name: Run E2E Tests
         env:

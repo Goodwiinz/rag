@@ -18,8 +18,6 @@ sys.path.insert(0, str(backend_dir))
 
 # Set test environment variables
 os.environ.setdefault("ENVIRONMENT", "testing")
-# Force DEBUG in tests so TrustedHostMiddleware is not enabled for TestClient host.
-os.environ["DEBUG"] = "true"
 os.environ.setdefault("LOG_LEVEL", "INFO")
 os.environ.setdefault("DATABASE_URL", "sqlite:///./test.db")
 os.environ.setdefault("NEO4J_URI", "bolt://localhost:7687")
