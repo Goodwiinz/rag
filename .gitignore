@@ -154,6 +154,7 @@ temp/
 # Testing
 .coverage
 .pytest_cache/
+.hypothesis/
 htmlcov/
 
 # Jupyter Notebook
