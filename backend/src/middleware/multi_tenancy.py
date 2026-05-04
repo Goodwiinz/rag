@@ -105,8 +105,15 @@ class MultiTenancyMiddleware(BaseHTTPMiddleware):
         if not token_data or not token_data.user_id:
             return None
 
-        # organization_id is not embedded in Supabase JWTs — resolve from DB.
-        # TODO(5b): embed organization_id in JWT claims at issuance to skip this query.
+        # Fast path: org_id already embedded in JWT (CLI tokens, future Supabase tokens)
+        if token_data.organization_id:
+            return {
+                "organization_id": str(token_data.organization_id),
+                "user_id": str(token_data.user_id),
+                "role": token_data.role or "user",
+            }
+
+        # Fallback: resolve org from DB (current Supabase JWTs don't embed org_id)
         try:
             if db is not None:
                 result = await db.execute(
