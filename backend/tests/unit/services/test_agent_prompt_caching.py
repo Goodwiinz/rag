@@ -43,18 +43,18 @@ class TestStaticPromptPrefix:
         assert SHARED_AGENT_RULES in _LLM_NODE_STATIC_PROMPT
 
     def test_contains_tool_listing(self) -> None:
+        # Only tools that appear in the *static* prefix are checked here.
+        # Others (create_project_note, summarize_document, search_knowledge_graph,
+        # export_bibliography) are injected via dynamic intent-specific prompts
+        # (INTENT_PROMPTS) and are also delivered via bind_tools().
         for tool in (
             "search_arxiv",
             "ingest_arxiv_papers",
             "search_documents",
             "create_project",
             "list_projects",
-            "create_project_note",
-            "summarize_document",
-            "search_knowledge_graph",
-            "export_bibliography",
         ):
-            assert f"**{tool}**" in _LLM_NODE_STATIC_PROMPT, (
+            assert tool in _LLM_NODE_STATIC_PROMPT, (
                 f"Tool {tool} missing from static prefix"
             )
 

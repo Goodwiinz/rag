@@ -27,17 +27,19 @@ logger = logging.getLogger(__name__)
 # Job storage — in-memory L1 + Redis L2
 # ---------------------------------------------------------------------------
 #
-# ``_jobs`` and ``_jobs_lock`` are kept for backward compatibility with the
-# confirm endpoint which does atomic ``_jobs.get()`` + mutation.  Reads and
-# writes go through the ``job_store`` module which persists to Redis (with
-# the in-memory OrderedDict as an L1 read cache).
+# The in-memory ``OrderedDict`` lives in ``job_store._l1`` (the single
+# source of truth for L1).  ``_jobs`` is an alias so the confirm endpoint's
+# ``with _jobs_lock: _jobs.get(job_id)`` pattern keeps working without
+# changes.  ``_jobs_lock`` is a compatibility alias for the same lock.
+# All writes go through ``job_store.set_job()`` (async) or the
+# ``_set_job`` sync wrapper which sprays to both L1 and Redis.
 
+from src.services.agent.job_store import _l1 as _jobs
+from src.services.agent.job_store import _l1_lock as _jobs_lock
 from src.services.agent.job_store import set_job as _set_job_async
 from src.services.agent.job_store import get_job as _get_job_async
 from src.services.agent.job_store import delete_job as _delete_job_async
 
-_jobs: OrderedDict[str, dict] = OrderedDict()
-_jobs_lock = Lock()
 MAX_JOBS = 500
 
 
@@ -52,27 +54,29 @@ def _maybe_cleanup_jobs():
 
 
 def _set_job(job_id: str, data: dict):
-    """Persist a job (sync wrapper — calls async store via asyncio)."""
+    """Persist a job — writes L1 immediately, then Redis via fire-and-forget."""
     import asyncio as _asyncio
 
+    data["created_at"] = time.time()
     with _jobs_lock:
-        data["created_at"] = time.time()
         _jobs[job_id] = data
 
     try:
         loop = _asyncio.get_running_loop()
+        # Fire-and-forget Redis write — the job is already in L1 so readers
+        # see it immediately.  ``_set_job_async`` will also refresh L1
+        # (same dict) when it completes.
         loop.create_task(_set_job_async(job_id, data))
     except RuntimeError:
-        # No running event loop — fire-and-forget in a new one
         pass
 
 
 def _get_job(job_id: str) -> dict | None:
-    """Retrieve a job from L1 cache only (sync wrapper).
+    """Retrieve a job from the shared L1 cache.
 
-    Async callers should prefer ``_get_job_async`` directly for Redis L2.
     The confirm endpoint's synchronous ``with _jobs_lock`` pattern only
-    needs the L1 cache.
+    needs the L1 cache.  Async pollers should prefer ``_get_job_async``
+    which falls back to Redis L2.
     """
     with _jobs_lock:
         return _jobs.get(job_id)
