@@ -133,6 +133,15 @@ backend:
       value: "300"
     - name: CORS_ORIGINS
       value: "https://staging-app.gen-text.app"
+    # Database pool sizing: tuned for Supabase session-mode pooler limits.
+    - name: DB_ASYNC_POOL_SIZE
+      value: "3"
+    - name: DB_ASYNC_MAX_OVERFLOW
+      value: "2"
+    - name: DB_SYNC_POOL_SIZE
+      value: "1"
+    - name: DB_SYNC_MAX_OVERFLOW
+      value: "1"
     # Sentry: SENTRY_DSN comes from the `app-secrets` external secret via envFrom.
     - name: SENTRY_ENVIRONMENT
       value: "staging"
