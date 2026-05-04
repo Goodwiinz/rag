@@ -288,7 +288,7 @@ def verify_token(token: str) -> Optional[TokenData]:
                         if result:
                             return result
     except JWTError as e:
-        logger.error(f"ES256 JWTError: {e}")
+        logger.debug(f"JWT validation failed (expected for expired tokens): {e}")
     except Exception as e:
         logger.error(f"ES256 verification failed: {type(e).__name__}: {e}")
 

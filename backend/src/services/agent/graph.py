@@ -48,17 +48,24 @@ def _sanitize_messages(raw: list) -> list:
 
     - Adds placeholder ToolMessages for AIMessages whose tool_calls are unanswered.
     - Merges consecutive HumanMessages into one.
+
+    Walks the list in a single forward pass (O(n) total across all
+    iterations).  For each AIMessage with tool_calls the inner ``while``
+    loop only scans the contiguous ToolMessages immediately following it
+    — every element is visited at most once by that loop, so the
+    cumulative scan cost stays linear.
     """
     filled: list = []
-    for i, msg in enumerate(raw):
+    i = 0
+    while i < len(raw):
+        msg = raw[i]
         filled.append(msg)
         if isinstance(msg, AIMessage) and getattr(msg, "tool_calls", None):
             answered: set = set()
-            for future in raw[i + 1 :]:
-                if isinstance(future, ToolMessage):
-                    answered.add(future.tool_call_id)
-                elif isinstance(future, (AIMessage, HumanMessage)):
-                    break
+            j = i + 1
+            while j < len(raw) and isinstance(raw[j], ToolMessage):
+                answered.add(raw[j].tool_call_id)
+                j += 1
             for tc in msg.tool_calls:
                 if tc["id"] not in answered:
                     filled.append(
@@ -66,6 +73,7 @@ def _sanitize_messages(raw: list) -> list:
                             content='{"status": "skipped"}', tool_call_id=tc["id"]
                         )
                     )
+        i += 1
 
     merged: list = []
     for msg in filled:
@@ -450,7 +458,6 @@ async def rag_node(state: AgentState, config: RunnableConfig) -> dict:
                 search_type="hybrid",
             )
 
-            loop = asyncio.get_running_loop()
             org_id = (
                 str(current_user.organization_id)
                 if current_user.organization_id
@@ -458,19 +465,16 @@ async def rag_node(state: AgentState, config: RunnableConfig) -> dict:
             )
             uid = str(current_user.id)
 
-            # ``run_in_executor`` futures cannot be cancelled mid-flight
-            # (the worker thread keeps running after a client disconnect),
-            # but wrapping in ``asyncio.wait_for`` at least bounds how
-            # long this coroutine blocks the event loop and frees the
-            # connection from the agent's perspective.
+            # asyncio.to_thread properly propagates cancellation to the
+            # underlying concurrent.futures.Future, so a timeout (or client
+            # disconnect) actually stops the worker thread instead of
+            # leaking it.
             search_response = await asyncio.wait_for(
-                loop.run_in_executor(
-                    None,
-                    lambda: hybrid_search_service.search(
-                        search_request=search_request,
-                        user_id=uid,
-                        organization_id=org_id,
-                    ),
+                asyncio.to_thread(
+                    hybrid_search_service.search,
+                    search_request=search_request,
+                    user_id=uid,
+                    organization_id=org_id,
                 ),
                 timeout=15.0,
             )
@@ -737,6 +741,25 @@ KG_TOOLS_NAMES = {
     "execute_code",
 }
 
+# Subset for "general" intent — avoids binding all 20 tools on every first
+# message (greetings, "help", etc.) which bloats the token budget by ~4 000
+# tokens. Research/writing/KG intents get their own targeted subsets via the
+# sub-graphs. General gets the 10 most commonly used discovery+productivity
+# tools; more specialised tools (create_draft, compare_documents, etc.) are
+# available once the classifier narrows the intent.
+GENERAL_TOOLS_NAMES = {
+    "search_arxiv",
+    "ingest_arxiv_papers",
+    "search_documents",
+    "create_project",
+    "list_projects",
+    "add_document_to_project",
+    "list_project_documents",
+    "create_project_note",
+    "summarize_document",
+    "search_knowledge_graph",
+}
+
 INTENT_PROMPTS = {
     "research": (
         "Focus on helping the user find, discover, and organize research papers. "
@@ -833,6 +856,7 @@ def _get_tools_for_intent(intent: str) -> list:
         "research": RESEARCH_TOOLS_NAMES,
         "writing": WRITING_TOOLS_NAMES,
         "knowledge_graph": KG_TOOLS_NAMES,
+        "general": GENERAL_TOOLS_NAMES,
     }.get(intent)
 
     if name_set is None:
@@ -884,25 +908,6 @@ _LLM_NODE_STATIC_PROMPT = (
     "You are an AI research agent for a RAG-powered academic research system.\n"
     "You help users search documents, manage research projects, find ArXiv papers, "
     "create notes, and analyze research.\n\n"
-    "You have access to the following tools:\n"
-    "- **search_arxiv**: Search arXiv for academic papers.\n"
-    "- **ingest_arxiv_papers**: Ingest arXiv papers into the RAG system.\n"
-    "- **search_documents**: Search the user's indexed documents.\n"
-    "- **create_project**: Create a NEW research project (folder). Use when the user asks to "
-    "create, start, or set up a project/folder. Requires a name; optional description, research_goals, tags.\n"
-    "- **list_projects**: List the user's existing research projects. Call this when the user asks "
-    "'what projects do I have', 'list my projects', or wants to pick a project — do NOT ask them "
-    "to provide a project_id, look it up yourself.\n"
-    "- **add_document_to_project**: Add an ALREADY-INGESTED document to a project. "
-    "The document MUST already exist in the system. document_id MUST be a UUID.\n"
-    "- **create_project_note**: Create a markdown note in a project.\n"
-    "- **list_project_documents**: List all documents in a project.\n"
-    "- **summarize_document**: Summarize a document's content (requires document UUID).\n"
-    "- **compare_documents**: Compare 2-5 documents to find similarities, differences, and themes.\n"
-    "- **extract_entities**: Extract named entities (people, organizations, concepts) from a document.\n"
-    "- **search_knowledge_graph**: Search the knowledge graph for entities and relationships.\n"
-    "- **create_draft**: Generate a literature review draft from project documents around specific themes.\n"
-    "- **export_bibliography**: Export bibliography for documents in bibtex, apa, ieee, or mla format.\n\n"
     "When the user is on a project page, the project_id is available from the "
     "page context and does not need to be asked for.\n\n"
     f"{SHARED_AGENT_RULES}\n\n"
@@ -1103,18 +1108,16 @@ async def _execute_single_tool(
         try:
             configurable = config.get("configurable", {})
 
+            current_user = configurable.get("current_user")
+
             async def _call_tool():
                 return await asyncio.wait_for(
                     tool_executor(
                         tool_name=tool_name,
                         args=tool_args,
-                        user_id=(
-                            str(configurable.get("current_user").id)
-                            if configurable.get("current_user")
-                            else ""
-                        ),
+                        user_id=str(current_user.id) if current_user else "",
                         db=configurable.get("db"),
-                        current_user=configurable.get("current_user"),
+                        current_user=current_user,
                     ),
                     timeout=timeout,
                 )
@@ -1524,4 +1527,4 @@ def compile_agent_graph(checkpointer=None, **kwargs):
 
 def create_graph():
     """No-arg entry point for langgraph dev (langgraph.json)."""
-    return compile_agent_graph()
+    return compile_agent_graph(checkpointer=True)

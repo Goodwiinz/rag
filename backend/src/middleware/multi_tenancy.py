@@ -45,22 +45,23 @@ class MultiTenancyMiddleware(BaseHTTPMiddleware):
 
                 if not tenant_info:
                     return await call_next(request)
-
                 await self._validate_tenant_access(
                     tenant_info["organization_id"], db
                 )
 
-            with tenant_context_manager(
-                organization_id=tenant_info["organization_id"],
-                user_id=tenant_info["user_id"],
-                user_role=tenant_info["role"],
-            ):
-                request.state.tenant_id = tenant_info["organization_id"]
-                request.state.user_id = tenant_info["user_id"]
-                request.state.user_role = tenant_info["role"]
-                sentry_sdk.set_user({"id": str(tenant_info["user_id"])})
-                sentry_sdk.set_tag("tenant_id", str(tenant_info["organization_id"]))
-                return await call_next(request)
+                request.state.db = db
+
+                with tenant_context_manager(
+                    organization_id=tenant_info["organization_id"],
+                    user_id=tenant_info["user_id"],
+                    user_role=tenant_info["role"],
+                ):
+                    request.state.tenant_id = tenant_info["organization_id"]
+                    request.state.user_id = tenant_info["user_id"]
+                    request.state.user_role = tenant_info["role"]
+                    sentry_sdk.set_user({"id": str(tenant_info["user_id"])})
+                    sentry_sdk.set_tag("tenant_id", str(tenant_info["organization_id"]))
+                    return await call_next(request)
 
         except PermissionDeniedException as e:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
@@ -101,8 +102,15 @@ class MultiTenancyMiddleware(BaseHTTPMiddleware):
         if not token_data or not token_data.user_id:
             return None
 
-        # organization_id is not embedded in Supabase JWTs — resolve from DB.
-        # TODO(5b): embed organization_id in JWT claims at issuance to skip this query.
+        # Fast path: org_id already embedded in JWT (CLI tokens, future Supabase tokens)
+        if token_data.organization_id:
+            return {
+                "organization_id": str(token_data.organization_id),
+                "user_id": str(token_data.user_id),
+                "role": token_data.role or "user",
+            }
+
+        # Fallback: resolve org from DB (current Supabase JWTs don't embed org_id)
         try:
             if db is not None:
                 result = await db.execute(
