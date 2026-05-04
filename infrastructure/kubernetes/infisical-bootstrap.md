@@ -11,7 +11,7 @@ It is created manually, never committed to Git.
 ## Prerequisites
 
 1. Infisical Cloud account at https://app.infisical.com
-2. Project created — slug recorded (default: `nous-platform`)
+2. Project created — slug recorded (auto-generated, e.g. `nous-platform-pl-3-o`)
 3. Environments `dev`, `staging`, `prod` created (slugs match)
 4. Folder structure created in each env (see `docs/infrastructure/infisical-setup.md`)
 5. Two machine identities created in Org Settings → Access Control → Identities:

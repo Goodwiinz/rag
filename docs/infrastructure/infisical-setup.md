@@ -47,7 +47,10 @@ The mapping from folder → Secret name is defined in
 
 In https://app.infisical.com:
 
-1. New Project → name: `NOUS Platform`, slug: `nous-platform`
+1. New Project → name: `NOUS Platform`. The slug is auto-generated and visible
+   under Project Settings → General (ours resolved to `nous-platform-pl-3-o`).
+   To look it up via API:
+   `curl -H "Authorization: Bearer $TOKEN" https://app.infisical.com/api/v1/workspace/<id> | jq .workspace.slug`
 2. Environments → confirm `dev`, `staging`, `prod` exist (slugs match)
 3. In each env, create the folders listed above and populate the keys
 
