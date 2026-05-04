@@ -11,6 +11,11 @@ from typing import Optional
 
 import redis  # Added this line
 import sentry_sdk
+from sentry_sdk.integrations.asyncio import AsyncioIntegration
+from sentry_sdk.integrations.httpx import HttpxIntegration
+from sentry_sdk.integrations.logging import LoggingIntegration
+from sentry_sdk.integrations.redis import RedisIntegration
+from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
 from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
@@ -150,8 +155,18 @@ async def lifespan(app: FastAPI):
         sentry_sdk.init(
             dsn=sentry_dsn,
             environment=os.getenv("SENTRY_ENVIRONMENT", os.getenv("ENVIRONMENT", "development")),
+            release=os.getenv("GIT_SHA", "unknown"),
             traces_sample_rate=float(os.getenv("SENTRY_TRACES_SAMPLE_RATE", "0.1")),
+            profiles_sample_rate=float(os.getenv("SENTRY_PROFILES_SAMPLE_RATE", "0.0")),
             send_default_pii=False,
+            integrations=[
+                SqlalchemyIntegration(),
+                RedisIntegration(),
+                HttpxIntegration(),
+                LoggingIntegration(level=logging.INFO, event_level=logging.ERROR),
+                AsyncioIntegration(),
+            ],
+            attach_stacktrace=True,
         )
         sentry_sdk.set_tag("service", "nous-backend")
         logger.info("Sentry initialized for nous-backend in %s", os.getenv("SENTRY_ENVIRONMENT", "dev"))

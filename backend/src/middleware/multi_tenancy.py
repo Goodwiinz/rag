@@ -8,6 +8,7 @@ from contextvars import ContextVar
 from functools import wraps
 from typing import Any, Callable, Optional
 
+import sentry_sdk
 from fastapi import HTTPException, Request, Response, status
 from sqlalchemy import event, select
 from sqlalchemy.engine import Engine
@@ -54,6 +55,8 @@ class MultiTenancyMiddleware(BaseHTTPMiddleware):
                 request.state.tenant_id = tenant_info["organization_id"]
                 request.state.user_id = tenant_info["user_id"]
                 request.state.user_role = tenant_info["role"]
+                sentry_sdk.set_user({"id": str(tenant_info["user_id"])})
+                sentry_sdk.set_tag("tenant_id", str(tenant_info["organization_id"]))
                 return await call_next(request)
 
         except PermissionDeniedException as e:
@@ -75,6 +78,7 @@ class MultiTenancyMiddleware(BaseHTTPMiddleware):
             "/docs",
             "/redoc",
             "/openapi.json",
+            "/api/v1/sentry-debug",
         ]
 
         return any(request.url.path.startswith(path) for path in skip_paths)
