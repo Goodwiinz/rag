@@ -1,7 +1,7 @@
 """Tests for multi-tenancy middleware."""
 
 import pytest
-from unittest.mock import AsyncMock, patch, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 
 @pytest.mark.asyncio
@@ -83,3 +83,33 @@ async def test_dispatch_skipped_paths_do_not_set_db():
         response = client.get("/health")
         assert response.status_code == 200
         assert captured.get("has_db") is False, "request.state.db should NOT be set for skipped paths"
+
+
+@pytest.mark.asyncio
+async def test_fast_path_skips_db_when_org_id_in_token():
+    """When token_data already has organization_id, skip the DB lookup."""
+    from src.middleware.multi_tenancy import MultiTenancyMiddleware
+
+    middleware = MultiTenancyMiddleware(app=None)
+    middleware._should_skip_tenant_validation = lambda _: False
+
+    token_data_mock = MagicMock()
+    token_data_mock.user_id = "user-456"
+    token_data_mock.organization_id = "org-embedded"
+    token_data_mock.role = "user"
+
+    with patch(
+        "src.middleware.multi_tenancy.verify_token", return_value=token_data_mock
+    ):
+        from fastapi import Request
+        from unittest.mock import AsyncMock
+
+        mock_request = MagicMock(spec=Request)
+        mock_request.headers.get.return_value = "Bearer fake-token"
+
+        result = await middleware._extract_tenant_info(mock_request, db=None)
+
+    assert result is not None
+    assert result["organization_id"] == "org-embedded"
+    assert result["user_id"] == "user-456"
+    assert result["role"] == "user"
