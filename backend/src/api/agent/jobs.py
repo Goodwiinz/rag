@@ -39,6 +39,7 @@ from src.services.agent.job_store import _l1_lock as _jobs_lock
 from src.services.agent.job_store import set_job as _set_job_async
 from src.services.agent.job_store import get_job as _get_job_async
 from src.services.agent.job_store import delete_job as _delete_job_async
+from src.services.agent.job_store import _write_to_redis_only
 
 MAX_JOBS = 500
 
@@ -54,7 +55,14 @@ def _maybe_cleanup_jobs():
 
 
 def _set_job(job_id: str, data: dict):
-    """Persist a job — writes L1 immediately, then Redis via fire-and-forget."""
+    """Persist a job — writes L1 immediately, then Redis via fire-and-forget.
+
+    The fire-and-forget task uses ``_write_to_redis_only`` so it never
+    touches the L1 cache — the L1 write was already done synchronously
+    above.  This avoids a race where the background task overwrites a
+    later L1 update from the main async flow (e.g. idempotency guard
+    changing status from "running" to "error").
+    """
     import asyncio as _asyncio
 
     data["created_at"] = time.time()
@@ -63,10 +71,7 @@ def _set_job(job_id: str, data: dict):
 
     try:
         loop = _asyncio.get_running_loop()
-        # Fire-and-forget Redis write — the job is already in L1 so readers
-        # see it immediately.  ``_set_job_async`` will also refresh L1
-        # (same dict) when it completes.
-        loop.create_task(_set_job_async(job_id, data))
+        loop.create_task(_write_to_redis_only(job_id, data))
     except RuntimeError:
         pass
 
