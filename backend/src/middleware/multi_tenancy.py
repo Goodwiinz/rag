@@ -12,6 +12,7 @@ import sentry_sdk
 from fastapi import HTTPException, Request, Response, status
 from sqlalchemy import event, select
 from sqlalchemy.engine import Engine
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 from starlette.middleware.base import BaseHTTPMiddleware
 
@@ -39,19 +40,21 @@ class MultiTenancyMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
 
         try:
-            tenant_info = await self._extract_tenant_info(request)
+            async with AsyncSessionLocal() as db:
+                tenant_info = await self._extract_tenant_info(request, db)
 
-            if not tenant_info:
-                return await call_next(request)
+                if not tenant_info:
+                    return await call_next(request)
+
+                await self._validate_tenant_access(
+                    tenant_info["organization_id"], db
+                )
 
             with tenant_context_manager(
                 organization_id=tenant_info["organization_id"],
                 user_id=tenant_info["user_id"],
                 user_role=tenant_info["role"],
             ):
-                await self._validate_tenant_access(
-                    tenant_info["organization_id"], request
-                )
                 request.state.tenant_id = tenant_info["organization_id"]
                 request.state.user_id = tenant_info["user_id"]
                 request.state.user_role = tenant_info["role"]
@@ -83,7 +86,9 @@ class MultiTenancyMiddleware(BaseHTTPMiddleware):
 
         return any(request.url.path.startswith(path) for path in skip_paths)
 
-    async def _extract_tenant_info(self, request: Request) -> Optional[dict]:
+    async def _extract_tenant_info(
+        self, request: Request, db: Optional[AsyncSession] = None
+    ) -> Optional[dict]:
         """Extract tenant information by verifying the Bearer JWT and resolving org via DB."""
         auth_header = request.headers.get("Authorization", "")
         if not auth_header.startswith("Bearer "):
@@ -99,11 +104,17 @@ class MultiTenancyMiddleware(BaseHTTPMiddleware):
         # organization_id is not embedded in Supabase JWTs — resolve from DB.
         # TODO(5b): embed organization_id in JWT claims at issuance to skip this query.
         try:
-            async with AsyncSessionLocal() as db:
+            if db is not None:
                 result = await db.execute(
                     select(User).where(User.id == token_data.user_id)
                 )
                 user = result.scalars().first()
+            else:
+                async with AsyncSessionLocal() as session:
+                    result = await session.execute(
+                        select(User).where(User.id == token_data.user_id)
+                    )
+                    user = result.scalars().first()
             if not user or not user.organization_id:
                 return None
             return {
@@ -116,11 +127,13 @@ class MultiTenancyMiddleware(BaseHTTPMiddleware):
             return None
 
     async def _validate_tenant_access(
-        self, organization_id: str, request: Request
+        self,
+        organization_id: str,
+        db: Optional[AsyncSession] = None,
     ) -> bool:
         """Validate that the organization exists and is active"""
         try:
-            async with AsyncSessionLocal() as db:
+            if db is not None:
                 result = await db.execute(
                     select(Organization).where(
                         Organization.id == organization_id,
@@ -128,6 +141,15 @@ class MultiTenancyMiddleware(BaseHTTPMiddleware):
                     )
                 )
                 organization = result.scalars().first()
+            else:
+                async with AsyncSessionLocal() as session:
+                    result = await session.execute(
+                        select(Organization).where(
+                            Organization.id == organization_id,
+                            Organization.is_active == True,
+                        )
+                    )
+                    organization = result.scalars().first()
 
             if not organization:
                 raise PermissionDeniedException(
