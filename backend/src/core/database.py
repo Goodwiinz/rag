@@ -17,6 +17,8 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
+from src.core.db_retry import retry_on_pool_exhaustion
+
 # Import base model from models
 from src.models.base import Base
 from src.models.organization import Organization, StorageTier
@@ -94,8 +96,8 @@ else:
         DATABASE_URL,
         pool_pre_ping=True,
         pool_recycle=1800,
-        pool_size=_env_int("DB_SYNC_POOL_SIZE", 2),
-        max_overflow=_env_int("DB_SYNC_MAX_OVERFLOW", 3),
+        pool_size=_env_int("DB_SYNC_POOL_SIZE", 1),
+        max_overflow=_env_int("DB_SYNC_MAX_OVERFLOW", 1),
         pool_timeout=30,
         echo=os.getenv("ENVIRONMENT") == "development",
     )
@@ -124,8 +126,8 @@ else:
     # prod capacity tuning.
     async_engine = create_async_engine(
         ASYNC_DATABASE_URL,
-        pool_size=_env_int("DB_ASYNC_POOL_SIZE", 5),
-        max_overflow=_env_int("DB_ASYNC_MAX_OVERFLOW", 5),
+        pool_size=_env_int("DB_ASYNC_POOL_SIZE", 3),
+        max_overflow=_env_int("DB_ASYNC_MAX_OVERFLOW", 2),
         pool_timeout=_env_int("DB_ASYNC_POOL_TIMEOUT", 30),
         pool_recycle=300,
         pool_pre_ping=False,  # Disabled - causes greenlet issues with asyncpg
@@ -145,6 +147,7 @@ AsyncSessionLocal = async_sessionmaker(
 )
 
 
+@retry_on_pool_exhaustion(max_retries=3, base_delay=0.5)
 def get_db_sync() -> Session:
     """Get database session (synchronous)"""
     db = SessionLocal()
@@ -154,6 +157,7 @@ def get_db_sync() -> Session:
         db.close()
 
 
+@retry_on_pool_exhaustion(max_retries=3, base_delay=0.5)
 async def get_db(request: Request) -> AsyncSession:
     """Get database session (asynchronous). Reuses middleware session if available."""
     existing = getattr(request.state, "db", None)
