@@ -98,12 +98,28 @@ function authHeaders(): Record<string, string> {
 }
 
 export const backendClient = {
-  get<T>(path: string, schema?: z.ZodType<T>) {
-    return request<T>("GET", path, { schema, headers: authHeaders() });
+  get<T>(
+    path: string,
+    schema?: z.ZodType<T>,
+    extraHeaders?: Record<string, string>,
+  ) {
+    return request<T>("GET", path, {
+      schema,
+      headers: { ...authHeaders(), ...extraHeaders },
+    });
   },
 
-  post<T>(path: string, body: unknown, schema?: z.ZodType<T>) {
-    return request<T>("POST", path, { body, schema, headers: authHeaders() });
+  post<T>(
+    path: string,
+    body: unknown,
+    schema?: z.ZodType<T>,
+    extraHeaders?: Record<string, string>,
+  ) {
+    return request<T>("POST", path, {
+      body,
+      schema,
+      headers: { ...authHeaders(), ...extraHeaders },
+    });
   },
 
   healthCheck() {
