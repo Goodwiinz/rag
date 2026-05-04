@@ -610,11 +610,11 @@ class TestStateV2FieldsInInitialState:
         from src.services.agent.state import AgentState
 
         annotations = AgentState.__annotations__
-        assert annotations["plan"] == list
-        assert annotations["reflection_count"] == int
-        assert annotations["compaction_count"] == int
-        assert annotations["intent_confidence"] == float
-        assert annotations["last_error_info"] == dict
+        assert annotations["plan"] is list
+        assert annotations["reflection_count"] is int
+        assert annotations["compaction_count"] is int
+        assert annotations["intent_confidence"] is float
+        assert annotations["last_error_info"] is dict
 
 
 # Need asyncio import for the error recovery test

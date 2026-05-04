@@ -20,7 +20,7 @@ frontend:
   replicaCount: 1
   image:
     repository: registry.digitalocean.com/ragsystemregistry/frontend
-    tag: "c8710ab"
+    tag: "352907a"
     pullPolicy: Always
   service:
     type: ClusterIP
@@ -70,7 +70,7 @@ backend:
   replicaCount: 1
   image:
     repository: registry.digitalocean.com/ragsystemregistry/backend
-    tag: "c8710ab"
+    tag: "352907a"
     pullPolicy: Always
   service:
     type: ClusterIP
@@ -133,6 +133,13 @@ backend:
       value: "300"
     - name: CORS_ORIGINS
       value: "https://staging-app.gen-text.app"
+    # Sentry: SENTRY_DSN comes from the `app-secrets` external secret via envFrom.
+    - name: SENTRY_ENVIRONMENT
+      value: "staging"
+    - name: SENTRY_TRACES_SAMPLE_RATE
+      value: "0.5"
+    - name: SENTRY_PROFILES_SAMPLE_RATE
+      value: "0.0"
     # S3-Compatible Object Storage (DigitalOcean Spaces)
     - name: STORAGE_BACKEND
       value: "s3"

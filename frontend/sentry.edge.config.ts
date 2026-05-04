@@ -6,5 +6,9 @@ Sentry.init({
   release: process.env.NEXT_PUBLIC_GIT_SHA,
   tracesSampleRate: process.env.NODE_ENV === 'production' ? 0.1 : 1.0,
   enabled: Boolean(process.env.NEXT_PUBLIC_SENTRY_DSN),
+  enableLogs: true,
+  integrations: [
+    Sentry.consoleLoggingIntegration({ levels: ['log', 'warn', 'error'] }),
+  ],
   debug: false,
 });

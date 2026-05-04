@@ -7,5 +7,9 @@ Sentry.init({
   tracesSampleRate: process.env.NODE_ENV === 'production' ? 0.1 : 1.0,
   profilesSampleRate: process.env.NODE_ENV === 'production' ? 0.1 : 0,
   enabled: Boolean(process.env.NEXT_PUBLIC_SENTRY_DSN),
+  enableLogs: true,
+  integrations: [
+    Sentry.consoleLoggingIntegration({ levels: ['log', 'warn', 'error'] }),
+  ],
   debug: false,
 });

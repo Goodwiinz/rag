@@ -284,3 +284,6 @@ visualizations/
 path/
 data/arxiv/
 data/archives/
+
+# Trigger.dev
+.trigger

@@ -9,11 +9,13 @@ Sentry.init({
   replaysSessionSampleRate: 0,
   replaysOnErrorSampleRate: 1.0,
   enabled: Boolean(process.env.NEXT_PUBLIC_SENTRY_DSN),
+  enableLogs: true,
   integrations: [
     Sentry.replayIntegration({
       maskAllText: true,
       blockAllMedia: true,
     }),
+    Sentry.consoleLoggingIntegration({ levels: ['log', 'warn', 'error'] }),
   ],
   debug: false,
 });
