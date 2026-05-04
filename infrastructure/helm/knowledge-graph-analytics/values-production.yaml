@@ -18,6 +18,18 @@ commonLabels:
 commonAnnotations: {}
 
 # ──────────────────────────────────────────────
+# Infisical secret sync — production env
+# ──────────────────────────────────────────────
+# Flip enabled: true ONLY after staging cutover is validated and:
+#   1. /database, /app, /spaces, /supabase, /redis, /azure-openai, /langsmith
+#      folders populated in Infisical prod env
+#   2. infisical-universal-auth Secret bootstrapped in rag-production
+#      (see infrastructure/kubernetes/infisical-bootstrap.md)
+infisical:
+  enabled: false
+  envSlug: "prod"
+
+# ──────────────────────────────────────────────
 # Frontend
 # ──────────────────────────────────────────────
 frontend:

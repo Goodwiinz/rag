@@ -13,6 +13,17 @@ commonLabels:
   app.kubernetes.io/part-of: nous-platform
   environment: staging
 # ──────────────────────────────────────────────
+# Infisical secret sync — staging env
+# ──────────────────────────────────────────────
+# Flip enabled: true after:
+#   1. /database, /app, /spaces, /supabase, /redis, /azure-openai, /langsmith
+#      folders populated in Infisical staging env
+#   2. infisical-universal-auth Secret bootstrapped in rag-staging
+#      (see infrastructure/kubernetes/infisical-bootstrap.md)
+infisical:
+  enabled: false
+  envSlug: "staging"
+# ──────────────────────────────────────────────
 # Frontend
 # ──────────────────────────────────────────────
 frontend:
