@@ -142,8 +142,10 @@
     "vitest": "^2.1.9"
   },
   "scripts": {
-    "dev": "next dev",
+    "dev": "infisical run --path=/frontend-build -- next dev",
+    "dev:offline": "next dev",
     "build": "next build",
+    "build:cloud": "infisical run --path=/frontend-build -- next build",
     "start": "next start",
     "test": "vitest run",
     "test:watch": "vitest",
