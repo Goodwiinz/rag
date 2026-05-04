@@ -4,11 +4,14 @@ Conversations API endpoints for Terminal Observatory chat system.
 Provides REST endpoints for workspace and conversation management.
 """
 
+import logging
 from typing import List, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
+
+logger = logging.getLogger(__name__)
 
 from src.core.database import get_db
 from src.core.dependencies import get_current_user
@@ -310,23 +313,36 @@ async def list_conversations(
     page = (offset // limit) + 1 if limit > 0 else 1
     has_more = (offset + len(conversations)) < total
 
-    return ConversationListResponse(
-        conversations=[
-            ConversationResponse(
-                id=c.id,
-                workspace_id=c.workspace_id,
-                title=c.title,
-                description=c.description,
-                is_archived=c.is_archived,
-                is_pinned=c.is_pinned,
-                last_activity_at=c.last_activity_at,
-                created_by_id=c.created_by_id,
-                created_at=c.created_at,
-                updated_at=c.updated_at,
-                thread_count=c.thread_count,
+    serialized: List[ConversationResponse] = []
+    for c in conversations:
+        try:
+            serialized.append(
+                ConversationResponse(
+                    id=c.id,
+                    workspace_id=c.workspace_id,
+                    title=c.title,
+                    description=c.description,
+                    is_archived=c.is_archived,
+                    is_pinned=c.is_pinned,
+                    last_activity_at=c.last_activity_at,
+                    created_by_id=c.created_by_id,
+                    created_at=c.created_at,
+                    updated_at=c.updated_at,
+                    thread_count=c.thread_count,
+                )
             )
-            for c in conversations
-        ],
+        except Exception:
+            # One bad row (NULL created_by_id from a deleted user, lazy-load
+            # failure on a relationship, etc.) must not 500 the whole list and
+            # cascade into getOrCreateDefaultConversation minting fresh empty
+            # conversations on every page load.
+            logger.exception(
+                "list_conversations.serialize_failed",
+                extra={"conversation_id": str(getattr(c, "id", None))},
+            )
+
+    return ConversationListResponse(
+        conversations=serialized,
         total=total,
         page=page,
         limit=limit,

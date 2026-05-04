@@ -298,9 +298,14 @@ class ChatService:
         count_result = await self.db.execute(count_stmt)
         total = count_result.scalar() or 0
 
-        # Fetch conversations
+        # Fetch conversations.
+        # Eager-load threads: ConversationResponse.thread_count reads the
+        # @property `c.thread_count` which calls `len(self.threads)`. Without
+        # selectinload, that access triggers an implicit lazy IO on the async
+        # session and raises MissingGreenlet, 500ing the whole list.
         stmt = (
             select(Conversation)
+            .options(selectinload(Conversation.threads))
             .where(*base_conditions)
             .order_by(desc(Conversation.is_pinned), desc(Conversation.last_activity_at))
             .offset(offset)

@@ -378,7 +378,10 @@ function ChatPageContent() {
 
   // Load threads and messages from database
   const loadThreadsFromDb = useCallback(
-    async (conversationId: string, _isRetry = false): Promise<boolean> => {
+    async (
+      conversationId: string,
+      _isRetry = false
+    ): Promise<{ ok: boolean; threadCount: number }> => {
       try {
         console.log(
           '[Chat] Loading threads from database for conversation:',
@@ -433,7 +436,7 @@ function ChatPageContent() {
           setCurrentThread(selectedConv.id);
           console.log('[Chat] Active thread:', selectedConv.title);
         }
-        return true;
+        return { ok: true, threadCount: uiConversations.length };
       } catch (error: unknown) {
         console.error('[Chat] Failed to load threads from database:', error);
 
@@ -451,7 +454,7 @@ function ChatPageContent() {
             localStorage.removeItem('default-workspace-id');
             localStorage.removeItem('default-conversation-id');
           }
-          return false; // Signal to caller to retry with fresh data
+          return { ok: false, threadCount: 0 }; // Signal to caller to retry with fresh data
         }
 
         throw error;
@@ -549,9 +552,9 @@ function ChatPageContent() {
         setDbConversation(conv);
         console.log('[Chat] DB Conversation:', conv.title);
 
-        const loadSuccess = await loadThreadsFromDb(conv.id);
+        const loadResult = await loadThreadsFromDb(conv.id);
 
-        if (!loadSuccess) {
+        if (!loadResult.ok) {
           console.log('[Chat] Retrying with fresh conversation...');
           const freshConv = await workspaceService.createConversation({
             workspace_id: ws.id,
@@ -561,6 +564,37 @@ function ChatPageContent() {
           setDbConversation(freshConv);
           console.log('[Chat] Created fresh conversation:', freshConv.title);
           await loadThreadsFromDb(freshConv.id);
+        } else if (loadResult.threadCount === 0) {
+          // The most-recently-active conversation has no threads. Older
+          // conversations in this workspace may still hold the user's threads
+          // (this happens when a stale "New Chat" got created on a prior load
+          // and outranks them by last_activity_at). Look for one and switch.
+          try {
+            const allConversations = await workspaceService.listConversations(
+              ws.id,
+              { limit: 50 }
+            );
+            const candidate = allConversations.conversations.find(
+              (c) => c.id !== conv.id && (c.thread_count ?? 0) > 0
+            );
+            if (candidate) {
+              console.log(
+                '[Chat] Default conversation empty; switching to:',
+                candidate.title,
+                `(${candidate.thread_count} threads)`
+              );
+              setDbConversation(candidate);
+              if (typeof window !== 'undefined') {
+                localStorage.setItem('default-conversation-id', candidate.id);
+              }
+              await loadThreadsFromDb(candidate.id);
+            }
+          } catch (fallbackError) {
+            console.warn(
+              '[Chat] Empty-default fallback failed:',
+              fallbackError
+            );
+          }
         }
 
         isHydratedRef.current = true;
