@@ -24,56 +24,61 @@ logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
-# In-memory job storage
+# Job storage — in-memory L1 + Redis L2
 # ---------------------------------------------------------------------------
+#
+# The in-memory ``OrderedDict`` lives in ``job_store._l1`` (the single
+# source of truth for L1).  ``_jobs`` is an alias so the confirm endpoint's
+# ``with _jobs_lock: _jobs.get(job_id)`` pattern keeps working without
+# changes.  ``_jobs_lock`` is a compatibility alias for the same lock.
+# All writes go through ``job_store.set_job()`` (async) or the
+# ``_set_job`` sync wrapper which sprays to both L1 and Redis.
 
-_jobs: OrderedDict[str, dict] = OrderedDict()
-_jobs_lock = Lock()
+from src.services.agent.job_store import _l1 as _jobs
+from src.services.agent.job_store import _l1_lock as _jobs_lock
+from src.services.agent.job_store import set_job as _set_job_async
+from src.services.agent.job_store import get_job as _get_job_async
+from src.services.agent.job_store import delete_job as _delete_job_async
+
 MAX_JOBS = 500
-
-# Throttle so reads don't run the cleanup loop on every request when the
-# server is hot — at most once per minute is enough to evict expired jobs
-# in a quiet steady state.
-_CLEANUP_INTERVAL_SECONDS = 60.0
-_last_cleanup_at: float = 0.0
 
 
 def _cleanup_jobs():
-    """Remove expired jobs (>1 hour) and evict oldest when over MAX_JOBS.
-
-    Must be called while holding ``_jobs_lock``.
-    """
-    global _last_cleanup_at
-    now = time.time()
-    expired = [k for k, v in _jobs.items() if now - v.get("created_at", now) > 3600]
-    for k in expired:
-        del _jobs[k]
-    while len(_jobs) > MAX_JOBS:
-        _jobs.popitem(last=False)
-    _last_cleanup_at = now
+    """No-op — Redis TTL handles expiry; L1 cleanup is in job_store."""
+    pass
 
 
 def _maybe_cleanup_jobs():
-    """Throttled cleanup invoked from read paths.
-
-    Without this, ``_cleanup_jobs`` only runs on writes, so a server that
-    stops receiving new jobs would hold stale entries until restart.
-    Must be called while holding ``_jobs_lock``.
-    """
-    if time.time() - _last_cleanup_at >= _CLEANUP_INTERVAL_SECONDS:
-        _cleanup_jobs()
+    """No-op — L1 cleanup is in job_store."""
+    pass
 
 
 def _set_job(job_id: str, data: dict):
+    """Persist a job — writes L1 immediately, then Redis via fire-and-forget."""
+    import asyncio as _asyncio
+
+    data["created_at"] = time.time()
     with _jobs_lock:
-        data["created_at"] = time.time()
         _jobs[job_id] = data
-        _cleanup_jobs()
+
+    try:
+        loop = _asyncio.get_running_loop()
+        # Fire-and-forget Redis write — the job is already in L1 so readers
+        # see it immediately.  ``_set_job_async`` will also refresh L1
+        # (same dict) when it completes.
+        loop.create_task(_set_job_async(job_id, data))
+    except RuntimeError:
+        pass
 
 
 def _get_job(job_id: str) -> dict | None:
+    """Retrieve a job from the shared L1 cache.
+
+    The confirm endpoint's synchronous ``with _jobs_lock`` pattern only
+    needs the L1 cache.  Async pollers should prefer ``_get_job_async``
+    which falls back to Redis L2.
+    """
     with _jobs_lock:
-        _maybe_cleanup_jobs()
         return _jobs.get(job_id)
 
 
@@ -420,7 +425,7 @@ async def _run_agent_graph(
                 confirmation_details = {}
                 if interrupts:
                     confirmation_details = getattr(interrupts[0], "value", {})
-                _set_job(
+                await _set_job_async(
                     job_id,
                     {
                         "status": "awaiting_confirmation",
@@ -456,10 +461,13 @@ async def _run_agent_graph(
             except Exception as e:
                 logger.warning("Failed to persist thread", exc_info=e)
 
-            # Build response
+            # Build response — use the model the request asked for, or the
+            # default. Previously hardcoded to "gpt-4o" regardless of
+            # what the client requested.
+            response_model_name: str = getattr(request, "model", "") or "gpt-4o"
             result = AgentExecuteResponse(
                 message=AgentMessage(role="assistant", content=assistant_content),
-                model="gpt-4o",
+                model=response_model_name,
                 usage={},
                 finish_reason="stop",
                 timestamp=datetime.now(timezone.utc).isoformat(),
@@ -478,7 +486,7 @@ async def _run_agent_graph(
                 conversation_id=conversation_id,
             )
 
-            _set_job(
+            await _set_job_async(
                 job_id,
                 {
                     "status": "completed",
@@ -488,7 +496,7 @@ async def _run_agent_graph(
             )
         except Exception as e:
             logger.error("Agent graph execution failed", exc_info=e)
-            _set_job(job_id, {"status": "failed", "error": str(e)})
+            await _set_job_async(job_id, {"status": "failed", "error": str(e)})
 
 
 async def _resume_agent_graph(
@@ -547,7 +555,7 @@ async def _resume_agent_graph(
                         snapshot_user_id,
                         current_user.id,
                     )
-                    _set_job(
+                    await _set_job_async(
                         job_id,
                         {
                             "status": "error",
@@ -568,7 +576,7 @@ async def _resume_agent_graph(
                         "checkpoint; interrupt already consumed",
                         job_id,
                     )
-                    _set_job(
+                    await _set_job_async(
                         job_id,
                         {
                             "status": "error",
@@ -611,9 +619,12 @@ async def _resume_agent_graph(
                     "Failed to persist confirmation thread messages", exc_info=e
                 )
 
+            response_model_name: str = (
+                getattr(original_request, "model", "") if original_request else ""
+            ) or "gpt-4o"
             result = AgentExecuteResponse(
                 message=AgentMessage(role="assistant", content=assistant_content),
-                model="gpt-4o",
+                model=response_model_name,
                 usage={},
                 finish_reason="stop",
                 timestamp=datetime.now(timezone.utc).isoformat(),
@@ -626,7 +637,7 @@ async def _resume_agent_graph(
                 conversation_id=conversation_id,
             )
 
-            _set_job(
+            await _set_job_async(
                 job_id,
                 {
                     "status": "completed",
@@ -636,4 +647,4 @@ async def _resume_agent_graph(
             )
         except Exception as e:
             logger.error("Agent graph resume failed", exc_info=e)
-            _set_job(job_id, {"status": "failed", "error": str(e)})
+            await _set_job_async(job_id, {"status": "failed", "error": str(e)})

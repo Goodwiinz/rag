@@ -39,7 +39,8 @@ function persistThreadId(threadId: string): void {
 
 async function* _parseSseBody(
   body: ReadableStream<Uint8Array>,
-  onTrace?: (threadId: string) => void
+  onTrace?: (threadId: string) => void,
+  signal?: AbortSignal
 ): AsyncGenerator<StreamEvent> {
   const reader = body.getReader();
   const decoder = new TextDecoder();
@@ -48,7 +49,15 @@ async function* _parseSseBody(
 
   try {
     while (true) {
-      const { done, value } = await reader.read();
+      let readResult: ReadableStreamReadResult<Uint8Array>;
+      try {
+        readResult = await reader.read();
+        if (signal?.aborted) break;
+      } catch (err) {
+        if (err instanceof DOMException && err.name === 'AbortError') break;
+        throw err;
+      }
+      const { done, value } = readResult;
       if (done) break;
       buffer += decoder.decode(value, { stream: true });
 
@@ -139,7 +148,8 @@ async function* _withIdleTimeout(
   idleMs: number,
   onTrace?: (threadId: string) => void
 ): AsyncGenerator<StreamEvent> {
-  const inner = _parseSseBody(body, onTrace);
+  const controller = new AbortController();
+  const inner = _parseSseBody(body, onTrace, controller.signal);
   while (true) {
     const next = inner.next();
     let timer: NodeJS.Timeout | null = null;
@@ -152,15 +162,11 @@ async function* _withIdleTimeout(
     const winner = await Promise.race([next, timeout]);
     if (timer) clearTimeout(timer);
     if ((winner as { idle?: boolean }).idle) {
+      controller.abort();
       yield {
         type: 'error',
         message: `IDLE_TIMEOUT:${Math.round(idleMs / 1000)}`,
       };
-      try {
-        await body.cancel();
-      } catch {
-        /* best effort */
-      }
       return;
     }
     const r = winner as IteratorResult<StreamEvent>;

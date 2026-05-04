@@ -274,6 +274,15 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.error(f"Error shutting down WebSocket services: {e}")
 
+    # Shutdown agent job store Redis connection
+    try:
+        from src.services.agent.job_store import close_redis
+
+        await close_redis()
+        logger.info("Agent job store Redis connection closed")
+    except Exception as e:
+        logger.error(f"Error closing agent job store Redis: {e}")
+
 
 # Create FastAPI application
 app = FastAPI(

@@ -169,6 +169,16 @@ backend:
       value: "300"
     - name: CORS_ORIGINS
       value: "https://app.gen-text.app,https://gen-text.app"
+    # Database pool sizing: tuned for Supabase session-mode pooler limits
+    # (scaled for 2-6 replicas with autoscaling). Increase if upgrading plan.
+    - name: DB_ASYNC_POOL_SIZE
+      value: "4"
+    - name: DB_ASYNC_MAX_OVERFLOW
+      value: "3"
+    - name: DB_SYNC_POOL_SIZE
+      value: "2"
+    - name: DB_SYNC_MAX_OVERFLOW
+      value: "2"
     # Sentry: SENTRY_DSN comes from the `app-secrets` external secret via envFrom.
     - name: SENTRY_ENVIRONMENT
       value: "production"
