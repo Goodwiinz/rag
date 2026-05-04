@@ -14,6 +14,12 @@ commonLabels:
   app.kubernetes.io/part-of: nous-platform
   environment: dev
 # ──────────────────────────────────────────────
+# Infisical secret sync — dev env
+# ──────────────────────────────────────────────
+infisical:
+  enabled: true
+  envSlug: "dev"
+# ──────────────────────────────────────────────
 # Frontend
 # ──────────────────────────────────────────────
 frontend:
