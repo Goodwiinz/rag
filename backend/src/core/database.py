@@ -9,6 +9,7 @@ import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime
 
+from fastapi import Request
 from sqlalchemy import create_engine, event, text
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import SQLAlchemyError
@@ -153,8 +154,12 @@ def get_db_sync() -> Session:
         db.close()
 
 
-async def get_db() -> AsyncSession:
-    """Get database session (asynchronous)"""
+async def get_db(request: Request) -> AsyncSession:
+    """Get database session (asynchronous). Reuses middleware session if available."""
+    existing = getattr(request.state, "db", None)
+    if existing is not None:
+        yield existing
+        return
     async with AsyncSessionLocal() as session:
         yield session
 
