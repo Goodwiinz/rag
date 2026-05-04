@@ -7,7 +7,7 @@ export async function register() {
   if (process.env.NEXT_RUNTIME === 'edge') {
     await import('./sentry.edge.config');
   }
-  Sentry.metrics.increment('app_startup');
+  Sentry.metrics.count('app_startup', 1);
 }
 
 export const onRequestError = Sentry.captureRequestError;
