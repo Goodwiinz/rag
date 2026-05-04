@@ -407,6 +407,57 @@ class AgentChatService {
     }
   }
 
+  async startDurableRun(
+    request: AgentExecuteRequest
+  ): Promise<{ runId: string }> {
+    const res = await fetch('/api/trigger/agent/execute', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(request),
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`Failed to start durable run: ${text}`);
+    }
+    return res.json();
+  }
+
+  async getDurableRunStatus(runId: string): Promise<{
+    runId: string;
+    status: string;
+    metadata: Record<string, unknown>;
+    output: Record<string, unknown> | null;
+    error: string | null;
+  }> {
+    const res = await fetch(
+      `/api/trigger/agent/runs/${encodeURIComponent(runId)}`
+    );
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`Failed to get run status: ${text}`);
+    }
+    return res.json();
+  }
+
+  async completeDurableConfirmation(
+    runId: string,
+    tokenId: string,
+    confirmed: boolean
+  ): Promise<void> {
+    const res = await fetch(
+      `/api/trigger/agent/runs/${encodeURIComponent(runId)}/confirm`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tokenId, confirmed }),
+      }
+    );
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`Failed to confirm: ${text}`);
+    }
+  }
+
   async listThreads(): Promise<ThreadListResponse> {
     return apiClient.get<ThreadListResponse>('/agent/threads');
   }
