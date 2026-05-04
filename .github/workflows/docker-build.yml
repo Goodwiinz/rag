@@ -147,7 +147,7 @@ jobs:
           client-id: ${{ secrets.INFISICAL_CLIENT_ID }}
           client-secret: ${{ secrets.INFISICAL_CLIENT_SECRET }}
           domain: "https://app.infisical.com"
-          project-slug: "nous-platform"
+          project-slug: "nous-platform-pl-3-o"
           env-slug: ${{ steps.infisical-env.outputs.slug }}
           secret-path: "/frontend-build"
           export-type: "env"
