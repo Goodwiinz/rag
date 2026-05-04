@@ -391,6 +391,10 @@ class TestResumePersistence:
             "tool_executions": [],
         }
 
+        @asynccontextmanager
+        async def _mock_async_session():
+            yield db
+
         with (
             patch(
                 "src.services.agent.checkpointer.get_checkpointer",
@@ -404,13 +408,17 @@ class TestResumePersistence:
                 new_callable=AsyncMock,
                 return_value=("thread-1", "conv-1"),
             ) as mock_persist,
+            patch(
+                "src.api.agent.jobs.AsyncSessionLocal",
+                return_value=_mock_async_session(),
+            ),
         ):
             mock_graph = MagicMock()
             mock_graph.ainvoke = AsyncMock(return_value=mock_final_state)
             mock_graph.aget_state = AsyncMock(return_value=None)
             mock_compile.return_value = mock_graph
 
-            await _resume_agent_graph(job_id, True, user, db)
+            await _resume_agent_graph(job_id, True, user)
 
         # _persist_thread_messages should have been called
         mock_persist.assert_called_once()
@@ -454,6 +462,10 @@ class TestResumePersistence:
             "tool_executions": [],
         }
 
+        @asynccontextmanager
+        async def _mock_async_session():
+            yield db
+
         with (
             patch(
                 "src.services.agent.checkpointer.get_checkpointer",
@@ -467,13 +479,17 @@ class TestResumePersistence:
                 new_callable=AsyncMock,
                 return_value=("thread-1", "conv-1"),
             ),
+            patch(
+                "src.api.agent.jobs.AsyncSessionLocal",
+                return_value=_mock_async_session(),
+            ),
         ):
             mock_graph = MagicMock()
             mock_graph.ainvoke = AsyncMock(return_value=mock_final_state)
             mock_graph.aget_state = AsyncMock(return_value=None)
             mock_compile.return_value = mock_graph
 
-            await _resume_agent_graph(job_id, True, user, db)
+            await _resume_agent_graph(job_id, True, user)
 
         config = mock_graph.ainvoke.call_args.kwargs["config"]
         assert config["configurable"]["thread_id"] == thread_id
@@ -509,6 +525,10 @@ class TestResumePersistence:
             "tool_executions": [],
         }
 
+        @asynccontextmanager
+        async def _mock_async_session():
+            yield db
+
         with (
             patch(
                 "src.services.agent.checkpointer.get_checkpointer",
@@ -522,13 +542,17 @@ class TestResumePersistence:
                 new_callable=AsyncMock,
                 return_value=("thread-99", "conv-77"),
             ),
+            patch(
+                "src.api.agent.jobs.AsyncSessionLocal",
+                return_value=_mock_async_session(),
+            ),
         ):
             mock_graph = MagicMock()
             mock_graph.ainvoke = AsyncMock(return_value=mock_final_state)
             mock_graph.aget_state = AsyncMock(return_value=None)
             mock_compile.return_value = mock_graph
 
-            await _resume_agent_graph(job_id, True, user, db)
+            await _resume_agent_graph(job_id, True, user)
 
         job = _get_job(job_id)
         assert job["status"] == "completed"
