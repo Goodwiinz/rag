@@ -100,7 +100,7 @@ class SearchPerformanceMetrics:
     success_rate: float
     no_results_rate: float
     top_queries: List[Dict[str, Any]]
-    search_types: Dict[str, int]
+    search_types: List[Dict[str, Any]]
     errors: List[Dict[str, Any]]
 
 
@@ -404,7 +404,7 @@ class PerformanceDashboardService:
                     }
                     for q in top_queries
                 ],
-                search_types={st.search_type: st.count for st in search_types},
+                search_types=[{"type": st.search_type, "count": st.count} for st in search_types],
                 errors=[],
             )
 
