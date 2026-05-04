@@ -436,7 +436,7 @@ jobs:
 
           # Wait for infrastructure to be healthy (5 services: postgres, redis, neo4j, qdrant, gotrue)
           echo "Waiting for infrastructure services..."
-          timeout 180 bash -c 'until docker compose -p rag_system -f docker-compose.ci.yml ps | grep -E "(healthy)" | wc -l | grep -q "5"; do sleep 3; done'
+          timeout 300 bash -c 'until docker compose -p rag_system -f docker-compose.ci.yml ps | grep -E "(healthy)" | wc -l | grep -q "5"; do sleep 3; done'
       - name: Start application services
         run: |
           # Start backend with pre-built image
