@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Bell, Loader2 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -16,26 +16,18 @@ import { useAuthStore } from '@/stores/authStore';
 const isActive = (status: string) =>
   ['queued', 'running', 'retrying'].includes(status);
 
+const BASE_POLL_MS = 3000;
+const MAX_POLL_MS = 30000;
+
 export function GlobalJobCenter() {
   const [jobs, setJobs] = useState<ProcessingJobStatus[]>([]);
   const [loading, setLoading] = useState(false);
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const isAuthLoading = useAuthStore((state) => state.isLoading);
 
-  const fetchJobs = async () => {
-    try {
-      setLoading(true);
-      const response = await entityService.listProcessingJobs({
-        limit: 15,
-        offset: 0,
-      });
-      setJobs(response.jobs || []);
-    } catch {
-      // Keep silent for unauthenticated pages.
-    } finally {
-      setLoading(false);
-    }
-  };
+  const failureCountRef = useRef(0);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cancelledRef = useRef(false);
 
   useEffect(() => {
     if (isAuthLoading) {
@@ -48,9 +40,41 @@ export function GlobalJobCenter() {
       return;
     }
 
-    fetchJobs();
-    const interval = setInterval(fetchJobs, 3000);
-    return () => clearInterval(interval);
+    cancelledRef.current = false;
+    failureCountRef.current = 0;
+
+    const tick = async () => {
+      if (cancelledRef.current) return;
+      try {
+        setLoading(true);
+        const response = await entityService.listProcessingJobs({
+          limit: 15,
+          offset: 0,
+        });
+        if (cancelledRef.current) return;
+        setJobs(response.jobs || []);
+        failureCountRef.current = 0;
+      } catch {
+        // Silent: a chronic failure backs off below instead of spamming.
+        failureCountRef.current += 1;
+      } finally {
+        if (!cancelledRef.current) setLoading(false);
+      }
+      if (cancelledRef.current) return;
+      const delay = Math.min(
+        BASE_POLL_MS * 2 ** failureCountRef.current,
+        MAX_POLL_MS
+      );
+      timeoutRef.current = setTimeout(tick, delay);
+    };
+
+    tick();
+
+    return () => {
+      cancelledRef.current = true;
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+    };
   }, [isAuthenticated, isAuthLoading]);
 
   const activeJobs = useMemo(
