@@ -284,8 +284,13 @@ async def execute_agent(
 
 @router.get("/jobs/{job_id}", response_model=JobStatusResponse)
 async def get_job_status(job_id: str, current_user: User = Depends(get_current_user)):
-    """Poll for agent job status."""
+    """Poll for agent job status — checks L1 cache then Redis."""
+    # Try L1 first (fast path)
     job = _get_job(job_id)
+    # Fall back to Redis L2 (survives restarts)
+    if not job:
+        from src.services.agent.job_store import get_job as _get_job_async_local
+        job = await _get_job_async_local(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
     if job.get("user_id") and job["user_id"] != str(current_user.id):
