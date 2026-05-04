@@ -110,7 +110,7 @@ services:
     networks:
       - ci-network
     healthcheck:
-      test: ["CMD-SHELL", "wget -q --spider http://localhost:9999/health || exit 1"]
+      test: ["CMD-SHELL", "bash -c '</dev/tcp/localhost/9999'"]
       interval: 5s
       timeout: 3s
       retries: 20
