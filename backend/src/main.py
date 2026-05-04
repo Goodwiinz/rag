@@ -10,6 +10,7 @@ from contextlib import asynccontextmanager
 from typing import Optional
 
 import redis  # Added this line
+import sentry_sdk
 from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
@@ -142,6 +143,20 @@ async def lifespan(app: FastAPI):
     """Application lifespan events"""
     # Startup
     logger.info("Starting up Multimodal RAG System...")
+
+    # Initialize Sentry error tracking
+    sentry_dsn = os.getenv("SENTRY_DSN")
+    if sentry_dsn:
+        sentry_sdk.init(
+            dsn=sentry_dsn,
+            environment=os.getenv("SENTRY_ENVIRONMENT", os.getenv("ENVIRONMENT", "development")),
+            traces_sample_rate=float(os.getenv("SENTRY_TRACES_SAMPLE_RATE", "0.1")),
+            send_default_pii=False,
+        )
+        sentry_sdk.set_tag("service", "nous-backend")
+        logger.info("Sentry initialized for nous-backend in %s", os.getenv("SENTRY_ENVIRONMENT", "dev"))
+    else:
+        logger.info("SENTRY_DSN not set, Sentry disabled")
 
     # Create database tables only for local Docker Compose development.
     # Any deployed cluster (dev/staging/production) relies on Alembic migrations —
@@ -449,6 +464,12 @@ async def health_check():
         "environment": settings.ENVIRONMENT,
         "timestamp": time.time(),
     }
+
+
+@app.get("/api/v1/sentry-debug")
+async def sentry_debug():
+    """Deliberately raise an error to verify Sentry is capturing events."""
+    raise RuntimeError("Sentry test from nous-backend")
 
 
 # Root endpoint
