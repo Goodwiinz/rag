@@ -100,6 +100,24 @@ async def close_redis() -> None:
 # ---------------------------------------------------------------------------
 
 
+async def _write_to_redis_only(job_id: str, data: dict) -> None:
+    """Write *data* to Redis without touching the L1 cache.
+
+    Used by the sync ``_set_job`` wrapper whose caller has already
+    populated L1 directly.  Avoids a race where the fire-and-forget
+    background task overwrites a later L1 update from the main flow.
+    """
+    redis_client = await _get_redis()
+    if redis_client is not None:
+        try:
+            payload = _json.dumps(data, default=str)
+            await redis_client.setex(
+                f"{_JOB_KEY_PREFIX}{job_id}", _JOB_TTL_SECONDS, payload
+            )
+        except Exception:
+            logger.exception("Failed to write job %s to Redis", job_id)
+
+
 async def set_job(job_id: str, data: dict) -> None:
     """Persist a job to Redis (L2) + in-memory L1 cache (write-through)."""
     data["created_at"] = time.time()
