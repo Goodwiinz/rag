@@ -153,20 +153,6 @@ async def lifespan(app: FastAPI):
     # Startup
     logger.info("Starting up Multimodal RAG System...")
 
-    # Initialize Sentry error tracking
-    sentry_dsn = os.getenv("SENTRY_DSN")
-    if sentry_dsn:
-        sentry_sdk.init(
-            dsn=sentry_dsn,
-            environment=os.getenv("SENTRY_ENVIRONMENT", os.getenv("ENVIRONMENT", "development")),
-            traces_sample_rate=float(os.getenv("SENTRY_TRACES_SAMPLE_RATE", "0.1")),
-            send_default_pii=False,
-        )
-        sentry_sdk.set_tag("service", "nous-backend")
-        logger.info("Sentry initialized for nous-backend in %s", os.getenv("SENTRY_ENVIRONMENT", "dev"))
-    else:
-        logger.info("SENTRY_DSN not set, Sentry disabled")
-
     # Create database tables only for local Docker Compose development.
     # Any deployed cluster (dev/staging/production) relies on Alembic migrations —
     # running create_all there grabs session-mode pooler connections on every worker

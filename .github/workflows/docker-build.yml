@@ -93,6 +93,7 @@ jobs:
           build-args: |
             PYTHON_VERSION=3.11
             TORCH_CPU_ONLY=true
+            GIT_SHA=${{ needs.version.outputs.short_sha }}
           cache-from: type=s3,bucket=${{ env.SPACES_BUCKET }},region=${{ env.SPACES_REGION }},endpoint_url=${{ env.SPACES_ENDPOINT }},prefix=buildcache/backend/
           cache-to: type=s3,bucket=${{ env.SPACES_BUCKET }},region=${{ env.SPACES_REGION }},endpoint_url=${{ env.SPACES_ENDPOINT }},prefix=buildcache/backend/,mode=max
         env:
@@ -179,6 +180,7 @@ jobs:
             NEXT_PUBLIC_APP_ENV=${{ env.NEXT_PUBLIC_APP_ENV }}
             SENTRY_ORG=${{ env.SENTRY_ORG }}
             SENTRY_PROJECT=${{ env.SENTRY_PROJECT }}
+            NEXT_PUBLIC_GIT_SHA=${{ needs.version.outputs.short_sha }}
           secrets: |
             sentry_auth_token=${{ env.SENTRY_AUTH_TOKEN }}
           cache-from: type=s3,bucket=${{ env.SPACES_BUCKET }},region=${{ env.SPACES_REGION }},endpoint_url=${{ env.SPACES_ENDPOINT }},prefix=buildcache/frontend/

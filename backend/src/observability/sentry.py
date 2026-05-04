@@ -17,6 +17,7 @@ from sentry_sdk.integrations.fastapi import FastApiIntegration
 from sentry_sdk.integrations.logging import LoggingIntegration
 from sentry_sdk.integrations.redis import RedisIntegration
 from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
+from sentry_sdk.integrations.httpx import HttpxIntegration
 from sentry_sdk.integrations.starlette import StarletteIntegration
 
 logger = logging.getLogger(__name__)
@@ -93,6 +94,7 @@ def init_sentry() -> bool:
             SqlalchemyIntegration(),
             RedisIntegration(),
             AsyncioIntegration(),
+            HttpxIntegration(),
             LoggingIntegration(level=logging.INFO, event_level=logging.ERROR),
         ],
     )

@@ -80,6 +80,9 @@ RUN \
 # Stage 3: Build with minimal dependencies
 FROM base AS production
 
+ARG GIT_SHA=unknown
+ENV GIT_SHA=$GIT_SHA
+
 # Copy Python dependencies
 COPY --from=dependencies /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
 COPY --from=dependencies /usr/local/bin /usr/local/bin
