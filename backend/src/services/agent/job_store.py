@@ -16,6 +16,8 @@ from collections import OrderedDict
 from threading import Lock
 from typing import Any, Optional
 
+from src.core.config import get_settings
+
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
