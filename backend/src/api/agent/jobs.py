@@ -37,6 +37,7 @@ logger = logging.getLogger(__name__)
 from src.services.agent.job_store import _l1 as _jobs
 from src.services.agent.job_store import _l1_lock as _jobs_lock
 from src.services.agent.job_store import set_job as _set_job_async
+from src.services.agent.job_store import set_job_redis_only as _set_job_redis_only
 from src.services.agent.job_store import get_job as _get_job_async
 from src.services.agent.job_store import delete_job as _delete_job_async
 
@@ -54,7 +55,11 @@ def _maybe_cleanup_jobs():
 
 
 def _set_job(job_id: str, data: dict):
-    """Persist a job — writes L1 immediately, then Redis via fire-and-forget."""
+    """Persist a job — writes L1 immediately, then Redis via fire-and-forget.
+
+    The bg task only writes Redis (not L1) so a delayed completion cannot
+    overwrite a newer L1 state written between the schedule and run.
+    """
     import asyncio as _asyncio
 
     data["created_at"] = time.time()
@@ -63,10 +68,7 @@ def _set_job(job_id: str, data: dict):
 
     try:
         loop = _asyncio.get_running_loop()
-        # Fire-and-forget Redis write — the job is already in L1 so readers
-        # see it immediately.  ``_set_job_async`` will also refresh L1
-        # (same dict) when it completes.
-        loop.create_task(_set_job_async(job_id, data))
+        loop.create_task(_set_job_redis_only(job_id, data))
     except RuntimeError:
         pass
 
