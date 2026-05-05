@@ -17,8 +17,6 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from src.core.db_retry import retry_on_pool_exhaustion
-
 # Import base model from models
 from src.models.base import Base
 from src.models.organization import Organization, StorageTier
@@ -147,7 +145,6 @@ AsyncSessionLocal = async_sessionmaker(
 )
 
 
-@retry_on_pool_exhaustion(max_retries=3, base_delay=0.5)
 def get_db_sync() -> Session:
     """Get database session (synchronous)"""
     db = SessionLocal()
@@ -157,7 +154,6 @@ def get_db_sync() -> Session:
         db.close()
 
 
-@retry_on_pool_exhaustion(max_retries=3, base_delay=0.5)
 async def get_db(request: Request) -> AsyncSession:
     """Get database session (asynchronous). Reuses middleware session if available."""
     existing = getattr(request.state, "db", None)
