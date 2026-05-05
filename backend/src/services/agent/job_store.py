@@ -14,11 +14,7 @@ import logging
 import time
 from collections import OrderedDict
 from threading import Lock
-from typing import Optional
-
-import redis.asyncio as aioredis
-
-from src.core.config import get_settings
+from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -69,8 +65,15 @@ def _l1_maybe_cleanup() -> None:
 _redis: Optional[aioredis.Redis] = None
 
 
-async def _get_redis() -> Optional[aioredis.Redis]:
-    """Return the shared Redis client, creating it on first call."""
+async def _get_redis() -> Optional[Any]:  # noqa: ANN401
+    """Return the shared Redis client, creating it on first call.
+
+    Imports ``redis.asyncio`` lazily so its module-level setup
+    (event-loop hooks, connection-factory registration) cannot
+    interfere with other async libraries during application startup.
+    """
+    import redis.asyncio as aioredis
+
     global _redis
     if _redis is not None:
         return _redis
