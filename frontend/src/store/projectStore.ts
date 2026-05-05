@@ -95,7 +95,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         total: response.total,
         loading: false,
       });
-    } catch (error: any) {
+    } catch (error) {
       // Aborted requests (e.g., workspace switched or component unmounted
       // before the previous fetch settled) must still clear `loading` — the
       // common case is that a superseding fetch has already set it back to
@@ -118,7 +118,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     try {
       const project = await projectService.getProject(projectId);
       set({ currentProject: project, loading: false });
-    } catch (error: any) {
+    } catch (error) {
       console.error('[ProjectStore] Failed to fetch project:', error);
       set({
         error: error?.message || 'Failed to fetch project',
@@ -137,7 +137,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         loading: false,
       }));
       return project;
-    } catch (error: any) {
+    } catch (error) {
       console.error('[ProjectStore] Failed to create project:', error);
       set({
         error: error?.message || 'Failed to create project',
@@ -156,7 +156,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         currentProject: state.currentProject?.id === projectId ? updated : state.currentProject,
         loading: false,
       }));
-    } catch (error: any) {
+    } catch (error) {
       console.error('[ProjectStore] Failed to update project:', error);
       set({
         error: error?.message || 'Failed to update project',
@@ -176,7 +176,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         total: state.total - 1,
         loading: false,
       }));
-    } catch (error: any) {
+    } catch (error) {
       console.error('[ProjectStore] Failed to delete project:', error);
       set({
         error: error?.message || 'Failed to delete project',
@@ -202,7 +202,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         projectDocuments: response.documents,
         documentsLoading: false,
       });
-    } catch (error: any) {
+    } catch (error) {
       console.error('[ProjectStore] Failed to fetch documents:', error);
       set({
         error: error?.message || 'Failed to fetch documents',
@@ -219,7 +219,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         projectDocuments: [...state.projectDocuments, doc],
         documentsLoading: false,
       }));
-    } catch (error: any) {
+    } catch (error) {
       console.error('[ProjectStore] Failed to add document:', error);
       set({
         error: error?.message || 'Failed to add document',
@@ -237,7 +237,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         projectDocuments: state.projectDocuments.filter((d) => d.document_id !== documentId),
         documentsLoading: false,
       }));
-    } catch (error: any) {
+    } catch (error) {
       console.error('[ProjectStore] Failed to remove document:', error);
       set({
         error: error?.message || 'Failed to remove document',
@@ -261,7 +261,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         projectNotes: response.notes,
         notesLoading: false,
       });
-    } catch (error: any) {
+    } catch (error) {
       console.error('[ProjectStore] Failed to fetch notes:', error);
       set({
         error: error?.message || 'Failed to fetch notes',
@@ -279,7 +279,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         notesLoading: false,
       }));
       return note;
-    } catch (error: any) {
+    } catch (error) {
       console.error('[ProjectStore] Failed to create note:', error);
       set({
         error: error?.message || 'Failed to create note',
@@ -297,7 +297,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         projectNotes: state.projectNotes.map((n) => (n.id === noteId ? updated : n)),
         notesLoading: false,
       }));
-    } catch (error: any) {
+    } catch (error) {
       console.error('[ProjectStore] Failed to update note:', error);
       set({
         error: error?.message || 'Failed to update note',
@@ -315,7 +315,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         projectNotes: state.projectNotes.filter((n) => n.id !== noteId),
         notesLoading: false,
       }));
-    } catch (error: any) {
+    } catch (error) {
       console.error('[ProjectStore] Failed to delete note:', error);
       set({
         error: error?.message || 'Failed to delete note',
@@ -331,7 +331,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       set((state) => ({
         projectNotes: state.projectNotes.map((n) => (n.id === noteId ? updated : n)),
       }));
-    } catch (error: any) {
+    } catch (error) {
       console.error('[ProjectStore] Failed to toggle pin:', error);
       set({
         error: error?.message || 'Failed to toggle pin',
@@ -349,7 +349,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     try {
       const bibliography = await projectService.getProjectBibliography(projectId, format);
       set({ bibliography, loading: false });
-    } catch (error: any) {
+    } catch (error) {
       console.error('[ProjectStore] Failed to fetch bibliography:', error);
       set({
         error: error?.message || 'Failed to fetch bibliography',
@@ -361,7 +361,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   downloadBibliography: async (projectId, format = 'bibtex') => {
     try {
       await projectService.downloadBibliography(projectId, format);
-    } catch (error: any) {
+    } catch (error) {
       console.error('[ProjectStore] Failed to download bibliography:', error);
       set({
         error: error?.message || 'Failed to download bibliography',

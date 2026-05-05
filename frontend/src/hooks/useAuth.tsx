@@ -5,6 +5,7 @@ import React, {
   createContext,
   useContext,
   useCallback,
+  useMemo,
   ReactNode,
 } from 'react';
 import { User, Organization, RegisterRequest, RegisterResult } from '@/types';
@@ -48,24 +49,29 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     store.signOut();
   }, [store]);
 
-  const contextValue: AuthContextType = {
-    user: store.user,
-    organization: store.organization,
-    isAuthenticated: store.isAuthenticated,
-    isLoading: store.isLoading,
-    error: store.error,
-    pendingEmailConfirmation: store.pendingEmailConfirmation,
-    signIn: store.signIn,
-    signUp: store.signUp,
-    signOut: store.signOut,
-    resetPassword: store.resetPassword,
-    fetchProfile: store.fetchProfile,
-    handleAuthError,
-    // Legacy aliases
-    login: store.signIn,
-    register: store.signUp,
-    logout: store.signOut,
-  };
+  const contextValue: AuthContextType = useMemo(
+    () => ({
+      user: store.user,
+      organization: store.organization,
+      isAuthenticated: store.isAuthenticated,
+      isLoading: store.isLoading,
+      error: store.error,
+      pendingEmailConfirmation: store.pendingEmailConfirmation,
+      signIn: store.signIn,
+      signUp: store.signUp,
+      signOut: store.signOut,
+      resetPassword: store.resetPassword,
+      fetchProfile: store.fetchProfile,
+      handleAuthError,
+      // Legacy aliases
+      login: store.signIn,
+      register: store.signUp,
+      logout: store.signOut,
+    }),
+    // store actions are stable references; only primitives change
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [store.user, store.organization, store.isAuthenticated, store.isLoading, store.error, store.pendingEmailConfirmation, handleAuthError]
+  );
 
   return React.createElement(
     AuthContext.Provider,

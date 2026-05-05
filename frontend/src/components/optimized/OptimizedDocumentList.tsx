@@ -101,9 +101,10 @@ const VirtualizedDocumentList = memo<{
     [documents, selectedId, onSelect, onStatusChange]
   );
 
-  // Handle scroll events with throttling
-  const handleScroll = useCallback(
-    throttle((e: React.UIEvent<HTMLDivElement>) => {
+  // Handle scroll events with throttling — ref stores instance so we can cancel on dep changes
+  const throttleRef = useRef<ReturnType<typeof throttle>>();
+  useEffect(() => {
+    throttleRef.current = throttle((e: React.UIEvent<HTMLDivElement>) => {
       const element = e.currentTarget;
       setScrollPosition(element.scrollTop);
 
@@ -115,8 +116,17 @@ const VirtualizedDocumentList = memo<{
       ) {
         onLoadMore();
       }
-    }, THROTTLE_DELAY),
-    [hasMore, isLoading, onLoadMore]
+    }, THROTTLE_DELAY);
+    return () => {
+      throttleRef.current?.cancel();
+    };
+  }, [hasMore, isLoading, onLoadMore]);
+
+  const handleScroll = useCallback(
+    (e: React.UIEvent<HTMLDivElement>) => {
+      throttleRef.current?.(e);
+    },
+    []
   );
 
   // Render item function
@@ -181,13 +191,16 @@ export const OptimizedDocumentList: React.FC<OptimizedDocumentListProps> = ({
   const [selectedId, setSelectedId] = useState<string>();
   const { subscribe, unsubscribe, isConnected } = useWebSocketConnection();
 
-  // Optimized search with debouncing
-  const debouncedFilters = useMemo(
-    () => debounce((searchTerm: string) => {
-      queryClient.invalidateQueries(['documents', organizationId]);
-    }, DEBOUNCE_DELAY),
-    [queryClient, organizationId]
-  );
+  // Optimized search with debouncing — ref stores instance so we can flush/cancel on dep changes
+  const debounceRef = useRef<ReturnType<typeof debounce>>();
+  useEffect(() => {
+    debounceRef.current = debounce((searchTerm: string) => {
+      queryClient.invalidateQueries({ queryKey: ['documents', organizationId] });
+    }, DEBOUNCE_DELAY);
+    return () => {
+      debounceRef.current?.cancel();
+    };
+  }, [queryClient, organizationId]);
 
   // Infinite query for documents with performance monitoring
   const {
@@ -331,9 +344,9 @@ export const OptimizedDocumentList: React.FC<OptimizedDocumentListProps> = ({
   // Handle search input with debouncing
   const handleSearchChange = useCallback(
     (searchTerm: string) => {
-      debouncedFilters(searchTerm);
+      debounceRef.current?.(searchTerm);
     },
-    [debouncedFilters]
+    []
   );
 
   // Memoized load more function
