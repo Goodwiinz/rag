@@ -5,6 +5,7 @@ Combines dense vector search (Azure OpenAI embeddings) with sparse BM25 vectors
 for improved retrieval precision. Uses Reciprocal Rank Fusion (RRF) to merge results.
 """
 
+import asyncio
 import logging
 import time
 from dataclasses import dataclass
@@ -58,7 +59,7 @@ class HybridVectorSearchService:
             headers["api-key"] = self.qdrant_api_key
         return headers
 
-    def search_dense(
+    async def search_dense(
         self,
         collection_name: str,
         query_vector: List[float],
@@ -86,8 +87,13 @@ class HybridVectorSearchService:
             payload["filter"] = filters
 
         try:
-            response = requests.post(
-                url, json=payload, headers=self._get_headers(), timeout=10
+            # Offload blocking HTTP call to a thread to avoid blocking the async event loop
+            response = await asyncio.to_thread(
+                requests.post,
+                url,
+                json=payload,
+                headers=self._get_headers(),
+                timeout=10,
             )
             response.raise_for_status()
             results = response.json().get("result", [])
@@ -165,7 +171,7 @@ class HybridVectorSearchService:
 
         return [(doc_id, score, doc_payloads[doc_id]) for doc_id, score in sorted_docs]
 
-    def hybrid_search(
+    async def hybrid_search(
         self,
         query: str,
         collection: VectorCollectionType,
@@ -219,7 +225,7 @@ class HybridVectorSearchService:
 
             # Perform dense search (get more than limit for fusion)
             dense_limit = config.limit * 2
-            dense_results = self.search_dense(
+            dense_results = await self.search_dense(
                 collection_name=collection_name,
                 query_vector=query_embedding,
                 limit=dense_limit,
