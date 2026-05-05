@@ -16,6 +16,16 @@ import type {
   ProjectBibliography,
 } from '@/services/projectService';
 
+function getErrorMessage(error: unknown, fallback: string): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  if (typeof error === 'string') {
+    return error;
+  }
+  return fallback;
+}
+
 interface ProjectState {
   // State
   projects: Project[];
@@ -55,14 +65,27 @@ interface ProjectState {
 
   // Note Actions
   fetchProjectNotes: (projectId: string, pinnedOnly?: boolean) => Promise<void>;
-  createNote: (projectId: string, data: ProjectNoteCreate) => Promise<ProjectNote>;
-  updateNote: (projectId: string, noteId: string, data: ProjectNoteUpdate) => Promise<void>;
+  createNote: (
+    projectId: string,
+    data: ProjectNoteCreate
+  ) => Promise<ProjectNote>;
+  updateNote: (
+    projectId: string,
+    noteId: string,
+    data: ProjectNoteUpdate
+  ) => Promise<void>;
   deleteNote: (projectId: string, noteId: string) => Promise<void>;
   toggleNotePin: (projectId: string, noteId: string) => Promise<void>;
 
   // Bibliography Actions
-  fetchBibliography: (projectId: string, format?: 'bibtex' | 'ieee' | 'apa' | 'mla') => Promise<void>;
-  downloadBibliography: (projectId: string, format?: 'bibtex' | 'ieee' | 'apa' | 'mla') => Promise<void>;
+  fetchBibliography: (
+    projectId: string,
+    format?: 'bibtex' | 'ieee' | 'apa' | 'mla'
+  ) => Promise<void>;
+  downloadBibliography: (
+    projectId: string,
+    format?: 'bibtex' | 'ieee' | 'apa' | 'mla'
+  ) => Promise<void>;
 
   // Utility
   clearError: () => void;
@@ -95,19 +118,22 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         total: response.total,
         loading: false,
       });
-    } catch (error) {
+    } catch (error: unknown) {
       // Aborted requests (e.g., workspace switched or component unmounted
       // before the previous fetch settled) must still clear `loading` — the
       // common case is that a superseding fetch has already set it back to
       // true, but on unmount nothing replaces us and the spinner would
       // otherwise stick in the global store until the next visit.
-      if (axios.isCancel(error) || error?.name === 'CanceledError') {
+      if (
+        axios.isCancel(error) ||
+        (error instanceof Error && error.name === 'CanceledError')
+      ) {
         set({ loading: false });
         return;
       }
       console.error('[ProjectStore] Failed to fetch projects:', error);
       set({
-        error: error?.message || 'Failed to fetch projects',
+        error: getErrorMessage(error, 'Failed to fetch projects'),
         loading: false,
       });
     }
@@ -118,10 +144,10 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     try {
       const project = await projectService.getProject(projectId);
       set({ currentProject: project, loading: false });
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('[ProjectStore] Failed to fetch project:', error);
       set({
-        error: error?.message || 'Failed to fetch project',
+        error: getErrorMessage(error, 'Failed to fetch project'),
         loading: false,
       });
     }
@@ -137,10 +163,10 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         loading: false,
       }));
       return project;
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('[ProjectStore] Failed to create project:', error);
       set({
-        error: error?.message || 'Failed to create project',
+        error: getErrorMessage(error, 'Failed to create project'),
         loading: false,
       });
       throw error;
@@ -153,13 +179,16 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       const updated = await projectService.updateProject(projectId, data);
       set((state) => ({
         projects: state.projects.map((p) => (p.id === projectId ? updated : p)),
-        currentProject: state.currentProject?.id === projectId ? updated : state.currentProject,
+        currentProject:
+          state.currentProject?.id === projectId
+            ? updated
+            : state.currentProject,
         loading: false,
       }));
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('[ProjectStore] Failed to update project:', error);
       set({
-        error: error?.message || 'Failed to update project',
+        error: getErrorMessage(error, 'Failed to update project'),
         loading: false,
       });
       throw error;
@@ -172,14 +201,15 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       await projectService.deleteProject(projectId);
       set((state) => ({
         projects: state.projects.filter((p) => p.id !== projectId),
-        currentProject: state.currentProject?.id === projectId ? null : state.currentProject,
+        currentProject:
+          state.currentProject?.id === projectId ? null : state.currentProject,
         total: state.total - 1,
         loading: false,
       }));
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('[ProjectStore] Failed to delete project:', error);
       set({
-        error: error?.message || 'Failed to delete project',
+        error: getErrorMessage(error, 'Failed to delete project'),
         loading: false,
       });
       throw error;
@@ -202,10 +232,10 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         projectDocuments: response.documents,
         documentsLoading: false,
       });
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('[ProjectStore] Failed to fetch documents:', error);
       set({
-        error: error?.message || 'Failed to fetch documents',
+        error: getErrorMessage(error, 'Failed to fetch documents'),
         documentsLoading: false,
       });
     }
@@ -214,15 +244,18 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   addDocument: async (projectId, documentId) => {
     set({ documentsLoading: true, error: null });
     try {
-      const doc = await projectService.addDocumentToProject(projectId, documentId);
+      const doc = await projectService.addDocumentToProject(
+        projectId,
+        documentId
+      );
       set((state) => ({
         projectDocuments: [...state.projectDocuments, doc],
         documentsLoading: false,
       }));
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('[ProjectStore] Failed to add document:', error);
       set({
-        error: error?.message || 'Failed to add document',
+        error: getErrorMessage(error, 'Failed to add document'),
         documentsLoading: false,
       });
       throw error;
@@ -234,13 +267,15 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     try {
       await projectService.removeDocumentFromProject(projectId, documentId);
       set((state) => ({
-        projectDocuments: state.projectDocuments.filter((d) => d.document_id !== documentId),
+        projectDocuments: state.projectDocuments.filter(
+          (d) => d.document_id !== documentId
+        ),
         documentsLoading: false,
       }));
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('[ProjectStore] Failed to remove document:', error);
       set({
-        error: error?.message || 'Failed to remove document',
+        error: getErrorMessage(error, 'Failed to remove document'),
         documentsLoading: false,
       });
       throw error;
@@ -261,10 +296,10 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         projectNotes: response.notes,
         notesLoading: false,
       });
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('[ProjectStore] Failed to fetch notes:', error);
       set({
-        error: error?.message || 'Failed to fetch notes',
+        error: getErrorMessage(error, 'Failed to fetch notes'),
         notesLoading: false,
       });
     }
@@ -279,10 +314,10 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         notesLoading: false,
       }));
       return note;
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('[ProjectStore] Failed to create note:', error);
       set({
-        error: error?.message || 'Failed to create note',
+        error: getErrorMessage(error, 'Failed to create note'),
         notesLoading: false,
       });
       throw error;
@@ -294,13 +329,15 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     try {
       const updated = await projectService.updateNote(projectId, noteId, data);
       set((state) => ({
-        projectNotes: state.projectNotes.map((n) => (n.id === noteId ? updated : n)),
+        projectNotes: state.projectNotes.map((n) =>
+          n.id === noteId ? updated : n
+        ),
         notesLoading: false,
       }));
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('[ProjectStore] Failed to update note:', error);
       set({
-        error: error?.message || 'Failed to update note',
+        error: getErrorMessage(error, 'Failed to update note'),
         notesLoading: false,
       });
       throw error;
@@ -315,10 +352,10 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         projectNotes: state.projectNotes.filter((n) => n.id !== noteId),
         notesLoading: false,
       }));
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('[ProjectStore] Failed to delete note:', error);
       set({
-        error: error?.message || 'Failed to delete note',
+        error: getErrorMessage(error, 'Failed to delete note'),
         notesLoading: false,
       });
       throw error;
@@ -329,12 +366,14 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     try {
       const updated = await projectService.toggleNotePin(projectId, noteId);
       set((state) => ({
-        projectNotes: state.projectNotes.map((n) => (n.id === noteId ? updated : n)),
+        projectNotes: state.projectNotes.map((n) =>
+          n.id === noteId ? updated : n
+        ),
       }));
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('[ProjectStore] Failed to toggle pin:', error);
       set({
-        error: error?.message || 'Failed to toggle pin',
+        error: getErrorMessage(error, 'Failed to toggle pin'),
       });
       throw error;
     }
@@ -347,12 +386,15 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   fetchBibliography: async (projectId, format = 'bibtex') => {
     set({ loading: true, error: null });
     try {
-      const bibliography = await projectService.getProjectBibliography(projectId, format);
+      const bibliography = await projectService.getProjectBibliography(
+        projectId,
+        format
+      );
       set({ bibliography, loading: false });
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('[ProjectStore] Failed to fetch bibliography:', error);
       set({
-        error: error?.message || 'Failed to fetch bibliography',
+        error: getErrorMessage(error, 'Failed to fetch bibliography'),
         loading: false,
       });
     }
@@ -361,10 +403,10 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   downloadBibliography: async (projectId, format = 'bibtex') => {
     try {
       await projectService.downloadBibliography(projectId, format);
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('[ProjectStore] Failed to download bibliography:', error);
       set({
-        error: error?.message || 'Failed to download bibliography',
+        error: getErrorMessage(error, 'Failed to download bibliography'),
       });
       throw error;
     }
