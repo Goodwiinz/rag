@@ -38,9 +38,10 @@ export const useWebSocketConnection = ({
   onError,
 }: UseWebSocketConnectionProps) => {
   const wsRef = useRef<WebSocket | null>(null);
-  const heartbeatTimeoutRef = useRef<NodeJS.Timeout>();
-  const connectionTimeoutRef = useRef<NodeJS.Timeout>();
-  const reconnectTimeoutRef = useRef<NodeJS.Timeout>();
+  const heartbeatTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
+  const heartbeatIntervalRef = useRef<ReturnType<typeof setInterval>>();
+  const connectionTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
+  const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
   const lastPingRef = useRef<number>(0);
 
   const {
@@ -56,10 +57,14 @@ export const useWebSocketConnection = ({
     addNotification,
   } = useRealtimeProcessingStore();
 
-  // Clear all timeouts
+  // Clear all timers (timeouts + intervals)
   const clearTimeouts = useCallback(() => {
     if (heartbeatTimeoutRef.current) {
       clearTimeout(heartbeatTimeoutRef.current);
+    }
+    if (heartbeatIntervalRef.current) {
+      clearInterval(heartbeatIntervalRef.current);
+      heartbeatIntervalRef.current = undefined;
     }
     if (connectionTimeoutRef.current) {
       clearTimeout(connectionTimeoutRef.current);
@@ -169,12 +174,17 @@ export const useWebSocketConnection = ({
   // Start heartbeat interval
   const startHeartbeat = useCallback(() => {
     if (enableHeartbeat && wsRef.current?.readyState === WebSocket.OPEN) {
+      // Clear any existing heartbeat interval to prevent leaks on reconnect
+      if (heartbeatIntervalRef.current) {
+        clearInterval(heartbeatIntervalRef.current);
+      }
+
       // Send initial ping
       sendPing();
 
-      // Set up interval
-      const interval = setInterval(sendPing, heartbeatInterval);
-      heartbeatTimeoutRef.current = interval as any;
+      // Set up interval in a separate ref so it can be cleared independently
+      // of the pong timeout stored in heartbeatTimeoutRef
+      heartbeatIntervalRef.current = setInterval(sendPing, heartbeatInterval);
     }
   }, [enableHeartbeat, heartbeatInterval, sendPing]);
 

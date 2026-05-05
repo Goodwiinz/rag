@@ -140,7 +140,7 @@ const VirtualizedDocumentList = memo<{
     >
       <List
         ref={listRef}
-        height={window.innerHeight - 200} // Adjust for header/pagination
+        height={typeof window !== 'undefined' ? window.innerHeight - 200 : 600}
         itemCount={documents.length}
         itemSize={ITEM_HEIGHT}
         itemData={itemData}

@@ -507,7 +507,8 @@ class PostgreSQLConnectionPool(BaseConnectionPool):
         try:
             await connection.fetchval("SELECT 1")
             return True
-        except:
+        except Exception:
+            logger.warning("PostgreSQL connection ping failed", exc_info=True)
             return False
 
 
@@ -540,7 +541,8 @@ class Neo4jConnectionPool(BaseConnectionPool):
             result = await connection.run("RETURN 1")
             await result.single()
             return True
-        except:
+        except Exception:
+            logger.warning("Neo4j connection ping failed", exc_info=True)
             return False
 
 

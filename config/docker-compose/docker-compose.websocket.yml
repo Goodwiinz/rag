@@ -42,10 +42,10 @@ services:
       - REDIS_HEALTH_CHECK_INTERVAL=30
 
       # Database Configuration
-      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/multimodal_rag_dev
+      - DATABASE_URL=${DATABASE_URL:-postgresql://postgres:postgres@}postgres:5432/multimodal_rag_dev
       - NEO4J_URI=bolt://neo4j:7687
       - NEO4J_USER=neo4j
-      - NEO4J_PASSWORD=neo4jpassword
+      - NEO4J_PASSWORD=${NEO4J_PASSWORD}
       - QDRANT_URL=http://qdrant:6333
 
       # Application Configuration
@@ -118,10 +118,10 @@ services:
       - REDIS_HEALTH_CHECK_INTERVAL=30
 
       # Database Configuration
-      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/multimodal_rag_dev
+      - DATABASE_URL=${DATABASE_URL:-postgresql://postgres:postgres@}postgres:5432/multimodal_rag_dev
       - NEO4J_URI=bolt://neo4j:7687
       - NEO4J_USER=neo4j
-      - NEO4J_PASSWORD=neo4jpassword
+      - NEO4J_PASSWORD=${NEO4J_PASSWORD}
       - QDRANT_URL=http://qdrant:6333
 
       # Application Configuration
@@ -227,11 +227,11 @@ services:
       --max-concurrent-jobs=5
       --queue-name=document_processing
     environment:
-      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/multimodal_rag_dev
+      - DATABASE_URL=${DATABASE_URL:-postgresql://postgres:postgres@}postgres:5432/multimodal_rag_dev
       - REDIS_URL=redis://redis-cluster:6379/0
       - NEO4J_URI=bolt://neo4j:7687
       - NEO4J_USER=neo4j
-      - NEO4J_PASSWORD=neo4jpassword
+      - NEO4J_PASSWORD=${NEO4J_PASSWORD}
       - QDRANT_URL=http://qdrant:6333
       - SECRET_KEY=${SECRET_KEY:-dev-secret-key-change-in-production}
       - ENVIRONMENT=development
@@ -273,11 +273,11 @@ services:
       --max-concurrent-jobs=5
       --queue-name=document_processing
     environment:
-      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/multimodal_rag_dev
+      - DATABASE_URL=${DATABASE_URL:-postgresql://postgres:postgres@}postgres:5432/multimodal_rag_dev
       - REDIS_URL=redis://redis-cluster:6379/0
       - NEO4J_URI=bolt://neo4j:7687
       - NEO4J_USER=neo4j
-      - NEO4J_PASSWORD=neo4jpassword
+      - NEO4J_PASSWORD=${NEO4J_PASSWORD}
       - QDRANT_URL=http://qdrant:6333
       - SECRET_KEY=${SECRET_KEY:-dev-secret-key-change-in-production}
       - ENVIRONMENT=development
@@ -333,7 +333,7 @@ services:
     ports:
       - "3001:3000"
     environment:
-      - GF_SECURITY_ADMIN_PASSWORD=admin123
+      - GF_SECURITY_ADMIN_PASSWORD=${GF_SECURITY_ADMIN_PASSWORD}
       - GF_USERS_ALLOW_SIGN_UP=false
     volumes:
       - grafana_data:/var/lib/grafana

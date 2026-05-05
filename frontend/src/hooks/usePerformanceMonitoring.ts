@@ -10,11 +10,16 @@ import { loggingService } from '@/services/loggingService';
 // Hook for measuring component render performance
 export const useRenderPerformance = (componentName: string) => {
   const renderCount = useRef(0);
-  const renderStartTime = useRef<number>(performance.now());
+  const renderStartTime = useRef<number>(0);
+
+  useEffect(() => {
+    // Set start time on mount to avoid SSR crash (performance is undefined in Node)
+    renderStartTime.current = typeof performance !== 'undefined' ? performance.now() : Date.now();
+  }, []);
 
   useEffect(() => {
     // Measure render time
-    const renderEndTime = performance.now();
+    const renderEndTime = typeof performance !== 'undefined' ? performance.now() : Date.now();
     const renderDuration = renderEndTime - renderStartTime.current;
 
     renderCount.current++;
