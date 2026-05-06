@@ -36,14 +36,17 @@ except Exception:
 try:
     from src.core.config import settings
 
-    HMAC_SECRET = (
-        settings.SECRET_KEY.encode()
-        if hasattr(settings, "SECRET_KEY")
-        else b"default-insecure-key-change-in-production"
-    )
-except ImportError:
-    logger.warning("Could not import settings, using default HMAC key (INSECURE)")
-    HMAC_SECRET = b"default-insecure-key-change-in-production"
+    if not settings.SECRET_KEY:
+        raise RuntimeError(
+            "SECRET_KEY is empty — cannot initialise HMAC cache signing. "
+            "Set SECRET_KEY in environment or check config.py validator."
+        )
+    HMAC_SECRET: bytes = settings.SECRET_KEY.encode()
+except ImportError as exc:
+    raise RuntimeError(
+        "Cannot import settings to derive HMAC key. "
+        "Ensure src.core.config is importable."
+    ) from exc
 
 T = TypeVar("T")
 
