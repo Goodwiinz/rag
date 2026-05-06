@@ -242,6 +242,9 @@ class Settings(BaseSettings):
     AZURE_OPENAI_CHAT_API_KEY: Optional[str] = None
     AZURE_OPENAI_EMBEDDING_API_KEY: Optional[str] = None
 
+    # Lightweight model for auxiliary agent tasks (classifier, compactor, etc.)
+    AZURE_OPENAI_LIGHTWEIGHT_DEPLOYMENT: Optional[str] = None
+
     # Azure AI Cohere Reranking Configuration
     COHERE_RERANK_ENDPOINT: Optional[str] = None
     COHERE_RERANK_API_KEY: Optional[str] = None

@@ -111,7 +111,7 @@ class TestGeneratePlan:
         mock_llm = _mock_llm_structured(expected_plan)
 
         with patch(
-            "src.services.agent.planner._build_planner_llm", return_value=mock_llm
+            "src.services.agent.graph._build_llm", return_value=mock_llm
         ):
             result = await generate_plan(
                 "Find transformer papers, ingest them, create a summary note",
@@ -196,23 +196,18 @@ class TestPlannerNode:
             reasoning="Multi-step research workflow",
         )
 
-        # First call returns complexity check (step_count >= 3)
         mock_llm_complexity = _mock_llm_structured(ComplexityCheck(step_count=5))
-        # Second call returns the plan
         mock_llm_plan = _mock_llm_structured(expected_plan)
 
-        call_count = 0
-
-        def mock_build_llm(model="gpt-4o-mini"):
-            nonlocal call_count
-            call_count += 1
-            if call_count == 1:
-                return mock_llm_complexity
-            return mock_llm_plan
-
-        with patch(
-            "src.services.agent.planner._build_planner_llm",
-            side_effect=mock_build_llm,
+        with (
+            patch(
+                "src.services.agent.planner._build_planner_llm",
+                return_value=mock_llm_complexity,
+            ),
+            patch(
+                "src.services.agent.graph._build_llm",
+                return_value=mock_llm_plan,
+            ),
         ):
             node_fn = make_planner_node(TOOL_NAMES)
 

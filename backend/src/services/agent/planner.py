@@ -12,8 +12,7 @@ from langchain_core.messages import HumanMessage
 from langchain_core.runnables import RunnableConfig
 from pydantic import BaseModel
 
-from src.core.config import get_settings
-from src.core.openai_endpoint import classify_openai_endpoint
+from src.services.agent.llm_factory import build_lightweight_llm
 
 logger = logging.getLogger(__name__)
 
@@ -51,53 +50,9 @@ class AgentPlan(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-def _build_planner_llm(model: str = "gpt-4o-mini"):
-    """Build a LangChain chat model for the planner.
-
-    Same pattern as ``graph.py._build_llm()`` but accepts a configurable
-    model name and uses temperature=0 for deterministic output.
-    """
-    settings = get_settings()
-
-    endpoint = (
-        settings.AZURE_OPENAI_CHAT_ENDPOINT or settings.AZURE_OPENAI_ENDPOINT or ""
-    )
-    api_key = (
-        settings.AZURE_OPENAI_CHAT_API_KEY or settings.AZURE_OPENAI_API_KEY or ""
-    )
-    api_version = (
-        settings.AZURE_OPENAI_CHAT_API_VERSION or settings.AZURE_OPENAI_API_VERSION
-    )
-    deployment = model
-
-    if not endpoint or not api_key:
-        raise RuntimeError(
-            "Azure/OpenAI chat endpoint and API key must be configured. "
-            "Set AZURE_OPENAI_CHAT_ENDPOINT + AZURE_OPENAI_CHAT_API_KEY "
-            "(or the non-CHAT variants)."
-        )
-
-    if classify_openai_endpoint(endpoint) == "openai_compatible":
-        from langchain_openai import ChatOpenAI
-
-        return ChatOpenAI(
-            model=deployment,
-            api_key=api_key,
-            base_url=endpoint,
-            temperature=0,
-            max_tokens=1024,
-        )
-    else:
-        from langchain_openai import AzureChatOpenAI
-
-        return AzureChatOpenAI(
-            azure_deployment=deployment,
-            azure_endpoint=endpoint,
-            api_key=api_key,
-            api_version=api_version,
-            temperature=0,
-            max_tokens=1024,
-        )
+def _build_planner_llm():
+    """Build a lightweight LLM for the planner."""
+    return build_lightweight_llm(max_tokens=1024)
 
 
 # ---------------------------------------------------------------------------
@@ -110,10 +65,10 @@ async def check_complexity(
 ) -> int:
     """Estimate the number of tool calls needed for a query.
 
-    Uses gpt-4o-mini with structured output for fast, cheap estimation.
+    Uses the lightweight model with structured output for fast, cheap estimation.
     Returns the estimated step_count.
     """
-    llm = _build_planner_llm(model="gpt-4o-mini")
+    llm = _build_planner_llm()
     structured_llm = llm.with_structured_output(ComplexityCheck)
 
     prompt = (
@@ -134,10 +89,12 @@ async def generate_plan(
 ) -> AgentPlan:
     """Generate an execution plan for a complex query.
 
-    Uses gpt-4o (needs reasoning quality) with structured output.
+    Uses the main chat model (needs reasoning quality) with structured output.
     Returns a validated AgentPlan with ordered steps.
     """
-    llm = _build_planner_llm(model="gpt-4o")
+    from src.services.agent.graph import _build_llm
+
+    llm = _build_llm()
     structured_llm = llm.with_structured_output(AgentPlan)
 
     prompt = (
