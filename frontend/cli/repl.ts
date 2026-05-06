@@ -1030,6 +1030,8 @@ function renderHistoryMessage(msg: {
   p.log.message(`[${when}] ◂ agent: ${truncate(msg.content, 400)}`);
 }
 
+const PREVIEW_AGENT_LINES = 3;
+
 function renderPreviewMessage(msg: {
   role: string;
   content: string;
@@ -1037,13 +1039,45 @@ function renderPreviewMessage(msg: {
 }): void {
   const when = formatRelative(msg.created_at);
   const role = msg.role.toLowerCase();
-  const prefix =
-    role === 'user' ? '\x1b[36m▸ you\x1b[0m' : '\x1b[33m◂ nous\x1b[0m';
+  const isUser = role === 'user';
+  const prefix = isUser ? '\x1b[36m▸ you\x1b[0m' : '\x1b[33m◂ nous\x1b[0m';
   const cols = process.stdout.columns ?? 80;
-  const maxLen = Math.min(cols - 20, 120);
-  p.log.message(
-    `  ${prefix}  ${truncate(msg.content, maxLen)}  \x1b[2m${when}\x1b[0m`
-  );
+  const lineMax = Math.min(cols - 14, 140);
+
+  if (isUser) {
+    p.log.message(
+      `  ${prefix}  ${truncate(msg.content, lineMax)}  \x1b[2m${when}\x1b[0m`
+    );
+    return;
+  }
+
+  const cleaned = msg.content.replace(/\s+/g, ' ').trim();
+  const lines: string[] = [];
+  let remaining = cleaned;
+  for (let i = 0; i < PREVIEW_AGENT_LINES && remaining.length > 0; i++) {
+    if (remaining.length <= lineMax) {
+      lines.push(remaining);
+      remaining = '';
+    } else {
+      lines.push(`${remaining.slice(0, lineMax - 1)}…`);
+      remaining = remaining.slice(lineMax - 1);
+    }
+  }
+  if (remaining.length > 0 && lines.length > 0) {
+    const last = lines[lines.length - 1];
+    if (!last.endsWith('…')) {
+      lines[lines.length - 1] = `${last.slice(0, -1)}…`;
+    }
+  }
+
+  const pad = '         ';
+  lines.forEach((line, i) => {
+    if (i === 0) {
+      p.log.message(`  ${prefix}  ${line}  \x1b[2m${when}\x1b[0m`);
+    } else {
+      p.log.message(`  ${pad}${line}`);
+    }
+  });
 }
 
 function truncate(text: string, max: number): string {
