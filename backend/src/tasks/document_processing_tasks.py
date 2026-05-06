@@ -78,31 +78,34 @@ def process_document_upload(self, job_id: str, upload_id: Optional[str] = None):
         # Initialize processing service
         processing_service = MultimodalProcessingService(db)
 
-        # Process document and update upload progress in a single async block
-        async def _process_document_async():
-            if upload_id:
-                await upload_manager.update_progress(
+        # Update upload progress if available
+        if upload_id:
+            asyncio.run(
+                upload_manager.update_progress(
                     upload_id, 20.0, "Starting processing pipeline"
                 )
-
-            processing_results = await processing_service.process_document(
-                document, job, upload_id
             )
 
-            if upload_id:
-                if processing_results["success"]:
-                    await upload_manager.update_progress(
+        # Process document
+        processing_results = asyncio.run(
+            processing_service.process_document(document, job, upload_id)
+        )
+
+        # Update upload progress if available
+        if upload_id:
+            if processing_results["success"]:
+                asyncio.run(
+                    upload_manager.update_progress(
                         upload_id, 100.0, "Processing completed"
                     )
-                else:
-                    error_msg = "; ".join(processing_results["errors"])
-                    await upload_manager.update_progress(
+                )
+            else:
+                error_msg = "; ".join(processing_results["errors"])
+                asyncio.run(
+                    upload_manager.update_progress(
                         upload_id, 0.0, error_message=f"Processing failed: {error_msg}"
                     )
-
-            return processing_results
-
-        processing_results = asyncio.run(_process_document_async())
+                )
 
         # Log completion
         if processing_results["success"]:
@@ -136,8 +139,8 @@ def process_document_upload(self, job_id: str, upload_id: Optional[str] = None):
                         upload_id, 0.0, error_message=f"Processing failed: {str(e)}"
                     )
                 )
-            except Exception:
-                logger.debug("Failed to update upload progress on error", exc_info=True)
+            except:
+                pass
 
         # Retry if possible
         if self.request.retries < self.max_retries:
@@ -200,10 +203,9 @@ def process_high_priority_document(self, job_id: str):
         job.config["skip_optional_steps"] = True  # Skip non-essential steps for speed
         db.commit()
 
-        async def _process_high_priority():
-            return await processing_service.process_document(document, job)
-
-        processing_results = asyncio.run(_process_high_priority())
+        processing_results = asyncio.run(
+            processing_service.process_document(document, job)
+        )
 
         return {
             "status": "completed" if processing_results["success"] else "failed",
@@ -276,10 +278,9 @@ def process_low_priority_document(self, job_id: str):
         job.config["extended_timeout"] = True
         db.commit()
 
-        async def _process_low_priority():
-            return await processing_service.process_document(document, job)
-
-        processing_results = asyncio.run(_process_low_priority())
+        processing_results = asyncio.run(
+            processing_service.process_document(document, job)
+        )
 
         return {
             "status": "completed" if processing_results["success"] else "failed",
@@ -333,27 +334,21 @@ def batch_process_documents(
             job.queue_job()
         db.commit()
 
-        # Process jobs with concurrency control
-        semaphore = asyncio.Semaphore(max_concurrent)
+        # Dispatch jobs sequentially (.delay() is synchronous Celery API)
+        results: list = []
+        for i, job_id in enumerate(job_ids):
+            if delay_between_jobs > 0 and i > 0:
+                import time
 
-        async def process_single_job(job_id: str):
-            async with semaphore:
-                # Add delay between jobs if configured
-                if delay_between_jobs > 0:
-                    await asyncio.sleep(delay_between_jobs)
-
-                # Call the individual processing task
-                try:
-                    result = process_document_upload.delay(job_id)
-                    return {"job_id": job_id, "task_id": result.id, "status": "queued"}
-                except Exception as e:
-                    logger.error(f"Failed to queue job {job_id}: {str(e)}")
-                    return {"job_id": job_id, "status": "error", "error": str(e)}
-
-        # Execute batch processing
-        results = asyncio.run(
-            asyncio.gather(*[process_single_job(job_id) for job_id in job_ids])
-        )
+                time.sleep(delay_between_jobs)
+            try:
+                celery_result = process_document_upload.delay(job_id)
+                results.append(
+                    {"job_id": job_id, "task_id": celery_result.id, "status": "queued"}
+                )
+            except Exception as e:
+                logger.error("Failed to queue job %s: %s", job_id, e)
+                results.append({"job_id": job_id, "status": "error", "error": str(e)})
 
         return {
             "status": "batch_queued",
@@ -488,11 +483,9 @@ def retry_failed_processing(self, job_id: str):
 
         # Process document
         processing_service = MultimodalProcessingService(db)
-
-        async def _process_retry():
-            return await processing_service.process_document(document, job)
-
-        processing_results = asyncio.run(_process_retry())
+        processing_results = asyncio.run(
+            processing_service.process_document(document, job)
+        )
 
         return {
             "status": "completed" if processing_results["success"] else "failed",

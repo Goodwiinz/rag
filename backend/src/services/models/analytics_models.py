@@ -8,6 +8,8 @@ from typing import Any, Dict, List, Optional, Union
 
 from pydantic import BaseModel, Field
 
+from src.services.models.knowledge_graph_models import EntityType
+
 
 class CentralityAlgorithm(str, Enum):
     """Centrality algorithms supported"""
@@ -77,7 +79,7 @@ class CentralityRequest(BaseModel):
     algorithm: CentralityAlgorithm = Field(
         ..., description="Centrality algorithm to use"
     )
-    entity_types: Optional[List[str]] = Field(
+    entity_types: Optional[List[EntityType]] = Field(
         None, description="Filter by entity types"
     )
     limit: int = Field(
@@ -179,7 +181,7 @@ class CommunityRequest(BaseModel):
     algorithm: CommunityAlgorithm = Field(
         ..., description="Community detection algorithm"
     )
-    entity_types: Optional[List[str]] = Field(
+    entity_types: Optional[List[EntityType]] = Field(
         None, description="Filter by entity types"
     )
     resolution: float = Field(
@@ -257,7 +259,7 @@ class GraphInsightsRequest(BaseModel):
     insight_types: List[InsightType] = Field(
         ..., description="Types of insights to generate"
     )
-    entity_types: Optional[List[str]] = Field(
+    entity_types: Optional[List[EntityType]] = Field(
         None, description="Filter by entity types"
     )
     time_range: Optional[Dict[str, datetime]] = Field(

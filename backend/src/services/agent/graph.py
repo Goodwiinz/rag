@@ -1136,7 +1136,7 @@ _SLOW_TOOL_TIMEOUT_SECONDS = 120  # ingest, draft generation, etc.
 _SLOW_TOOLS = {"ingest_arxiv_papers", "create_draft", "compare_documents"}
 
 
-def _resolve_tool_concurrency(default: int = 10) -> int:
+def _resolve_tool_concurrency(default: int = 3) -> int:
     """Read AGENT_TOOL_CONCURRENCY from env, falling back to *default*."""
     raw = os.getenv("AGENT_TOOL_CONCURRENCY")
     if raw is None:
@@ -1148,7 +1148,8 @@ def _resolve_tool_concurrency(default: int = 10) -> int:
     return max(1, value)
 
 
-_TOOL_SEMAPHORE = asyncio.Semaphore(_resolve_tool_concurrency())
+_tool_concurrency = _resolve_tool_concurrency()
+_TOOL_SEMAPHORE = asyncio.Semaphore(_tool_concurrency)
 
 
 def _record_tool_metrics(tool_name: str, status: str):
