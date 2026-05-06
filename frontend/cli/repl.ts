@@ -771,6 +771,20 @@ async function handleThreadsCommand(ctx: SlashContext): Promise<void> {
   touchThread(picked.id);
   ctx.onThreadChange(picked.id);
   p.log.success(`Switched to "${picked.title}" (${picked.id.slice(0, 8)})`);
+
+  try {
+    const messages = await fetchThreadMessages(picked.id);
+    const tail = messages.slice(-5);
+    if (tail.length > 0) {
+      const omitted = messages.length - tail.length;
+      if (omitted > 0) p.log.message(`  … ${omitted} earlier message(s)`);
+      for (const msg of tail) {
+        renderHistoryMessage(msg);
+      }
+    }
+  } catch {
+    // History preview is best-effort — don't block the switch.
+  }
 }
 
 async function handleHistoryCommand(
