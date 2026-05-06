@@ -733,7 +733,15 @@ async function handleThreadsCommand(ctx: SlashContext): Promise<void> {
   const merged = mergeThreads(local, remote);
 
   if (remote.length > 0) {
-    reconcileThreads(remote.map((t) => t.id));
+    const remoteIds = remote.map((t) => t.id);
+    reconcileThreads(remoteIds);
+    if (ctx.threadId && !remoteIds.includes(ctx.threadId)) {
+      const cfg = loadConfig();
+      if (cfg && cfg.thread_id === ctx.threadId) {
+        saveConfig({ ...cfg, thread_id: null });
+      }
+      ctx.onThreadChange(null);
+    }
   }
 
   if (merged.length === 0) {
