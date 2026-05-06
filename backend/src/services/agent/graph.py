@@ -171,18 +171,22 @@ def _build_llm(model_override: str | None = None):
         settings.AZURE_OPENAI_CHAT_API_VERSION or settings.AZURE_OPENAI_API_VERSION
     )
     deployment = (
-        settings.AZURE_OPENAI_CHAT_DEPLOYMENT_NAME
+        model_override
+        or settings.AZURE_OPENAI_CHAT_DEPLOYMENT_NAME
         or settings.AZURE_OPENAI_DEPLOYMENT_NAME
-        or "gpt-4o"
     )
-    if model_override:
-        deployment = model_override
 
     if not endpoint or not api_key:
         raise RuntimeError(
             "Azure/OpenAI chat endpoint and API key must be configured. "
             "Set AZURE_OPENAI_CHAT_ENDPOINT + AZURE_OPENAI_CHAT_API_KEY "
             "(or the non-CHAT variants)."
+        )
+
+    if not deployment:
+        raise RuntimeError(
+            "Chat deployment name must be configured. Set "
+            "AZURE_OPENAI_CHAT_DEPLOYMENT_NAME (or AZURE_OPENAI_DEPLOYMENT_NAME)."
         )
 
     if classify_openai_endpoint(endpoint) == "openai_compatible":

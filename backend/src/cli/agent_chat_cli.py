@@ -20,8 +20,6 @@ from src.cli.types import CLISessionState
 
 SUGGESTED_MODELS: tuple[str, ...] = (
     "model-router",
-    "gpt-4o",
-    "gpt-4o-mini",
     "gpt-5",
     "gpt-5-mini",
     "gpt-5-nano",
@@ -44,7 +42,7 @@ HELP_TEXT = "\n".join(
         "  /context project <id> Set the active project context.",
         "  /context clear        Clear the active page context.",
         "  /model [<name>]       Show or set the chat model "
-        "(e.g. gpt-5, claude-sonnet-4-5, gpt-4o-mini).",
+        "(e.g. model-router, gpt-5, claude-sonnet-4-5).",
         "  /model clear          Use the server default model.",
         "  /debug on|off         Toggle debug output.",
         "  /quit                 Exit the CLI.",

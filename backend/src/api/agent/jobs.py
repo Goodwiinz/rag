@@ -466,10 +466,7 @@ async def _run_agent_graph(
             except Exception as e:
                 logger.warning("Failed to persist thread", exc_info=e)
 
-            # Build response — use the model the request asked for, or the
-            # default. Previously hardcoded to "gpt-4o" regardless of
-            # what the client requested.
-            response_model_name: str = getattr(request, "model", "") or "gpt-4o"
+            response_model_name: str = getattr(request, "model", "") or ""
             result = AgentExecuteResponse(
                 message=AgentMessage(role="assistant", content=assistant_content),
                 model=response_model_name,
@@ -626,7 +623,7 @@ async def _resume_agent_graph(
 
             response_model_name: str = (
                 getattr(original_request, "model", "") if original_request else ""
-            ) or "gpt-4o"
+            )
             result = AgentExecuteResponse(
                 message=AgentMessage(role="assistant", content=assistant_content),
                 model=response_model_name,
