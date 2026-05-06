@@ -231,12 +231,12 @@ def test_apply_command_model_without_args_reports_current_model() -> None:
     from src.cli.agent_chat_cli import apply_command
     from src.cli.types import CLISessionState
 
-    state = CLISessionState(model="gpt-4o")
+    state = CLISessionState(model="gpt-5")
 
     new_state, output = apply_command(state, "/model")
 
     assert new_state == state
-    assert "gpt-4o" in output
+    assert "gpt-5" in output
 
 
 def test_apply_command_model_sets_known_model_without_warning() -> None:
@@ -245,23 +245,10 @@ def test_apply_command_model_sets_known_model_without_warning() -> None:
 
     state = CLISessionState()
 
-    new_state, output = apply_command(state, "/model gpt-4o-mini")
+    new_state, output = apply_command(state, "/model model-router")
 
-    assert new_state.model == "gpt-4o-mini"
-    assert "gpt-4o-mini" in output
-    assert "may reject" not in output
-
-
-def test_apply_command_model_accepts_claude_sonnet_without_warning() -> None:
-    from src.cli.agent_chat_cli import apply_command
-    from src.cli.types import CLISessionState
-
-    state = CLISessionState()
-
-    new_state, output = apply_command(state, "/model claude-sonnet-4-5")
-
-    assert new_state.model == "claude-sonnet-4-5"
-    assert "claude-sonnet-4-5" in output
+    assert new_state.model == "model-router"
+    assert "model-router" in output
     assert "may reject" not in output
 
 
@@ -281,7 +268,7 @@ def test_apply_command_model_clear_resets_to_server_default() -> None:
     from src.cli.agent_chat_cli import apply_command
     from src.cli.types import CLISessionState
 
-    state = CLISessionState(model="gpt-4o-mini")
+    state = CLISessionState(model="gpt-5-mini")
 
     new_state, output = apply_command(state, "/model clear")
 
@@ -295,7 +282,7 @@ def test_apply_command_model_too_many_args_returns_usage_error() -> None:
 
     state = CLISessionState()
 
-    new_state, output = apply_command(state, "/model gpt-4o extra")
+    new_state, output = apply_command(state, "/model gpt-5 extra")
 
     assert new_state == state
     assert "Usage error" in output
@@ -305,22 +292,22 @@ def test_status_includes_model_line() -> None:
     from src.cli.agent_chat_cli import apply_command
     from src.cli.types import CLISessionState
 
-    state = CLISessionState(model="gpt-4o-mini")
+    state = CLISessionState(model="gpt-5-mini")
 
     _, output = apply_command(state, "/status")
 
-    assert "model: gpt-4o-mini" in output
+    assert "model: gpt-5-mini" in output
 
 
 def test_build_request_body_includes_model_when_set() -> None:
     from src.cli.agent_chat_cli import build_request_body
     from src.cli.types import CLISessionState
 
-    state = CLISessionState(model="gpt-4o-mini")
+    state = CLISessionState(model="gpt-5-mini")
 
     body = build_request_body(state, "hello")
 
-    assert body["model"] == "gpt-4o-mini"
+    assert body["model"] == "gpt-5-mini"
 
 
 def test_build_request_body_omits_model_when_unset() -> None:

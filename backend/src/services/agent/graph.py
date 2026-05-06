@@ -174,18 +174,22 @@ def _build_llm(model_override: str | None = None):
         settings.AZURE_OPENAI_CHAT_API_VERSION or settings.AZURE_OPENAI_API_VERSION
     )
     deployment = (
-        settings.AZURE_OPENAI_CHAT_DEPLOYMENT_NAME
+        model_override
+        or settings.AZURE_OPENAI_CHAT_DEPLOYMENT_NAME
         or settings.AZURE_OPENAI_DEPLOYMENT_NAME
-        or "gpt-4o"
     )
-    if model_override:
-        deployment = model_override
 
     if not endpoint or not api_key:
         raise RuntimeError(
             "Azure/OpenAI chat endpoint and API key must be configured. "
             "Set AZURE_OPENAI_CHAT_ENDPOINT + AZURE_OPENAI_CHAT_API_KEY "
             "(or the non-CHAT variants)."
+        )
+
+    if not deployment:
+        raise RuntimeError(
+            "Chat deployment name must be configured. Set "
+            "AZURE_OPENAI_CHAT_DEPLOYMENT_NAME (or AZURE_OPENAI_DEPLOYMENT_NAME)."
         )
 
     if classify_openai_endpoint(endpoint) == "openai_compatible":
@@ -849,7 +853,18 @@ SHARED_AGENT_RULES = (
     '  paper to it?").\n'
     "- On error: state what failed and, if recoverable, what you'll try next.\n"
     "- If the tool result already contains an ID the user will need (project_id, "
-    "  document_id), surface it in your reply so the user has it visible."
+    "  document_id), surface it in your reply so the user has it visible.\n\n"
+    "## Answering 'which model are you?'\n"
+    "If the user asks which model / engine / LLM you are running on, answer "
+    "from the `Runtime model` line appended later in this prompt. Do NOT "
+    "guess, and do NOT fall back to generic answers like 'I'm GPT-4-class' "
+    "or quote a training cutoff from your weights — those are almost always "
+    "wrong here. If the runtime line says the deployment is `model-router`, "
+    "tell the user the request was routed via Azure model-router and the "
+    "underlying model (gpt-5, claude-*, llama-*, …) is selected per "
+    "request, so you can't name it from the prompt alone — point them at "
+    "the trace metadata for the exact pick. If the runtime line names a "
+    "specific deployment, you can name it directly."
 )
 
 
@@ -866,6 +881,34 @@ def _get_tools_for_intent(intent: str) -> list:
         return ALL_TOOLS
 
     return [t for t in ALL_TOOLS if t.name in name_set]
+
+
+def _runtime_model_line(model_override: str | None) -> str:
+    """Render a 'Runtime model' line so the agent can answer 'which model
+    are you?' truthfully.
+
+    Resolves the same way ``_build_llm`` does — request override wins,
+    then chat-specific deployment, then the generic deployment. If
+    nothing is configured the line is omitted; the static rule in
+    ``SHARED_AGENT_RULES`` still steers the agent away from guessing.
+    """
+    settings = get_settings()
+    deployment = (
+        model_override
+        or settings.AZURE_OPENAI_CHAT_DEPLOYMENT_NAME
+        or settings.AZURE_OPENAI_DEPLOYMENT_NAME
+        or ""
+    )
+    if not deployment:
+        return ""
+    if deployment == "model-router":
+        return (
+            "Runtime model: routed via Azure deployment `model-router`. "
+            "The underlying model (gpt-5, claude-*, llama-*, …) is "
+            "selected per request by Azure model-router and is not "
+            "visible from this prompt."
+        )
+    return f"Runtime model: routed via Azure deployment `{deployment}`."
 
 
 def _build_page_context_line(page_context: dict) -> str:
@@ -964,6 +1007,10 @@ async def llm_node(state: AgentState, config: RunnableConfig) -> dict:
     intent = state.get("intent", "general")
     intent_guidance = INTENT_PROMPTS.get(intent, INTENT_PROMPTS["general"])
     dynamic_parts.append(f"Current intent: {intent}. {intent_guidance}")
+
+    runtime_line = _runtime_model_line(state.get("model") or None)
+    if runtime_line:
+        dynamic_parts.append(runtime_line)
 
     user_memories = state.get("user_memories", [])
     if user_memories:
