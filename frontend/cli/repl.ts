@@ -774,13 +774,22 @@ async function handleThreadsCommand(ctx: SlashContext): Promise<void> {
 
   try {
     const messages = await fetchThreadMessages(picked.id);
-    const tail = messages.slice(-5);
-    if (tail.length > 0) {
-      const omitted = messages.length - tail.length;
-      if (omitted > 0) p.log.message(`  … ${omitted} earlier message(s)`);
-      for (const msg of tail) {
-        renderHistoryMessage(msg);
+    const conversation = messages.filter(
+      (m) => m.role.toLowerCase() !== 'tool'
+    );
+    if (conversation.length > 0) {
+      const tail = conversation.slice(-6);
+      const omitted = conversation.length - tail.length;
+      p.log.message('');
+      if (omitted > 0) {
+        p.log.message(
+          `  ╭─ ${omitted} earlier message${omitted === 1 ? '' : 's'} ─╮`
+        );
       }
+      for (const msg of tail) {
+        renderPreviewMessage(msg);
+      }
+      p.log.message('  ╰───────────────────────╯');
     }
   } catch {
     // History preview is best-effort — don't block the switch.
@@ -1019,6 +1028,22 @@ function renderHistoryMessage(msg: {
     return;
   }
   p.log.message(`[${when}] ◂ agent: ${truncate(msg.content, 400)}`);
+}
+
+function renderPreviewMessage(msg: {
+  role: string;
+  content: string;
+  created_at: string;
+}): void {
+  const when = formatRelative(msg.created_at);
+  const role = msg.role.toLowerCase();
+  const prefix =
+    role === 'user' ? '\x1b[36m▸ you\x1b[0m' : '\x1b[33m◂ nous\x1b[0m';
+  const cols = process.stdout.columns ?? 80;
+  const maxLen = Math.min(cols - 20, 120);
+  p.log.message(
+    `  ${prefix}  ${truncate(msg.content, maxLen)}  \x1b[2m${when}\x1b[0m`
+  );
 }
 
 function truncate(text: string, max: number): string {
