@@ -109,23 +109,18 @@ class PageContextRequest(BaseModel):
     metadata: Optional[Dict[str, Any]] = None
 
 
-# Azure Foundry deployment names exposed to the agent. Empty string means
-# "use the deployment configured in AZURE_OPENAI_CHAT_DEPLOYMENT_NAME".
-SUPPORTED_MODELS: frozenset[str] = frozenset({
-    "",
-    "model-router",
-    "gpt-4o",
-    "gpt-4o-mini",
-    "gpt-5",
-    "gpt-5-mini",
-    "gpt-5-nano",
-    "gpt-5-chat",
-    "gpt-5.2",
-    "gpt-5.2-chat",
-    "o4-mini",
-    "claude-sonnet-4-5",
-    "claude-haiku-4-5",
-})
+# Azure deployment names the agent will accept on POST /execute.
+# Empty string means "use the deployment configured in
+# AZURE_OPENAI_CHAT_DEPLOYMENT_NAME". "model-router" routes the request
+# through Azure's model-router deployment, which selects the underlying
+# model (gpt-5, claude-*, llama-*, etc.) per request.
+#
+# Specific model names (gpt-5, gpt-5-mini, claude-*, ...) used to be
+# accepted here, but the Azure resources only provision the
+# `model-router` deployment, so any other pick produces a 404
+# `DeploymentNotFound`. Re-expand this set if/when those models are
+# provisioned as separate deployments.
+SUPPORTED_MODELS: frozenset[str] = frozenset({"", "model-router"})
 
 
 class AgentExecuteRequest(BaseModel):
