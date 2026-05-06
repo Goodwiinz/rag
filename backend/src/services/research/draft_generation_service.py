@@ -74,6 +74,15 @@ def _ensure_draft_metrics() -> None:
 class DraftGenerationService:
     """Service for generating literature review drafts"""
 
+    _background_tasks: set[asyncio.Task] = set()
+
+    @staticmethod
+    def _fire_and_forget(coro):
+        task = asyncio.create_task(coro)
+        DraftGenerationService._background_tasks.add(task)
+        task.add_done_callback(DraftGenerationService._background_tasks.discard)
+        return task
+
     TERMINAL_STATUSES = {
         DraftGenerationStatus.COMPLETED,
         DraftGenerationStatus.FAILED,
@@ -139,7 +148,7 @@ class DraftGenerationService:
         }
 
         # Start generation in background
-        asyncio.create_task(
+        self._fire_and_forget(
             self._generate_draft_async(
                 task_id=task_id,
                 project_id=project_id,

@@ -830,8 +830,13 @@ class SecurityMonitoringService:
                     event_dict = json.loads(event_data)
                     event = SecurityEvent(**event_dict)
 
-                    # Process event
-                    asyncio.run(self.alert_manager.process_security_event(event))
+                    # Process event — _process_pending_events runs in a daemon thread,
+                    # so asyncio.run() is normally safe. Guard against nested loops.
+                    try:
+                        loop = asyncio.get_running_loop()
+                        loop.create_task(self.alert_manager.process_security_event(event))
+                    except RuntimeError:
+                        asyncio.run(self.alert_manager.process_security_event(event))
 
                     # Remove from queue
                     self.redis.lrem("security_event_queue", 1, event_data)

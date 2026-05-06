@@ -69,7 +69,7 @@ async def search_documents(
 ):
     """Search for similar documents"""
     try:
-        result = vector_search_service.search_documents(
+        result = await vector_search_service.search_documents(
             query=query,
             organization_id=organization_id,
             limit=limit,
@@ -93,7 +93,7 @@ async def search_entities(
 ):
     """Search for similar entities"""
     try:
-        result = vector_search_service.search_entities(
+        result = await vector_search_service.search_entities(
             query=query,
             organization_id=organization_id,
             entity_type=entity_type,
@@ -285,7 +285,7 @@ async def index_document(
         ):
             raise HTTPException(status_code=403, detail="Access denied")
 
-        result = vector_search_service.index_document(
+        result = await vector_search_service.index_document(
             document_id=document_id,
             text=text,
             organization_id=organization_id,
@@ -328,7 +328,7 @@ async def index_entity(
                 status_code=400, detail="Confidence score must be between 0.0 and 1.0"
             )
 
-        result = vector_search_service.index_entity(
+        result = await vector_search_service.index_entity(
             entity_id=entity_id,
             entity_text=entity_text,
             entity_type=entity_type,
@@ -416,7 +416,7 @@ async def update_document_index(
         ):
             raise HTTPException(status_code=403, detail="Access denied")
 
-        result = vector_search_service.update_document_index(
+        result = await vector_search_service.update_document_index(
             document_id=document_id,
             text=text,
             organization_id=organization_id,

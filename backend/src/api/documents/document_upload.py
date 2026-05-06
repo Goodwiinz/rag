@@ -197,9 +197,8 @@ class UploadManager:
                             **self.upload_progress[upload_id],
                         }
                     )
-                except:
-                    # Connection might be closed
-                    pass
+                except Exception:
+                    logger.warning("WebSocket send failed", exc_info=True)
 
     async def send_completion(self, upload_id: str, result: Dict[str, Any]):
         """Send completion notification"""
@@ -212,8 +211,8 @@ class UploadManager:
                         "result": result,
                     }
                 )
-            except:
-                pass
+            except Exception:
+                logger.warning("WebSocket send failed", exc_info=True)
 
 
 # Global upload manager

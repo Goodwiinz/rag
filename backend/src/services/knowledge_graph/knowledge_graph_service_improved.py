@@ -2,9 +2,8 @@
 Improved Knowledge Graph Service with connection resilience
 """
 
+import asyncio
 import logging
-import time
-from contextlib import contextmanager
 from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
@@ -29,7 +28,7 @@ class ResilientKnowledgeGraphService:
             self._kg_service = KnowledgeGraphService()
         return self._kg_service
 
-    def _execute_with_retry(self, func, *args, **kwargs):
+    async def _execute_with_retry(self, func, *args, **kwargs):
         """Execute function with retry logic"""
         last_error = None
 
@@ -54,7 +53,7 @@ class ResilientKnowledgeGraphService:
                         f"Neo4j connection issue on attempt {attempt + 1}: {e}"
                     )
                     if attempt < self.max_retries - 1:
-                        time.sleep(self.retry_delay * (attempt + 1))
+                        await asyncio.sleep(self.retry_delay * (attempt + 1))
                     continue
                 else:
                     # Non-connection error, don't retry
@@ -62,17 +61,17 @@ class ResilientKnowledgeGraphService:
 
         raise last_error
 
-    def create_entity(self, request):
+    async def create_entity(self, request):
         """Create entity with retry"""
-        return self._execute_with_retry(lambda kg: kg.create_entity(request))
+        return await self._execute_with_retry(lambda kg: kg.create_entity(request))
 
-    def create_relationship(self, request):
+    async def create_relationship(self, request):
         """Create relationship with retry"""
-        return self._execute_with_retry(lambda kg: kg.create_relationship(request))
+        return await self._execute_with_retry(lambda kg: kg.create_relationship(request))
 
-    def search_entities(self, query="", entity_types=None, limit=100):
+    async def search_entities(self, query="", entity_types=None, limit=100):
         """Search entities with retry"""
-        return self._execute_with_retry(
+        return await self._execute_with_retry(
             lambda kg: kg.search_entities(query, entity_types, limit)
         )
 

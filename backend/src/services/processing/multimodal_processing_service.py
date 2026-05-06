@@ -485,7 +485,8 @@ class MultimodalProcessingService:
                         sum(confidences) / len(confidences) if confidences else 0
                     )
                     results["confidence_score"] = avg_confidence
-                except:
+                except Exception:
+                    logger.warning("OCR confidence extraction failed", exc_info=True)
                     results["confidence_score"] = 0
 
                 results["extracted_text"] = text
@@ -567,8 +568,8 @@ class MultimodalProcessingService:
                     if audio_file is not None:
                         results["duration"] = audio_file.info.length
                         results["bitrate"] = audio_file.info.bitrate
-                except:
-                    pass
+                except Exception:
+                    logger.warning("Audio fallback analysis failed", exc_info=True)
 
             results["format"] = Path(file_path).suffix[1:].upper()
             results["file_size"] = os.path.getsize(file_path)

@@ -4,6 +4,7 @@ Knowledge Graph Service for managing Neo4j graph database operations
 
 import json
 import logging
+import threading
 import time
 import uuid
 from contextlib import contextmanager
@@ -143,6 +144,7 @@ class KnowledgeGraphService:
     """Service for managing knowledge graph operations using Neo4j"""
 
     _driver_instance: Optional[Driver] = None
+    _driver_lock = threading.Lock()
 
     def __init__(self):
         self.driver: Optional[Driver] = None
@@ -163,35 +165,44 @@ class KnowledgeGraphService:
     @classmethod
     def close_driver(cls):
         """Close the shared driver instance"""
-        if cls._driver_instance:
-            cls._driver_instance.close()
-            cls._driver_instance = None
-            logger.info("Closed shared Neo4j driver")
+        with cls._driver_lock:
+            if cls._driver_instance:
+                cls._driver_instance.close()
+                cls._driver_instance = None
+                logger.info("Closed shared Neo4j driver")
 
     def _connect(self):
         """Establish connection to Neo4j database (using shared driver)"""
+        # Fast path: driver already exists
         if KnowledgeGraphService._driver_instance:
             self.driver = KnowledgeGraphService._driver_instance
             return
 
-        try:
-            KnowledgeGraphService._driver_instance = GraphDatabase.driver(
-                self.uri,
-                auth=(self.user, self.password),
-                max_connection_lifetime=3600,
-                max_connection_pool_size=50,
-            )
-            self.driver = KnowledgeGraphService._driver_instance
+        # Slow path: create driver with lock to prevent race conditions
+        with KnowledgeGraphService._driver_lock:
+            # Double-checked locking
+            if KnowledgeGraphService._driver_instance:
+                self.driver = KnowledgeGraphService._driver_instance
+                return
 
-            # Test connection
-            with self.driver.session() as session:
-                session.run("RETURN 1")
-            logger.info(f"Connected to Neo4j at {self.uri}")
-        except Exception as e:
-            logger.error(f"Failed to connect to Neo4j: {e}")
-            # Don't raise here, let the caller handle it or retry later
-            self.driver = None
-            KnowledgeGraphService._driver_instance = None
+            try:
+                KnowledgeGraphService._driver_instance = GraphDatabase.driver(
+                    self.uri,
+                    auth=(self.user, self.password),
+                    max_connection_lifetime=3600,
+                    max_connection_pool_size=50,
+                )
+                self.driver = KnowledgeGraphService._driver_instance
+
+                # Test connection
+                with self.driver.session() as session:
+                    session.run("RETURN 1")
+                logger.info(f"Connected to Neo4j at {self.uri}")
+            except Exception as e:
+                logger.error(f"Failed to connect to Neo4j: {e}")
+                # Don't raise here, let the caller handle it or retry later
+                self.driver = None
+                KnowledgeGraphService._driver_instance = None
 
     @contextmanager
     def get_session(self, database: str = "neo4j") -> Session:
