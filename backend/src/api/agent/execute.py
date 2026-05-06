@@ -19,7 +19,8 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from langgraph.errors import GraphInterrupt  # noqa: F401  re-export for backward compat
 from pydantic import BaseModel, Field, field_validator
-from sqlalchemy import select, desc, func
+from sqlalchemy import cast, select, desc, func
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -444,7 +445,7 @@ async def list_agent_threads(
         .where(
             Workspace.owner_id == current_user.id,
             Thread.is_deleted == False,
-            Thread.rag_document_scope == AGENT_THREAD_MARKER,
+            Thread.rag_document_scope == cast(AGENT_THREAD_MARKER, JSONB),
         )
         .order_by(desc(Thread.updated_at))
         .limit(50)
@@ -460,7 +461,7 @@ async def list_agent_threads(
         .where(
             Workspace.owner_id == current_user.id,
             Thread.is_deleted == False,
-            Thread.rag_document_scope == AGENT_THREAD_MARKER,
+            Thread.rag_document_scope == cast(AGENT_THREAD_MARKER, JSONB),
         )
     )
     total_result = await db.execute(count_stmt)
