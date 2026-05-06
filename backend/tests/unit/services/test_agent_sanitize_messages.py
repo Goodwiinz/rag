@@ -62,7 +62,7 @@ def test_unanswered_tool_call_gets_placeholder():
     # Real TM preserved, placeholder added for c2
     tm_ids = [m.tool_call_id for m in out[1:]]
     assert sorted(tm_ids) == ["c1", "c2"]
-    placeholder = next(m for m in out if m.tool_call_id == "c2")
+    placeholder = next(m for m in out[1:] if m.tool_call_id == "c2")
     assert '"skipped"' in placeholder.content
 
 
