@@ -49,9 +49,9 @@ export function useSidebarToggle() {
   const toggle = () => {
     const isMobile = window.innerWidth < 768;
     if (isMobile) {
-      setIsMobileOpen(!isMobileOpen);
+      setIsMobileOpen((prev) => !prev);
     } else {
-      setIsCollapsed(!isCollapsed);
+      setIsCollapsed((prev) => !prev);
     }
   };
 

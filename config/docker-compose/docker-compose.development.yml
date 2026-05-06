@@ -11,7 +11,7 @@ services:
       - "8002:8002"
     environment:
       # Database Configuration
-      - DATABASE_URL=postgresql://postgres:postgres@host.docker.internal:54322/postgres
+      - DATABASE_URL=${DATABASE_URL:-postgresql://postgres:postgres@}host.docker.internal:54322/postgres
       - REDIS_URL=redis://redis:6379/0
       - NEO4J_URI=bolt://neo4j:7687
       - NEO4J_USER=neo4j
@@ -245,7 +245,7 @@ services:
     command: celery -A src.tasks.celery_app worker --loglevel=debug --concurrency=${WORKER_CONCURRENCY:-4} --hostname=worker@rag-celery-worker-dev --queues=celery,document_processing,text_processing,vector_processing,entity_processing,graph_processing
     environment:
       # Database Configuration
-      - DATABASE_URL=postgresql://postgres:postgres@host.docker.internal:54322/postgres
+      - DATABASE_URL=${DATABASE_URL:-postgresql://postgres:postgres@}host.docker.internal:54322/postgres
       - REDIS_URL=redis://redis:6379/0
       - NEO4J_URI=bolt://neo4j:7687
       - NEO4J_USER=neo4j
@@ -321,7 +321,7 @@ services:
       dockerfile: docker/Dockerfile.simple
     command: celery -A src.tasks.celery_app beat --loglevel=debug
     environment:
-      - DATABASE_URL=postgresql://postgres:postgres@host.docker.internal:54322/postgres
+      - DATABASE_URL=${DATABASE_URL:-postgresql://postgres:postgres@}host.docker.internal:54322/postgres
       - REDIS_URL=redis://redis:6379/0
       - NEO4J_URI=bolt://neo4j:7687
       - NEO4J_USER=neo4j
@@ -351,7 +351,7 @@ services:
     ports:
       - "5555:5555"
     environment:
-      - DATABASE_URL=postgresql://postgres:postgres@host.docker.internal:54322/postgres
+      - DATABASE_URL=${DATABASE_URL:-postgresql://postgres:postgres@}host.docker.internal:54322/postgres
       - REDIS_URL=redis://redis:6379/0
       - SECRET_KEY=${SECRET_KEY:-dev-secret-key-change-in-production}
       - JWT_SECRET_KEY=${JWT_SECRET_KEY:-dev-jwt-persistent-secret-key-32chars!}
@@ -376,8 +376,8 @@ services:
       - "9000:9000" # API
       - "9001:9001" # Console
     environment:
-      - MINIO_ROOT_USER=minioadmin
-      - MINIO_ROOT_PASSWORD=minioREDACTED
+      - MINIO_ROOT_USER=${MINIO_ROOT_USER:-minioadmin}
+      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD}
     volumes:
       - minio_dev_data:/data
     networks:

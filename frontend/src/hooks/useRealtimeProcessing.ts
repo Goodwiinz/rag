@@ -6,6 +6,7 @@
  */
 
 import { useEffect, useCallback, useRef, useState } from 'react';
+import { shallow } from 'zustand/shallow';
 import { useAuth } from './useAuth';
 import { createClient } from '@/lib/supabase/client';
 import { useRealtimeProcessingStore } from '@/store/realtimeProcessingStore';
@@ -79,7 +80,24 @@ export const useRealtimeProcessing = (
   } = options;
 
   const { isAuthenticated } = useAuth();
-  const store = useRealtimeProcessingStore();
+  const storeActions = useRealtimeProcessingStore(
+    (state) => ({
+      updateDocument: state.updateDocument,
+      addNotification: state.addNotification,
+      setQueueSummary: state.setQueueSummary,
+      setQueueMetrics: state.setQueueMetrics,
+      updateSystemMetrics: state.updateSystemMetrics,
+      setConnectionStatus: state.setConnectionStatus,
+      updateConnectionState: state.updateConnectionState,
+      pauseSelectedDocuments: state.pauseSelectedDocuments,
+      resumeSelectedDocuments: state.resumeSelectedDocuments,
+      cancelSelectedDocuments: state.cancelSelectedDocuments,
+      retrySelectedDocuments: state.retrySelectedDocuments,
+      clearNotifications: state.clearNotifications,
+      incrementReconnectionAttempts: state.incrementReconnectionAttempts,
+    }),
+    shallow
+  );
   const wsServiceRef = useRef(getRealtimeWebSocketService());
   const [connectionLatency, setConnectionLatency] = useState(0);
   const [messageRate, setMessageRate] = useState(0);
@@ -92,7 +110,7 @@ export const useRealtimeProcessing = (
 
       // Update document in store
       if (payload.progress !== undefined) {
-        store.updateDocument(payload.documentId, {
+        storeActions.updateDocument(payload.documentId, {
           overallProgress: payload.progress,
           currentStage: payload.currentStage,
           status: payload.status,
@@ -102,7 +120,7 @@ export const useRealtimeProcessing = (
 
       // Show notification for status changes
       if (payload.status === 'completed') {
-        store.addNotification({
+        storeActions.addNotification({
           type: 'success',
           title: 'Document Processed',
           message: `Document has been successfully processed`,
@@ -111,7 +129,7 @@ export const useRealtimeProcessing = (
           autoHideDelay: 5000,
         });
       } else if (payload.status === 'failed' && payload.error) {
-        store.addNotification({
+        storeActions.addNotification({
           type: 'error',
           title: 'Processing Failed',
           message: payload.error,
@@ -128,30 +146,30 @@ export const useRealtimeProcessing = (
       const { payload } = message;
 
       // Update queue summary and metrics
-      store.setQueueSummary(payload.summary);
-      store.setQueueMetrics(payload.metrics);
+      storeActions.setQueueSummary(payload.summary);
+      storeActions.setQueueMetrics(payload.metrics);
     },
     [store]
   );
 
   const handleSystemMetrics = useCallback(
     (message: SystemMetricsMessage) => {
-      store.updateSystemMetrics(message.payload);
+      storeActions.updateSystemMetrics(message.payload);
     },
     [store]
   );
 
   const handleNotification = useCallback(
     (message: NotificationMessage) => {
-      store.addNotification(message.payload);
+      storeActions.addNotification(message.payload);
     },
     [store]
   );
 
   const handleConnectionChange = useCallback(
     (connectionState: WebSocketConnectionState) => {
-      store.setConnectionStatus(connectionState.status);
-      store.updateConnectionState(connectionState);
+      storeActions.setConnectionStatus(connectionState.status);
+      storeActions.updateConnectionState(connectionState);
 
       if (connectionState.status === 'error' && connectionState.lastError) {
         setError(connectionState.lastError);
@@ -279,28 +297,28 @@ export const useRealtimeProcessing = (
 
   // Bulk actions using store methods
   const pauseSelectedDocuments = useCallback(() => {
-    store.pauseSelectedDocuments();
+    storeActions.pauseSelectedDocuments();
   }, [store]);
 
   const resumeSelectedDocuments = useCallback(() => {
-    store.resumeSelectedDocuments();
+    storeActions.resumeSelectedDocuments();
   }, [store]);
 
   const cancelSelectedDocuments = useCallback(() => {
-    store.cancelSelectedDocuments();
+    storeActions.cancelSelectedDocuments();
   }, [store]);
 
   const retrySelectedDocuments = useCallback(() => {
-    store.retrySelectedDocuments();
+    storeActions.retrySelectedDocuments();
   }, [store]);
 
   // Utilities
   const clearNotifications = useCallback(() => {
-    store.clearNotifications();
+    storeActions.clearNotifications();
   }, [store]);
 
   const retryConnection = useCallback(async () => {
-    store.incrementReconnectionAttempts();
+    storeActions.incrementReconnectionAttempts();
     await reconnect();
   }, [store, reconnect]);
 

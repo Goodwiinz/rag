@@ -5,6 +5,7 @@ Standalone microservice for graph algorithms and background processing
 
 import asyncio
 import logging
+import os
 import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
@@ -118,12 +119,14 @@ app = FastAPI(
     redoc_url="/redoc",
 )
 
-# Add CORS middleware
+# Add CORS middleware — read origins from env, never default to wildcard in prod
+_cors_origins = os.environ.get("CORS_ORIGINS", "")
+allow_origins = [o.strip() for o in _cors_origins.split(",") if o.strip()] or ["http://localhost:3000"]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=allow_origins,
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
 

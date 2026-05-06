@@ -36,12 +36,17 @@ const nextConfig = {
   },
 
   // Image optimization
+  // WARNING: Add your production domains here. External images from unlisted
+  // domains will not be optimized by Next.js and may break in production.
   images: {
     remotePatterns: [
       {
         protocol: 'http',
         hostname: 'localhost',
       },
+      ...(process.env.NEXT_PUBLIC_APP_URL
+        ? [{ protocol: 'https', hostname: new URL(process.env.NEXT_PUBLIC_APP_URL).hostname }]
+        : []),
     ],
     formats: ['image/webp', 'image/avif'],
     minimumCacheTTL: 60 * 60 * 24 * 7, // 7 days

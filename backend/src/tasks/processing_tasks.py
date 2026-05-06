@@ -141,15 +141,10 @@ def process_document_ingestion(self, job_id: str):
         job.update_progress("Extracting text content", 20)
         db.commit()
 
-        # Run async function in event loop
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        try:
-            text_extraction_result = loop.run_until_complete(
-                processing_service.process_text_extraction(document)
-            )
-        finally:
-            loop.close()
+        # Run async function in a managed event loop
+        text_extraction_result = asyncio.run(
+            processing_service.process_text_extraction(document)
+        )
 
         if text_extraction_result["text_content"]:
             document.content_text = text_extraction_result["text_content"]

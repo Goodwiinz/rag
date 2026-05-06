@@ -132,6 +132,15 @@ class ConnectionInfo:
 class EnhancedConnectionManager(BaseService):
     """Enterprise-grade WebSocket connection manager with Redis clustering support"""
 
+    _background_tasks: set[asyncio.Task] = set()
+
+    @staticmethod
+    def _fire_and_forget(coro):
+        task = asyncio.create_task(coro)
+        EnhancedConnectionManager._background_tasks.add(task)
+        task.add_done_callback(EnhancedConnectionManager._background_tasks.discard)
+        return task
+
     def __init__(self):
         super().__init__()
         self.active_connections: Dict[str, ConnectionInfo] = {}
@@ -551,7 +560,7 @@ class EnhancedConnectionManager(BaseService):
             logger.error(f"Failed to send message to {connection_id}: {e}")
 
             # Connection might be dead, schedule cleanup
-            asyncio.create_task(self.disconnect(connection_id, f"Send error: {str(e)}"))
+            self._fire_and_forget(self.disconnect(connection_id, f"Send error: {str(e)}"))
             return False
 
     async def broadcast_to_channel(self, channel: str, message: WebSocketMessage):

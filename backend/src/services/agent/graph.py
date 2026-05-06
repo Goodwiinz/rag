@@ -9,6 +9,7 @@ import json
 import logging
 import os
 import re
+import threading
 import time
 from typing import Any, Dict, List, Optional
 
@@ -108,6 +109,7 @@ from src.services.agent.tools import ALL_TOOLS
 # Lazy reference for execute_tool (avoids circular import, enables patching)
 execute_tool = None  # type: ignore[assignment]
 _default_execute_tool = None  # type: ignore[assignment]
+_execute_tool_lock = threading.Lock()
 
 
 def _get_execute_tool():
@@ -121,20 +123,21 @@ def _get_execute_tool():
     """
     global execute_tool, _default_execute_tool  # noqa: PLW0603
 
-    if execute_tool is None:
+    with _execute_tool_lock:
+        if execute_tool is None:
+            from src.api.agent.execute import execute_tool as _et
+
+            execute_tool = _et
+            _default_execute_tool = _et
+            return execute_tool
+
         from src.api.agent.execute import execute_tool as _et
 
-        execute_tool = _et
-        _default_execute_tool = _et
+        if execute_tool is _default_execute_tool:
+            execute_tool = _et
+            _default_execute_tool = _et
+
         return execute_tool
-
-    from src.api.agent.execute import execute_tool as _et
-
-    if execute_tool is _default_execute_tool:
-        execute_tool = _et
-        _default_execute_tool = _et
-
-    return execute_tool
 
 
 logger = logging.getLogger(__name__)

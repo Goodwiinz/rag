@@ -158,7 +158,8 @@ class HHEMFaithfulnessService:
             return FaithfulnessResult(
                 max_score, 1.0 - max_score, max_score >= self.threshold, 0.0
             )
-        except:
+        except Exception:
+            logger.error("HHEM evaluation with multiple contexts failed", exc_info=True)
             return FaithfulnessResult(0.5, 0.5, False, 0.0)
 
     def batch_evaluate(self, pairs: List[Tuple[str, str]]) -> List[FaithfulnessResult]:
@@ -170,7 +171,8 @@ class HHEMFaithfulnessService:
             return [
                 FaithfulnessResult(s, 1.0 - s, s >= self.threshold, 0.0) for s in scores
             ]
-        except:
+        except Exception:
+            logger.error("HHEM batch evaluation failed", exc_info=True)
             return [FaithfulnessResult(0.5, 0.5, False, 0.0) for _ in pairs]
 
     def get_hallucination_probability(self, answer: str, context: str) -> float:

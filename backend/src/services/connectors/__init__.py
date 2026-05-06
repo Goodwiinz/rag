@@ -7,6 +7,7 @@ connectors, or import individual connectors directly.
 
 from __future__ import annotations
 
+from threading import Lock
 from typing import Dict, List, Optional
 
 from .base import (
@@ -22,12 +23,16 @@ class ConnectorRegistry:
     """Thread-safe singleton that holds all registered connectors."""
 
     _instance: Optional[ConnectorRegistry] = None
+    _lock = Lock()
     _connectors: Dict[str, ExternalDBConnector]
 
     def __new__(cls) -> ConnectorRegistry:
         if cls._instance is None:
-            cls._instance = super().__new__(cls)
-            cls._instance._connectors = {}
+            with cls._lock:
+                # Double-checked locking pattern
+                if cls._instance is None:
+                    cls._instance = super().__new__(cls)
+                    cls._instance._connectors = {}
         return cls._instance
 
     def register(self, connector: ExternalDBConnector) -> None:

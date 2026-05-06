@@ -124,15 +124,30 @@ async def _write_to_redis_only(job_id: str, data: dict) -> None:
 
 
 async def set_job(job_id: str, data: dict) -> None:
-    """Persist a job to Redis (L2) + in-memory L1 cache (write-through)."""
+    """Persist a job to Redis (L2) + in-memory L1 cache (write-through).
+
+    L1 overwrite is guarded by ``created_at`` so a delayed fire-and-forget
+    write cannot stomp a newer authoritative state written after it.
+    """
     data["created_at"] = time.time()
 
-    # L1: in-memory cache
+    # L1: in-memory cache (monotonic guard — never overwrite newer data)
     with _l1_lock:
-        _l1[job_id] = data
+        existing = _l1.get(job_id)
+        if existing is None or existing.get("created_at", 0) <= data["created_at"]:
+            _l1[job_id] = data
         _l1_cleanup()
 
     # L2: Redis
+    await set_job_redis_only(job_id, data)
+
+
+async def set_job_redis_only(job_id: str, data: dict) -> None:
+    """Persist a job to Redis only — does not touch L1.
+
+    Used by the sync ``_set_job`` wrapper after it has already written L1
+    so the fire-and-forget Redis write cannot overwrite L1 with stale data.
+    """
     redis_client = await _get_redis()
     if redis_client is not None:
         try:

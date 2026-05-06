@@ -1,12 +1,15 @@
 from datetime import datetime, timezone
 from types import SimpleNamespace
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
+
+import pytest
 
 from src.models.vector import VectorOperationResult
 from src.services.search.vector_search_service import VectorSearchService
 
 
-def test_reindex_all_content_arxiv_only_processes_matching_documents() -> None:
+@pytest.mark.asyncio
+async def test_reindex_all_content_arxiv_only_processes_matching_documents() -> None:
     service = VectorSearchService()
 
     arxiv_doc = SimpleNamespace(
@@ -32,11 +35,11 @@ def test_reindex_all_content_arxiv_only_processes_matching_documents() -> None:
     service.delete_document_vectors = MagicMock(
         return_value=VectorOperationResult(success=True, message="ok", processing_time=0.0)
     )
-    service.index_document = MagicMock(
+    service.index_document = AsyncMock(
         return_value=VectorOperationResult(success=True, message="ok", processing_time=0.0)
     )
 
-    result = service.reindex_all_content(
+    result = await service.reindex_all_content(
         organization_id="org-1", batch_size=10, arxiv_only=True
     )
 
@@ -44,4 +47,4 @@ def test_reindex_all_content_arxiv_only_processes_matching_documents() -> None:
     assert result["processed"] == 1
     assert result["succeeded"] == 1
     service.delete_document_vectors.assert_called_once_with("doc-arxiv")
-    service.index_document.assert_called_once()
+    service.index_document.assert_awaited_once()

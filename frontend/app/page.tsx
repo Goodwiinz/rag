@@ -25,7 +25,7 @@ import {
   Zap,
 } from 'lucide-react';
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+
 
 // --- Components ---
 
@@ -109,20 +109,16 @@ const TechTicker = () => {
 
 export default function HomePage() {
   const { isAuthenticated } = useAuth();
-  const [mounted, setMounted] = useState(false);
   const { scrollYProgress } = useScroll();
 
   const y = useTransform(scrollYProgress, [0, 1], ['0%', '20%']);
   const opacity = useTransform(scrollYProgress, [0, 0.2], [1, 0]);
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  if (!mounted) return null;
-
   return (
-    <div className="min-h-screen bg-[var(--terminal-bg)] relative overflow-x-hidden flex flex-col noise-texture selection:bg-[var(--phosphor-green)] selection:text-[var(--terminal-bg)]">
+    <div
+      className="min-h-screen bg-[var(--terminal-bg)] relative overflow-x-hidden flex flex-col noise-texture selection:bg-[var(--phosphor-green)] selection:text-[var(--terminal-bg)]"
+      suppressHydrationWarning
+    >
       {/* Dynamic Background */}
       <div className="fixed inset-0 z-0 pointer-events-none">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(212,160,57,0.03),transparent_50%)]" />

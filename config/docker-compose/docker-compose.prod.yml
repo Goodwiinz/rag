@@ -87,7 +87,7 @@ services:
       QDRANT_API_KEY: ${QDRANT_API_KEY}
       LOG_FORMAT: json
       METRICS_ENABLED: true
-      CORS_ORIGINS: "*"
+      CORS_ORIGINS: ${CORS_ORIGINS:-https://app.example.com}
       API_RATE_LIMIT: 1000/hour
       MAX_UPLOAD_SIZE: 100MB
     volumes:
