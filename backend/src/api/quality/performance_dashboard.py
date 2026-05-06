@@ -731,6 +731,4 @@ async def performance_dashboard_health():
         "service": "performance_dashboard",
         "timestamp": datetime.utcnow().isoformat(),
         "version": "1.0.0",
-        "cache_ttl": performance_dashboard_service.cache_ttl,
-        "cached_metrics": len(performance_dashboard_service.metric_cache),
     }

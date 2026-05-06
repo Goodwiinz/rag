@@ -14,9 +14,7 @@ import logging
 import time
 from collections import OrderedDict
 from threading import Lock
-from typing import Optional
-
-import redis.asyncio as aioredis
+from typing import Any, Optional
 
 from src.core.config import get_settings
 
@@ -69,8 +67,15 @@ def _l1_maybe_cleanup() -> None:
 _redis: Optional[aioredis.Redis] = None
 
 
-async def _get_redis() -> Optional[aioredis.Redis]:
-    """Return the shared Redis client, creating it on first call."""
+async def _get_redis() -> Optional[Any]:  # noqa: ANN401
+    """Return the shared Redis client, creating it on first call.
+
+    Imports ``redis.asyncio`` lazily so its module-level setup
+    (event-loop hooks, connection-factory registration) cannot
+    interfere with other async libraries during application startup.
+    """
+    import redis.asyncio as aioredis
+
     global _redis
     if _redis is not None:
         return _redis
@@ -98,6 +103,24 @@ async def close_redis() -> None:
 # ---------------------------------------------------------------------------
 # Public API (replaces the old _set_job / _get_job)
 # ---------------------------------------------------------------------------
+
+
+async def _write_to_redis_only(job_id: str, data: dict) -> None:
+    """Write *data* to Redis without touching the L1 cache.
+
+    Used by the sync ``_set_job`` wrapper whose caller has already
+    populated L1 directly.  Avoids a race where the fire-and-forget
+    background task overwrites a later L1 update from the main flow.
+    """
+    redis_client = await _get_redis()
+    if redis_client is not None:
+        try:
+            payload = _json.dumps(data, default=str)
+            await redis_client.setex(
+                f"{_JOB_KEY_PREFIX}{job_id}", _JOB_TTL_SECONDS, payload
+            )
+        except Exception:
+            logger.exception("Failed to write job %s to Redis", job_id)
 
 
 async def set_job(job_id: str, data: dict) -> None:

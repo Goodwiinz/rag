@@ -9,6 +9,7 @@ import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime
 
+from fastapi import Request
 from sqlalchemy import create_engine, event, text
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import SQLAlchemyError
@@ -93,8 +94,8 @@ else:
         DATABASE_URL,
         pool_pre_ping=True,
         pool_recycle=1800,
-        pool_size=_env_int("DB_SYNC_POOL_SIZE", 2),
-        max_overflow=_env_int("DB_SYNC_MAX_OVERFLOW", 3),
+        pool_size=_env_int("DB_SYNC_POOL_SIZE", 1),
+        max_overflow=_env_int("DB_SYNC_MAX_OVERFLOW", 1),
         pool_timeout=30,
         echo=os.getenv("ENVIRONMENT") == "development",
     )
@@ -123,8 +124,8 @@ else:
     # prod capacity tuning.
     async_engine = create_async_engine(
         ASYNC_DATABASE_URL,
-        pool_size=_env_int("DB_ASYNC_POOL_SIZE", 5),
-        max_overflow=_env_int("DB_ASYNC_MAX_OVERFLOW", 5),
+        pool_size=_env_int("DB_ASYNC_POOL_SIZE", 3),
+        max_overflow=_env_int("DB_ASYNC_MAX_OVERFLOW", 2),
         pool_timeout=_env_int("DB_ASYNC_POOL_TIMEOUT", 30),
         pool_recycle=300,
         pool_pre_ping=False,  # Disabled - causes greenlet issues with asyncpg
@@ -153,8 +154,12 @@ def get_db_sync() -> Session:
         db.close()
 
 
-async def get_db() -> AsyncSession:
-    """Get database session (asynchronous)"""
+async def get_db(request: Request) -> AsyncSession:
+    """Get database session (asynchronous). Reuses middleware session if available."""
+    existing = getattr(request.state, "db", None)
+    if existing is not None:
+        yield existing
+        return
     async with AsyncSessionLocal() as session:
         yield session
 

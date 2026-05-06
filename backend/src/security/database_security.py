@@ -638,9 +638,10 @@ class DatabaseSecurityManager:
             if table_name not in allowed_tables:
                 raise ValueError(f"Invalid table name: {table_name}")
             
+            allowed_columns = ['id', 'name', 'created_at', 'updated_at', 'status', 'email', 'phone', 'content']
+
             # Validate column names if specified
             if columns:
-                allowed_columns = ['id', 'name', 'created_at', 'updated_at', 'status', 'email', 'phone', 'content']
                 for col in columns:
                     if col not in allowed_columns:
                         raise ValueError(f"Invalid column name: {col}")

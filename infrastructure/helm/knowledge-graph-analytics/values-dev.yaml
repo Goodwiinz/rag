@@ -27,7 +27,7 @@ frontend:
   replicaCount: 1
   image:
     repository: registry.digitalocean.com/ragsystemregistry/frontend
-    tag: "4246123"
+    tag: "ba06013"
     pullPolicy: IfNotPresent
   service:
     type: ClusterIP
@@ -79,7 +79,7 @@ backend:
   replicaCount: 1
   image:
     repository: registry.digitalocean.com/ragsystemregistry/backend
-    tag: "4246123"
+    tag: "ba06013"
     pullPolicy: IfNotPresent
   service:
     type: ClusterIP
@@ -144,6 +144,16 @@ backend:
       value: "300"
     - name: CORS_ORIGINS
       value: "https://dev-app.gen-text.app,http://localhost:3000,http://127.0.0.1:3000"
+    # Database pool sizing: tuned for Supabase session-mode pooler limits
+    # (Nano=15 connections). Reduce if switching to transaction-mode pooler.
+    - name: DB_ASYNC_POOL_SIZE
+      value: "3"
+    - name: DB_ASYNC_MAX_OVERFLOW
+      value: "2"
+    - name: DB_SYNC_POOL_SIZE
+      value: "1"
+    - name: DB_SYNC_MAX_OVERFLOW
+      value: "1"
     # Sentry: SENTRY_DSN comes from the `app-secrets` external secret via envFrom.
     # No-op if the key is absent.
     - name: SENTRY_ENVIRONMENT
