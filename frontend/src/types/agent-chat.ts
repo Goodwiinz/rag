@@ -95,6 +95,7 @@ export interface PendingConfirmation {
   jobId: string;
   tools: Array<{ name: string; args: Record<string, unknown> }>;
   message: string;
+  waitTokenId?: string;
 }
 
 export interface PlanStep {

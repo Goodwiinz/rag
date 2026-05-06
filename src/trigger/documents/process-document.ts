@@ -1,5 +1,6 @@
 import { logger, task, wait } from "@trigger.dev/sdk/v3";
 import { backendClient, BackendApiError } from "../_lib/backend-client";
+import { cacheWarmAfterProcessing } from "./cache-warm";
 import {
   ProcessingJobResponseSchema,
   type ProcessingJobResponse,
@@ -49,6 +50,12 @@ export const orchestrateDocumentProcessing = task({
 
       if (job.status === "completed") {
         logger.info("Document processing completed", { jobId, documentId });
+
+        await cacheWarmAfterProcessing.trigger({
+          documentId,
+          documentTitle: undefined,
+        });
+
         return {
           status: "completed",
           jobId,

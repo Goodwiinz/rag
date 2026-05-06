@@ -6,7 +6,6 @@ import type {
   AgentMessage,
   AgentThread,
   PageContext,
-  PlanStep,
 } from '@/types/agent-chat';
 
 const DEFAULT_PAGE_CONTEXT: PageContext = {
@@ -306,9 +305,8 @@ export const useAgentChatStore = create<AgentChatStore>()(
           }
         }
 
-        // Polling fallback
-        // Step 1: Start the async job
-        const { job_id } = await agentChatService.startJob(requestPayload);
+        // Durable Trigger.dev fallback
+        const { runId } = await agentChatService.startDurableRun(requestPayload);
         set((state) => {
           state.messages.push({
             id: placeholderId,
@@ -319,133 +317,69 @@ export const useAgentChatStore = create<AgentChatStore>()(
           });
         });
 
-        // Step 3: Poll until completed or failed (max 120 polls = 3 min)
-        const MAX_POLLS = 120;
-        const POLL_INTERVAL_MS = 1500;
+        const MAX_POLLS = 200;
+        const POLL_INTERVAL_MS = 3000;
 
         for (let i = 0; i < MAX_POLLS; i++) {
-          // Check if generation was stopped
           if (abortController.signal.aborted) return;
-
           await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
-
-          // Check again after sleep
           if (abortController.signal.aborted) return;
 
-          const job = await agentChatService.pollJob(job_id);
+          const run = await agentChatService.getDurableRunStatus(runId);
+          const meta = run.metadata ?? {};
 
-          // Update placeholder with intermediate tool executions
-          if (job.tool_executions && job.tool_executions.length > 0) {
+          if (meta.status === 'awaiting_confirmation' && meta.waitTokenId) {
             set((state) => {
-              const idx = state.messages.findIndex(
-                (m) => m.id === placeholderId
-              );
+              state.pendingConfirmation = {
+                jobId: runId,
+                tools:
+                  ((meta.confirmation as Record<string, unknown>)?.tools as
+                    | Array<{ name: string; args: Record<string, unknown> }>
+                    | undefined) ?? [],
+                message:
+                  ((meta.confirmation as Record<string, unknown>)?.message as string) ||
+                  'The agent wants to perform an action. Please confirm.',
+                waitTokenId: meta.waitTokenId as string,
+              };
+              const idx = state.messages.findIndex((m) => m.id === placeholderId);
               if (idx !== -1) {
-                state.messages[idx].toolExecutions = job.tool_executions!.map(
-                  (te) => ({
-                    id: te.id,
-                    toolName: te.tool_name,
-                    toolDisplayName: te.tool_display_name,
-                    args: te.args,
-                    status: te.status as 'running' | 'completed' | 'failed',
-                    result: te.result,
-                    error: te.error,
-                    durationMs: te.duration_ms,
-                  })
-                );
-              }
-            });
-          }
-
-          if (job.status === 'completed' && job.result) {
-            const response = job.result;
-
-            // Replace placeholder with final assistant message
-            set((state) => {
-              const idx = state.messages.findIndex(
-                (m) => m.id === placeholderId
-              );
-              if (idx !== -1) {
-                state.messages[idx] = {
-                  id: placeholderId,
-                  role: 'assistant',
-                  content: response.message.content,
-                  timestamp: new Date(response.timestamp),
-                  isStreaming: false,
-                  citations: response.retrieved_contexts?.map((ctx) => ({
-                    documentId: ctx.document_id ?? '',
-                    documentTitle: ctx.title,
-                    snippet: ctx.content,
-                    score: ctx.score,
-                  })),
-                  toolExecutions: response.tool_executions?.map((te) => ({
-                    id: te.id,
-                    toolName: te.tool_name,
-                    toolDisplayName: te.tool_display_name,
-                    args: te.args,
-                    status: te.status as 'running' | 'completed' | 'failed',
-                    result: te.result,
-                    error: te.error,
-                    durationMs: te.duration_ms,
-                  })),
-                };
+                state.messages[idx].isStreaming = false;
+                state.messages[idx].content = 'Waiting for your confirmation...';
               }
               state.isStreaming = false;
-              state.activeThreadId = response.thread_id || state.activeThreadId;
-
-              // Bump projectDataVersion if any mutating tools ran
-              const hasMutation = response.tool_executions?.some((te) =>
-                PROJECT_MUTATING_TOOLS.has(te.tool_name)
-              );
-              if (hasMutation) {
-                state.projectDataVersion += 1;
-              }
             });
+            return;
+          }
 
-            // Mark unread if chat is closed
+          if (run.status === 'COMPLETED' && run.output) {
+            const result = run.output as Record<string, unknown>;
+            const content =
+              (result.result as Record<string, unknown>)?.message ??
+              result.status ??
+              'Done';
+            set((state) => {
+              const idx = state.messages.findIndex((m) => m.id === placeholderId);
+              if (idx !== -1) {
+                state.messages[idx].content = String(content);
+                state.messages[idx].isStreaming = false;
+              }
+              state.isStreaming = false;
+              (state as unknown as AgentChatStore)._abortController = null;
+            });
             if (uiMode === 'closed') {
-              set((state) => {
-                state.hasUnread = true;
-              });
+              set((state) => { state.hasUnread = true; });
             }
             return;
           }
 
-          if (job.status === 'awaiting_confirmation' && job.confirmation) {
+          if (run.status === 'FAILED' || run.status === 'CRASHED') {
             set((state) => {
-              state.pendingConfirmation = {
-                jobId: job_id,
-                tools: job.confirmation!.tools || [],
-                message:
-                  job.confirmation!.message ||
-                  'The agent wants to perform an action. Please confirm.',
-              };
-              // Keep streaming indicator but stop the poll loop
-              const idx = state.messages.findIndex(
-                (m) => m.id === placeholderId
-              );
-              if (idx !== -1) {
-                state.messages[idx].isStreaming = false;
-                state.messages[idx].content =
-                  'Waiting for your confirmation...';
-              }
-              state.isStreaming = false;
-            });
-            return;
-          }
-
-          if (job.status === 'failed') {
-            set((state) => {
-              const idx = state.messages.findIndex(
-                (m) => m.id === placeholderId
-              );
+              const idx = state.messages.findIndex((m) => m.id === placeholderId);
               if (idx !== -1) {
                 state.messages[idx] = {
                   id: placeholderId,
                   role: 'assistant',
-                  content:
-                    job.error ||
-                    'Sorry, something went wrong. Please try again.',
+                  content: run.error || 'Sorry, something went wrong. Please try again.',
                   timestamp: new Date(),
                   isStreaming: false,
                   isError: true,
@@ -458,15 +392,14 @@ export const useAgentChatStore = create<AgentChatStore>()(
           }
         }
 
-        // Timeout: max polls exhausted
+        // Timeout
         set((state) => {
           const idx = state.messages.findIndex((m) => m.id === placeholderId);
           if (idx !== -1) {
             state.messages[idx] = {
               id: placeholderId,
               role: 'assistant',
-              content:
-                'The request timed out. The agent may still be processing — please try again shortly.',
+              content: 'The request timed out. The agent may still be processing — please try again shortly.',
               timestamp: new Date(),
               isStreaming: false,
               isError: true,
@@ -682,72 +615,115 @@ export const useAgentChatStore = create<AgentChatStore>()(
           // SSE confirm failed — fall back to polling
         }
 
-        // Polling fallback
-        await agentChatService.confirmAction(jobId, confirmed);
+        // Durable run or legacy polling fallback
+        const savedConfirmation = get().pendingConfirmation;
+        const waitTokenId = savedConfirmation?.waitTokenId;
 
-        const MAX_POLLS = 120;
-        const POLL_INTERVAL_MS = 1500;
-        for (let i = 0; i < MAX_POLLS; i++) {
-          await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
-          const job = await agentChatService.pollJob(jobId);
+        if (waitTokenId) {
+          await agentChatService.completeDurableConfirmation(jobId, waitTokenId, confirmed);
 
-          if (job.status === 'completed' && job.result) {
-            set((state) => {
-              const lastAsst = [...state.messages]
-                .reverse()
-                .find((m) => m.role === 'assistant');
-              if (lastAsst) {
-                const idx = state.messages.findIndex(
-                  (m) => m.id === lastAsst.id
-                );
-                if (idx !== -1) {
-                  state.messages[idx].content = job.result!.message.content;
-                  state.messages[idx].isStreaming = false;
-                  state.messages[idx].toolExecutions =
-                    job.result!.tool_executions?.map((te) => ({
-                      id: te.id,
-                      toolName: te.tool_name,
-                      toolDisplayName: te.tool_display_name,
-                      args: te.args,
-                      status: te.status as 'running' | 'completed' | 'failed',
-                      result: te.result,
-                      error: te.error,
-                      durationMs: te.duration_ms,
-                    }));
+          const MAX_POLLS = 200;
+          const POLL_INTERVAL_MS = 3000;
+          for (let i = 0; i < MAX_POLLS; i++) {
+            await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
+            const run = await agentChatService.getDurableRunStatus(jobId);
+
+            if (run.status === 'COMPLETED' && run.output) {
+              const result = run.output as Record<string, unknown>;
+              const content =
+                (result.result as Record<string, unknown>)?.message ?? result.status ?? 'Done';
+              set((state) => {
+                const lastAsst = [...state.messages].reverse().find((m) => m.role === 'assistant');
+                if (lastAsst) {
+                  const idx = state.messages.findIndex((m) => m.id === lastAsst.id);
+                  if (idx !== -1) {
+                    state.messages[idx].content = String(content);
+                    state.messages[idx].isStreaming = false;
+                  }
                 }
-              }
-              state.isStreaming = false;
-              state.pendingConfirmation = null;
-              state.isConfirming = false;
-
-              const hasMutation = job.result!.tool_executions?.some((te) =>
-                PROJECT_MUTATING_TOOLS.has(te.tool_name)
-              );
-              if (hasMutation) {
-                state.projectDataVersion += 1;
-              }
-            });
-            return;
+                state.isStreaming = false;
+                state.pendingConfirmation = null;
+                state.isConfirming = false;
+              });
+              return;
+            }
+            if (run.status === 'FAILED' || run.status === 'CRASHED') {
+              set((state) => {
+                const lastAsst = [...state.messages].reverse().find((m) => m.role === 'assistant');
+                if (lastAsst) {
+                  const idx = state.messages.findIndex((m) => m.id === lastAsst.id);
+                  if (idx !== -1) {
+                    state.messages[idx].content = run.error || 'Action failed.';
+                    state.messages[idx].isStreaming = false;
+                  }
+                }
+                state.isStreaming = false;
+                state.pendingConfirmation = null;
+                state.isConfirming = false;
+              });
+              return;
+            }
           }
-          if (job.status === 'failed') {
-            set((state) => {
-              const lastAsst = [...state.messages]
-                .reverse()
-                .find((m) => m.role === 'assistant');
-              if (lastAsst) {
-                const idx = state.messages.findIndex(
-                  (m) => m.id === lastAsst.id
-                );
-                if (idx !== -1) {
-                  state.messages[idx].content = job.error || 'Action failed.';
-                  state.messages[idx].isStreaming = false;
+        } else {
+          // Legacy polling fallback for SSE-originated confirmations
+          await agentChatService.confirmAction(jobId, confirmed);
+
+          const MAX_POLLS = 120;
+          const POLL_INTERVAL_MS = 1500;
+          for (let i = 0; i < MAX_POLLS; i++) {
+            await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
+            const job = await agentChatService.pollJob(jobId);
+
+            if (job.status === 'completed' && job.result) {
+              set((state) => {
+                const lastAsst = [...state.messages].reverse().find((m) => m.role === 'assistant');
+                if (lastAsst) {
+                  const idx = state.messages.findIndex((m) => m.id === lastAsst.id);
+                  if (idx !== -1) {
+                    state.messages[idx].content = job.result!.message.content;
+                    state.messages[idx].isStreaming = false;
+                    state.messages[idx].toolExecutions =
+                      job.result!.tool_executions?.map((te) => ({
+                        id: te.id,
+                        toolName: te.tool_name,
+                        toolDisplayName: te.tool_display_name,
+                        args: te.args,
+                        status: te.status as 'running' | 'completed' | 'failed',
+                        result: te.result,
+                        error: te.error,
+                        durationMs: te.duration_ms,
+                      }));
+                  }
                 }
-              }
-              state.isStreaming = false;
-              state.pendingConfirmation = null;
-              state.isConfirming = false;
-            });
-            return;
+                state.isStreaming = false;
+                state.pendingConfirmation = null;
+                state.isConfirming = false;
+
+                const hasMutation = job.result!.tool_executions?.some((te) =>
+                  PROJECT_MUTATING_TOOLS.has(te.tool_name)
+                );
+                if (hasMutation) {
+                  state.projectDataVersion += 1;
+                }
+              });
+              return;
+            }
+            if (job.status === 'failed') {
+              set((state) => {
+                const lastAsst = [...state.messages].reverse().find((m) => m.role === 'assistant');
+                if (lastAsst) {
+                  const idx = state.messages.findIndex((m) => m.id === lastAsst.id);
+                  if (idx !== -1) {
+                    state.messages[idx].content = job.error || 'Action failed.';
+                    state.messages[idx].isStreaming = false;
+                  }
+                }
+                state.isStreaming = false;
+                state.pendingConfirmation = null;
+                state.isConfirming = false;
+              });
+              return;
+            }
           }
         }
       } catch {
