@@ -733,7 +733,15 @@ async function handleThreadsCommand(ctx: SlashContext): Promise<void> {
   const merged = mergeThreads(local, remote);
 
   if (remote.length > 0) {
-    reconcileThreads(remote.map((t) => t.id));
+    const remoteIds = remote.map((t) => t.id);
+    reconcileThreads(remoteIds);
+    if (ctx.threadId && !remoteIds.includes(ctx.threadId)) {
+      const cfg = loadConfig();
+      if (cfg && cfg.thread_id === ctx.threadId) {
+        saveConfig({ ...cfg, thread_id: null });
+      }
+      ctx.onThreadChange(null);
+    }
   }
 
   if (merged.length === 0) {
@@ -763,6 +771,29 @@ async function handleThreadsCommand(ctx: SlashContext): Promise<void> {
   touchThread(picked.id);
   ctx.onThreadChange(picked.id);
   p.log.success(`Switched to "${picked.title}" (${picked.id.slice(0, 8)})`);
+
+  try {
+    const messages = await fetchThreadMessages(picked.id);
+    const conversation = messages.filter(
+      (m) => m.role.toLowerCase() !== 'tool'
+    );
+    if (conversation.length > 0) {
+      const tail = conversation.slice(-6);
+      const omitted = conversation.length - tail.length;
+      p.log.message('');
+      if (omitted > 0) {
+        p.log.message(
+          `  ╭─ ${omitted} earlier message${omitted === 1 ? '' : 's'} ─╮`
+        );
+      }
+      for (const msg of tail) {
+        renderPreviewMessage(msg);
+      }
+      p.log.message('  ╰───────────────────────╯');
+    }
+  } catch {
+    // History preview is best-effort — don't block the switch.
+  }
 }
 
 async function handleHistoryCommand(
@@ -997,6 +1028,56 @@ function renderHistoryMessage(msg: {
     return;
   }
   p.log.message(`[${when}] ◂ agent: ${truncate(msg.content, 400)}`);
+}
+
+const PREVIEW_AGENT_LINES = 3;
+
+function renderPreviewMessage(msg: {
+  role: string;
+  content: string;
+  created_at: string;
+}): void {
+  const when = formatRelative(msg.created_at);
+  const role = msg.role.toLowerCase();
+  const isUser = role === 'user';
+  const prefix = isUser ? '\x1b[36m▸ you\x1b[0m' : '\x1b[33m◂ nous\x1b[0m';
+  const cols = process.stdout.columns ?? 80;
+  const lineMax = Math.min(cols - 14, 140);
+
+  if (isUser) {
+    p.log.message(
+      `  ${prefix}  ${truncate(msg.content, lineMax)}  \x1b[2m${when}\x1b[0m`
+    );
+    return;
+  }
+
+  const cleaned = msg.content.replace(/\s+/g, ' ').trim();
+  const lines: string[] = [];
+  let remaining = cleaned;
+  for (let i = 0; i < PREVIEW_AGENT_LINES && remaining.length > 0; i++) {
+    if (remaining.length <= lineMax) {
+      lines.push(remaining);
+      remaining = '';
+    } else {
+      lines.push(`${remaining.slice(0, lineMax - 1)}…`);
+      remaining = remaining.slice(lineMax - 1);
+    }
+  }
+  if (remaining.length > 0 && lines.length > 0) {
+    const last = lines[lines.length - 1];
+    if (!last.endsWith('…')) {
+      lines[lines.length - 1] = `${last.slice(0, -1)}…`;
+    }
+  }
+
+  const pad = '         ';
+  lines.forEach((line, i) => {
+    if (i === 0) {
+      p.log.message(`  ${prefix}  ${line}  \x1b[2m${when}\x1b[0m`);
+    } else {
+      p.log.message(`  ${pad}${line}`);
+    }
+  });
 }
 
 function truncate(text: string, max: number): string {

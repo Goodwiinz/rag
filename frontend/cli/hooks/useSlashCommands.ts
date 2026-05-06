@@ -4,8 +4,9 @@ export interface ParsedCommand {
 }
 
 export function parseSlashCommand(input: string): ParsedCommand | null {
-  if (!input.startsWith('/')) return null;
-  const parts = input.slice(1).trim().split(/\s+/);
+  const normalized = input.replace(/^[\s❯>$%]+/, '');
+  if (!normalized.startsWith('/')) return null;
+  const parts = normalized.slice(1).trim().split(/\s+/);
   return { command: parts[0], args: parts.slice(1) };
 }
 
