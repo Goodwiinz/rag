@@ -29,8 +29,8 @@ def test_default_model_is_empty_string_meaning_server_default():
 
 
 def test_known_openai_deployment_is_accepted():
-    request = _build(model="gpt-4o-mini")
-    assert request.model == "gpt-4o-mini"
+    request = _build(model="gpt-5-mini")
+    assert request.model == "gpt-5-mini"
 
 
 def test_claude_deployment_is_accepted():
@@ -55,4 +55,4 @@ def test_unknown_model_raises_validation_error_naming_supported_set():
     detail = str(excinfo.value)
     assert "gpt-7-uberbrain" in detail
     assert "claude-sonnet-4-5" in detail
-    assert "gpt-4o-mini" in detail
+    assert "gpt-5-mini" in detail
