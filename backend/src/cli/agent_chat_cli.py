@@ -18,18 +18,7 @@ from src.cli.agent_cli_renderer import render_event
 from src.cli.types import CLIEvent
 from src.cli.types import CLISessionState
 
-SUGGESTED_MODELS: tuple[str, ...] = (
-    "model-router",
-    "gpt-5",
-    "gpt-5-mini",
-    "gpt-5-nano",
-    "gpt-5-chat",
-    "gpt-5.2",
-    "gpt-5.2-chat",
-    "o4-mini",
-    "claude-sonnet-4-5",
-    "claude-haiku-4-5",
-)
+SUGGESTED_MODELS: tuple[str, ...] = ("model-router",)
 
 HELP_TEXT = "\n".join(
     [
@@ -41,9 +30,9 @@ HELP_TEXT = "\n".join(
         "  /status               Show current session state.",
         "  /context project <id> Set the active project context.",
         "  /context clear        Clear the active page context.",
-        "  /model [<name>]       Show or set the chat model "
-        "(e.g. model-router, gpt-5, claude-sonnet-4-5).",
-        "  /model clear          Use the server default model.",
+        "  /model [<name>]       Show or set the chat deployment "
+        "(only `model-router` is provisioned).",
+        "  /model clear          Use the server default deployment.",
         "  /debug on|off         Toggle debug output.",
         "  /quit                 Exit the CLI.",
     ]

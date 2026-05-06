@@ -245,23 +245,10 @@ def test_apply_command_model_sets_known_model_without_warning() -> None:
 
     state = CLISessionState()
 
-    new_state, output = apply_command(state, "/model gpt-5-mini")
+    new_state, output = apply_command(state, "/model model-router")
 
-    assert new_state.model == "gpt-5-mini"
-    assert "gpt-5-mini" in output
-    assert "may reject" not in output
-
-
-def test_apply_command_model_accepts_claude_sonnet_without_warning() -> None:
-    from src.cli.agent_chat_cli import apply_command
-    from src.cli.types import CLISessionState
-
-    state = CLISessionState()
-
-    new_state, output = apply_command(state, "/model claude-sonnet-4-5")
-
-    assert new_state.model == "claude-sonnet-4-5"
-    assert "claude-sonnet-4-5" in output
+    assert new_state.model == "model-router"
+    assert "model-router" in output
     assert "may reject" not in output
 
 

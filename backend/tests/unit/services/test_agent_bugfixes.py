@@ -585,7 +585,7 @@ class TestJobOwnership:
         request_data = {
             "messages": [{"role": "user", "content": "hello"}],
             "page_context": {"type": "unknown"},
-            "model": "gpt-5",
+            "model": "model-router",
             "use_rag": True,
             "max_context_docs": 5,
         }

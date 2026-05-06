@@ -379,7 +379,7 @@ class TestResumePersistence:
                 "request": {
                     "messages": [{"role": "user", "content": "ingest paper"}],
                     "page_context": {"type": "unknown"},
-                    "model": "gpt-5",
+                    "model": "model-router",
                     "use_rag": True,
                     "max_context_docs": 5,
                 },
@@ -449,7 +449,7 @@ class TestResumePersistence:
                 "request": {
                     "messages": [{"role": "user", "content": "confirm ingest"}],
                     "page_context": {"type": "project", "project_id": "proj-1"},
-                    "model": "gpt-5",
+                    "model": "model-router",
                     "use_rag": True,
                     "max_context_docs": 5,
                     "thread_id": thread_id,
@@ -513,7 +513,7 @@ class TestResumePersistence:
                 "request": {
                     "messages": [{"role": "user", "content": "save this result"}],
                     "page_context": {"type": "unknown"},
-                    "model": "gpt-5",
+                    "model": "model-router",
                     "use_rag": True,
                     "max_context_docs": 5,
                 },
@@ -605,7 +605,7 @@ class TestSSEStreamPersistence:
                 "label": "Notes",
                 "metadata": {"active_tab": "notes", "source": "sidebar"},
             },
-            "model": "gpt-5",
+            "model": "model-router",
             "use_rag": True,
             "max_context_docs": 5,
         }
