@@ -44,40 +44,76 @@ from langchain_core.runnables import RunnableConfig
 from langgraph.graph import END, StateGraph
 
 
+_TOOL_PLACEHOLDER_CONTENT = '{"status": "skipped"}'
+
+
+def _tool_call_id(tc: Any) -> Optional[str]:
+    """Extract the ``id`` field from a tool_call entry, tolerating dict or attr form."""
+    if isinstance(tc, dict):
+        tc_id = tc.get("id")
+    else:
+        tc_id = getattr(tc, "id", None)
+    return tc_id if isinstance(tc_id, str) and tc_id else None
+
+
 def _sanitize_messages(raw: list) -> list:
     """Ensure the message list is valid for LLM APIs.
 
-    - Adds placeholder ToolMessages for AIMessages whose tool_calls are unanswered.
-    - Merges consecutive HumanMessages into one.
+    OpenAI-compatible chat APIs require:
+    1. Every assistant message with ``tool_calls`` must be IMMEDIATELY
+       followed by ``ToolMessage`` entries answering each call.
+    2. Every ``ToolMessage`` must follow an assistant message whose
+       ``tool_calls`` includes its ``tool_call_id``.
 
-    Walks the list in a single forward pass (O(n) total across all
-    iterations).  For each AIMessage with tool_calls the inner ``while``
-    loop only scans the contiguous ToolMessages immediately following it
-    — every element is visited at most once by that loop, so the
-    cumulative scan cost stays linear.
+    Real-world checkpoint state can violate both invariants — e.g. a
+    cancelled tool execution leaves an unanswered ``tool_call``, or a
+    HumanMessage gets inserted between an AI's tool_calls and the
+    ToolMessages answering them. We rebuild the message list defensively:
+
+    - Index every ``ToolMessage`` by its ``tool_call_id`` (last wins).
+    - Walk the raw list, skipping standalone ToolMessages — they're
+      re-emitted right after their parent AIMessage (or replaced with a
+      ``"skipped"`` placeholder if no real one exists).
+    - ToolMessages whose ``tool_call_id`` doesn't match any AI tool_call
+      are dropped — they're orphans that confuse the API.
+    - Consecutive HumanMessages are merged into one (LangGraph state
+      occasionally appends them separately on retries / interrupts).
+
+    The placeholder content stays ``'{"status": "skipped"}'`` because
+    the compactor recognises that exact string to skip synthetic items.
     """
-    filled: list = []
-    i = 0
-    while i < len(raw):
-        msg = raw[i]
-        filled.append(msg)
-        if isinstance(msg, AIMessage) and getattr(msg, "tool_calls", None):
-            answered: set = set()
-            j = i + 1
-            while j < len(raw) and isinstance(raw[j], ToolMessage):
-                answered.add(raw[j].tool_call_id)
-                j += 1
-            for tc in msg.tool_calls:
-                if tc["id"] not in answered:
-                    filled.append(
-                        ToolMessage(
-                            content='{"status": "skipped"}', tool_call_id=tc["id"]
-                        )
-                    )
-        i += 1
+    # Pass 1: index ToolMessages by tool_call_id (last occurrence wins)
+    tm_by_id: dict[str, ToolMessage] = {}
+    for msg in raw:
+        if isinstance(msg, ToolMessage) and msg.tool_call_id:
+            tm_by_id[msg.tool_call_id] = msg
 
+    # Pass 2: rebuild list, putting each AI's ToolMessages right after it
+    rebuilt: list = []
+    placed_tm_ids: set[str] = set()
+    for msg in raw:
+        if isinstance(msg, ToolMessage):
+            # Standalone TMs are re-inserted via their parent AI (below)
+            # or dropped if no parent claims them.
+            continue
+        rebuilt.append(msg)
+        if not (isinstance(msg, AIMessage) and getattr(msg, "tool_calls", None)):
+            continue
+        for tc in msg.tool_calls:
+            tc_id = _tool_call_id(tc)
+            if not tc_id or tc_id in placed_tm_ids:
+                continue
+            tm = tm_by_id.get(tc_id)
+            if tm is None:
+                tm = ToolMessage(
+                    content=_TOOL_PLACEHOLDER_CONTENT, tool_call_id=tc_id
+                )
+            rebuilt.append(tm)
+            placed_tm_ids.add(tc_id)
+
+    # Pass 3: merge consecutive HumanMessages
     merged: list = []
-    for msg in filled:
+    for msg in rebuilt:
         if (
             merged
             and isinstance(merged[-1], HumanMessage)
