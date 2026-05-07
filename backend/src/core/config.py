@@ -25,7 +25,7 @@ class Settings(BaseSettings):
     APP_NAME: str = "Multimodal Enterprise RAG System"
     VERSION: str = "1.0.0"
     ENVIRONMENT: str = "development"
-    DEBUG: bool = True
+    DEBUG: bool = False
     SECRET_KEY: str = ""
 
     # CORS Configuration (comma-separated string from env, parsed to list)
@@ -100,6 +100,13 @@ class Settings(BaseSettings):
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7  # Default refresh token lifetime
     REMEMBER_ME_REFRESH_TOKEN_DAYS: int = 30  # Extended session for "Remember Me"
     CLI_TOKEN_EXPIRE_DAYS: int = 30  # Long-lived CLI device tokens
+
+    @model_validator(mode="after")
+    def _enforce_debug_off_in_prod(self):
+        """Never allow DEBUG=True in production or staging."""
+        if self.ENVIRONMENT in ("production", "staging"):
+            self.DEBUG = False
+        return self
 
     @model_validator(mode="after")
     def _override_database_url_from_supabase(self):

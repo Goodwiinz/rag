@@ -42,8 +42,10 @@ class ErrorTracker {
   private isEnabled = true;
 
   private constructor() {
-    this.initializeErrorHandling();
-    this.setupPerformanceMonitoring();
+    if (typeof window !== 'undefined') {
+      this.initializeErrorHandling();
+      this.setupPerformanceMonitoring();
+    }
   }
 
   static getInstance(): ErrorTracker {
@@ -63,8 +65,8 @@ class ErrorTracker {
         additionalData: {
           lineno: event.lineno,
           colno: event.colno,
-          stack: event.error?.stack
-        }
+          stack: event.error?.stack,
+        },
       });
     });
 
@@ -74,7 +76,7 @@ class ErrorTracker {
         {
           component: 'Global',
           action: 'UnhandledPromiseRejection',
-          additionalData: { reason: event.reason }
+          additionalData: { reason: event.reason },
         }
       );
     });
@@ -92,15 +94,16 @@ class ErrorTracker {
       for (const entry of list.getEntries()) {
         if (entry.entryType === 'resource') {
           const resource = entry as PerformanceResourceTiming;
-          if (resource.duration > 5000) { // Log slow resources
+          if (resource.duration > 5000) {
+            // Log slow resources
             this.warn('Slow resource detected', {
               component: 'Performance',
               action: 'ResourceLoad',
               additionalData: {
                 name: resource.name,
                 duration: resource.duration,
-                size: resource.transferSize
-              }
+                size: resource.transferSize,
+              },
             });
           }
         }
@@ -118,8 +121,8 @@ class ErrorTracker {
             action: 'LongTask',
             additionalData: {
               duration: entry.duration,
-              startTime: entry.startTime
-            }
+              startTime: entry.startTime,
+            },
           });
         }
       });
@@ -143,7 +146,7 @@ class ErrorTracker {
       sessionId: this.getSessionId(),
       url: window.location.href,
       userAgent: navigator.userAgent,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     };
   }
 
@@ -161,12 +164,17 @@ class ErrorTracker {
     return sessionId;
   }
 
-  private addLog(level: ErrorLog['level'], message: string, error?: Error, context?: Partial<ErrorContext>) {
+  private addLog(
+    level: ErrorLog['level'],
+    message: string,
+    error?: Error,
+    context?: Partial<ErrorContext>
+  ) {
     if (!this.isEnabled) return;
 
     const fullContext: ErrorContext = {
       ...this.getCurrentContext(),
-      ...context
+      ...context,
     };
 
     const log: ErrorLog = {
@@ -177,7 +185,7 @@ class ErrorTracker {
       context: fullContext,
       stackTrace: error?.stack,
       timestamp: fullContext.timestamp || new Date().toISOString(),
-      resolved: false
+      resolved: false,
     };
 
     this.logs.push(log);
@@ -204,14 +212,24 @@ class ErrorTracker {
     }
   }
 
-  private logToConsole(level: string, message: string, error?: Error, context?: ErrorContext) {
-    const logMethod = level === 'error' || level === 'fatal' ? 'error' :
-                     level === 'warn' ? 'warn' :
-                     level === 'info' ? 'info' : 'debug';
+  private logToConsole(
+    level: string,
+    message: string,
+    error?: Error,
+    context?: ErrorContext
+  ) {
+    const logMethod =
+      level === 'error' || level === 'fatal'
+        ? 'error'
+        : level === 'warn'
+          ? 'warn'
+          : level === 'info'
+            ? 'info'
+            : 'debug';
 
     console[logMethod](`[${level.toUpperCase()}] ${message}`, {
       error,
-      context
+      context,
     });
   }
 
@@ -219,7 +237,9 @@ class ErrorTracker {
     // In a real implementation, this would send to services like Sentry, LogRocket, etc.
     // For now, we'll simulate with a local storage backup
     try {
-      const existingLogs = JSON.parse(localStorage.getItem('errorLogs') || '[]');
+      const existingLogs = JSON.parse(
+        localStorage.getItem('errorLogs') || '[]'
+      );
       existingLogs.push(log);
 
       // Keep only last 100 logs in localStorage
@@ -265,13 +285,18 @@ class ErrorTracker {
   }
 
   // Performance monitoring
-  trackMetric(name: string, value: number, unit: string, context?: Partial<ErrorContext>) {
+  trackMetric(
+    name: string,
+    value: number,
+    unit: string,
+    context?: Partial<ErrorContext>
+  ) {
     const metric: PerformanceMetric = {
       name,
       value,
       unit,
       timestamp: new Date().toISOString(),
-      context: { ...this.getCurrentContext(), ...context }
+      context: { ...this.getCurrentContext(), ...context },
     };
 
     this.metrics.push(metric);
@@ -283,14 +308,19 @@ class ErrorTracker {
 
   private async sendMetric(metric: PerformanceMetric) {
     try {
-      const existingMetrics = JSON.parse(localStorage.getItem('performanceMetrics') || '[]');
+      const existingMetrics = JSON.parse(
+        localStorage.getItem('performanceMetrics') || '[]'
+      );
       existingMetrics.push(metric);
 
       if (existingMetrics.length > 50) {
         existingMetrics.splice(0, existingMetrics.length - 50);
       }
 
-      localStorage.setItem('performanceMetrics', JSON.stringify(existingMetrics));
+      localStorage.setItem(
+        'performanceMetrics',
+        JSON.stringify(existingMetrics)
+      );
     } catch (e) {
       console.warn('Failed to store performance metric locally:', e);
     }
@@ -301,17 +331,20 @@ class ErrorTracker {
     this.captureError(error, {
       component: componentName,
       action: 'ComponentError',
-      additionalData: { errorInfo }
+      additionalData: { errorInfo },
     });
   }
 
   // API error tracking
   captureApiError(url: string, method: string, status: number, error?: Error) {
-    this.captureError(error || new Error(`API ${method} ${url} failed with status ${status}`), {
-      component: 'API',
-      action: 'RequestFailed',
-      additionalData: { url, method, status }
-    });
+    this.captureError(
+      error || new Error(`API ${method} ${url} failed with status ${status}`),
+      {
+        component: 'API',
+        action: 'RequestFailed',
+        additionalData: { url, method, status },
+      }
+    );
   }
 
   // User interaction tracking
@@ -319,45 +352,58 @@ class ErrorTracker {
     this.info(`User action: ${action}`, {
       component: 'UserInteraction',
       action,
-      additionalData: details
+      additionalData: details,
     });
   }
 
   // Query and search tracking
-  trackQuery(query: string, resultsCount: number, responseTime: number, success: boolean) {
+  trackQuery(
+    query: string,
+    resultsCount: number,
+    responseTime: number,
+    success: boolean
+  ) {
     this.trackMetric('search_response_time', responseTime, 'milliseconds', {
       component: 'Search',
-      action: 'Query'
+      action: 'Query',
     });
 
     if (!success) {
       this.error(`Search query failed: ${query}`, undefined, {
         component: 'Search',
         action: 'QueryFailed',
-        additionalData: { query, responseTime }
+        additionalData: { query, responseTime },
       });
     } else {
       this.info(`Search query successful: ${query}`, {
         component: 'Search',
         action: 'QuerySuccess',
-        additionalData: { query, resultsCount, responseTime }
+        additionalData: { query, resultsCount, responseTime },
       });
     }
   }
 
   // Document upload tracking
-  trackDocumentUpload(fileName: string, fileSize: number, success: boolean, error?: Error) {
+  trackDocumentUpload(
+    fileName: string,
+    fileSize: number,
+    success: boolean,
+    error?: Error
+  ) {
     if (!success) {
-      this.captureError(error || new Error(`Document upload failed: ${fileName}`), {
-        component: 'DocumentUpload',
-        action: 'UploadFailed',
-        additionalData: { fileName, fileSize }
-      });
+      this.captureError(
+        error || new Error(`Document upload failed: ${fileName}`),
+        {
+          component: 'DocumentUpload',
+          action: 'UploadFailed',
+          additionalData: { fileName, fileSize },
+        }
+      );
     } else {
       this.info(`Document uploaded successfully: ${fileName}`, {
         component: 'DocumentUpload',
         action: 'UploadSuccess',
-        additionalData: { fileName, fileSize }
+        additionalData: { fileName, fileSize },
       });
     }
   }
@@ -366,7 +412,7 @@ class ErrorTracker {
   getLogs(level?: ErrorLog['level'], limit?: number): ErrorLog[] {
     let filteredLogs = this.logs;
     if (level) {
-      filteredLogs = filteredLogs.filter(log => log.level === level);
+      filteredLogs = filteredLogs.filter((log) => log.level === level);
     }
     if (limit) {
       filteredLogs = filteredLogs.slice(-limit);
@@ -377,7 +423,9 @@ class ErrorTracker {
   getMetrics(name?: string, limit?: number): PerformanceMetric[] {
     let filteredMetrics = this.metrics;
     if (name) {
-      filteredMetrics = filteredMetrics.filter(metric => metric.name === name);
+      filteredMetrics = filteredMetrics.filter(
+        (metric) => metric.name === name
+      );
     }
     if (limit) {
       filteredMetrics = filteredMetrics.slice(-limit);
@@ -391,12 +439,13 @@ class ErrorTracker {
       total: this.logs.length,
       byLevel: {} as Record<string, number>,
       byComponent: {} as Record<string, number>,
-      recent: this.logs.filter(log =>
-        new Date(log.timestamp).getTime() > Date.now() - 24 * 60 * 60 * 1000
-      ).length
+      recent: this.logs.filter(
+        (log) =>
+          new Date(log.timestamp).getTime() > Date.now() - 24 * 60 * 60 * 1000
+      ).length,
     };
 
-    this.logs.forEach(log => {
+    this.logs.forEach((log) => {
       stats.byLevel[log.level] = (stats.byLevel[log.level] || 0) + 1;
       const component = log.context.component || 'Unknown';
       stats.byComponent[component] = (stats.byComponent[component] || 0) + 1;
@@ -408,19 +457,31 @@ class ErrorTracker {
   getPerformanceStats() {
     const stats = {
       total: this.metrics.length,
-      byName: {} as Record<string, { count: number; avg: number; min: number; max: number }>,
-      recent: this.metrics.filter(metric =>
-        new Date(metric.timestamp).getTime() > Date.now() - 24 * 60 * 60 * 1000
-      ).length
+      byName: {} as Record<
+        string,
+        { count: number; avg: number; min: number; max: number }
+      >,
+      recent: this.metrics.filter(
+        (metric) =>
+          new Date(metric.timestamp).getTime() >
+          Date.now() - 24 * 60 * 60 * 1000
+      ).length,
     };
 
-    this.metrics.forEach(metric => {
+    this.metrics.forEach((metric) => {
       if (!stats.byName[metric.name]) {
-        stats.byName[metric.name] = { count: 0, avg: 0, min: Infinity, max: -Infinity };
+        stats.byName[metric.name] = {
+          count: 0,
+          avg: 0,
+          min: Infinity,
+          max: -Infinity,
+        };
       }
       const nameStats = stats.byName[metric.name]!;
       nameStats.count++;
-      nameStats.avg = (nameStats.avg * (nameStats.count - 1) + metric.value) / nameStats.count;
+      nameStats.avg =
+        (nameStats.avg * (nameStats.count - 1) + metric.value) /
+        nameStats.count;
       nameStats.min = Math.min(nameStats.min, metric.value);
       nameStats.max = Math.max(nameStats.max, metric.value);
     });
@@ -462,15 +523,35 @@ class ErrorTracker {
       enabled: this.isEnabled,
       logsCount: this.logs.length,
       metricsCount: this.metrics.length,
-      lastLog: this.logs.length > 0 ? this.logs[this.logs.length - 1]!.timestamp : null,
-      lastMetric: this.metrics.length > 0 ? this.metrics[this.metrics.length - 1]!.timestamp : null
+      lastLog:
+        this.logs.length > 0
+          ? this.logs[this.logs.length - 1]!.timestamp
+          : null,
+      lastMetric:
+        this.metrics.length > 0
+          ? this.metrics[this.metrics.length - 1]!.timestamp
+          : null,
     };
   }
 }
 
-// Export singleton instance
-export const errorTracker = ErrorTracker.getInstance();
+// SSR-safe lazy singleton — only instantiates in browser
+const _noop = (..._args: unknown[]) => {};
 
-// Convenience exports
-export const { debug, info, warn, error, fatal, captureError, captureException } = errorTracker;
-export const useErrorTracking = () => errorTracker;
+export const errorTracker =
+  typeof window !== 'undefined'
+    ? ErrorTracker.getInstance()
+    : (null as unknown as ErrorTracker);
+
+// Convenience exports — no-op on server
+const _instance =
+  typeof window !== 'undefined' ? ErrorTracker.getInstance() : null;
+export const debug = _instance?.debug.bind(_instance) ?? _noop;
+export const info = _instance?.info.bind(_instance) ?? _noop;
+export const warn = _instance?.warn.bind(_instance) ?? _noop;
+export const error = _instance?.error.bind(_instance) ?? _noop;
+export const fatal = _instance?.fatal.bind(_instance) ?? _noop;
+export const captureError = _instance?.captureError.bind(_instance) ?? _noop;
+export const captureException =
+  _instance?.captureException.bind(_instance) ?? _noop;
+export const useErrorTracking = () => _instance;

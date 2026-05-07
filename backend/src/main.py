@@ -11,7 +11,7 @@ from typing import Optional
 
 import redis  # Added this line
 import sentry_sdk
-from fastapi import FastAPI, HTTPException, Request, status
+from fastapi import Depends, FastAPI, HTTPException, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
@@ -529,13 +529,13 @@ async def http_exception_handler(request: Request, exc: HTTPException):
 @app.exception_handler(Exception)
 async def general_exception_handler(request: Request, exc: Exception):
     """Handle general exceptions"""
-    logger.error(f"Unhandled exception: {exc}", exc_info=True)
+    logger.error("Unhandled exception: %s", exc, exc_info=True)
 
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         content={
             "error": {
-                "message": "Internal server error" if not settings.DEBUG else str(exc),
+                "message": "Internal server error",
                 "status_code": 500,
                 "type": "internal_error",
             }
@@ -543,42 +543,22 @@ async def general_exception_handler(request: Request, exc: Exception):
     )
 
 
-# Development server info
+# Development server info — requires admin auth even in DEBUG mode
 if settings.DEBUG:
+    from src.core.dependencies import require_admin
 
-    @app.get("/debug/info")
+    @app.get("/debug/info", dependencies=[Depends(require_admin)])
     async def debug_info():
-        """Debug information endpoint (development only)"""
+        """Debug information endpoint (admin-only, DEBUG mode only)"""
         return {
             "settings": {
-                "database_url": settings.DATABASE_URL,
                 "environment": settings.ENVIRONMENT,
                 "log_level": settings.LOG_LEVEL,
                 "enable_metrics": settings.ENABLE_METRICS,
                 "max_file_size_mb": settings.MAX_FILE_SIZE_MB,
                 "free_tier_storage_gb": settings.FREE_TIER_STORAGE_GB,
             },
-            "environment_variables": {
-                "NEO4J_URI": settings.NEO4J_URI,
-                "QDRANT_URL": settings.QDRANT_URL,
-                "REDIS_URL": settings.REDIS_URL,
-            },
         }
-
-
-# Debug: Inspect middleware stack
-print("Inspecting middleware stack:", flush=True)
-for i, m in enumerate(app.user_middleware):
-    try:
-        print(f"Middleware {i}: {m} (type: {type(m)})", flush=True)
-        # specific check for unpacking
-        try:
-            items = list(m)
-            print(f"  Unpacks to {len(items)} items: {items}", flush=True)
-        except Exception as e:
-            print(f"  Cannot unpack middleware {i}: {e}", flush=True)
-    except Exception as e:
-        print(f"  Error inspecting middleware {i}: {e}", flush=True)
 
 if __name__ == "__main__":
     import uvicorn
