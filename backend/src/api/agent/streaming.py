@@ -106,6 +106,21 @@ def _format_sse_event(event_type: str, data: Dict[str, Any]) -> str:
     return f"event: {event_type}\ndata: {_json.dumps(data)}\n\n"
 
 
+_COMPILED_GRAPH = None
+
+
+async def _get_compiled_graph():
+    """Return a cached compiled agent graph (stateless; safe for concurrent use)."""
+    global _COMPILED_GRAPH
+    if _COMPILED_GRAPH is None:
+        from src.services.agent.checkpointer import get_checkpointer
+        from src.services.agent.graph import compile_agent_graph
+
+        checkpointer = await get_checkpointer()
+        _COMPILED_GRAPH = compile_agent_graph(checkpointer=checkpointer)
+    return _COMPILED_GRAPH
+
+
 async def stream_event_generator(
     request_body: Any,  # AgentExecuteRequest
     request: Any,  # FastAPI Request
@@ -119,9 +134,6 @@ async def stream_event_generator(
     """
     from langchain_core.messages import HumanMessage
 
-    from src.services.agent.checkpointer import get_checkpointer
-    from src.services.agent.graph import compile_agent_graph
-
     # Lazy import schemas to avoid circular imports
     from .execute import (
         AgentExecuteRequest,
@@ -134,8 +146,7 @@ async def stream_event_generator(
     config: Dict[str, Any] = {}  # Initialize before try block for safe access in except handlers
     try:
         _bootstrap_langsmith()
-        checkpointer = await get_checkpointer()
-        graph = compile_agent_graph(checkpointer=checkpointer)
+        graph = await _get_compiled_graph()
 
         messages = [
             HumanMessage(content=m.content)
@@ -332,9 +343,6 @@ async def stream_confirm_event_generator(
     """
     from langgraph.types import Command
 
-    from src.services.agent.checkpointer import get_checkpointer
-    from src.services.agent.graph import compile_agent_graph
-
     # Lazy import schemas
     from .execute import (
         AgentExecuteRequest,
@@ -345,8 +353,7 @@ async def stream_confirm_event_generator(
 
     try:
         _bootstrap_langsmith()
-        checkpointer = await get_checkpointer()
-        graph = compile_agent_graph(checkpointer=checkpointer)
+        graph = await _get_compiled_graph()
 
         snapshot_config = {
             "configurable": {

@@ -247,7 +247,7 @@ def _build_llm(model_override: str | None = None):
             api_key=api_key,
             base_url=endpoint,
             temperature=0.7,
-            max_tokens=2048,
+            max_tokens=4096,
         )
     else:
         from langchain_openai import AzureChatOpenAI
@@ -258,7 +258,7 @@ def _build_llm(model_override: str | None = None):
             api_key=api_key,
             api_version=api_version,
             temperature=0.7,
-            max_tokens=2048,
+            max_tokens=4096,
         )
 
     _LLM_CACHE[cache_key] = llm
@@ -1126,6 +1126,17 @@ async def llm_node(state: AgentState, config: RunnableConfig) -> dict:
     llm = _build_llm(model_override=state.get("model") or None)
     llm_with_tools = llm.bind_tools(intent_tools)
     response = await llm_with_tools.ainvoke(messages, config=config)
+
+    # If response was truncated (hit max_tokens) without pending tool calls,
+    # retry once with a continuation prompt to complete the answer.
+    finish_reason = getattr(response, "response_metadata", {}).get("finish_reason")
+    if finish_reason == "length" and not getattr(response, "tool_calls", None):
+        from langchain_core.messages import HumanMessage as _HM
+
+        continuation_msgs = messages + [response, _HM(content="Continue.")]
+        continuation = await llm_with_tools.ainvoke(continuation_msgs, config=config)
+        merged = (response.content or "") + (continuation.content or "")
+        response = continuation.model_copy(update={"content": merged})
 
     return {
         "messages": [response],
