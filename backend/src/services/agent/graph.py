@@ -439,7 +439,7 @@ def _is_retrieval_query(content: str) -> bool:
     prefix is treated as retrieval to avoid degrading recall.
 
     Rules (a query is treated as NON-retrieval when ANY of these hold):
-      0. lowercased content matches a ``_CONVERSATIONAL_PATTERNS`` entry
+      0. lowercased+stripped content exactly matches a ``_CONVERSATIONAL_PATTERNS`` entry
 
     Otherwise treated as retrieval when ANY of these hold:
       1. token count >= ``_SHORT_QUERY_TOKEN_LIMIT`` (8)
@@ -452,9 +452,8 @@ def _is_retrieval_query(content: str) -> bool:
     lowered = content.lower().strip()
     tokens = content.split()
 
-    for pattern in _CONVERSATIONAL_PATTERNS:
-        if re.search(r"\b" + re.escape(pattern) + r"\b", lowered):
-            return False
+    if lowered in _CONVERSATIONAL_PATTERNS:
+        return False
 
     if len(tokens) >= _SHORT_QUERY_TOKEN_LIMIT:
         return True
