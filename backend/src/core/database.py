@@ -124,8 +124,8 @@ else:
     # prod capacity tuning.
     async_engine = create_async_engine(
         ASYNC_DATABASE_URL,
-        pool_size=_env_int("DB_ASYNC_POOL_SIZE", 3),
-        max_overflow=_env_int("DB_ASYNC_MAX_OVERFLOW", 2),
+        pool_size=_env_int("DB_ASYNC_POOL_SIZE", 5),
+        max_overflow=_env_int("DB_ASYNC_MAX_OVERFLOW", 3),
         pool_timeout=_env_int("DB_ASYNC_POOL_TIMEOUT", 30),
         pool_recycle=300,
         pool_pre_ping=False,  # Disabled - causes greenlet issues with asyncpg
