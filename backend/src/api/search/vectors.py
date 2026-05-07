@@ -385,7 +385,7 @@ async def reindex_organization_content(
         if current_user.role.value != "admin":
             raise HTTPException(status_code=403, detail="Admin access required")
 
-        result = vector_search_service.reindex_all_content(
+        result = await vector_search_service.reindex_all_content(
             organization_id=organization_id,
             batch_size=batch_size,
             arxiv_only=arxiv_only,
