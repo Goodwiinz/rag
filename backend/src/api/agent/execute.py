@@ -326,14 +326,13 @@ async def stream_agent(
     request_body: AgentExecuteRequest,
     request: Request,
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
 ):
     """Stream agent responses via Server-Sent Events.
 
     SSE event types: token, tool_start, tool_end, rag_context, done, error
     """
     return StreamingResponse(
-        stream_event_generator(request_body, request, current_user, db),
+        stream_event_generator(request_body, request, current_user),
         media_type="text/event-stream",
         headers=_SSE_HEADERS,
     )
@@ -344,11 +343,10 @@ async def stream_confirm_agent(
     request_body: StreamConfirmRequest,
     request: Request,
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
 ):
     """Resume a graph interrupted by HITL via SSE streaming."""
     return StreamingResponse(
-        stream_confirm_event_generator(request_body, request, current_user, db),
+        stream_confirm_event_generator(request_body, request, current_user),
         media_type="text/event-stream",
         headers=_SSE_HEADERS,
     )

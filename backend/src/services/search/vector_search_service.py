@@ -2,7 +2,6 @@
 Combined vector search service - integrates embedding generation and vector database operations
 """
 
-import asyncio
 import logging
 import time
 from datetime import datetime
@@ -41,15 +40,14 @@ class VectorSearchService:
         organization_id: str,
         content_type: str = "text",
         source_type: str = "document",
-        chunk_size: int = 1000,  # Increased from 500 for better context
-        overlap: int = 300,  # Increased from 200 for 30% overlap
+        chunk_size: int = 1000,
+        overlap: int = 300,
         metadata: Optional[Dict[str, Any]] = None,
     ) -> VectorOperationResult:
         """Index a document by generating embeddings and storing in vector database"""
         start_time = time.time()
 
         try:
-            # Prepare metadata
             base_metadata = {
                 "content_type": content_type,
                 "source_type": source_type,
@@ -59,7 +57,6 @@ class VectorSearchService:
             if metadata:
                 base_metadata.update(metadata)
 
-            # Generate document embeddings with chunking
             document_embeddings = await self.embedding_service.generate_document_embeddings(
                 document_id=document_id,
                 text=text,
@@ -148,7 +145,6 @@ class VectorSearchService:
         start_time = time.time()
 
         try:
-            # Generate embedding for entity text
             embedding_request = EmbeddingRequest(text=entity_text)
             embedding_response = await self.embedding_service.generate_embedding(
                 embedding_request
@@ -215,17 +211,15 @@ class VectorSearchService:
         query: str,
         organization_id: str,
         limit: int = 10,
-        score_threshold: float = 0.2,  # Lowered to 0.2 for more results
+        score_threshold: float = 0.2,
         filters: Optional[Dict[str, Any]] = None,
     ) -> VectorSearchResponse:
         """Search for similar documents"""
         try:
-            # Generate query embedding using the best available provider
             from src.services.embedding.cohere_embed_service import cohere_embed_service
             from src.services.infrastructure.azure_openai_service import azure_openai_service
 
             if cohere_embed_service.is_enabled:
-                # Cohere requires async
                 embedding_response = await self.embedding_service.generate_embedding_cohere(
                     query, input_type="search_query"
                 )
@@ -238,7 +232,6 @@ class VectorSearchService:
                 )
                 query_embedding = response.data[0].embedding
             else:
-                # Fallback to async path
                 embedding_request = EmbeddingRequest(text=query)
                 embedding_response = await self.embedding_service.generate_embedding(
                     embedding_request
@@ -398,11 +391,10 @@ class VectorSearchService:
         organization_id: str,
         entity_type: Optional[str] = None,
         limit: int = 10,
-        score_threshold: float = 0.2,  # Lowered to 0.2 for more results
+        score_threshold: float = 0.2,
     ) -> VectorSearchResponse:
         """Search for similar entities"""
         try:
-            # Generate embedding for query
             embedding_request = EmbeddingRequest(text=query)
             embedding_response = await self.embedding_service.generate_embedding(
                 embedding_request
@@ -644,10 +636,8 @@ class VectorSearchService:
     ) -> VectorOperationResult:
         """Update document index by deleting old vectors and re-indexing"""
         try:
-            # Delete existing vectors (simplified approach)
             delete_result = self.delete_document_vectors(document_id)
 
-            # Re-index document
             index_result = await self.index_document(
                 document_id=document_id,
                 text=text,
