@@ -27,6 +27,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response
 
 from src.core.config import settings
+from src.middleware.responses import error_response
 from src.models.user import User
 
 logger = logging.getLogger(__name__)
@@ -157,39 +158,29 @@ class APISecurityMiddleware(BaseHTTPMiddleware):
         """
         start_time = time.time()
 
-        # Get client IP
         client_ip = self._get_client_ip(request)
 
-        # Check if IP is blocked
-        if self._is_ip_blocked(client_ip):
-            self._log_security_event("BLOCKED_IP_ATTEMPT", request, client_ip)
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN, detail="Access denied"
-            )
+        try:
+            if self._is_ip_blocked(client_ip):
+                self._log_security_event("BLOCKED_IP_ATTEMPT", request, client_ip)
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN, detail="Access denied"
+                )
 
-        # Validate request basics
-        self._validate_request_basics(request)
+            self._validate_request_basics(request)
+            self._validate_headers(request)
+            self._validate_url(request)
 
-        # Validate headers
-        self._validate_headers(request)
+            if request.method in ["POST", "PUT", "PATCH"]:
+                await self._validate_request_body(request)
 
-        # Validate URL
-        self._validate_url(request)
+            self._check_suspicious_activity(client_ip, request)
+        except HTTPException as e:
+            return error_response(e.status_code, e.detail)
 
-        # For POST/PUT/PATCH requests, validate body
-        if request.method in ["POST", "PUT", "PATCH"]:
-            await self._validate_request_body(request)
-
-        # Check request rate for suspicious IPs
-        self._check_suspicious_activity(client_ip, request)
-
-        # Process request
         response = await call_next(request)
-
-        # Add security headers
         response = self._add_security_headers(response)
 
-        # Log request completion
         duration = time.time() - start_time
         self._log_request_completion(request, response, duration, client_ip)
 

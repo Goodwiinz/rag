@@ -33,10 +33,27 @@ async def get_current_user(
     user = result.scalars().first()
 
     if user is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User not found or inactive",
-        )
+        from src.core.user_provisioning import ensure_user_and_org
+
+        provisioned = await ensure_user_and_org(db, token_data)
+        if provisioned:
+            await db.commit()
+            result = await db.execute(
+                select(User)
+                .options(selectinload(User.organization))
+                .where(
+                    User.id == token_data.user_id,
+                    User.is_active == True,
+                    User.is_deleted == False,
+                )
+            )
+            user = result.scalars().first()
+
+        if user is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="User not found or inactive",
+            )
 
     return user
 
