@@ -16,6 +16,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response
 
 from src.core.config import settings
+from src.middleware.responses import error_response
 from src.models.user import UserRole
 
 logger = logging.getLogger(__name__)
@@ -285,9 +286,9 @@ class AnalyticsRateLimitMiddleware(BaseHTTPMiddleware):
             if info["retry_after"]:
                 headers["Retry-After"] = str(info["retry_after"])
 
-            raise HTTPException(
-                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                detail=f"Rate limit exceeded. Maximum {info['limit']} requests per {info['window']} seconds.",
+            return error_response(
+                429,
+                f"Rate limit exceeded. Maximum {info['limit']} requests per {info['window']} seconds.",
                 headers=headers,
             )
         else:
