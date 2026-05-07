@@ -40,10 +40,17 @@ def _set_chat_settings(monkeypatch, **overrides):
         monkeypatch.setattr(settings, key, value, raising=False)
 
 
+def _clear_llm_cache():
+    """Clear the module-level LLM cache so each test builds a fresh client."""
+    from src.services.agent import graph as graph_module
+    graph_module._LLM_CACHE.clear()
+
+
 def test_build_llm_uses_configured_deployment_when_no_override(monkeypatch):
     """No override → falls back to the configured deployment."""
     from src.services.agent.graph import _build_llm
 
+    _clear_llm_cache()
     _set_chat_settings(monkeypatch)
     mock_lc = _make_langchain_openai_mock()
     with patch.dict(sys.modules, {"langchain_openai": mock_lc}):
@@ -58,6 +65,7 @@ def test_build_llm_override_wins_over_settings(monkeypatch):
     """A per-request override deployment is what reaches ChatOpenAI."""
     from src.services.agent.graph import _build_llm
 
+    _clear_llm_cache()
     _set_chat_settings(monkeypatch)
     mock_lc = _make_langchain_openai_mock()
     with patch.dict(sys.modules, {"langchain_openai": mock_lc}):
@@ -72,6 +80,7 @@ def test_build_llm_empty_override_falls_back_to_settings(monkeypatch):
     """An empty-string override is treated as no override (server default wins)."""
     from src.services.agent.graph import _build_llm
 
+    _clear_llm_cache()
     _set_chat_settings(monkeypatch)
     mock_lc = _make_langchain_openai_mock()
     with patch.dict(sys.modules, {"langchain_openai": mock_lc}):
@@ -87,6 +96,7 @@ def test_build_llm_override_threads_through_azure_client(monkeypatch):
     still wins — threaded through as ``azure_deployment``."""
     from src.services.agent.graph import _build_llm
 
+    _clear_llm_cache()
     _set_chat_settings(
         monkeypatch,
         AZURE_OPENAI_CHAT_ENDPOINT="https://example.openai.azure.com",

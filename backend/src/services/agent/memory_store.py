@@ -58,14 +58,24 @@ def _get_embedding_service():
         return None
 
 
+_QDRANT_CLIENT = None
+
+
 def _get_qdrant_client():
-    """Get a Qdrant client. Returns None if unavailable."""
+    """Get a Qdrant client. Returns None if unavailable.
+
+    Cached at module level to avoid HTTP-client setup on every call.
+    """
+    global _QDRANT_CLIENT
+    if _QDRANT_CLIENT is not None:
+        return _QDRANT_CLIENT
     try:
         from qdrant_client import QdrantClient
         settings = get_settings()
         url = getattr(settings, "QDRANT_URL", None) or "http://localhost:6333"
         api_key = getattr(settings, "QDRANT_API_KEY", None)
         client = QdrantClient(url=url, api_key=api_key, timeout=10)
+        _QDRANT_CLIENT = client
         return client
     except Exception as e:
         logger.warning("Qdrant client unavailable: %s", e)
