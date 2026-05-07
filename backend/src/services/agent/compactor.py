@@ -1,6 +1,6 @@
 """Context compactor for the agent graph.
 
-Summarises older ToolMessage payloads using gpt-4o-mini so that the
+Summarises older ToolMessage payloads using a lightweight LLM so that the
 conversation stays within the context window while preserving all
 referenced IDs (UUIDs and arXiv IDs).
 """
@@ -12,8 +12,7 @@ from typing import Any, Callable, Optional
 from langchain_core.messages import AIMessage, BaseMessage, RemoveMessage, ToolMessage
 from langchain_core.runnables import RunnableConfig
 
-from src.core.config import get_settings
-from src.core.openai_endpoint import classify_openai_endpoint
+from src.services.agent.llm_factory import build_lightweight_llm
 from src.services.agent.state import AgentState
 
 logger = logging.getLogger(__name__)
@@ -161,65 +160,18 @@ def validate_and_fix_compacted(
 
 
 # ---------------------------------------------------------------------------
-# LLM helper (mirrors graph.py _build_llm but targets gpt-4o-mini)
+# LLM helper — delegates to shared factory
 # ---------------------------------------------------------------------------
 
-
-# Cache the compactor LLM at module scope so we don't pay the ~50ms
-# client-build cost on every compaction cycle. Mirrors the
-# ``_REFLECTION_LLM`` pattern in src/services/agent/reflection.py.
 _COMPACTOR_LLM = None
 
 
 def _build_compactor_llm():
-    """Build (or return cached) lightweight LLM for compaction summaries.
-
-    Uses the same Azure/OpenAI config pattern as ``graph._build_llm`` but
-    targets **gpt-4o-mini** with ``temperature=0`` for deterministic,
-    cost-efficient summarisation. Memoised at module scope.
-    """
+    """Return a cached lightweight LLM for compaction summaries."""
     global _COMPACTOR_LLM
     if _COMPACTOR_LLM is not None:
         return _COMPACTOR_LLM
-
-    settings = get_settings()
-
-    endpoint = (
-        settings.AZURE_OPENAI_CHAT_ENDPOINT or settings.AZURE_OPENAI_ENDPOINT or ""
-    )
-    api_key = settings.AZURE_OPENAI_CHAT_API_KEY or settings.AZURE_OPENAI_API_KEY or ""
-    api_version = (
-        settings.AZURE_OPENAI_CHAT_API_VERSION or settings.AZURE_OPENAI_API_VERSION
-    )
-
-    if not endpoint or not api_key:
-        raise RuntimeError(
-            "Azure/OpenAI chat endpoint and API key must be configured. "
-            "Set AZURE_OPENAI_CHAT_ENDPOINT + AZURE_OPENAI_CHAT_API_KEY "
-            "(or the non-CHAT variants)."
-        )
-
-    if classify_openai_endpoint(endpoint) == "openai_compatible":
-        from langchain_openai import ChatOpenAI
-
-        _COMPACTOR_LLM = ChatOpenAI(
-            model="gpt-4o-mini",
-            api_key=api_key,
-            base_url=endpoint,
-            temperature=0,
-            max_tokens=_COMPACT_MAX_TOKENS,
-        )
-    else:
-        from langchain_openai import AzureChatOpenAI
-
-        _COMPACTOR_LLM = AzureChatOpenAI(
-            azure_deployment="gpt-4o-mini",
-            azure_endpoint=endpoint,
-            api_key=api_key,
-            api_version=api_version,
-            temperature=0,
-            max_tokens=_COMPACT_MAX_TOKENS,
-        )
+    _COMPACTOR_LLM = build_lightweight_llm(max_tokens=_COMPACT_MAX_TOKENS)
     return _COMPACTOR_LLM
 
 
@@ -241,11 +193,11 @@ async def compact_messages(
     candidates: list[ToolMessage],
     config: RunnableConfig,
 ) -> list[ToolMessage]:
-    """Compact each candidate ToolMessage via gpt-4o-mini.
+    """Compact each candidate ToolMessage via the lightweight LLM.
 
     For each candidate:
     1. Extract IDs from original content
-    2. Call gpt-4o-mini to summarise (failure is isolated per-item — a
+    2. Call lightweight LLM to summarise (failure is isolated per-item — a
        single LLM error skips that candidate but allows the rest to
        proceed)
     3. Validate/fix compacted output

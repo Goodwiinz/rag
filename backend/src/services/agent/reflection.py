@@ -1,8 +1,8 @@
 """Reflection gate for agent response quality evaluation.
 
-Uses a lightweight LLM (gpt-4o-mini) to evaluate whether the agent's
-response adequately addresses the user's request before proceeding
-to memory save / END.  When quality is insufficient, the gate routes
+Uses a lightweight LLM to evaluate whether the agent's response
+adequately addresses the user's request before proceeding to
+memory save / END.  When quality is insufficient, the gate routes
 back to the LLM node for another attempt (max 2 rounds).
 """
 
@@ -14,8 +14,7 @@ from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.runnables import RunnableConfig
 from pydantic import BaseModel
 
-from src.core.config import get_settings
-from src.core.openai_endpoint import classify_openai_endpoint
+from src.services.agent.llm_factory import build_lightweight_llm
 
 logger = logging.getLogger(__name__)
 
@@ -49,59 +48,14 @@ class ReflectionResult(BaseModel):
 
 
 def _build_reflection_llm():
-    """Build (or return cached) lightweight LLM (gpt-4o-mini) for reflection.
-
-    Memoised at module scope so we don't pay the ~50ms client-build cost on
-    every reflection call. ``request_timeout`` provides a client-level safety
-    net for the underlying HTTP layer; ``asyncio.wait_for`` in the caller
-    enforces the wall-clock cap.
-    """
+    """Return a cached lightweight LLM for reflection evaluation."""
     global _REFLECTION_LLM
     if _REFLECTION_LLM is not None:
         return _REFLECTION_LLM
-
-    settings = get_settings()
-
-    endpoint = (
-        settings.AZURE_OPENAI_CHAT_ENDPOINT or settings.AZURE_OPENAI_ENDPOINT or ""
+    _REFLECTION_LLM = build_lightweight_llm(
+        max_tokens=512,
+        request_timeout=_REFLECTION_LLM_TIMEOUT_SECONDS,
     )
-    api_key = (
-        settings.AZURE_OPENAI_CHAT_API_KEY or settings.AZURE_OPENAI_API_KEY or ""
-    )
-    api_version = (
-        settings.AZURE_OPENAI_CHAT_API_VERSION or settings.AZURE_OPENAI_API_VERSION
-    )
-
-    if not endpoint or not api_key:
-        raise RuntimeError(
-            "Azure/OpenAI endpoint and API key must be configured for reflection LLM. "
-            "Set AZURE_OPENAI_CHAT_ENDPOINT + AZURE_OPENAI_CHAT_API_KEY "
-            "(or the non-CHAT variants)."
-        )
-
-    if classify_openai_endpoint(endpoint) == "openai_compatible":
-        from langchain_openai import ChatOpenAI
-
-        _REFLECTION_LLM = ChatOpenAI(
-            model="gpt-4o-mini",
-            api_key=api_key,
-            base_url=endpoint,
-            temperature=0,
-            max_tokens=512,
-            request_timeout=_REFLECTION_LLM_TIMEOUT_SECONDS,
-        )
-    else:
-        from langchain_openai import AzureChatOpenAI
-
-        _REFLECTION_LLM = AzureChatOpenAI(
-            azure_deployment="gpt-4o-mini",
-            azure_endpoint=endpoint,
-            api_key=api_key,
-            api_version=api_version,
-            temperature=0,
-            max_tokens=512,
-            request_timeout=_REFLECTION_LLM_TIMEOUT_SECONDS,
-        )
     return _REFLECTION_LLM
 
 

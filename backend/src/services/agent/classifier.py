@@ -3,7 +3,7 @@
 Classifies user queries into one of four intents:
   research, writing, knowledge_graph, general
 
-Uses a lightweight LLM (gpt-4o-mini) with structured output for primary
+Uses a lightweight LLM with structured output for primary
 classification, falling back to weighted keyword matching when the LLM is
 unavailable or returns low confidence.
 """
@@ -17,7 +17,6 @@ from typing import Any, Dict, Literal, Optional
 from langchain_core.messages import HumanMessage, SystemMessage
 from pydantic import BaseModel, Field
 
-from src.core.config import get_settings
 from src.services.agent.graph import INTENT_KEYWORDS, INTENT_PRIORITY
 
 logger = logging.getLogger(__name__)
@@ -76,66 +75,21 @@ class ClassificationResult:
 
 
 # ---------------------------------------------------------------------------
-# LLM construction (gpt-4o-mini, mirrors _build_llm in graph.py)
+# LLM construction — delegates to shared factory
 # ---------------------------------------------------------------------------
 
 
 def _build_classifier_llm():
-    """Build (or return cached) lightweight LangChain chat model for classification.
-
-    Uses the same Azure/OpenAI config resolution as ``_build_llm`` in
-    ``graph.py`` but targets gpt-4o-mini with temperature=0 and a
-    ``request_timeout`` so a hung endpoint cannot block the agent turn.
-    The instance is memoised at module scope.
-    """
-    from src.core.openai_endpoint import classify_openai_endpoint
+    """Return a cached lightweight LLM for intent classification."""
+    from src.services.agent.llm_factory import build_lightweight_llm
 
     global _CLASSIFIER_LLM
     if _CLASSIFIER_LLM is not None:
         return _CLASSIFIER_LLM
-
-    settings = get_settings()
-
-    endpoint = (
-        settings.AZURE_OPENAI_CHAT_ENDPOINT or settings.AZURE_OPENAI_ENDPOINT or ""
+    _CLASSIFIER_LLM = build_lightweight_llm(
+        max_tokens=256,
+        request_timeout=_CLASSIFIER_LLM_TIMEOUT_SECONDS,
     )
-    api_key = (
-        settings.AZURE_OPENAI_CHAT_API_KEY or settings.AZURE_OPENAI_API_KEY or ""
-    )
-    api_version = (
-        settings.AZURE_OPENAI_CHAT_API_VERSION or settings.AZURE_OPENAI_API_VERSION
-    )
-
-    if not endpoint or not api_key:
-        raise RuntimeError(
-            "Azure/OpenAI chat endpoint and API key must be configured. "
-            "Set AZURE_OPENAI_CHAT_ENDPOINT + AZURE_OPENAI_CHAT_API_KEY "
-            "(or the non-CHAT variants)."
-        )
-
-    if classify_openai_endpoint(endpoint) == "openai_compatible":
-        from langchain_openai import ChatOpenAI
-
-        _CLASSIFIER_LLM = ChatOpenAI(
-            model="gpt-4o-mini",
-            api_key=api_key,
-            base_url=endpoint,
-            temperature=0,
-            max_tokens=256,
-            request_timeout=_CLASSIFIER_LLM_TIMEOUT_SECONDS,
-        )
-    else:
-        from langchain_openai import AzureChatOpenAI
-
-        _CLASSIFIER_LLM = AzureChatOpenAI(
-            azure_deployment="gpt-4o-mini",
-            azure_endpoint=endpoint,
-            api_key=api_key,
-            api_version=api_version,
-            temperature=0,
-            max_tokens=256,
-            request_timeout=_CLASSIFIER_LLM_TIMEOUT_SECONDS,
-        )
     return _CLASSIFIER_LLM
 
 
