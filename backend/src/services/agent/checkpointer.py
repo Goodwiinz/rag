@@ -7,7 +7,7 @@ unavailable (e.g. during tests or local dev without a running database).
 
 import asyncio
 import logging
-from typing import Optional
+from typing import Optional  # noqa: F401
 
 from src.core.config import get_settings
 
@@ -16,6 +16,16 @@ logger = logging.getLogger(__name__)
 # Module-level singleton
 _checkpointer = None
 _checkpointer_lock = asyncio.Lock()
+
+# TCP keepalive settings — prevents Supabase/PgBouncer session-mode idle
+# disconnects from silently dropping the checkpoint connection during HITL
+# pauses (user confirmation wait time).
+_CONNECTION_KWARGS = {
+    "keepalives": 1,
+    "keepalives_idle": 30,
+    "keepalives_interval": 10,
+    "keepalives_count": 3,
+}
 
 
 def get_db_uri() -> str:
@@ -56,7 +66,10 @@ async def get_checkpointer():
             from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 
             uri = get_db_uri()
-            _checkpointer = AsyncPostgresSaver.from_conn_string(uri)
+            _checkpointer = AsyncPostgresSaver.from_conn_string(
+                uri,
+                connection_kwargs=_CONNECTION_KWARGS,
+            )
             # Create the checkpoint tables if they don't exist yet
             await _checkpointer.setup()
             logger.info("LangGraph checkpointer initialised (PostgreSQL)")
@@ -71,3 +84,16 @@ async def get_checkpointer():
             _checkpointer = MemorySaver()
 
     return _checkpointer
+
+
+async def reset_checkpointer() -> None:
+    """Clear the checkpointer singleton so the next call re-initialises it.
+
+    Used by the confirm flow's retry path when aget_state returns None —
+    indicates the connection may have been dropped by the pooler.
+    """
+    global _checkpointer
+
+    async with _checkpointer_lock:
+        _checkpointer = None
+    logger.info("Checkpointer singleton reset — will reconnect on next use")
