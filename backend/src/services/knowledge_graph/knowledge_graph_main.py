@@ -6,7 +6,6 @@ Standalone microservice for entity extraction and relationship management
 import asyncio
 import json
 import logging
-import os
 import uuid
 from contextlib import asynccontextmanager
 from typing import Any, Dict, List, Optional
@@ -137,15 +136,23 @@ app = FastAPI(
     redoc_url="/redoc",
 )
 
-# Add CORS middleware — read origins from env, never default to wildcard in prod
-_cors_origins = os.environ.get("CORS_ORIGINS", "")
-allow_origins = [o.strip() for o in _cors_origins.split(",") if o.strip()] or ["http://localhost:3000"]
+# Add CORS middleware — use centralized config or env var
+try:
+    from src.core.config import settings as _core_settings
+
+    _cors_origins: list = _core_settings.cors_origins_list
+except ImportError:
+    import os as _os
+
+    _raw_origins = _os.getenv("CORS_ORIGINS", "http://localhost:3000")
+    _cors_origins = [o.strip() for o in _raw_origins.split(",") if o.strip()]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=allow_origins,
+    allow_origins=_cors_origins,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allow_headers=["*"],
+    allow_headers=["Authorization", "Content-Type", "Accept"],
 )
 
 

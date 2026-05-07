@@ -4,6 +4,7 @@ Graph algorithms implementation for analytics
 
 import asyncio
 import logging
+import re
 import time
 from typing import Any, Dict, List, Optional
 
@@ -19,8 +20,37 @@ from src.services.models.analytics_models import (
     KeyEntityInsight,
     PathStep,
 )
+from src.services.models.knowledge_graph_models import EntityType
 
 logger = logging.getLogger(__name__)
+
+_TENANT_ID_RE = re.compile(
+    r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+    re.IGNORECASE,
+)
+_VALID_ENTITY_TYPES = {e.value for e in EntityType}
+
+
+def _validate_entity_types(entity_types: Optional[List[str]]) -> List[str]:
+    """Validate entity_types against the EntityType enum allowlist."""
+    if not entity_types:
+        return []
+    for etype in entity_types:
+        if etype not in _VALID_ENTITY_TYPES:
+            raise ValueError(
+                f"Invalid entity_type: {etype!r}. "
+                f"Allowed: {sorted(_VALID_ENTITY_TYPES)}"
+            )
+    return entity_types
+
+
+def _validate_tenant_id(tenant_id: Optional[str]) -> Optional[str]:
+    """Validate tenant_id is a UUID to prevent injection in GDS nodeFilter."""
+    if tenant_id is None:
+        return None
+    if not _TENANT_ID_RE.match(tenant_id):
+        raise ValueError(f"tenant_id must be a valid UUID, got: {tenant_id!r}")
+    return tenant_id
 
 
 class GraphAlgorithms:
@@ -40,15 +70,17 @@ class GraphAlgorithms:
         start_time = time.time()
 
         try:
-            # Build query based on entity types and tenant
+            validated_types = _validate_entity_types(entity_types)
+            validated_tenant = _validate_tenant_id(tenant_id)
+
             where_clauses = []
-            if entity_types:
+            if validated_types:
                 type_filter = " OR ".join(
-                    [f"e.type = '{etype}'" for etype in entity_types]
+                    [f"e.type = '{etype}'" for etype in validated_types]
                 )
                 where_clauses.append(f"({type_filter})")
-            if tenant_id:
-                where_clauses.append(f"e.tenant_id = '{tenant_id}'")
+            if validated_tenant:
+                where_clauses.append(f"e.tenant_id = '{validated_tenant}'")
 
             where_clause = " AND ".join(where_clauses) if where_clauses else "1=1"
             node_filter = (
@@ -136,15 +168,17 @@ class GraphAlgorithms:
         start_time = time.time()
 
         try:
-            # Build query conditions
+            validated_types = _validate_entity_types(entity_types)
+            validated_tenant = _validate_tenant_id(tenant_id)
+
             where_clauses = []
-            if entity_types:
+            if validated_types:
                 type_filter = " OR ".join(
-                    [f"e.type = '{etype}'" for etype in entity_types]
+                    [f"e.type = '{etype}'" for etype in validated_types]
                 )
                 where_clauses.append(f"({type_filter})")
-            if tenant_id:
-                where_clauses.append(f"e.tenant_id = '{tenant_id}'")
+            if validated_tenant:
+                where_clauses.append(f"e.tenant_id = '{validated_tenant}'")
 
             where_clause = " AND ".join(where_clauses) if where_clauses else "1=1"
             node_filter = (
@@ -219,15 +253,17 @@ class GraphAlgorithms:
         start_time = time.time()
 
         try:
-            # Build query conditions
+            validated_types = _validate_entity_types(entity_types)
+            validated_tenant = _validate_tenant_id(tenant_id)
+
             where_clauses = []
-            if entity_types:
+            if validated_types:
                 type_filter = " OR ".join(
-                    [f"e.type = '{etype}'" for etype in entity_types]
+                    [f"e.type = '{etype}'" for etype in validated_types]
                 )
                 where_clauses.append(f"({type_filter})")
-            if tenant_id:
-                where_clauses.append(f"e.tenant_id = '{tenant_id}'")
+            if validated_tenant:
+                where_clauses.append(f"e.tenant_id = '{validated_tenant}'")
 
             where_clause = " AND ".join(where_clauses) if where_clauses else "1=1"
             node_filter = (
@@ -302,15 +338,19 @@ class GraphAlgorithms:
         start_time = time.time()
 
         try:
-            # Build query conditions
+            validated_types = _validate_entity_types(entity_types)
+            validated_tenant = _validate_tenant_id(tenant_id)
+
             where_clauses = []
-            if entity_types:
+            params: Dict[str, Any] = {"limit": limit}
+            if validated_types:
                 type_filter = " OR ".join(
-                    [f"e.type = '{etype}'" for etype in entity_types]
+                    [f"e.type = '{etype}'" for etype in validated_types]
                 )
                 where_clauses.append(f"({type_filter})")
-            if tenant_id:
-                where_clauses.append(f"e.tenant_id = '{tenant_id}'")
+            if validated_tenant:
+                where_clauses.append("e.tenant_id = $tenant_id")
+                params["tenant_id"] = validated_tenant
 
             where_clause = " AND ".join(where_clauses) if where_clauses else "1=1"
             node_filter = (
@@ -586,15 +626,17 @@ class GraphAlgorithms:
         start_time = time.time()
 
         try:
-            # Build query conditions
+            validated_types = _validate_entity_types(entity_types)
+            validated_tenant = _validate_tenant_id(tenant_id)
+
             where_clauses = []
-            if entity_types:
+            if validated_types:
                 type_filter = " OR ".join(
-                    [f"e.type = '{etype}'" for etype in entity_types]
+                    [f"e.type = '{etype}'" for etype in validated_types]
                 )
                 where_clauses.append(f"({type_filter})")
-            if tenant_id:
-                where_clauses.append(f"e.tenant_id = '{tenant_id}'")
+            if validated_tenant:
+                where_clauses.append(f"e.tenant_id = '{validated_tenant}'")
 
             where_clause = " AND ".join(where_clauses) if where_clauses else "1=1"
             node_filter = (
