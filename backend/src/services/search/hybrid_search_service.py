@@ -644,14 +644,12 @@ class HybridSearchService:
             # Import and use vector search service
             from .vector_search_service import vector_search_service
 
-            # Execute search using the available interface (asyncio.run is safe here
-            # because this method runs inside a thread-pool executor)
             vector_result = asyncio.run(
                 vector_search_service.search_documents(
                     query=search_request.query,
                     organization_id=organization_id,
                     limit=self.max_results_per_source,
-                    score_threshold=0.2,  # Lowered to 0.2 for more results (P@3, P@5 calculation)
+                    score_threshold=0.2,
                 )
             )
 
