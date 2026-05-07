@@ -453,7 +453,7 @@ def _is_retrieval_query(content: str) -> bool:
     tokens = content.split()
 
     for pattern in _CONVERSATIONAL_PATTERNS:
-        if pattern in lowered:
+        if re.search(r"\b" + re.escape(pattern) + r"\b", lowered):
             return False
 
     if len(tokens) >= _SHORT_QUERY_TOKEN_LIMIT:
