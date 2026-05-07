@@ -229,6 +229,8 @@ async function streamToTerminal(
   } | null = null;
   let tokenBuffer = '';
   let retriedAfterMissingThread = false;
+  let confirmRetried = false;
+  let activeConfirmThreadId: string | null = null;
 
   process.stdout.write('\n');
 
@@ -254,6 +256,7 @@ async function streamToTerminal(
   while (true) {
     let pendingConfirmThreadId: string | null = null;
     let retryFreshThread = false;
+    let retryConfirm = false;
 
     try {
       for await (const event of current) {
@@ -323,6 +326,7 @@ async function streamToTerminal(
           }
           p.log.info('Resuming agent…');
           pendingConfirmThreadId = event.threadId;
+          activeConfirmThreadId = event.threadId;
           break;
         } else if (event.type === 'done') {
           process.stdout.write('\n');
@@ -334,6 +338,18 @@ async function streamToTerminal(
         } else if (event.type === 'error') {
           process.stdout.write('\n');
           const classified = classifyError(event.message);
+          if (
+            classified.kind === 'not_found_thread' &&
+            activeConfirmThreadId &&
+            !confirmRetried
+          ) {
+            // Confirm flow failed — retry the confirm once before giving up.
+            // The backend reconnects its checkpointer on retry.
+            confirmRetried = true;
+            retryConfirm = true;
+            p.log.warn('Connection hiccup — retrying confirmation…');
+            break;
+          }
           if (
             classified.kind === 'not_found_thread' &&
             !retriedAfterMissingThread
@@ -359,6 +375,12 @@ async function streamToTerminal(
         return;
       }
       throw e;
+    }
+
+    if (retryConfirm && activeConfirmThreadId) {
+      tokenBuffer = '';
+      current = streamConfirm(activeConfirmThreadId, true, { signal });
+      continue;
     }
 
     if (retryFreshThread) {
