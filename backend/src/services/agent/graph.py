@@ -39,6 +39,7 @@ def _extract_project_id_from_text(text: str) -> Optional[str]:
     return bare_match.group(1).lower() if bare_match else None
 
 
+from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 from langchain_core.runnables import RunnableConfig
 from langgraph.graph import END, StateGraph
@@ -193,12 +194,17 @@ def _safe_json_loads(s: str) -> Any:
 # LLM construction
 # ---------------------------------------------------------------------------
 
+_LLM_CACHE: dict[tuple[str, str], BaseChatModel] = {}
+
 
 def _build_llm(model_override: str | None = None):
     """Build a LangChain chat model from the existing Azure/OpenAI config.
 
     ``model_override`` lets a per-request deployment name win over the configured
     default — used to make the agent honor ``request.model`` from the API.
+
+    Clients are cached by ``(endpoint_type, deployment)`` to avoid rebuilding
+    the HTTP client on every ``llm_node`` invocation (~30-50 ms each).
     """
     settings = get_settings()
 
@@ -228,10 +234,15 @@ def _build_llm(model_override: str | None = None):
             "AZURE_OPENAI_CHAT_DEPLOYMENT_NAME (or AZURE_OPENAI_DEPLOYMENT_NAME)."
         )
 
-    if classify_openai_endpoint(endpoint) == "openai_compatible":
+    endpoint_type = classify_openai_endpoint(endpoint)
+    cache_key = (endpoint_type, deployment)
+    if cache_key in _LLM_CACHE:
+        return _LLM_CACHE[cache_key]
+
+    if endpoint_type == "openai_compatible":
         from langchain_openai import ChatOpenAI
 
-        return ChatOpenAI(
+        llm = ChatOpenAI(
             model=deployment,
             api_key=api_key,
             base_url=endpoint,
@@ -241,7 +252,7 @@ def _build_llm(model_override: str | None = None):
     else:
         from langchain_openai import AzureChatOpenAI
 
-        return AzureChatOpenAI(
+        llm = AzureChatOpenAI(
             azure_deployment=deployment,
             azure_endpoint=endpoint,
             api_key=api_key,
@@ -249,6 +260,9 @@ def _build_llm(model_override: str | None = None):
             temperature=0.7,
             max_tokens=2048,
         )
+
+    _LLM_CACHE[cache_key] = llm
+    return llm
 
 
 # ---------------------------------------------------------------------------
@@ -383,6 +397,33 @@ _TOOL_NAME_PREFIXES: tuple[str, ...] = (
     "ingest_",
 )
 
+# Conversational patterns that never need document retrieval. Checked before
+# retrieval-verb detection so "thanks" doesn't accidentally match "search".
+_CONVERSATIONAL_PATTERNS: frozenset[str] = frozenset(
+    {
+        "what model",
+        "which model",
+        "how are you",
+        "thank",
+        "thanks",
+        "ok",
+        "okay",
+        "yes",
+        "no",
+        "got it",
+        "cool",
+        "nice",
+        "good",
+        "great",
+        "bye",
+        "goodbye",
+        "see you",
+        "hello",
+        "hey",
+        "hi",
+    }
+)
+
 # Length threshold (in whitespace-delimited tokens) below which a query is
 # considered "short". Short queries without a retrieval verb skip RAG.
 _SHORT_QUERY_TOKEN_LIMIT: int = 8
@@ -397,7 +438,10 @@ def _is_retrieval_query(content: str) -> bool:
     long-ish message OR any message containing a retrieval verb / tool-name
     prefix is treated as retrieval to avoid degrading recall.
 
-    Rules (a query is treated as retrieval when ANY of these hold):
+    Rules (a query is treated as NON-retrieval when ANY of these hold):
+      0. lowercased content matches a ``_CONVERSATIONAL_PATTERNS`` entry
+
+    Otherwise treated as retrieval when ANY of these hold:
       1. token count >= ``_SHORT_QUERY_TOKEN_LIMIT`` (8)
       2. lowercased content contains any ``_RETRIEVAL_VERBS`` substring
       3. lowercased content starts with any ``_TOOL_NAME_PREFIXES`` prefix
@@ -405,8 +449,12 @@ def _is_retrieval_query(content: str) -> bool:
     if not content or not content.strip():
         return False
 
-    lowered = content.lower()
+    lowered = content.lower().strip()
     tokens = content.split()
+
+    for pattern in _CONVERSATIONAL_PATTERNS:
+        if re.search(r"\b" + re.escape(pattern) + r"\b", lowered):
+            return False
 
     if len(tokens) >= _SHORT_QUERY_TOKEN_LIMIT:
         return True
@@ -1148,7 +1196,7 @@ def _resolve_tool_concurrency(default: int = 3) -> int:
     return max(1, value)
 
 
-_tool_concurrency = _resolve_tool_concurrency()
+_tool_concurrency = _resolve_tool_concurrency(default=5)
 _TOOL_SEMAPHORE = asyncio.Semaphore(_tool_concurrency)
 
 
