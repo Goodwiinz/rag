@@ -132,6 +132,7 @@ async def stream_event_generator(
     stream_thread_id = request_body.thread_id or "unknown"
     config: Dict[str, Any] = {}  # Initialize before try block for safe access in except handlers
     db = AsyncSessionLocal()
+    graph = None  # type: ignore[assignment]
     try:
         _bootstrap_langsmith()
         checkpointer = await get_checkpointer()
@@ -304,13 +305,34 @@ async def stream_event_generator(
         yield f"event: done\ndata: {_json.dumps({'status': 'complete'})}\n\n"
 
     except GraphInterrupt as exc:
-        # Graph hit an interrupt mid-stream (HITL confirmation needed)
+        # Graph hit an interrupt mid-stream (HITL confirmation needed).
+        # Verify the checkpoint was persisted before telling the CLI to confirm.
         interrupts = getattr(exc, "interrupts", [])
         confirmation_details = {}
         if interrupts:
             confirmation_details = getattr(interrupts[0], "value", {})
         thread_id = (config.get("configurable") or {}).get("thread_id") or stream_thread_id
-        yield f"event: confirmation\ndata: {_json.dumps({'thread_id': thread_id, 'confirmation': confirmation_details})}\n\n"
+
+        checkpoint_ok = False
+        try:
+            if graph is not None:
+                verify_snapshot = await graph.aget_state(config)
+                checkpoint_ok = bool(
+                    verify_snapshot and verify_snapshot.values
+                    and any(getattr(t, "interrupts", None) for t in (verify_snapshot.tasks or ()))
+                )
+        except Exception:
+            logger.warning("Failed to verify checkpoint after GraphInterrupt for thread %s", thread_id)
+
+        if not checkpoint_ok:
+            logger.error(
+                "GraphInterrupt raised but checkpoint not persisted for thread %s — "
+                "cannot send confirmation event (client would get 'Thread not found' on resume)",
+                thread_id,
+            )
+            yield f"event: error\ndata: {_json.dumps({'error': 'Interrupt state could not be saved. Please retry.'})}\n\n"
+        else:
+            yield f"event: confirmation\ndata: {_json.dumps({'thread_id': thread_id, 'confirmation': confirmation_details})}\n\n"
 
     except Exception as e:
         logger.error("SSE stream error", exc_info=e)
@@ -332,7 +354,7 @@ async def stream_confirm_event_generator(
     """
     from langgraph.types import Command
 
-    from src.services.agent.checkpointer import get_checkpointer
+    from src.services.agent.checkpointer import get_checkpointer, reset_checkpointer
     from src.services.agent.graph import compile_agent_graph
 
     # Lazy import schemas
@@ -357,6 +379,25 @@ async def stream_confirm_event_generator(
             }
         }
         current_snapshot = await graph.aget_state(snapshot_config)
+
+        # Retry once with a fresh connection if checkpoint not found — the
+        # pooler may have dropped the idle connection during HITL wait time.
+        if not current_snapshot or not current_snapshot.values:
+            logger.warning(
+                "Checkpoint not found for thread %s on first attempt, retrying with fresh connection",
+                request_body.thread_id,
+            )
+            await reset_checkpointer()
+            checkpointer = await get_checkpointer()
+            graph = compile_agent_graph(checkpointer=checkpointer)
+            snapshot_config = {
+                "configurable": {
+                    "thread_id": request_body.thread_id,
+                    "db": db,
+                    "current_user": current_user,
+                }
+            }
+            current_snapshot = await graph.aget_state(snapshot_config)
 
         # Verify thread exists
         if not current_snapshot or not current_snapshot.values:
