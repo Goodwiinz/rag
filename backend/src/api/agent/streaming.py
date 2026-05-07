@@ -11,8 +11,8 @@ import uuid as _uuid
 from typing import Any, Dict, List, Optional
 
 from langgraph.errors import GraphInterrupt
-from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.core.database import AsyncSessionLocal
 from src.models.user import User
 
 from .jobs import (
@@ -110,7 +110,6 @@ async def stream_event_generator(
     request_body: Any,  # AgentExecuteRequest
     request: Any,  # FastAPI Request
     current_user: User,
-    db: AsyncSession,
 ):
     """SSE event generator for the /stream endpoint.
 
@@ -132,6 +131,7 @@ async def stream_event_generator(
 
     stream_thread_id = request_body.thread_id or "unknown"
     config: Dict[str, Any] = {}  # Initialize before try block for safe access in except handlers
+    db = AsyncSessionLocal()
     try:
         _bootstrap_langsmith()
         checkpointer = await get_checkpointer()
@@ -317,6 +317,7 @@ async def stream_event_generator(
         yield f"event: error\ndata: {_json.dumps({'error': str(e)})}\n\n"
 
     finally:
+        await db.close()
         logger.info("SSE stream ended for thread %s", stream_thread_id)
 
 
@@ -324,7 +325,6 @@ async def stream_confirm_event_generator(
     request_body: Any,  # StreamConfirmRequest
     request: Any,  # FastAPI Request
     current_user: User,
-    db: AsyncSession,
 ):
     """SSE event generator for the /stream/confirm endpoint.
 
@@ -343,6 +343,7 @@ async def stream_confirm_event_generator(
         ToolExecutionResponse,
     )
 
+    db = AsyncSessionLocal()
     try:
         _bootstrap_langsmith()
         checkpointer = await get_checkpointer()
@@ -533,4 +534,5 @@ async def stream_confirm_event_generator(
         yield f"event: error\ndata: {_json.dumps({'error': str(e)})}\n\n"
 
     finally:
+        await db.close()
         logger.info("SSE confirm stream ended for thread %s", request_body.thread_id)

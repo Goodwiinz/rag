@@ -33,7 +33,6 @@ async def test_stream_event_generator_bootstraps_langsmith_before_compile():
     request = SimpleNamespace(is_disconnected=AsyncMock(return_value=True))
     body = SimpleNamespace(messages=[], page_context={"type": "general"}, thread_id="", model=None)
     current_user = Mock(id="user-1", organization_id="org-1")
-    db = AsyncMock()
 
     with (
         patch(
@@ -52,9 +51,13 @@ async def test_stream_event_generator_bootstraps_langsmith_before_compile():
             "src.api.agent.streaming._persist_thread_messages",
             new=AsyncMock(return_value=None),
         ),
+        patch(
+            "src.api.agent.streaming.AsyncSessionLocal",
+            return_value=AsyncMock(),
+        ),
     ):
         events = []
-        async for event in stream_event_generator(body, request, current_user, db):
+        async for event in stream_event_generator(body, request, current_user):
             events.append(event)
 
     assert configured is True
@@ -78,7 +81,6 @@ async def test_stream_confirm_event_generator_bootstraps_langsmith_before_compil
     request = SimpleNamespace(is_disconnected=AsyncMock(return_value=True))
     body = SimpleNamespace(thread_id="thread-1", confirmed=True)
     current_user = Mock(id="user-1", organization_id="org-1")
-    db = AsyncMock()
 
     current_snapshot = SimpleNamespace(
         values={"page_context": {"type": "general"}},
@@ -102,10 +104,14 @@ async def test_stream_confirm_event_generator_bootstraps_langsmith_before_compil
             "src.api.agent.streaming._persist_thread_messages",
             new=AsyncMock(return_value=None),
         ),
+        patch(
+            "src.api.agent.streaming.AsyncSessionLocal",
+            return_value=AsyncMock(),
+        ),
     ):
         events = []
         async for event in stream_confirm_event_generator(
-            body, request, current_user, db
+            body, request, current_user
         ):
             events.append(event)
 
