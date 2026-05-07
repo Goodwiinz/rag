@@ -34,7 +34,6 @@ async def test_stream_event_generator_emits_trace_event_before_workflow_events()
         model=None,
     )
     current_user = Mock(id="user-1", organization_id="org-1")
-    db = AsyncMock()
 
     with (
         patch(
@@ -53,9 +52,13 @@ async def test_stream_event_generator_emits_trace_event_before_workflow_events()
             "src.api.agent.streaming._persist_thread_messages",
             new=AsyncMock(return_value=None),
         ),
+        patch(
+            "src.api.agent.streaming.AsyncSessionLocal",
+            return_value=AsyncMock(),
+        ),
     ):
         events = []
-        async for event in stream_event_generator(body, request, current_user, db):
+        async for event in stream_event_generator(body, request, current_user):
             events.append(event)
 
     assert events[0].startswith("event: trace\n")
@@ -75,7 +78,6 @@ async def test_stream_confirm_event_generator_emits_trace_event_before_workflow_
     request = SimpleNamespace(is_disconnected=AsyncMock(return_value=False))
     body = SimpleNamespace(thread_id="thread-456", confirmed=True)
     current_user = Mock(id="user-1", organization_id="org-1")
-    db = AsyncMock()
 
     with (
         patch(
@@ -94,10 +96,14 @@ async def test_stream_confirm_event_generator_emits_trace_event_before_workflow_
             "src.api.agent.streaming._persist_thread_messages",
             new=AsyncMock(return_value=None),
         ),
+        patch(
+            "src.api.agent.streaming.AsyncSessionLocal",
+            return_value=AsyncMock(),
+        ),
     ):
         events = []
         async for event in stream_confirm_event_generator(
-            body, request, current_user, db
+            body, request, current_user
         ):
             events.append(event)
 

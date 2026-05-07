@@ -130,12 +130,14 @@ test('clears a missing confirmation thread and retries the message once', async 
     .mockReturnValueOnce(
       events([{ type: 'token', content: 'fresh response' }, { type: 'done' }])
     );
-  mockedStreamConfirm.mockReturnValue(
+  mockedStreamConfirm.mockImplementation(() =>
     events([{ type: 'error', message: 'Thread not found' }])
   );
 
   await runRepl();
 
+  // First confirm + one retry confirm (both fail), then fresh thread retry
+  expect(mockedStreamConfirm).toHaveBeenCalledTimes(2);
   expect(mockedStreamConfirm).toHaveBeenCalledWith(
     'stale-thread',
     true,
@@ -151,6 +153,84 @@ test('clears a missing confirmation thread and retries the message once', async 
     { type: 'chat' },
     expect.any(Object)
   );
+  expect(mockedLog.warn).toHaveBeenCalledWith(
+    expect.stringContaining('Cached thread expired')
+  );
+});
+
+test('retries confirm once before falling back to fresh thread', async () => {
+  mockedStreamAgent.mockReturnValueOnce(
+    events([
+      {
+        type: 'confirmation',
+        threadId: 'stale-thread',
+        details: { message: 'Confirm?' },
+      },
+    ])
+  );
+  // First confirm attempt fails, second succeeds
+  mockedStreamConfirm
+    .mockReturnValueOnce(
+      events([{ type: 'error', message: 'Thread not found' }])
+    )
+    .mockReturnValueOnce(
+      events([{ type: 'token', content: 'ingested' }, { type: 'done' }])
+    );
+
+  await runRepl();
+
+  // streamConfirm should have been called twice (retry)
+  expect(mockedStreamConfirm).toHaveBeenCalledTimes(2);
+  // Both calls should use the same thread_id
+  expect(mockedStreamConfirm).toHaveBeenNthCalledWith(
+    1,
+    'stale-thread',
+    true,
+    expect.any(Object)
+  );
+  expect(mockedStreamConfirm).toHaveBeenNthCalledWith(
+    2,
+    'stale-thread',
+    true,
+    expect.any(Object)
+  );
+  // Should NOT have retried the full message
+  expect(mockedStreamAgent).toHaveBeenCalledTimes(1);
+  // Should show the retry message, not "Cached thread expired"
+  expect(mockedLog.warn).toHaveBeenCalledWith(
+    expect.stringContaining('retrying confirmation')
+  );
+});
+
+test('falls through to fresh thread if confirm retry also fails', async () => {
+  mockedStreamAgent
+    .mockReturnValueOnce(
+      events([
+        {
+          type: 'confirmation',
+          threadId: 'stale-thread',
+          details: { message: 'Confirm?' },
+        },
+      ])
+    )
+    .mockReturnValueOnce(
+      events([{ type: 'token', content: 'fresh' }, { type: 'done' }])
+    );
+  // Both confirm attempts fail
+  mockedStreamConfirm
+    .mockReturnValueOnce(
+      events([{ type: 'error', message: 'Thread not found' }])
+    )
+    .mockReturnValueOnce(
+      events([{ type: 'error', message: 'Thread not found' }])
+    );
+
+  await runRepl();
+
+  // Confirm was retried once
+  expect(mockedStreamConfirm).toHaveBeenCalledTimes(2);
+  // Then fell through to full message retry
+  expect(mockedStreamAgent).toHaveBeenCalledTimes(2);
   expect(mockedLog.warn).toHaveBeenCalledWith(
     expect.stringContaining('Cached thread expired')
   );

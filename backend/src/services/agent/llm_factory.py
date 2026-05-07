@@ -17,7 +17,7 @@ from src.core.openai_endpoint import classify_openai_endpoint
 
 logger = logging.getLogger(__name__)
 
-_DEFAULT_LIGHTWEIGHT_MODEL = "gpt-4o-mini"
+_DEFAULT_LIGHTWEIGHT_MODEL = "model-router"
 
 
 def _resolve_lightweight_deployment() -> str:
@@ -35,7 +35,7 @@ def build_lightweight_llm(
 
     Uses the same Azure/OpenAI config resolution as ``graph._build_llm``
     but targets the lightweight deployment configured via
-    ``AZURE_OPENAI_LIGHTWEIGHT_DEPLOYMENT`` (defaults to gpt-4o-mini).
+    ``AZURE_OPENAI_LIGHTWEIGHT_DEPLOYMENT`` (defaults to model-router).
     """
     settings = get_settings()
 
@@ -47,6 +47,7 @@ def build_lightweight_llm(
         settings.AZURE_OPENAI_CHAT_API_VERSION or settings.AZURE_OPENAI_API_VERSION
     )
     deployment = _resolve_lightweight_deployment()
+    logger.info("Lightweight LLM deployment resolved to: %s", deployment)
 
     if not endpoint or not api_key:
         raise RuntimeError(

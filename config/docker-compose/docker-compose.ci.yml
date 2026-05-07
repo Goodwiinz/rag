@@ -2,8 +2,6 @@
 # Minimal setup for running E2E tests in GitHub Actions
 # Usage: docker-compose -f docker-compose.ci.yml up -d
 
-version: "3.8"
-
 services:
   # PostgreSQL Database
   postgres:
@@ -52,11 +50,11 @@ services:
     networks:
       - ci-network
     healthcheck:
-      test: ["CMD-SHELL", "bash -c '</dev/tcp/localhost/7687'"]
+      test: ["CMD-SHELL", "wget -qO- http://localhost:7474 || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 20
-      start_period: 40s
+      start_period: 30s
     tmpfs:
       - /data
       - /logs
@@ -70,11 +68,11 @@ services:
     networks:
       - ci-network
     healthcheck:
-      test: ["CMD-SHELL", "bash -c '</dev/tcp/localhost/6333'"]
-      interval: 10s
+      test: ["CMD-SHELL", "wget -qO- http://localhost:6333/healthz || exit 1"]
+      interval: 5s
       timeout: 5s
       retries: 15
-      start_period: 20s
+      start_period: 10s
     tmpfs:
       - /qdrant/storage
 
@@ -110,9 +108,9 @@ services:
     networks:
       - ci-network
     healthcheck:
-      test: ["CMD-SHELL", "bash -c '</dev/tcp/localhost/9999'"]
+      test: ["CMD-SHELL", "wget -qO- http://localhost:9999/health || exit 1"]
       interval: 5s
-      timeout: 3s
+      timeout: 5s
       retries: 20
       start_period: 10s
 
