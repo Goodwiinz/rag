@@ -434,9 +434,28 @@ jobs:
         run: |
           docker compose -p rag_system -f docker-compose.ci.yml up -d postgres redis neo4j qdrant gotrue
 
-          # Wait for infrastructure to be healthy (5 services: postgres, redis, neo4j, qdrant, gotrue)
-          echo "Waiting for infrastructure services..."
-          timeout 300 bash -c 'until docker compose -p rag_system -f docker-compose.ci.yml ps | grep -E "(healthy)" | wc -l | grep -q "5"; do sleep 3; done'
+          # Wait for each service individually so logs show which one is stuck.
+          # docker compose ps --format json is compose-version-agnostic.
+          healthy_count() {
+            docker compose -p rag_system -f docker-compose.ci.yml ps --format json \
+              | grep -c '"healthy"' || true
+          }
+
+          echo "Waiting for infrastructure services (5 expected)..."
+          SECONDS=0
+          while (( $(healthy_count) < 5 )); do
+            if (( SECONDS > 300 )); then
+              echo "::error::Timed out after 300s waiting for healthy services"
+              docker compose -p rag_system -f docker-compose.ci.yml ps
+              exit 124
+            fi
+            if (( SECONDS % 30 == 0 )); then
+              echo "  ${SECONDS}s — $(healthy_count)/5 healthy"
+              docker compose -p rag_system -f docker-compose.ci.yml ps --format "table {{.Name}}\t{{.Status}}" 2>/dev/null || true
+            fi
+            sleep 5
+          done
+          echo "All 5 infrastructure services healthy (${SECONDS}s)"
       - name: Start application services
         run: |
           # Start backend with pre-built image
