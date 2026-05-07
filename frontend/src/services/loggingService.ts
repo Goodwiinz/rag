@@ -588,22 +588,10 @@ class LoggingService {
   }
 }
 
-// Export singleton instance
-export const loggingService = LoggingService.getInstance();
-
-// Convenience exports
-export const {
-  debug,
-  info,
-  warn,
-  error,
-  fatal,
-  logApiRequest,
-  logApiResponse,
-  logApiError,
-  logUserAction,
-  logSystemEvent,
-  logPerformance,
-  logSearchQuery,
-  logDocumentUpload
-} = loggingService;
+// SSR-safe lazy singleton — only instantiates in browser. Constructor reads
+// from localStorage and methods touch errorTracker (also null on server), so
+// the singleton must not run during SSR module evaluation.
+export const loggingService =
+  typeof window !== 'undefined'
+    ? LoggingService.getInstance()
+    : (null as unknown as LoggingService);
