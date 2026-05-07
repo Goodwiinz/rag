@@ -496,6 +496,19 @@ async def _run_agent_graph(
                     "tool_executions": list(final_state.get("tool_executions", [])),
                 },
             )
+        except asyncio.CancelledError:
+            # CancelledError inherits from BaseException (since Python 3.8),
+            # so the broader ``except Exception`` below would NOT catch it
+            # and the job would stay stuck in ``"running"`` forever. Mark it
+            # cancelled first, then re-raise so the task tears down cleanly.
+            logger.warning("Agent graph execution cancelled", extra={"job_id": job_id})
+            try:
+                await _set_job_async(
+                    job_id, {"status": "cancelled", "error": "execution cancelled"}
+                )
+            except Exception:
+                logger.exception("Failed to mark cancelled job %s", job_id)
+            raise
         except Exception as e:
             logger.error("Agent graph execution failed", exc_info=e)
             await _set_job_async(job_id, {"status": "failed", "error": str(e)})
@@ -647,6 +660,17 @@ async def _resume_agent_graph(
                     "tool_executions": list(final_state.get("tool_executions", [])),
                 },
             )
+        except asyncio.CancelledError:
+            # See parallel handler in _run_agent_graph above — CancelledError
+            # is a BaseException, so the ``except Exception`` below misses it.
+            logger.warning("Agent graph resume cancelled", extra={"job_id": job_id})
+            try:
+                await _set_job_async(
+                    job_id, {"status": "cancelled", "error": "resume cancelled"}
+                )
+            except Exception:
+                logger.exception("Failed to mark cancelled resume job %s", job_id)
+            raise
         except Exception as e:
             logger.error("Agent graph resume failed", exc_info=e)
             await _set_job_async(job_id, {"status": "failed", "error": str(e)})
