@@ -153,6 +153,7 @@ function ChatPageContent() {
 
   // Agent state
   const agentThreadMapRef = useRef<Record<string, string>>({});
+  const activeConversationIdRef = useRef<string | null>(null);
 
   // HITL confirmation state
   const [pendingConfirmation, setPendingConfirmation] = useState<{
@@ -271,6 +272,12 @@ function ChatPageContent() {
   searchParamsRef.current = searchParams;
   const router = useRouter();
 
+  // Keep activeConversationIdRef in sync so handleSubmit can read it
+  // synchronously (immune to React batching delays).
+  useEffect(() => {
+    activeConversationIdRef.current = activeConversationId;
+  }, [activeConversationId]);
+
   // Reset refs when user changes (logout/login)
   useEffect(() => {
     if (!isAuthenticated) {
@@ -325,6 +332,7 @@ function ChatPageContent() {
       if (targetConv) {
         if (targetConv.id !== activeConversationId) {
           setActiveConversationId(targetConv.id);
+          activeConversationIdRef.current = targetConv.id;
           setMessages(targetConv.messages);
           // Also update the Zustand store so sidebar highlights correctly
           setCurrentThread(targetConv.id);
@@ -354,6 +362,7 @@ function ChatPageContent() {
             )
           );
           setActiveConversationId(threadDetail.id);
+          activeConversationIdRef.current = threadDetail.id;
           setMessages(uiMessages);
           setCurrentThread(threadDetail.id);
         } catch (error: unknown) {
@@ -431,6 +440,7 @@ function ChatPageContent() {
           }
 
           setActiveConversationId(selectedConv.id);
+          activeConversationIdRef.current = selectedConv.id;
           setMessages(selectedConv.messages);
           // Sync with Zustand store for sidebar highlighting
           setCurrentThread(selectedConv.id);
@@ -524,6 +534,7 @@ function ChatPageContent() {
             setConversations(uiConversations);
             setMessages(threadDetail.messages.map(mapDbMessageToUiMessage));
             setActiveConversationId(persistedThreadId);
+            activeConversationIdRef.current = persistedThreadId;
             // Set store ID directly to avoid the loadMessages side-effect in
             // setCurrentThread — we already have messages from getThread above.
             useChatStore.setState({ currentThreadId: persistedThreadId });
@@ -738,9 +749,14 @@ function ChatPageContent() {
     setInput('');
     setIsLoading(true);
 
-    // Create new thread if needed (when no active conversation)
-    let currentConversationId = activeConversationId;
-    let currentThreadId = activeConversationId;
+    // Create new thread if needed (when no active conversation).
+    // Read from ref first (synchronous, immune to React batching), then
+    // state, then Zustand store as final fallback.
+    let currentConversationId =
+      activeConversationIdRef.current ||
+      activeConversationId ||
+      useChatStore.getState().currentThreadId;
+    let currentThreadId = currentConversationId;
 
     if (!currentConversationId && dbConversation) {
       try {
@@ -771,8 +787,11 @@ function ChatPageContent() {
 
         setConversations((prev) => [newConv, ...prev]);
         setActiveConversationId(newConv.id);
+        activeConversationIdRef.current = newConv.id;
         setCurrentThread(newConv.id);
-        router.replace(getSelectedThreadUrl(newThread.id));
+        queueMicrotask(() =>
+          router.replace(getSelectedThreadUrl(newThread.id))
+        );
         console.log('[Chat] Created new thread:', newThread.id);
       } catch (error) {
         console.error('[Chat] Failed to create thread:', error);
@@ -1207,6 +1226,7 @@ function ChatPageContent() {
       setConversations((prev) => prev.filter((c) => c.id !== threadId));
       if (activeConversationId === threadId) {
         setActiveConversationId(null);
+        activeConversationIdRef.current = null;
         setMessages([]);
         setCurrentThread(null);
         router.push(getNewChatUrl());
@@ -1228,6 +1248,7 @@ function ChatPageContent() {
       setConversations((prev) => prev.filter((c) => !ids.includes(c.id)));
       if (activeConversationId && ids.includes(activeConversationId)) {
         setActiveConversationId(null);
+        activeConversationIdRef.current = null;
         setMessages([]);
         setCurrentThread(null);
         router.push(getNewChatUrl());
@@ -1268,11 +1289,13 @@ function ChatPageContent() {
           activeId={activeConversationId}
           onSelect={(id) => {
             setActiveConversationId(id);
+            activeConversationIdRef.current = id;
             setCurrentThread(id);
             router.push(getSelectedThreadUrl(id));
           }}
           onNew={() => {
             setActiveConversationId(null);
+            activeConversationIdRef.current = null;
             setMessages([]);
             setCurrentThread(null);
             router.push(getNewChatUrl());
