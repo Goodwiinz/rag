@@ -1,0 +1,4 @@
+## 2024-05-18 - Prevent Sensitive Information Disclosure in Error Messages
+**Vulnerability:** HTTP 500 error handlers across various modules were returning the raw exception string to the client (`raise HTTPException(status_code=500, detail=str(e))`). This could leak sensitive internal database schemas, credentials, or other system details when an unexpected exception occurs.
+**Learning:** Returning `str(e)` in an HTTPException allows arbitrary internal Python exceptions to propagate their exact details to the end-user API response. While useful for debugging, this is a significant information disclosure risk in production systems.
+**Prevention:** Always catch exceptions, log the detailed `str(e)` on the server-side, and return a generic, static error message to the client, such as "Internal server error".

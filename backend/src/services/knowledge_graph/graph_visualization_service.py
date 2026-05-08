@@ -207,7 +207,7 @@ async def prepare_graph_visualization(
 
     except Exception as e:
         logger.error(f"Error preparing graph visualization: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @app.get(
@@ -298,7 +298,7 @@ async def get_entity_neighborhood(
         raise
     except Exception as e:
         logger.error(f"Error getting entity neighborhood: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @app.post("/visualization/progressive-load", response_model=GraphVisualizationResponse)
@@ -377,7 +377,7 @@ async def progressive_graph_load(
 
     except Exception as e:
         logger.error(f"Error in progressive graph load: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @app.post(
@@ -434,7 +434,7 @@ async def interactive_filter(
         raise
     except Exception as e:
         logger.error(f"Error applying interactive filters: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 # Layout Computation Endpoints
@@ -466,7 +466,7 @@ async def compute_layout_only(
 
     except Exception as e:
         logger.error(f"Error computing layout: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @app.get("/layout/algorithms")

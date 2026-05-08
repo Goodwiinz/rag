@@ -162,7 +162,7 @@ async def create_entity(
         return entity
     except Exception as e:
         logger.error(f"Error creating entity: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/entities/{entity_id}", response_model=EntityResponse)
@@ -257,7 +257,7 @@ async def get_all_entities(
         logger.error(f"Error getting entities: {e}")
         if _is_neo4j_unavailable_error(e):
             raise HTTPException(status_code=503, detail=str(e))
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/entities/search", response_model=List[EntityResponse])
@@ -284,7 +284,7 @@ async def search_entities(
         return entities
     except Exception as e:
         logger.error(f"Error searching entities: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get(
@@ -307,7 +307,7 @@ async def get_entity_relationships(
         return relationships
     except Exception as e:
         logger.error(f"Error getting relationships: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/entities/{entity_id}/related", response_model=List[EntityResponse])
@@ -333,7 +333,7 @@ async def get_related_entities(
         return entities
     except Exception as e:
         logger.error(f"Error finding related entities: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/entities/{entity_id}/neighborhood")
@@ -359,7 +359,7 @@ async def get_entity_neighborhood(
         return data
     except Exception as e:
         logger.error(f"Error getting neighborhood: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 # Relationship Management Endpoints
@@ -389,7 +389,7 @@ async def get_all_relationships(
         return relationships
     except Exception as e:
         logger.error(f"Error getting relationships: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/relationships", response_model=RelationshipResponse)
@@ -407,7 +407,7 @@ async def create_relationship(
         return relationship
     except Exception as e:
         logger.error(f"Error creating relationship: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/relationships/{relationship_id}", response_model=RelationshipResponse)
@@ -453,7 +453,7 @@ async def delete_relationship(
         return {"message": "Relationship deleted successfully"}
     except Exception as e:
         logger.error(f"Error deleting relationship: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 # Graph Search and Traversal Endpoints
@@ -513,7 +513,7 @@ async def search_graph(
         )
     except Exception as e:
         logger.error(f"Error performing graph search: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/paths/{source_id}/{target_id}", response_model=List[GraphPath])
@@ -537,7 +537,7 @@ async def find_paths(
         return paths
     except Exception as e:
         logger.error(f"Error finding paths: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 # Batch Operations Endpoints
@@ -556,7 +556,7 @@ async def batch_create_entities(
         return result
     except Exception as e:
         logger.error(f"Error in batch processing: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/merge-jobs", status_code=status.HTTP_202_ACCEPTED)
@@ -843,7 +843,7 @@ async def extract_entities_from_document(
         raise
     except Exception as e:
         logger.error(f"Error extracting entities from document: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/documents/{document_id}/entities", response_model=List[EntityResponse])
@@ -869,7 +869,7 @@ async def get_document_entities(
         return document_entities
     except Exception as e:
         logger.error(f"Error getting document entities: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 # Analytics and Statistics Endpoints
@@ -892,7 +892,7 @@ async def get_graph_analytics(
         return analytics
     except Exception as e:
         logger.error(f"Error getting graph analytics: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/health", response_model=GraphHealthStatus)
@@ -903,7 +903,7 @@ async def get_graph_health(current_user: User = Depends(get_current_user)):
         return health
     except Exception as e:
         logger.error(f"Error getting graph health: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 # Visualization Endpoints
@@ -1022,7 +1022,7 @@ async def get_entity_visualization(
         raise
     except Exception as e:
         logger.error(f"Error generating visualization data: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 # Entity Type and Relationship Management
@@ -1088,7 +1088,7 @@ async def fix_null_entity_types(
             }
     except Exception as e:
         logger.error(f"Error fixing NULL entity types: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 # Schema Management
@@ -1112,4 +1112,4 @@ async def reset_graph_schema(
         return {"message": "Graph schema reset successfully"}
     except Exception as e:
         logger.error(f"Error resetting graph schema: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
