@@ -370,7 +370,7 @@ class GraphAlgorithms:
                    degree AS degree_score
             """
 
-            result = await session.run(query, {"limit": limit})
+            result = await session.run(query, params)
 
             centrality_results = []
             rank = 1
