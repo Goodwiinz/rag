@@ -109,18 +109,7 @@ class PageContextRequest(BaseModel):
     metadata: Optional[Dict[str, Any]] = None
 
 
-# Azure deployment names the agent will accept on POST /execute.
-# Empty string means "use the deployment configured in
-# AZURE_OPENAI_CHAT_DEPLOYMENT_NAME". "model-router" routes the request
-# through Azure's model-router deployment, which selects the underlying
-# model (gpt-5, claude-*, llama-*, etc.) per request.
-#
-# Specific model names (gpt-5, gpt-5-mini, claude-*, ...) used to be
-# accepted here, but the Azure resources only provision the
-# `model-router` deployment, so any other pick produces a 404
-# `DeploymentNotFound`. Re-expand this set if/when those models are
-# provisioned as separate deployments.
-SUPPORTED_MODELS: frozenset[str] = frozenset({"", "model-router"})
+SUPPORTED_MODELS: frozenset[str] = frozenset({"", "model-router", "gpt-5-mini"})
 
 
 class AgentExecuteRequest(BaseModel):

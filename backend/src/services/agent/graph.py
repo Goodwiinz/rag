@@ -239,27 +239,34 @@ def _build_llm(model_override: str | None = None):
     if cache_key in _LLM_CACHE:
         return _LLM_CACHE[cache_key]
 
+    _NO_CUSTOM_TEMPERATURE = frozenset({"gpt-5-mini"})
+    temperature = None if deployment in _NO_CUSTOM_TEMPERATURE else 0.7
+
     if endpoint_type == "openai_compatible":
         from langchain_openai import ChatOpenAI
 
-        llm = ChatOpenAI(
+        kwargs: dict = dict(
             model=deployment,
             api_key=api_key,
             base_url=endpoint,
-            temperature=0.7,
             max_tokens=2048,
         )
+        if temperature is not None:
+            kwargs["temperature"] = temperature
+        llm = ChatOpenAI(**kwargs)
     else:
         from langchain_openai import AzureChatOpenAI
 
-        llm = AzureChatOpenAI(
+        kwargs = dict(
             azure_deployment=deployment,
             azure_endpoint=endpoint,
             api_key=api_key,
             api_version=api_version,
-            temperature=0.7,
             max_tokens=2048,
         )
+        if temperature is not None:
+            kwargs["temperature"] = temperature
+        llm = AzureChatOpenAI(**kwargs)
 
     _LLM_CACHE[cache_key] = llm
     return llm
@@ -1008,6 +1015,10 @@ def _build_page_context_line(page_context: dict) -> str:
     page_label = page_context.get("label", "")
     page_metadata = page_context.get("metadata") or {}
     active_tab = page_metadata.get("activeTab", "")
+    paper_id = page_context.get("paper_id")
+    paper_title = page_context.get("paper_title", "")
+
+    lines: list[str] = []
 
     if page_type == "project" and project_id:
         line = f'The user is viewing the project "{project_name}" (ID: {project_id}).'
@@ -1023,10 +1034,22 @@ def _build_page_context_line(page_context: dict) -> str:
             "\nWhen the user refers to 'this project' or 'my project', use this project_id. "
             "Do NOT ask for the project ID — you already have it."
         )
-        return line
-    if page_type != "unknown":
-        return f"The user is on the {page_label or page_type} page."
-    return ""
+        lines.append(line)
+    elif page_type != "unknown":
+        lines.append(f"The user is on the {page_label or page_type} page.")
+
+    if paper_id:
+        label = paper_title or paper_id
+        lines.append(
+            f'Active paper: "{label}" (document_id: {paper_id}).\n'
+            "When the user says 'this paper', 'this document', 'summarize this', "
+            "'analyze this', or asks about a paper without naming one, use this "
+            "document_id directly. Do NOT ask which document — you already have it. "
+            "Call summarize_document, analyze_document, or extract_entities with "
+            f"document_id={paper_id}."
+        )
+
+    return "\n".join(lines)
 
 
 # Module-level static prompt — every byte stable across requests so the
