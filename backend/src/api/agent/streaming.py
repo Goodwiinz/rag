@@ -365,7 +365,8 @@ async def stream_confirm_event_generator(
     """
     from langgraph.types import Command
 
-    from src.services.agent.checkpointer import reset_checkpointer
+    from src.services.agent.checkpointer import get_checkpointer, reset_checkpointer
+    from src.services.agent.graph import compile_agent_graph
 
     # Lazy import schemas
     from .execute import (
