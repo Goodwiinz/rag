@@ -72,7 +72,7 @@ def create_search_session(
 
     except Exception as e:
         logger.error(f"Failed to create search session: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/events")
@@ -102,7 +102,7 @@ async def track_search_event(
 
     except Exception as e:
         logger.error(f"Failed to track search event: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/interactions")
@@ -128,7 +128,7 @@ async def track_user_interaction(
 
     except Exception as e:
         logger.error(f"Failed to track user interaction: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/my-behavior", response_model=UserBehaviorAnalytics)
@@ -155,7 +155,7 @@ async def get_my_behavior_analytics(
 
     except Exception as e:
         logger.error(f"Failed to get user behavior analytics: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/users/{user_id}/behavior", response_model=UserBehaviorAnalytics)
@@ -203,7 +203,7 @@ async def get_user_behavior_analytics(
         raise
     except Exception as e:
         logger.error(f"Failed to get user behavior analytics: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/sessions/{session_id}/analysis")
@@ -241,7 +241,7 @@ async def get_session_analysis(
         raise
     except Exception as e:
         logger.error(f"Failed to get session analysis: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/organization/trends")
@@ -272,7 +272,7 @@ async def get_organization_behavior_trends(
         raise
     except Exception as e:
         logger.error(f"Failed to get organization behavior trends: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/insights")
@@ -326,7 +326,7 @@ async def get_behavioral_insights(
         raise
     except Exception as e:
         logger.error(f"Failed to get behavioral insights: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/organization/patterns")
@@ -352,7 +352,7 @@ async def get_organization_behavior_patterns(
         raise
     except Exception as e:
         logger.error(f"Failed to identify behavior patterns: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/organization/users")
@@ -445,7 +445,7 @@ async def get_organization_user_behavior(
         raise
     except Exception as e:
         logger.error(f"Failed to get organization user behavior: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/content-usage")
@@ -530,7 +530,7 @@ async def get_content_usage_analytics(
         raise
     except Exception as e:
         logger.error(f"Failed to get content usage analytics: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/reports/generate")
@@ -567,7 +567,7 @@ async def generate_behavior_report(
         raise
     except Exception as e:
         logger.error(f"Failed to generate behavior report: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/export")
@@ -631,7 +631,7 @@ async def export_behavior_data(
         raise
     except Exception as e:
         logger.error(f"Failed to export behavior data: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/health")

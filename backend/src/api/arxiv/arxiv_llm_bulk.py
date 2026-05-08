@@ -334,7 +334,7 @@ async def test_llm_small_batch():
         }
     except Exception as e:
         logger.error(f"LLM test batch failed: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/stats")
@@ -424,4 +424,4 @@ async def get_llm_ingestion_stats():
 
     except Exception as e:
         logger.error(f"Failed to get LLM stats: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
