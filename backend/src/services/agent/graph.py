@@ -249,7 +249,7 @@ def _build_llm(model_override: str | None = None):
             model=deployment,
             api_key=api_key,
             base_url=endpoint,
-            max_tokens=2048,
+            max_tokens=4096,
         )
         if temperature is not None:
             kwargs["temperature"] = temperature
@@ -262,7 +262,7 @@ def _build_llm(model_override: str | None = None):
             azure_endpoint=endpoint,
             api_key=api_key,
             api_version=api_version,
-            max_tokens=2048,
+            max_tokens=4096,
         )
         if temperature is not None:
             kwargs["temperature"] = temperature
@@ -477,6 +477,49 @@ def _is_retrieval_query(content: str) -> bool:
     return False
 
 
+async def _try_primary_do_kb_read(query: str, current_user) -> Optional[List[dict]]:
+    """Phase 4b: return DO KB chunks shaped like rag_node contexts.
+
+    Returns None when primary read is disabled, the org has no KB, or the
+    call fails — caller then falls back to the legacy Qdrant path.
+    """
+    try:
+        from src.core.config import settings as _kb_cfg
+
+        if not getattr(_kb_cfg, "DO_KB_PRIMARY_READ", False):
+            return None
+        org_id = getattr(current_user, "organization_id", None)
+        if not org_id:
+            return None
+
+        from src.core.database import AsyncSessionLocal
+        from src.models.organization import Organization
+        from src.services.do_kb import get_do_kb_client
+
+        async with AsyncSessionLocal() as session:
+            org = await session.get(Organization, org_id)
+            kb_uuid = getattr(org, "do_kb_uuid", None) if org else None
+        if not kb_uuid:
+            return None
+
+        client = get_do_kb_client()
+        result = await client.retrieve(kb_uuid=kb_uuid, query=query, top_k=5)
+        if not result.chunks:
+            return None
+        return [
+            {
+                "document_id": c.document_id,
+                "title": (c.metadata or {}).get("title") or "DO KB chunk",
+                "content": c.text[:3000],
+                "score": float(c.score),
+            }
+            for c in result.chunks
+        ]
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("do_kb primary read failed, falling back: %s", exc)
+        return None
+
+
 @track_node_execution("rag_node")
 async def rag_node(state: AgentState, config: RunnableConfig) -> dict:
     """Retrieve relevant documents via hybrid search and store in state."""
@@ -538,74 +581,21 @@ async def rag_node(state: AgentState, config: RunnableConfig) -> dict:
     if not last_user_msg or not current_user:
         return {"retrieved_contexts": [], **state_update}
 
-    try:
-        # Allow injecting a search function for testing
-        search_fn = configurable.get("search_fn")
-
-        if search_fn:
-            # Use injected search function (for testing)
+    # Test-time injection still supported.
+    search_fn = configurable.get("search_fn")
+    if search_fn:
+        try:
             contexts = await search_fn(last_user_msg, str(current_user.id))
-        else:
-            # Default: use hybrid search service
-            from src.models.search_schemas import SearchQuery
-            from src.services.search.hybrid_search_service import hybrid_search_service
+            return {"retrieved_contexts": contexts, **state_update}
+        except Exception as e:
+            logger.warning("injected search_fn failed", exc_info=e)
+            return {"retrieved_contexts": [], **state_update}
 
-            search_request = SearchQuery(
-                query=last_user_msg,
-                limit=5,
-                search_type="hybrid",
-            )
-
-            org_id = (
-                str(current_user.organization_id)
-                if current_user.organization_id
-                else None
-            )
-            uid = str(current_user.id)
-
-            # asyncio.to_thread properly propagates cancellation to the
-            # underlying concurrent.futures.Future, so a timeout (or client
-            # disconnect) actually stops the worker thread instead of
-            # leaking it.
-            search_response = await asyncio.wait_for(
-                asyncio.to_thread(
-                    hybrid_search_service.search,
-                    search_request=search_request,
-                    user_id=uid,
-                    organization_id=org_id,
-                ),
-                timeout=15.0,
-            )
-
-            contexts: List[dict] = []
-            for i, result in enumerate(search_response.results[:5]):
-                doc_id = getattr(result, "document_id", None)
-                title = getattr(result, "title", "Untitled") or f"Document {i + 1}"
-
-                metadata = getattr(result, "metadata", {}) or {}
-                content = metadata.get("full_text") or metadata.get("text", "")
-                if not content:
-                    content = getattr(result, "content_preview", None)
-                if not content:
-                    content = getattr(result, "content", "")
-                if content is None:
-                    content = ""
-
-                score = getattr(result, "relevance_score", 0.0)
-                contexts.append(
-                    {
-                        "document_id": str(doc_id) if doc_id else None,
-                        "title": title,
-                        "content": content[:3000],
-                        "score": float(score),
-                    }
-                )
-
-        return {"retrieved_contexts": contexts, **state_update}
-
-    except Exception as e:
-        logger.warning("RAG retrieval failed, proceeding without context", exc_info=e)
-        return {"retrieved_contexts": [], **state_update}
+    # Production retrieval path: DO KB only.
+    primary_contexts: Optional[List[dict]] = await _try_primary_do_kb_read(
+        last_user_msg, current_user
+    )
+    return {"retrieved_contexts": primary_contexts or [], **state_update}
 
 
 # ---------------------------------------------------------------------------

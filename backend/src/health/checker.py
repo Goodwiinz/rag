@@ -13,13 +13,6 @@ import httpx
 import redis.asyncio as aioredis
 from neo4j import GraphDatabase
 from prometheus_client import Counter, Gauge, Histogram
-try:
-    from qdrant_client import QdrantClient
-
-    _QDRANT_IMPORT_ERROR: Optional[Exception] = None
-except Exception as exc:  # pragma: no cover - environment dependent
-    QdrantClient = None  # type: ignore[assignment]
-    _QDRANT_IMPORT_ERROR = exc
 
 # Metrics for health checks
 HEALTH_CHECK_TOTAL = Counter(
@@ -67,7 +60,6 @@ class HealthChecker:
             self.check_database,
             self.check_redis,
             self.check_neo4j,
-            self.check_qdrant,
             self.check_external_apis,
             self.check_disk_space,
             self.check_memory_usage,
@@ -274,65 +266,6 @@ class HealthChecker:
                 component=component,
                 status=HealthStatus.UNHEALTHY,
                 message=f"Neo4j connection failed: {str(e)}",
-                response_time=response_time,
-            )
-
-    async def check_qdrant(self) -> HealthCheckResult:
-        """Check Qdrant vector database connectivity."""
-        start_time = time.time()
-        component = "qdrant"
-
-        if QdrantClient is None:
-            response_time = time.time() - start_time
-            HEALTH_CHECK_TOTAL.labels(component=component, status="degraded").inc()
-            COMPONENT_STATUS.labels(component=component).set(0)
-            return HealthCheckResult(
-                component=component,
-                status=HealthStatus.DEGRADED,
-                message=f"Qdrant client unavailable: {_QDRANT_IMPORT_ERROR}",
-                response_time=response_time,
-            )
-
-        try:
-            url = self.config.get("qdrant_url")
-            if not url:
-                return HealthCheckResult(
-                    component=component,
-                    status=HealthStatus.UNKNOWN,
-                    message="Qdrant URL not configured",
-                    response_time=0.0,
-                )
-
-            # Extract host and port
-            if url.startswith("http://"):
-                url = url.replace("http://", "")
-            host, port = url.split(":") if ":" in url else (url, "6333")
-
-            client = QdrantClient(host=host, port=int(port))
-
-            # Test collection list
-            collections = client.get_collections()
-
-            response_time = time.time() - start_time
-
-            HEALTH_CHECK_TOTAL.labels(component=component, status="healthy").inc()
-            COMPONENT_STATUS.labels(component=component).set(1)
-            return HealthCheckResult(
-                component=component,
-                status=HealthStatus.HEALTHY,
-                message=f"Qdrant connection successful ({len(collections.collections)} collections)",
-                response_time=response_time,
-                details={"collections_count": len(collections.collections)},
-            )
-
-        except Exception as e:
-            response_time = time.time() - start_time
-            HEALTH_CHECK_TOTAL.labels(component=component, status="unhealthy").inc()
-            COMPONENT_STATUS.labels(component=component).set(0)
-            return HealthCheckResult(
-                component=component,
-                status=HealthStatus.UNHEALTHY,
-                message=f"Qdrant connection failed: {str(e)}",
                 response_time=response_time,
             )
 

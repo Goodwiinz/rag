@@ -8,7 +8,7 @@ and returns a dict result.
 import asyncio
 import logging
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 from uuid import UUID
 
 from sqlalchemy import desc, func, select
@@ -117,6 +117,32 @@ AGENT_TOOLS = [
                         "type": "integer",
                         "description": "Maximum number of results to return",
                         "default": 10,
+                    },
+                },
+                "required": ["query"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "do_kb_retrieve",
+            "description": (
+                "Semantic retrieval over the organization's DigitalOcean Knowledge Base. "
+                "Returns text chunks ranked by semantic similarity to the query. "
+                "Use for content-level questions across ingested documents."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "Natural-language query for semantic retrieval.",
+                    },
+                    "top_k": {
+                        "type": "integer",
+                        "description": "Number of chunks to return (1-20).",
+                        "default": 8,
                     },
                 },
                 "required": ["query"],
@@ -551,6 +577,8 @@ async def execute_tool(
         return await _tool_ingest_arxiv(args, user_id, db, current_user)
     if tool_name == "search_documents":
         return await _tool_search_documents(args, db, current_user)
+    if tool_name == "do_kb_retrieve":
+        return await _tool_do_kb_retrieve(args, db, current_user)
     if tool_name == "add_document_to_project":
         return await _tool_add_document_to_project(args, db, current_user)
     if tool_name == "create_project":
@@ -694,6 +722,7 @@ async def _tool_ingest_arxiv(
                 from src.core.database import AsyncSessionLocal
 
                 try:
+                    persisted_documents: List[Document] = []
                     async with AsyncSessionLocal() as fresh_db:
                         async with fresh_db.begin():
                             for doc in ingested:
@@ -725,12 +754,30 @@ async def _tool_ingest_arxiv(
                                 fresh_db.add(document)
                                 await fresh_db.flush()
                                 document_ids.append(str(document.id))
+                                persisted_documents.append(document)
                             # begin() auto-commits on exit
                     logger.info(
                         "Ingested %d documents to DB: %s",
                         len(document_ids),
                         document_ids,
                     )
+
+                    # Phase 2 dual-write: mirror into DO KB. Failure-isolated.
+                    from src.core.config import settings as _kb_settings
+
+                    if getattr(_kb_settings, "DO_KB_ENABLED", False) and persisted_documents:
+                        try:
+                            from src.services.do_kb import sync_documents_to_kb
+
+                            async with AsyncSessionLocal() as kb_db:
+                                merged = [
+                                    await kb_db.merge(d) for d in persisted_documents
+                                ]
+                                await sync_documents_to_kb(kb_db, merged)
+                        except Exception as kb_err:  # noqa: BLE001
+                            logger.warning(
+                                "do_kb dual-write skipped for arxiv ingest: %s", kb_err
+                            )
                 except Exception as db_err:
                     logger.error(
                         "Failed to persist ingested documents to DB", exc_info=db_err
@@ -807,6 +854,72 @@ async def _tool_search_documents(
     except Exception as e:
         logger.error("search_documents tool failed", exc_info=e)
         return {"error": f"Document search failed: {str(e)}"}
+
+
+async def _tool_do_kb_retrieve(
+    args: Dict[str, Any],
+    db: Optional[AsyncSession],
+    current_user: Optional[User],
+) -> Dict[str, Any]:
+    """Semantic retrieval over the org's DigitalOcean Knowledge Base.
+
+    Returns an empty chunks list when the org has no provisioned KB or
+    when DO_KB_ENABLED is false — caller falls back to other tools.
+    """
+    if not current_user:
+        return {"error": "Authentication required", "chunks": [], "total": 0}
+
+    query = (args.get("query") or "").strip()
+    if not query:
+        return {"error": "Query is required", "chunks": [], "total": 0}
+
+    top_k = max(1, min(int(args.get("top_k", 8)), 20))
+
+    from src.core.config import settings as _kb_settings
+
+    if not getattr(_kb_settings, "DO_KB_ENABLED", False):
+        return {"chunks": [], "total": 0, "source": "do_kb", "reason": "disabled"}
+
+    # Read kb_uuid from the org. Lazy import to keep cold-start light.
+    kb_uuid: Optional[str] = None
+    if db is not None:
+        from src.models.organization import Organization
+
+        org = await db.get(Organization, current_user.organization_id)
+        kb_uuid = getattr(org, "do_kb_uuid", None) if org else None
+
+    if not kb_uuid:
+        return {"chunks": [], "total": 0, "source": "do_kb", "reason": "not_provisioned"}
+
+    try:
+        from src.services.do_kb import get_do_kb_client
+
+        client = get_do_kb_client()
+        result = await client.retrieve(kb_uuid=kb_uuid, query=query, top_k=top_k)
+    except Exception as exc:
+        logger.warning("do_kb_retrieve failed: %s", exc)
+        return {
+            "chunks": [],
+            "total": 0,
+            "source": "do_kb",
+            "error": f"Retrieval failed: {exc}",
+        }
+
+    chunks_payload = [
+        {
+            "text": c.text,
+            "score": c.score,
+            "document_id": c.document_id,
+            "metadata": c.metadata,
+        }
+        for c in result.chunks
+    ]
+    return {
+        "chunks": chunks_payload,
+        "total": result.total,
+        "source": "do_kb",
+        "query": query,
+    }
 
 
 async def _tool_add_document_to_project(

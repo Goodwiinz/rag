@@ -32,7 +32,6 @@ def get_health_checker() -> HealthChecker:
             "neo4j_uri": settings.NEO4J_URI,
             "neo4j_user": settings.NEO4J_USER,
             "neo4j_password": settings.NEO4J_PASSWORD,
-            "qdrant_url": settings.QDRANT_URL,
             "openai_api_key": settings.OPENAI_API_KEY,
             "anthropic_api_key": settings.ANTHROPIC_API_KEY,
         }

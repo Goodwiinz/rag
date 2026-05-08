@@ -61,6 +61,7 @@ SECRETS=(
   "redis-credentials:/redis"
   "azure-openai-credentials:/azure-openai"
   "langsmith-credentials:/langsmith"
+  "do-kb-credentials:/do-kb"
 )
 
 # Pre-create folders (the CLI does NOT auto-create on `secrets set`).

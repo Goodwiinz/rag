@@ -41,6 +41,7 @@ from .tools_impl import (  # noqa: F401
     _tool_search_arxiv,
     _tool_ingest_arxiv,
     _tool_search_documents,
+    _tool_do_kb_retrieve,
     _tool_add_document_to_project,
     _tool_create_project,
     _tool_create_project_note,
