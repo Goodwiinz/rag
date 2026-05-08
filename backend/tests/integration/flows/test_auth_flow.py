@@ -516,9 +516,11 @@ class TestTokenExpiration:
 
     def test_access_token_expires(self, redis_client):
         """Verify access token expires after TTL."""
-        # Create manager with short TTL for testing
+        # 1s TTL was racing the Redis key against the immediate validate
+        # under CI load (key expired before line below ran -> flaky None).
+        # 3s gives headroom while still keeping the test fast.
         short_ttl_manager = TokenManager(redis_client)
-        short_ttl_manager.access_token_ttl = 1  # 1 second
+        short_ttl_manager.access_token_ttl = 3
 
         user_id = str(uuid.uuid4())
         access_token = short_ttl_manager.create_access_token(user_id, {"test": True})
@@ -526,10 +528,10 @@ class TestTokenExpiration:
         # Should be valid immediately
         assert short_ttl_manager.validate_access_token(access_token) is not None
 
-        # Wait for expiration
-        time.sleep(1.5)
+        # Wait for expiration (TTL + headroom)
+        time.sleep(3.5)
 
-        # Token should now be expired (Redis TTL expired)
+        # Token should now be expired (Redis TTL expired, JWT exp passed)
         assert short_ttl_manager.validate_access_token(access_token) is None
 
     def test_database_and_redis_consistency(self, db_session, redis_client, token_manager, test_user):
