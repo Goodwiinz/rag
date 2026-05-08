@@ -42,7 +42,7 @@ async def create_embedding(
         return result
     except Exception as e:
         logger.error(f"Error generating embedding: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/embeddings/batch", response_model=BatchEmbeddingResponse)
@@ -55,7 +55,7 @@ async def create_batch_embeddings(
         return result
     except Exception as e:
         logger.error(f"Error generating batch embeddings: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/search/documents", response_model=VectorSearchResponse)
@@ -79,7 +79,7 @@ async def search_documents(
         return result
     except Exception as e:
         logger.error(f"Error searching documents: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/search/entities", response_model=VectorSearchResponse)
@@ -103,7 +103,7 @@ async def search_entities(
         return result
     except Exception as e:
         logger.error(f"Error searching entities: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/collections", response_model=List[Dict[str, Any]])
@@ -124,7 +124,7 @@ async def list_collections(current_user: User = Depends(get_current_user)):
         ]
     except Exception as e:
         logger.error(f"Error listing collections: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/collections", response_model=VectorOperationResult)
@@ -143,7 +143,7 @@ async def create_collection(
         raise
     except Exception as e:
         logger.error(f"Error creating collection: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/collections/{collection_name}/stats")
@@ -167,7 +167,7 @@ async def get_collection_stats(
         raise
     except Exception as e:
         logger.error(f"Error getting collection stats: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.delete("/collections/{collection_name}", response_model=VectorOperationResult)
@@ -192,7 +192,7 @@ async def delete_collection(
         raise
     except Exception as e:
         logger.error(f"Error deleting collection: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post(
@@ -219,7 +219,7 @@ async def clear_collection(
         raise
     except Exception as e:
         logger.error(f"Error clearing collection: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/health", response_model=VectorHealthStatus)
@@ -230,7 +230,7 @@ async def get_vector_health(current_user: User = Depends(get_current_user)):
         return health_status
     except Exception as e:
         logger.error(f"Error getting vector health: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/model/info")
@@ -241,7 +241,7 @@ async def get_embedding_model_info(current_user: User = Depends(get_current_user
         return info
     except Exception as e:
         logger.error(f"Error getting model info: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/model/test-quality")
@@ -262,7 +262,7 @@ async def test_embedding_quality(
         raise
     except Exception as e:
         logger.error(f"Error testing embedding quality: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/index/document", response_model=VectorOperationResult)
@@ -299,7 +299,7 @@ async def index_document(
         raise
     except Exception as e:
         logger.error(f"Error indexing document: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/index/entity", response_model=VectorOperationResult)
@@ -342,7 +342,7 @@ async def index_entity(
         raise
     except Exception as e:
         logger.error(f"Error indexing entity: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.delete("/documents/{document_id}/vectors", response_model=VectorOperationResult)
@@ -355,7 +355,7 @@ async def delete_document_vectors(
         return result
     except Exception as e:
         logger.error(f"Error deleting document vectors: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.delete("/entities/{entity_id}/vectors", response_model=VectorOperationResult)
@@ -368,7 +368,7 @@ async def delete_entity_vectors(
         return result
     except Exception as e:
         logger.error(f"Error deleting entity vectors: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/reindex/organization/{organization_id}")
@@ -396,7 +396,7 @@ async def reindex_organization_content(
         raise
     except Exception as e:
         logger.error(f"Error reindexing organization content: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.put("/documents/{document_id}/reindex", response_model=VectorOperationResult)
@@ -427,4 +427,4 @@ async def update_document_index(
         raise
     except Exception as e:
         logger.error(f"Error updating document index: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")

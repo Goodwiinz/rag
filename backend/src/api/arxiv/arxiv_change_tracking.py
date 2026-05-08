@@ -81,7 +81,7 @@ async def track_category_changes(
         )
     except Exception as e:
         logger.error(f"Failed to track category changes: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/track-all")
@@ -108,7 +108,7 @@ async def track_all_changes(
 
     except Exception as e:
         logger.error(f"Failed to track all changes: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/history")
@@ -137,7 +137,7 @@ async def get_change_history(
 
     except Exception as e:
         logger.error(f"Failed to get change history: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/stats")
@@ -181,7 +181,7 @@ async def get_tracking_statistics():
 
     except Exception as e:
         logger.error(f"Failed to get tracking statistics: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/cleanup")
@@ -207,7 +207,7 @@ async def cleanup_old_state(
 
     except Exception as e:
         logger.error(f"Failed to cleanup old state: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/force-sync")
@@ -275,4 +275,4 @@ async def force_sync_paper(
         raise
     except Exception as e:
         logger.error(f"Failed to force sync paper {paper_id}: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")

@@ -118,7 +118,7 @@ async def get_health(
         )
     except Exception as e:
         logger.error(f"Error getting health status: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/metrics")
@@ -140,7 +140,7 @@ async def get_metrics(
         )
     except Exception as e:
         logger.error(f"Error getting metrics: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/prometheus", response_class=PlainTextResponse)
@@ -155,7 +155,7 @@ async def get_prometheus_metrics(
         return await manager.metrics_collector.get_prometheus_metrics()
     except Exception as e:
         logger.error(f"Error getting Prometheus metrics: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/traces")
@@ -178,7 +178,7 @@ async def get_traces(
         )
     except Exception as e:
         logger.error(f"Error getting traces: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/logs")
@@ -201,7 +201,7 @@ async def get_logs(
         )
     except Exception as e:
         logger.error(f"Error getting logs: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/alerts")
@@ -224,7 +224,7 @@ async def get_alerts(
         )
     except Exception as e:
         logger.error(f"Error getting alerts: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/alert-rules")
@@ -248,7 +248,7 @@ async def create_alert_rule(
         return {"rule_id": rule_id, "message": "Alert rule created successfully"}
     except Exception as e:
         logger.error(f"Error creating alert rule: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/alerts/{alert_id}/acknowledge")
@@ -273,7 +273,7 @@ async def acknowledge_alert(
             raise HTTPException(status_code=404, detail="Alert not found")
     except Exception as e:
         logger.error(f"Error acknowledging alert: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/alerts/{alert_id}/resolve")
@@ -298,7 +298,7 @@ async def resolve_alert(
             raise HTTPException(status_code=404, detail="Alert not found")
     except Exception as e:
         logger.error(f"Error resolving alert: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/service-health")
@@ -313,7 +313,7 @@ async def get_service_health(
         return await manager.get_service_health()
     except Exception as e:
         logger.error(f"Error getting service health: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/correlation-id", response_model=CorrelationResponse)
@@ -328,7 +328,7 @@ async def create_correlation_id(
         return CorrelationResponse(correlation_id=correlation_id)
     except Exception as e:
         logger.error(f"Error creating correlation ID: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/config")
@@ -342,7 +342,7 @@ async def get_monitoring_config():
         return config.dict()
     except Exception as e:
         logger.error(f"Error getting monitoring config: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/dashboard")
@@ -388,7 +388,7 @@ async def get_dashboard_data(
         }
     except Exception as e:
         logger.error(f"Error getting dashboard data: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/test-metric")
@@ -413,4 +413,4 @@ async def create_test_metric(
         }
     except Exception as e:
         logger.error(f"Error creating test metric: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")

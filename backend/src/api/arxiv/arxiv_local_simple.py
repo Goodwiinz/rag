@@ -86,7 +86,7 @@ async def extract_features_simple(current_user: dict = Depends(get_current_user)
 
     except Exception as e:
         logger.error(f"Simple PDF extraction failed: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 def _extract_topics_from_filename(filename: str) -> List[str]:
