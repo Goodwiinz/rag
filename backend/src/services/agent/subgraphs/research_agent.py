@@ -20,6 +20,7 @@ from src.services.agent.state import AgentState
 from src.services.agent.tools import (
     add_document_to_project,
     create_project,
+    do_kb_retrieve,
     ingest_arxiv_papers,
     list_project_documents,
     list_projects,
@@ -33,6 +34,7 @@ RESEARCH_TOOLS = [
     search_arxiv,
     ingest_arxiv_papers,
     search_documents,
+    do_kb_retrieve,
     create_project,
     list_projects,
     add_document_to_project,
@@ -55,7 +57,9 @@ def _build_research_system_prompt() -> str:
         "Your tools:\n"
         "- search_arxiv: Find papers on arXiv\n"
         "- ingest_arxiv_papers: Import papers into the RAG system\n"
-        "- search_documents: Search indexed documents\n"
+        "- search_documents: Search indexed documents by title/filename\n"
+        "- do_kb_retrieve: Semantic retrieval over the org's DO Knowledge Base "
+        "(use for content-level questions across documents)\n"
         "- create_project: Create a new research project (folder). Requires a name; "
         "description/research_goals/tags are optional\n"
         "- add_document_to_project: Organize documents into projects\n"

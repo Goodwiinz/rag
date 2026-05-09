@@ -154,6 +154,11 @@ backend:
     - secretRef:
         name: langsmith-credentials
         optional: true
+    # DigitalOcean Knowledge Base credentials. Optional so pod boots before
+    # /do-kb folder is populated in Infisical.
+    - secretRef:
+        name: do-kb-credentials
+        optional: true
 
   # Additional env vars (static config)
   env:
@@ -186,8 +191,6 @@ backend:
       value: "0.1"
     - name: SENTRY_PROFILES_SAMPLE_RATE
       value: "0.0"
-    - name: QDRANT_URL
-      value: "http://knowledge-graph-analytics-qdrant:6333"
     # Cache tuning
     - name: LLM_CACHE_ENABLED
       value: "true"

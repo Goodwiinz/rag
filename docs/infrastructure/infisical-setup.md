@@ -26,16 +26,17 @@ K8s cluster (DOKS)
 Create these folders inside each environment (`dev`, `staging`, `prod`). Each
 folder maps 1:1 to a K8s Secret the backend already consumes via `envFrom`.
 
-| Folder              | Materialized as Secret      | Keys (examples)                                              |
-| ------------------- | --------------------------- | ------------------------------------------------------------ |
-| `/database`         | `database-credentials`      | `DATABASE_URL`, `POSTGRES_USER`, `POSTGRES_PASSWORD`         |
-| `/app`              | `app-secrets`               | `SECRET_KEY`, `JWT_SECRET`, `ENCRYPTION_KEY`                 |
-| `/spaces`           | `spaces-credentials`        | `S3_ACCESS_KEY`, `S3_SECRET_KEY`                             |
-| `/supabase`         | `supabase-credentials`      | `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`                  |
-| `/redis`            | `redis-credentials`         | `REDIS_URL`, `REDIS_PASSWORD`                                |
-| `/azure-openai`     | `azure-openai-credentials`  | `AZURE_OPENAI_CHAT_*` (endpoint, api-key, deployment, ver)   |
-| `/langsmith`        | `langsmith-credentials`     | `LANGSMITH_API_KEY`, `LANGSMITH_PROJECT`                     |
-| `/frontend-build`   | _(not synced to cluster)_   | `NEXT_PUBLIC_*`, `SENTRY_AUTH_TOKEN` — read by GitHub Actions |
+| Folder            | Materialized as Secret     | Keys (examples)                                                                                   |
+| ----------------- | -------------------------- | ------------------------------------------------------------------------------------------------- |
+| `/database`       | `database-credentials`     | `DATABASE_URL`, `POSTGRES_USER`, `POSTGRES_PASSWORD`                                              |
+| `/app`            | `app-secrets`              | `SECRET_KEY`, `JWT_SECRET`, `ENCRYPTION_KEY`                                                      |
+| `/spaces`         | `spaces-credentials`       | `S3_ACCESS_KEY`, `S3_SECRET_KEY`                                                                  |
+| `/supabase`       | `supabase-credentials`     | `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`                                                       |
+| `/redis`          | `redis-credentials`        | `REDIS_URL`, `REDIS_PASSWORD`                                                                     |
+| `/azure-openai`   | `azure-openai-credentials` | `AZURE_OPENAI_CHAT_*` (endpoint, api-key, deployment, ver)                                        |
+| `/langsmith`      | `langsmith-credentials`    | `LANGSMITH_API_KEY`, `LANGSMITH_PROJECT`                                                          |
+| `/do-kb`          | `do-kb-credentials`        | `DO_API_TOKEN`, `DO_KB_REGION`, `DO_KB_PROJECT_ID`, `DO_KB_EMBEDDING_MODEL_UUID`, `DO_KB_ENABLED` |
+| `/frontend-build` | _(not synced to cluster)_  | `NEXT_PUBLIC_*`, `SENTRY_AUTH_TOKEN` — read by GitHub Actions                                     |
 
 The mapping from folder → Secret name is defined in
 `infrastructure/helm/knowledge-graph-analytics/values.yaml` under
@@ -149,12 +150,14 @@ infisical run -- uvicorn src.main:app --reload  # in backend/
 ## Troubleshooting
 
 **InfisicalSecret stuck on "creating"**: check the operator logs.
+
 ```bash
 kubectl -n infisical-operator logs -l control-plane=controller-manager --tail=100
 ```
 
 **Auth failure**: verify the bootstrap Secret has the right keys
 (`clientId`, `clientSecret` — note camelCase, not snake_case).
+
 ```bash
 kubectl -n rag-dev get secret infisical-universal-auth -o jsonpath='{.data}' | jq 'keys'
 # Should show ["clientId","clientSecret"]

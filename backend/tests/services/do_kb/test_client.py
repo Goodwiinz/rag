@@ -1,0 +1,168 @@
+"""Unit tests for DOKnowledgeBaseClient.
+
+Mocks httpx.AsyncClient.request to avoid network. Verifies retry on 429,
+auth failure handling, and successful retrieve parsing.
+"""
+
+from __future__ import annotations
+
+from typing import Any
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
+
+from src.core.config import Settings
+from src.services.do_kb.client import (
+    DOKnowledgeBaseClient,
+    DOKnowledgeBaseError,
+)
+
+
+def _make_settings(**overrides: Any) -> Settings:
+    base = dict(
+        DO_KB_ENABLED=True,
+        DO_API_TOKEN="test-token",
+        DO_KB_REGION="tor1",
+        DO_KB_PROJECT_ID="test-project",
+        DO_KB_EMBEDDING_MODEL_UUID="model-uuid",
+        DO_KB_REQUEST_TIMEOUT_SECONDS=1.0,
+    )
+    base.update(overrides)
+    return Settings(**base)
+
+
+def _mock_response(status: int, json_body: dict[str, Any] | None = None) -> MagicMock:
+    response = MagicMock()
+    response.status_code = status
+    response.json.return_value = json_body or {}
+    response.text = "" if json_body is None else str(json_body)
+    response.content = b"{}" if json_body is not None else b""
+    return response
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_create_kb_happy_path():
+    cfg = _make_settings()
+    client = DOKnowledgeBaseClient(cfg=cfg)
+
+    payload = {
+        "knowledge_base": {
+            "uuid": "kb-123",
+            "name": "nous-org-abc",
+            "region": "tor1",
+            "project_id": "test-project",
+            "embedding_model_uuid": "model-uuid",
+            "is_public": False,
+        }
+    }
+
+    with patch("httpx.AsyncClient") as mock_async_client:
+        request_mock = AsyncMock(return_value=_mock_response(200, payload))
+        ctx = mock_async_client.return_value.__aenter__.return_value
+        ctx.request = request_mock
+
+        kb = await client.create_kb(
+            name="nous-org-abc",
+            region="tor1",
+            project_id="test-project",
+            embedding_model_uuid="model-uuid",
+        )
+
+    assert kb.uuid == "kb-123"
+    assert kb.name == "nous-org-abc"
+    request_mock.assert_awaited_once()
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_retrieve_parses_chunks():
+    cfg = _make_settings()
+    client = DOKnowledgeBaseClient(cfg=cfg)
+
+    payload = {
+        "chunks": [
+            {"text": "first", "score": 0.9, "document_id": "doc-1"},
+            {"text": "second", "score": 0.7, "document_id": "doc-2"},
+        ]
+    }
+
+    with patch("httpx.AsyncClient") as mock_async_client:
+        request_mock = AsyncMock(return_value=_mock_response(200, payload))
+        ctx = mock_async_client.return_value.__aenter__.return_value
+        ctx.request = request_mock
+
+        result = await client.retrieve(kb_uuid="kb-123", query="hello", top_k=2)
+
+    assert result.total == 2
+    assert result.chunks[0].text == "first"
+    assert result.chunks[1].score == 0.7
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_retry_on_429_then_success(monkeypatch):
+    cfg = _make_settings()
+    client = DOKnowledgeBaseClient(cfg=cfg)
+
+    sleeps: list[float] = []
+
+    async def fake_sleep(seconds: float) -> None:
+        sleeps.append(seconds)
+
+    monkeypatch.setattr("asyncio.sleep", fake_sleep)
+
+    success_payload = {"job": {"uuid": "job-1", "status": "PENDING"}}
+    responses = [
+        _mock_response(429),
+        _mock_response(200, success_payload),
+    ]
+
+    with patch("httpx.AsyncClient") as mock_async_client:
+        request_mock = AsyncMock(side_effect=responses)
+        ctx = mock_async_client.return_value.__aenter__.return_value
+        ctx.request = request_mock
+
+        job = await client.start_indexing(kb_uuid="kb-123")
+
+    assert job.uuid == "job-1"
+    assert request_mock.await_count == 2
+    assert sleeps  # backoff slept at least once
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_auth_failure_raises():
+    cfg = _make_settings(DO_API_TOKEN=None, DO_KB_ENABLED=False)
+    client = DOKnowledgeBaseClient(cfg=cfg)
+
+    with pytest.raises(DOKnowledgeBaseError):
+        await client.create_kb(
+            name="x",
+            region="tor1",
+            project_id="p",
+            embedding_model_uuid="m",
+        )
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_4xx_non_retryable_raises(monkeypatch):
+    cfg = _make_settings()
+    client = DOKnowledgeBaseClient(cfg=cfg)
+
+    async def fake_sleep(seconds: float) -> None:
+        return None
+
+    monkeypatch.setattr("asyncio.sleep", fake_sleep)
+
+    with patch("httpx.AsyncClient") as mock_async_client:
+        request_mock = AsyncMock(return_value=_mock_response(404))
+        ctx = mock_async_client.return_value.__aenter__.return_value
+        ctx.request = request_mock
+
+        with pytest.raises(DOKnowledgeBaseError) as exc_info:
+            await client.get_indexing_job(kb_uuid="kb", job_uuid="job")
+
+    assert exc_info.value.status_code == 404
+    assert request_mock.await_count == 1
