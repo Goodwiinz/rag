@@ -42,6 +42,7 @@ infisical:
     redis-credentials: "/redis"
     azure-openai-credentials: "/azure-openai"
     langsmith-credentials: "/langsmith"
+    do-kb-credentials: "/do-kb"
 
 # Frontend Configuration
 frontend:
@@ -183,13 +184,6 @@ backend:
         secretKeyRef:
           name: neo4j-credentials
           key: password
-    - name: QDRANT_URL
-      value: "http://qdrant:6333"
-    - name: QDRANT_API_KEY
-      valueFrom:
-        secretKeyRef:
-          name: qdrant-credentials
-          key: api-key
     - name: SECRET_KEY
       valueFrom:
         secretKeyRef:
@@ -265,13 +259,6 @@ celeryWorker:
         secretKeyRef:
           name: neo4j-credentials
           key: password
-    - name: QDRANT_URL
-      value: "http://qdrant:6333"
-    - name: QDRANT_API_KEY
-      valueFrom:
-        secretKeyRef:
-          name: qdrant-credentials
-          key: api-key
 
 # Celery Beat Configuration
 celeryBeat:

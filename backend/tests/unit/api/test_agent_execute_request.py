@@ -39,8 +39,13 @@ def test_model_router_passthrough_is_accepted():
 
 def test_unknown_model_raises_validation_error_naming_supported_set():
     with pytest.raises(ValidationError) as excinfo:
-        _build(model="gpt-5-mini")
+        _build(model="gpt-7-ultra")
 
     detail = str(excinfo.value)
-    assert "gpt-5-mini" in detail
+    assert "gpt-7-ultra" in detail
     assert "model-router" in detail
+
+
+def test_gpt_5_mini_is_accepted():
+    request = _build(model="gpt-5-mini")
+    assert request.model == "gpt-5-mini"

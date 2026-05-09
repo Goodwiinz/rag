@@ -41,8 +41,6 @@ services:
       - NEO4J_URI=bolt://neo4j:7687
       - NEO4J_USER=neo4j
       - NEO4J_PASSWORD=${NEO4J_PASSWORD}
-      - QDRANT_URL=http://qdrant:6333
-      - QDRANT_API_KEY=${QDRANT_API_KEY}
       - ENVIRONMENT=production
       - LOG_LEVEL=INFO
       - DEBUG=false
@@ -59,8 +57,6 @@ services:
       redis:
         condition: service_healthy
       neo4j:
-        condition: service_healthy
-      qdrant:
         condition: service_healthy
     networks:
       - rag-network
@@ -92,8 +88,6 @@ services:
       - NEO4J_URI=bolt://neo4j:7687
       - NEO4J_USER=neo4j
       - NEO4J_PASSWORD=${NEO4J_PASSWORD}
-      - QDRANT_URL=http://qdrant:6333
-      - QDRANT_API_KEY=${QDRANT_API_KEY}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
     volumes:
@@ -106,8 +100,6 @@ services:
       redis:
         condition: service_healthy
       neo4j:
-        condition: service_healthy
-      qdrant:
         condition: service_healthy
     networks:
       - rag-network
@@ -136,7 +128,6 @@ services:
       - NEO4J_URI=bolt://neo4j:7687
       - NEO4J_USER=neo4j
       - NEO4J_PASSWORD=${NEO4J_PASSWORD}
-      - QDRANT_URL=http://qdrant:6333
       - SECRET_KEY=${SECRET_KEY}
     volumes:
       - ../../uploads:/app/uploads
@@ -245,37 +236,6 @@ services:
           memory: 2G
           cpus: '1'
 
-  # Qdrant Vector Database
-  qdrant:
-    image: qdrant/qdrant:v1.7.0
-    container_name: rag-qdrant
-    environment:
-      - QDRANT__SERVICE__API_KEY=${QDRANT_API_KEY}
-      - QDRANT__SERVICE__HTTP_PORT=6333
-      - QDRANT__SERVICE__GRPC_PORT=6334
-    volumes:
-      - qdrant_data:/qdrant/storage
-    ports:
-      - "6333:6333"  # HTTP
-      - "6334:6334"  # gRPC
-    networks:
-      - rag-network
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:6333/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 30s
-    deploy:
-      resources:
-        limits:
-          memory: 2G
-          cpus: '1'
-        reservations:
-          memory: 1G
-          cpus: '0.5'
-
   # Prometheus Monitoring
   prometheus:
     image: prom/prometheus:v2.45.0
@@ -360,8 +320,6 @@ volumes:
   neo4j_import:
     driver: local
   neo4j_plugins:
-    driver: local
-  qdrant_data:
     driver: local
   prometheus_data:
     driver: local

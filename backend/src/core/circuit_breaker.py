@@ -225,8 +225,8 @@ circuit_breakers: dict[str, ServiceCircuitBreaker] = {
     "neo4j": ServiceCircuitBreaker(
         "neo4j", failure_threshold=5, recovery_timeout=30.0, half_open_max_calls=3
     ),
-    "qdrant": ServiceCircuitBreaker(
-        "qdrant", failure_threshold=5, recovery_timeout=30.0, half_open_max_calls=3
+    "do_kb": ServiceCircuitBreaker(
+        "do_kb", failure_threshold=5, recovery_timeout=30.0, half_open_max_calls=3
     ),
     "cohere": ServiceCircuitBreaker(
         "cohere",
