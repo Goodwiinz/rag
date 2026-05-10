@@ -14,6 +14,7 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models import Thread, ThreadStatus
+from src.schemas.chat import ThreadStatus as SchemaThreadStatus
 from src.services.threads.chat_service import ChatService
 
 # Resolve the actual module so we can monkeypatch the function-local imports.
@@ -248,6 +249,31 @@ class TestBulkUpdateThreads:
             [thread.id],
             SimpleNamespace(
                 title=None, summary=None, status=ThreadStatus.RESOLVED
+            ),
+            uuid4(),
+            atomic=True,
+        )
+
+        assert result[0][1] is True
+        task_mock.delay.assert_called_once_with(str(thread.id))
+
+    async def test_status_resolved_with_schema_enum_enqueues_task(
+        self, chat_service, mock_db, thread_factory, monkeypatch
+    ):
+        """Regression: the production code path passes schemas.ThreadStatus; comparison must still fire."""
+        thread = thread_factory(status=ThreadStatus.ACTIVE)
+        chat_service.get_thread = AsyncMock(return_value=thread)
+
+        task_mock = MagicMock()
+        monkeypatch.setattr(
+            task_module, "summarize_thread_on_resolve_task", task_mock
+        )
+
+        # SchemaThreadStatus is what Pydantic produces from a real HTTP request.
+        result = await chat_service.bulk_update_threads(
+            [thread.id],
+            SimpleNamespace(
+                title=None, summary=None, status=SchemaThreadStatus.RESOLVED
             ),
             uuid4(),
             atomic=True,

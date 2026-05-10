@@ -501,10 +501,12 @@ class ChatService:
         if data.summary is not None:
             thread.summary = data.summary
 
-        # Track if status is changing to resolved
+        # Track if status is changing to resolved.
+        # `data.status` is schemas.ThreadStatus (str-Enum); ThreadStatus here is the
+        # models PyEnum. Cross-class enum equality is False, so compare by .value.
         status_changing_to_resolved = (
             data.status is not None
-            and data.status == ThreadStatus.RESOLVED
+            and data.status.value == ThreadStatus.RESOLVED.value
             and thread.status != ThreadStatus.RESOLVED
         )
 
@@ -596,9 +598,12 @@ class ChatService:
                         if data.summary is not None:
                             thread.summary = data.summary
 
+                        # `data.status` is schemas.ThreadStatus (str-Enum); ThreadStatus
+                        # here is the models PyEnum. Cross-class enum equality is False,
+                        # so compare by .value.
                         status_changing_to_resolved = (
                             data.status is not None
-                            and data.status == ThreadStatus.RESOLVED
+                            and data.status.value == ThreadStatus.RESOLVED.value
                             and thread.status != ThreadStatus.RESOLVED
                         )
 
