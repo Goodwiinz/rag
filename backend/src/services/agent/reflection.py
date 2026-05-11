@@ -172,6 +172,24 @@ def _should_skip_reflection(state: dict) -> tuple[bool, str]:
     if not has_tool_calls and not tool_executions:
         return (True, "no-tools (tool_executions empty, no tool_calls)")
 
+    # Fast-path: substantive final response with all tools succeeded —
+    # skip the critique LLM (saves ~5-20s/turn). The cheap deterministic
+    # checks above already gate the truly-trivial cases.
+    if (
+        not has_tool_calls
+        and content_len >= _REFLECTION_MIN_CONTENT_CHARS
+        and tool_executions
+        and all(
+            (te.get("status") if isinstance(te, dict) else getattr(te, "status", None))
+            == "completed"
+            for te in tool_executions
+        )
+    ):
+        return (
+            True,
+            f"happy-path ({content_len} chars, {len(tool_executions)} tools all completed)",
+        )
+
     return (False, "")
 
 

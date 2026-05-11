@@ -242,6 +242,12 @@ def _build_llm(model_override: str | None = None):
     _NO_CUSTOM_TEMPERATURE = frozenset({"gpt-5-mini"})
     temperature = None if deployment in _NO_CUSTOM_TEMPERATURE else 0.7
 
+    # gpt-5 family supports reasoning_effort to trade reasoning depth for
+    # latency. Defaults to "low" for fast agent loops; raise via settings
+    # for harder reasoning tasks. Non-gpt-5 deployments ignore this kwarg.
+    reasoning_effort = settings.AGENT_MAIN_REASONING_EFFORT
+    is_gpt5_family = deployment.startswith("gpt-5") if deployment else False
+
     if endpoint_type == "openai_compatible":
         from langchain_openai import ChatOpenAI
 
@@ -253,6 +259,8 @@ def _build_llm(model_override: str | None = None):
         )
         if temperature is not None:
             kwargs["temperature"] = temperature
+        if is_gpt5_family and reasoning_effort:
+            kwargs["reasoning_effort"] = reasoning_effort
         llm = ChatOpenAI(**kwargs)
     else:
         from langchain_openai import AzureChatOpenAI
@@ -266,6 +274,8 @@ def _build_llm(model_override: str | None = None):
         )
         if temperature is not None:
             kwargs["temperature"] = temperature
+        if is_gpt5_family and reasoning_effort:
+            kwargs["reasoning_effort"] = reasoning_effort
         llm = AzureChatOpenAI(**kwargs)
 
     _LLM_CACHE[cache_key] = llm

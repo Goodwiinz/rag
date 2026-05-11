@@ -269,6 +269,12 @@ class Settings(BaseSettings):
     # Lightweight model for auxiliary agent tasks (classifier, compactor, etc.)
     AZURE_OPENAI_LIGHTWEIGHT_DEPLOYMENT: Optional[str] = None
 
+    # gpt-5 reasoning_effort knobs. Lower = faster.
+    # Accepted values: "minimal" | "low" | "medium" | "high"
+    # Defaults tuned for fast responses; raise to "medium" for tougher tasks.
+    AGENT_MAIN_REASONING_EFFORT: str = "low"
+    AGENT_LIGHTWEIGHT_REASONING_EFFORT: str = "minimal"
+
     # Azure AI Cohere Reranking Configuration
     COHERE_RERANK_ENDPOINT: Optional[str] = None
     COHERE_RERANK_API_KEY: Optional[str] = None
