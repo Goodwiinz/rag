@@ -648,6 +648,9 @@ async def _tool_search_arxiv(args: Dict[str, Any]) -> Dict[str, Any]:
         recency_days = int(recency_days_raw)
     except (TypeError, ValueError):
         recency_days = 365
+    # Clamp to ≥0; negative values silently disable the filter under the
+    # > 0 check, but the contract is "0 disables, positive caps lookback".
+    recency_days = max(0, recency_days)
     if recency_days > 0:
         cutoff = datetime.now(timezone.utc) - timedelta(days=recency_days)
         cutoff_str = cutoff.strftime("%Y%m%d%H%M")
@@ -946,8 +949,13 @@ async def _tool_do_kb_retrieve(
 
         storage_keys = {c.document_id for c in result.chunks if c.document_id}
         if storage_keys:
+            from src.services.agent.graph import _escape_like
+
             filters = [Document.storage_path == k for k in storage_keys]
-            filters += [Document.storage_path.like(f"%/{k}") for k in storage_keys]
+            filters += [
+                Document.storage_path.like(f"%/{_escape_like(k)}", escape="\\")
+                for k in storage_keys
+            ]
             rows = await db.execute(
                 select(Document.id, Document.storage_path, Document.title)
                 .where(Document.organization_id == current_user.organization_id)
