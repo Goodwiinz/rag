@@ -30,7 +30,8 @@ _LLM_CONFIDENCE_THRESHOLD = 0.7
 
 # Hard wall-clock cap on the LLM classifier call. Prevents a hung Azure
 # endpoint from blocking the agent turn — keyword fallback handles timeouts.
-_CLASSIFIER_LLM_TIMEOUT_SECONDS = 10.0
+_CLASSIFIER_LLM_TIMEOUT_SECONDS = 25.0  # bumped from 10s for headroom after
+# max_tokens 256→4096 lets gpt-5-mini reason longer before emitting output.
 
 # Maximum length (chars) for any user-supplied string interpolated into the
 # classifier system prompt. Truncating + neutralising braces/newlines is the
@@ -86,8 +87,11 @@ def _build_classifier_llm():
     global _CLASSIFIER_LLM
     if _CLASSIFIER_LLM is not None:
         return _CLASSIFIER_LLM
+    # 4096 tokens: gpt-5-mini reasoning model uses internal reasoning_tokens
+    # against max_completion_tokens budget. Observed traces show 2752+ reasoning
+    # tokens consumed before output — 256 cap caused LengthFinishReasonError.
     _CLASSIFIER_LLM = build_lightweight_llm(
-        max_tokens=256,
+        max_tokens=4096,
         request_timeout=_CLASSIFIER_LLM_TIMEOUT_SECONDS,
     )
     return _CLASSIFIER_LLM
@@ -101,9 +105,9 @@ _CLASSIFIER_SYSTEM_PROMPT = """\
 You are an intent classifier for a RAG-powered academic research platform.
 Given the user's query, classify it into exactly ONE of these intents:
 
-- **research**: Searching, finding, discovering, or ingesting papers and documents.
+- **research**: Searching, finding, discovering, or ingesting papers and documents. Includes "knowledge base", "KB", "our docs", "our library", "our documents" — these refer to the indexed document corpus, NOT a graph.
 - **writing**: Drafting, summarizing, creating notes, literature reviews, bibliographies.
-- **knowledge_graph**: Extracting entities, exploring relationships, ontology queries.
+- **knowledge_graph**: Extracting entities, exploring relationships, ontology queries over the Neo4j entity graph.
 - **general**: Anything that doesn't clearly fit the above categories.
 
 Return your classification with a confidence score (0.0-1.0) and brief reasoning.
@@ -119,6 +123,12 @@ Query: "Summarize the key findings of this document"
 Query: "What entities are mentioned in this paper?"
 → intent: knowledge_graph, confidence: 0.90, reasoning: "Entity extraction is a knowledge graph task."
 
+Query: "What does our knowledge base say about transformer attention?"
+→ intent: research, confidence: 0.92, reasoning: "KB lookup over indexed docs — research/retrieval, not graph entity extraction."
+
+Query: "Search our docs for RLHF"
+→ intent: research, confidence: 0.93, reasoning: "Document corpus search — research."
+
 Query: "Hello, can you help me?"
 → intent: general, confidence: 0.85, reasoning: "Greeting with no specific task."
 
@@ -128,6 +138,8 @@ Previous tool: ingest_arxiv_papers (status: skipped)
 
 ## Common confusions
 
+- "knowledge base" / "KB" / "our docs" / "our library" → research (NOT knowledge_graph — these refer to the indexed document corpus, not the entity graph)
+- "knowledge graph" / "entity graph" → knowledge_graph
 - "search the knowledge graph" → knowledge_graph (NOT research)
 - "find entities" → knowledge_graph (NOT research)
 - "write about papers I found" → writing (NOT research)
@@ -278,6 +290,8 @@ async def classify_intent_llm(
     # sanitised before being interpolated into the system prompt.
     page_type = _sanitize_prompt_field(str(page_context.get("type", "unknown")))
     project_id = _sanitize_prompt_field(str(page_context.get("project_id", "")))
+    paper_id = _sanitize_prompt_field(str(page_context.get("paper_id", "")))
+    paper_title = _sanitize_prompt_field(str(page_context.get("paper_title", "")))
     if page_type == "project" and project_id:
         page_context_text = (
             f"User is on a project page (project_id={project_id})."
@@ -286,6 +300,15 @@ async def classify_intent_llm(
         page_context_text = f"User is on the {page_type} page."
     else:
         page_context_text = "No specific page context."
+
+    if paper_id:
+        paper_label = paper_title or paper_id
+        page_context_text += (
+            f" Active paper: {paper_label} (document_id={paper_id})."
+            " When the user says 'this paper', 'this document', or asks for"
+            " a summary/analysis without naming a document, treat the active"
+            " paper as the target."
+        )
 
     previous_turn_text = (
         _sanitize_prompt_field(previous_turn) if previous_turn else "None"

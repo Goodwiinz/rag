@@ -80,11 +80,22 @@ async def test_retrieve_parses_chunks():
     cfg = _make_settings()
     client = DOKnowledgeBaseClient(cfg=cfg)
 
+    # Mirror DO live wire format: `results[]` with `text_content` field
+    # plus `total_results` at the top.
     payload = {
-        "chunks": [
-            {"text": "first", "score": 0.9, "document_id": "doc-1"},
-            {"text": "second", "score": 0.7, "document_id": "doc-2"},
-        ]
+        "results": [
+            {
+                "text_content": "first",
+                "score": 0.9,
+                "metadata": {"item_name": "doc-1.pdf"},
+            },
+            {
+                "text_content": "second",
+                "score": 0.7,
+                "metadata": {"item_name": "doc-2.pdf"},
+            },
+        ],
+        "total_results": 2,
     }
 
     with patch("httpx.AsyncClient") as mock_async_client:
@@ -96,7 +107,101 @@ async def test_retrieve_parses_chunks():
 
     assert result.total == 2
     assert result.chunks[0].text == "first"
+    assert result.chunks[0].document_id == "doc-1.pdf"
     assert result.chunks[1].score == 0.7
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_retrieve_synthesizes_score_when_absent():
+    """DO retrieve Public Preview omits relevance scores. Verify the client
+    falls back to a rank-position proxy (1.0 at rank 0, decay 0.05/step,
+    floor 0.1) so downstream code can still rank/dedupe/threshold.
+    """
+    cfg = _make_settings()
+    client = DOKnowledgeBaseClient(cfg=cfg)
+
+    payload = {
+        "results": [
+            {"text_content": "a", "metadata": {"item_name": "doc-a.pdf"}},
+            {"text_content": "b", "metadata": {"item_name": "doc-b.pdf"}},
+            {"text_content": "c", "metadata": {"item_name": "doc-c.pdf"}},
+        ],
+        "total_results": 3,
+    }
+
+    with patch("httpx.AsyncClient") as mock_async_client:
+        request_mock = AsyncMock(return_value=_mock_response(200, payload))
+        ctx = mock_async_client.return_value.__aenter__.return_value
+        ctx.request = request_mock
+
+        result = await client.retrieve(kb_uuid="kb-123", query="x", top_k=3)
+
+    scores = [c.score for c in result.chunks]
+    assert scores[0] > scores[1] > scores[2]
+    assert scores[0] == pytest.approx(1.0)
+    assert scores[1] == pytest.approx(0.95)
+    assert scores[2] == pytest.approx(0.90)
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_retrieve_uses_config_alpha():
+    """When caller omits alpha, client sends DO_KB_RETRIEVE_ALPHA from config."""
+    cfg = _make_settings(DO_KB_RETRIEVE_ALPHA=0.3)
+    client = DOKnowledgeBaseClient(cfg=cfg)
+
+    payload = {"results": [], "total_results": 0}
+
+    with patch("httpx.AsyncClient") as mock_async_client:
+        request_mock = AsyncMock(return_value=_mock_response(200, payload))
+        ctx = mock_async_client.return_value.__aenter__.return_value
+        ctx.request = request_mock
+
+        await client.retrieve(kb_uuid="kb-123", query="test")
+
+    sent_body = request_mock.call_args.kwargs.get("json") or request_mock.call_args[1].get("json")
+    assert sent_body["alpha"] == 0.3
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_retrieve_explicit_alpha_overrides_config():
+    """Caller-supplied alpha takes precedence over config default."""
+    cfg = _make_settings(DO_KB_RETRIEVE_ALPHA=0.3)
+    client = DOKnowledgeBaseClient(cfg=cfg)
+
+    payload = {"results": [], "total_results": 0}
+
+    with patch("httpx.AsyncClient") as mock_async_client:
+        request_mock = AsyncMock(return_value=_mock_response(200, payload))
+        ctx = mock_async_client.return_value.__aenter__.return_value
+        ctx.request = request_mock
+
+        await client.retrieve(kb_uuid="kb-123", query="test", alpha=0.8)
+
+    sent_body = request_mock.call_args.kwargs.get("json") or request_mock.call_args[1].get("json")
+    assert sent_body["alpha"] == 0.8
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_retrieve_no_alpha_when_config_none():
+    """When config alpha is None and caller omits it, no alpha in request body."""
+    cfg = _make_settings(DO_KB_RETRIEVE_ALPHA=None)
+    client = DOKnowledgeBaseClient(cfg=cfg)
+
+    payload = {"results": [], "total_results": 0}
+
+    with patch("httpx.AsyncClient") as mock_async_client:
+        request_mock = AsyncMock(return_value=_mock_response(200, payload))
+        ctx = mock_async_client.return_value.__aenter__.return_value
+        ctx.request = request_mock
+
+        await client.retrieve(kb_uuid="kb-123", query="test")
+
+    sent_body = request_mock.call_args.kwargs.get("json") or request_mock.call_args[1].get("json")
+    assert "alpha" not in sent_body
 
 
 @pytest.mark.unit

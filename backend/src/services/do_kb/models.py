@@ -44,12 +44,41 @@ class IndexingJob(_Permissive):
 
 
 class Chunk(_Permissive):
-    """One retrieved chunk from kbaas.do-ai.run/v1/{kb_uuid}/retrieve."""
+    """One retrieved chunk from kbaas.do-ai.run/v1/{kb_uuid}/retrieve.
+
+    DO uses ``text_content`` in the wire format; we expose ``text`` as the
+    canonical attribute so downstream code stays stable if DO renames it.
+    """
 
     text: str
     score: float = 0.0
     document_id: Optional[str] = None
     metadata: dict[str, Any] = Field(default_factory=dict)
+
+    @classmethod
+    def from_do_payload(cls, raw: dict[str, Any], rank: int = 0) -> "Chunk":
+        text = (
+            raw.get("text_content")
+            or raw.get("text")
+            or raw.get("content")
+            or ""
+        )
+        meta = raw.get("metadata") or {}
+        doc_id = (
+            raw.get("document_id")
+            or meta.get("document_id")
+            or meta.get("item_name")
+        )
+        # DO retrieve Public Preview omits relevance scores in responses, so
+        # we synthesize a monotonically-decreasing proxy from rank position
+        # (1.0 at rank 0, floor 0.1). Lets downstream rank/dedup/threshold
+        # logic keep working without conditional branches.
+        score_raw = raw.get("score") or raw.get("relevance_score")
+        if score_raw is not None:
+            score = float(score_raw)
+        else:
+            score = max(0.1, 1.0 - 0.05 * rank)
+        return cls(text=text, score=score, document_id=doc_id, metadata=meta)
 
 
 class RetrieveResult(_Permissive):

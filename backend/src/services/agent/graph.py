@@ -112,7 +112,17 @@ def _sanitize_messages(raw: list) -> list:
             rebuilt.append(tm)
             placed_tm_ids.add(tc_id)
 
-    # Pass 3: merge consecutive HumanMessages
+    # Pass 3: collapse consecutive HumanMessages.
+    #
+    # When a previous turn is interrupted (CancelledError from the user
+    # aborting the stream by typing a new message), the unanswered
+    # HumanMessage stays in the checkpoint. The next user input arrives
+    # as a second consecutive HumanMessage. The previous concatenation
+    # behavior caused the LLM to see both as a single combined intent
+    # (trace 019e1885: "Find recent transformer papers" + "hi" → LLM
+    # answered the older cancelled query). Treat consecutive Human
+    # messages as supersession: keep only the latest. The earlier
+    # message had no AI response, so the user clearly abandoned it.
     merged: list = []
     for msg in rebuilt:
         if (
@@ -120,7 +130,7 @@ def _sanitize_messages(raw: list) -> list:
             and isinstance(merged[-1], HumanMessage)
             and isinstance(msg, HumanMessage)
         ):
-            merged[-1] = HumanMessage(content=f"{merged[-1].content}\n{msg.content}")
+            merged[-1] = msg
         else:
             merged.append(msg)
     return merged
@@ -242,6 +252,12 @@ def _build_llm(model_override: str | None = None):
     _NO_CUSTOM_TEMPERATURE = frozenset({"gpt-5-mini"})
     temperature = None if deployment in _NO_CUSTOM_TEMPERATURE else 0.7
 
+    # gpt-5 family supports reasoning_effort to trade reasoning depth for
+    # latency. Defaults to "low" for fast agent loops; raise via settings
+    # for harder reasoning tasks. Non-gpt-5 deployments ignore this kwarg.
+    reasoning_effort = settings.AGENT_MAIN_REASONING_EFFORT
+    is_gpt5_family = deployment.startswith("gpt-5") if deployment else False
+
     if endpoint_type == "openai_compatible":
         from langchain_openai import ChatOpenAI
 
@@ -253,6 +269,8 @@ def _build_llm(model_override: str | None = None):
         )
         if temperature is not None:
             kwargs["temperature"] = temperature
+        if is_gpt5_family and reasoning_effort:
+            kwargs["reasoning_effort"] = reasoning_effort
         llm = ChatOpenAI(**kwargs)
     else:
         from langchain_openai import AzureChatOpenAI
@@ -266,6 +284,8 @@ def _build_llm(model_override: str | None = None):
         )
         if temperature is not None:
             kwargs["temperature"] = temperature
+        if is_gpt5_family and reasoning_effort:
+            kwargs["reasoning_effort"] = reasoning_effort
         llm = AzureChatOpenAI(**kwargs)
 
     _LLM_CACHE[cache_key] = llm
@@ -477,11 +497,37 @@ def _is_retrieval_query(content: str) -> bool:
     return False
 
 
-async def _try_primary_do_kb_read(query: str, current_user) -> Optional[List[dict]]:
+def _shape_do_kb_context(chunk, title_by_key: dict[str, tuple[str, str]]) -> dict:
+    """Map a DO KB chunk into the rag_node context envelope.
+
+    Resolves the chunk's storage-key ``document_id`` back to the canonical
+    ``Document.id`` (UUID) + ``Document.title`` so citations render with real
+    titles instead of "DO KB chunk".
+    """
+    storage_key = chunk.document_id
+    resolved_id, title = title_by_key.get(storage_key, (None, None))
+    return {
+        "document_id": resolved_id or storage_key,
+        "title": title or (chunk.metadata or {}).get("title") or storage_key or "Untitled",
+        "content": chunk.text[:3000],
+        "score": float(chunk.score),
+    }
+
+
+async def _try_primary_do_kb_read(
+    query: str,
+    current_user,
+    project_id: Optional[str] = None,
+) -> Optional[List[dict]]:
     """Phase 4b: return DO KB chunks shaped like rag_node contexts.
 
     Returns None when primary read is disabled, the org has no KB, or the
     call fails — caller then falls back to the legacy Qdrant path.
+
+    When *project_id* is provided, post-filters chunks so only documents
+    that belong to the active project survive. DO KB itself is org-scoped,
+    so cross-project leakage (chunks from sibling projects) is filtered
+    via the ``collection_documents`` association table.
     """
     try:
         from src.core.config import settings as _kb_cfg
@@ -492,32 +538,143 @@ async def _try_primary_do_kb_read(query: str, current_user) -> Optional[List[dic
         if not org_id:
             return None
 
+        from sqlalchemy import select
+
         from src.core.database import AsyncSessionLocal
+        from src.models.document import Document
         from src.models.organization import Organization
         from src.services.do_kb import get_do_kb_client
 
         async with AsyncSessionLocal() as session:
             org = await session.get(Organization, org_id)
             kb_uuid = getattr(org, "do_kb_uuid", None) if org else None
-        if not kb_uuid:
-            return None
+            if not kb_uuid:
+                return None
 
-        client = get_do_kb_client()
-        result = await client.retrieve(kb_uuid=kb_uuid, query=query, top_k=5)
-        if not result.chunks:
-            return None
+            client = get_do_kb_client()
+            result = await client.retrieve(kb_uuid=kb_uuid, query=query, top_k=5)
+            if not result.chunks:
+                return None
+
+            storage_keys = {c.document_id for c in result.chunks if c.document_id}
+            title_by_key: dict[str, tuple[str, str]] = {}
+            if storage_keys:
+                # DO KB returns ``metadata.item_name`` as the leaf filename
+                # only (e.g. ``<doc_id>.txt``) while ``Document.storage_path``
+                # stores the full canonical key
+                # (``documents/{org}/{doc_id}.{ext}``). Match by suffix so
+                # both legacy and canonical layouts resolve.
+                from sqlalchemy import or_
+
+                filters = [Document.storage_path == k for k in storage_keys]
+                filters += [Document.storage_path.like(f"%/{k}") for k in storage_keys]
+                rows = await session.execute(
+                    select(Document.id, Document.storage_path, Document.title)
+                    .where(Document.organization_id == org_id)
+                    .where(or_(*filters))
+                )
+                for doc_id, storage_path, title in rows:
+                    if storage_path in storage_keys:
+                        leaf = storage_path
+                    else:
+                        leaf = storage_path.rsplit("/", 1)[-1] if storage_path else ""
+                    title_by_key[leaf] = (str(doc_id), title or leaf)
+
+            # Project scoping: drop chunks whose resolved document is not in
+            # the active project. Org-scoped KB returns sibling-project hits
+            # (observed trace 019e168a: "ML in Health Care" query returned
+            # Copilot productivity PDFs). Filter via collection_documents.
+            chunks_to_emit = result.chunks
+            if project_id and title_by_key:
+                from uuid import UUID as _UUID
+
+                from src.models.collection import CollectionDocument
+
+                resolved_doc_ids = {
+                    _UUID(doc_id) for doc_id, _ in title_by_key.values() if doc_id
+                }
+                if resolved_doc_ids:
+                    try:
+                        pid = _UUID(project_id)
+                    except (ValueError, TypeError):
+                        pid = None
+                    if pid is not None:
+                        membership_rows = await session.execute(
+                            select(CollectionDocument.document_id).where(
+                                CollectionDocument.collection_id == pid,
+                                CollectionDocument.document_id.in_(resolved_doc_ids),
+                            )
+                        )
+                        in_project = {str(r[0]) for r in membership_rows}
+                        chunks_to_emit = [
+                            c
+                            for c in result.chunks
+                            if (title_by_key.get(c.document_id or "", (None, None))[0] or "")
+                            in in_project
+                        ]
+                        if not chunks_to_emit:
+                            logger.info(
+                                "do_kb_read: all %d chunks filtered out by project scope %s",
+                                len(result.chunks),
+                                project_id,
+                            )
+                            return None
+
         return [
-            {
-                "document_id": c.document_id,
-                "title": (c.metadata or {}).get("title") or "DO KB chunk",
-                "content": c.text[:3000],
-                "score": float(c.score),
-            }
-            for c in result.chunks
+            _shape_do_kb_context(c, title_by_key) for c in chunks_to_emit
         ]
     except Exception as exc:  # noqa: BLE001
         logger.warning("do_kb primary read failed, falling back: %s", exc)
         return None
+
+
+async def _legacy_hybrid_search_fallback(
+    query: str, current_user
+) -> List[dict]:
+    """Fallback to hybrid search when DO KB is unavailable or returns nothing."""
+    try:
+        from src.models.search_schemas import SearchQuery
+        from src.services.search.hybrid_search_service import hybrid_search_service
+
+        search_request = SearchQuery(
+            query=query,
+            limit=5,
+            search_type="hybrid",
+        )
+        org_id = (
+            str(current_user.organization_id)
+            if current_user.organization_id
+            else None
+        )
+        uid = str(current_user.id)
+        search_response = await asyncio.wait_for(
+            asyncio.to_thread(
+                hybrid_search_service.search,
+                search_request=search_request,
+                user_id=uid,
+                organization_id=org_id,
+            ),
+            timeout=15.0,
+        )
+        contexts: List[dict] = []
+        for i, result in enumerate(search_response.results[:5]):
+            doc_id = getattr(result, "document_id", None)
+            title = getattr(result, "title", "Untitled") or f"Document {i + 1}"
+            metadata = getattr(result, "metadata", {}) or {}
+            content = metadata.get("full_text") or metadata.get("text", "")
+            if not content:
+                content = getattr(result, "content_preview", None) or ""
+            score = getattr(result, "relevance_score", 0.0)
+            contexts.append({
+                "document_id": str(doc_id) if doc_id else None,
+                "title": title,
+                "content": content[:3000],
+                "score": float(score),
+            })
+        return contexts
+    except Exception as exc:
+        logger.warning("hybrid search fallback failed: %s", exc)
+        return []
 
 
 @track_node_execution("rag_node")
@@ -536,19 +693,41 @@ async def rag_node(state: AgentState, config: RunnableConfig) -> dict:
     # Fast-path: skip retrieval entirely for short, clearly-conversational
     # queries (e.g. "hi", "thanks!"). Saves an embedding + hybrid search call
     # and avoids injecting ~935 retrieval tokens into the system prompt.
-    # NOTE: skip only when there is no project context to propagate — both
-    # a UUID in the message text AND a carried current_project_id from state.
+    #
+    # Earlier revision gated the skip on "no project context to propagate".
+    # That gate made every short query in an active project trigger RAG
+    # (observed trace 019e168a: "hi" in ML-in-Health-Care project pulled
+    # 5 chunks from sibling Copilot productivity PDFs and used 7152 input
+    # tokens). Project context still propagates via current_project_id +
+    # page_context — we only suppress the RAG chunk injection itself.
     page_context = dict(state.get("page_context") or {})
     existing_project_id = state.get("current_project_id") or page_context.get(
         "project_id"
     )
     if last_user_msg and not _is_retrieval_query(last_user_msg):
-        if not _extract_project_id_from_text(last_user_msg) and not existing_project_id:
-            logger.debug(
-                "rag_node: skipping retrieval for trivial query: %r",
-                last_user_msg[:80],
-            )
-            return {"retrieved_contexts": []}
+        logger.debug(
+            "rag_node: skipping retrieval for conversational query: %r",
+            last_user_msg[:80],
+        )
+        # Still surface a UUID extracted from the text or carried in state
+        # so downstream nodes can act on the project context.
+        extracted_pid = _extract_project_id_from_text(last_user_msg or "")
+        resolved_pid: Optional[str] = (
+            extracted_pid or existing_project_id or None
+        )
+        state_update: Dict[str, Any] = {"retrieved_contexts": []}
+        if resolved_pid:
+            state_update["current_project_id"] = resolved_pid
+            if (
+                page_context.get("project_id") != resolved_pid
+                or page_context.get("type") != "project"
+            ):
+                state_update["page_context"] = {
+                    **page_context,
+                    "type": "project",
+                    "project_id": resolved_pid,
+                }
+        return state_update
 
     # Extract a project UUID from the latest user message (e.g. a pasted
     # /projects/<uuid> URL) so downstream nodes carry the context across
@@ -591,11 +770,29 @@ async def rag_node(state: AgentState, config: RunnableConfig) -> dict:
             logger.warning("injected search_fn failed", exc_info=e)
             return {"retrieved_contexts": [], **state_update}
 
-    # Production retrieval path: DO KB only.
+    # Skip the org-wide knowledge-base read when no project context is
+    # active. Trace 019e191a showed a chat-mode "Find recent transformer
+    # papers" query pull 5 chunks of unrelated Copilot productivity PDFs
+    # — the org KB indexes every project's docs, so without a project
+    # filter the chunks are noise that bloats input by ~10k chars. The
+    # agent will use search_arxiv/search_documents for explicit lookup.
+    if not resolved_project_id:
+        logger.debug(
+            "rag_node: skipping DO KB read — no active project context"
+        )
+        return {"retrieved_contexts": [], **state_update}
+
+    # Production retrieval: DO KB primary, hybrid search fallback.
+    # Pass resolved_project_id so KB results stay scoped to the active project
+    # — org-scoped KB otherwise leaks chunks from sibling projects.
     primary_contexts: Optional[List[dict]] = await _try_primary_do_kb_read(
-        last_user_msg, current_user
+        last_user_msg, current_user, project_id=resolved_project_id
     )
-    return {"retrieved_contexts": primary_contexts or [], **state_update}
+    if primary_contexts:
+        return {"retrieved_contexts": primary_contexts, **state_update}
+
+    contexts = await _legacy_hybrid_search_fallback(last_user_msg, current_user)
+    return {"retrieved_contexts": contexts, **state_update}
 
 
 # ---------------------------------------------------------------------------
@@ -613,6 +810,13 @@ INTENT_KEYWORDS = {
         ("ingest", 2),
         ("import", 2),
         ("arxiv", 2),
+        # Knowledge-base phrases — disambiguate from the Neo4j knowledge_graph
+        # intent. Bare "kb" omitted to avoid substring false-positives on
+        # tokens like "skbio" or "kbart".
+        ("knowledge base", 2),
+        ("our docs", 2),
+        ("our library", 2),
+        ("our documents", 2),
         ("paper", 1),
         ("papers", 1),
     ],
@@ -878,21 +1082,21 @@ INTENT_PROMPTS = {
 SHARED_AGENT_RULES = (
     "## Handling retry follow-ups\n"
     'When the user says "try again", "retry", "do it again", "one more time", '
-    '"again", or any short follow-up that clearly references the previous action, '
-    "re-execute the MOST RECENT tool call (visible in the conversation as the last "
-    "AIMessage with tool_calls) with the SAME arguments. Do NOT pivot to a different "
+    '"again", or any short follow-up that references the previous action, '
+    "re-execute the most recent tool call (visible in the conversation as the last "
+    "AIMessage with tool_calls) with the same arguments. Do not pivot to a different "
     "action like list_projects or search_documents unless the user explicitly asks. "
     'If the prior tool returned an error or "skipped" status, attempt the same call '
     "once before suggesting alternatives.\n\n"
     "## Reusing project IDs from conversation history\n"
     "Before calling create_project, scan the conversation for the most recent "
     "list_projects or create_project tool result. If a project with the same name "
-    "(case-insensitive) already exists, REUSE its project_id — do not create a duplicate. "
+    "(case-insensitive) already exists, reuse its project_id — do not create a duplicate. "
     "If the existing project is archived and the user wants to use it, mention the "
     "archived status to the user before proceeding.\n"
     'When the user refers to a project by name ("use ML in FinTech", "add this to my '
     'FinTech project", "the project"), look up the project_id from the most recent '
-    "list_projects or create_project tool result in the conversation. Do NOT ask the user "
+    "list_projects or create_project tool result in the conversation. Do not ask the user "
     "for the project_id when it is already available in tool history.\n"
     "When a tool returns a project_id, treat that project as the active context for "
     "subsequent turns until the user explicitly switches projects.\n\n"
@@ -901,33 +1105,33 @@ SHARED_AGENT_RULES = (
     "a draft, etc.), verify your conversation contains the corresponding successful "
     'ToolMessage. If the user reports something is missing ("I don\'t see the note", '
     '"the doc isn\'t in the project"), check your tool execution history first:\n'
-    "- If you never actually called the tool, acknowledge it: \"I haven't created that "
+    "- If you did not call the tool, acknowledge it: \"I haven't created that "
     'yet — let me do it now" and call the tool.\n'
     '- If the tool returned an error or "skipped" status, report what actually happened '
     "rather than offering generic troubleshooting advice.\n"
-    "Never invent troubleshooting steps for actions you did not take.\n\n"
+    "Do not invent troubleshooting steps for actions you did not take.\n\n"
     "## Deriving search queries from active context\n"
     'When the user asks for papers "related to that", "about this project", "for the '
     'project", or any short phrase referencing the active context, derive the search_arxiv '
-    'query from the active project\'s NAME and DESCRIPTION (e.g. "machine learning fintech" '
-    'for a project named "ML in FinTech"). Do NOT use arXiv paper IDs that appear in '
+    'query from the active project\'s name and description (e.g. "machine learning fintech" '
+    'for a project named "ML in FinTech"). Do not use arXiv paper IDs that appear in '
     "conversation history as the search_arxiv query — arXiv IDs are inputs to "
     "ingest_arxiv_papers, not search_arxiv. If you need to fetch one specific known paper, "
     "use ingest_arxiv_papers directly with that ID.\n\n"
     "## Reusing document IDs from conversation history\n"
     'When the user says "it", "this paper", "that document", "the one I just '
-    'ingested", or any short follow-up referring to a recent document, resolve to '
+    'added", or any short follow-up referring to a recent document, resolve to '
     "the document_id (UUID) returned by the most recent ingest_arxiv_papers, "
     "search_documents, or list_project_documents tool result in the conversation. "
-    "Do NOT ask the user for the document_id when it is already available in tool "
+    "Do not ask the user for the document_id when it is already available in tool "
     "history. If multiple documents could match, list them and ask which one — "
-    "but never re-prompt for an ID the user just saw.\n"
+    "but do not re-prompt for an ID the user just saw.\n"
     "When a tool returns one or more document_ids, treat the most recent set as the "
     "active document context for subsequent turns until the user references different "
     "documents.\n\n"
     "## Always reply after a tool call\n"
-    "After every tool call completes (success OR error), you MUST emit a brief "
-    "assistant message in your next turn — never return empty content. The user "
+    "After every tool call completes (success or error), emit a brief "
+    "assistant message in your next turn — do not return empty content. The user "
     "cannot see raw tool results, so silence after a tool runs looks like a hang.\n"
     "- On success: confirm what happened in one short sentence and, when natural, "
     '  offer the obvious next step (e.g. "Project created. Want me to add the '
@@ -937,15 +1141,14 @@ SHARED_AGENT_RULES = (
     "  document_id), surface it in your reply so the user has it visible.\n\n"
     "## Answering 'which model are you?'\n"
     "If the user asks which model / engine / LLM you are running on, answer "
-    "from the `Runtime model` line appended later in this prompt. Do NOT "
-    "guess, and do NOT fall back to generic answers like 'I'm GPT-4-class' "
+    "from the `Runtime model` line appended later in this prompt. Do not "
+    "guess or fall back to generic answers like 'I'm GPT-4-class' "
     "or quote a training cutoff from your weights — those are almost always "
     "wrong here. If the runtime line says the deployment is `model-router`, "
     "tell the user the request was routed via Azure model-router and the "
-    "underlying model (gpt-5, claude-*, llama-*, …) is selected per "
-    "request, so you can't name it from the prompt alone — point them at "
-    "the trace metadata for the exact pick. If the runtime line names a "
-    "specific deployment, you can name it directly."
+    "underlying model is selected per request, so you cannot name it from "
+    "the prompt alone — point them at the trace metadata for the exact pick. "
+    "If the runtime line names a specific deployment, you can name it directly."
 )
 
 
@@ -1048,38 +1251,37 @@ def _build_page_context_line(page_context: dict) -> str:
 # state-derived (page context, intent, memories, retrieved docs) is appended
 # in ``llm_node`` AFTER this block to keep it cacheable.
 _LLM_NODE_STATIC_PROMPT = (
-    "You are an AI research agent for a RAG-powered academic research system.\n"
-    "You help users search documents, manage research projects, find ArXiv papers, "
+    "You are a research assistant for an academic RAG platform.\n"
+    "You help users search documents, manage research projects, find papers on ArXiv, "
     "create notes, and analyze research.\n\n"
     "When the user is on a project page, the project_id is available from the "
     "page context and does not need to be asked for.\n\n"
     f"{SHARED_AGENT_RULES}\n\n"
-    "## MANDATORY WORKFLOW for adding papers to a project:\n"
-    "You CANNOT add a document that has not been ingested yet. Follow this order:\n"
-    "1. **search_arxiv** — find papers matching the user's query\n"
-    "2. **ingest_arxiv_papers** — ingest the papers (this creates documents in the system)\n"
-    "3. **add_document_to_project** — use the `document_ids` (UUIDs) from the ingest response\n\n"
-    "NEVER skip step 2. NEVER pass arXiv IDs to add_document_to_project.\n"
-    "NEVER fabricate UUIDs. Only use UUIDs returned by ingest_arxiv_papers or search_documents.\n"
-    "If a tool returns an error, report the error honestly to the user — do NOT claim success.\n\n"
+    "## Workflow for adding papers to a project\n"
+    "A document must be imported before it can be added to a project. Follow this order:\n"
+    "1. search_arxiv — find papers matching the user's query\n"
+    "2. ingest_arxiv_papers — import the papers (this creates documents in the system)\n"
+    "3. add_document_to_project — use the document_ids (UUIDs) from the import response\n\n"
+    "Do not skip step 2. Do not pass arXiv IDs to add_document_to_project.\n"
+    "Only use UUIDs returned by ingest_arxiv_papers or search_documents.\n"
+    "If a tool returns an error, report the error honestly to the user.\n\n"
     "## Honest result reporting\n"
     "When a tool returns documents_ingested=0, total=0, an empty array, "
-    "or any structured indicator that nothing was added/created/found, you "
-    "MUST tell the user explicitly what happened (e.g. 'No papers were "
-    "ingested — the IDs I tried weren't valid'). Do NOT respond with a "
-    "generic 'done', 'completed', or stay silent. The CLI now surfaces the "
-    "raw tool result, so any vague summary will visibly contradict what the "
+    "or any indicator that nothing was added/created/found, "
+    "tell the user explicitly what happened (e.g. 'No papers were "
+    "imported — the IDs were not valid'). Do not respond with a "
+    "generic 'done' or 'completed'. The CLI surfaces the "
+    "raw tool result, so a vague summary will visibly contradict what the "
     "user can already see.\n\n"
     "## Project-name disambiguation\n"
     "If the user names a project that matches multiple entries from the "
     "most recent list_projects result (e.g. 'RAG Research' matches both "
     "'RAG Research' and 'RAG Research 2025'), ask which one they mean "
-    "before acting. Do NOT silently pick the first match.\n\n"
+    "before acting.\n\n"
     "## /clear is a CLI primitive\n"
-    "If the user message is exactly '/clear' or asks you to 'clear the "
+    "If the user message is exactly '/clear' or asks to 'clear the "
     "chat' / 'clear history' / 'reset the screen', reply with one short "
-    'sentence: "That\'s a CLI command — type /clear at the prompt." Do '
-    "NOT pretend you cleared anything.\n\n"
+    'sentence: "That\'s a CLI command — type /clear at the prompt."\n\n'
     "When answering questions, use retrieved document context when available.\n"
     "Cite sources using [Doc N] format inline.\n"
     "Be concise and action-oriented."
@@ -1136,8 +1338,32 @@ async def llm_node(state: AgentState, config: RunnableConfig) -> dict:
     # Bind intent-specific tool subset
     intent_tools = _get_tools_for_intent(intent)
 
-    llm = _build_llm(model_override=state.get("model") or None)
-    llm_with_tools = llm.bind_tools(intent_tools)
+    # Post-tool synthesis turn → use the lightweight deployment. Detect by
+    # checking if the last message is a ToolMessage (the LLM is about to
+    # synthesize a final answer or decide on more tool calls). Saves ~5-15s
+    # vs running the heavy main model for prose synthesis.
+    settings = get_settings()
+    use_lightweight_synthesis = (
+        settings.AGENT_LIGHTWEIGHT_SYNTHESIS
+        and isinstance(sanitized[-1], ToolMessage) if sanitized else False
+    )
+    if use_lightweight_synthesis:
+        from src.services.agent.llm_factory import build_lightweight_llm
+
+        llm = build_lightweight_llm(max_tokens=4096)
+        logger.debug(
+            "llm_node: using lightweight synthesis model after ToolMessage"
+        )
+    else:
+        llm = _build_llm(model_override=state.get("model") or None)
+    # parallel_tool_calls=False forces gpt-5 to emit one tool_call per turn.
+    # Trace 019e18f0 showed 13+ parallel search_arxiv calls when this was
+    # implicitly True — agent never got a chance to see the first result
+    # before issuing more searches.
+    llm_with_tools = llm.bind_tools(
+        intent_tools,
+        parallel_tool_calls=settings.AGENT_PARALLEL_TOOL_CALLS,
+    )
     response = await llm_with_tools.ainvoke(messages, config=config)
 
     return {
@@ -1270,8 +1496,12 @@ async def _execute_single_tool(
                     timeout=timeout,
                 )
 
-            # retry_transient handles TimeoutError/ConnectionError with backoff
-            result = await retry_transient(_call_tool, max_attempts=3, base_delay=1.0)
+            # retry_transient handles TimeoutError/ConnectionError with backoff.
+            # max_attempts dropped from 3 → 2 after trace 019e1910 showed
+            # arxiv API hung 93s (3 × 30s timeout + backoff) which exceeded
+            # the CLI 90s idle window. Failing faster surfaces the issue
+            # while keeping one safety-net retry for genuine transient blips.
+            result = await retry_transient(_call_tool, max_attempts=2, base_delay=1.0)
 
             result_content = (
                 json.dumps(result) if isinstance(result, dict) else str(result)
@@ -1336,23 +1566,47 @@ async def tool_node(state: AgentState, config: RunnableConfig) -> dict:
     last_error_info = state.get("last_error_info", {})
     page_context = state.get("page_context", {})
 
-    # Execute all tool calls concurrently with semaphore limiting
-    tasks = [
-        _execute_single_tool(tc, config, page_context) for tc in last_message.tool_calls
+    # Per-turn dedupe: skip tool_calls whose (name, args) already ran this
+    # turn. The cached result is returned with a "[deduped...]" prefix so
+    # the model sees both the data and a stop signal.
+    from src.services.agent.tool_dedupe import (
+        build_deduped_execution_entry,
+        build_deduped_tool_message,
+        find_cached_tool_results,
+    )
+
+    cached = find_cached_tool_results(
+        last_message.tool_calls, state["messages"], tool_executions
+    )
+    fresh_calls = [
+        tc for tc in last_message.tool_calls if tc["id"] not in cached
     ]
-    results = await asyncio.gather(*tasks, return_exceptions=True)
+
+    # Execute all NEW tool calls concurrently with semaphore limiting
+    tasks = [_execute_single_tool(tc, config, page_context) for tc in fresh_calls]
+    fresh_results = await asyncio.gather(*tasks, return_exceptions=True)
+    fresh_by_id = {tc["id"]: r for tc, r in zip(fresh_calls, fresh_results)}
 
     tool_messages: List[ToolMessage] = []
     any_failure = False
     all_success = True
-    for i, r in enumerate(results):
+    # Iterate in the original tool_calls order so ToolMessage ids line up
+    # with the AIMessage's tool_calls array as the OpenAI API requires.
+    for tc in last_message.tool_calls:
+        if tc["id"] in cached:
+            prior = cached[tc["id"]]
+            tool_messages.append(build_deduped_tool_message(tc["id"], prior))
+            tool_executions.append(
+                build_deduped_execution_entry(tc["id"], tc, prior)
+            )
+            continue
+        r = fresh_by_id.get(tc["id"])
         if isinstance(r, BaseException):
             logger.error("Parallel tool execution error: %s", r)
             error_count += 1
             last_error = str(r)
             any_failure = True
             all_success = False
-            tc = last_message.tool_calls[i]
             tool_messages.append(
                 ToolMessage(
                     content=json.dumps({"error": str(r)}),
@@ -1445,20 +1699,41 @@ def make_filtered_tool_node(allowed_tool_names: set[str]):
         last_error_info: dict = {}
         page_context = state.get("page_context", {})
 
-        tasks = [_execute_single_tool(tc, config, page_context) for tc in allowed_calls]
-        results = await asyncio.gather(*tasks, return_exceptions=True)
+        # Per-turn dedupe — mirrors tool_node. Keeps research subgraph in
+        # sync with the main graph's dedupe semantics.
+        from src.services.agent.tool_dedupe import (
+            build_deduped_execution_entry,
+            build_deduped_tool_message,
+            find_cached_tool_results,
+        )
+
+        cached = find_cached_tool_results(
+            allowed_calls, state["messages"], tool_executions
+        )
+        fresh_calls = [tc for tc in allowed_calls if tc["id"] not in cached]
+
+        tasks = [_execute_single_tool(tc, config, page_context) for tc in fresh_calls]
+        fresh_results = await asyncio.gather(*tasks, return_exceptions=True)
+        fresh_by_id = {tc["id"]: r for tc, r in zip(fresh_calls, fresh_results)}
 
         tool_messages = list(skipped_messages)
         any_failure = False
         all_success = True
-        for i, r in enumerate(results):
+        for tc in allowed_calls:
+            if tc["id"] in cached:
+                prior = cached[tc["id"]]
+                tool_messages.append(build_deduped_tool_message(tc["id"], prior))
+                tool_executions.append(
+                    build_deduped_execution_entry(tc["id"], tc, prior)
+                )
+                continue
+            r = fresh_by_id.get(tc["id"])
             if isinstance(r, BaseException):
                 logger.error("Parallel tool execution error: %s", r)
                 error_count += 1
                 last_error = str(r)
                 any_failure = True
                 all_success = False
-                tc = allowed_calls[i]
                 tool_messages.append(
                     ToolMessage(
                         content=json.dumps({"error": str(r)}),
