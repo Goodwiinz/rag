@@ -1309,7 +1309,24 @@ async def llm_node(state: AgentState, config: RunnableConfig) -> dict:
     # Bind intent-specific tool subset
     intent_tools = _get_tools_for_intent(intent)
 
-    llm = _build_llm(model_override=state.get("model") or None)
+    # Post-tool synthesis turn → use the lightweight deployment. Detect by
+    # checking if the last message is a ToolMessage (the LLM is about to
+    # synthesize a final answer or decide on more tool calls). Saves ~5-15s
+    # vs running the heavy main model for prose synthesis.
+    settings = get_settings()
+    use_lightweight_synthesis = (
+        settings.AGENT_LIGHTWEIGHT_SYNTHESIS
+        and isinstance(sanitized[-1], ToolMessage) if sanitized else False
+    )
+    if use_lightweight_synthesis:
+        from src.services.agent.llm_factory import build_lightweight_llm
+
+        llm = build_lightweight_llm(max_tokens=4096)
+        logger.debug(
+            "llm_node: using lightweight synthesis model after ToolMessage"
+        )
+    else:
+        llm = _build_llm(model_override=state.get("model") or None)
     llm_with_tools = llm.bind_tools(intent_tools)
     response = await llm_with_tools.ainvoke(messages, config=config)
 

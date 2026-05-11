@@ -275,6 +275,11 @@ class Settings(BaseSettings):
     AGENT_MAIN_REASONING_EFFORT: str = "low"
     AGENT_LIGHTWEIGHT_REASONING_EFFORT: str = "minimal"
 
+    # When True, post-tool synthesis turns (final-answer LLM call right after
+    # a ToolMessage) use the lightweight deployment instead of the main one.
+    # Cuts ~5-15s/turn on read-heavy queries like arxiv search results.
+    AGENT_LIGHTWEIGHT_SYNTHESIS: bool = True
+
     # Azure AI Cohere Reranking Configuration
     COHERE_RERANK_ENDPOINT: Optional[str] = None
     COHERE_RERANK_API_KEY: Optional[str] = None

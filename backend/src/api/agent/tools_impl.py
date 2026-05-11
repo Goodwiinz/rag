@@ -626,7 +626,10 @@ async def _tool_search_arxiv(args: Dict[str, Any]) -> Dict[str, Any]:
     from src.services.arxiv.arxiv_service import ArXivIngestionService
 
     query = args.get("query", "")
-    max_results = min(args.get("max_results", 5), 20)
+    # Hard cap at 5 papers + 250-char abstracts. Trace showed 10×500-char
+    # results = 8087 chars feeding into the synthesis LLM call and triggering
+    # 1536 reasoning tokens (~46s). Smaller payload = faster synthesis.
+    max_results = min(args.get("max_results", 5), 5)
     categories = args.get("categories")
 
     try:
@@ -644,8 +647,8 @@ async def _tool_search_arxiv(args: Dict[str, Any]) -> Dict[str, Any]:
                     {
                         "id": p.get("id", ""),
                         "title": p.get("title", ""),
-                        "authors": p.get("authors", [])[:5],
-                        "abstract": (p.get("abstract", "") or "")[:500],
+                        "authors": p.get("authors", [])[:3],
+                        "abstract": (p.get("abstract", "") or "")[:250],
                         "published": str(p.get("published", "")),
                         "categories": p.get("categories", []),
                         "pdf_url": p.get("pdf_url", ""),
