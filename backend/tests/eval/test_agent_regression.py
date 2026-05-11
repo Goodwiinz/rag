@@ -217,18 +217,24 @@ async def test_local_golden_case(case: GoldenCase) -> None:
     }
     outputs = await _run_agent(inputs)
 
-    intent_result = intent_match(
-        outputs, {"intent": case.expected_intent}
-    )
-    tool_result = tool_subset_match(
-        outputs, {"expected_tools": case.expected_tools}
+    accepted_intents = (case.expected_intent, *case.accept_intents)
+    actual_intent = outputs.get("intent", "")
+    assert actual_intent in accepted_intents, (
+        f"intent mismatch: expected one of {accepted_intents} "
+        f"actual={actual_intent}"
     )
 
-    assert intent_result["score"] == 1, (
-        f"intent mismatch: expected={case.expected_intent} "
-        f"actual={outputs['intent']}"
-    )
-    assert tool_result["score"] == 1, (
-        f"tool sequence mismatch: expected={case.expected_tools} "
-        f"actual={outputs['tool_calls']}"
-    )
+    actual_tools = outputs.get("tool_calls", [])
+    if case.tool_match == "any":
+        assert any(t in actual_tools for t in case.expected_tools), (
+            f"no expected tool fired: expected any of {case.expected_tools} "
+            f"actual={actual_tools}"
+        )
+    else:
+        tool_result = tool_subset_match(
+            outputs, {"expected_tools": case.expected_tools}
+        )
+        assert tool_result["score"] == 1, (
+            f"tool sequence mismatch: expected={case.expected_tools} "
+            f"actual={actual_tools}"
+        )

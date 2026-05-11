@@ -17,6 +17,20 @@ class GoldenCase:
     expected_tools: tuple[str, ...] = ()
     page_context: dict[str, Any] = field(default_factory=dict)
     metadata: dict[str, Any] = field(default_factory=dict)
+    # Optional escape hatch for genuinely ambiguous intents. When set,
+    # the evaluator accepts any of these intents in addition to
+    # ``expected_intent``. Use sparingly — only for queries where two
+    # subgraphs both produce correct behaviour (e.g. "Summarize arxiv X"
+    # is sensible from either writing or research).
+    accept_intents: tuple[str, ...] = ()
+    # Tool match strategy:
+    #   "subset_in_order" (default): every tool in expected_tools must
+    #     appear in actual calls in the given order.
+    #   "any":  pass if ANY of expected_tools appeared. For cases where
+    #     the agent has multiple equally-correct paths (e.g. ingest-first
+    #     vs summarize-first chain) and we only care that the dead-end
+    #     refusal is gone.
+    tool_match: str = "subset_in_order"
 
 
 # do-kb activation coverage — verifies do_kb_retrieve tool selection
@@ -63,9 +77,8 @@ PLANNER_SKIP_CASES: tuple[GoldenCase, ...] = (
     ),
 )
 
-# arXiv ID resolution coverage. Note: writing-subgraph auto-chain
-# (ingest → summarize) is currently a separate gap and not covered here;
-# the dedicated test is in test_summarize_document_arxiv_hint.py.
+# arXiv ID resolution coverage. Includes the writing-subgraph auto-chain
+# recovery path (summarize → recoverable → ingest_arxiv_papers).
 ARXIV_ID_CASES: tuple[GoldenCase, ...] = (
     GoldenCase(
         name="ingest_arxiv_id_only",
@@ -80,6 +93,20 @@ ARXIV_ID_CASES: tuple[GoldenCase, ...] = (
         expected_intent="research",
         expected_tools=("ingest_arxiv_papers",),
         metadata={"feature": "arxiv_id_resolution"},
+    ),
+    GoldenCase(
+        name="summarize_arxiv_auto_chain",
+        question="Summarize arxiv paper 2201.00978",
+        # Either writing (recovery chain via summarize_document → ingest
+        # hint) or research (LLM picks ingest directly) is acceptable.
+        # Two valid tool paths: ingest-first (smart) or summarize-first
+        # (follows recovery prompt). Pre-fix behaviour was 0 tools +
+        # refusal — any tool call proves the dead-end is gone.
+        expected_intent="writing",
+        accept_intents=("research",),
+        expected_tools=("ingest_arxiv_papers", "summarize_document"),
+        tool_match="any",
+        metadata={"feature": "writing_recovery_chain"},
     ),
 )
 
