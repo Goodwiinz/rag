@@ -200,6 +200,17 @@ def _safe_json_loads(s: str) -> Any:
         return {"raw": s}
 
 
+def _escape_like(s: str) -> str:
+    """Escape SQL LIKE wildcards in untrusted strings.
+
+    Storage keys come from the DO Knowledge Base API — an external service.
+    Backslash escapes both ``%`` (multi-char wildcard) and ``_`` (single
+    char) so a malformed/malicious key cannot broaden the suffix match.
+    Use with ``Column.like(pattern, escape='\\\\')``.
+    """
+    return s.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
 # ---------------------------------------------------------------------------
 # LLM construction
 # ---------------------------------------------------------------------------
@@ -567,7 +578,10 @@ async def _try_primary_do_kb_read(
                 from sqlalchemy import or_
 
                 filters = [Document.storage_path == k for k in storage_keys]
-                filters += [Document.storage_path.like(f"%/{k}") for k in storage_keys]
+                filters += [
+                    Document.storage_path.like(f"%/{_escape_like(k)}", escape="\\")
+                    for k in storage_keys
+                ]
                 rows = await session.execute(
                     select(Document.id, Document.storage_path, Document.title)
                     .where(Document.organization_id == org_id)
@@ -585,6 +599,17 @@ async def _try_primary_do_kb_read(
             # (observed trace 019e168a: "ML in Health Care" query returned
             # Copilot productivity PDFs). Filter via collection_documents.
             chunks_to_emit = result.chunks
+            # Safety: project requested but ZERO chunks resolved to known
+            # documents → don't leak unscoped chunks. Force fallback so the
+            # legacy hybrid search runs with its own org-scope guarantees.
+            if project_id and not title_by_key and result.chunks:
+                logger.info(
+                    "do_kb_read: %d chunks unresolvable to org documents under "
+                    "project scope %s — returning None to trigger fallback",
+                    len(result.chunks),
+                    project_id,
+                )
+                return None
             if project_id and title_by_key:
                 from uuid import UUID as _UUID
 
@@ -1601,6 +1626,26 @@ async def tool_node(state: AgentState, config: RunnableConfig) -> dict:
             )
             continue
         r = fresh_by_id.get(tc["id"])
+        if r is None:
+            # Defensive: every fresh_call should map to a result. If a
+            # future change drops one (cancellation, gather edge case),
+            # emit a synthetic error ToolMessage so the OpenAI contract
+            # "every tool_call.id must be answered" still holds.
+            logger.error(
+                "tool_node: missing result for tool_call %s; emitting synthetic error",
+                tc["id"],
+            )
+            error_count += 1
+            last_error = "tool execution lost (internal)"
+            any_failure = True
+            all_success = False
+            tool_messages.append(
+                ToolMessage(
+                    content=json.dumps({"error": last_error}),
+                    tool_call_id=tc["id"],
+                )
+            )
+            continue
         if isinstance(r, BaseException):
             logger.error("Parallel tool execution error: %s", r)
             error_count += 1
@@ -1728,6 +1773,23 @@ def make_filtered_tool_node(allowed_tool_names: set[str]):
                 )
                 continue
             r = fresh_by_id.get(tc["id"])
+            if r is None:
+                logger.error(
+                    "filtered_tool_node: missing result for tool_call %s; "
+                    "emitting synthetic error",
+                    tc["id"],
+                )
+                error_count += 1
+                last_error = "tool execution lost (internal)"
+                any_failure = True
+                all_success = False
+                tool_messages.append(
+                    ToolMessage(
+                        content=json.dumps({"error": last_error}),
+                        tool_call_id=tc["id"],
+                    )
+                )
+                continue
             if isinstance(r, BaseException):
                 logger.error("Parallel tool execution error: %s", r)
                 error_count += 1

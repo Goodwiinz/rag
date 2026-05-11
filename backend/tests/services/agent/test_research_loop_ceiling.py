@@ -82,3 +82,13 @@ def test_error_count_short_circuits_regardless_of_loop():
     state = _state_with_pending_tool_calls(loop_count=0)
     state["error_count"] = 3
     assert research_should_continue(state) == "research_reflection_gate"
+
+
+@pytest.mark.unit
+def test_no_loop_back_into_force_synthesis_after_first_fire():
+    """Defensive routing: if forced synthesis already ran and the response
+    still carries tool_calls (defective model output), go to reflection
+    rather than re-entering force-synthesis (would loop infinitely)."""
+    state = _state_with_pending_tool_calls(loop_count=10)
+    state["_force_synthesis_fired"] = True
+    assert research_should_continue(state) == "research_reflection_gate"

@@ -144,10 +144,15 @@ def research_should_continue(state: AgentState) -> str:
             if any(tc["name"] in RESEARCH_DESTRUCTIVE_TOOLS for tc in last.tool_calls):
                 return "research_interrupt_node"
             return "research_tool_node"
-        # Loop ceiling tripped while the model still wants more tools. Route
-        # to a forced-synthesis turn so the final AIMessage has real content
-        # — otherwise reflection sees empty content + unanswered tool_calls
-        # and flags a "no response" major issue (trace 019e1903).
+        # Loop ceiling tripped while the model still wants more tools.
+        # If forced synthesis already ran once and the response STILL has
+        # tool_calls (defective model), route to reflection — never loop
+        # back into forced synthesis or we'd spin until checkpoint timeout.
+        if state.get("_force_synthesis_fired"):
+            return "research_reflection_gate"
+        # Route to a forced-synthesis turn so the final AIMessage has real
+        # content — otherwise reflection sees empty content + unanswered
+        # tool_calls and flags a "no response" major issue (trace 019e1903).
         return "research_force_synthesis_node"
     return "research_reflection_gate"
 
@@ -161,14 +166,20 @@ async def research_force_synthesis_node(
     wants more. We strip the unanswered tool_calls and re-invoke the LLM
     with NO tools bound so it must produce text.
 
+    Uses the lightweight deployment — this is a pure prose-synthesis
+    call with no tool routing, matching the post-ToolMessage path in
+    research_llm_node.
+
     The "no more tools, synthesize now" directive is embedded into the
     system prompt (NOT a separate SystemMessage). Trace 019e190c showed
     gpt-5 echoed a second SystemMessage verbatim into its response when
     we appended the directive as its own message.
-    """
-    from langchain_core.messages import HumanMessage
 
-    from src.services.agent.graph import _build_llm
+    Bumps tool_loop_count past the ceiling so research_should_continue
+    cannot route back here in a loop if the synthesis response somehow
+    contains tool_calls (defensive — the directive forbids it).
+    """
+    from src.services.agent.llm_factory import build_lightweight_llm
 
     messages = list(state["messages"])
 
@@ -190,11 +201,19 @@ async def research_force_synthesis_node(
     )
     full = [SystemMessage(content=base_prompt + synthesis_addendum)] + sanitized
 
-    llm = _build_llm()
+    llm = build_lightweight_llm(max_tokens=4096)
     # No bind_tools — force a pure text response.
     response = await llm.ainvoke(full, config=config)
 
-    return {"messages": [response]}
+    return {
+        "messages": [response],
+        # Bump past ceiling so a defective response with stray tool_calls
+        # cannot re-enter forced synthesis (would loop infinitely).
+        "tool_loop_count": MAX_RESEARCH_TOOL_LOOPS + 1,
+        # Marker for routing: research_should_continue checks this flag
+        # before sending back here.
+        "_force_synthesis_fired": True,
+    }
 
 
 async def research_interrupt_node(state: AgentState, config: RunnableConfig) -> dict:

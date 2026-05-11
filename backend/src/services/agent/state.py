@@ -42,3 +42,7 @@ class AgentState(TypedDict):
     # revision at the start of turn N+1. Stored as ``Any`` to avoid a
     # circular import on ``ReflectionResult``.
     _reflection_result: Any
+    # Set by research_force_synthesis_node so research_should_continue
+    # routes a defective synthesis (one that still has tool_calls) to
+    # the reflection gate instead of looping back into forced synthesis.
+    _force_synthesis_fired: bool
