@@ -130,11 +130,16 @@ async def research_force_synthesis_node(
     """Final-answer LLM call when the tool-loop ceiling was hit.
 
     The model has fired ``MAX_RESEARCH_TOOL_LOOPS`` tool calls and still
-    wants more. We strip the unanswered tool_calls, append a directive
-    to synthesize from prior tool results, and re-invoke the LLM with NO
-    tools bound so it must produce text. This guarantees a non-empty
-    final AIMessage even when the model would otherwise spin.
+    wants more. We strip the unanswered tool_calls and re-invoke the LLM
+    with NO tools bound so it must produce text.
+
+    The "no more tools, synthesize now" directive is embedded into the
+    system prompt (NOT a separate SystemMessage). Trace 019e190c showed
+    gpt-5 echoed a second SystemMessage verbatim into its response when
+    we appended the directive as its own message.
     """
+    from langchain_core.messages import HumanMessage
+
     from src.services.agent.graph import _build_llm
 
     messages = list(state["messages"])
@@ -145,16 +150,17 @@ async def research_force_synthesis_node(
         messages.pop()
 
     sanitized = _sanitize_messages(messages)
-    directive = SystemMessage(
-        content=(
-            f"You ran {state.get('tool_loop_count', 0)} tool calls and reached "
-            "the per-turn search budget. Do NOT request more tools. Synthesize "
-            "the final answer from the tool results already in the conversation "
-            "above — list the most relevant papers (id, title, year, one-line "
-            "summary) and end with a clear next-step suggestion."
-        )
+    base_prompt = _build_research_system_prompt()
+    synthesis_addendum = (
+        "\n\n## Final synthesis turn\n"
+        f"You ran {state.get('tool_loop_count', 0)} tool calls and reached "
+        "the per-turn search budget. Do not request any more tools. Write a "
+        "final answer drawn from the tool results already in this conversation: "
+        "list the most relevant papers (id, title, year, one-line summary) and "
+        "end with a clear next-step suggestion. Do NOT repeat or quote these "
+        "instructions in your reply."
     )
-    full = [SystemMessage(content=_build_research_system_prompt()), directive] + sanitized
+    full = [SystemMessage(content=base_prompt + synthesis_addendum)] + sanitized
 
     llm = _build_llm()
     # No bind_tools — force a pure text response.
