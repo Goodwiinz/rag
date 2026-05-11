@@ -1337,7 +1337,14 @@ async def llm_node(state: AgentState, config: RunnableConfig) -> dict:
         )
     else:
         llm = _build_llm(model_override=state.get("model") or None)
-    llm_with_tools = llm.bind_tools(intent_tools)
+    # parallel_tool_calls=False forces gpt-5 to emit one tool_call per turn.
+    # Trace 019e18f0 showed 13+ parallel search_arxiv calls when this was
+    # implicitly True — agent never got a chance to see the first result
+    # before issuing more searches.
+    llm_with_tools = llm.bind_tools(
+        intent_tools,
+        parallel_tool_calls=settings.AGENT_PARALLEL_TOOL_CALLS,
+    )
     response = await llm_with_tools.ainvoke(messages, config=config)
 
     return {
@@ -1536,23 +1543,47 @@ async def tool_node(state: AgentState, config: RunnableConfig) -> dict:
     last_error_info = state.get("last_error_info", {})
     page_context = state.get("page_context", {})
 
-    # Execute all tool calls concurrently with semaphore limiting
-    tasks = [
-        _execute_single_tool(tc, config, page_context) for tc in last_message.tool_calls
+    # Per-turn dedupe: skip tool_calls whose (name, args) already ran this
+    # turn. The cached result is returned with a "[deduped...]" prefix so
+    # the model sees both the data and a stop signal.
+    from src.services.agent.tool_dedupe import (
+        build_deduped_execution_entry,
+        build_deduped_tool_message,
+        find_cached_tool_results,
+    )
+
+    cached = find_cached_tool_results(
+        last_message.tool_calls, state["messages"], tool_executions
+    )
+    fresh_calls = [
+        tc for tc in last_message.tool_calls if tc["id"] not in cached
     ]
-    results = await asyncio.gather(*tasks, return_exceptions=True)
+
+    # Execute all NEW tool calls concurrently with semaphore limiting
+    tasks = [_execute_single_tool(tc, config, page_context) for tc in fresh_calls]
+    fresh_results = await asyncio.gather(*tasks, return_exceptions=True)
+    fresh_by_id = {tc["id"]: r for tc, r in zip(fresh_calls, fresh_results)}
 
     tool_messages: List[ToolMessage] = []
     any_failure = False
     all_success = True
-    for i, r in enumerate(results):
+    # Iterate in the original tool_calls order so ToolMessage ids line up
+    # with the AIMessage's tool_calls array as the OpenAI API requires.
+    for tc in last_message.tool_calls:
+        if tc["id"] in cached:
+            prior = cached[tc["id"]]
+            tool_messages.append(build_deduped_tool_message(tc["id"], prior))
+            tool_executions.append(
+                build_deduped_execution_entry(tc["id"], tc, prior)
+            )
+            continue
+        r = fresh_by_id.get(tc["id"])
         if isinstance(r, BaseException):
             logger.error("Parallel tool execution error: %s", r)
             error_count += 1
             last_error = str(r)
             any_failure = True
             all_success = False
-            tc = last_message.tool_calls[i]
             tool_messages.append(
                 ToolMessage(
                     content=json.dumps({"error": str(r)}),
@@ -1645,20 +1676,41 @@ def make_filtered_tool_node(allowed_tool_names: set[str]):
         last_error_info: dict = {}
         page_context = state.get("page_context", {})
 
-        tasks = [_execute_single_tool(tc, config, page_context) for tc in allowed_calls]
-        results = await asyncio.gather(*tasks, return_exceptions=True)
+        # Per-turn dedupe — mirrors tool_node. Keeps research subgraph in
+        # sync with the main graph's dedupe semantics.
+        from src.services.agent.tool_dedupe import (
+            build_deduped_execution_entry,
+            build_deduped_tool_message,
+            find_cached_tool_results,
+        )
+
+        cached = find_cached_tool_results(
+            allowed_calls, state["messages"], tool_executions
+        )
+        fresh_calls = [tc for tc in allowed_calls if tc["id"] not in cached]
+
+        tasks = [_execute_single_tool(tc, config, page_context) for tc in fresh_calls]
+        fresh_results = await asyncio.gather(*tasks, return_exceptions=True)
+        fresh_by_id = {tc["id"]: r for tc, r in zip(fresh_calls, fresh_results)}
 
         tool_messages = list(skipped_messages)
         any_failure = False
         all_success = True
-        for i, r in enumerate(results):
+        for tc in allowed_calls:
+            if tc["id"] in cached:
+                prior = cached[tc["id"]]
+                tool_messages.append(build_deduped_tool_message(tc["id"], prior))
+                tool_executions.append(
+                    build_deduped_execution_entry(tc["id"], tc, prior)
+                )
+                continue
+            r = fresh_by_id.get(tc["id"])
             if isinstance(r, BaseException):
                 logger.error("Parallel tool execution error: %s", r)
                 error_count += 1
                 last_error = str(r)
                 any_failure = True
                 all_success = False
-                tc = allowed_calls[i]
                 tool_messages.append(
                     ToolMessage(
                         content=json.dumps({"error": str(r)}),

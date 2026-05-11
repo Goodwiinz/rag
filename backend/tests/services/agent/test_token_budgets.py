@@ -70,3 +70,20 @@ def test_planner_lightweight_llm_uses_2048_token_budget():
         assert builder.call_count == 1
         kwargs = builder.call_args.kwargs
         assert kwargs["max_tokens"] == 2048
+
+
+@pytest.mark.unit
+def test_settings_default_parallel_tool_calls_disabled():
+    """Default config disables parallel tool calls.
+
+    Trace 019e18f0 showed gpt-5 firing 13+ parallel search_arxiv calls
+    across 4 rounds when this defaulted to True. Forcing sequential lets
+    the model see one result before issuing the next call.
+    """
+    from src.core.config import get_settings
+
+    settings = get_settings()
+    assert settings.AGENT_PARALLEL_TOOL_CALLS is False, (
+        "AGENT_PARALLEL_TOOL_CALLS must default to False — flip via env "
+        "only when paper-vs-paper parallel comparison is intentional."
+    )

@@ -280,6 +280,13 @@ class Settings(BaseSettings):
     # Cuts ~5-15s/turn on read-heavy queries like arxiv search results.
     AGENT_LIGHTWEIGHT_SYNTHESIS: bool = True
 
+    # When False, the agent LLM emits at most one tool_call per turn. gpt-5
+    # fires runaway parallel batches by default (trace 019e18f0: 5-6 parallel
+    # search_arxiv per round, 13+ total over 4 rounds, 95s wall). Flip to
+    # True only when comparing two documents in parallel is the explicit
+    # user intent.
+    AGENT_PARALLEL_TOOL_CALLS: bool = False
+
     # Azure AI Cohere Reranking Configuration
     COHERE_RERANK_ENDPOINT: Optional[str] = None
     COHERE_RERANK_API_KEY: Optional[str] = None

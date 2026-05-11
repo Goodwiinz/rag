@@ -130,7 +130,14 @@ def test_tool_message_attaches_to_correct_parent_when_two_ais():
     assert isinstance(out[3], ToolMessage) and out[3].tool_call_id == "c2"
 
 
-def test_consecutive_human_messages_merged():
+def test_consecutive_human_messages_supersede():
+    """Phase 5 change: consecutive HumanMessages collapse to the LATEST.
+
+    Old behavior (concatenation) caused the LLM to answer an abandoned
+    earlier query after the user typed a new one (trace 019e1885). The
+    new behavior — keep only the most recent — matches the user's mental
+    model that a new message replaces an unanswered prior one.
+    """
     from langchain_core.messages import HumanMessage
 
     from src.services.agent.graph import _sanitize_messages
@@ -140,8 +147,7 @@ def test_consecutive_human_messages_merged():
     out = _sanitize_messages(raw)
 
     assert len(out) == 1
-    assert "part 1" in out[0].content
-    assert "part 2" in out[0].content
+    assert out[0].content == "part 2"
 
 
 def test_tool_call_without_id_does_not_crash():

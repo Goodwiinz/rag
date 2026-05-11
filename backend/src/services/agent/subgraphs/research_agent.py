@@ -43,6 +43,12 @@ RESEARCH_TOOLS = [
 
 RESEARCH_TOOL_NAMES_LIST = [t.name for t in RESEARCH_TOOLS]
 
+# Lowered from 8 after trace 019e18f0 showed a 4-round runaway tool fan-out
+# (13+ search_arxiv calls, 95s wall). Five iterations is enough for a search →
+# refine → ingest → list → confirm sequence; anything more is the agent
+# refining queries the user did not ask for.
+MAX_RESEARCH_TOOL_LOOPS = 5
+
 
 def _build_research_system_prompt() -> str:
     """Construct the research subgraph system prompt with shared rules embedded.
@@ -52,20 +58,20 @@ def _build_research_system_prompt() -> str:
     from src.services.agent.graph import SHARED_AGENT_RULES
 
     return (
-        "You are a specialized Research Agent focused on discovering, searching, "
+        "You are a research assistant focused on discovering, searching, "
         "and organizing academic papers and documents.\n\n"
         "Your tools:\n"
         "- search_arxiv: Find papers on arXiv\n"
-        "- ingest_arxiv_papers: Import papers into the RAG system\n"
+        "- ingest_arxiv_papers: Import papers into the platform\n"
         "- search_documents: Search indexed documents by title/filename\n"
-        "- do_kb_retrieve: Semantic retrieval over the org's DO Knowledge Base "
+        "- do_kb_retrieve: Semantic retrieval over the org's knowledge base "
         "(use for content-level questions across documents)\n"
         "- create_project: Create a new research project (folder). Requires a name; "
         "description/research_goals/tags are optional\n"
         "- add_document_to_project: Organize documents into projects\n"
         "- list_project_documents: View project contents\n\n"
-        "CRITICAL: After ingesting papers, use the document_ids (UUIDs) from the "
-        "ingest response — NOT arXiv paper IDs.\n\n"
+        "Important: After importing papers, use the document_ids (UUIDs) from the "
+        "response — not arXiv paper IDs.\n\n"
         f"{SHARED_AGENT_RULES}\n\n"
         "Be thorough in searching and systematic in organizing research."
     )
@@ -81,13 +87,18 @@ RESEARCH_DESTRUCTIVE_TOOLS = {
 
 async def research_llm_node(state: AgentState, config: RunnableConfig) -> dict:
     """Research-specialized LLM node."""
+    from src.core.config import get_settings
     from src.services.agent.graph import _build_llm
 
     sanitized = _sanitize_messages(list(state["messages"]))
     messages = [SystemMessage(content=_build_research_system_prompt())] + sanitized
 
     llm = _build_llm()
-    llm_with_tools = llm.bind_tools(RESEARCH_TOOLS)
+    # See graph.llm_node for rationale on parallel_tool_calls=False.
+    llm_with_tools = llm.bind_tools(
+        RESEARCH_TOOLS,
+        parallel_tool_calls=get_settings().AGENT_PARALLEL_TOOL_CALLS,
+    )
     response = await llm_with_tools.ainvoke(messages, config=config)
 
     return {
@@ -103,7 +114,7 @@ def research_should_continue(state: AgentState) -> str:
     if (
         isinstance(last, AIMessage)
         and last.tool_calls
-        and state.get("tool_loop_count", 0) < 8
+        and state.get("tool_loop_count", 0) < MAX_RESEARCH_TOOL_LOOPS
     ):
         if any(tc["name"] in RESEARCH_DESTRUCTIVE_TOOLS for tc in last.tool_calls):
             return "research_interrupt_node"

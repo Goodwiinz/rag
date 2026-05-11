@@ -214,7 +214,11 @@ class TestPlannerNode:
             state = {
                 "messages": [
                     HumanMessage(
-                        content="Find papers, ingest them, and create a summary"
+                        # Phase 1 raised the skip threshold to 12 words.
+                        content=(
+                            "Find recent transformer papers, ingest them into my "
+                            "project, summarize each, and create a research note"
+                        )
                     )
                 ],
                 "page_context": PAGE_CONTEXT,
