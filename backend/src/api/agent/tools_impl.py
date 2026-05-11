@@ -905,18 +905,84 @@ async def _tool_do_kb_retrieve(
             "error": f"Retrieval failed: {exc}",
         }
 
-    chunks_payload = [
-        {
-            "text": c.text,
-            "score": c.score,
-            "document_id": c.document_id,
-            "metadata": c.metadata,
+    # Resolve storage-key document_ids back to real Document.id + title so the
+    # agent can cite by title and link to the canonical row. DO KB returns
+    # ``item_name`` as the leaf filename, while Document.storage_path stores
+    # the full canonical key — match both by suffix.
+    title_by_key: dict[str, tuple[str, str]] = {}
+    if db is not None and result.chunks:
+        from sqlalchemy import or_, select
+
+        from src.models.document import Document
+
+        storage_keys = {c.document_id for c in result.chunks if c.document_id}
+        if storage_keys:
+            filters = [Document.storage_path == k for k in storage_keys]
+            filters += [Document.storage_path.like(f"%/{k}") for k in storage_keys]
+            rows = await db.execute(
+                select(Document.id, Document.storage_path, Document.title)
+                .where(Document.organization_id == current_user.organization_id)
+                .where(or_(*filters))
+            )
+            for doc_id, storage_path, title in rows:
+                if storage_path in storage_keys:
+                    leaf = storage_path
+                else:
+                    leaf = storage_path.rsplit("/", 1)[-1] if storage_path else ""
+                title_by_key[leaf] = (str(doc_id), title or leaf)
+
+    # Project scoping: drop chunks whose resolved document is not in the
+    # active project. DO KB is org-scoped, so cross-project leakage is
+    # filtered here via the collection_documents association.
+    project_id = args.get("project_id")
+    chunks_to_emit = result.chunks
+    if project_id and db is not None and title_by_key:
+        from uuid import UUID as _UUID
+
+        from src.models.collection import CollectionDocument
+
+        resolved_doc_ids = {
+            _UUID(doc_id) for doc_id, _ in title_by_key.values() if doc_id
         }
-        for c in result.chunks
-    ]
+        if resolved_doc_ids:
+            try:
+                pid = _UUID(str(project_id))
+            except (ValueError, TypeError):
+                pid = None
+            if pid is not None:
+                from sqlalchemy import select as _select
+
+                membership_rows = await db.execute(
+                    _select(CollectionDocument.document_id).where(
+                        CollectionDocument.collection_id == pid,
+                        CollectionDocument.document_id.in_(resolved_doc_ids),
+                    )
+                )
+                in_project = {str(r[0]) for r in membership_rows}
+                chunks_to_emit = [
+                    c
+                    for c in result.chunks
+                    if (
+                        title_by_key.get(c.document_id or "", (None, None))[0] or ""
+                    )
+                    in in_project
+                ]
+
+    chunks_payload = []
+    for c in chunks_to_emit:
+        resolved_id, title = title_by_key.get(c.document_id or "", (None, None))
+        chunks_payload.append(
+            {
+                "text": c.text,
+                "score": c.score,
+                "document_id": resolved_id or c.document_id,
+                "title": title or (c.metadata or {}).get("title") or c.document_id,
+                "metadata": c.metadata,
+            }
+        )
     return {
         "chunks": chunks_payload,
-        "total": result.total,
+        "total": len(chunks_payload) if project_id else result.total,
         "source": "do_kb",
         "query": query,
     }
@@ -1272,6 +1338,21 @@ async def _tool_summarize_document(
     try:
         doc = await _resolve_document_id(document_id, db, current_user)
         if not doc:
+            # Helpful hint when the input looks like an arXiv ID but the
+            # paper hasn't been ingested into the workspace yet.
+            import re as _re
+
+            if _re.match(r"^\d{4}\.\d{4,5}(v\d+)?$", (document_id or "").strip()):
+                return {
+                    "error": (
+                        f"Document with arXiv ID '{document_id}' is not in your "
+                        "library. Use ingest_arxiv_papers([\""
+                        f"{document_id}\"]) first, then retry summarize_document "
+                        "with the returned internal document_id."
+                    ),
+                    "error_type": "recoverable",
+                    "suggestion": "ingest_arxiv_papers",
+                }
             return {"error": "Document not found or access denied"}
 
         # Use existing content_text if available, else extract

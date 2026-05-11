@@ -86,8 +86,11 @@ def _build_classifier_llm():
     global _CLASSIFIER_LLM
     if _CLASSIFIER_LLM is not None:
         return _CLASSIFIER_LLM
+    # 4096 tokens: gpt-5-mini reasoning model uses internal reasoning_tokens
+    # against max_completion_tokens budget. Observed traces show 2752+ reasoning
+    # tokens consumed before output — 256 cap caused LengthFinishReasonError.
     _CLASSIFIER_LLM = build_lightweight_llm(
-        max_tokens=256,
+        max_tokens=4096,
         request_timeout=_CLASSIFIER_LLM_TIMEOUT_SECONDS,
     )
     return _CLASSIFIER_LLM
@@ -278,6 +281,8 @@ async def classify_intent_llm(
     # sanitised before being interpolated into the system prompt.
     page_type = _sanitize_prompt_field(str(page_context.get("type", "unknown")))
     project_id = _sanitize_prompt_field(str(page_context.get("project_id", "")))
+    paper_id = _sanitize_prompt_field(str(page_context.get("paper_id", "")))
+    paper_title = _sanitize_prompt_field(str(page_context.get("paper_title", "")))
     if page_type == "project" and project_id:
         page_context_text = (
             f"User is on a project page (project_id={project_id})."
@@ -286,6 +291,15 @@ async def classify_intent_llm(
         page_context_text = f"User is on the {page_type} page."
     else:
         page_context_text = "No specific page context."
+
+    if paper_id:
+        paper_label = paper_title or paper_id
+        page_context_text += (
+            f" Active paper: {paper_label} (document_id={paper_id})."
+            " When the user says 'this paper', 'this document', or asks for"
+            " a summary/analysis without naming a document, treat the active"
+            " paper as the target."
+        )
 
     previous_turn_text = (
         _sanitize_prompt_field(previous_turn) if previous_turn else "None"

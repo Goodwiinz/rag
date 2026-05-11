@@ -52,8 +52,11 @@ def _build_reflection_llm():
     global _REFLECTION_LLM
     if _REFLECTION_LLM is not None:
         return _REFLECTION_LLM
+    # 4096 tokens: gpt-5-mini reasoning tokens count against
+    # max_completion_tokens. 512 cap caused LengthFinishReasonError in trace
+    # 019e1555 (research_reflection_gate). See classifier.py for context.
     _REFLECTION_LLM = build_lightweight_llm(
-        max_tokens=512,
+        max_tokens=4096,
         request_timeout=_REFLECTION_LLM_TIMEOUT_SECONDS,
     )
     return _REFLECTION_LLM

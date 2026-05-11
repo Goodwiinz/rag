@@ -41,14 +41,26 @@ def _sanitize_metadata(metadata: Any) -> dict:
     return sanitized
 
 
+_ARXIV_ID_RE = re.compile(r"^(\d{4}\.\d{4,5})(v\d+)?$")
+
+
 async def _resolve_document_id(
     document_id: str,
     db: AsyncSession,
     current_user: User,
 ) -> Optional[Document]:
-    """Resolve a document_id string (UUID or title) to a Document.
+    """Resolve a document_id string (UUID, arXiv ID, or title) to a Document.
 
-    Accepts either a UUID string or a document title. Returns None if not found.
+    Resolution order:
+      1. UUID parse → match Document.id
+      2. arXiv ID pattern (e.g. ``2303.15563`` or ``2303.15563v1``) →
+         match Document.filename containing the bare ID OR
+         document_metadata->>'arxiv_id' equals the bare ID.
+      3. Title ILIKE fallback.
+
+    Returns None if not found. Trace 019e1569 showed the agent passing the
+    raw arXiv ID where the tool expected an internal UUID — without this
+    branch the user got "Document not found or access denied".
     """
     # Try as UUID first
     try:
@@ -64,6 +76,35 @@ async def _resolve_document_id(
             return doc
     except (ValueError, AttributeError):
         pass
+
+    # Try arXiv ID pattern (strip version suffix for the lookup)
+    arxiv_match = _ARXIV_ID_RE.match(document_id.strip()) if document_id else None
+    if arxiv_match:
+        bare_id = arxiv_match.group(1)
+        try:
+            stmt = (
+                select(Document)
+                .where(
+                    Document.organization_id == current_user.organization_id,
+                    Document.is_deleted == False,
+                    (
+                        Document.filename.ilike(f"%{bare_id}%")
+                        | (
+                            Document.document_metadata["arxiv_id"].astext == bare_id
+                        )
+                    ),
+                )
+                .order_by(desc(Document.created_at))
+                .limit(1)
+            )
+            result = await db.execute(stmt)
+            doc = result.scalar_one_or_none()
+            if doc:
+                return doc
+        except Exception:
+            logger.debug(
+                "arxiv_id resolution failed for %r", bare_id, exc_info=True
+            )
 
     # Try by title (case-insensitive)
     if document_id:

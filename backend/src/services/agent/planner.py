@@ -6,11 +6,11 @@ an LLM to produce validated Pydantic models.
 """
 
 import logging
-from typing import Any, Callable, Dict, List
+from typing import Any, Callable, Dict, List, Union
 
 from langchain_core.messages import HumanMessage
 from langchain_core.runnables import RunnableConfig
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from src.services.agent.llm_factory import build_lightweight_llm
 
@@ -34,8 +34,12 @@ class PlanStep(BaseModel):
     step: int
     description: str
     tool: str
-    args_hint: dict
-    depends_on: list[int]
+    # Accept dict (preferred, structured) or str (LLM descriptive form).
+    # Observed planner traces (019e1554) showed gpt-5 returning args_hint as
+    # a string like "query='X'; max_results=5" which failed strict dict
+    # validation with 5 errors. Accept both; downstream consumers normalize.
+    args_hint: Union[dict, str] = Field(default_factory=dict)
+    depends_on: list[int] = Field(default_factory=list)
 
 
 class AgentPlan(BaseModel):
@@ -51,8 +55,13 @@ class AgentPlan(BaseModel):
 
 
 def _build_planner_llm():
-    """Build a lightweight LLM for the planner."""
-    return build_lightweight_llm(max_tokens=1024)
+    """Build a lightweight LLM for the planner.
+
+    2048 tokens covers gpt-5-mini reasoning headroom for the complexity
+    check structured-output call. The main plan generation uses the
+    full-strength LLM via ``graph._build_llm`` (4096 tokens).
+    """
+    return build_lightweight_llm(max_tokens=2048)
 
 
 # ---------------------------------------------------------------------------
@@ -72,8 +81,8 @@ async def check_complexity(
     structured_llm = llm.with_structured_output(ComplexityCheck)
 
     prompt = (
-        "You are an AI planning assistant. Estimate the number of tool calls "
-        "needed to answer the following user query.\n\n"
+        "Estimate the number of tool calls needed to answer the following "
+        "user query.\n\n"
         f"Available tools: {', '.join(tool_names)}\n"
         f"Page context: {page_context}\n\n"
         f"User query: {query}\n\n"
@@ -95,11 +104,11 @@ async def generate_plan(
     from src.services.agent.graph import _build_llm
 
     llm = _build_llm()
-    structured_llm = llm.with_structured_output(AgentPlan)
+    structured_llm = llm.with_structured_output(AgentPlan, method="function_calling")
 
     prompt = (
-        "You are an AI planning assistant. Given the user query and available "
-        "tools, generate a step-by-step execution plan.\n\n"
+        "Given the user query and available tools, generate a step-by-step "
+        "execution plan.\n\n"
         f"Available tools: {', '.join(tool_names)}\n"
         f"Page context: {page_context}\n\n"
         f"User query: {query}\n\n"
@@ -154,16 +163,18 @@ def make_planner_node(
         if not query:
             return {}
 
-        # Fast heuristic: skip complexity LLM call for obviously simple queries
+        # Fast heuristic: skip complexity LLM call for obviously simple queries.
+        # Bumped from 8 → 12 tokens after trace 019e1554 showed a 52s planner
+        # spin on a query the LLM would have handled in one tool call anyway.
         words = query.split()
-        if len(words) < 8:
+        if len(words) < 12:
             return {}
         conversational_starts = {
             "hi", "hello", "hey", "thanks", "thank", "ok", "okay",
             "yes", "no", "sure", "what", "who", "when", "where",
             "why", "is", "are", "can", "could", "would", "will",
         }
-        if words[0].lower().rstrip("?!,") in conversational_starts and len(words) < 15:
+        if words[0].lower().rstrip("?!,") in conversational_starts and len(words) < 18:
             return {}
 
         page_context = state.get("page_context", {})

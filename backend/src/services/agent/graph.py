@@ -494,11 +494,20 @@ def _shape_do_kb_context(chunk, title_by_key: dict[str, tuple[str, str]]) -> dic
     }
 
 
-async def _try_primary_do_kb_read(query: str, current_user) -> Optional[List[dict]]:
+async def _try_primary_do_kb_read(
+    query: str,
+    current_user,
+    project_id: Optional[str] = None,
+) -> Optional[List[dict]]:
     """Phase 4b: return DO KB chunks shaped like rag_node contexts.
 
     Returns None when primary read is disabled, the org has no KB, or the
     call fails — caller then falls back to the legacy Qdrant path.
+
+    When *project_id* is provided, post-filters chunks so only documents
+    that belong to the active project survive. DO KB itself is org-scoped,
+    so cross-project leakage (chunks from sibling projects) is filtered
+    via the ``collection_documents`` association table.
     """
     try:
         from src.core.config import settings as _kb_cfg
@@ -551,8 +560,48 @@ async def _try_primary_do_kb_read(query: str, current_user) -> Optional[List[dic
                         leaf = storage_path.rsplit("/", 1)[-1] if storage_path else ""
                     title_by_key[leaf] = (str(doc_id), title or leaf)
 
+            # Project scoping: drop chunks whose resolved document is not in
+            # the active project. Org-scoped KB returns sibling-project hits
+            # (observed trace 019e168a: "ML in Health Care" query returned
+            # Copilot productivity PDFs). Filter via collection_documents.
+            chunks_to_emit = result.chunks
+            if project_id and title_by_key:
+                from uuid import UUID as _UUID
+
+                from src.models.collection import CollectionDocument
+
+                resolved_doc_ids = {
+                    _UUID(doc_id) for doc_id, _ in title_by_key.values() if doc_id
+                }
+                if resolved_doc_ids:
+                    try:
+                        pid = _UUID(project_id)
+                    except (ValueError, TypeError):
+                        pid = None
+                    if pid is not None:
+                        membership_rows = await session.execute(
+                            select(CollectionDocument.document_id).where(
+                                CollectionDocument.collection_id == pid,
+                                CollectionDocument.document_id.in_(resolved_doc_ids),
+                            )
+                        )
+                        in_project = {str(r[0]) for r in membership_rows}
+                        chunks_to_emit = [
+                            c
+                            for c in result.chunks
+                            if (title_by_key.get(c.document_id or "", (None, None))[0] or "")
+                            in in_project
+                        ]
+                        if not chunks_to_emit:
+                            logger.info(
+                                "do_kb_read: all %d chunks filtered out by project scope %s",
+                                len(result.chunks),
+                                project_id,
+                            )
+                            return None
+
         return [
-            _shape_do_kb_context(c, title_by_key) for c in result.chunks
+            _shape_do_kb_context(c, title_by_key) for c in chunks_to_emit
         ]
     except Exception as exc:  # noqa: BLE001
         logger.warning("do_kb primary read failed, falling back: %s", exc)
@@ -624,19 +673,41 @@ async def rag_node(state: AgentState, config: RunnableConfig) -> dict:
     # Fast-path: skip retrieval entirely for short, clearly-conversational
     # queries (e.g. "hi", "thanks!"). Saves an embedding + hybrid search call
     # and avoids injecting ~935 retrieval tokens into the system prompt.
-    # NOTE: skip only when there is no project context to propagate — both
-    # a UUID in the message text AND a carried current_project_id from state.
+    #
+    # Earlier revision gated the skip on "no project context to propagate".
+    # That gate made every short query in an active project trigger RAG
+    # (observed trace 019e168a: "hi" in ML-in-Health-Care project pulled
+    # 5 chunks from sibling Copilot productivity PDFs and used 7152 input
+    # tokens). Project context still propagates via current_project_id +
+    # page_context — we only suppress the RAG chunk injection itself.
     page_context = dict(state.get("page_context") or {})
     existing_project_id = state.get("current_project_id") or page_context.get(
         "project_id"
     )
     if last_user_msg and not _is_retrieval_query(last_user_msg):
-        if not _extract_project_id_from_text(last_user_msg) and not existing_project_id:
-            logger.debug(
-                "rag_node: skipping retrieval for trivial query: %r",
-                last_user_msg[:80],
-            )
-            return {"retrieved_contexts": []}
+        logger.debug(
+            "rag_node: skipping retrieval for conversational query: %r",
+            last_user_msg[:80],
+        )
+        # Still surface a UUID extracted from the text or carried in state
+        # so downstream nodes can act on the project context.
+        extracted_pid = _extract_project_id_from_text(last_user_msg or "")
+        resolved_pid: Optional[str] = (
+            extracted_pid or existing_project_id or None
+        )
+        state_update: Dict[str, Any] = {"retrieved_contexts": []}
+        if resolved_pid:
+            state_update["current_project_id"] = resolved_pid
+            if (
+                page_context.get("project_id") != resolved_pid
+                or page_context.get("type") != "project"
+            ):
+                state_update["page_context"] = {
+                    **page_context,
+                    "type": "project",
+                    "project_id": resolved_pid,
+                }
+        return state_update
 
     # Extract a project UUID from the latest user message (e.g. a pasted
     # /projects/<uuid> URL) so downstream nodes carry the context across
@@ -680,8 +751,10 @@ async def rag_node(state: AgentState, config: RunnableConfig) -> dict:
             return {"retrieved_contexts": [], **state_update}
 
     # Production retrieval: DO KB primary, hybrid search fallback.
+    # Pass resolved_project_id so KB results stay scoped to the active project
+    # — org-scoped KB otherwise leaks chunks from sibling projects.
     primary_contexts: Optional[List[dict]] = await _try_primary_do_kb_read(
-        last_user_msg, current_user
+        last_user_msg, current_user, project_id=resolved_project_id
     )
     if primary_contexts:
         return {"retrieved_contexts": primary_contexts, **state_update}

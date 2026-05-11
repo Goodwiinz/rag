@@ -228,12 +228,17 @@ async def do_kb_retrieve(
     config = config or {}
     from src.api.agent.execute import _tool_do_kb_retrieve
 
-    db, current_user, _page_ctx = _get_context(config)
-    return await _tool_do_kb_retrieve(
-        {"query": query, "top_k": _clamp_int(top_k, lo=1, hi=20)},
-        db,
-        current_user,
-    )
+    db, current_user, page_ctx = _get_context(config)
+    # Forward active project_id so the retrieval result is scoped to the
+    # current project and does not leak sibling-project documents.
+    project_id = _resolve_project_id(None, page_ctx)
+    args: Dict[str, Any] = {
+        "query": query,
+        "top_k": _clamp_int(top_k, lo=1, hi=20),
+    }
+    if project_id:
+        args["project_id"] = project_id
+    return await _tool_do_kb_retrieve(args, db, current_user)
 
 
 @tool
