@@ -798,6 +798,13 @@ INTENT_KEYWORDS = {
         ("ingest", 2),
         ("import", 2),
         ("arxiv", 2),
+        # Knowledge-base phrases — disambiguate from the Neo4j knowledge_graph
+        # intent. Bare "kb" omitted to avoid substring false-positives on
+        # tokens like "skbio" or "kbart".
+        ("knowledge base", 2),
+        ("our docs", 2),
+        ("our library", 2),
+        ("our documents", 2),
         ("paper", 1),
         ("papers", 1),
     ],
@@ -1477,8 +1484,12 @@ async def _execute_single_tool(
                     timeout=timeout,
                 )
 
-            # retry_transient handles TimeoutError/ConnectionError with backoff
-            result = await retry_transient(_call_tool, max_attempts=3, base_delay=1.0)
+            # retry_transient handles TimeoutError/ConnectionError with backoff.
+            # max_attempts dropped from 3 → 2 after trace 019e1910 showed
+            # arxiv API hung 93s (3 × 30s timeout + backoff) which exceeded
+            # the CLI 90s idle window. Failing faster surfaces the issue
+            # while keeping one safety-net retry for genuine transient blips.
+            result = await retry_transient(_call_tool, max_attempts=2, base_delay=1.0)
 
             result_content = (
                 json.dumps(result) if isinstance(result, dict) else str(result)
