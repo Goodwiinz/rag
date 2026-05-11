@@ -87,17 +87,37 @@ RESEARCH_DESTRUCTIVE_TOOLS = {
 
 async def research_llm_node(state: AgentState, config: RunnableConfig) -> dict:
     """Research-specialized LLM node."""
+    from langchain_core.messages import ToolMessage
+
     from src.core.config import get_settings
     from src.services.agent.graph import _build_llm
 
     sanitized = _sanitize_messages(list(state["messages"]))
     messages = [SystemMessage(content=_build_research_system_prompt())] + sanitized
 
-    llm = _build_llm()
+    settings = get_settings()
+    # Post-tool synthesis turn → use the lightweight deployment. Mirrors the
+    # main graph.llm_node optimization. Trace 019e191a showed the main gpt-5
+    # spending 70s + 4352 reasoning tokens on prose synthesis after a single
+    # search_arxiv call. Lightweight handles that in ~5-10s.
+    use_lightweight_synthesis = bool(
+        settings.AGENT_LIGHTWEIGHT_SYNTHESIS
+        and sanitized
+        and isinstance(sanitized[-1], ToolMessage)
+    )
+    if use_lightweight_synthesis:
+        from src.services.agent.llm_factory import build_lightweight_llm
+
+        llm = build_lightweight_llm(max_tokens=4096)
+        logger.debug(
+            "research_llm_node: using lightweight synthesis model after ToolMessage"
+        )
+    else:
+        llm = _build_llm()
     # See graph.llm_node for rationale on parallel_tool_calls=False.
     llm_with_tools = llm.bind_tools(
         RESEARCH_TOOLS,
-        parallel_tool_calls=get_settings().AGENT_PARALLEL_TOOL_CALLS,
+        parallel_tool_calls=settings.AGENT_PARALLEL_TOOL_CALLS,
     )
     response = await llm_with_tools.ainvoke(messages, config=config)
 

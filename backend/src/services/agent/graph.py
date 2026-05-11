@@ -770,6 +770,18 @@ async def rag_node(state: AgentState, config: RunnableConfig) -> dict:
             logger.warning("injected search_fn failed", exc_info=e)
             return {"retrieved_contexts": [], **state_update}
 
+    # Skip the org-wide knowledge-base read when no project context is
+    # active. Trace 019e191a showed a chat-mode "Find recent transformer
+    # papers" query pull 5 chunks of unrelated Copilot productivity PDFs
+    # — the org KB indexes every project's docs, so without a project
+    # filter the chunks are noise that bloats input by ~10k chars. The
+    # agent will use search_arxiv/search_documents for explicit lookup.
+    if not resolved_project_id:
+        logger.debug(
+            "rag_node: skipping DO KB read — no active project context"
+        )
+        return {"retrieved_contexts": [], **state_update}
+
     # Production retrieval: DO KB primary, hybrid search fallback.
     # Pass resolved_project_id so KB results stay scoped to the active project
     # — org-scoped KB otherwise leaks chunks from sibling projects.

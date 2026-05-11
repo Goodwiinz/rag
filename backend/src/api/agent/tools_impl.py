@@ -60,7 +60,7 @@ AGENT_TOOLS = [
         "type": "function",
         "function": {
             "name": "search_arxiv",
-            "description": "Search arXiv for academic papers. Use when the user asks to find, search, or look up research papers, academic publications, or scientific articles.",
+            "description": "Search arXiv for academic papers. Use when the user asks to find, search, or look up research papers, academic publications, or scientific articles. Defaults sort to submittedDate (most recent first) and last-12-months window — pass recency_days=0 to disable.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -70,13 +70,18 @@ AGENT_TOOLS = [
                     },
                     "max_results": {
                         "type": "integer",
-                        "description": "Maximum number of results (1-20)",
+                        "description": "Maximum number of results (1-5)",
                         "default": 5,
                     },
                     "categories": {
                         "type": "array",
                         "items": {"type": "string"},
                         "description": "ArXiv categories to filter (e.g., ['cs.AI', 'cs.LG']). Optional.",
+                    },
+                    "recency_days": {
+                        "type": "integer",
+                        "description": "Only return papers submitted within the last N days. Default 365. Pass 0 to disable the date filter and search all-time.",
+                        "default": 365,
                     },
                 },
                 "required": ["query"],
@@ -623,6 +628,8 @@ async def execute_tool(
 
 async def _tool_search_arxiv(args: Dict[str, Any]) -> Dict[str, Any]:
     """Search arXiv for papers."""
+    from datetime import datetime, timedelta, timezone
+
     from src.services.arxiv.arxiv_service import ArXivIngestionService
 
     query = args.get("query", "")
@@ -632,13 +639,32 @@ async def _tool_search_arxiv(args: Dict[str, Any]) -> Dict[str, Any]:
     max_results = min(args.get("max_results", 5), 5)
     categories = args.get("categories")
 
+    # Recency window: default to last 12 months so "find recent X" actually
+    # returns recent results. Trace 019e191a showed default search returning
+    # papers from 2018-2024 (relevance-sorted) when user asked for "recent".
+    # Pass recency_days=0 to disable the filter.
+    recency_days_raw = args.get("recency_days", 365)
+    try:
+        recency_days = int(recency_days_raw)
+    except (TypeError, ValueError):
+        recency_days = 365
+    if recency_days > 0:
+        cutoff = datetime.now(timezone.utc) - timedelta(days=recency_days)
+        cutoff_str = cutoff.strftime("%Y%m%d%H%M")
+        # arxiv API supports the `submittedDate:[FROM TO]` filter inside
+        # the search_query parameter. Compose it AND the user's query.
+        date_filter = f"submittedDate:[{cutoff_str} TO 999912312359]"
+        query = f"({query}) AND {date_filter}" if query else date_filter
+
     try:
         async with ArXivIngestionService() as service:
             papers = await service.search_papers(
                 query=query,
                 max_results=max_results,
                 categories=categories,
-                sort_by="relevance",
+                # Sort by submission date so the "most recent" claim matches
+                # what comes back, not relevance order across 30 years.
+                sort_by="submittedDate",
                 sort_order="descending",
             )
             results = []
