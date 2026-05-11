@@ -20,7 +20,9 @@ logger = logging.getLogger(__name__)
 
 # Hard wall-clock cap for a single reflection LLM call. Prevents a hung
 # Azure endpoint from blocking the whole agent turn.
-_REFLECTION_LLM_TIMEOUT_SECONDS = 20.0
+_REFLECTION_LLM_TIMEOUT_SECONDS = 45.0  # bumped from 20s after 4096-token
+# budget let gpt-5-mini reasoning model spend ~20s on hard prompts; trace
+# 019e1874 hit CancelledError at exactly the old ceiling.
 
 # Cache the reflection LLM at module scope. The settings/endpoint are
 # resolved at import time once and reused across every reflection call,
@@ -52,8 +54,11 @@ def _build_reflection_llm():
     global _REFLECTION_LLM
     if _REFLECTION_LLM is not None:
         return _REFLECTION_LLM
+    # 4096 tokens: gpt-5-mini reasoning tokens count against
+    # max_completion_tokens. 512 cap caused LengthFinishReasonError in trace
+    # 019e1555 (research_reflection_gate). See classifier.py for context.
     _REFLECTION_LLM = build_lightweight_llm(
-        max_tokens=512,
+        max_tokens=4096,
         request_timeout=_REFLECTION_LLM_TIMEOUT_SECONDS,
     )
     return _REFLECTION_LLM
@@ -166,6 +171,24 @@ def _should_skip_reflection(state: dict) -> tuple[bool, str]:
     tool_executions = state.get("tool_executions", []) or []
     if not has_tool_calls and not tool_executions:
         return (True, "no-tools (tool_executions empty, no tool_calls)")
+
+    # Fast-path: substantive final response with all tools succeeded —
+    # skip the critique LLM (saves ~5-20s/turn). The cheap deterministic
+    # checks above already gate the truly-trivial cases.
+    if (
+        not has_tool_calls
+        and content_len >= _REFLECTION_MIN_CONTENT_CHARS
+        and tool_executions
+        and all(
+            (te.get("status") if isinstance(te, dict) else getattr(te, "status", None))
+            == "completed"
+            for te in tool_executions
+        )
+    ):
+        return (
+            True,
+            f"happy-path ({content_len} chars, {len(tool_executions)} tools all completed)",
+        )
 
     return (False, "")
 

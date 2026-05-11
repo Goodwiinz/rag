@@ -26,7 +26,11 @@ pytestmark = pytest.mark.asyncio
 # ---------------------------------------------------------------------------
 
 TOOL_NAMES = ["search_arxiv", "search_documents", "create_note", "ingest_arxiv"]
-PAGE_CONTEXT = {"project_id": "proj-123", "document_id": "doc-456"}
+PAGE_CONTEXT = {
+    "type": "project",
+    "project_id": "proj-123",
+    "document_id": "doc-456",
+}
 
 
 def _mock_llm_structured(return_value):
@@ -214,7 +218,11 @@ class TestPlannerNode:
             state = {
                 "messages": [
                     HumanMessage(
-                        content="Find papers, ingest them, and create a summary"
+                        # Phase 1 raised the skip threshold to 12 words.
+                        content=(
+                            "Find recent transformer papers, ingest them into my "
+                            "project, summarize each, and create a research note"
+                        )
                     )
                 ],
                 "page_context": PAGE_CONTEXT,

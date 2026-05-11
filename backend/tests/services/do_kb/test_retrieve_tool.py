@@ -73,6 +73,11 @@ async def test_happy_path_returns_chunks():
     org_row = MagicMock()
     org_row.do_kb_uuid = "kb-1"
     db.get = AsyncMock(return_value=org_row)
+    # Document lookup for title resolution — return empty rows, the helper
+    # falls back to storage-key id and (c.metadata or {}).get("title").
+    empty_rows = MagicMock()
+    empty_rows.__iter__ = lambda self: iter([])
+    db.execute = AsyncMock(return_value=empty_rows)
 
     fake_client = MagicMock()
     fake_client.retrieve = AsyncMock(
@@ -98,6 +103,7 @@ async def test_happy_path_returns_chunks():
     assert result["total"] == 2
     assert result["source"] == "do_kb"
     assert result["chunks"][0]["text"] == "hello"
+    # Title resolution had no DB match → falls back to storage-key id.
     assert result["chunks"][0]["document_id"] == "doc-1"
     fake_client.retrieve.assert_awaited_once_with(
         kb_uuid="kb-1", query="hello", top_k=5
@@ -171,3 +177,145 @@ async def test_missing_query_rejected():
     result = await _tool_do_kb_retrieve({"query": "  "}, MagicMock(), user)
     assert "error" in result
     assert result["chunks"] == []
+
+
+# -- Phase 2: project_id post-filter -----------------------------------------
+# Trace 019e168a showed KB returning chunks from sibling projects because the
+# KB is org-scoped. When `project_id` is supplied, drop chunks whose resolved
+# document is not in the active project (via collection_documents).
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_project_id_filters_out_cross_project_chunks():
+    import uuid
+
+    user = MagicMock()
+    user.organization_id = "org-1"
+
+    in_project_doc_id = uuid.uuid4()
+    out_of_project_doc_id = uuid.uuid4()
+    pid = uuid.uuid4()
+
+    db = MagicMock()
+    org_row = MagicMock()
+    org_row.do_kb_uuid = "kb-1"
+    db.get = AsyncMock(return_value=org_row)
+
+    # First db.execute call resolves title_by_key (storage-key → UUID, title).
+    # Second call resolves project membership (collection_documents).
+    title_rows = [
+        (in_project_doc_id, "in.pdf", "In-project doc"),
+        (out_of_project_doc_id, "out.pdf", "Cross-project doc"),
+    ]
+    membership_rows = [(in_project_doc_id,)]
+
+    title_result = MagicMock()
+    title_result.__iter__ = lambda self: iter(title_rows)
+    membership_result = MagicMock()
+    membership_result.__iter__ = lambda self: iter(membership_rows)
+    db.execute = AsyncMock(side_effect=[title_result, membership_result])
+
+    fake_client = MagicMock()
+    fake_client.retrieve = AsyncMock(
+        return_value=RetrieveResult(
+            chunks=[
+                Chunk(text="in", score=0.9, document_id="in.pdf", metadata={}),
+                Chunk(text="out", score=0.8, document_id="out.pdf", metadata={}),
+            ],
+            total=2,
+        )
+    )
+
+    with patch(
+        "src.core.config.settings",
+        MagicMock(DO_KB_ENABLED=True),
+    ), patch(
+        "src.services.do_kb.get_do_kb_client", return_value=fake_client
+    ):
+        result = await _tool_do_kb_retrieve(
+            {"query": "x", "top_k": 5, "project_id": str(pid)}, db, user
+        )
+
+    assert len(result["chunks"]) == 1
+    assert result["chunks"][0]["text"] == "in"
+    assert result["total"] == 1
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_no_project_id_keeps_all_chunks():
+    """Without project_id, all chunks pass through (legacy behavior)."""
+    user = MagicMock()
+    user.organization_id = "org-1"
+
+    db = MagicMock()
+    org_row = MagicMock()
+    org_row.do_kb_uuid = "kb-1"
+    db.get = AsyncMock(return_value=org_row)
+
+    empty_rows = MagicMock()
+    empty_rows.__iter__ = lambda self: iter([])
+    db.execute = AsyncMock(return_value=empty_rows)
+
+    fake_client = MagicMock()
+    fake_client.retrieve = AsyncMock(
+        return_value=RetrieveResult(
+            chunks=[
+                Chunk(text="a", score=0.9, document_id="a.pdf", metadata={}),
+                Chunk(text="b", score=0.5, document_id="b.pdf", metadata={}),
+            ],
+            total=2,
+        )
+    )
+
+    with patch(
+        "src.core.config.settings",
+        MagicMock(DO_KB_ENABLED=True),
+    ), patch(
+        "src.services.do_kb.get_do_kb_client", return_value=fake_client
+    ):
+        result = await _tool_do_kb_retrieve(
+            {"query": "x", "top_k": 5}, db, user
+        )
+
+    assert len(result["chunks"]) == 2
+    assert result["total"] == 2
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_invalid_project_id_uuid_skips_filter_gracefully():
+    """Malformed project_id (not a UUID) skips the filter without erroring."""
+    user = MagicMock()
+    user.organization_id = "org-1"
+
+    db = MagicMock()
+    org_row = MagicMock()
+    org_row.do_kb_uuid = "kb-1"
+    db.get = AsyncMock(return_value=org_row)
+
+    empty_rows = MagicMock()
+    empty_rows.__iter__ = lambda self: iter([])
+    db.execute = AsyncMock(return_value=empty_rows)
+
+    fake_client = MagicMock()
+    fake_client.retrieve = AsyncMock(
+        return_value=RetrieveResult(
+            chunks=[Chunk(text="a", score=0.9, document_id="a.pdf", metadata={})],
+            total=1,
+        )
+    )
+
+    with patch(
+        "src.core.config.settings",
+        MagicMock(DO_KB_ENABLED=True),
+    ), patch(
+        "src.services.do_kb.get_do_kb_client", return_value=fake_client
+    ):
+        result = await _tool_do_kb_retrieve(
+            {"query": "x", "top_k": 5, "project_id": "not-a-uuid"}, db, user
+        )
+
+    # Malformed project_id → filter no-op → chunk survives.
+    assert len(result["chunks"]) == 1

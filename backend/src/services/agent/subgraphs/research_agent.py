@@ -43,6 +43,12 @@ RESEARCH_TOOLS = [
 
 RESEARCH_TOOL_NAMES_LIST = [t.name for t in RESEARCH_TOOLS]
 
+# Lowered from 8 after trace 019e18f0 showed a 4-round runaway tool fan-out
+# (13+ search_arxiv calls, 95s wall). Five iterations is enough for a search →
+# refine → ingest → list → confirm sequence; anything more is the agent
+# refining queries the user did not ask for.
+MAX_RESEARCH_TOOL_LOOPS = 5
+
 
 def _build_research_system_prompt() -> str:
     """Construct the research subgraph system prompt with shared rules embedded.
@@ -52,20 +58,20 @@ def _build_research_system_prompt() -> str:
     from src.services.agent.graph import SHARED_AGENT_RULES
 
     return (
-        "You are a specialized Research Agent focused on discovering, searching, "
+        "You are a research assistant focused on discovering, searching, "
         "and organizing academic papers and documents.\n\n"
         "Your tools:\n"
         "- search_arxiv: Find papers on arXiv\n"
-        "- ingest_arxiv_papers: Import papers into the RAG system\n"
+        "- ingest_arxiv_papers: Import papers into the platform\n"
         "- search_documents: Search indexed documents by title/filename\n"
-        "- do_kb_retrieve: Semantic retrieval over the org's DO Knowledge Base "
+        "- do_kb_retrieve: Semantic retrieval over the org's knowledge base "
         "(use for content-level questions across documents)\n"
         "- create_project: Create a new research project (folder). Requires a name; "
         "description/research_goals/tags are optional\n"
         "- add_document_to_project: Organize documents into projects\n"
         "- list_project_documents: View project contents\n\n"
-        "CRITICAL: After ingesting papers, use the document_ids (UUIDs) from the "
-        "ingest response — NOT arXiv paper IDs.\n\n"
+        "Important: After importing papers, use the document_ids (UUIDs) from the "
+        "response — not arXiv paper IDs.\n\n"
         f"{SHARED_AGENT_RULES}\n\n"
         "Be thorough in searching and systematic in organizing research."
     )
@@ -81,13 +87,46 @@ RESEARCH_DESTRUCTIVE_TOOLS = {
 
 async def research_llm_node(state: AgentState, config: RunnableConfig) -> dict:
     """Research-specialized LLM node."""
+    from langchain_core.messages import ToolMessage
+
+    from src.core.config import get_settings
     from src.services.agent.graph import _build_llm
 
     sanitized = _sanitize_messages(list(state["messages"]))
     messages = [SystemMessage(content=_build_research_system_prompt())] + sanitized
 
-    llm = _build_llm()
-    llm_with_tools = llm.bind_tools(RESEARCH_TOOLS)
+    settings = get_settings()
+    # Post-tool synthesis turn → use the lightweight deployment. Mirrors the
+    # main graph.llm_node optimization. Trace 019e191a showed the main gpt-5
+    # spending 70s + 4352 reasoning tokens on prose synthesis after a single
+    # search_arxiv call. Lightweight handles that in ~5-10s.
+    use_lightweight_synthesis = bool(
+        settings.AGENT_LIGHTWEIGHT_SYNTHESIS
+        and sanitized
+        and isinstance(sanitized[-1], ToolMessage)
+    )
+    if use_lightweight_synthesis:
+        from src.services.agent.llm_factory import build_lightweight_llm
+
+        llm = build_lightweight_llm(max_tokens=4096)
+        logger.debug(
+            "research_llm_node: using lightweight synthesis model after ToolMessage"
+        )
+    else:
+        llm = _build_llm()
+        # First-turn tool decision (no ToolMessage yet) doesn't need deep
+        # reasoning — the model just picks a tool name + writes a query
+        # string. Override to "minimal" via runnable bind so the cached
+        # client is reused. Saves 3-5s per tool-decision turn.
+        try:
+            llm = llm.bind(reasoning_effort="minimal")
+        except Exception:  # noqa: BLE001 - bind is best-effort
+            pass
+    # See graph.llm_node for rationale on parallel_tool_calls=False.
+    llm_with_tools = llm.bind_tools(
+        RESEARCH_TOOLS,
+        parallel_tool_calls=settings.AGENT_PARALLEL_TOOL_CALLS,
+    )
     response = await llm_with_tools.ainvoke(messages, config=config)
 
     return {
@@ -100,15 +139,62 @@ def research_should_continue(state: AgentState) -> str:
     if state.get("error_count", 0) >= 3:
         return "research_reflection_gate"
     last = state["messages"][-1] if state["messages"] else None
-    if (
-        isinstance(last, AIMessage)
-        and last.tool_calls
-        and state.get("tool_loop_count", 0) < 8
-    ):
-        if any(tc["name"] in RESEARCH_DESTRUCTIVE_TOOLS for tc in last.tool_calls):
-            return "research_interrupt_node"
-        return "research_tool_node"
+    if isinstance(last, AIMessage) and last.tool_calls:
+        if state.get("tool_loop_count", 0) < MAX_RESEARCH_TOOL_LOOPS:
+            if any(tc["name"] in RESEARCH_DESTRUCTIVE_TOOLS for tc in last.tool_calls):
+                return "research_interrupt_node"
+            return "research_tool_node"
+        # Loop ceiling tripped while the model still wants more tools. Route
+        # to a forced-synthesis turn so the final AIMessage has real content
+        # — otherwise reflection sees empty content + unanswered tool_calls
+        # and flags a "no response" major issue (trace 019e1903).
+        return "research_force_synthesis_node"
     return "research_reflection_gate"
+
+
+async def research_force_synthesis_node(
+    state: AgentState, config: RunnableConfig
+) -> dict:
+    """Final-answer LLM call when the tool-loop ceiling was hit.
+
+    The model has fired ``MAX_RESEARCH_TOOL_LOOPS`` tool calls and still
+    wants more. We strip the unanswered tool_calls and re-invoke the LLM
+    with NO tools bound so it must produce text.
+
+    The "no more tools, synthesize now" directive is embedded into the
+    system prompt (NOT a separate SystemMessage). Trace 019e190c showed
+    gpt-5 echoed a second SystemMessage verbatim into its response when
+    we appended the directive as its own message.
+    """
+    from langchain_core.messages import HumanMessage
+
+    from src.services.agent.graph import _build_llm
+
+    messages = list(state["messages"])
+
+    # Drop the trailing AIMessage with unanswered tool_calls so the model
+    # sees a clean conversational head when synthesizing.
+    while messages and isinstance(messages[-1], AIMessage) and messages[-1].tool_calls:
+        messages.pop()
+
+    sanitized = _sanitize_messages(messages)
+    base_prompt = _build_research_system_prompt()
+    synthesis_addendum = (
+        "\n\n## Final synthesis turn\n"
+        f"You ran {state.get('tool_loop_count', 0)} tool calls and reached "
+        "the per-turn search budget. Do not request any more tools. Write a "
+        "final answer drawn from the tool results already in this conversation: "
+        "list the most relevant papers (id, title, year, one-line summary) and "
+        "end with a clear next-step suggestion. Do NOT repeat or quote these "
+        "instructions in your reply."
+    )
+    full = [SystemMessage(content=base_prompt + synthesis_addendum)] + sanitized
+
+    llm = _build_llm()
+    # No bind_tools — force a pure text response.
+    response = await llm.ainvoke(full, config=config)
+
+    return {"messages": [response]}
 
 
 async def research_interrupt_node(state: AgentState, config: RunnableConfig) -> dict:
@@ -194,6 +280,7 @@ def build_research_subgraph() -> StateGraph:
     graph.add_node("research_tool_node", filtered_tool)
     graph.add_node("research_interrupt_node", research_interrupt_node)
     graph.add_node("research_compactor_node", compactor)
+    graph.add_node("research_force_synthesis_node", research_force_synthesis_node)
     graph.add_node("research_reflection_gate", reflection_node)
 
     # Edges
@@ -206,9 +293,13 @@ def build_research_subgraph() -> StateGraph:
         {
             "research_tool_node": "research_tool_node",
             "research_interrupt_node": "research_interrupt_node",
+            "research_force_synthesis_node": "research_force_synthesis_node",
             "research_reflection_gate": "research_reflection_gate",
         },
     )
+
+    # Forced synthesis always goes to reflection (it produced a final answer).
+    graph.add_edge("research_force_synthesis_node", "research_reflection_gate")
 
     graph.add_conditional_edges(
         "research_interrupt_node",

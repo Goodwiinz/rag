@@ -90,43 +90,58 @@ class ArXivIngestionService:
 
         logger.info(f"Async request to: {url}")
 
-        max_attempts = 5
+        # Trace 019e1912 showed this loop's 10s/20s/30s/40s/50s 429 backoff
+        # blow past the outer 30s tool-call timeout, putting the agent in a
+        # cancelled state with no usable error. Fail fast on rate limit: at
+        # most one short retry, surface clean IngestionError, let the agent
+        # tell the user "rate-limited, try again shortly" instead of hanging.
+        max_attempts = 2
         saw_rate_limit = False
         for attempt in range(max_attempts):
             try:
                 async with httpx.AsyncClient(follow_redirects=True) as client:
-                    response = await client.get(url, params=params, timeout=60.0)
+                    response = await client.get(url, params=params, timeout=20.0)
 
                     if response.status_code == 429:
                         saw_rate_limit = True
-                        wait = 10 * (attempt + 1)  # 10s, 20s, 30s, 40s, 50s
+                        if attempt == max_attempts - 1:
+                            break
+                        wait = 3.0
                         logger.warning(
-                            f"ArXiv rate limited (429), attempt {attempt + 1}/{max_attempts}, "
-                            f"retrying in {wait}s..."
+                            "ArXiv rate limited (429), attempt %d/%d, retrying in %ss...",
+                            attempt + 1,
+                            max_attempts,
+                            wait,
                         )
                         await asyncio.sleep(wait)
                         ArXivIngestionService._last_request_time = time.monotonic()
                         continue
 
                     response.raise_for_status()
-                    logger.info(f"Response status: {response.status_code}, length: {len(response.text)}")
+                    logger.info(
+                        "Response status: %d, length: %d",
+                        response.status_code,
+                        len(response.text),
+                    )
                     return response.text
 
             except httpx.TimeoutException:
-                logger.error("Request to arXiv API timed out after 60 seconds")
+                logger.error("Request to arXiv API timed out after 20 seconds")
                 if attempt == max_attempts - 1:
                     raise IngestionError("ArXiv API request timed out")
-                await asyncio.sleep(3)
+                await asyncio.sleep(2)
             except httpx.HTTPStatusError:
                 raise
             except Exception as e:
-                logger.error(f"Error in _make_async_request: {e}")
+                logger.error("Error in _make_async_request: %s", e)
                 if attempt == max_attempts - 1:
                     raise
-                await asyncio.sleep(3)
+                await asyncio.sleep(2)
 
         if saw_rate_limit:
-            raise IngestionError("ArXiv rate limit reached after retries")
+            raise IngestionError(
+                "ArXiv rate limited (HTTP 429). Try again in 60 seconds."
+            )
 
         raise IngestionError("ArXiv API request failed after retries")
 

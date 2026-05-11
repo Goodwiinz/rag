@@ -6,15 +6,26 @@ an LLM to produce validated Pydantic models.
 """
 
 import logging
-from typing import Any, Callable, Dict, List
+import re
+from typing import Any, Callable, Dict, List, Union
 
 from langchain_core.messages import HumanMessage
 from langchain_core.runnables import RunnableConfig
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from src.services.agent.llm_factory import build_lightweight_llm
 
 logger = logging.getLogger(__name__)
+
+
+ACTIONABLE_VERBS: frozenset[str] = frozenset(
+    {
+        "add", "ingest", "import", "save", "find", "search",
+        "summarize", "summarise", "grab", "get", "show",
+        "fetch", "download", "extract", "list", "create",
+    }
+)
+_ARXIV_ID_RE = re.compile(r"\b\d{4}\.\d{4,5}\b")
 
 
 # ---------------------------------------------------------------------------
@@ -34,8 +45,12 @@ class PlanStep(BaseModel):
     step: int
     description: str
     tool: str
-    args_hint: dict
-    depends_on: list[int]
+    # Accept dict (preferred, structured) or str (LLM descriptive form).
+    # Observed planner traces (019e1554) showed gpt-5 returning args_hint as
+    # a string like "query='X'; max_results=5" which failed strict dict
+    # validation with 5 errors. Accept both; downstream consumers normalize.
+    args_hint: Union[dict, str] = Field(default_factory=dict)
+    depends_on: list[int] = Field(default_factory=list)
 
 
 class AgentPlan(BaseModel):
@@ -51,8 +66,13 @@ class AgentPlan(BaseModel):
 
 
 def _build_planner_llm():
-    """Build a lightweight LLM for the planner."""
-    return build_lightweight_llm(max_tokens=1024)
+    """Build a lightweight LLM for the planner.
+
+    2048 tokens covers gpt-5-mini reasoning headroom for the complexity
+    check structured-output call. The main plan generation uses the
+    full-strength LLM via ``graph._build_llm`` (4096 tokens).
+    """
+    return build_lightweight_llm(max_tokens=2048)
 
 
 # ---------------------------------------------------------------------------
@@ -72,8 +92,8 @@ async def check_complexity(
     structured_llm = llm.with_structured_output(ComplexityCheck)
 
     prompt = (
-        "You are an AI planning assistant. Estimate the number of tool calls "
-        "needed to answer the following user query.\n\n"
+        "Estimate the number of tool calls needed to answer the following "
+        "user query.\n\n"
         f"Available tools: {', '.join(tool_names)}\n"
         f"Page context: {page_context}\n\n"
         f"User query: {query}\n\n"
@@ -95,11 +115,11 @@ async def generate_plan(
     from src.services.agent.graph import _build_llm
 
     llm = _build_llm()
-    structured_llm = llm.with_structured_output(AgentPlan)
+    structured_llm = llm.with_structured_output(AgentPlan, method="function_calling")
 
     prompt = (
-        "You are an AI planning assistant. Given the user query and available "
-        "tools, generate a step-by-step execution plan.\n\n"
+        "Given the user query and available tools, generate a step-by-step "
+        "execution plan.\n\n"
         f"Available tools: {', '.join(tool_names)}\n"
         f"Page context: {page_context}\n\n"
         f"User query: {query}\n\n"
@@ -140,6 +160,14 @@ def make_planner_node(
         if state.get("plan"):
             return {}
 
+        # Plans only matter when there's a project context to organize the
+        # multi-step output into (ingest → add to project → list). In chat
+        # mode the agent runs ad-hoc and the plan is never executed —
+        # generating one wastes 1-2s + a complexity LLM call. Skip.
+        page_context = state.get("page_context") or {}
+        if page_context.get("type") != "project":
+            return {}
+
         # Extract the last user message for planning
         messages = state.get("messages", [])
         query = ""
@@ -154,17 +182,31 @@ def make_planner_node(
         if not query:
             return {}
 
-        # Fast heuristic: skip complexity LLM call for obviously simple queries
+        # Fast heuristic: skip complexity LLM call for obviously simple queries.
+        # Bumped from 8 → 12 tokens after trace 019e1554 showed a 52s planner
+        # spin on a query the LLM would have handled in one tool call anyway.
+        # Tool-trigger detection runs first so short imperatives like
+        # "Add arxiv 1706.03762 to my library" still reach the planner.
         words = query.split()
-        if len(words) < 8:
-            return {}
-        conversational_starts = {
-            "hi", "hello", "hey", "thanks", "thank", "ok", "okay",
-            "yes", "no", "sure", "what", "who", "when", "where",
-            "why", "is", "are", "can", "could", "would", "will",
-        }
-        if words[0].lower().rstrip("?!,") in conversational_starts and len(words) < 15:
-            return {}
+        first_word = words[0].lower().rstrip("?!,:") if words else ""
+        needs_tool = (
+            first_word in ACTIONABLE_VERBS
+            or bool(_ARXIV_ID_RE.search(query))
+        )
+
+        if not needs_tool:
+            if len(words) < 12:
+                return {}
+            conversational_starts = {
+                "hi", "hello", "hey", "thanks", "thank", "ok", "okay",
+                "yes", "no", "sure", "what", "who", "when", "where",
+                "why", "is", "are", "can", "could", "would", "will",
+            }
+            if (
+                words[0].lower().rstrip("?!,") in conversational_starts
+                and len(words) < 18
+            ):
+                return {}
 
         page_context = state.get("page_context", {})
 
@@ -188,8 +230,10 @@ def make_planner_node(
         # Defensive guard: an empty plan adds no value but does occupy the
         # ``plan`` slot, which would skip planning on subsequent turns and
         # confuse the reflection-prompt rendering. Treat it as no-plan.
-        if not plan.steps:
-            logger.info("Planner returned 0-step plan; treating as no plan")
+        # ``plan`` may also be ``None`` if the structured-output LLM call
+        # returned an unparseable response without raising.
+        if plan is None or not plan.steps:
+            logger.info("Planner returned no plan; treating as no plan")
             return {}
 
         return {"plan": [step.model_dump() for step in plan.steps]}
