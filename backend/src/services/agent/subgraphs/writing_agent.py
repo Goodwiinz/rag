@@ -22,6 +22,7 @@ from src.services.agent.tools import (
     create_draft,
     create_project_note,
     export_bibliography,
+    ingest_arxiv_papers,
     summarize_document,
 )
 
@@ -33,6 +34,13 @@ WRITING_TOOLS = [
     export_bibliography,
     summarize_document,
     compare_documents,
+    # ingest_arxiv_papers is exposed here ONLY as a recovery path for
+    # summarize_document / compare_documents when they return
+    # error_type="recoverable" with suggestion="ingest_arxiv_papers"
+    # (see _build_writing_system_prompt). Without it the LLM hits a
+    # dead end on "Summarize arxiv 2201.00978" because the source paper
+    # isn't ingested yet. Destructive — gated through the HITL interrupt.
+    ingest_arxiv_papers,
 ]
 
 WRITING_TOOL_NAMES_LIST = [t.name for t in WRITING_TOOLS]
@@ -41,7 +49,11 @@ WRITING_TOOL_NAMES_LIST = [t.name for t in WRITING_TOOLS]
 # DESTRUCTIVE_TOOLS gate only fires from the top-level interrupt_node and
 # is bypassed once intent routes us into a subgraph, so the subgraph has
 # to enforce HITL itself for any tool that mutates user data.
-WRITING_DESTRUCTIVE_TOOLS = {"create_project_note", "create_draft"}
+WRITING_DESTRUCTIVE_TOOLS = {
+    "create_project_note",
+    "create_draft",
+    "ingest_arxiv_papers",
+}
 
 def _build_writing_system_prompt() -> str:
     """Construct the writing subgraph system prompt with shared rules embedded.
@@ -58,7 +70,14 @@ def _build_writing_system_prompt() -> str:
         "- compare_documents: Compare multiple documents\n"
         "- create_draft: Generate literature review drafts\n"
         "- create_project_note: Write notes in projects\n"
-        "- export_bibliography: Export citations in various formats\n\n"
+        "- export_bibliography: Export citations in various formats\n"
+        "- ingest_arxiv_papers: RECOVERY ONLY — call when summarize_document "
+        "or compare_documents returns "
+        "error_type='recoverable' with suggestion='ingest_arxiv_papers'. "
+        "Pass the arxiv id from the failed call as paper_ids, then retry the "
+        "original summarize/compare call using the document_id returned in "
+        "the ingest response. Never call this tool unprompted for writing "
+        "tasks — it is not a discovery or browsing tool.\n\n"
         f"{SHARED_AGENT_RULES}\n\n"
         "Write clearly and academically. Cite sources when available."
     )
