@@ -214,9 +214,10 @@ class DOKnowledgeBaseClient:
             f"{self._retrieve_base}/v1/{kb_uuid}/retrieve",
             json_body=body,
         )
-        raw_chunks = payload.get("chunks") or payload.get("results") or []
-        chunks = [Chunk.model_validate(c) for c in raw_chunks]
-        return RetrieveResult(chunks=chunks, total=len(chunks))
+        raw_chunks = payload.get("results") or payload.get("chunks") or []
+        chunks = [Chunk.from_do_payload(c) for c in raw_chunks]
+        total = payload.get("total_results") or payload.get("total") or len(chunks)
+        return RetrieveResult(chunks=chunks, total=total)
 
 
 _default_client: Optional[DOKnowledgeBaseClient] = None

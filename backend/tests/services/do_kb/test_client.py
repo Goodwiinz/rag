@@ -80,11 +80,22 @@ async def test_retrieve_parses_chunks():
     cfg = _make_settings()
     client = DOKnowledgeBaseClient(cfg=cfg)
 
+    # Mirror DO live wire format: `results[]` with `text_content` field
+    # plus `total_results` at the top.
     payload = {
-        "chunks": [
-            {"text": "first", "score": 0.9, "document_id": "doc-1"},
-            {"text": "second", "score": 0.7, "document_id": "doc-2"},
-        ]
+        "results": [
+            {
+                "text_content": "first",
+                "score": 0.9,
+                "metadata": {"item_name": "doc-1.pdf"},
+            },
+            {
+                "text_content": "second",
+                "score": 0.7,
+                "metadata": {"item_name": "doc-2.pdf"},
+            },
+        ],
+        "total_results": 2,
     }
 
     with patch("httpx.AsyncClient") as mock_async_client:
@@ -96,6 +107,7 @@ async def test_retrieve_parses_chunks():
 
     assert result.total == 2
     assert result.chunks[0].text == "first"
+    assert result.chunks[0].document_id == "doc-1.pdf"
     assert result.chunks[1].score == 0.7
 
 
