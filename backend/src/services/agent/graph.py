@@ -112,7 +112,17 @@ def _sanitize_messages(raw: list) -> list:
             rebuilt.append(tm)
             placed_tm_ids.add(tc_id)
 
-    # Pass 3: merge consecutive HumanMessages
+    # Pass 3: collapse consecutive HumanMessages.
+    #
+    # When a previous turn is interrupted (CancelledError from the user
+    # aborting the stream by typing a new message), the unanswered
+    # HumanMessage stays in the checkpoint. The next user input arrives
+    # as a second consecutive HumanMessage. The previous concatenation
+    # behavior caused the LLM to see both as a single combined intent
+    # (trace 019e1885: "Find recent transformer papers" + "hi" → LLM
+    # answered the older cancelled query). Treat consecutive Human
+    # messages as supersession: keep only the latest. The earlier
+    # message had no AI response, so the user clearly abandoned it.
     merged: list = []
     for msg in rebuilt:
         if (
@@ -120,7 +130,7 @@ def _sanitize_messages(raw: list) -> list:
             and isinstance(merged[-1], HumanMessage)
             and isinstance(msg, HumanMessage)
         ):
-            merged[-1] = HumanMessage(content=f"{merged[-1].content}\n{msg.content}")
+            merged[-1] = msg
         else:
             merged.append(msg)
     return merged
