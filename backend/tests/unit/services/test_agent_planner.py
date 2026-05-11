@@ -26,7 +26,11 @@ pytestmark = pytest.mark.asyncio
 # ---------------------------------------------------------------------------
 
 TOOL_NAMES = ["search_arxiv", "search_documents", "create_note", "ingest_arxiv"]
-PAGE_CONTEXT = {"project_id": "proj-123", "document_id": "doc-456"}
+PAGE_CONTEXT = {
+    "type": "project",
+    "project_id": "proj-123",
+    "document_id": "doc-456",
+}
 
 
 def _mock_llm_structured(return_value):
