@@ -3,11 +3,13 @@
 Failure-isolated: every exception is swallowed and logged. The existing
 Qdrant write path remains the source of truth during Phase 2.
 
-Source-key strategy:
-1. If document.storage_backend == "s3" and storage_path is set, use it directly.
-2. Else if content_text is present, upload it as a fallback object under
-   `do-kb-content/{document_id}.txt` so DO KB still has source data to index.
-3. Else log + skip (no source).
+Canonical Spaces key layout:
+    documents/{organization_id}/{document_id}.{ext}
+
+Where ``ext`` is ``pdf`` for original uploads (already in Spaces) or
+``txt`` for content-text fallbacks. One KB data source per organization
+points at ``documents/{organization_id}/`` so adding more files is just an
+upload + re-index — no per-doc data source spam on the KB.
 """
 
 from __future__ import annotations
@@ -26,7 +28,13 @@ from .provisioner import ensure_kb_for_org
 
 logger = logging.getLogger(__name__)
 
-_FALLBACK_KEY_PREFIX = "do-kb-content"
+_CANONICAL_KEY_PREFIX = "documents"
+
+
+def _canonical_key(document: Document, ext: str) -> str:
+    """``documents/{org_id}/{document_id}.{ext}`` — single canonical layout
+    for every document the KB indexes, regardless of source format."""
+    return f"{_CANONICAL_KEY_PREFIX}/{document.organization_id}/{document.id}.{ext}"
 
 
 def _record_metric(status: str) -> None:
@@ -51,7 +59,10 @@ def _resolve_spaces_source(document: Document) -> Optional[tuple[str, str]]:
 
 
 def _upload_text_fallback(document: Document) -> Optional[tuple[str, str]]:
-    """Upload content_text to Spaces and return (bucket, key). None on failure."""
+    """Upload content_text to Spaces under the canonical key and return
+    (bucket, key). Persists ``storage_backend="s3"`` + ``storage_path``
+    on the document so subsequent calls skip re-upload.
+    """
     text = getattr(document, "content_text", None)
     if not text:
         return None
@@ -59,12 +70,14 @@ def _upload_text_fallback(document: Document) -> Optional[tuple[str, str]]:
         from src.core.s3_client import S3StorageHelper
 
         helper = S3StorageHelper()
-        key = f"{_FALLBACK_KEY_PREFIX}/{document.id}.txt"
+        key = _canonical_key(document, "txt")
         helper.upload_file(
             key,
             text.encode("utf-8"),
             content_type="text/plain; charset=utf-8",
         )
+        document.storage_backend = "s3"
+        document.storage_path = key
         return helper.bucket, key
     except Exception as exc:
         logger.warning(

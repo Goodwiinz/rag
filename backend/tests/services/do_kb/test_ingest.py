@@ -148,7 +148,10 @@ async def test_falls_back_to_text_upload_when_no_storage_path(stub_settings):
     helper.upload_file.assert_called_once()
     args, kwargs = client.add_spaces_data_source.call_args
     assert kwargs["bucket"] == "test-bucket"
-    assert kwargs["key"] == f"do-kb-content/{doc.id}.txt"
+    assert kwargs["key"] == f"documents/{doc.organization_id}/{doc.id}.txt"
+    # Fallback also rewrites the document so future calls treat it as Spaces-backed.
+    assert doc.storage_backend == "s3"
+    assert doc.storage_path == f"documents/{doc.organization_id}/{doc.id}.txt"
 
 
 @pytest.mark.unit

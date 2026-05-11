@@ -477,6 +477,23 @@ def _is_retrieval_query(content: str) -> bool:
     return False
 
 
+def _shape_do_kb_context(chunk, title_by_key: dict[str, tuple[str, str]]) -> dict:
+    """Map a DO KB chunk into the rag_node context envelope.
+
+    Resolves the chunk's storage-key ``document_id`` back to the canonical
+    ``Document.id`` (UUID) + ``Document.title`` so citations render with real
+    titles instead of "DO KB chunk".
+    """
+    storage_key = chunk.document_id
+    resolved_id, title = title_by_key.get(storage_key, (None, None))
+    return {
+        "document_id": resolved_id or storage_key,
+        "title": title or (chunk.metadata or {}).get("title") or storage_key or "Untitled",
+        "content": chunk.text[:3000],
+        "score": float(chunk.score),
+    }
+
+
 async def _try_primary_do_kb_read(query: str, current_user) -> Optional[List[dict]]:
     """Phase 4b: return DO KB chunks shaped like rag_node contexts.
 
@@ -492,32 +509,103 @@ async def _try_primary_do_kb_read(query: str, current_user) -> Optional[List[dic
         if not org_id:
             return None
 
+        from sqlalchemy import select
+
         from src.core.database import AsyncSessionLocal
+        from src.models.document import Document
         from src.models.organization import Organization
         from src.services.do_kb import get_do_kb_client
 
         async with AsyncSessionLocal() as session:
             org = await session.get(Organization, org_id)
             kb_uuid = getattr(org, "do_kb_uuid", None) if org else None
-        if not kb_uuid:
-            return None
+            if not kb_uuid:
+                return None
 
-        client = get_do_kb_client()
-        result = await client.retrieve(kb_uuid=kb_uuid, query=query, top_k=5)
-        if not result.chunks:
-            return None
+            client = get_do_kb_client()
+            result = await client.retrieve(kb_uuid=kb_uuid, query=query, top_k=5)
+            if not result.chunks:
+                return None
+
+            storage_keys = {c.document_id for c in result.chunks if c.document_id}
+            title_by_key: dict[str, tuple[str, str]] = {}
+            if storage_keys:
+                # DO KB returns ``metadata.item_name`` as the leaf filename
+                # only (e.g. ``<doc_id>.txt``) while ``Document.storage_path``
+                # stores the full canonical key
+                # (``documents/{org}/{doc_id}.{ext}``). Match by suffix so
+                # both legacy and canonical layouts resolve.
+                from sqlalchemy import or_
+
+                filters = [Document.storage_path == k for k in storage_keys]
+                filters += [Document.storage_path.like(f"%/{k}") for k in storage_keys]
+                rows = await session.execute(
+                    select(Document.id, Document.storage_path, Document.title)
+                    .where(Document.organization_id == org_id)
+                    .where(or_(*filters))
+                )
+                for doc_id, storage_path, title in rows:
+                    if storage_path in storage_keys:
+                        leaf = storage_path
+                    else:
+                        leaf = storage_path.rsplit("/", 1)[-1] if storage_path else ""
+                    title_by_key[leaf] = (str(doc_id), title or leaf)
+
         return [
-            {
-                "document_id": c.document_id,
-                "title": (c.metadata or {}).get("title") or "DO KB chunk",
-                "content": c.text[:3000],
-                "score": float(c.score),
-            }
-            for c in result.chunks
+            _shape_do_kb_context(c, title_by_key) for c in result.chunks
         ]
     except Exception as exc:  # noqa: BLE001
         logger.warning("do_kb primary read failed, falling back: %s", exc)
         return None
+
+
+async def _legacy_hybrid_search_fallback(
+    query: str, current_user
+) -> List[dict]:
+    """Fallback to hybrid search when DO KB is unavailable or returns nothing."""
+    try:
+        from src.models.search_schemas import SearchQuery
+        from src.services.search.hybrid_search_service import hybrid_search_service
+
+        search_request = SearchQuery(
+            query=query,
+            limit=5,
+            search_type="hybrid",
+        )
+        org_id = (
+            str(current_user.organization_id)
+            if current_user.organization_id
+            else None
+        )
+        uid = str(current_user.id)
+        search_response = await asyncio.wait_for(
+            asyncio.to_thread(
+                hybrid_search_service.search,
+                search_request=search_request,
+                user_id=uid,
+                organization_id=org_id,
+            ),
+            timeout=15.0,
+        )
+        contexts: List[dict] = []
+        for i, result in enumerate(search_response.results[:5]):
+            doc_id = getattr(result, "document_id", None)
+            title = getattr(result, "title", "Untitled") or f"Document {i + 1}"
+            metadata = getattr(result, "metadata", {}) or {}
+            content = metadata.get("full_text") or metadata.get("text", "")
+            if not content:
+                content = getattr(result, "content_preview", None) or ""
+            score = getattr(result, "relevance_score", 0.0)
+            contexts.append({
+                "document_id": str(doc_id) if doc_id else None,
+                "title": title,
+                "content": content[:3000],
+                "score": float(score),
+            })
+        return contexts
+    except Exception as exc:
+        logger.warning("hybrid search fallback failed: %s", exc)
+        return []
 
 
 @track_node_execution("rag_node")
@@ -591,11 +679,15 @@ async def rag_node(state: AgentState, config: RunnableConfig) -> dict:
             logger.warning("injected search_fn failed", exc_info=e)
             return {"retrieved_contexts": [], **state_update}
 
-    # Production retrieval path: DO KB only.
+    # Production retrieval: DO KB primary, hybrid search fallback.
     primary_contexts: Optional[List[dict]] = await _try_primary_do_kb_read(
         last_user_msg, current_user
     )
-    return {"retrieved_contexts": primary_contexts or [], **state_update}
+    if primary_contexts:
+        return {"retrieved_contexts": primary_contexts, **state_update}
+
+    contexts = await _legacy_hybrid_search_fallback(last_user_msg, current_user)
+    return {"retrieved_contexts": contexts, **state_update}
 
 
 # ---------------------------------------------------------------------------
@@ -878,21 +970,21 @@ INTENT_PROMPTS = {
 SHARED_AGENT_RULES = (
     "## Handling retry follow-ups\n"
     'When the user says "try again", "retry", "do it again", "one more time", '
-    '"again", or any short follow-up that clearly references the previous action, '
-    "re-execute the MOST RECENT tool call (visible in the conversation as the last "
-    "AIMessage with tool_calls) with the SAME arguments. Do NOT pivot to a different "
+    '"again", or any short follow-up that references the previous action, '
+    "re-execute the most recent tool call (visible in the conversation as the last "
+    "AIMessage with tool_calls) with the same arguments. Do not pivot to a different "
     "action like list_projects or search_documents unless the user explicitly asks. "
     'If the prior tool returned an error or "skipped" status, attempt the same call '
     "once before suggesting alternatives.\n\n"
     "## Reusing project IDs from conversation history\n"
     "Before calling create_project, scan the conversation for the most recent "
     "list_projects or create_project tool result. If a project with the same name "
-    "(case-insensitive) already exists, REUSE its project_id — do not create a duplicate. "
+    "(case-insensitive) already exists, reuse its project_id — do not create a duplicate. "
     "If the existing project is archived and the user wants to use it, mention the "
     "archived status to the user before proceeding.\n"
     'When the user refers to a project by name ("use ML in FinTech", "add this to my '
     'FinTech project", "the project"), look up the project_id from the most recent '
-    "list_projects or create_project tool result in the conversation. Do NOT ask the user "
+    "list_projects or create_project tool result in the conversation. Do not ask the user "
     "for the project_id when it is already available in tool history.\n"
     "When a tool returns a project_id, treat that project as the active context for "
     "subsequent turns until the user explicitly switches projects.\n\n"
@@ -901,33 +993,33 @@ SHARED_AGENT_RULES = (
     "a draft, etc.), verify your conversation contains the corresponding successful "
     'ToolMessage. If the user reports something is missing ("I don\'t see the note", '
     '"the doc isn\'t in the project"), check your tool execution history first:\n'
-    "- If you never actually called the tool, acknowledge it: \"I haven't created that "
+    "- If you did not call the tool, acknowledge it: \"I haven't created that "
     'yet — let me do it now" and call the tool.\n'
     '- If the tool returned an error or "skipped" status, report what actually happened '
     "rather than offering generic troubleshooting advice.\n"
-    "Never invent troubleshooting steps for actions you did not take.\n\n"
+    "Do not invent troubleshooting steps for actions you did not take.\n\n"
     "## Deriving search queries from active context\n"
     'When the user asks for papers "related to that", "about this project", "for the '
     'project", or any short phrase referencing the active context, derive the search_arxiv '
-    'query from the active project\'s NAME and DESCRIPTION (e.g. "machine learning fintech" '
-    'for a project named "ML in FinTech"). Do NOT use arXiv paper IDs that appear in '
+    'query from the active project\'s name and description (e.g. "machine learning fintech" '
+    'for a project named "ML in FinTech"). Do not use arXiv paper IDs that appear in '
     "conversation history as the search_arxiv query — arXiv IDs are inputs to "
     "ingest_arxiv_papers, not search_arxiv. If you need to fetch one specific known paper, "
     "use ingest_arxiv_papers directly with that ID.\n\n"
     "## Reusing document IDs from conversation history\n"
     'When the user says "it", "this paper", "that document", "the one I just '
-    'ingested", or any short follow-up referring to a recent document, resolve to '
+    'added", or any short follow-up referring to a recent document, resolve to '
     "the document_id (UUID) returned by the most recent ingest_arxiv_papers, "
     "search_documents, or list_project_documents tool result in the conversation. "
-    "Do NOT ask the user for the document_id when it is already available in tool "
+    "Do not ask the user for the document_id when it is already available in tool "
     "history. If multiple documents could match, list them and ask which one — "
-    "but never re-prompt for an ID the user just saw.\n"
+    "but do not re-prompt for an ID the user just saw.\n"
     "When a tool returns one or more document_ids, treat the most recent set as the "
     "active document context for subsequent turns until the user references different "
     "documents.\n\n"
     "## Always reply after a tool call\n"
-    "After every tool call completes (success OR error), you MUST emit a brief "
-    "assistant message in your next turn — never return empty content. The user "
+    "After every tool call completes (success or error), emit a brief "
+    "assistant message in your next turn — do not return empty content. The user "
     "cannot see raw tool results, so silence after a tool runs looks like a hang.\n"
     "- On success: confirm what happened in one short sentence and, when natural, "
     '  offer the obvious next step (e.g. "Project created. Want me to add the '
@@ -937,15 +1029,14 @@ SHARED_AGENT_RULES = (
     "  document_id), surface it in your reply so the user has it visible.\n\n"
     "## Answering 'which model are you?'\n"
     "If the user asks which model / engine / LLM you are running on, answer "
-    "from the `Runtime model` line appended later in this prompt. Do NOT "
-    "guess, and do NOT fall back to generic answers like 'I'm GPT-4-class' "
+    "from the `Runtime model` line appended later in this prompt. Do not "
+    "guess or fall back to generic answers like 'I'm GPT-4-class' "
     "or quote a training cutoff from your weights — those are almost always "
     "wrong here. If the runtime line says the deployment is `model-router`, "
     "tell the user the request was routed via Azure model-router and the "
-    "underlying model (gpt-5, claude-*, llama-*, …) is selected per "
-    "request, so you can't name it from the prompt alone — point them at "
-    "the trace metadata for the exact pick. If the runtime line names a "
-    "specific deployment, you can name it directly."
+    "underlying model is selected per request, so you cannot name it from "
+    "the prompt alone — point them at the trace metadata for the exact pick. "
+    "If the runtime line names a specific deployment, you can name it directly."
 )
 
 
@@ -1048,38 +1139,37 @@ def _build_page_context_line(page_context: dict) -> str:
 # state-derived (page context, intent, memories, retrieved docs) is appended
 # in ``llm_node`` AFTER this block to keep it cacheable.
 _LLM_NODE_STATIC_PROMPT = (
-    "You are an AI research agent for a RAG-powered academic research system.\n"
-    "You help users search documents, manage research projects, find ArXiv papers, "
+    "You are a research assistant for an academic RAG platform.\n"
+    "You help users search documents, manage research projects, find papers on ArXiv, "
     "create notes, and analyze research.\n\n"
     "When the user is on a project page, the project_id is available from the "
     "page context and does not need to be asked for.\n\n"
     f"{SHARED_AGENT_RULES}\n\n"
-    "## MANDATORY WORKFLOW for adding papers to a project:\n"
-    "You CANNOT add a document that has not been ingested yet. Follow this order:\n"
-    "1. **search_arxiv** — find papers matching the user's query\n"
-    "2. **ingest_arxiv_papers** — ingest the papers (this creates documents in the system)\n"
-    "3. **add_document_to_project** — use the `document_ids` (UUIDs) from the ingest response\n\n"
-    "NEVER skip step 2. NEVER pass arXiv IDs to add_document_to_project.\n"
-    "NEVER fabricate UUIDs. Only use UUIDs returned by ingest_arxiv_papers or search_documents.\n"
-    "If a tool returns an error, report the error honestly to the user — do NOT claim success.\n\n"
+    "## Workflow for adding papers to a project\n"
+    "A document must be imported before it can be added to a project. Follow this order:\n"
+    "1. search_arxiv — find papers matching the user's query\n"
+    "2. ingest_arxiv_papers — import the papers (this creates documents in the system)\n"
+    "3. add_document_to_project — use the document_ids (UUIDs) from the import response\n\n"
+    "Do not skip step 2. Do not pass arXiv IDs to add_document_to_project.\n"
+    "Only use UUIDs returned by ingest_arxiv_papers or search_documents.\n"
+    "If a tool returns an error, report the error honestly to the user.\n\n"
     "## Honest result reporting\n"
     "When a tool returns documents_ingested=0, total=0, an empty array, "
-    "or any structured indicator that nothing was added/created/found, you "
-    "MUST tell the user explicitly what happened (e.g. 'No papers were "
-    "ingested — the IDs I tried weren't valid'). Do NOT respond with a "
-    "generic 'done', 'completed', or stay silent. The CLI now surfaces the "
-    "raw tool result, so any vague summary will visibly contradict what the "
+    "or any indicator that nothing was added/created/found, "
+    "tell the user explicitly what happened (e.g. 'No papers were "
+    "imported — the IDs were not valid'). Do not respond with a "
+    "generic 'done' or 'completed'. The CLI surfaces the "
+    "raw tool result, so a vague summary will visibly contradict what the "
     "user can already see.\n\n"
     "## Project-name disambiguation\n"
     "If the user names a project that matches multiple entries from the "
     "most recent list_projects result (e.g. 'RAG Research' matches both "
     "'RAG Research' and 'RAG Research 2025'), ask which one they mean "
-    "before acting. Do NOT silently pick the first match.\n\n"
+    "before acting.\n\n"
     "## /clear is a CLI primitive\n"
-    "If the user message is exactly '/clear' or asks you to 'clear the "
+    "If the user message is exactly '/clear' or asks to 'clear the "
     "chat' / 'clear history' / 'reset the screen', reply with one short "
-    'sentence: "That\'s a CLI command — type /clear at the prompt." Do '
-    "NOT pretend you cleared anything.\n\n"
+    'sentence: "That\'s a CLI command — type /clear at the prompt."\n\n'
     "When answering questions, use retrieved document context when available.\n"
     "Cite sources using [Doc N] format inline.\n"
     "Be concise and action-oriented."

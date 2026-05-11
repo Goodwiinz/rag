@@ -56,7 +56,7 @@ class Chunk(_Permissive):
     metadata: dict[str, Any] = Field(default_factory=dict)
 
     @classmethod
-    def from_do_payload(cls, raw: dict[str, Any]) -> "Chunk":
+    def from_do_payload(cls, raw: dict[str, Any], rank: int = 0) -> "Chunk":
         text = (
             raw.get("text_content")
             or raw.get("text")
@@ -69,7 +69,15 @@ class Chunk(_Permissive):
             or meta.get("document_id")
             or meta.get("item_name")
         )
-        score = float(raw.get("score") or raw.get("relevance_score") or 0.0)
+        # DO retrieve Public Preview omits relevance scores in responses, so
+        # we synthesize a monotonically-decreasing proxy from rank position
+        # (1.0 at rank 0, floor 0.1). Lets downstream rank/dedup/threshold
+        # logic keep working without conditional branches.
+        score_raw = raw.get("score") or raw.get("relevance_score")
+        if score_raw is not None:
+            score = float(score_raw)
+        else:
+            score = max(0.1, 1.0 - 0.05 * rank)
         return cls(text=text, score=score, document_id=doc_id, metadata=meta)
 
 

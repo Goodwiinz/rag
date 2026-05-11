@@ -1,7 +1,7 @@
 """Async HTTP client for DigitalOcean Knowledge Base / GradientAI Platform.
 
 Endpoints:
-- Control plane: api.digitalocean.com/v2/gen-ai/knowledge-bases/...
+- Control plane: api.digitalocean.com/v2/gen-ai/knowledge_bases/...
 - Retrieve plane: kbaas.do-ai.run/v1/{kb_uuid}/retrieve
 
 Bearer auth, exponential backoff on 429/5xx (3 attempts), 30s default timeout.
@@ -142,7 +142,7 @@ class DOKnowledgeBaseClient:
             body["tags"] = tags
         payload = await self._request(
             "POST",
-            f"{self._api_base}/v2/gen-ai/knowledge-bases",
+            f"{self._api_base}/v2/gen-ai/knowledge_bases",
             json_body=body,
         )
         kb_data = payload.get("knowledge_base", payload)
@@ -165,7 +165,7 @@ class DOKnowledgeBaseClient:
         }
         payload = await self._request(
             "POST",
-            f"{self._api_base}/v2/gen-ai/knowledge-bases/{kb_uuid}/data-sources",
+            f"{self._api_base}/v2/gen-ai/knowledge_bases/{kb_uuid}/data-sources",
             json_body=body,
         )
         ds_data = payload.get("knowledge_base_data_source", payload)
@@ -174,7 +174,7 @@ class DOKnowledgeBaseClient:
     async def start_indexing(self, *, kb_uuid: str) -> IndexingJob:
         payload = await self._request(
             "POST",
-            f"{self._api_base}/v2/gen-ai/knowledge-bases/{kb_uuid}/indexing-jobs",
+            f"{self._api_base}/v2/gen-ai/knowledge_bases/{kb_uuid}/indexing-jobs",
             json_body={},
             timeout=self._settings.DO_KB_INDEXING_TIMEOUT_SECONDS,
         )
@@ -184,7 +184,7 @@ class DOKnowledgeBaseClient:
     async def get_indexing_job(self, *, kb_uuid: str, job_uuid: str) -> IndexingJob:
         payload = await self._request(
             "GET",
-            f"{self._api_base}/v2/gen-ai/knowledge-bases/{kb_uuid}/indexing-jobs/{job_uuid}",
+            f"{self._api_base}/v2/gen-ai/knowledge_bases/{kb_uuid}/indexing-jobs/{job_uuid}",
         )
         job_data = payload.get("job", payload)
         return IndexingJob.model_validate(job_data)
@@ -207,15 +207,18 @@ class DOKnowledgeBaseClient:
         #   filters / reranking: optional, not exposed yet
         k = top_k or self._settings.DO_KB_DEFAULT_TOP_K
         body: dict[str, Any] = {"query": query, "num_results": max(1, min(k, 100))}
-        if alpha is not None:
-            body["alpha"] = alpha
+        resolved_alpha = alpha if alpha is not None else self._settings.DO_KB_RETRIEVE_ALPHA
+        if resolved_alpha is not None:
+            body["alpha"] = resolved_alpha
         payload = await self._request(
             "POST",
             f"{self._retrieve_base}/v1/{kb_uuid}/retrieve",
             json_body=body,
         )
         raw_chunks = payload.get("results") or payload.get("chunks") or []
-        chunks = [Chunk.from_do_payload(c) for c in raw_chunks]
+        chunks = [
+            Chunk.from_do_payload(raw, rank=i) for i, raw in enumerate(raw_chunks)
+        ]
         total = payload.get("total_results") or payload.get("total") or len(chunks)
         return RetrieveResult(chunks=chunks, total=total)
 

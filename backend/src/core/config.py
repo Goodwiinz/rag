@@ -105,6 +105,7 @@ class Settings(BaseSettings):
     DO_KB_API_HOST: str = "https://api.digitalocean.com"
     DO_KB_RETRIEVE_HOST: str = "https://kbaas.do-ai.run"
     DO_KB_DEFAULT_TOP_K: int = 8
+    DO_KB_RETRIEVE_ALPHA: Optional[float] = 0.5
     DO_KB_REQUEST_TIMEOUT_SECONDS: float = 30.0
     DO_KB_INDEXING_TIMEOUT_SECONDS: float = 120.0
 

@@ -73,6 +73,11 @@ async def test_happy_path_returns_chunks():
     org_row = MagicMock()
     org_row.do_kb_uuid = "kb-1"
     db.get = AsyncMock(return_value=org_row)
+    # Document lookup for title resolution — return empty rows, the helper
+    # falls back to storage-key id and (c.metadata or {}).get("title").
+    empty_rows = MagicMock()
+    empty_rows.__iter__ = lambda self: iter([])
+    db.execute = AsyncMock(return_value=empty_rows)
 
     fake_client = MagicMock()
     fake_client.retrieve = AsyncMock(
@@ -98,6 +103,7 @@ async def test_happy_path_returns_chunks():
     assert result["total"] == 2
     assert result["source"] == "do_kb"
     assert result["chunks"][0]["text"] == "hello"
+    # Title resolution had no DB match → falls back to storage-key id.
     assert result["chunks"][0]["document_id"] == "doc-1"
     fake_client.retrieve.assert_awaited_once_with(
         kb_uuid="kb-1", query="hello", top_k=5
