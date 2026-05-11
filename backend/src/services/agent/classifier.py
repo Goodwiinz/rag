@@ -105,9 +105,9 @@ _CLASSIFIER_SYSTEM_PROMPT = """\
 You are an intent classifier for a RAG-powered academic research platform.
 Given the user's query, classify it into exactly ONE of these intents:
 
-- **research**: Searching, finding, discovering, or ingesting papers and documents.
+- **research**: Searching, finding, discovering, or ingesting papers and documents. Includes "knowledge base", "KB", "our docs", "our library", "our documents" — these refer to the indexed document corpus, NOT a graph.
 - **writing**: Drafting, summarizing, creating notes, literature reviews, bibliographies.
-- **knowledge_graph**: Extracting entities, exploring relationships, ontology queries.
+- **knowledge_graph**: Extracting entities, exploring relationships, ontology queries over the Neo4j entity graph.
 - **general**: Anything that doesn't clearly fit the above categories.
 
 Return your classification with a confidence score (0.0-1.0) and brief reasoning.
@@ -123,6 +123,12 @@ Query: "Summarize the key findings of this document"
 Query: "What entities are mentioned in this paper?"
 → intent: knowledge_graph, confidence: 0.90, reasoning: "Entity extraction is a knowledge graph task."
 
+Query: "What does our knowledge base say about transformer attention?"
+→ intent: research, confidence: 0.92, reasoning: "KB lookup over indexed docs — research/retrieval, not graph entity extraction."
+
+Query: "Search our docs for RLHF"
+→ intent: research, confidence: 0.93, reasoning: "Document corpus search — research."
+
 Query: "Hello, can you help me?"
 → intent: general, confidence: 0.85, reasoning: "Greeting with no specific task."
 
@@ -132,6 +138,8 @@ Previous tool: ingest_arxiv_papers (status: skipped)
 
 ## Common confusions
 
+- "knowledge base" / "KB" / "our docs" / "our library" → research (NOT knowledge_graph — these refer to the indexed document corpus, not the entity graph)
+- "knowledge graph" / "entity graph" → knowledge_graph
 - "search the knowledge graph" → knowledge_graph (NOT research)
 - "find entities" → knowledge_graph (NOT research)
 - "write about papers I found" → writing (NOT research)
