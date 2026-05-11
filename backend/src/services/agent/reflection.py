@@ -20,7 +20,9 @@ logger = logging.getLogger(__name__)
 
 # Hard wall-clock cap for a single reflection LLM call. Prevents a hung
 # Azure endpoint from blocking the whole agent turn.
-_REFLECTION_LLM_TIMEOUT_SECONDS = 20.0
+_REFLECTION_LLM_TIMEOUT_SECONDS = 45.0  # bumped from 20s after 4096-token
+# budget let gpt-5-mini reasoning model spend ~20s on hard prompts; trace
+# 019e1874 hit CancelledError at exactly the old ceiling.
 
 # Cache the reflection LLM at module scope. The settings/endpoint are
 # resolved at import time once and reused across every reflection call,

@@ -30,7 +30,8 @@ _LLM_CONFIDENCE_THRESHOLD = 0.7
 
 # Hard wall-clock cap on the LLM classifier call. Prevents a hung Azure
 # endpoint from blocking the agent turn — keyword fallback handles timeouts.
-_CLASSIFIER_LLM_TIMEOUT_SECONDS = 10.0
+_CLASSIFIER_LLM_TIMEOUT_SECONDS = 25.0  # bumped from 10s for headroom after
+# max_tokens 256→4096 lets gpt-5-mini reason longer before emitting output.
 
 # Maximum length (chars) for any user-supplied string interpolated into the
 # classifier system prompt. Truncating + neutralising braces/newlines is the
