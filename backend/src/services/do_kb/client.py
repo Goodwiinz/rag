@@ -197,21 +197,25 @@ class DOKnowledgeBaseClient:
         kb_uuid: str,
         query: str,
         top_k: Optional[int] = None,
+        alpha: Optional[float] = None,
     ) -> RetrieveResult:
-        # DO KB Public Preview retrieve endpoint rejects "top_k" with HTTP 400
-        # ("unknown field"). Schema is not yet documented; ship the smallest
-        # body that the server accepts and trust DO's default chunk count.
-        # Honor top_k locally by trimming after retrieval.
+        # DO KB retrieve body fields (per
+        # docs.digitalocean.com/products/inference/how-to/create-manage-agent-knowledge-bases):
+        #   query: str
+        #   num_results: int 0-100 (NOT top_k)
+        #   alpha: float 0-1 (lexical vs semantic balance)
+        #   filters / reranking: optional, not exposed yet
         k = top_k or self._settings.DO_KB_DEFAULT_TOP_K
+        body: dict[str, Any] = {"query": query, "num_results": max(1, min(k, 100))}
+        if alpha is not None:
+            body["alpha"] = alpha
         payload = await self._request(
             "POST",
             f"{self._retrieve_base}/v1/{kb_uuid}/retrieve",
-            json_body={"query": query},
+            json_body=body,
         )
         raw_chunks = payload.get("chunks") or payload.get("results") or []
         chunks = [Chunk.model_validate(c) for c in raw_chunks]
-        # Trim locally — server-side k is undocumented in Public Preview.
-        chunks = chunks[:k]
         return RetrieveResult(chunks=chunks, total=len(chunks))
 
 
