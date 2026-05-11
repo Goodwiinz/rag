@@ -26,6 +26,11 @@ from typing import Any
 
 from langchain_core.messages import HumanMessage, ToolMessage
 
+# Defensive cap on candidate count, even when tool_executions is large
+# (e.g. checkpoint resume on a long-lived thread). 50 covers MAX_TOOL_LOOPS=10
+# × 5 parallel calls = 50 with no headroom needed beyond that.
+_CACHE_LOOKUP_BUDGET = 50
+
 
 def _canonicalize(args: Any) -> Any:
     """Recursively sort dict keys and drop None values so semantically
@@ -100,28 +105,35 @@ def find_cached_tool_results(
         whose key already appeared this turn. Callers should short-circuit
         these and only execute the rest.
     """
+    if not tool_calls:
+        return {}
+
     in_turn_ids = _current_turn_tool_call_ids(messages)
     if not in_turn_ids:
         return {}
 
+    # Single O(E) pre-filter with cheap predicates only — no hash compute.
+    # Only completed in-turn executions are cache candidates. Failed,
+    # interrupted, and already-deduped entries are skipped here so the
+    # inner hash loop only runs on real candidates.
+    candidates = [
+        te
+        for te in tool_executions
+        if te.get("status") == "completed" and te.get("id") in in_turn_ids
+    ]
+    if not candidates:
+        return {}
+
+    # Tail-keep the most recent N candidates. Bounds worst-case CPU
+    # regardless of upstream prune ordering or checkpoint resume.
+    if len(candidates) > _CACHE_LOOKUP_BUDGET:
+        candidates = candidates[-_CACHE_LOOKUP_BUDGET:]
+
     by_key: dict[str, dict] = {}
-    for te in tool_executions:
-        if te.get("id") not in in_turn_ids:
-            continue
-        status = te.get("status")
-        if status == "deduped":
-            # Don't dedupe against a previously deduped entry — that would
-            # chain references and confuse the model.
-            continue
-        if status != "completed":
-            # Failed or interrupted executions must remain retryable —
-            # trace 019e1910 showed arxiv 93s transient errors getting
-            # cached, then every retry hit the cached failure with no
-            # path to recovery. Only successful executions are cached.
-            continue
+    for te in candidates:
         key = dedupe_key(te.get("tool_name", ""), te.get("args") or {})
-        # First match wins. tool_executions appears in execution order, so
-        # we cite the earliest concrete result.
+        # First match wins. Candidates are in execution order, so we cite
+        # the earliest concrete result.
         by_key.setdefault(key, te)
 
     cached: dict[str, dict] = {}
