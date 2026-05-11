@@ -111,15 +111,56 @@ def research_should_continue(state: AgentState) -> str:
     if state.get("error_count", 0) >= 3:
         return "research_reflection_gate"
     last = state["messages"][-1] if state["messages"] else None
-    if (
-        isinstance(last, AIMessage)
-        and last.tool_calls
-        and state.get("tool_loop_count", 0) < MAX_RESEARCH_TOOL_LOOPS
-    ):
-        if any(tc["name"] in RESEARCH_DESTRUCTIVE_TOOLS for tc in last.tool_calls):
-            return "research_interrupt_node"
-        return "research_tool_node"
+    if isinstance(last, AIMessage) and last.tool_calls:
+        if state.get("tool_loop_count", 0) < MAX_RESEARCH_TOOL_LOOPS:
+            if any(tc["name"] in RESEARCH_DESTRUCTIVE_TOOLS for tc in last.tool_calls):
+                return "research_interrupt_node"
+            return "research_tool_node"
+        # Loop ceiling tripped while the model still wants more tools. Route
+        # to a forced-synthesis turn so the final AIMessage has real content
+        # — otherwise reflection sees empty content + unanswered tool_calls
+        # and flags a "no response" major issue (trace 019e1903).
+        return "research_force_synthesis_node"
     return "research_reflection_gate"
+
+
+async def research_force_synthesis_node(
+    state: AgentState, config: RunnableConfig
+) -> dict:
+    """Final-answer LLM call when the tool-loop ceiling was hit.
+
+    The model has fired ``MAX_RESEARCH_TOOL_LOOPS`` tool calls and still
+    wants more. We strip the unanswered tool_calls, append a directive
+    to synthesize from prior tool results, and re-invoke the LLM with NO
+    tools bound so it must produce text. This guarantees a non-empty
+    final AIMessage even when the model would otherwise spin.
+    """
+    from src.services.agent.graph import _build_llm
+
+    messages = list(state["messages"])
+
+    # Drop the trailing AIMessage with unanswered tool_calls so the model
+    # sees a clean conversational head when synthesizing.
+    while messages and isinstance(messages[-1], AIMessage) and messages[-1].tool_calls:
+        messages.pop()
+
+    sanitized = _sanitize_messages(messages)
+    directive = SystemMessage(
+        content=(
+            f"You ran {state.get('tool_loop_count', 0)} tool calls and reached "
+            "the per-turn search budget. Do NOT request more tools. Synthesize "
+            "the final answer from the tool results already in the conversation "
+            "above — list the most relevant papers (id, title, year, one-line "
+            "summary) and end with a clear next-step suggestion."
+        )
+    )
+    full = [SystemMessage(content=_build_research_system_prompt()), directive] + sanitized
+
+    llm = _build_llm()
+    # No bind_tools — force a pure text response.
+    response = await llm.ainvoke(full, config=config)
+
+    return {"messages": [response]}
 
 
 async def research_interrupt_node(state: AgentState, config: RunnableConfig) -> dict:
@@ -205,6 +246,7 @@ def build_research_subgraph() -> StateGraph:
     graph.add_node("research_tool_node", filtered_tool)
     graph.add_node("research_interrupt_node", research_interrupt_node)
     graph.add_node("research_compactor_node", compactor)
+    graph.add_node("research_force_synthesis_node", research_force_synthesis_node)
     graph.add_node("research_reflection_gate", reflection_node)
 
     # Edges
@@ -217,9 +259,13 @@ def build_research_subgraph() -> StateGraph:
         {
             "research_tool_node": "research_tool_node",
             "research_interrupt_node": "research_interrupt_node",
+            "research_force_synthesis_node": "research_force_synthesis_node",
             "research_reflection_gate": "research_reflection_gate",
         },
     )
+
+    # Forced synthesis always goes to reflection (it produced a final answer).
+    graph.add_edge("research_force_synthesis_node", "research_reflection_gate")
 
     graph.add_conditional_edges(
         "research_interrupt_node",

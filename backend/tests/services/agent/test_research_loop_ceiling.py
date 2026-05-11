@@ -49,15 +49,31 @@ def test_continues_below_ceiling():
 
 
 @pytest.mark.unit
-def test_stops_at_ceiling():
-    """At loop_count == 5, the subgraph must route to reflection gate."""
+def test_routes_to_force_synthesis_at_ceiling():
+    """At loop_count == 5 WITH unanswered tool_calls, route to forced
+    synthesis so the final AIMessage has real content. Previously routed
+    directly to reflection with empty content (trace 019e1903)."""
     state = _state_with_pending_tool_calls(loop_count=5)
-    assert research_should_continue(state) == "research_reflection_gate"
+    assert research_should_continue(state) == "research_force_synthesis_node"
 
 
 @pytest.mark.unit
-def test_stops_above_ceiling():
+def test_routes_to_force_synthesis_above_ceiling():
     state = _state_with_pending_tool_calls(loop_count=10)
+    assert research_should_continue(state) == "research_force_synthesis_node"
+
+
+@pytest.mark.unit
+def test_routes_to_reflection_when_no_pending_tool_calls():
+    """No tool_calls on the last AI message → no synthesis needed, go to gate."""
+    state = {
+        "messages": [
+            HumanMessage(content="find papers"),
+            AIMessage(content="Here are the papers..."),  # no tool_calls
+        ],
+        "tool_loop_count": 5,
+        "error_count": 0,
+    }
     assert research_should_continue(state) == "research_reflection_gate"
 
 
