@@ -108,9 +108,16 @@ def find_cached_tool_results(
     for te in tool_executions:
         if te.get("id") not in in_turn_ids:
             continue
-        if te.get("status") == "deduped":
+        status = te.get("status")
+        if status == "deduped":
             # Don't dedupe against a previously deduped entry — that would
             # chain references and confuse the model.
+            continue
+        if status != "completed":
+            # Failed or interrupted executions must remain retryable —
+            # trace 019e1910 showed arxiv 93s transient errors getting
+            # cached, then every retry hit the cached failure with no
+            # path to recovery. Only successful executions are cached.
             continue
         key = dedupe_key(te.get("tool_name", ""), te.get("args") or {})
         # First match wins. tool_executions appears in execution order, so

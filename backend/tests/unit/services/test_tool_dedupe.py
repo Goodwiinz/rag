@@ -121,6 +121,27 @@ def test_different_args_no_hit():
 
 
 @pytest.mark.unit
+def test_failed_executions_not_cached():
+    """A failed tool execution must remain retryable.
+
+    Trace 019e1910 showed arxiv search hang for 93s and return a transient
+    error. The agent's retry hit the cached failure → no recovery path.
+    Only ``status="completed"`` entries should be cached.
+    """
+    messages = [
+        HumanMessage(content="q"),
+        AIMessage(
+            content="",
+            tool_calls=[{"id": "a", "name": "search_arxiv", "args": {"q": "x"}}],
+        ),
+        ToolMessage(content='{"error":"transient"}', tool_call_id="a"),
+    ]
+    tool_executions = [_execution("a", "search_arxiv", {"q": "x"}, status="failed")]
+    new_calls = [{"id": "b", "name": "search_arxiv", "args": {"q": "x"}}]
+    assert find_cached_tool_results(new_calls, messages, tool_executions) == {}
+
+
+@pytest.mark.unit
 def test_dedupe_does_not_chain_through_deduped_entries():
     """A deduped execution shouldn't be the cite-target for a third repeat."""
     messages = [
