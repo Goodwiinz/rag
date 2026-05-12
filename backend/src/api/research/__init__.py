@@ -10,6 +10,7 @@ from .export import router as export_router
 from .extraction_matrix import router as extraction_matrix_router
 from .pipeline import router as pipeline_router
 from .project_chat import router as project_chat_router
+from .project_report import router as project_report_router
 from .projects import router as projects_router
 from .tone_engine import router as tone_engine_router
 from .writer import router as writer_router
@@ -17,6 +18,7 @@ from .writer import router as writer_router
 __all__ = [
     "citations_router",
     "projects_router",
+    "project_report_router",
     "drafts_router",
     "chat_router",
     "export_router",

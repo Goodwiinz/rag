@@ -124,6 +124,54 @@ def test_write_iteration_silent_on_bad_state(ledger_dir: Path):
 
 
 @pytest.mark.unit
+def test_first_turn_writes_config_json(ledger_dir: Path):
+    """Phase 9.C: first turn of a thread also writes config.json
+    capturing the initial run setup. Subsequent turns leave it alone."""
+    from src.services.agent.iteration_ledger import write_iteration
+
+    state = _state_with_one_turn()
+    state["thread_id"] = "thread-cfg"
+    state["user_id"] = "user-1"
+    write_iteration("thread-cfg", state)
+
+    config_path = ledger_dir / "thread-cfg" / "config.json"
+    assert config_path.exists()
+    cfg = json.loads(config_path.read_text())
+    assert cfg["thread_id"] == "thread-cfg"
+    assert cfg["initial_query"] == "find papers on transformers"
+    assert cfg["page_context"]["type"] == "chat"
+    assert cfg["model"] == "gpt-5"
+    first_started = cfg["started_at"]
+
+    # Second turn must not rewrite config.json
+    write_iteration("thread-cfg", state)
+    cfg2 = json.loads(config_path.read_text())
+    assert cfg2["started_at"] == first_started
+
+
+@pytest.mark.unit
+def test_every_turn_rewrites_final_json(ledger_dir: Path):
+    """Phase 9.C: every turn rewrites final.json with the latest summary
+    so dashboards/reports can read run state in one file."""
+    from src.services.agent.iteration_ledger import write_iteration
+
+    state = _state_with_one_turn()
+    write_iteration("thread-final", state)
+    final_path = ledger_dir / "thread-final" / "final.json"
+    assert final_path.exists()
+
+    final_v1 = json.loads(final_path.read_text())
+    assert final_v1["latest_turn"] == 1
+    assert final_v1["thread_id"] == "thread-final"
+    assert final_v1["summary"]["intent"] == "research"
+    assert final_v1["tool_executions_count"] == 1
+
+    write_iteration("thread-final", state)
+    final_v2 = json.loads(final_path.read_text())
+    assert final_v2["latest_turn"] == 2
+
+
+@pytest.mark.unit
 def test_write_iteration_message_serialization_caps_length(ledger_dir: Path):
     """AI content capped at 4000 chars; human content at 2000 chars."""
     from src.services.agent.iteration_ledger import write_iteration

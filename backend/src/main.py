@@ -2,6 +2,10 @@
 Main FastAPI application for the multimodal RAG system
 """
 
+from dotenv import load_dotenv
+
+load_dotenv()
+
 import asyncio
 import logging
 import os
@@ -56,6 +60,7 @@ from src.api.research import (
     extraction_matrix_router,
     pipeline_router,
     project_chat_router,
+    project_report_router,
     projects_router,
     tone_engine_router,
     writer_router,
@@ -232,6 +237,26 @@ async def lifespan(app: FastAPI):
         configure_langsmith()
     except Exception as e:
         logger.debug(f"LangSmith configuration skipped: {e}")
+
+    # Initialise LangGraph checkpointer + memory store at startup so the
+    # first request doesn't pay the setup() cost (and so a misconfigured
+    # Postgres connection surfaces immediately in prod/staging).
+    try:
+        from src.services.agent.checkpointer import get_checkpointer
+        from src.services.agent.memory import get_memory_store
+
+        await get_checkpointer()
+        await get_memory_store()
+        logger.info("LangGraph checkpointer + memory store warmed at startup")
+    except Exception as e:
+        if environment in ("production", "staging"):
+            logger.error(
+                "LangGraph persistence warm-up failed in %s: %s",
+                environment,
+                e,
+            )
+            raise
+        logger.warning("LangGraph persistence warm-up skipped: %s", e)
 
     # Pre-populate critical caches in the background (non-blocking)
     try:
@@ -440,6 +465,7 @@ app.include_router(
 app.include_router(export_router, prefix="/api/v1")  # Thread export endpoints
 app.include_router(citations_router)  # Research Assistant citations endpoints
 app.include_router(projects_router)  # Research Assistant projects endpoints
+app.include_router(project_report_router)  # GET /api/v1/projects/{id}/report.html
 app.include_router(project_chat_router)  # Project-Chat integration endpoints
 app.include_router(drafts_router)  # Research Assistant drafts endpoints
 app.include_router(tone_engine_router)  # Scholarly Tone Engine endpoints
