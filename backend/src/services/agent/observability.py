@@ -132,6 +132,33 @@ try:
         ["node", "error_type"],
     )
 
+    # Distribution across classifier paths. Lets dashboards alert when LLM
+    # path drops (e.g. Azure 404s) and keyword fallback share rises.
+    AGENT_CLASSIFIER_SOURCE = _get_or_create_counter(
+        "agent_classifier_source_total",
+        "Intent classifier path (llm/keyword/shortcut/fallback) per intent",
+        ["source", "intent"],
+    )
+
+    # Tool-level error counter with structured category from
+    # error_recovery.classify_error (transient/permanent/auth/validation/
+    # not_found/...). Lets us separate "search_arxiv timeout spike" from
+    # "create_project auth failure" on the same dashboard.
+    AGENT_TOOL_ERRORS = _get_or_create_counter(
+        "agent_tool_errors_total",
+        "Tool execution errors by tool + category",
+        ["tool", "category"],
+    )
+
+    # Memory recall hit rate — emits 0 (miss) or 1 (hit, ≥1 memory returned)
+    # per memory_retrieval_node call. Use rate() in Prometheus / Grafana
+    # to derive hit-rate %.
+    AGENT_MEMORY_RETRIEVAL = _get_or_create_counter(
+        "agent_memory_retrieval_total",
+        "Memory retrieval outcomes per call",
+        ["outcome"],  # "hit" | "miss"
+    )
+
     _METRICS_AVAILABLE = True
 except ImportError:
     _METRICS_AVAILABLE = False
@@ -216,6 +243,27 @@ def record_error(error_type: str, node: str = "unknown"):
     """
     if _METRICS_AVAILABLE:
         AGENT_ERRORS.labels(node=node, error_type=error_type).inc()
+
+
+def record_classifier_source(source: str, intent: str) -> None:
+    """Record which classifier path produced the intent.
+
+    Source values: llm, keyword, shortcut, fallback.
+    """
+    if _METRICS_AVAILABLE:
+        AGENT_CLASSIFIER_SOURCE.labels(source=source, intent=intent).inc()
+
+
+def record_tool_error(tool: str, category: str) -> None:
+    """Record a tool failure with classified category."""
+    if _METRICS_AVAILABLE:
+        AGENT_TOOL_ERRORS.labels(tool=tool, category=category).inc()
+
+
+def record_memory_retrieval(hit: bool) -> None:
+    """Record memory recall outcome — hit (>=1 memory) or miss."""
+    if _METRICS_AVAILABLE:
+        AGENT_MEMORY_RETRIEVAL.labels(outcome="hit" if hit else "miss").inc()
 
 
 @asynccontextmanager

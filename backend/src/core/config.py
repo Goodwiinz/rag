@@ -269,6 +269,12 @@ class Settings(BaseSettings):
     # Lightweight model for auxiliary agent tasks (classifier, compactor, etc.)
     AZURE_OPENAI_LIGHTWEIGHT_DEPLOYMENT: Optional[str] = None
 
+    # Optional separate deployment for post-tool prose synthesis. Falls back
+    # to AZURE_OPENAI_LIGHTWEIGHT_DEPLOYMENT when unset. Use a slightly
+    # stronger model here (e.g. gpt-5-mini) while keeping classifier/planner
+    # on nano. Cheap tier for routing, mid tier for final-answer quality.
+    AZURE_OPENAI_SYNTHESIS_DEPLOYMENT: Optional[str] = None
+
     # gpt-5 reasoning_effort knobs. Lower = faster.
     # Accepted values: "minimal" | "low" | "medium" | "high"
     # Defaults tuned for fast responses; raise to "medium" for tougher tasks.
