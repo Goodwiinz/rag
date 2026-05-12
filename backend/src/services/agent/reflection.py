@@ -234,17 +234,23 @@ def _should_skip_reflection(state: dict) -> tuple[bool, str]:
         not has_tool_calls
         and content_len >= _REFLECTION_MIN_CONTENT_CHARS
         and tool_executions
-        and all(_is_completed_or_transient(te) for te in tool_executions)
-        and any(_is_transient_failure(te) for te in tool_executions)
     ):
-        transient_count = sum(
-            1 for te in tool_executions if _is_transient_failure(te)
-        )
-        return (
-            True,
-            f"transient-failure-acknowledged ({content_len} chars, "
-            f"{transient_count} transient failures)",
-        )
+        # Single pass: classify every entry once. Avoids the 3× iteration
+        # the predicate-pair version did (all + any + sum on the same list).
+        transient_count = 0
+        ok_to_skip = True
+        for te in tool_executions:
+            if _is_transient_failure(te):
+                transient_count += 1
+            elif not _is_completed_or_transient(te):
+                ok_to_skip = False
+                break
+        if ok_to_skip and transient_count:
+            return (
+                True,
+                f"transient-failure-acknowledged ({content_len} chars, "
+                f"{transient_count} transient failures)",
+            )
 
     return (False, "")
 

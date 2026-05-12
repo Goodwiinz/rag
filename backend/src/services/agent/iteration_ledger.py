@@ -105,14 +105,12 @@ def _serialize_message(msg: Any) -> dict:
 def _build_record(state: dict, turn: int) -> dict:
     """Build the JSON-serializable record for one turn."""
     messages = state.get("messages") or []
-    # Slice to current turn: walk back to most recent HumanMessage and keep
-    # everything from there to the end. Same boundary the dedupe + sanitizer
-    # use — keeps the ledger record focused on this turn's exchange.
-    boundary = -1
-    for i in range(len(messages) - 1, -1, -1):
-        if isinstance(messages[i], HumanMessage):
-            boundary = i
-            break
+    # Slice to current turn — same boundary the dedupe walks (most recent
+    # HumanMessage to end). Includes the boundary HumanMessage itself so
+    # the ledger record shows what the user asked.
+    from src.services.agent.tool_dedupe import _current_turn_message_boundary
+
+    boundary = _current_turn_message_boundary(messages)
     in_turn_msgs = messages[boundary:] if boundary >= 0 else list(messages)
 
     user_msg = ""
