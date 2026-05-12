@@ -930,188 +930,27 @@ def route_by_intent(state: AgentState) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Intent-specific tool subsets and prompt augmentations
+# Intent-specific tool subsets + main LLM node — moved to _nodes_llm.
+# Re-export so legacy callers
+# (`from src.services.agent.graph import llm_node, RESEARCH_TOOLS_NAMES`)
+# keep working unchanged.
 # ---------------------------------------------------------------------------
 
-RESEARCH_TOOLS_NAMES = {
-    "search_arxiv",
-    "ingest_arxiv_papers",
-    "search_documents",
-    "create_project",
-    "list_projects",
-    "add_document_to_project",
-    "list_project_documents",
-    "execute_code",
-}
-WRITING_TOOLS_NAMES = {
-    "create_draft",
-    "create_project_note",
-    "export_bibliography",
-    "summarize_document",
-    "compare_documents",
-}
-KG_TOOLS_NAMES = {
-    "extract_entities",
-    "search_knowledge_graph",
-    "explore_entity_neighborhood",
-    "find_entity_paths",
-    "get_graph_stats",
-    "search_documents",
-    "execute_code",
-}
+from src.services.agent._nodes_llm import (  # noqa: E402
+    GENERAL_TOOLS_NAMES,
+    KG_TOOLS_NAMES,
+    RESEARCH_TOOLS_NAMES,
+    WRITING_TOOLS_NAMES,
+    _get_tools_for_intent,
+    llm_node,
+)
 
-# Subset for "general" intent — avoids binding all 20 tools on every first
-# message (greetings, "help", etc.) which bloats the token budget by ~4 000
-# tokens. Research/writing/KG intents get their own targeted subsets via the
-# sub-graphs. General gets the 10 most commonly used discovery+productivity
-# tools; more specialised tools (create_draft, compare_documents, etc.) are
-# available once the classifier narrows the intent.
-GENERAL_TOOLS_NAMES = {
-    "search_arxiv",
-    "ingest_arxiv_papers",
-    "search_documents",
-    "create_project",
-    "list_projects",
-    "add_document_to_project",
-    "list_project_documents",
-    "create_project_note",
-    "summarize_document",
-    "search_knowledge_graph",
-}
-
-# Intent prompts + shared rules + static prompt now live in _prompts.py.
-# Re-export so subgraphs and tests that did
-# `from src.services.agent.graph import SHARED_AGENT_RULES`
-# keep working without rewriting every caller.
+# Prompt content (re-exported for subgraphs/tests/classifier).
 from src.services.agent._prompts import (  # noqa: E402
     INTENT_PROMPTS,
     SHARED_AGENT_RULES,
     _LLM_NODE_STATIC_PROMPT,
-    _build_page_context_line,
-    _merge_run_config,
-    _runtime_model_line,
 )
-
-
-
-@track_node_execution("llm_node")
-async def llm_node(state: AgentState, config: RunnableConfig) -> dict:
-    """Call the LLM with system prompt, RAG context, and bound tools."""
-    page_context = state.get("page_context", {})
-    retrieved = state.get("retrieved_contexts", [])
-
-    # Static prefix first — must be byte-identical across requests so the
-    # provider's automatic prefix cache hits on every turn after the first.
-    # Dynamic state-derived content goes AFTER the prefix below.
-    dynamic_parts: list[str] = []
-
-    context_line = _build_page_context_line(page_context)
-    if context_line:
-        dynamic_parts.append(context_line)
-
-    intent = state.get("intent", "general")
-    intent_guidance = INTENT_PROMPTS.get(intent, INTENT_PROMPTS["general"])
-    dynamic_parts.append(f"Current intent: {intent}. {intent_guidance}")
-
-    runtime_line = _runtime_model_line(state.get("model") or None)
-    if runtime_line:
-        dynamic_parts.append(runtime_line)
-
-    user_memories = state.get("user_memories", [])
-    if user_memories:
-        mem_text = "\n".join(
-            f"- {m.get('value', {}).get('query', '')}"
-            for m in user_memories
-            if m.get("value")
-        )
-        if mem_text.strip():
-            dynamic_parts.append(f"Relevant past interactions:\n{mem_text}")
-
-    if retrieved:
-        context_text = "\n\n".join(
-            f"[Doc {i + 1}] {ctx['title']}:\n{ctx['content']}"
-            for i, ctx in enumerate(retrieved)
-        )
-        dynamic_parts.append(f"Retrieved context:\n{context_text}")
-
-    system_text = _LLM_NODE_STATIC_PROMPT
-    if dynamic_parts:
-        system_text += "\n\n" + "\n\n".join(dynamic_parts)
-
-    sanitized = _sanitize_messages(list(state["messages"]))
-    messages = [SystemMessage(content=system_text)] + sanitized
-
-    # Bind intent-specific tool subset
-    intent_tools = _get_tools_for_intent(intent)
-
-    # Lightweight model selection. Two cases use gpt-5-mini instead of
-    # full gpt-5:
-    #
-    # 1. Post-tool synthesis turn (last message is ToolMessage) — heavy
-    #    reasoning already happened before the tool call; this turn is
-    #    pure prose synthesis. Saves ~5-15s.
-    #
-    # 2. intent="general" turn (no project/research/writing context).
-    #    "hi", "thanks", capability questions, small talk — gpt-5 burns
-    #    ~700 reasoning tokens deciding whether to call a tool. gpt-5-mini
-    #    handles these in 2-3s. Trace 019e19f2: "hi" took 13s on gpt-5.
-    #
-    # Both cases gated by AGENT_LIGHTWEIGHT_SYNTHESIS so a single env var
-    # disables the optimization if quality regresses.
-    settings = get_settings()
-    last_is_tool_msg = bool(sanitized) and isinstance(sanitized[-1], ToolMessage)
-    use_lightweight = settings.AGENT_LIGHTWEIGHT_SYNTHESIS and (
-        last_is_tool_msg or intent == "general"
-    )
-    if use_lightweight:
-        from src.services.agent.llm_factory import build_synthesis_llm
-
-        llm = build_synthesis_llm(max_tokens=4096)
-        logger.debug(
-            "llm_node: using synthesis model (intent=%s, last_is_tool=%s)",
-            intent,
-            last_is_tool_msg,
-        )
-    else:
-        llm = _build_llm(model_override=state.get("model") or None)
-    # parallel_tool_calls=False forces gpt-5 to emit one tool_call per turn.
-    # Trace 019e18f0 showed 13+ parallel search_arxiv calls when this was
-    # implicitly True — agent never got a chance to see the first result
-    # before issuing more searches.
-    llm_with_tools = llm.bind_tools(
-        intent_tools,
-        parallel_tool_calls=settings.AGENT_PARALLEL_TOOL_CALLS,
-    )
-    invoke_config = _merge_run_config(
-        config, run_name=f"llm_node:{intent}", tags=[f"intent:{intent}", "subgraph:main"]
-    )
-    try:
-        response = await asyncio.wait_for(
-            llm_with_tools.ainvoke(messages, config=invoke_config),
-            timeout=AGENT_LLM_TIMEOUT_SECONDS,
-        )
-    except asyncio.TimeoutError:
-        logger.warning(
-            "llm_node: LLM exceeded %ds (intent=%s); emitting fallback",
-            AGENT_LLM_TIMEOUT_SECONDS,
-            intent,
-        )
-        return {
-            "messages": [
-                AIMessage(
-                    content=(
-                        "The model took too long to respond. Please try again "
-                        "or rephrase your request."
-                    ),
-                ),
-            ],
-            "last_error": "llm_timeout",
-            "error_count": state.get("error_count", 0) + 1,
-        }
-
-    return {
-        "messages": [response],
-    }
 
 
 # Tool execution + interrupt + concurrency constants now live in
