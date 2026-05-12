@@ -1370,21 +1370,33 @@ async def llm_node(state: AgentState, config: RunnableConfig) -> dict:
     # Bind intent-specific tool subset
     intent_tools = _get_tools_for_intent(intent)
 
-    # Post-tool synthesis turn → use the lightweight deployment. Detect by
-    # checking if the last message is a ToolMessage (the LLM is about to
-    # synthesize a final answer or decide on more tool calls). Saves ~5-15s
-    # vs running the heavy main model for prose synthesis.
+    # Lightweight model selection. Two cases use gpt-5-mini instead of
+    # full gpt-5:
+    #
+    # 1. Post-tool synthesis turn (last message is ToolMessage) — heavy
+    #    reasoning already happened before the tool call; this turn is
+    #    pure prose synthesis. Saves ~5-15s.
+    #
+    # 2. intent="general" turn (no project/research/writing context).
+    #    "hi", "thanks", capability questions, small talk — gpt-5 burns
+    #    ~700 reasoning tokens deciding whether to call a tool. gpt-5-mini
+    #    handles these in 2-3s. Trace 019e19f2: "hi" took 13s on gpt-5.
+    #
+    # Both cases gated by AGENT_LIGHTWEIGHT_SYNTHESIS so a single env var
+    # disables the optimization if quality regresses.
     settings = get_settings()
-    use_lightweight_synthesis = (
-        settings.AGENT_LIGHTWEIGHT_SYNTHESIS
-        and isinstance(sanitized[-1], ToolMessage) if sanitized else False
+    last_is_tool_msg = bool(sanitized) and isinstance(sanitized[-1], ToolMessage)
+    use_lightweight = settings.AGENT_LIGHTWEIGHT_SYNTHESIS and (
+        last_is_tool_msg or intent == "general"
     )
-    if use_lightweight_synthesis:
+    if use_lightweight:
         from src.services.agent.llm_factory import build_lightweight_llm
 
         llm = build_lightweight_llm(max_tokens=4096)
         logger.debug(
-            "llm_node: using lightweight synthesis model after ToolMessage"
+            "llm_node: using lightweight model (intent=%s, last_is_tool=%s)",
+            intent,
+            last_is_tool_msg,
         )
     else:
         llm = _build_llm(model_override=state.get("model") or None)
@@ -1986,30 +1998,39 @@ def build_agent_graph() -> StateGraph:
     return graph
 
 
-def compile_agent_graph(checkpointer=None, **kwargs):
-    """Compile the agent graph, optionally with a checkpointer.
+def compile_agent_graph(checkpointer=None, store=None, **kwargs):
+    """Compile the agent graph, optionally with a checkpointer and store.
 
     ``checkpointer`` may be ``None`` (no checkpointing), an instance of
     ``BaseCheckpointSaver``, or ``True`` to opt into the default in-memory
     saver. Anything else is rejected with a clear error rather than
     silently passing a bool to ``graph.compile()`` (which would crash with
     ``AttributeError`` deep inside LangGraph at runtime).
+
+    ``store`` is an optional ``BaseStore`` for long-term, cross-thread
+    memory (user preferences, facts).  When provided, LangGraph injects it
+    into nodes that accept a ``Runtime`` parameter so they can use
+    ``runtime.store`` instead of importing the singleton directly.
     """
     graph = build_agent_graph()
     from langgraph.checkpoint.base import BaseCheckpointSaver
 
+    compile_kwargs: dict = {}
+    if store is not None:
+        compile_kwargs["store"] = store
+
     if checkpointer is None or checkpointer is False:
-        return graph.compile()
+        return graph.compile(**compile_kwargs)
 
     if checkpointer is True:
         # Convenience: ``True`` opts into the in-memory default so callers
         # don't have to import MemorySaver themselves.
         from langgraph.checkpoint.memory import MemorySaver
 
-        return graph.compile(checkpointer=MemorySaver())
+        return graph.compile(checkpointer=MemorySaver(), **compile_kwargs)
 
     if isinstance(checkpointer, BaseCheckpointSaver):
-        return graph.compile(checkpointer=checkpointer)
+        return graph.compile(checkpointer=checkpointer, **compile_kwargs)
 
     raise TypeError(
         "compile_agent_graph(checkpointer=...) must be None, True, False, "
