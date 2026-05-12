@@ -121,4 +121,72 @@ ARXIV_ID_CASES: tuple[GoldenCase, ...] = (
 )
 
 
-ALL_CASES: tuple[GoldenCase, ...] = DO_KB_CASES + PLANNER_SKIP_CASES + ARXIV_ID_CASES
+# Knowledge-graph routing coverage — verifies KG-subgraph tool selection.
+KG_CASES: tuple[GoldenCase, ...] = (
+    GoldenCase(
+        name="kg_search_concept",
+        question="Search the knowledge graph for relationships involving transformer architectures",
+        expected_intent="knowledge_graph",
+        accept_intents=("data", "research"),
+        expected_tools=("search_knowledge_graph",),
+        metadata={"feature": "kg_routing"},
+    ),
+    GoldenCase(
+        name="kg_explore_neighborhood",
+        question="Show me entities connected to BERT in the knowledge graph",
+        expected_intent="knowledge_graph",
+        accept_intents=("data", "research"),
+        expected_tools=("search_knowledge_graph", "explore_entity_neighborhood"),
+        tool_match="any",
+        metadata={"feature": "kg_routing"},
+    ),
+    GoldenCase(
+        name="kg_extract_entities",
+        question="Extract entities from my latest indexed document",
+        expected_intent="knowledge_graph",
+        accept_intents=("data",),
+        # Without fixture data the agent often lists documents first to
+        # identify "latest" before extracting.
+        expected_tools=("extract_entities", "list_project_documents", "search_documents"),
+        tool_match="any",
+        metadata={"feature": "kg_routing"},
+    ),
+)
+
+# Draft / writing-tool coverage — verifies writing-subgraph routing.
+# create_draft is destructive → triggers HITL interrupt; tool name still
+# shows up in interrupted_tool_calls. Without fixture data the agent may
+# fall back to lookup tools, so we use tool_match="any" with permissive
+# tool lists that include reasonable recovery paths.
+DRAFT_CASES: tuple[GoldenCase, ...] = (
+    GoldenCase(
+        name="create_literature_review_draft",
+        question="Write a literature review draft about retrieval-augmented generation",
+        expected_intent="writing",
+        expected_tools=("create_draft",),
+        tool_match="any",
+        metadata={"feature": "draft_generation"},
+    ),
+    # NOTE: export_bibliography case removed — without project_id fixture,
+    # agent correctly asks "which project?" instead of guessing. Re-add
+    # when test fixtures provide a seeded project with documents.
+    GoldenCase(
+        name="compare_two_documents",
+        question="Compare the two most recently indexed papers on attention mechanisms",
+        expected_intent="writing",
+        accept_intents=("research",),
+        # Agent may search/list documents first to identify "two most recent".
+        expected_tools=("compare_documents", "search_documents", "list_project_documents"),
+        tool_match="any",
+        metadata={"feature": "document_comparison"},
+    ),
+)
+
+
+ALL_CASES: tuple[GoldenCase, ...] = (
+    DO_KB_CASES
+    + PLANNER_SKIP_CASES
+    + ARXIV_ID_CASES
+    + KG_CASES
+    + DRAFT_CASES
+)
