@@ -150,13 +150,23 @@ try:
         ["tool", "category"],
     )
 
-    # Memory recall hit rate — emits 0 (miss) or 1 (hit, ≥1 memory returned)
-    # per memory_retrieval_node call. Use rate() in Prometheus / Grafana
-    # to derive hit-rate %.
-    AGENT_MEMORY_RETRIEVAL = _get_or_create_counter(
-        "agent_memory_retrieval_total",
-        "Memory retrieval outcomes per call",
+    # Memory recall hit rate — emits 0 (miss) or 1 (hit, >=1 memory returned)
+    # per recall call. Use rate() in Prometheus / Grafana to derive hit-rate %.
+    AGENT_MEMORY_RECALL = _get_or_create_counter(
+        "agent_memory_recall_total",
+        "Memory recall outcomes per call",
         ["outcome"],  # "hit" | "miss"
+    )
+
+    # Quality histogram: max similarity score returned per recall call.
+    # Trace evidence showed score=null for every recalled item — once the
+    # store has a semantic index wired this histogram surfaces whether
+    # recalls actually returned ranked, useful memories.
+    AGENT_MEMORY_SCORE = _get_or_create_histogram(
+        "agent_memory_relevance_score",
+        "Max relevance score returned by memory recall",
+        [],
+        [0.0, 0.1, 0.25, 0.5, 0.75, 0.9, 1.0],
     )
 
     _METRICS_AVAILABLE = True
@@ -260,10 +270,23 @@ def record_tool_error(tool: str, category: str) -> None:
         AGENT_TOOL_ERRORS.labels(tool=tool, category=category).inc()
 
 
-def record_memory_retrieval(hit: bool) -> None:
-    """Record memory recall outcome — hit (>=1 memory) or miss."""
-    if _METRICS_AVAILABLE:
-        AGENT_MEMORY_RETRIEVAL.labels(outcome="hit" if hit else "miss").inc()
+def record_memory_recall(hit: bool, max_score: float | None = None) -> None:
+    """Record memory recall outcome + optional max similarity score.
+
+    ``hit`` increments the counter under outcome="hit" or "miss".
+    ``max_score`` (when not None) feeds the relevance histogram so
+    dashboards can distinguish "we returned 5 memories with score=0.1"
+    from "we returned 5 strong matches".
+    """
+    if not _METRICS_AVAILABLE:
+        return
+    AGENT_MEMORY_RECALL.labels(outcome="hit" if hit else "miss").inc()
+    if max_score is not None:
+        AGENT_MEMORY_SCORE.observe(max_score)
+
+
+# Backwards-compat alias — earlier code paths referenced the old name.
+record_memory_retrieval = record_memory_recall
 
 
 @asynccontextmanager
