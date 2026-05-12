@@ -123,6 +123,36 @@ _REFLECTION_SYSTEM_PROMPT = (
 _REFLECTION_MIN_CONTENT_CHARS = 200
 
 
+def _is_transient_failure(te: Any) -> bool:
+    """A tool_execution that failed due to an upstream/transient cause —
+    rate limit, network timeout, 5xx — that regenerating the response
+    cannot fix. Match the shape produced by ``_execute_single_tool`` +
+    ``error_recovery.classify_error_from_payload``.
+    """
+    if not isinstance(te, dict):
+        return False
+    if te.get("status") != "failed":
+        return False
+    result = te.get("result")
+    if not isinstance(result, dict):
+        return False
+    return result.get("error_type") == "transient"
+
+
+def _is_completed_or_transient(te: Any) -> bool:
+    """Status counts toward the transient-acknowledged skip: completed
+    successes, transient failures, or deduped (already-counted) entries.
+    A non-transient failure (e.g. validation error, auth denied) should
+    NOT skip — those are agent-fixable and worth critiquing.
+    """
+    if not isinstance(te, dict):
+        return False
+    status = te.get("status")
+    if status in ("completed", "deduped"):
+        return True
+    return _is_transient_failure(te)
+
+
 def _last_ai_message(state: dict) -> AIMessage | None:
     """Return the most recent AIMessage in state, or None."""
     for msg in reversed(state.get("messages", [])):
@@ -188,6 +218,32 @@ def _should_skip_reflection(state: dict) -> tuple[bool, str]:
         return (
             True,
             f"happy-path ({content_len} chars, {len(tool_executions)} tools all completed)",
+        )
+
+    # Fast-path: tools ran but the only failures were transient/external
+    # (rate limits, timeouts, network errors). The agent cannot recover by
+    # regenerating its response — the failure is upstream. Critiquing as
+    # "did not execute tools" wastes ~3k tokens per turn and can trigger a
+    # useless revise loop.
+    #
+    # Trace (revision e8d8b1ad, "grab me more paper about ML in Health Care"):
+    # arXiv 429 → tool_executions=[{status:"failed", result:{error_type:
+    # "transient"}}] → reflection ran 2× and flagged "did not execute any
+    # tools" both times. Wrong: tool ran, external API failed.
+    if (
+        not has_tool_calls
+        and content_len >= _REFLECTION_MIN_CONTENT_CHARS
+        and tool_executions
+        and all(_is_completed_or_transient(te) for te in tool_executions)
+        and any(_is_transient_failure(te) for te in tool_executions)
+    ):
+        transient_count = sum(
+            1 for te in tool_executions if _is_transient_failure(te)
+        )
+        return (
+            True,
+            f"transient-failure-acknowledged ({content_len} chars, "
+            f"{transient_count} transient failures)",
         )
 
     return (False, "")

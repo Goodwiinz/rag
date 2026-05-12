@@ -373,6 +373,94 @@ class TestShouldSkipReflection:
         skip, _reason = _should_skip_reflection(state)
         assert skip is False
 
+    def test_skips_when_only_failure_is_transient_and_acknowledged(self):
+        """Phase 8: transient external failure + substantive acknowledgment
+        → skip critique. The agent cannot recover by regenerating; reflection
+        has nothing useful to say (trace e8d8b1ad / arXiv 429)."""
+        from langchain_core.messages import AIMessage, HumanMessage
+
+        long_text = (
+            "I hit an arXiv rate limit (HTTP 429) while searching. Want me to "
+            "retry the same search now? If you'd prefer, tell me a subtopic "
+            "(e.g., medical imaging, EHR prediction, federated learning, "
+            "clinical NLP) and I'll search that specifically once arXiv is "
+            "available again."
+        )
+        assert len(long_text) >= 200  # sanity: must clear the short-output gate
+        state = {
+            "messages": [
+                HumanMessage(content="grab me more papers"),
+                AIMessage(content=long_text),
+            ],
+            "tool_executions": [
+                {
+                    "tool_name": "search_arxiv",
+                    "status": "failed",
+                    "result": {
+                        "error": "ArXiv rate limited (HTTP 429).",
+                        "error_type": "transient",
+                        "suggestion": "Retry in 60 seconds.",
+                    },
+                },
+            ],
+        }
+        skip, reason = _should_skip_reflection(state)
+        assert skip is True
+        assert "transient-failure-acknowledged" in reason
+
+    def test_does_not_skip_when_failure_is_not_transient(self):
+        """Auth/validation failures ARE worth critiquing — agent could
+        apologize, suggest re-auth, etc. — so the transient skip must NOT
+        fire on permanent failures."""
+        from langchain_core.messages import AIMessage, HumanMessage
+
+        long_text = "I tried but got an error. " * 20
+        state = {
+            "messages": [
+                HumanMessage(content="search docs"),
+                AIMessage(content=long_text),
+            ],
+            "tool_executions": [
+                {
+                    "tool_name": "search_documents",
+                    "status": "failed",
+                    "result": {
+                        "error": "Permission denied",
+                        "error_type": "permanent",
+                    },
+                },
+            ],
+        }
+        skip, _reason = _should_skip_reflection(state)
+        assert skip is False
+
+    def test_does_not_skip_on_mixed_failure_types(self):
+        """If even one failure is non-transient, reflection still runs —
+        the agent might be able to address the permanent failure separately."""
+        from langchain_core.messages import AIMessage, HumanMessage
+
+        long_text = "I had partial results. " * 20
+        state = {
+            "messages": [
+                HumanMessage(content="search both"),
+                AIMessage(content=long_text),
+            ],
+            "tool_executions": [
+                {
+                    "tool_name": "search_arxiv",
+                    "status": "failed",
+                    "result": {"error_type": "transient"},
+                },
+                {
+                    "tool_name": "search_documents",
+                    "status": "failed",
+                    "result": {"error_type": "permanent"},
+                },
+            ],
+        }
+        skip, _reason = _should_skip_reflection(state)
+        assert skip is False
+
     @pytest.mark.asyncio
     async def test_gate_node_skips_llm_for_trivial_writing_turn(self):
         """End-to-end: the writing-intent gate must NOT call the critique LLM
