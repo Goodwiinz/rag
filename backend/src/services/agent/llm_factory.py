@@ -30,6 +30,7 @@ def build_lightweight_llm(
     temperature: float = 0,
     max_tokens: int = 512,
     request_timeout: float | None = None,
+    use_responses_api: bool | None = None,
 ) -> BaseChatModel:
     """Build a LangChain chat model for lightweight auxiliary tasks.
 
@@ -63,6 +64,11 @@ def build_lightweight_llm(
         extra["request_timeout"] = request_timeout
     if deployment not in _NO_CUSTOM_TEMPERATURE:
         extra["temperature"] = temperature
+    # Default to Chat Completions API. langchain-openai auto-routes gpt-5
+    # family + reasoning_effort to Azure Responses API, which currently
+    # rejects multi-part / tool_call messages with "Unsupported data type".
+    # Callers can opt back in by passing use_responses_api=True explicitly.
+    extra["use_responses_api"] = False if use_responses_api is None else use_responses_api
 
     # gpt-5 family supports reasoning_effort. Lightweight tasks (classifier,
     # reflection, planner complexity check) default to "minimal" — they're
