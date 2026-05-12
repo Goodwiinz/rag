@@ -7,13 +7,14 @@ other utilities referenced across multiple _tool_* functions.
 import logging
 import re
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Iterable, Optional
 from uuid import UUID
 
 from sqlalchemy import desc, select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models.collection import Collection
+from src.models.collection import Collection, CollectionDocument
 from src.models.document import Document
 from src.models.user import User
 from src.models.workspace import Workspace
@@ -188,3 +189,51 @@ async def _verify_project_ownership(
     )
     result = await db.execute(stmt)
     return result.scalar_one_or_none()
+
+
+async def _link_documents_to_project(
+    db: AsyncSession,
+    project: Collection,
+    document_ids: Iterable[str],
+) -> Dict[str, Any]:
+    """Idempotently link documents to a project.
+
+    Uses ``INSERT ... ON CONFLICT DO NOTHING`` against the
+    ``(collection_id, document_id)`` unique constraint so concurrent
+    ingests of the same paper don't race the existence check, and so we
+    avoid an N+1 ``SELECT`` per document.
+
+    Returns ``{"linked": int, "already_linked": int}`` — caller decides
+    how to surface the result.
+    """
+    ids = [str(d) for d in document_ids if d]
+    if not ids:
+        return {"linked": 0, "already_linked": 0}
+
+    existing_stmt = select(CollectionDocument.document_id).where(
+        CollectionDocument.collection_id == project.id,
+        CollectionDocument.document_id.in_(ids),
+    )
+    existing = {
+        str(row[0]) for row in (await db.execute(existing_stmt)).all()
+    }
+
+    new_rows = [
+        {"collection_id": project.id, "document_id": doc_id}
+        for doc_id in ids
+        if doc_id not in existing
+    ]
+
+    if new_rows:
+        await db.execute(
+            pg_insert(CollectionDocument)
+            .values(new_rows)
+            .on_conflict_do_nothing(
+                index_elements=["collection_id", "document_id"]
+            )
+        )
+
+    return {
+        "linked": len(new_rows),
+        "already_linked": len(existing),
+    }

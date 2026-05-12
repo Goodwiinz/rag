@@ -119,9 +119,17 @@ def _resolve_project_id(
     explicit_project_id: Optional[str],
     page_context: dict,
 ) -> Optional[str]:
-    """Return *explicit_project_id* if given, else fall back to page context."""
-    if explicit_project_id:
-        return explicit_project_id
+    """Return a valid project UUID, preferring explicit input.
+
+    Discards an explicit value that isn't a UUID (LLMs occasionally
+    hallucinate IDs like ``"proj_12345"``); in that case we fall back to
+    the active project from ``page_context`` so the user's intent of
+    "add this to the project I'm viewing" still wins.
+    """
+    from src.services.agent._uuid import UUID_STRICT_RE
+
+    if explicit_project_id and UUID_STRICT_RE.match(explicit_project_id.strip()):
+        return explicit_project_id.strip()
     if page_context.get("type") == "project" and page_context.get("project_id"):
         return page_context["project_id"]
     return None
@@ -177,23 +185,30 @@ async def search_arxiv(
 @tool
 async def ingest_arxiv_papers(
     paper_ids: List[str],
+    project_id: Optional[str] = None,
     config: RunnableConfig | None = None,
 ) -> Dict[str, Any]:
     """Ingest arXiv papers into the RAG system for indexing and search.
 
-    Use when the user wants to add, import, download, or ingest specific arXiv
-    papers. Requires paper IDs (e.g., '2401.12345').
+    Use when the user wants to add, import, download, or ingest arXiv papers
+    (IDs like '2401.12345'). Omit ``project_id`` when the user is viewing a
+    project page — the tool auto-attaches. Pass an explicit UUID only to
+    target a different project.
     """
     config = config or {}
     from src.api.agent.execute import _tool_ingest_arxiv
 
-    db, current_user, _page_ctx = _get_context(config)
+    db, current_user, page_ctx = _get_context(config)
     user_id = str(current_user.id) if current_user else ""
     # Cap batch size — ingestion is heavy and a hallucinated 100-paper
     # batch will saturate the worker pool and trip downstream timeouts.
     capped_ids = list(paper_ids or [])[:_MAX_INGEST_BATCH]
+    resolved_project_id = _resolve_project_id(project_id, page_ctx)
     return await _tool_ingest_arxiv(
-        {"paper_ids": capped_ids}, user_id, db, current_user
+        {"paper_ids": capped_ids, "project_id": resolved_project_id},
+        user_id,
+        db,
+        current_user,
     )
 
 

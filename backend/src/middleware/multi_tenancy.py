@@ -101,11 +101,16 @@ class MultiTenancyMiddleware(BaseHTTPMiddleware):
         if not token_data or not token_data.user_id:
             return None
 
-        # JIT-provision user + org on first authenticated request
-        if db is not None:
-            provisioned = await ensure_user_and_org(db, token_data)
-            if provisioned:
-                await db.commit()
+        # JIT-provision user + org on first authenticated request.
+        # Uses a separate session to avoid tainting the middleware's
+        # main session with a potential rollback from IntegrityError.
+        try:
+            async with AsyncSessionLocal() as prov_db:
+                provisioned = await ensure_user_and_org(prov_db, token_data)
+                if provisioned:
+                    await prov_db.commit()
+        except Exception as e:
+            logger.debug("JIT-provision skipped (non-fatal): %s", e)
 
         # Fast path: org_id already embedded in JWT (CLI tokens, future Supabase tokens)
         if token_data.organization_id:

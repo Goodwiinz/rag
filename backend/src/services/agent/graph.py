@@ -16,9 +16,7 @@ from typing import Any, Dict, List, Optional
 # Matches a UUID anywhere in a string. Used to extract project IDs from URLs
 # or raw UUIDs that the user pastes into the conversation so the agent can
 # carry the context forward across turns.
-_UUID_RE = re.compile(
-    r"\b([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})\b"
-)
+from src.services.agent._uuid import UUID_SEARCH_RE as _UUID_RE
 
 
 def _extract_project_id_from_text(text: str) -> Optional[str]:
@@ -1310,6 +1308,11 @@ _LLM_NODE_STATIC_PROMPT = (
     "3. add_document_to_project — use the document_ids (UUIDs) from the import response\n\n"
     "Do not skip step 2. Do not pass arXiv IDs to add_document_to_project.\n"
     "Only use UUIDs returned by ingest_arxiv_papers or search_documents.\n"
+    "For ingest_arxiv_papers: omit project_id when the user is on a project "
+    "page — the tool auto-attaches from page context. Only pass an explicit "
+    "project_id (real UUID from list_projects) to target a DIFFERENT project. "
+    "Never invent IDs like 'proj_12345' — they are rejected and the tool "
+    "falls back to page context.\n"
     "If a tool returns an error, report the error honestly to the user.\n\n"
     "## Honest result reporting\n"
     "When a tool returns documents_ingested=0, total=0, an empty array, "
