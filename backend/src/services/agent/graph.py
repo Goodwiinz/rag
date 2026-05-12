@@ -274,6 +274,11 @@ def _build_llm(model_override: str | None = None):
     # the agent's tool_call message history with "Unsupported data type". The
     # Chat Completions path handles tool_calls reliably and supports
     # reasoning_effort on gpt-5 deployments via api-version 2024-10-21+.
+    # Bound LLM call wall-clock + cap retries. Prevents the model-router hang
+    # observed in LangSmith (traces with end_time=null blocking root 70s+).
+    request_timeout = settings.AGENT_LLM_REQUEST_TIMEOUT
+    max_retries = settings.AGENT_LLM_MAX_RETRIES
+
     if endpoint_type == "openai_compatible":
         from langchain_openai import ChatOpenAI
 
@@ -283,6 +288,8 @@ def _build_llm(model_override: str | None = None):
             base_url=endpoint,
             max_tokens=4096,
             use_responses_api=False,
+            request_timeout=request_timeout,
+            max_retries=max_retries,
         )
         if temperature is not None:
             kwargs["temperature"] = temperature
@@ -299,6 +306,8 @@ def _build_llm(model_override: str | None = None):
             api_version=api_version,
             max_tokens=4096,
             use_responses_api=False,
+            request_timeout=request_timeout,
+            max_retries=max_retries,
         )
         if temperature is not None:
             kwargs["temperature"] = temperature
@@ -344,10 +353,21 @@ async def memory_retrieval_node(state: AgentState, config: RunnableConfig) -> di
         memories = await search_memories(
             store, str(current_user.id), last_user_msg, limit=5
         )
+        # Defense-in-depth — search_memories already passes limit=5 to the
+        # store, but a misbehaving backend (or a future bump in callers)
+        # could return more. Sorting by score puts the ranked entries
+        # first so the LLM prompt only carries the strongest matches.
+        memories.sort(key=lambda m: m.get("score") or 0.0, reverse=True)
+        memories = memories[:5]
         try:
             from src.services.agent import observability as _obs
 
-            _obs.record_memory_retrieval(hit=bool(memories))
+            max_score = (
+                max((m.get("score") or 0.0) for m in memories)
+                if memories
+                else None
+            )
+            _obs.record_memory_recall(hit=bool(memories), max_score=max_score)
         except Exception:
             pass
         return {"user_memories": memories}
@@ -377,6 +397,16 @@ async def memory_save_node(state: AgentState, config: RunnableConfig) -> dict:
     if not current_user:
         return {}
 
+    # Save gate. Trace evidence (019e066b-2a35) showed every greeting
+    # ("hi", "thanks") was persisted and later recalled as noise on
+    # technical queries. Only persist turns that either committed to a
+    # specialised intent OR ran a tool — those are the turns whose
+    # recall has any chance of helping a future query.
+    intent = state.get("intent") or ""
+    tool_executions = state.get("tool_executions") or []
+    if intent in ("", "general") and not tool_executions:
+        return {}
+
     try:
         from src.services.agent.memory import get_memory_store, save_memory
 
@@ -400,10 +430,18 @@ async def memory_save_node(state: AgentState, config: RunnableConfig) -> dict:
 
         # Save a condensed memory of the interaction
         import hashlib
+        from datetime import datetime, timezone
 
         mem_key = hashlib.md5(
             last_user_content[:100].encode(), usedforsecurity=False
         ).hexdigest()[:12]
+
+        thread_id = (
+            configurable.get("thread_id") or state.get("thread_id") or ""
+        )
+        turn_index = len(
+            [m for m in state["messages"] if isinstance(m, HumanMessage)]
+        )
 
         await save_memory(
             store,
@@ -411,11 +449,14 @@ async def memory_save_node(state: AgentState, config: RunnableConfig) -> dict:
             mem_key,
             {
                 "query": last_user_content[:200],
-                "intent": state.get("intent", "general"),
+                "intent": intent,
                 "tools_used": [
                     te.get("tool_name", "")
-                    for te in state.get("tool_executions", [])[-3:]
+                    for te in tool_executions[-3:]
                 ],
+                "thread_id": thread_id,
+                "turn_index": turn_index,
+                "created_at": datetime.now(timezone.utc).isoformat(),
             },
         )
         return {}

@@ -281,6 +281,14 @@ class Settings(BaseSettings):
     AGENT_MAIN_REASONING_EFFORT: str = "low"
     AGENT_LIGHTWEIGHT_REASONING_EFFORT: str = "minimal"
 
+    # Bound Azure LLM call wall-clock to prevent model-router hangs. LangSmith
+    # has observed traces with end_time=null blocking root for 70s+. Default
+    # 60s for main agent LLM (synthesis can be long), 30s for lightweight
+    # auxiliary calls (classifier/planner/reflection — should be fast).
+    AGENT_LLM_REQUEST_TIMEOUT: float = 60.0
+    AGENT_LIGHTWEIGHT_REQUEST_TIMEOUT: float = 30.0
+    AGENT_LLM_MAX_RETRIES: int = 2
+
     # When True, post-tool synthesis turns (final-answer LLM call right after
     # a ToolMessage) use the lightweight deployment instead of the main one.
     # Cuts ~5-15s/turn on read-heavy queries like arxiv search results.

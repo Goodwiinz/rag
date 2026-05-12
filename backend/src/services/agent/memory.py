@@ -51,7 +51,19 @@ async def get_memory_store():
             pool = await get_shared_langgraph_pool(get_db_uri())
             _store = AsyncPostgresStore(pool)
             await _store.setup()
-            logger.info("Memory store initialised (AsyncPostgresStore)")
+            # Diagnostic: confirm backend class + whether semantic index is
+            # wired. Trace evidence shows asearch returns score=None for
+            # every recalled entry — suspect cause is missing index= config
+            # at construction. Log makes the runtime state obvious.
+            indexed = bool(
+                getattr(_store, "_index", None)
+                or getattr(_store, "index_config", None)
+            )
+            logger.info(
+                "Memory store initialised (%s, indexed=%s)",
+                type(_store).__name__,
+                indexed,
+            )
             return _store
         except Exception as e:
             require_durable_or_fallback(

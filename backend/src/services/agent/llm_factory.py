@@ -44,6 +44,7 @@ def _build_chat_llm(
     request_timeout: float | None = None,
     use_responses_api: bool | None = None,
     reasoning_effort: str | None = None,
+    max_retries: int | None = None,
 ) -> BaseChatModel:
     """Shared core builder for lightweight + synthesis LLMs.
 
@@ -73,9 +74,18 @@ def _build_chat_llm(
     # rather than maintaining an explicit allowlist as new sizes ship.
     _accepts_temperature = not deployment.startswith("gpt-5")
 
-    extra: dict[str, Any] = {}
-    if request_timeout is not None:
-        extra["request_timeout"] = request_timeout
+    # Bound LLM call wall-clock + cap retries. Lightweight callers (classifier,
+    # planner, reflection) get a shorter ceiling than the main agent so a stuck
+    # model-router call cannot block the whole turn.
+    if request_timeout is None:
+        request_timeout = settings.AGENT_LIGHTWEIGHT_REQUEST_TIMEOUT
+    if max_retries is None:
+        max_retries = settings.AGENT_LLM_MAX_RETRIES
+
+    extra: dict[str, Any] = {
+        "request_timeout": request_timeout,
+        "max_retries": max_retries,
+    }
     if _accepts_temperature:
         extra["temperature"] = temperature
     # Default to Chat Completions API. langchain-openai auto-routes gpt-5
@@ -152,12 +162,17 @@ def build_synthesis_llm(
     final-answer path while routing/classify stay on cheap nano.
     """
     settings = get_settings()
+    # Synthesis call can be long (full 4096-token completion). Use the main
+    # agent timeout, not the lightweight one, unless caller overrides.
+    resolved_timeout = (
+        request_timeout if request_timeout is not None else settings.AGENT_LLM_REQUEST_TIMEOUT
+    )
     return _build_chat_llm(
         _resolve_synthesis_deployment(),
         role_label="Synthesis",
         temperature=temperature,
         max_tokens=max_tokens,
-        request_timeout=request_timeout,
+        request_timeout=resolved_timeout,
         use_responses_api=use_responses_api,
         reasoning_effort=settings.AGENT_LIGHTWEIGHT_REASONING_EFFORT or None,
     )
