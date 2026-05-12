@@ -466,7 +466,7 @@ def _is_retrieval_query(content: str) -> bool:
     prefix is treated as retrieval to avoid degrading recall.
 
     Rules (a query is treated as NON-retrieval when ANY of these hold):
-      0. lowercased content matches a ``_CONVERSATIONAL_PATTERNS`` entry
+      0. lowercased+stripped content exactly matches a ``_CONVERSATIONAL_PATTERNS`` entry
 
     Otherwise treated as retrieval when ANY of these hold:
       1. token count >= ``_SHORT_QUERY_TOKEN_LIMIT`` (8)
@@ -479,9 +479,8 @@ def _is_retrieval_query(content: str) -> bool:
     lowered = content.lower().strip()
     tokens = content.split()
 
-    for pattern in _CONVERSATIONAL_PATTERNS:
-        if re.search(r"\b" + re.escape(pattern) + r"\b", lowered):
-            return False
+    if lowered in _CONVERSATIONAL_PATTERNS:
+        return False
 
     if len(tokens) >= _SHORT_QUERY_TOKEN_LIMIT:
         return True
@@ -1365,6 +1364,17 @@ async def llm_node(state: AgentState, config: RunnableConfig) -> dict:
         parallel_tool_calls=settings.AGENT_PARALLEL_TOOL_CALLS,
     )
     response = await llm_with_tools.ainvoke(messages, config=config)
+
+    # If response was truncated (hit max_tokens) without pending tool calls,
+    # retry once with a continuation prompt to complete the answer.
+    finish_reason = getattr(response, "response_metadata", {}).get("finish_reason")
+    if finish_reason == "length" and not getattr(response, "tool_calls", None):
+        from langchain_core.messages import HumanMessage as _HM
+
+        continuation_msgs = messages + [response, _HM(content="Continue.")]
+        continuation = await llm_with_tools.ainvoke(continuation_msgs, config=config)
+        merged = (response.content or "") + (continuation.content or "")
+        response = continuation.model_copy(update={"content": merged})
 
     return {
         "messages": [response],
