@@ -5,6 +5,7 @@ Tools: create_draft, create_project_note, export_bibliography,
        summarize_document, compare_documents
 """
 
+import asyncio
 import logging
 
 from langchain_core.messages import AIMessage, SystemMessage
@@ -80,13 +81,34 @@ def _build_writing_system_prompt() -> str:
 
 async def writing_llm_node(state: AgentState, config: RunnableConfig) -> dict:
     """Writing-specialized LLM node."""
-    from src.services.agent.graph import _build_llm
+    from src.services.agent.graph import AGENT_LLM_TIMEOUT_SECONDS, _build_llm
 
     messages = [SystemMessage(content=_build_writing_system_prompt())] + _sanitize_messages(list(state["messages"]))
 
     llm = _build_llm()
     llm_with_tools = llm.bind_tools(WRITING_TOOLS)
-    response = await llm_with_tools.ainvoke(messages, config=config)
+    try:
+        response = await asyncio.wait_for(
+            llm_with_tools.ainvoke(messages, config=config),
+            timeout=AGENT_LLM_TIMEOUT_SECONDS,
+        )
+    except asyncio.TimeoutError:
+        logger.warning(
+            "writing_llm_node: LLM exceeded %ds; emitting fallback",
+            AGENT_LLM_TIMEOUT_SECONDS,
+        )
+        return {
+            "messages": [
+                AIMessage(
+                    content=(
+                        "The writing model took too long to respond. Please "
+                        "try again with a shorter or more specific request."
+                    ),
+                ),
+            ],
+            "last_error": "writing_llm_timeout",
+            "error_count": state.get("error_count", 0) + 1,
+        }
 
     return {
         "messages": [response],

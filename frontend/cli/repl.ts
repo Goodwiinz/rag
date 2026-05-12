@@ -30,6 +30,13 @@ import { buildCompleter, isPromptCancel, readPrompt } from './prompt';
 import { readDraft, clearDraft } from './services/draft';
 import { classifyError } from './errors';
 import { withRetry } from './retry';
+import { c, glyph } from './theme';
+import {
+  ResponseWriter,
+  thinkingLineOut,
+  toolBadgePrefix,
+  turnSeparator,
+} from './output';
 
 interface ActiveProject {
   id: string;
@@ -71,7 +78,9 @@ export async function runRepl(options: ReplOptions = {}): Promise<void> {
         ? { id: config.paper_id, title: config.paper_title }
         : null;
 
-  p.intro(`NOUS  ·  ${formatStatus(threadId, activeProject, activePaper)}`);
+  p.intro(
+    `${c.boldCyan('NOUS')} ${c.gray('·')} ${c.dim(formatStatus(threadId, activeProject, activePaper))}`
+  );
 
   let pendingDraft: string | null = null;
   const initialDraft = readDraft();
@@ -251,12 +260,10 @@ function renderFooter(
     process.stdout.isTTY && process.stdout.columns
       ? process.stdout.columns
       : 80;
-  const dim = process.stdout.isTTY ? '\x1b[2m' : '';
-  const reset = process.stdout.isTTY ? '\x1b[0m' : '';
-  const visible = `└─ ${status} `;
-  const padLen = Math.max(0, cols - visible.length);
-  const bar = `${visible}${'─'.repeat(padLen)}`;
-  process.stdout.write(`${dim}${bar}${reset}\n`);
+  const visiblePrefix = `╰─ ${status} `;
+  const padLen = Math.max(0, cols - visiblePrefix.length);
+  const rule = '─'.repeat(padLen);
+  process.stdout.write(`${c.gray('╰─')} ${c.dim(status)} ${c.gray(rule)}\n`);
 }
 
 function recordThreadUse(
@@ -295,12 +302,12 @@ async function streamToTerminal(
     outputTokens: number;
     costUsd: number | null;
   } | null = null;
-  let tokenBuffer = '';
+  let writer = new ResponseWriter();
   let retriedAfterMissingThread = false;
   let confirmRetried = false;
   let activeConfirmThreadId: string | null = null;
 
-  process.stdout.write('\n');
+  turnSeparator();
 
   type EventStream = AsyncGenerator<import('./stream').StreamEvent>;
   let current: EventStream;
@@ -315,9 +322,9 @@ async function streamToTerminal(
     );
   } catch (e) {
     process.stdout.write('\n');
-    const c = classifyError(e);
-    p.log.error(c.userMessage);
-    if (c.hint) p.log.message(`  ${c.hint}`);
+    const classified = classifyError(e);
+    p.log.error(classified.userMessage);
+    if (classified.hint) p.log.message(`  ${classified.hint}`);
     return;
   }
 
@@ -329,11 +336,12 @@ async function streamToTerminal(
     try {
       for await (const event of current) {
         if (event.type === 'token') {
-          process.stdout.write(event.content);
-          tokenBuffer += event.content;
+          writer.writeToken(event.content);
         } else if (event.type === 'tool_start') {
           const s = p.spinner();
-          s.start(formatToolLine(event.tool, event.args));
+          s.start(
+            `${toolBadgePrefix()} ${formatToolLine(event.tool, event.args)}`
+          );
           spinners.set(event.tool, s);
         } else if (event.type === 'tool_end') {
           const label = formatToolEndLine(
@@ -342,34 +350,47 @@ async function streamToTerminal(
             event.isError
           );
           const s = spinners.get(event.tool);
+          const decorated = `${toolBadgePrefix()} ${label}`;
           if (s) {
             if (event.isError) {
-              s.error(label);
+              s.error(decorated);
             } else {
-              s.stop(label);
+              s.stop(decorated);
             }
             spinners.delete(event.tool);
           } else if (event.isError) {
-            p.log.error(`✗ ${label}`);
+            p.log.error(`${c.red(glyph.cross)} ${label}`);
           } else {
-            p.log.success(`✓ ${label}`);
+            p.log.success(`${c.green(glyph.check)} ${label}`);
           }
         } else if (event.type === 'plan') {
           if (event.steps.length > 0) {
-            p.log.info(`Plan: ${event.steps.join(' → ')}`);
+            thinkingLineOut(
+              `${c.magenta(glyph.spark)} ${c.bold('Plan')}`,
+              event.steps.join(`  ${c.gray('→')}  `)
+            );
           }
         } else if (event.type === 'reflection') {
           if (event.passed) {
-            p.log.success(`Reflection #${event.round} passed`);
+            thinkingLineOut(
+              `${c.green(glyph.check)} ${c.bold(`Reflection #${event.round}`)}`,
+              c.dim('passed')
+            );
           } else {
-            p.log.warn(
-              `Reflection #${event.round}: ${event.issues.length > 0 ? event.issues.join('; ') : 'failed'}`
+            const detail =
+              event.issues.length > 0 ? event.issues.join('; ') : 'failed';
+            thinkingLineOut(
+              `${c.yellow(glyph.warn)} ${c.bold(`Reflection #${event.round}`)}`,
+              c.yellow(detail)
             );
           }
         } else if (event.type === 'rag_context') {
           if (event.contexts.length > 0) {
             collectedContexts.push(...event.contexts);
-            p.log.info(`Retrieved ${event.contexts.length} context(s)`);
+            thinkingLineOut(
+              `${c.blue(glyph.bullet)} ${c.bold('Context')}`,
+              c.dim(`retrieved ${event.contexts.length} chunk(s)`)
+            );
           }
         } else if (event.type === 'usage') {
           lastUsage = {
@@ -382,6 +403,7 @@ async function streamToTerminal(
             s.cancel(`${tool} (paused — awaiting confirmation)`);
           }
           spinners.clear();
+          writer.abort();
           process.stdout.write('\n');
           renderConfirmationDetails(event.details);
           const ok = await confirmKey({
@@ -397,14 +419,13 @@ async function streamToTerminal(
           activeConfirmThreadId = event.threadId;
           break;
         } else if (event.type === 'done') {
-          process.stdout.write('\n');
-          maybeReformatMarkdown(tokenBuffer);
+          writer.finish();
           renderCitationsFooter(collectedContexts);
           renderUsageLine(lastUsage);
           process.stdout.write('\n');
           return;
         } else if (event.type === 'error') {
-          process.stdout.write('\n');
+          writer.abort();
           const classified = classifyError(event.message);
           if (
             classified.kind === 'not_found_thread' &&
@@ -436,9 +457,9 @@ async function streamToTerminal(
         }
       }
     } catch (e) {
-      const c = classifyError(e);
-      if (c.kind === 'cancelled') {
-        process.stdout.write('\n');
+      const classified = classifyError(e);
+      if (classified.kind === 'cancelled') {
+        writer.abort();
         p.log.warn('Cancelled.');
         return;
       }
@@ -446,22 +467,22 @@ async function streamToTerminal(
     }
 
     if (retryConfirm && activeConfirmThreadId) {
-      tokenBuffer = '';
+      writer = new ResponseWriter();
       current = streamConfirm(activeConfirmThreadId, true, { signal });
       continue;
     }
 
     if (retryFreshThread) {
+      writer = new ResponseWriter();
       current = streamAgent(message, pageContext, { signal });
       continue;
     }
 
     if (pendingConfirmThreadId === null) break;
 
-    // Reset the markdown buffer between pre- and post-confirm halves so the
-    // post-confirm done-event re-render doesn't include the LLM's pre-confirm
-    // "I want to run this tool" preamble.
-    tokenBuffer = '';
+    // Reset the response block between pre- and post-confirm halves so the
+    // post-confirm finish doesn't include the LLM's pre-confirm preamble.
+    writer = new ResponseWriter();
     current = streamConfirm(pendingConfirmThreadId, true, { signal });
   }
 }

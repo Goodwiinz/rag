@@ -5,6 +5,7 @@ Tools: search_arxiv, ingest_arxiv_papers, search_documents,
        create_project, add_document_to_project, list_project_documents
 """
 
+import asyncio
 import logging
 
 from langchain_core.messages import AIMessage, SystemMessage
@@ -126,7 +127,30 @@ async def research_llm_node(state: AgentState, config: RunnableConfig) -> dict:
         RESEARCH_TOOLS,
         parallel_tool_calls=settings.AGENT_PARALLEL_TOOL_CALLS,
     )
-    response = await llm_with_tools.ainvoke(messages, config=config)
+    from src.services.agent.graph import AGENT_LLM_TIMEOUT_SECONDS
+
+    try:
+        response = await asyncio.wait_for(
+            llm_with_tools.ainvoke(messages, config=config),
+            timeout=AGENT_LLM_TIMEOUT_SECONDS,
+        )
+    except asyncio.TimeoutError:
+        logger.warning(
+            "research_llm_node: LLM exceeded %ds; emitting fallback",
+            AGENT_LLM_TIMEOUT_SECONDS,
+        )
+        return {
+            "messages": [
+                AIMessage(
+                    content=(
+                        "The research model took too long to respond. Please "
+                        "try again or narrow the query."
+                    ),
+                ),
+            ],
+            "last_error": "research_llm_timeout",
+            "error_count": state.get("error_count", 0) + 1,
+        }
 
     return {
         "messages": [response],
@@ -202,7 +226,24 @@ async def research_force_synthesis_node(
 
     llm = build_lightweight_llm(max_tokens=4096)
     # No bind_tools — force a pure text response.
-    response = await llm.ainvoke(full, config=config)
+    from src.services.agent.graph import AGENT_LLM_TIMEOUT_SECONDS
+
+    try:
+        response = await asyncio.wait_for(
+            llm.ainvoke(full, config=config),
+            timeout=AGENT_LLM_TIMEOUT_SECONDS,
+        )
+    except asyncio.TimeoutError:
+        logger.warning(
+            "research_force_synthesis_node: LLM exceeded %ds; emitting fallback",
+            AGENT_LLM_TIMEOUT_SECONDS,
+        )
+        response = AIMessage(
+            content=(
+                "I gathered some results but ran out of time composing a "
+                "final summary. Please ask me to summarize the papers above."
+            ),
+        )
 
     return {
         "messages": [response],

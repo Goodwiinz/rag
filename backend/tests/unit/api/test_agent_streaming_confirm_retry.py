@@ -60,7 +60,7 @@ async def test_confirm_retries_on_first_aget_state_miss():
 
     graph_instances = []
 
-    def fake_compile(*, checkpointer):
+    def fake_compile(*, checkpointer, store=None):
         call_count["compile"] += 1
         if call_count["compile"] == 1:
             g = _FakeGraphWithRetry(snapshot)
@@ -117,7 +117,7 @@ async def test_confirm_returns_thread_not_found_after_both_attempts_fail():
     """If both aget_state attempts return empty, emit 'Thread not found'."""
     from src.api.agent.streaming import stream_confirm_event_generator
 
-    def fake_compile(*, checkpointer):
+    def fake_compile(*, checkpointer, store=None):
         return _FakeGraphNotFound()
 
     request = SimpleNamespace(is_disconnected=AsyncMock(return_value=True))
