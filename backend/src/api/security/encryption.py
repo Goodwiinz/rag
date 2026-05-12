@@ -9,6 +9,7 @@ This module provides REST API endpoints for:
 - Data protection operations
 """
 
+import logging
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 from uuid import UUID
@@ -26,6 +27,8 @@ from src.core.encryption import EncryptionError, EncryptionKeyType
 from src.models.organization import Organization
 from src.models.user import User
 from src.services.security.encryption_service import EncryptionService
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/encryption", tags=["encryption"])
 security = HTTPBearer()
@@ -195,7 +198,9 @@ async def encrypt_user_profile(
         # Verify target user belongs to same organization
         if request.user_id != current_user.id:
             target_user = db.query(User).filter(User.id == request.user_id).first()
-            if not target_user or str(target_user.organization_id) != str(current_user.organization_id):
+            if not target_user or str(target_user.organization_id) != str(
+                current_user.organization_id
+            ):
                 raise HTTPException(status_code=404, detail="User not found")
 
         # Encrypt the profile
@@ -213,9 +218,11 @@ async def encrypt_user_profile(
         }
 
     except EncryptionError as e:
-        raise HTTPException(status_code=500, detail=f"Encryption failed: {str(e)}")
+        logger.error(f"Encryption failed: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+        logger.error(f"Internal server error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/profiles/organization", response_model=Dict[str, Any])
@@ -259,9 +266,11 @@ async def encrypt_organization_profile(
         }
 
     except EncryptionError as e:
-        raise HTTPException(status_code=500, detail=f"Encryption failed: {str(e)}")
+        logger.error(f"Encryption failed: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+        logger.error(f"Internal server error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/decrypt", response_model=Dict[str, Any])
@@ -293,8 +302,12 @@ async def decrypt_data(
 
             # Verify target user belongs to same organization
             if request.resource_id != current_user.id:
-                target_user = db.query(User).filter(User.id == request.resource_id).first()
-                if not target_user or str(target_user.organization_id) != str(current_user.organization_id):
+                target_user = (
+                    db.query(User).filter(User.id == request.resource_id).first()
+                )
+                if not target_user or str(target_user.organization_id) != str(
+                    current_user.organization_id
+                ):
                     raise HTTPException(status_code=404, detail="User not found")
 
             decrypted_data = encryption_service.decrypt_user_profile(
@@ -335,9 +348,11 @@ async def decrypt_data(
         }
 
     except EncryptionError as e:
-        raise HTTPException(status_code=500, detail=f"Decryption failed: {str(e)}")
+        logger.error(f"Decryption failed: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+        logger.error(f"Internal server error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/keys/rotate", response_model=KeyRotationResponse)
@@ -375,9 +390,11 @@ async def rotate_encryption_key(
         return KeyRotationResponse(**rotation_results)
 
     except EncryptionError as e:
-        raise HTTPException(status_code=500, detail=f"Key rotation failed: {str(e)}")
+        logger.error(f"Key rotation failed: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+        logger.error(f"Internal server error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/status", response_model=EncryptionStatusResponse)
@@ -414,7 +431,8 @@ async def get_encryption_status(
         return EncryptionStatusResponse(**status)
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+        logger.error(f"Internal server error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/validate", response_model=EncryptionValidationResponse)
@@ -447,7 +465,8 @@ async def validate_encryption_integrity(
         return EncryptionValidationResponse(**validation_results)
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+        logger.error(f"Internal server error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/audit/logs", response_model=List[Dict[str, Any]])
@@ -515,7 +534,8 @@ async def get_encryption_audit_logs(
         ]
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+        logger.error(f"Internal server error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/config/sensitive-fields", response_model=List[str])
@@ -537,4 +557,5 @@ async def get_sensitive_fields_config(current_user: User = Depends(is_active_use
         return middleware.sensitive_fields + middleware.sensitive_patterns
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+        logger.error(f"Internal server error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")
