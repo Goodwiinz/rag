@@ -53,25 +53,24 @@ MAX_RESEARCH_TOOL_LOOPS = 5
 def _build_research_system_prompt() -> str:
     """Construct the research subgraph system prompt with shared rules embedded.
 
+    Driver protocol (tools, loop, constraints, heuristics) is sourced from
+    ``AGENTS_research.md`` — see ``agents_md_loader`` for the rationale.
+    Falls back to a minimal inline prompt if the file is missing so the
+    subgraph never crashes on a deploy that omits the markdown file.
+
     Imported lazily to avoid circular imports with graph.py.
     """
     from src.services.agent.graph import SHARED_AGENT_RULES
+    from src.services.agent.subgraphs.agents_md_loader import load_agents_md
 
+    driver_protocol = load_agents_md("research")
+    if driver_protocol:
+        return f"{driver_protocol}\n\n{SHARED_AGENT_RULES}"
+
+    # Fallback if AGENTS_research.md is missing (deploy issue).
     return (
         "You are a research assistant focused on discovering, searching, "
         "and organizing academic papers and documents.\n\n"
-        "Your tools:\n"
-        "- search_arxiv: Find papers on arXiv\n"
-        "- ingest_arxiv_papers: Import papers into the platform\n"
-        "- search_documents: Search indexed documents by title/filename\n"
-        "- do_kb_retrieve: Semantic retrieval over the org's knowledge base "
-        "(use for content-level questions across documents)\n"
-        "- create_project: Create a new research project (folder). Requires a name; "
-        "description/research_goals/tags are optional\n"
-        "- add_document_to_project: Organize documents into projects\n"
-        "- list_project_documents: View project contents\n\n"
-        "Important: After importing papers, use the document_ids (UUIDs) from the "
-        "response — not arXiv paper IDs.\n\n"
         f"{SHARED_AGENT_RULES}\n\n"
         "Be thorough in searching and systematic in organizing research."
     )

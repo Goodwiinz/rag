@@ -358,6 +358,18 @@ async def memory_save_node(state: AgentState, config: RunnableConfig) -> dict:
     configurable = config.get("configurable", {})
     current_user = configurable.get("current_user")
 
+    # Append per-turn iteration record (audit trail) before any early
+    # return — even no-user turns (test fixtures, anonymous probes) get
+    # logged when AGENT_LEDGER_DIR is set. Best-effort, never raises.
+    try:
+        from src.services.agent.iteration_ledger import write_iteration
+
+        thread_id = configurable.get("thread_id") or state.get("thread_id") or ""
+        if thread_id:
+            write_iteration(thread_id, dict(state))
+    except Exception as _ledger_exc:  # noqa: BLE001 - observability must not crash
+        logger.debug("ledger write skipped: %s", _ledger_exc)
+
     if not current_user:
         return {}
 

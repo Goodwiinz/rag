@@ -287,6 +287,13 @@ class Settings(BaseSettings):
     # user intent.
     AGENT_PARALLEL_TOOL_CALLS: bool = False
 
+    # Per-turn append-only iteration ledger (K-Dense rowan-autosearch
+    # pattern). When AGENT_LEDGER_DIR is set, every memory_save_node turn
+    # writes runs/<thread_id>/iterations/<turn_n>.json with a full audit
+    # record (intent, plan, tool_executions, retrieved_contexts summary,
+    # ai_response, reflection_result, tokens, timing). Empty disables.
+    AGENT_LEDGER_DIR: Optional[str] = None
+
     # Azure AI Cohere Reranking Configuration
     COHERE_RERANK_ENDPOINT: Optional[str] = None
     COHERE_RERANK_API_KEY: Optional[str] = None

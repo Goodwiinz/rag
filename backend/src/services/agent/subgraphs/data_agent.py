@@ -43,23 +43,21 @@ DATA_TOOL_NAMES_LIST = [t.name for t in DATA_TOOLS]
 def _build_data_system_prompt() -> str:
     """Construct the data subgraph system prompt with shared rules embedded.
 
+    Driver protocol sourced from ``AGENTS_data.md`` — see ``agents_md_loader``.
+    Inline fallback for missing-file safety.
+
     Imported lazily to avoid circular imports with graph.py.
     """
     from src.services.agent.graph import SHARED_AGENT_RULES
+    from src.services.agent.subgraphs.agents_md_loader import load_agents_md
+
+    driver_protocol = load_agents_md("data")
+    if driver_protocol:
+        return f"{driver_protocol}\n\n{SHARED_AGENT_RULES}"
 
     return (
         "You are a specialized Data Agent focused on extracting entities, "
         "exploring knowledge graphs, and analyzing structured data from documents.\n\n"
-        "Your tools:\n"
-        "- search_knowledge_graph: Search for entities by name or type\n"
-        "- explore_entity_neighborhood: Explore an entity's connections (use entity_id from search results)\n"
-        "- find_entity_paths: Find how two entities are connected (use entity_ids from search results)\n"
-        "- get_graph_stats: Get overview statistics of the knowledge graph\n"
-        "- extract_entities: Extract named entities from a document\n"
-        "- search_documents: Find documents to analyze\n"
-        "- list_project_documents: View project contents\n\n"
-        "Workflow tip: When exploring relationships, first use search_knowledge_graph to find "
-        "entity IDs, then use explore_entity_neighborhood or find_entity_paths with those IDs.\n\n"
         f"{SHARED_AGENT_RULES}\n\n"
         "Be analytical and thorough. Present findings in structured formats."
     )
