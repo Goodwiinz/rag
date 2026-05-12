@@ -260,8 +260,10 @@ def _build_llm(model_override: str | None = None):
     if cache_key in _LLM_CACHE:
         return _LLM_CACHE[cache_key]
 
-    _NO_CUSTOM_TEMPERATURE = frozenset({"gpt-5-mini"})
-    temperature = None if deployment in _NO_CUSTOM_TEMPERATURE else 0.7
+    # All gpt-5 family deployments (gpt-5, gpt-5-mini, gpt-5-nano, etc.)
+    # reject custom temperature — Azure returns 400. Drop it for the whole
+    # family rather than per-deployment allowlist.
+    temperature = None if deployment.startswith("gpt-5") else 0.7
 
     # gpt-5 family supports reasoning_effort to trade reasoning depth for
     # latency. Defaults to "low" for fast agent loops; raise via settings
