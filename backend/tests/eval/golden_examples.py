@@ -17,6 +17,13 @@ class GoldenCase:
     expected_tools: tuple[str, ...] = ()
     page_context: dict[str, Any] = field(default_factory=dict)
     metadata: dict[str, Any] = field(default_factory=dict)
+    # Optional reference answer for semantic-equivalence judging.
+    # Empty string means the correctness evaluator skips this case.
+    # Use for cases where a canonical answer shape is known
+    # (greetings, refusals, capability questions); leave empty for
+    # retrieval-driven cases whose exact wording depends on indexed
+    # content.
+    expected_answer: str = ""
     # Optional escape hatch for genuinely ambiguous intents. When set,
     # the evaluator accepts any of these intents in addition to
     # ``expected_intent``. Use sparingly — only for queries where two
@@ -59,6 +66,7 @@ PLANNER_SKIP_CASES: tuple[GoldenCase, ...] = (
         question="Hello!",
         expected_intent="general",
         expected_tools=(),
+        expected_answer="A friendly greeting reply, offering to help. No tools, no retrieval.",
         metadata={"feature": "planner_skip_heuristic"},
     ),
     GoldenCase(
@@ -66,6 +74,7 @@ PLANNER_SKIP_CASES: tuple[GoldenCase, ...] = (
         question="Thanks for your help!",
         expected_intent="general",
         expected_tools=(),
+        expected_answer="A brief acknowledgement of thanks (e.g. 'You're welcome'), optionally offering further help.",
         metadata={"feature": "planner_skip_heuristic"},
     ),
     GoldenCase(
@@ -73,6 +82,7 @@ PLANNER_SKIP_CASES: tuple[GoldenCase, ...] = (
         question="What can you do?",
         expected_intent="general",
         expected_tools=(),
+        expected_answer="A high-level description of capabilities: research (arXiv search/ingest), writing (drafts, notes, summaries), document Q&A, project management. Should not invoke retrieval tools for this meta-question.",
         metadata={"feature": "planner_skip_heuristic"},
     ),
 )

@@ -269,6 +269,11 @@ def _build_llm(model_override: str | None = None):
     reasoning_effort = settings.AGENT_MAIN_REASONING_EFFORT
     is_gpt5_family = deployment.startswith("gpt-5") if deployment else False
 
+    # Force Chat Completions API. langchain-openai auto-routes gpt-5 family
+    # with reasoning_effort to the Azure Responses API, which currently rejects
+    # the agent's tool_call message history with "Unsupported data type". The
+    # Chat Completions path handles tool_calls reliably and supports
+    # reasoning_effort on gpt-5 deployments via api-version 2024-10-21+.
     if endpoint_type == "openai_compatible":
         from langchain_openai import ChatOpenAI
 
@@ -277,6 +282,7 @@ def _build_llm(model_override: str | None = None):
             api_key=api_key,
             base_url=endpoint,
             max_tokens=4096,
+            use_responses_api=False,
         )
         if temperature is not None:
             kwargs["temperature"] = temperature
@@ -292,6 +298,7 @@ def _build_llm(model_override: str | None = None):
             api_key=api_key,
             api_version=api_version,
             max_tokens=4096,
+            use_responses_api=False,
         )
         if temperature is not None:
             kwargs["temperature"] = temperature
@@ -1929,7 +1936,7 @@ def build_agent_graph() -> StateGraph:
     graph.add_node("compactor_node", compactor_node_fn)
     graph.add_node("interrupt_node", interrupt_node)
     graph.add_node("reflection_gate", reflection_node_fn)
-    graph.add_node("memory_save_node", memory_save_node)
+    graph.add_node("memory_save_node", memory_save_node, retry=_RETRY_POLICY)
 
     # Sub-graphs compiled as nodes (they have internal planner/compactor/reflection)
     graph.add_node("research_subgraph", build_research_subgraph().compile())
