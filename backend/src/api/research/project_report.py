@@ -71,7 +71,10 @@ def _scan_recent_threads(project_id: str, limit: int = 10) -> list[dict[str, Any
             continue
         try:
             data = json.loads(final_path.read_text())
-        except Exception:  # noqa: BLE001 - corrupt ledger entry
+        except json.JSONDecodeError:
+            # Mid-write read or hand-edited corruption — skip; let real
+            # OS errors (permission denied, MemoryError) propagate so the
+            # endpoint fails visibly instead of returning a partial list.
             continue
         if data.get("current_project_id") != project_id:
             continue

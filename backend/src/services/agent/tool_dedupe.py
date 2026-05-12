@@ -62,6 +62,21 @@ def dedupe_key(tool_name: str, args: dict) -> str:
     return hashlib.sha1(payload.encode("utf-8")).hexdigest()
 
 
+def _current_turn_message_boundary(messages: list) -> int:
+    """Index of the most recent ``HumanMessage`` in *messages*, or -1.
+
+    Shared by `_current_turn_tool_call_ids` (here) and the iteration
+    ledger's `_build_record` — both need the same "what counts as this
+    turn" semantics. Caller decides whether to include the boundary
+    message itself (`messages[boundary:]`) or only what came after
+    (`messages[boundary + 1:]`).
+    """
+    for i in range(len(messages) - 1, -1, -1):
+        if isinstance(messages[i], HumanMessage):
+            return i
+    return -1
+
+
 def _current_turn_tool_call_ids(messages: list) -> set[str]:
     """Tool call ids that belong to the current turn.
 
@@ -69,11 +84,7 @@ def _current_turn_tool_call_ids(messages: list) -> set[str]:
     (exclusive) and the end is "this turn." Collect every
     ``ToolMessage.tool_call_id`` found in that slice.
     """
-    boundary = -1
-    for i in range(len(messages) - 1, -1, -1):
-        if isinstance(messages[i], HumanMessage):
-            boundary = i
-            break
+    boundary = _current_turn_message_boundary(messages)
     in_turn = messages[boundary + 1 :] if boundary >= 0 else list(messages)
     ids: set[str] = set()
     for m in in_turn:
