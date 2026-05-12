@@ -26,6 +26,48 @@ _store = None
 _store_lock = asyncio.Lock()
 
 
+def _build_memory_index_config() -> dict | None:
+    """Return the LangGraph store index config when Cohere is available.
+
+    AsyncPostgresStore returns ranked, scored search results only when an
+    ``index=`` arg with an embedder is supplied at construction. Without
+    it, ``asearch`` falls back to recency/exact-key match and every
+    recalled item carries ``score=None`` (trace evidence: 019e05ad,
+    019e040b on rag-agent-dev).
+
+    Returns ``None`` when Cohere is not configured so callers can fall
+    back to the un-indexed store rather than crashing on startup.
+    """
+    try:
+        from src.services.embedding.cohere_embed_service import (
+            cohere_embed_service,
+        )
+    except Exception as exc:  # noqa: BLE001 - import failure must not crash
+        logger.warning("Cohere import failed; memory index disabled: %s", exc)
+        return None
+
+    if not cohere_embed_service.is_enabled:
+        logger.info(
+            "Cohere embedding disabled (no API key); memory index disabled"
+        )
+        return None
+
+    async def _embed(texts):
+        # AsyncPostgresStore feeds the same callable for both index time
+        # and query time. Use "search_document" since most calls are
+        # writes; query-time mismatch is a small quality dip Cohere
+        # tolerates fine.
+        return await cohere_embed_service.embed_texts(
+            list(texts), input_type="search_document"
+        )
+
+    return {
+        "embed": _embed,
+        "dims": cohere_embed_service.dimensions,
+        "fields": ["query"],
+    }
+
+
 async def get_memory_store():
     """Return the long-term memory store singleton."""
     global _store
@@ -49,20 +91,26 @@ async def get_memory_store():
             from langgraph.store.postgres.aio import AsyncPostgresStore
 
             pool = await get_shared_langgraph_pool(get_db_uri())
-            _store = AsyncPostgresStore(pool)
+            index_config = _build_memory_index_config()
+            if index_config is not None:
+                _store = AsyncPostgresStore(pool, index=index_config)
+            else:
+                _store = AsyncPostgresStore(pool)
             await _store.setup()
             # Diagnostic: confirm backend class + whether semantic index is
             # wired. Trace evidence shows asearch returns score=None for
-            # every recalled entry — suspect cause is missing index= config
-            # at construction. Log makes the runtime state obvious.
+            # every recalled entry when index= is unset. Log makes the
+            # runtime state obvious.
             indexed = bool(
                 getattr(_store, "_index", None)
                 or getattr(_store, "index_config", None)
+                or index_config is not None
             )
             logger.info(
-                "Memory store initialised (%s, indexed=%s)",
+                "Memory store initialised (%s, indexed=%s, dims=%s)",
                 type(_store).__name__,
                 indexed,
+                (index_config or {}).get("dims") if index_config else None,
             )
             return _store
         except Exception as e:
