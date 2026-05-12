@@ -4,3 +4,7 @@
 ## 2026-05-11 - Citation Graph Accessibility
 **Learning:** Replaced cryptic ASCII characters (+, -, [], R) in raw button tags with standard Lucide React icons wrapped in the app's native IconButton component within the CitationGraph controls. This significantly improves visual clarity, keyboard focus styling, and screen-reader accessibility via built-in aria-label and Tooltip handling.
 **Action:** Always scan for generic `<button>` implementations in rich interactive components like graphs or data tables and replace them with standard design system components like `IconButton` that enforce accessibility.
+
+## 2024-05-13 - Enforcing Tooltips with IconButton
+**Learning:** Using raw `<Button>` components for icon-only actions lacks built-in accessibility safeguards, leading to manually added `sr-only` spans and inconsistent or missing tooltips.
+**Action:** Always use `<IconButton>` or `<IconButtonSm>` for icon-only buttons to enforce the requirement of a `label` prop (used for `aria-label`) and automatically provide consistent tooltips for better accessibility.

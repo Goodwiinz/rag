@@ -5,6 +5,7 @@
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { IconButton } from '@/components/ui/icon-button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Entity, GraphEdge } from '@/types/entity';
 import { cn } from '@/lib/utils';
@@ -359,33 +360,24 @@ export const EntityGraph: React.FC<EntityGraphProps> = ({
             Entity_Graph_Viz
           </CardTitle>
           <div className="flex items-center space-x-2">
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label="Zoom in"
+            <IconButton
+              label="Zoom in"
+              icon={<ZoomIn className="h-4 w-4" />}
               onClick={handleZoomIn}
               className="h-7 w-7 text-[var(--terminal-text-dim)] hover:text-[var(--phosphor-green)] hover:bg-[var(--phosphor-green)]/10"
-            >
-              <ZoomIn className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label="Zoom out"
+            />
+            <IconButton
+              label="Zoom out"
+              icon={<ZoomOut className="h-4 w-4" />}
               onClick={handleZoomOut}
               className="h-7 w-7 text-[var(--terminal-text-dim)] hover:text-[var(--phosphor-green)] hover:bg-[var(--phosphor-green)]/10"
-            >
-              <ZoomOut className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label="Reset zoom"
+            />
+            <IconButton
+              label="Reset zoom"
+              icon={<RefreshCw className="h-4 w-4" />}
               onClick={handleReset}
               className="h-7 w-7 text-[var(--terminal-text-dim)] hover:text-[var(--phosphor-green)] hover:bg-[var(--phosphor-green)]/10"
-            >
-              <RefreshCw className="h-4 w-4" />
-            </Button>
+            />
             <Button
               variant="ghost"
               size="sm"
