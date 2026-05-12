@@ -1,31 +1,26 @@
 """LangGraph checkpointer backed by PostgreSQL.
 
-Uses ``AsyncPostgresSaver`` from ``langgraph-checkpoint-postgres`` with a
-fallback to an in-memory ``MemorySaver`` when the Postgres connection is
-unavailable (e.g. during tests or local dev without a running database).
+Uses ``AsyncPostgresSaver`` wired to the shared ``AsyncConnectionPool``
+owned by ``_pool_utils`` (TCP keepalives required for HITL pauses behind
+Supabase/PgBouncer in session mode). Falls back to in-memory
+``MemorySaver`` only when ``ENVIRONMENT`` is not ``production``/``staging``.
+
+Pool lifecycle lives in ``_pool_utils``; this module never closes it.
 """
 
 import asyncio
 import logging
-from typing import Optional  # noqa: F401
 
 from src.core.config import get_settings
+from src.services.agent._pool_utils import (
+    get_shared_langgraph_pool,
+    require_durable_or_fallback,
+)
 
 logger = logging.getLogger(__name__)
 
-# Module-level singleton
 _checkpointer = None
 _checkpointer_lock = asyncio.Lock()
-
-# TCP keepalive settings — prevents Supabase/PgBouncer session-mode idle
-# disconnects from silently dropping the checkpoint connection during HITL
-# pauses (user confirmation wait time).
-_CONNECTION_KWARGS = {
-    "keepalives": 1,
-    "keepalives_idle": 30,
-    "keepalives_interval": 10,
-    "keepalives_count": 3,
-}
 
 
 def get_db_uri() -> str:
@@ -38,7 +33,6 @@ def get_db_uri() -> str:
     settings = get_settings()
     uri = settings.DATABASE_URL
 
-    # Normalise driver — checkpoint-postgres uses psycopg (v3)
     if uri.startswith("postgresql+asyncpg://"):
         uri = uri.replace("postgresql+asyncpg://", "postgresql://", 1)
     elif uri.startswith("postgres://"):
@@ -48,10 +42,10 @@ def get_db_uri() -> str:
 
 
 async def get_checkpointer():
-    """Return an async checkpointer singleton.
+    """Return the async checkpointer singleton.
 
-    First attempts to connect via ``AsyncPostgresSaver``.  If the dependency
-    is missing or the connection fails, falls back to ``MemorySaver``.
+    Attempts ``AsyncPostgresSaver`` over the shared pool. On failure,
+    prod/staging raises; dev/test falls back to ``MemorySaver``.
     """
     global _checkpointer
 
@@ -64,16 +58,25 @@ async def get_checkpointer():
 
         try:
             from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
+            from langgraph.checkpoint.serde.jsonplus import JsonPlusSerializer
 
-            uri = get_db_uri()
-            _checkpointer = AsyncPostgresSaver.from_conn_string(
-                uri,
-                connection_kwargs=_CONNECTION_KWARGS,
+            from src.services.agent.reflection import ReflectionResult
+
+            pool = await get_shared_langgraph_pool(get_db_uri())
+            # Allowlist project pydantic types for msgpack serde (strict mode).
+            serde = JsonPlusSerializer(
+                allowed_msgpack_modules=[
+                    (ReflectionResult.__module__, ReflectionResult.__name__),
+                ]
             )
-            # Create the checkpoint tables if they don't exist yet
+            _checkpointer = AsyncPostgresSaver(pool, serde=serde)
             await _checkpointer.setup()
             logger.info("LangGraph checkpointer initialised (PostgreSQL)")
         except Exception as e:
+            require_durable_or_fallback(
+                "Postgres checkpointer", get_settings().ENVIRONMENT, e
+            )
+
             logger.error(
                 "Postgres checkpointer UNAVAILABLE — falling back to MemorySaver. "
                 "HITL state will not survive restarts. Cause: %s",
@@ -87,13 +90,18 @@ async def get_checkpointer():
 
 
 async def reset_checkpointer() -> None:
-    """Clear the checkpointer singleton so the next call re-initialises it.
+    """Clear the singleton so the next call re-initialises it.
 
-    Used by the confirm flow's retry path when aget_state returns None —
-    indicates the connection may have been dropped by the pooler.
+    Does NOT close the shared pool — that's owned by ``_pool_utils`` and
+    closed once at app shutdown via ``close_shared_langgraph_pool``.
     """
     global _checkpointer
 
     async with _checkpointer_lock:
         _checkpointer = None
     logger.info("Checkpointer singleton reset — will reconnect on next use")
+
+
+async def close_checkpointer() -> None:
+    """Drop the singleton at app shutdown. Pool closed separately."""
+    await reset_checkpointer()
