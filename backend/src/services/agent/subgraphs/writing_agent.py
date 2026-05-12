@@ -58,26 +58,21 @@ WRITING_DESTRUCTIVE_TOOLS = {
 def _build_writing_system_prompt() -> str:
     """Construct the writing subgraph system prompt with shared rules embedded.
 
+    Driver protocol sourced from ``AGENTS_writing.md`` — see
+    ``agents_md_loader``. Inline fallback for missing-file safety.
+
     Imported lazily to avoid circular imports with graph.py.
     """
     from src.services.agent.graph import SHARED_AGENT_RULES
+    from src.services.agent.subgraphs.agents_md_loader import load_agents_md
+
+    driver_protocol = load_agents_md("writing")
+    if driver_protocol:
+        return f"{driver_protocol}\n\n{SHARED_AGENT_RULES}"
 
     return (
         "You are a specialized Writing Agent focused on creating content, "
         "summarizing documents, and managing bibliographies.\n\n"
-        "Your tools:\n"
-        "- summarize_document: Create summaries of documents\n"
-        "- compare_documents: Compare multiple documents\n"
-        "- create_draft: Generate literature review drafts\n"
-        "- create_project_note: Write notes in projects\n"
-        "- export_bibliography: Export citations in various formats\n"
-        "- ingest_arxiv_papers: RECOVERY ONLY — call when summarize_document "
-        "or compare_documents returns "
-        "error_type='recoverable' with suggestion='ingest_arxiv_papers'. "
-        "Pass the arxiv id from the failed call as paper_ids, then retry the "
-        "original summarize/compare call using the document_id returned in "
-        "the ingest response. Never call this tool unprompted for writing "
-        "tasks — it is not a discovery or browsing tool.\n\n"
         f"{SHARED_AGENT_RULES}\n\n"
         "Write clearly and academically. Cite sources when available."
     )
