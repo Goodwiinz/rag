@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>{{ project.name }} — NOUS report</title>
+  <style>
+    :root {
+      --erebus: #0A0A0E;
+      --selene: #F7F7F5;
+      --sol: #D4A039;
+      --apollo: #F5D680;
+      --muted: #6c6c70;
+      --border: #e7e6e1;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: 'Source Serif 4', Georgia, serif;
+      background: var(--selene);
+      color: var(--erebus);
+      margin: 0;
+      padding: 32px 48px;
+      max-width: 1100px;
+      line-height: 1.5;
+    }
+    header {
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 16px;
+      margin-bottom: 32px;
+    }
+    h1, h2, h3 {
+      font-family: 'Inter', -apple-system, sans-serif;
+      letter-spacing: -0.01em;
+    }
+    h1 { font-size: 28px; margin: 0 0 4px; }
+    h2 {
+      font-size: 18px;
+      margin: 36px 0 12px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid var(--border);
+    }
+    .meta { color: var(--muted); font-size: 13px; }
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 3px;
+      font-size: 11px;
+      font-family: 'JetBrains Mono', ui-monospace, monospace;
+      background: var(--apollo);
+      color: var(--erebus);
+    }
+    .stats {
+      display: flex;
+      gap: 24px;
+      margin: 16px 0;
+      flex-wrap: wrap;
+    }
+    .stat {
+      flex: 0 0 auto;
+      padding: 12px 16px;
+      background: white;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      min-width: 120px;
+    }
+    .stat-num {
+      font-family: 'Inter', sans-serif;
+      font-size: 24px;
+      font-weight: 600;
+      color: var(--sol);
+    }
+    .stat-label {
+      font-size: 11px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+      margin-top: 8px;
+    }
+    th, td {
+      padding: 8px 12px;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+      vertical-align: top;
+    }
+    th {
+      font-family: 'Inter', sans-serif;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--muted);
+      font-weight: 600;
+    }
+    .doc-title { font-weight: 600; }
+    .id { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--muted); }
+    .empty {
+      color: var(--muted);
+      font-style: italic;
+      padding: 12px 0;
+    }
+    .note {
+      background: white;
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--sol);
+      padding: 12px 16px;
+      margin-bottom: 12px;
+      border-radius: 0 4px 4px 0;
+    }
+    .note-title { font-weight: 600; margin-bottom: 4px; }
+    .note-body {
+      font-size: 13px;
+      color: var(--erebus);
+      white-space: pre-wrap;
+    }
+    .thread-row td { font-size: 12px; }
+    .tools {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      color: var(--muted);
+    }
+    footer {
+      margin-top: 48px;
+      padding-top: 16px;
+      border-top: 1px solid var(--border);
+      color: var(--muted);
+      font-size: 11px;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>{{ project.name }}</h1>
+    <div class="meta">
+      <span class="badge">PROJECT</span>
+      <span class="id">{{ project.id }}</span>
+      {% if project.created_at %}
+        · created {{ project.created_at[:10] }}
+      {% endif %}
+    </div>
+    {% if project.description %}
+      <p style="margin-top: 12px; color: var(--erebus);">{{ project.description }}</p>
+    {% endif %}
+  </header>
+
+  <section>
+    <div class="stats">
+      <div class="stat">
+        <div class="stat-num">{{ documents|length }}</div>
+        <div class="stat-label">Documents</div>
+      </div>
+      <div class="stat">
+        <div class="stat-num">{{ notes|length }}</div>
+        <div class="stat-label">Notes</div>
+      </div>
+      <div class="stat">
+        <div class="stat-num">{{ threads|length }}</div>
+        <div class="stat-label">Recent threads</div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Documents</h2>
+    {% if documents %}
+    <table>
+      <thead>
+        <tr>
+          <th>Title</th>
+          <th>Filename</th>
+          <th>Status</th>
+          <th>Added</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for d in documents %}
+        <tr>
+          <td>
+            <div class="doc-title">{{ d.title }}</div>
+            <div class="id">{{ d.id }}</div>
+          </td>
+          <td>{{ d.filename }}</td>
+          <td>{{ d.status }}</td>
+          <td>{{ d.added_at[:10] if d.added_at else '—' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="empty">No documents in this project yet.</p>
+    {% endif %}
+  </section>
+
+  <section>
+    <h2>Notes</h2>
+    {% if notes %}
+      {% for n in notes %}
+      <div class="note">
+        <div class="note-title">{{ n.title }}</div>
+        <div class="note-body">{{ n.content }}{% if n.content|length >= 600 %}…{% endif %}</div>
+        {% if n.created_at %}
+          <div class="meta" style="margin-top: 6px;">{{ n.created_at[:19] }}</div>
+        {% endif %}
+      </div>
+      {% endfor %}
+    {% else %}
+    <p class="empty">No notes yet.</p>
+    {% endif %}
+  </section>
+
+  <section>
+    <h2>Recent agent activity</h2>
+    {% if threads %}
+    <table>
+      <thead>
+        <tr>
+          <th>Updated</th>
+          <th>Query</th>
+          <th>Intent</th>
+          <th>Turns</th>
+          <th>Tools used</th>
+          <th>Thread</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for t in threads %}
+        <tr class="thread-row">
+          <td>{{ t.updated_at[:19] if t.updated_at else '—' }}</td>
+          <td>{{ t.user_query }}</td>
+          <td><span class="badge" style="background: var(--border);">{{ t.intent }}</span></td>
+          <td>{{ t.latest_turn }}</td>
+          <td class="tools">{{ t.tools_used|join(', ') }}</td>
+          <td class="id">{{ t.thread_id[:8] }}…</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% elif ledger_enabled %}
+    <p class="empty">No agent threads yet for this project.</p>
+    {% else %}
+    <p class="empty">Iteration ledger disabled (set <code>AGENT_LEDGER_DIR</code> to enable agent activity in this report).</p>
+    {% endif %}
+  </section>
+
+  <footer>
+    Generated {{ generated_at[:19] }} UTC · NOUS v1
+  </footer>
+</body>
+</html>

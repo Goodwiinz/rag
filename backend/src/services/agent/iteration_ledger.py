@@ -177,10 +177,53 @@ def _build_record(state: dict, turn: int) -> dict:
     }
 
 
+def _atomic_write_json(path: Path, payload: dict) -> None:
+    """tmp+rename atomic write so partial writes don't poison the ledger."""
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    tmp.write_text(json.dumps(payload, indent=2, default=str), encoding="utf-8")
+    os.replace(tmp, path)
+
+
+def _maybe_write_config(thread_dir: Path, state: dict) -> None:
+    """Write runs/<thread_id>/config.json on the first turn only.
+
+    Captures the immutable run setup: thread_id, user_id, page_context
+    (project/paper/chat type at first turn), model override, and the
+    initial user query. Subsequent turns leave it alone — the file is
+    a record of how the run STARTED, not its current state.
+    """
+    config_path = thread_dir / "config.json"
+    if config_path.exists():
+        return
+    messages = state.get("messages") or []
+    first_user = ""
+    for m in messages:
+        if isinstance(m, HumanMessage) and m.content:
+            first_user = str(m.content)[:1000]
+            break
+    config = {
+        "thread_id": (state.get("thread_id") or thread_dir.name),
+        "user_id": state.get("user_id"),
+        "page_context": state.get("page_context"),
+        "current_project_id": state.get("current_project_id"),
+        "model": state.get("model"),
+        "initial_query": first_user,
+        "started_at": datetime.now(timezone.utc).isoformat(),
+    }
+    try:
+        _atomic_write_json(config_path, config)
+    except Exception as exc:  # noqa: BLE001 - observability only
+        logger.debug("ledger config write skipped: %s", exc)
+
+
 def write_iteration(thread_id: str, state: dict) -> Path | None:
     """Append one iteration record for *thread_id*. Returns the path
     written, or None if the ledger is disabled or write fails (never
     raises — agent flow must not break on observability errors).
+
+    On first turn also writes ``config.json`` (immutable run setup) and
+    on every turn rewrites ``final.json`` (latest summary; fast lookup
+    without scanning iterations/).
     """
     root = _ledger_root()
     if not root or not thread_id:
@@ -190,15 +233,42 @@ def write_iteration(thread_id: str, state: dict) -> Path | None:
         iter_dir = thread_dir / "iterations"
         iter_dir.mkdir(parents=True, exist_ok=True)
 
+        # Write config.json on the first turn (idempotent — checks existence).
+        _maybe_write_config(thread_dir, state)
+
         turn = _next_turn_number(thread_dir)
         record = _build_record(state, turn)
 
         path = iter_dir / f"{turn:04d}.json"
-        # Atomic write: tmp file + rename so partial writes don't poison
-        # the ledger if the process dies mid-write.
-        tmp = path.with_suffix(".json.tmp")
-        tmp.write_text(json.dumps(record, indent=2, default=str), encoding="utf-8")
-        os.replace(tmp, path)
+        _atomic_write_json(path, record)
+
+        # Rewrite final.json with the latest summary on every turn so
+        # consumers (HTML report, dashboard) can fetch the run's current
+        # state in one read.
+        final_path = thread_dir / "final.json"
+        try:
+            _atomic_write_json(
+                final_path,
+                {
+                    "thread_id": thread_id,
+                    "latest_turn": turn,
+                    "updated_at": record["timestamp"],
+                    "summary": record["summary"],
+                    "page_context": record["state_snapshot"].get("page_context"),
+                    "current_project_id": record["state_snapshot"].get(
+                        "current_project_id"
+                    ),
+                    "tool_executions_count": len(
+                        record["state_snapshot"].get("tool_executions") or []
+                    ),
+                    "reflection_result": record["state_snapshot"].get(
+                        "reflection_result"
+                    ),
+                },
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("ledger final.json write skipped: %s", exc)
+
         logger.debug("ledger: wrote %s (turn %d)", path, turn)
         return path
     except Exception as exc:  # noqa: BLE001 - never crash the agent
