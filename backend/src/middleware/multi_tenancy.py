@@ -18,7 +18,9 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 from src.core.database import AsyncSessionLocal
 from src.core.security import verify_token
+from src.core.user_provisioning import ensure_user_and_org
 from src.exceptions.analytics_exceptions import PermissionDeniedException
+from src.middleware.responses import error_response
 from src.models.organization import Organization
 from src.models.user import User
 
@@ -64,13 +66,10 @@ class MultiTenancyMiddleware(BaseHTTPMiddleware):
                     return await call_next(request)
 
         except PermissionDeniedException as e:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
+            return error_response(403, str(e))
         except Exception as e:
             logger.error(f"Multi-tenancy middleware error: {e}")
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Internal server error during tenant validation",
-            )
+            return error_response(500, "Internal server error during tenant validation", "internal_error")
 
     def _should_skip_tenant_validation(self, request: Request) -> bool:
         """Check if tenant validation should be skipped for this endpoint"""
@@ -101,6 +100,12 @@ class MultiTenancyMiddleware(BaseHTTPMiddleware):
             return None
         if not token_data or not token_data.user_id:
             return None
+
+        # JIT-provision user + org on first authenticated request
+        if db is not None:
+            provisioned = await ensure_user_and_org(db, token_data)
+            if provisioned:
+                await db.commit()
 
         # Fast path: org_id already embedded in JWT (CLI tokens, future Supabase tokens)
         if token_data.organization_id:

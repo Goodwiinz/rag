@@ -213,7 +213,7 @@ async def get_ingestion_stats():
 
     except Exception as e:
         logger.error(f"Failed to get stats: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/test-small-batch")
@@ -231,4 +231,4 @@ async def test_small_batch():
         return {"status": "success", "result": result}
     except Exception as e:
         logger.error(f"Test batch failed: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")

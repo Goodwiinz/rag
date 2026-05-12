@@ -27,7 +27,7 @@ frontend:
   replicaCount: 1
   image:
     repository: registry.digitalocean.com/ragsystemregistry/frontend
-    tag: "f3fd634"
+    tag: "fd07507"
     pullPolicy: IfNotPresent
   service:
     type: ClusterIP
@@ -79,7 +79,7 @@ backend:
   replicaCount: 1
   image:
     repository: registry.digitalocean.com/ragsystemregistry/backend
-    tag: "f3fd634"
+    tag: "fd07507"
     pullPolicy: IfNotPresent
   service:
     type: ClusterIP
@@ -131,6 +131,11 @@ backend:
     - secretRef:
         name: langsmith-credentials
         optional: true
+    # DigitalOcean Knowledge Base (DO_API_TOKEN, DO_KB_REGION, ...). Optional
+    # so the pod still starts before the /do-kb folder is populated.
+    - secretRef:
+        name: do-kb-credentials
+        optional: true
   env:
     - name: ENVIRONMENT
       value: "dev"
@@ -164,8 +169,6 @@ backend:
       value: "0.0"
     - name: NEO4J_URI
       value: "bolt://nous-dev-knowledge-graph-analytics-neo4j:7687"
-    - name: QDRANT_URL
-      value: "http://nous-dev-knowledge-graph-analytics-qdrant:6333"
     # S3-Compatible Object Storage (DigitalOcean Spaces)
     - name: STORAGE_BACKEND
       value: "s3"

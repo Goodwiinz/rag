@@ -56,9 +56,21 @@ def build_lightweight_llm(
             "(or the non-CHAT variants)."
         )
 
+    _NO_CUSTOM_TEMPERATURE = frozenset({"gpt-5-mini"})
+
     extra: dict[str, Any] = {}
     if request_timeout is not None:
         extra["request_timeout"] = request_timeout
+    if deployment not in _NO_CUSTOM_TEMPERATURE:
+        extra["temperature"] = temperature
+
+    # gpt-5 family supports reasoning_effort. Lightweight tasks (classifier,
+    # reflection, planner complexity check) default to "minimal" — they're
+    # structured-output classifications, not deep reasoning.
+    if deployment.startswith("gpt-5"):
+        reasoning_effort = settings.AGENT_LIGHTWEIGHT_REASONING_EFFORT
+        if reasoning_effort:
+            extra["reasoning_effort"] = reasoning_effort
 
     if classify_openai_endpoint(endpoint) == "openai_compatible":
         from langchain_openai import ChatOpenAI
@@ -67,7 +79,6 @@ def build_lightweight_llm(
             model=deployment,
             api_key=api_key,
             base_url=endpoint,
-            temperature=temperature,
             max_tokens=max_tokens,
             **extra,
         )
@@ -79,7 +90,6 @@ def build_lightweight_llm(
         azure_endpoint=endpoint,
         api_key=api_key,
         api_version=api_version,
-        temperature=temperature,
         max_tokens=max_tokens,
         **extra,
     )

@@ -294,7 +294,7 @@ async def create_entity(
 
     except Exception as e:
         logger.error(f"Error creating entity {request.name}: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @app.get("/entities/{entity_id}", response_model=EntityResponse)
@@ -348,7 +348,7 @@ async def get_entity(
         raise
     except Exception as e:
         logger.error(f"Error retrieving entity {entity_id}: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @app.put("/entities/{entity_id}", response_model=EntityResponse)
@@ -447,7 +447,7 @@ async def update_entity(
         raise
     except Exception as e:
         logger.error(f"Error updating entity {entity_id}: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @app.delete("/entities/{entity_id}")
@@ -500,7 +500,7 @@ async def delete_entity(
         raise
     except Exception as e:
         logger.error(f"Error deleting entity {entity_id}: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @app.post("/entities/batch", response_model=BatchEntityResponse)
@@ -601,7 +601,7 @@ async def batch_create_entities(
 
     except Exception as e:
         logger.error(f"Error in batch processing: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 async def _create_entity_in_transaction(
@@ -775,7 +775,7 @@ async def extract_entities_from_document(
 
     except Exception as e:
         logger.error(f"Error extracting entities from document {document_id}: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 async def get_document_content(document_id: str, tenant_id: str) -> str:

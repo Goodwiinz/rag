@@ -8,7 +8,7 @@ and returns a dict result.
 import asyncio
 import logging
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 from uuid import UUID
 
 from sqlalchemy import desc, func, select
@@ -60,7 +60,7 @@ AGENT_TOOLS = [
         "type": "function",
         "function": {
             "name": "search_arxiv",
-            "description": "Search arXiv for academic papers. Use when the user asks to find, search, or look up research papers, academic publications, or scientific articles.",
+            "description": "Search arXiv for academic papers. Use when the user asks to find, search, or look up research papers, academic publications, or scientific articles. Defaults sort to submittedDate (most recent first) and last-12-months window — pass recency_days=0 to disable.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -70,13 +70,18 @@ AGENT_TOOLS = [
                     },
                     "max_results": {
                         "type": "integer",
-                        "description": "Maximum number of results (1-20)",
+                        "description": "Maximum number of results (1-5)",
                         "default": 5,
                     },
                     "categories": {
                         "type": "array",
                         "items": {"type": "string"},
                         "description": "ArXiv categories to filter (e.g., ['cs.AI', 'cs.LG']). Optional.",
+                    },
+                    "recency_days": {
+                        "type": "integer",
+                        "description": "Only return papers submitted within the last N days. Default 365. Pass 0 to disable the date filter and search all-time.",
+                        "default": 365,
                     },
                 },
                 "required": ["query"],
@@ -117,6 +122,32 @@ AGENT_TOOLS = [
                         "type": "integer",
                         "description": "Maximum number of results to return",
                         "default": 10,
+                    },
+                },
+                "required": ["query"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "do_kb_retrieve",
+            "description": (
+                "Semantic retrieval over the organization's DigitalOcean Knowledge Base. "
+                "Returns text chunks ranked by semantic similarity to the query. "
+                "Use for content-level questions across ingested documents."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "Natural-language query for semantic retrieval.",
+                    },
+                    "top_k": {
+                        "type": "integer",
+                        "description": "Number of chunks to return (1-20).",
+                        "default": 8,
                     },
                 },
                 "required": ["query"],
@@ -551,6 +582,8 @@ async def execute_tool(
         return await _tool_ingest_arxiv(args, user_id, db, current_user)
     if tool_name == "search_documents":
         return await _tool_search_documents(args, db, current_user)
+    if tool_name == "do_kb_retrieve":
+        return await _tool_do_kb_retrieve(args, db, current_user)
     if tool_name == "add_document_to_project":
         return await _tool_add_document_to_project(args, db, current_user)
     if tool_name == "create_project":
@@ -595,11 +628,33 @@ async def execute_tool(
 
 async def _tool_search_arxiv(args: Dict[str, Any]) -> Dict[str, Any]:
     """Search arXiv for papers."""
+    from datetime import datetime, timedelta, timezone
+
     from src.services.arxiv.arxiv_service import ArXivIngestionService
 
     query = args.get("query", "")
-    max_results = min(args.get("max_results", 5), 20)
+    # Hard cap at 5 papers + 250-char abstracts. Trace showed 10×500-char
+    # results = 8087 chars feeding into the synthesis LLM call and triggering
+    # 1536 reasoning tokens (~46s). Smaller payload = faster synthesis.
+    max_results = min(args.get("max_results", 5), 5)
     categories = args.get("categories")
+
+    # Recency window: default to last 12 months so "find recent X" actually
+    # returns recent results. Trace 019e191a showed default search returning
+    # papers from 2018-2024 (relevance-sorted) when user asked for "recent".
+    # Pass recency_days=0 to disable the filter.
+    recency_days_raw = args.get("recency_days", 365)
+    try:
+        recency_days = int(recency_days_raw)
+    except (TypeError, ValueError):
+        recency_days = 365
+    if recency_days > 0:
+        cutoff = datetime.now(timezone.utc) - timedelta(days=recency_days)
+        cutoff_str = cutoff.strftime("%Y%m%d%H%M")
+        # arxiv API supports the `submittedDate:[FROM TO]` filter inside
+        # the search_query parameter. Compose it AND the user's query.
+        date_filter = f"submittedDate:[{cutoff_str} TO 999912312359]"
+        query = f"({query}) AND {date_filter}" if query else date_filter
 
     try:
         async with ArXivIngestionService() as service:
@@ -607,7 +662,9 @@ async def _tool_search_arxiv(args: Dict[str, Any]) -> Dict[str, Any]:
                 query=query,
                 max_results=max_results,
                 categories=categories,
-                sort_by="relevance",
+                # Sort by submission date so the "most recent" claim matches
+                # what comes back, not relevance order across 30 years.
+                sort_by="submittedDate",
                 sort_order="descending",
             )
             results = []
@@ -616,8 +673,8 @@ async def _tool_search_arxiv(args: Dict[str, Any]) -> Dict[str, Any]:
                     {
                         "id": p.get("id", ""),
                         "title": p.get("title", ""),
-                        "authors": p.get("authors", [])[:5],
-                        "abstract": (p.get("abstract", "") or "")[:500],
+                        "authors": p.get("authors", [])[:3],
+                        "abstract": (p.get("abstract", "") or "")[:250],
                         "published": str(p.get("published", "")),
                         "categories": p.get("categories", []),
                         "pdf_url": p.get("pdf_url", ""),
@@ -694,6 +751,7 @@ async def _tool_ingest_arxiv(
                 from src.core.database import AsyncSessionLocal
 
                 try:
+                    persisted_documents: List[Document] = []
                     async with AsyncSessionLocal() as fresh_db:
                         async with fresh_db.begin():
                             for doc in ingested:
@@ -725,12 +783,30 @@ async def _tool_ingest_arxiv(
                                 fresh_db.add(document)
                                 await fresh_db.flush()
                                 document_ids.append(str(document.id))
+                                persisted_documents.append(document)
                             # begin() auto-commits on exit
                     logger.info(
                         "Ingested %d documents to DB: %s",
                         len(document_ids),
                         document_ids,
                     )
+
+                    # Phase 2 dual-write: mirror into DO KB. Failure-isolated.
+                    from src.core.config import settings as _kb_settings
+
+                    if getattr(_kb_settings, "DO_KB_ENABLED", False) and persisted_documents:
+                        try:
+                            from src.services.do_kb import sync_documents_to_kb
+
+                            async with AsyncSessionLocal() as kb_db:
+                                merged = [
+                                    await kb_db.merge(d) for d in persisted_documents
+                                ]
+                                await sync_documents_to_kb(kb_db, merged)
+                        except Exception as kb_err:  # noqa: BLE001
+                            logger.warning(
+                                "do_kb dual-write skipped for arxiv ingest: %s", kb_err
+                            )
                 except Exception as db_err:
                     logger.error(
                         "Failed to persist ingested documents to DB", exc_info=db_err
@@ -807,6 +883,138 @@ async def _tool_search_documents(
     except Exception as e:
         logger.error("search_documents tool failed", exc_info=e)
         return {"error": f"Document search failed: {str(e)}"}
+
+
+async def _tool_do_kb_retrieve(
+    args: Dict[str, Any],
+    db: Optional[AsyncSession],
+    current_user: Optional[User],
+) -> Dict[str, Any]:
+    """Semantic retrieval over the org's DigitalOcean Knowledge Base.
+
+    Returns an empty chunks list when the org has no provisioned KB or
+    when DO_KB_ENABLED is false — caller falls back to other tools.
+    """
+    if not current_user:
+        return {"error": "Authentication required", "chunks": [], "total": 0}
+
+    query = (args.get("query") or "").strip()
+    if not query:
+        return {"error": "Query is required", "chunks": [], "total": 0}
+
+    top_k = max(1, min(int(args.get("top_k", 8)), 20))
+
+    from src.core.config import settings as _kb_settings
+
+    if not getattr(_kb_settings, "DO_KB_ENABLED", False):
+        return {"chunks": [], "total": 0, "source": "do_kb", "reason": "disabled"}
+
+    # Read kb_uuid from the org. Lazy import to keep cold-start light.
+    kb_uuid: Optional[str] = None
+    if db is not None:
+        from src.models.organization import Organization
+
+        org = await db.get(Organization, current_user.organization_id)
+        kb_uuid = getattr(org, "do_kb_uuid", None) if org else None
+
+    if not kb_uuid:
+        return {"chunks": [], "total": 0, "source": "do_kb", "reason": "not_provisioned"}
+
+    try:
+        from src.services.do_kb import get_do_kb_client
+
+        client = get_do_kb_client()
+        result = await client.retrieve(kb_uuid=kb_uuid, query=query, top_k=top_k)
+    except Exception as exc:
+        logger.warning("do_kb_retrieve failed: %s", exc)
+        return {
+            "chunks": [],
+            "total": 0,
+            "source": "do_kb",
+            "error": f"Retrieval failed: {exc}",
+        }
+
+    # Resolve storage-key document_ids back to real Document.id + title so the
+    # agent can cite by title and link to the canonical row. DO KB returns
+    # ``item_name`` as the leaf filename, while Document.storage_path stores
+    # the full canonical key — match both by suffix.
+    title_by_key: dict[str, tuple[str, str]] = {}
+    if db is not None and result.chunks:
+        from sqlalchemy import or_, select
+
+        from src.models.document import Document
+
+        storage_keys = {c.document_id for c in result.chunks if c.document_id}
+        if storage_keys:
+            filters = [Document.storage_path == k for k in storage_keys]
+            filters += [Document.storage_path.like(f"%/{k}") for k in storage_keys]
+            rows = await db.execute(
+                select(Document.id, Document.storage_path, Document.title)
+                .where(Document.organization_id == current_user.organization_id)
+                .where(or_(*filters))
+            )
+            for doc_id, storage_path, title in rows:
+                if storage_path in storage_keys:
+                    leaf = storage_path
+                else:
+                    leaf = storage_path.rsplit("/", 1)[-1] if storage_path else ""
+                title_by_key[leaf] = (str(doc_id), title or leaf)
+
+    # Project scoping: drop chunks whose resolved document is not in the
+    # active project. DO KB is org-scoped, so cross-project leakage is
+    # filtered here via the collection_documents association.
+    project_id = args.get("project_id")
+    chunks_to_emit = result.chunks
+    if project_id and db is not None and title_by_key:
+        from uuid import UUID as _UUID
+
+        from src.models.collection import CollectionDocument
+
+        resolved_doc_ids = {
+            _UUID(doc_id) for doc_id, _ in title_by_key.values() if doc_id
+        }
+        if resolved_doc_ids:
+            try:
+                pid = _UUID(str(project_id))
+            except (ValueError, TypeError):
+                pid = None
+            if pid is not None:
+                from sqlalchemy import select as _select
+
+                membership_rows = await db.execute(
+                    _select(CollectionDocument.document_id).where(
+                        CollectionDocument.collection_id == pid,
+                        CollectionDocument.document_id.in_(resolved_doc_ids),
+                    )
+                )
+                in_project = {str(r[0]) for r in membership_rows}
+                chunks_to_emit = [
+                    c
+                    for c in result.chunks
+                    if (
+                        title_by_key.get(c.document_id or "", (None, None))[0] or ""
+                    )
+                    in in_project
+                ]
+
+    chunks_payload = []
+    for c in chunks_to_emit:
+        resolved_id, title = title_by_key.get(c.document_id or "", (None, None))
+        chunks_payload.append(
+            {
+                "text": c.text,
+                "score": c.score,
+                "document_id": resolved_id or c.document_id,
+                "title": title or (c.metadata or {}).get("title") or c.document_id,
+                "metadata": c.metadata,
+            }
+        )
+    return {
+        "chunks": chunks_payload,
+        "total": len(chunks_payload) if project_id else result.total,
+        "source": "do_kb",
+        "query": query,
+    }
 
 
 async def _tool_add_document_to_project(
@@ -1159,6 +1367,21 @@ async def _tool_summarize_document(
     try:
         doc = await _resolve_document_id(document_id, db, current_user)
         if not doc:
+            # Helpful hint when the input looks like an arXiv ID but the
+            # paper hasn't been ingested into the workspace yet.
+            import re as _re
+
+            if _re.match(r"^\d{4}\.\d{4,5}(v\d+)?$", (document_id or "").strip()):
+                return {
+                    "error": (
+                        f"Document with arXiv ID '{document_id}' is not in your "
+                        "library. Use ingest_arxiv_papers([\""
+                        f"{document_id}\"]) first, then retry summarize_document "
+                        "with the returned internal document_id."
+                    ),
+                    "error_type": "recoverable",
+                    "suggestion": "ingest_arxiv_papers",
+                }
             return {"error": "Document not found or access denied"}
 
         # Use existing content_text if available, else extract

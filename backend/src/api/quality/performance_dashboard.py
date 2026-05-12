@@ -59,7 +59,7 @@ async def get_performance_dashboard(
 
     except Exception as e:
         logger.error(f"Failed to get performance dashboard: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/overview")
@@ -79,7 +79,7 @@ async def get_dashboard_overview(
 
     except Exception as e:
         logger.error(f"Failed to get dashboard overview: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/system-health")
@@ -111,7 +111,7 @@ async def get_system_health_metrics(current_user: User = Depends(get_current_use
         raise
     except Exception as e:
         logger.error(f"Failed to get system health metrics: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/search-performance")
@@ -142,7 +142,7 @@ async def get_search_performance_metrics(
 
     except Exception as e:
         logger.error(f"Failed to get search performance metrics: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/quality-metrics")
@@ -173,7 +173,7 @@ async def get_quality_metrics_summary(
 
     except Exception as e:
         logger.error(f"Failed to get quality metrics summary: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/user-engagement")
@@ -208,7 +208,7 @@ async def get_user_engagement_metrics(
         raise
     except Exception as e:
         logger.error(f"Failed to get user engagement metrics: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/alerts")
@@ -238,7 +238,7 @@ async def get_active_alerts(
 
     except Exception as e:
         logger.error(f"Failed to get active alerts: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/charts/{metric_name}")
@@ -290,7 +290,7 @@ async def get_metric_chart_data(
         raise
     except Exception as e:
         logger.error(f"Failed to get metric chart data: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/widgets")
@@ -358,7 +358,7 @@ async def create_dashboard_widgets(
         raise
     except Exception as e:
         logger.error(f"Failed to create dashboard widgets: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/widgets/defaults")
@@ -487,7 +487,7 @@ async def get_default_widget_configurations(
 
     except Exception as e:
         logger.error(f"Failed to get default widget configurations: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/metrics/available")
@@ -633,7 +633,7 @@ async def get_available_metrics(current_user: User = Depends(get_current_user)):
 
     except Exception as e:
         logger.error(f"Failed to get available metrics: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/export")
@@ -685,7 +685,7 @@ async def export_dashboard_data(
 
     except Exception as e:
         logger.error(f"Failed to export dashboard data: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 def _convert_to_csv(data: Dict[str, Any]) -> Dict[str, Any]:

@@ -261,7 +261,7 @@ async def extract_paper_features(
 
     except Exception as e:
         logger.error(f"Feature extraction failed: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/extracted-features")
@@ -321,7 +321,7 @@ async def get_extracted_features(
 
     except Exception as e:
         logger.error(f"Failed to get extracted features: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/bulk-extract")
@@ -390,7 +390,7 @@ async def bulk_extract_features(
 
     except Exception as e:
         logger.error(f"Bulk extraction failed: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 # Helper functions

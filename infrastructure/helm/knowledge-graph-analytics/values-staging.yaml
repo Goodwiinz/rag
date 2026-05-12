@@ -20,7 +20,7 @@ frontend:
   replicaCount: 1
   image:
     repository: registry.digitalocean.com/ragsystemregistry/frontend
-    tag: "f3fd634"
+    tag: "fd07507"
     pullPolicy: Always
   service:
     type: ClusterIP
@@ -70,7 +70,7 @@ backend:
   replicaCount: 1
   image:
     repository: registry.digitalocean.com/ragsystemregistry/backend
-    tag: "f3fd634"
+    tag: "fd07507"
     pullPolicy: Always
   service:
     type: ClusterIP
@@ -119,6 +119,11 @@ backend:
     # Marked optional so the pod still starts if the secret is absent.
     - secretRef:
         name: langsmith-credentials
+        optional: true
+    # DigitalOcean Knowledge Base credentials. Optional so pod boots before
+    # /do-kb folder is populated in Infisical.
+    - secretRef:
+        name: do-kb-credentials
         optional: true
   env:
     - name: ENVIRONMENT

@@ -18,6 +18,7 @@ import { Document } from '@/types';
 import { cn } from '@/lib/utils';
 import { ProcessingStatus } from './ProcessingStatus';
 import { IntegrityBadge } from './IntegrityBadge';
+import { IconButton } from '@/components/ui/icon-button';
 
 interface DocumentCardProps {
   document: Document;
@@ -245,16 +246,15 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
 
             {/* Actions Menu */}
             <div className="relative">
-              <button
+              <IconButton
+                icon={<EllipsisHorizontalIcon className="h-5 w-5" />}
+                label="More options"
                 onClick={(e) => {
                   e.stopPropagation();
                   setShowActions(!showActions);
                 }}
-                className="p-1 text-muted-foreground hover:text-foreground hover:bg-accent rounded-md transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100"
-                aria-label="More options"
-              >
-                <EllipsisHorizontalIcon className="h-5 w-5" />
-              </button>
+                className="opacity-0 group-hover:opacity-100 focus:opacity-100 text-muted-foreground hover:text-foreground"
+              />
 
               {showActions && (
                 <>

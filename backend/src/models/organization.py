@@ -49,6 +49,10 @@ class Organization(BaseModel):
     # Organization status
     is_active = Column(Boolean, default=True, nullable=False)
 
+    # DigitalOcean Knowledge Base (one KB per org, lazy-provisioned on first ingest)
+    do_kb_uuid = Column(String(64), nullable=True, index=True)
+    do_kb_provisioned_at = Column(DateTime(timezone=True), nullable=True)
+
     # Relationships
     users = relationship("User", back_populates="organization")
     documents = relationship("Document", back_populates="organization")

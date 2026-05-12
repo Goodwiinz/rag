@@ -77,6 +77,10 @@ class Document(BaseModel):
     is_embedded = Column(Boolean, default=False, nullable=False)
     is_indexed = Column(Boolean, default=False, nullable=False)
 
+    # DigitalOcean Knowledge Base data source (Phase 2 dual-write)
+    do_kb_data_source_uuid = Column(String(64), nullable=True, index=True)
+    do_kb_indexed_at = Column(DateTime(timezone=True), nullable=True)
+
     # Access control
     is_public = Column(Boolean, default=False, nullable=False)
     tags = Column(StringArray, nullable=True)

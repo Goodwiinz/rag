@@ -14,6 +14,7 @@ from starlette.routing import Match
 
 from src.exceptions.analytics_exceptions import PermissionDeniedException
 from src.middleware.multi_tenancy import get_current_tenant_id, get_current_user_id
+from src.middleware.responses import error_response
 from src.models.permission import Permission
 from src.services.security.rbac_service import RBACService
 
@@ -93,10 +94,7 @@ class RBACMiddleware(BaseHTTPMiddleware):
                     response = await call_next(request)
                     return response
                 else:
-                    raise HTTPException(
-                        status_code=status.HTTP_401_UNAUTHORIZED,
-                        detail="Authentication required for access control",
-                    )
+                    return error_response(401, "Authentication required for access control")
 
             # Get required permissions for this endpoint
             required_permissions = self._get_required_permissions(request)
@@ -116,17 +114,10 @@ class RBACMiddleware(BaseHTTPMiddleware):
             return response
 
         except PermissionDeniedException as e:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN, detail=f"Access denied: {str(e)}"
-            )
-        except HTTPException:
-            raise
+            return error_response(403, f"Access denied: {str(e)}")
         except Exception as e:
             logger.error(f"RBAC middleware error: {e}")
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Internal server error during access control",
-            )
+            return error_response(500, "Internal server error during access control", "internal_error")
 
     def _should_skip_rbac(self, request: Request) -> bool:
         """Check if RBAC should be skipped for this endpoint"""

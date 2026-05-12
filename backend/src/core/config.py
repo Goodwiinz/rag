@@ -88,9 +88,26 @@ class Settings(BaseSettings):
     NEO4J_USER: str = "neo4j"
     NEO4J_PASSWORD: str = ""
 
-    # Qdrant Configuration
-    QDRANT_URL: str = "http://localhost:6333"
+    # Qdrant — DEPRECATED. Retained as optional settings so legacy services
+    # in src/services/search/* still import; no runtime cluster expected.
+    QDRANT_URL: Optional[str] = None
     QDRANT_API_KEY: Optional[str] = None
+
+    # DigitalOcean Knowledge Base (GenAI Platform / GradientAI)
+    # Public Preview — API may churn. One KB per organization.
+    DO_KB_ENABLED: bool = False
+    DO_KB_SHADOW_READ: bool = False  # Phase 4a: dual-read for eval, no user impact
+    DO_KB_PRIMARY_READ: bool = False  # Phase 4b: DO KB serves reads, Qdrant fallback
+    DO_API_TOKEN: Optional[str] = None
+    DO_KB_REGION: Optional[str] = None  # e.g. "tor1", "nyc3"
+    DO_KB_PROJECT_ID: Optional[str] = None
+    DO_KB_EMBEDDING_MODEL_UUID: Optional[str] = None
+    DO_KB_API_HOST: str = "https://api.digitalocean.com"
+    DO_KB_RETRIEVE_HOST: str = "https://kbaas.do-ai.run"
+    DO_KB_DEFAULT_TOP_K: int = 8
+    DO_KB_RETRIEVE_ALPHA: Optional[float] = 0.5
+    DO_KB_REQUEST_TIMEOUT_SECONDS: float = 30.0
+    DO_KB_INDEXING_TIMEOUT_SECONDS: float = 120.0
 
     # JWT Configuration
     JWT_SECRET_KEY: str = ""
@@ -252,6 +269,24 @@ class Settings(BaseSettings):
     # Lightweight model for auxiliary agent tasks (classifier, compactor, etc.)
     AZURE_OPENAI_LIGHTWEIGHT_DEPLOYMENT: Optional[str] = None
 
+    # gpt-5 reasoning_effort knobs. Lower = faster.
+    # Accepted values: "minimal" | "low" | "medium" | "high"
+    # Defaults tuned for fast responses; raise to "medium" for tougher tasks.
+    AGENT_MAIN_REASONING_EFFORT: str = "low"
+    AGENT_LIGHTWEIGHT_REASONING_EFFORT: str = "minimal"
+
+    # When True, post-tool synthesis turns (final-answer LLM call right after
+    # a ToolMessage) use the lightweight deployment instead of the main one.
+    # Cuts ~5-15s/turn on read-heavy queries like arxiv search results.
+    AGENT_LIGHTWEIGHT_SYNTHESIS: bool = True
+
+    # When False, the agent LLM emits at most one tool_call per turn. gpt-5
+    # fires runaway parallel batches by default (trace 019e18f0: 5-6 parallel
+    # search_arxiv per round, 13+ total over 4 rounds, 95s wall). Flip to
+    # True only when comparing two documents in parallel is the explicit
+    # user intent.
+    AGENT_PARALLEL_TOOL_CALLS: bool = False
+
     # Azure AI Cohere Reranking Configuration
     COHERE_RERANK_ENDPOINT: Optional[str] = None
     COHERE_RERANK_API_KEY: Optional[str] = None
@@ -332,6 +367,8 @@ class Settings(BaseSettings):
     @field_validator("QDRANT_URL")
     @classmethod
     def validate_qdrant_url(cls, v):
+        if v is None or v == "":
+            return v
         if not v.startswith(("http://", "https://")):
             raise ValueError("Qdrant URL must start with http:// or https://")
         return v
@@ -395,6 +432,31 @@ class Settings(BaseSettings):
         if v <= 0 or v > 10000:  # Max 10TB
             raise ValueError("FREE_TIER_STORAGE_GB must be between 1 and 10000")
         return v
+
+    @model_validator(mode="after")
+    def _validate_do_kb_required_fields(self):
+        """When DO_KB_ENABLED, require token + region + project + embedding model."""
+        if not self.DO_KB_ENABLED:
+            return self
+        missing = [
+            name
+            for name, value in (
+                ("DO_API_TOKEN", self.DO_API_TOKEN),
+                ("DO_KB_REGION", self.DO_KB_REGION),
+                ("DO_KB_PROJECT_ID", self.DO_KB_PROJECT_ID),
+                ("DO_KB_EMBEDDING_MODEL_UUID", self.DO_KB_EMBEDDING_MODEL_UUID),
+            )
+            if not value
+        ]
+        if missing:
+            raise ValueError(
+                f"DO_KB_ENABLED=True but missing required vars: {', '.join(missing)}"
+            )
+        if self.DO_KB_PRIMARY_READ and not self.DO_KB_ENABLED:
+            raise ValueError("DO_KB_PRIMARY_READ requires DO_KB_ENABLED=True")
+        if self.DO_KB_SHADOW_READ and not self.DO_KB_ENABLED:
+            raise ValueError("DO_KB_SHADOW_READ requires DO_KB_ENABLED=True")
+        return self
 
     class Config:
         env_file = "../.env"

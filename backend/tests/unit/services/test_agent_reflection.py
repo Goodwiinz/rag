@@ -41,7 +41,14 @@ def _make_state(
             ),
         ]
     if tool_executions is None:
-        tool_executions = [{"tool_name": "search_arxiv", "status": "completed"}]
+        # Phase 5 added a "happy-path" skip in _should_skip_reflection that
+        # bypasses the LLM when content >= 200 chars AND every tool_execution
+        # is "completed". Tests exercising the reflection LLM path force the
+        # gate open by including one failed execution.
+        tool_executions = [
+            {"tool_name": "search_arxiv", "status": "completed"},
+            {"tool_name": "search_documents", "status": "failed"},
+        ]
 
     state: dict = {
         "messages": messages,
@@ -304,7 +311,8 @@ class TestShouldSkipReflection:
         assert skip is True
         assert "no-tools" in reason
 
-    def test_does_not_skip_when_tools_ran(self):
+    def test_skips_happy_path_when_all_tools_completed(self):
+        """Phase 5 perf gate: long answer + all tools succeeded → skip critique."""
         from langchain_core.messages import AIMessage, HumanMessage
 
         long_text = "Detailed grounded answer. " * 20
@@ -314,6 +322,24 @@ class TestShouldSkipReflection:
                 AIMessage(content=long_text),
             ],
             "tool_executions": [{"tool_name": "search_arxiv", "status": "completed"}],
+        }
+        skip, reason = _should_skip_reflection(state)
+        assert skip is True
+        assert "happy-path" in reason
+
+    def test_does_not_skip_when_a_tool_failed(self):
+        """A failed tool execution forces critique even when content is long."""
+        from langchain_core.messages import AIMessage, HumanMessage
+
+        long_text = "Detailed grounded answer. " * 20
+        state = {
+            "messages": [
+                HumanMessage(content="find papers"),
+                AIMessage(content=long_text),
+            ],
+            "tool_executions": [
+                {"tool_name": "search_arxiv", "status": "failed"},
+            ],
         }
         skip, reason = _should_skip_reflection(state)
         assert skip is False

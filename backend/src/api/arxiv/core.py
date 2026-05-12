@@ -141,7 +141,7 @@ async def search_arxiv_papers(
             return response
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/ingest", response_model=Dict[str, Any])
@@ -173,7 +173,7 @@ async def ingest_arxiv_papers(
         }
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/create-dataset", response_model=Dict[str, Any])
@@ -208,7 +208,7 @@ async def create_evaluation_dataset(
         }
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/categories", response_model=Dict[str, Any])
@@ -309,7 +309,7 @@ async def download_paper(
                 raise HTTPException(status_code=404, detail="PDF not found")
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/statistics")
@@ -352,7 +352,7 @@ async def get_arxiv_statistics(
             return stats
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 # Background task functions

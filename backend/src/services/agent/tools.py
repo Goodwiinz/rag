@@ -219,6 +219,29 @@ async def search_documents(
 
 
 @tool
+async def do_kb_retrieve(
+    query: str,
+    top_k: int = 8,
+    config: RunnableConfig | None = None,
+) -> Dict[str, Any]:
+    """Semantic retrieval over the organization's DigitalOcean Knowledge Base."""
+    config = config or {}
+    from src.api.agent.execute import _tool_do_kb_retrieve
+
+    db, current_user, page_ctx = _get_context(config)
+    # Forward active project_id so the retrieval result is scoped to the
+    # current project and does not leak sibling-project documents.
+    project_id = _resolve_project_id(None, page_ctx)
+    args: Dict[str, Any] = {
+        "query": query,
+        "top_k": _clamp_int(top_k, lo=1, hi=20),
+    }
+    if project_id:
+        args["project_id"] = project_id
+    return await _tool_do_kb_retrieve(args, db, current_user)
+
+
+@tool
 async def add_document_to_project(
     document_id: str,
     project_id: Optional[str] = None,
