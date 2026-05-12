@@ -106,11 +106,11 @@ async def research_llm_node(state: AgentState, config: RunnableConfig) -> dict:
         and isinstance(sanitized[-1], ToolMessage)
     )
     if use_lightweight_synthesis:
-        from src.services.agent.llm_factory import build_lightweight_llm
+        from src.services.agent.llm_factory import build_synthesis_llm
 
-        llm = build_lightweight_llm(max_tokens=4096)
+        llm = build_synthesis_llm(max_tokens=4096)
         logger.debug(
-            "research_llm_node: using lightweight synthesis model after ToolMessage"
+            "research_llm_node: using synthesis model after ToolMessage"
         )
     else:
         llm = _build_llm()
@@ -127,11 +127,19 @@ async def research_llm_node(state: AgentState, config: RunnableConfig) -> dict:
         RESEARCH_TOOLS,
         parallel_tool_calls=settings.AGENT_PARALLEL_TOOL_CALLS,
     )
-    from src.services.agent.graph import AGENT_LLM_TIMEOUT_SECONDS
+    from src.services.agent.graph import (
+        AGENT_LLM_TIMEOUT_SECONDS,
+        _merge_run_config,
+    )
 
+    invoke_config = _merge_run_config(
+        config,
+        run_name="research_llm_node",
+        tags=["intent:research", "subgraph:research"],
+    )
     try:
         response = await asyncio.wait_for(
-            llm_with_tools.ainvoke(messages, config=config),
+            llm_with_tools.ainvoke(messages, config=invoke_config),
             timeout=AGENT_LLM_TIMEOUT_SECONDS,
         )
     except asyncio.TimeoutError:
@@ -202,7 +210,7 @@ async def research_force_synthesis_node(
     cannot route back here in a loop if the synthesis response somehow
     contains tool_calls (defensive — the directive forbids it).
     """
-    from src.services.agent.llm_factory import build_lightweight_llm
+    from src.services.agent.llm_factory import build_synthesis_llm
 
     messages = list(state["messages"])
 
@@ -224,13 +232,21 @@ async def research_force_synthesis_node(
     )
     full = [SystemMessage(content=base_prompt + synthesis_addendum)] + sanitized
 
-    llm = build_lightweight_llm(max_tokens=4096)
+    llm = build_synthesis_llm(max_tokens=4096)
     # No bind_tools — force a pure text response.
-    from src.services.agent.graph import AGENT_LLM_TIMEOUT_SECONDS
+    from src.services.agent.graph import (
+        AGENT_LLM_TIMEOUT_SECONDS,
+        _merge_run_config,
+    )
 
+    invoke_config = _merge_run_config(
+        config,
+        run_name="research_force_synthesis_node",
+        tags=["intent:research", "subgraph:research", "phase:synthesis"],
+    )
     try:
         response = await asyncio.wait_for(
-            llm.ainvoke(full, config=config),
+            llm.ainvoke(full, config=invoke_config),
             timeout=AGENT_LLM_TIMEOUT_SECONDS,
         )
     except asyncio.TimeoutError:

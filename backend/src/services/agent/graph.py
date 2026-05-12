@@ -344,9 +344,15 @@ async def memory_retrieval_node(state: AgentState, config: RunnableConfig) -> di
         memories = await search_memories(
             store, str(current_user.id), last_user_msg, limit=5
         )
+        try:
+            from src.services.agent import observability as _obs
+
+            _obs.record_memory_retrieval(hit=bool(memories))
+        except Exception:
+            pass
         return {"user_memories": memories}
     except Exception as e:
-        logger.warning("Memory retrieval failed: %s", e)
+        logger.warning("Memory recall failed: %s", e)
         return {"user_memories": []}
 
 
@@ -971,6 +977,12 @@ async def _classify_core(state: AgentState, config: RunnableConfig) -> dict:
         result.confidence,
         result.source,
     )
+    try:
+        from src.services.agent.observability import record_classifier_source
+
+        record_classifier_source(source=result.source, intent=result.intent)
+    except Exception:
+        pass
     return {"intent": result.intent, "intent_confidence": result.confidence}
 
 
@@ -1238,6 +1250,26 @@ def _runtime_model_line(model_override: str | None) -> str:
     return f"Runtime model: routed via Azure deployment `{deployment}`."
 
 
+def _merge_run_config(
+    base: RunnableConfig | dict | None,
+    *,
+    run_name: str,
+    tags: list[str],
+) -> dict:
+    """Layer LangSmith run_name + tags onto an existing RunnableConfig.
+
+    Without this the LLM spans land in LangSmith as anonymous
+    "AzureChatOpenAI" entries — impossible to filter by intent/subgraph.
+    Tags + run_name flow into the trace metadata so the LangSmith UI can
+    facet by intent:research, subgraph:writing, etc.
+    """
+    merged: dict = dict(base or {})
+    existing_tags = list(merged.get("tags") or [])
+    merged["tags"] = existing_tags + [t for t in tags if t not in existing_tags]
+    merged["run_name"] = run_name
+    return merged
+
+
 def _build_page_context_line(page_context: dict) -> str:
     """Render a single-line page-context fact for the LLM.
 
@@ -1406,11 +1438,11 @@ async def llm_node(state: AgentState, config: RunnableConfig) -> dict:
         last_is_tool_msg or intent == "general"
     )
     if use_lightweight:
-        from src.services.agent.llm_factory import build_lightweight_llm
+        from src.services.agent.llm_factory import build_synthesis_llm
 
-        llm = build_lightweight_llm(max_tokens=4096)
+        llm = build_synthesis_llm(max_tokens=4096)
         logger.debug(
-            "llm_node: using lightweight model (intent=%s, last_is_tool=%s)",
+            "llm_node: using synthesis model (intent=%s, last_is_tool=%s)",
             intent,
             last_is_tool_msg,
         )
@@ -1424,9 +1456,12 @@ async def llm_node(state: AgentState, config: RunnableConfig) -> dict:
         intent_tools,
         parallel_tool_calls=settings.AGENT_PARALLEL_TOOL_CALLS,
     )
+    invoke_config = _merge_run_config(
+        config, run_name=f"llm_node:{intent}", tags=[f"intent:{intent}", "subgraph:main"]
+    )
     try:
         response = await asyncio.wait_for(
-            llm_with_tools.ainvoke(messages, config=config),
+            llm_with_tools.ainvoke(messages, config=invoke_config),
             timeout=AGENT_LLM_TIMEOUT_SECONDS,
         )
     except asyncio.TimeoutError:
@@ -1548,8 +1583,27 @@ def _resolve_tool_concurrency(default: int = 3) -> int:
     return max(1, value)
 
 
-_tool_concurrency = _resolve_tool_concurrency(default=5)
-_TOOL_SEMAPHORE = asyncio.Semaphore(_tool_concurrency)
+# Per-event-loop semaphore. Module-scope Semaphore captures the FIRST
+# loop it sees (binds at import time) — pytest creates a fresh loop per
+# test → RuntimeError "got Future attached to a different loop". Multi-
+# worker uvicorn under spawn mode hits the same issue. Lazy-init per loop
+# via WeakKeyDictionary so the right semaphore is reused for the lifetime
+# of each loop without leaking references after the loop is closed.
+import weakref
+
+_TOOL_SEMAPHORES: "weakref.WeakKeyDictionary[asyncio.AbstractEventLoop, asyncio.Semaphore]" = (
+    weakref.WeakKeyDictionary()
+)
+
+
+def _get_tool_semaphore() -> asyncio.Semaphore:
+    """Return the tool concurrency semaphore bound to the current loop."""
+    loop = asyncio.get_running_loop()
+    sem = _TOOL_SEMAPHORES.get(loop)
+    if sem is None:
+        sem = asyncio.Semaphore(_resolve_tool_concurrency(default=3))
+        _TOOL_SEMAPHORES[loop] = sem
+    return sem
 
 
 def _record_tool_metrics(tool_name: str, status: str):
@@ -1558,6 +1612,16 @@ def _record_tool_metrics(tool_name: str, status: str):
         from src.services.agent.observability import record_tool_call
 
         record_tool_call(tool_name, status)
+    except Exception:
+        pass
+
+
+def _record_tool_error_category(tool_name: str, category: str) -> None:
+    """Record classified tool error for dashboard pivots."""
+    try:
+        from src.services.agent.observability import record_tool_error
+
+        record_tool_error(tool=tool_name, category=category)
     except Exception:
         pass
 
@@ -1591,7 +1655,7 @@ async def _execute_single_tool(
         _SLOW_TOOL_TIMEOUT_SECONDS if tool_name in _SLOW_TOOLS else TOOL_TIMEOUT_SECONDS
     )
 
-    async with _TOOL_SEMAPHORE:
+    async with _get_tool_semaphore():
         try:
             configurable = config.get("configurable", {})
 
@@ -1635,6 +1699,7 @@ async def _execute_single_tool(
                     error_text = tool_error.message
                     error_info = tool_error.to_state_info()
                     result_content = tool_error.to_tool_message_content()
+                    _record_tool_error_category(tool_name, tool_error.category)
                 # Transient payload errors: already retried by retry_transient above
         except Exception as e:
             tool_error = classify_error(tool_name, e)
@@ -1650,6 +1715,7 @@ async def _execute_single_tool(
             error_text = tool_error.message
             error_info = tool_error.to_state_info()
             result_content = tool_error.to_tool_message_content()
+            _record_tool_error_category(tool_name, tool_error.category)
 
     duration_ms = int((time.monotonic() - t0) * 1000)
     _record_tool_metrics(tool_name, status)

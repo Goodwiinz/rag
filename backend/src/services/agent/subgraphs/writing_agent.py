@@ -81,15 +81,41 @@ def _build_writing_system_prompt() -> str:
 
 async def writing_llm_node(state: AgentState, config: RunnableConfig) -> dict:
     """Writing-specialized LLM node."""
+    from langchain_core.messages import ToolMessage
+
+    from src.core.config import get_settings
     from src.services.agent.graph import AGENT_LLM_TIMEOUT_SECONDS, _build_llm
 
-    messages = [SystemMessage(content=_build_writing_system_prompt())] + _sanitize_messages(list(state["messages"]))
+    sanitized = _sanitize_messages(list(state["messages"]))
+    messages = [SystemMessage(content=_build_writing_system_prompt())] + sanitized
 
-    llm = _build_llm()
+    # Post-tool synthesis turn → use the synthesis deployment. Mirrors
+    # research_llm_node + main llm_node. Trace 019e191a showed gpt-5
+    # spending 70s on prose synthesis after a tool result.
+    settings = get_settings()
+    use_synthesis = bool(
+        settings.AGENT_LIGHTWEIGHT_SYNTHESIS
+        and sanitized
+        and isinstance(sanitized[-1], ToolMessage)
+    )
+    if use_synthesis:
+        from src.services.agent.llm_factory import build_synthesis_llm
+
+        llm = build_synthesis_llm(max_tokens=4096)
+        logger.debug("writing_llm_node: using synthesis model after ToolMessage")
+    else:
+        llm = _build_llm()
     llm_with_tools = llm.bind_tools(WRITING_TOOLS)
+    from src.services.agent.graph import _merge_run_config
+
+    invoke_config = _merge_run_config(
+        config,
+        run_name="writing_llm_node",
+        tags=["intent:writing", "subgraph:writing"],
+    )
     try:
         response = await asyncio.wait_for(
-            llm_with_tools.ainvoke(messages, config=config),
+            llm_with_tools.ainvoke(messages, config=invoke_config),
             timeout=AGENT_LLM_TIMEOUT_SECONDS,
         )
     except asyncio.TimeoutError:

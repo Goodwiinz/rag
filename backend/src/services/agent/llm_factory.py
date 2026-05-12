@@ -25,18 +25,30 @@ def _resolve_lightweight_deployment() -> str:
     return settings.AZURE_OPENAI_LIGHTWEIGHT_DEPLOYMENT or _DEFAULT_LIGHTWEIGHT_MODEL
 
 
-def build_lightweight_llm(
+def _resolve_synthesis_deployment() -> str:
+    """Synthesis deploy falls back to lightweight when unset."""
+    settings = get_settings()
+    return (
+        settings.AZURE_OPENAI_SYNTHESIS_DEPLOYMENT
+        or settings.AZURE_OPENAI_LIGHTWEIGHT_DEPLOYMENT
+        or _DEFAULT_LIGHTWEIGHT_MODEL
+    )
+
+
+def _build_chat_llm(
+    deployment: str,
     *,
+    role_label: str,
     temperature: float = 0,
     max_tokens: int = 512,
     request_timeout: float | None = None,
     use_responses_api: bool | None = None,
+    reasoning_effort: str | None = None,
 ) -> BaseChatModel:
-    """Build a LangChain chat model for lightweight auxiliary tasks.
+    """Shared core builder for lightweight + synthesis LLMs.
 
-    Uses the same Azure/OpenAI config resolution as ``graph._build_llm``
-    but targets the lightweight deployment configured via
-    ``AZURE_OPENAI_LIGHTWEIGHT_DEPLOYMENT`` (defaults to model-router).
+    Keeps the gpt-5 family quirks (no temperature, reasoning_effort)
+    and Azure vs OpenAI-compatible endpoint selection in one place.
     """
     settings = get_settings()
 
@@ -47,8 +59,7 @@ def build_lightweight_llm(
     api_version = (
         settings.AZURE_OPENAI_CHAT_API_VERSION or settings.AZURE_OPENAI_API_VERSION
     )
-    deployment = _resolve_lightweight_deployment()
-    logger.info("Lightweight LLM deployment resolved to: %s", deployment)
+    logger.info("%s LLM deployment resolved to: %s", role_label, deployment)
 
     if not endpoint or not api_key:
         raise RuntimeError(
@@ -74,12 +85,9 @@ def build_lightweight_llm(
     extra["use_responses_api"] = False if use_responses_api is None else use_responses_api
 
     # gpt-5 family supports reasoning_effort. Lightweight tasks (classifier,
-    # reflection, planner complexity check) default to "minimal" — they're
-    # structured-output classifications, not deep reasoning.
-    if deployment.startswith("gpt-5"):
-        reasoning_effort = settings.AGENT_LIGHTWEIGHT_REASONING_EFFORT
-        if reasoning_effort:
-            extra["reasoning_effort"] = reasoning_effort
+    # reflection, planner complexity check) default to "minimal".
+    if deployment.startswith("gpt-5") and reasoning_effort:
+        extra["reasoning_effort"] = reasoning_effort
 
     if classify_openai_endpoint(endpoint) == "openai_compatible":
         from langchain_openai import ChatOpenAI
@@ -104,6 +112,62 @@ def build_lightweight_llm(
     )
 
 
+def build_lightweight_llm(
+    *,
+    temperature: float = 0,
+    max_tokens: int = 512,
+    request_timeout: float | None = None,
+    use_responses_api: bool | None = None,
+) -> BaseChatModel:
+    """Build a LangChain chat model for lightweight auxiliary tasks.
+
+    Targets the deployment configured via
+    ``AZURE_OPENAI_LIGHTWEIGHT_DEPLOYMENT`` (defaults to ``model-router``).
+    Used by classifier, planner complexity check, reflection, compactor.
+    """
+    settings = get_settings()
+    return _build_chat_llm(
+        _resolve_lightweight_deployment(),
+        role_label="Lightweight",
+        temperature=temperature,
+        max_tokens=max_tokens,
+        request_timeout=request_timeout,
+        use_responses_api=use_responses_api,
+        reasoning_effort=settings.AGENT_LIGHTWEIGHT_REASONING_EFFORT or None,
+    )
+
+
+def build_synthesis_llm(
+    *,
+    temperature: float = 0,
+    max_tokens: int = 4096,
+    request_timeout: float | None = None,
+    use_responses_api: bool | None = None,
+) -> BaseChatModel:
+    """Build a LangChain chat model for post-tool prose synthesis.
+
+    Targets ``AZURE_OPENAI_SYNTHESIS_DEPLOYMENT`` and falls back to the
+    lightweight deployment when unset, so existing single-knob deployments
+    keep working. Lets ops put a stronger model (e.g. gpt-5-mini) on the
+    final-answer path while routing/classify stay on cheap nano.
+    """
+    settings = get_settings()
+    return _build_chat_llm(
+        _resolve_synthesis_deployment(),
+        role_label="Synthesis",
+        temperature=temperature,
+        max_tokens=max_tokens,
+        request_timeout=request_timeout,
+        use_responses_api=use_responses_api,
+        reasoning_effort=settings.AGENT_LIGHTWEIGHT_REASONING_EFFORT or None,
+    )
+
+
 def get_lightweight_model_name() -> str:
     """Return the configured lightweight model/deployment name."""
     return _resolve_lightweight_deployment()
+
+
+def get_synthesis_model_name() -> str:
+    """Return the configured synthesis model/deployment name."""
+    return _resolve_synthesis_deployment()
