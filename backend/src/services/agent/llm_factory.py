@@ -57,12 +57,15 @@ def build_lightweight_llm(
             "(or the non-CHAT variants)."
         )
 
-    _NO_CUSTOM_TEMPERATURE = frozenset({"gpt-5-mini"})
+    # All gpt-5 family deployments (gpt-5, gpt-5-mini, gpt-5-nano, etc.)
+    # reject the `temperature` parameter — Azure returns 400. Skip it
+    # rather than maintaining an explicit allowlist as new sizes ship.
+    _accepts_temperature = not deployment.startswith("gpt-5")
 
     extra: dict[str, Any] = {}
     if request_timeout is not None:
         extra["request_timeout"] = request_timeout
-    if deployment not in _NO_CUSTOM_TEMPERATURE:
+    if _accepts_temperature:
         extra["temperature"] = temperature
     # Default to Chat Completions API. langchain-openai auto-routes gpt-5
     # family + reasoning_effort to Azure Responses API, which currently
