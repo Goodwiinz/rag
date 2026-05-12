@@ -118,8 +118,9 @@ async def stream_event_generator(
     """
     from langchain_core.messages import HumanMessage
 
-    from src.services.agent.checkpointer import get_checkpointer
+    from src.services.agent.checkpointer import get_checkpointer, reset_checkpointer
     from src.services.agent.graph import compile_agent_graph
+    from src.services.agent.memory import get_memory_store
 
     # Lazy import schemas to avoid circular imports
     from .execute import (
@@ -136,7 +137,8 @@ async def stream_event_generator(
     try:
         _bootstrap_langsmith()
         checkpointer = await get_checkpointer()
-        graph = compile_agent_graph(checkpointer=checkpointer)
+        store = await get_memory_store()
+        graph = compile_agent_graph(checkpointer=checkpointer, store=store)
 
         messages = [
             HumanMessage(content=m.content)
@@ -196,10 +198,43 @@ async def stream_event_generator(
         # resume an interrupt, so re-firing it would block this turn.
         await _clear_stale_pending_confirmation(graph, config)
 
-        async with asyncio.timeout(300):  # 5 minutes
-            async for event in graph.astream_events(
+        # If the checkpointer's pgbouncer/Supabase connection was
+        # idle-killed since the singleton was built, the first aget_tuple
+        # inside astream_events raises psycopg.OperationalError("the
+        # connection is closed"). Reset + rebuild + retry once before
+        # failing the whole stream.
+        from psycopg import OperationalError as _PgOpError
+
+        async def _open_event_stream():
+            return graph.astream_events(
                 initial_state, config=config, version="v2"
-            ):
+            ).__aiter__()
+
+        event_stream_iter = await _open_event_stream()
+        first_event_yielded = False
+        async with asyncio.timeout(300):  # 5 minutes
+            while True:
+                try:
+                    event = await event_stream_iter.__anext__()
+                except StopAsyncIteration:
+                    break
+                except _PgOpError as op_err:
+                    if first_event_yielded:
+                        raise
+                    logger.warning(
+                        "stream: checkpointer connection dead (%s); "
+                        "resetting and retrying",
+                        op_err,
+                    )
+                    await reset_checkpointer()
+                    checkpointer = await get_checkpointer()
+                    graph = compile_agent_graph(
+                        checkpointer=checkpointer, store=store
+                    )
+                    await _clear_stale_pending_confirmation(graph, config)
+                    event_stream_iter = await _open_event_stream()
+                    continue
+                first_event_yielded = True
                 if await request.is_disconnected():
                     break
 
@@ -356,6 +391,7 @@ async def stream_confirm_event_generator(
 
     from src.services.agent.checkpointer import get_checkpointer, reset_checkpointer
     from src.services.agent.graph import compile_agent_graph
+    from src.services.agent.memory import get_memory_store
 
     # Lazy import schemas
     from .execute import (
@@ -369,7 +405,8 @@ async def stream_confirm_event_generator(
     try:
         _bootstrap_langsmith()
         checkpointer = await get_checkpointer()
-        graph = compile_agent_graph(checkpointer=checkpointer)
+        store = await get_memory_store()
+        graph = compile_agent_graph(checkpointer=checkpointer, store=store)
 
         snapshot_config = {
             "configurable": {
@@ -389,7 +426,8 @@ async def stream_confirm_event_generator(
             )
             await reset_checkpointer()
             checkpointer = await get_checkpointer()
-            graph = compile_agent_graph(checkpointer=checkpointer)
+            store = await get_memory_store()
+            graph = compile_agent_graph(checkpointer=checkpointer, store=store)
             snapshot_config = {
                 "configurable": {
                     "thread_id": request_body.thread_id,
