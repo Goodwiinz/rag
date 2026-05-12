@@ -31,6 +31,38 @@ _SSE_HEADERS = {
     "X-Accel-Buffering": "no",
 }
 
+# Only chat-model streams originating from these LangGraph nodes are
+# forwarded as user-visible `token` SSE events. Internal LLM calls
+# (intent classifier inside rag_node, planner's structured-output
+# complexity check, reflection critique, summarisers inside subgraph
+# tool nodes) ALSO trigger on_chat_model_stream — emitting their tokens
+# leaks raw JSON ({"intent":…}, {"step_count":1}) and interleaves
+# parallel summarisations into the response stream. The four allow-listed
+# nodes are the only ones whose chat output the user is meant to see.
+_USER_FACING_LLM_NODES = frozenset(
+    {
+        "llm_node",
+        "research_llm_node",
+        "writing_llm_node",
+        "data_llm_node",
+    }
+)
+
+
+def _is_user_facing_token_event(event: Dict[str, Any]) -> bool:
+    """Return True when this on_chat_model_stream event came from a node
+    whose tokens we want to forward to the client.
+
+    astream_events v2 records the originating LangGraph node on
+    ``event['metadata']['langgraph_node']``. Nested subgraph nodes set
+    this to the subgraph's own node name (e.g. ``research_llm_node``),
+    not the parent's ``research_subgraph`` wrapper — so a flat allow-list
+    on the inner node names is enough.
+    """
+    metadata = event.get("metadata") or {}
+    node = metadata.get("langgraph_node")
+    return node in _USER_FACING_LLM_NODES
+
 
 def _bootstrap_langsmith() -> None:
     """Enable LangSmith tracing when the API key is configured."""
@@ -218,6 +250,8 @@ async def stream_event_generator(
                 name = event.get("name", "")
 
                 if kind == "on_chat_model_stream":
+                    if not _is_user_facing_token_event(event):
+                        continue
                     chunk = event.get("data", {}).get("chunk")
                     if chunk and hasattr(chunk, "content") and chunk.content:
                         yield f"event: token\ndata: {_json.dumps({'content': chunk.content})}\n\n"
@@ -466,6 +500,8 @@ async def stream_confirm_event_generator(
                 name = event.get("name", "")
 
                 if kind == "on_chat_model_stream":
+                    if not _is_user_facing_token_event(event):
+                        continue
                     chunk = event.get("data", {}).get("chunk")
                     if chunk and hasattr(chunk, "content") and chunk.content:
                         yield f"event: token\ndata: {_json.dumps({'content': chunk.content})}\n\n"

@@ -1424,7 +1424,29 @@ async def llm_node(state: AgentState, config: RunnableConfig) -> dict:
         intent_tools,
         parallel_tool_calls=settings.AGENT_PARALLEL_TOOL_CALLS,
     )
-    response = await llm_with_tools.ainvoke(messages, config=config)
+    try:
+        response = await asyncio.wait_for(
+            llm_with_tools.ainvoke(messages, config=config),
+            timeout=AGENT_LLM_TIMEOUT_SECONDS,
+        )
+    except asyncio.TimeoutError:
+        logger.warning(
+            "llm_node: LLM exceeded %ds (intent=%s); emitting fallback",
+            AGENT_LLM_TIMEOUT_SECONDS,
+            intent,
+        )
+        return {
+            "messages": [
+                AIMessage(
+                    content=(
+                        "The model took too long to respond. Please try again "
+                        "or rephrase your request."
+                    ),
+                ),
+            ],
+            "last_error": "llm_timeout",
+            "error_count": state.get("error_count", 0) + 1,
+        }
 
     # If response was truncated (hit max_tokens) without pending tool calls,
     # retry once with a continuation prompt to complete the answer.
@@ -1492,6 +1514,26 @@ async def interrupt_node(state: AgentState, config: RunnableConfig) -> dict:
 TOOL_TIMEOUT_SECONDS = 30
 _SLOW_TOOL_TIMEOUT_SECONDS = 120  # ingest, draft generation, etc.
 _SLOW_TOOLS = {"ingest_arxiv_papers", "create_draft", "compare_documents"}
+
+# Tools that already handle their own retry/backoff internally. Outer
+# retry_transient stacks on top and amplifies wall-clock — trace 019e040b
+# showed search_arxiv at 85.5s = (3s rate gate + 20s httpx + 30s outer
+# wait_for) × 2 attempts + 1s backoff. arxiv_service.py has its own 429
+# loop + exponential backoff; ingest_arxiv_papers downloads with retry
+# (arxiv_service._download_pdf). One outer attempt is enough.
+_NO_OUTER_RETRY_TOOLS = {
+    "search_arxiv",
+    "ingest_arxiv_papers",
+}
+
+# Wall-clock cap for any agent-LLM invocation (main llm_node + subgraph
+# LLM nodes). Without this, a stalled Azure/OpenAI socket leaves the node
+# task unbounded on the server even after the SSE client cancels (~30s
+# default), surfacing as CancelledError in LangSmith with no recovery.
+# Trace 019e04fc showed writing_llm_node cancelled at exactly 30s with no
+# fallback message. Picked at 90s: gpt-5 reasoning + tool synthesis can
+# legitimately take ~70s (trace 019e191a).
+AGENT_LLM_TIMEOUT_SECONDS = 90
 
 
 def _resolve_tool_concurrency(default: int = 3) -> int:
@@ -1572,7 +1614,12 @@ async def _execute_single_tool(
             # arxiv API hung 93s (3 × 30s timeout + backoff) which exceeded
             # the CLI 90s idle window. Failing faster surfaces the issue
             # while keeping one safety-net retry for genuine transient blips.
-            result = await retry_transient(_call_tool, max_attempts=2, base_delay=1.0)
+            # Tools that retry internally (arxiv) skip the outer retry to
+            # avoid 2× wall-clock amplification (trace 019e040b: 85.5s).
+            _outer_attempts = 1 if tool_name in _NO_OUTER_RETRY_TOOLS else 2
+            result = await retry_transient(
+                _call_tool, max_attempts=_outer_attempts, base_delay=1.0
+            )
 
             result_content = (
                 json.dumps(result) if isinstance(result, dict) else str(result)
