@@ -359,6 +359,7 @@ async def _run_agent_graph(
 
     from src.services.agent.checkpointer import get_checkpointer
     from src.services.agent.graph import compile_agent_graph
+    from src.services.agent.memory import get_memory_store
 
     schemas = _get_schemas()
     ToolExecutionResponse = schemas["ToolExecutionResponse"]
@@ -377,7 +378,8 @@ async def _run_agent_graph(
                 pass
 
             checkpointer = await get_checkpointer()
-            graph = compile_agent_graph(checkpointer=checkpointer)
+            store = await get_memory_store()
+            graph = compile_agent_graph(checkpointer=checkpointer, store=store)
 
             messages = [
                 HumanMessage(content=m.content)
@@ -524,6 +526,7 @@ async def _resume_agent_graph(
 
     from src.services.agent.checkpointer import get_checkpointer
     from src.services.agent.graph import compile_agent_graph
+    from src.services.agent.memory import get_memory_store
 
     schemas = _get_schemas()
     AgentExecuteRequest = schemas["AgentExecuteRequest"]
@@ -534,7 +537,8 @@ async def _resume_agent_graph(
     async with AsyncSessionLocal() as db:
         try:
             checkpointer = await get_checkpointer()
-            graph = compile_agent_graph(checkpointer=checkpointer)
+            store = await get_memory_store()
+            graph = compile_agent_graph(checkpointer=checkpointer, store=store)
             job = _get_job(job_id)
             original_request = None
             if job and job.get("request"):

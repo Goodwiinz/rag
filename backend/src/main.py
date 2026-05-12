@@ -245,8 +245,7 @@ async def lifespan(app: FastAPI):
         from src.services.agent.checkpointer import get_checkpointer
         from src.services.agent.memory import get_memory_store
 
-        await get_checkpointer()
-        await get_memory_store()
+        await asyncio.gather(get_checkpointer(), get_memory_store())
         logger.info("LangGraph checkpointer + memory store warmed at startup")
     except Exception as e:
         if environment in ("production", "staging"):
@@ -280,6 +279,22 @@ async def lifespan(app: FastAPI):
             logger.info("Redis client closed successfully")
         except redis.RedisError as e:
             logger.error(f"Error closing Redis client: {e}")
+
+    # Close LangGraph persistence pools (checkpointer + memory store)
+    try:
+        from src.services.agent._pool_utils import close_shared_langgraph_pool
+        from src.services.agent.checkpointer import close_checkpointer
+        from src.services.agent.memory import close_memory_store
+
+        # Drop singleton references first so no in-flight handle keeps
+        # the pool busy when we close it.
+        await asyncio.gather(
+            close_checkpointer(), close_memory_store(), return_exceptions=True
+        )
+        await close_shared_langgraph_pool()
+        logger.info("LangGraph persistence pools closed")
+    except Exception as e:
+        logger.warning("Error closing LangGraph persistence pools: %s", e)
 
     # Close auth rate limiter
     try:

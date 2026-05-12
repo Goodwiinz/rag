@@ -2,7 +2,16 @@
 Collection model for Terminal Observatory document organization
 """
 
-from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import (
+    Boolean,
+    Column,
+    DateTime,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 
@@ -96,6 +105,13 @@ class CollectionDocument(BaseModel):
     """
 
     __tablename__ = "collection_documents"
+    __table_args__ = (
+        UniqueConstraint(
+            "collection_id",
+            "document_id",
+            name="uq_collection_documents",
+        ),
+    )
 
     collection_id = Column(
         GUID(),
@@ -119,6 +135,3 @@ class CollectionDocument(BaseModel):
 
     def __repr__(self):
         return f"<CollectionDocument(collection_id={self.collection_id}, document_id={self.document_id})>"
-
-    class Meta:
-        unique_together = [("collection_id", "document_id")]

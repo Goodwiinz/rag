@@ -10,6 +10,10 @@ export interface NousConfig {
   thread_id: string | null;
   api_url?: string;
   model?: string;
+  project_id?: string | null;
+  project_name?: string | null;
+  paper_id?: string | null;
+  paper_title?: string | null;
 }
 
 function configDir(): string {
