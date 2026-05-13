@@ -12,6 +12,7 @@ from typing import Any
 
 from src.cli.agent_api_client import AgentAPIClient
 from src.cli.agent_api_client import AgentAPIClientError
+from src.cli.agent_api_client import build_execute_payload
 from src.cli.auth_loader import resolve_cli_auth
 from src.cli.browser_auth import login_via_browser
 from src.cli.agent_cli_renderer import render_event
@@ -104,16 +105,18 @@ def _normalize_page_context(page_context: Any) -> dict[str, object]:
 
 
 def build_request_body(state: CLISessionState, prompt: str) -> dict[str, object]:
-    request_body: dict[str, object] = {
-        "messages": [{"role": "user", "content": prompt}],
+    extras: dict[str, Any] = {
         "page_context": _normalize_page_context(state.page_context),
         "use_rag": True,
     }
     if state.thread_id:
-        request_body["thread_id"] = state.thread_id
+        extras["thread_id"] = state.thread_id
     if state.model:
-        request_body["model"] = state.model
-    return request_body
+        extras["model"] = state.model
+    return build_execute_payload(
+        messages=[{"role": "user", "content": prompt}],
+        **extras,
+    )
 
 
 def _parse_confirmation_input(user_input: str) -> bool:
