@@ -158,6 +158,17 @@ try:
         ["outcome"],  # "hit" | "miss"
     )
 
+    # Background assistant-row persistence failures — Task 5 of
+    # docs/plans/2026-05-13-agent-persist-perf.md. Bumped by the safe
+    # wrapper around _persist_assistant_message when the deferred commit
+    # raises. Lets dashboards alert when assistant rows are silently lost
+    # off the request hot path.
+    agent_assistant_persist_failures_total = _get_or_create_counter(
+        "agent_assistant_persist_failures_total",
+        "Number of background assistant-row persistence failures",
+        [],
+    )
+
     # Quality histogram: max similarity score returned per recall call.
     # Trace evidence showed score=null for every recalled item — once the
     # store has a semantic index wired this histogram surfaces whether

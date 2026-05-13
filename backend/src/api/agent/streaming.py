@@ -15,6 +15,7 @@ from langgraph.errors import GraphInterrupt
 from src.core.database import AsyncSessionLocal
 from src.models.user import User
 
+from . import jobs as _jobs_mod
 from .jobs import (
     _clear_stale_pending_confirmation,
     _get_latest_user_content,
@@ -145,6 +146,8 @@ async def stream_event_generator(
     request_body: Any,  # AgentExecuteRequest
     request: Any,  # FastAPI Request
     current_user: User,
+    *,
+    background_tasks: Any = None,  # fastapi.BackgroundTasks (optional for tests)
 ):
     """SSE event generator for the /stream endpoint.
 
@@ -383,16 +386,32 @@ async def stream_event_generator(
             ] or None
 
             # User row was already persisted up-front (before the LLM call).
-            # Only write the assistant row here — Task 4 of
-            # docs/plans/2026-05-13-agent-persist-perf.md.
+            # Defer the assistant-row commit to a FastAPI BackgroundTask so
+            # the SSE `done` event releases the response without waiting on
+            # one more DB roundtrip — Task 5 of
+            # docs/plans/2026-05-13-agent-persist-perf.md. Resolved late
+            # via the jobs module so tests can monkeypatch the safe
+            # wrapper at runtime.
             if resolved_thread_id is not None:
-                await _persist_assistant_message(
-                    db,
+                persist_kwargs = dict(
                     thread_id=resolved_thread_id,
                     content=assistant_content,
                     model_name=request_body.model,
                     tool_executions_out=tool_executions_out,
                 )
+                if background_tasks is not None:
+                    background_tasks.add_task(
+                        _jobs_mod._persist_assistant_message_safe,
+                        **persist_kwargs,
+                    )
+                else:
+                    # No BackgroundTasks plumbing available (e.g. unit
+                    # tests that directly invoke the generator without
+                    # passing one). Run inline through the safe wrapper
+                    # so the failure-metric path is still exercised.
+                    await _jobs_mod._persist_assistant_message_safe(
+                        **persist_kwargs
+                    )
         except Exception as e:
             logger.warning("Failed to persist SSE thread messages", exc_info=e)
 

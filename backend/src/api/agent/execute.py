@@ -329,6 +329,7 @@ async def confirm_agent_action(
 async def stream_agent(
     request_body: AgentExecuteRequest,
     request: Request,
+    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
 ):
     """Stream agent responses via Server-Sent Events.
@@ -336,9 +337,12 @@ async def stream_agent(
     SSE event types: token, tool_start, tool_end, rag_context, done, error
     """
     return StreamingResponse(
-        stream_event_generator(request_body, request, current_user),
+        stream_event_generator(
+            request_body, request, current_user, background_tasks=background_tasks
+        ),
         media_type="text/event-stream",
         headers=_SSE_HEADERS,
+        background=background_tasks,
     )
 
 
