@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { loadConfig, saveConfig } from './auth/store';
 import { getApiBase, getCliAuthHeaders } from './services/client';
+import { appendTurn } from './services/messageStore';
 
 export type StreamEvent =
   | { type: 'token'; content: string }
@@ -186,14 +187,13 @@ export async function* streamAgent(
 
   const { fetchFn = fetch, signal } = options;
   const headers = getCliAuthHeaders();
+  const cmid = randomUUID();
 
   const res = await fetchFn(`${getApiBase()}/agent/stream`, {
     method: 'POST',
     headers,
     body: JSON.stringify({
-      messages: [
-        { role: 'user', content: message, client_message_id: randomUUID() },
-      ],
+      messages: [{ role: 'user', content: message, client_message_id: cmid }],
       page_context: pageContext,
       thread_id: config.thread_id ?? undefined,
       model: config.model ?? '',
@@ -207,7 +207,29 @@ export async function* streamAgent(
   }
 
   const idleMs = options.idleTimeoutMs ?? DEFAULT_IDLE_MS;
-  yield* _withIdleTimeout(res.body, idleMs, persistThreadId);
+  let threadId: string | null = config.thread_id ?? null;
+  const onTrace = (id: string) => {
+    threadId = id;
+    persistThreadId(id);
+  };
+  let assistantBuf = '';
+  let sawDone = false;
+  for await (const evt of _withIdleTimeout(res.body, idleMs, onTrace)) {
+    if (evt.type === 'token') assistantBuf += evt.content;
+    if (evt.type === 'done') sawDone = true;
+    yield evt;
+  }
+  if (sawDone && threadId && assistantBuf.length > 0) {
+    try {
+      appendTurn(threadId, {
+        user: { content: message, client_message_id: cmid },
+        assistant: { content: assistantBuf, model: config.model ?? undefined },
+        ended_at: new Date().toISOString(),
+      });
+    } catch {
+      /* cache write is best-effort */
+    }
+  }
 }
 
 export async function* streamConfirm(
