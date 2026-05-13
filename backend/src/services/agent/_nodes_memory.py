@@ -21,6 +21,7 @@ import logging
 from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.runnables import RunnableConfig
 
+from src.services.agent._pii_redact import redact_pii
 from src.services.agent.observability import track_node_execution
 from src.services.agent.state import AgentState
 
@@ -151,7 +152,7 @@ async def memory_save_node(state: AgentState, config: RunnableConfig) -> dict:
             str(current_user.id),
             mem_key,
             {
-                "query": last_user_content[:200],
+                "query": redact_pii(last_user_content)[:200],
                 "intent": intent,
                 "tools_used": [
                     te.get("tool_name", "")

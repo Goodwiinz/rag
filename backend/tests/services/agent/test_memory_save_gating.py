@@ -144,3 +144,37 @@ async def test_saved_value_includes_provenance_fields():
     assert "created_at" in value and "T" in value["created_at"]
     assert value["intent"] == "research"
     assert "ingest_arxiv_papers" in value["tools_used"]
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_saved_value_strips_pii_from_query():
+    """save_memory writes a redacted query string, not the raw input."""
+    save_mock = AsyncMock(return_value=True)
+    store = MagicMock()
+    with patch(
+        "src.services.agent.memory.get_memory_store",
+        new=AsyncMock(return_value=store),
+    ), patch("src.services.agent.memory.save_memory", new=save_mock):
+        await memory_save_node(
+            _state(
+                intent="research",
+                messages=[
+                    HumanMessage(
+                        content=(
+                            "email me at jane@example.com about project "
+                            "5ed25258-5ad2-4b06-9678-4a4abe5ecac1"
+                        )
+                    ),
+                    AIMessage(content="..."),
+                ],
+                tool_executions=[{"tool_name": "search_arxiv"}],
+            ),
+            _config(),
+        )
+    save_mock.assert_called_once()
+    value = save_mock.call_args.args[3]
+    assert "jane@example.com" not in value["query"]
+    assert "5ed25258" not in value["query"]
+    assert "<email>" in value["query"]
+    assert "<uuid>" in value["query"]
