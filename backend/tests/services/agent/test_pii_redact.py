@@ -104,3 +104,34 @@ class TestRedactPII:
         assert "<phone>" in out
         assert "<postgres-url>" in out
         assert "<uuid>" in out
+
+    def test_mixed_pii_in_one_string_exact_output(self):
+        text = (
+            "Email jane@example.com about +1-415-555-0123 "
+            "regarding postgresql://u:p@h.example.com:5432/db "
+            "for project 5ed25258-5ad2-4b06-9678-4a4abe5ecac1"
+        )
+        assert redact_pii(text) == (
+            "Email <email> about <phone> "
+            "regarding <postgres-url> "
+            "for project <uuid>"
+        )
+
+    def test_phone_does_not_match_bare_version_no_letter_prefix(self):
+        # Bare 1.234.567.8901 at start of string — used to be eaten as
+        # country-code 1 + area-code 234 + exchange 567 + line 8901.
+        assert redact_pii("1.234.567.8901") == "1.234.567.8901"
+        assert redact_pii("Released 1.234.567.8901 today") == (
+            "Released 1.234.567.8901 today"
+        )
+
+    def test_phone_plus1_country_code_still_matches(self):
+        # Regression guard for the explicit + requirement.
+        assert redact_pii("+1-415-555-0123") == "<phone>"
+        assert redact_pii("ring +1 415 555 0123") == "ring <phone>"
+
+    def test_phone_bare_us_format_still_matches(self):
+        # 10-digit US shapes without country code stay redacted.
+        assert redact_pii("415-555-0123") == "<phone>"
+        assert redact_pii("(415) 555-0123") == "<phone>"
+        assert redact_pii("415.555.0123") == "<phone>"

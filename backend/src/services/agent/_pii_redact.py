@@ -13,14 +13,17 @@ us GDPR posture.
 from __future__ import annotations
 
 import re
-from typing import Final
+from typing import Any, Final
 
 _EMAIL_RE: Final = re.compile(r"\b[\w._%+-]+@[\w.-]+\.[A-Za-z]{2,}\b")
 # US-ish phone with optional country code + separators.
 # (?<!\d\.) prevents matching mid-IPv4 ("192.168.100.1001") or mid-version
 # ("v1.234.567.8901") where a digit-group is preceded by "<digit>.".
+# The country-code prefix REQUIRES an explicit '+' so a bare leading "1."
+# (e.g. version string "1.234.567.8901") cannot be consumed as country code
+# and then have the remaining 3-3-4 digits matched as area/exchange/line.
 _PHONE_RE: Final = re.compile(
-    r"(?<!\w)(?<!\d\.)(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b"
+    r"(?<!\w)(?<!\d\.)(?:\+1[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b"
 )
 _UUID_RE: Final = re.compile(
     r"\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-"
@@ -38,7 +41,12 @@ _TOKEN_RE: Final = re.compile(
 )
 
 
-def redact_pii(text: str | None) -> str:
+# NOTE: ``text`` is intentionally ``Any``. LangGraph HumanMessage.content
+# can be ``list[dict]`` for multimodal messages, and upstream callers may
+# pass int/bytes through Any-typed state dicts. Narrowing to ``str | None``
+# would mark the isinstance guard below as unreachable + invite a future
+# maintainer to remove it, reintroducing the TypeError this guard catches.
+def redact_pii(text: Any) -> str:
     """Return *text* with emails, phones, UUIDs, PG URLs, and tokens replaced."""
     if not text:
         return ""
