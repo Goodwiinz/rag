@@ -60,6 +60,7 @@ DESTRUCTIVE_TOOLS = {
     "create_project_note",
     "create_draft",
     "execute_code",
+    "forget_memory",
 }
 
 

@@ -191,3 +191,54 @@ async def save_memory(
     except Exception as e:
         logger.warning("Memory save failed: %s", e)
         return False
+
+
+# Minimum similarity score before forget_memory will actually delete.
+# Trace 019e040b style false-recalls (score ~0.06) would otherwise let
+# a stray "forget" request wipe an unrelated memory. 0.6 is empirical —
+# tune if FN/FP rate is wrong after deploy.
+_FORGET_SCORE_THRESHOLD: float = 0.6
+
+
+async def delete_memory_by_query(
+    store,
+    user_id: str,
+    query: str,
+    limit: int = 3,
+) -> dict:
+    """Find the top semantic matches for *query* under the user's namespace,
+    delete those above the safety threshold, and return a report.
+
+    Returns ``{"deleted": int, "matches": [{key, score, query}]}``.
+    """
+    if store is None or not query:
+        return {"deleted": 0, "matches": []}
+
+    namespace = ("user", user_id)
+    try:
+        results = await store.asearch(namespace, query=query, limit=limit)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("forget_memory: asearch failed: %s", exc)
+        return {"deleted": 0, "matches": []}
+
+    matches = [
+        {
+            "key": item.key,
+            "score": float(getattr(item, "score", 0.0) or 0.0),
+            "query": (getattr(item, "value", None) or {}).get("query", ""),
+        }
+        for item in results
+    ]
+
+    deleted = 0
+    for m in matches:
+        if m["score"] >= _FORGET_SCORE_THRESHOLD:
+            try:
+                await store.adelete(namespace, m["key"])
+                deleted += 1
+            except Exception as exc:  # noqa: BLE001
+                logger.warning(
+                    "forget_memory: adelete failed for %s: %s", m["key"], exc
+                )
+
+    return {"deleted": deleted, "matches": matches}

@@ -2344,3 +2344,34 @@ async def _tool_list_external_databases(args: Dict[str, Any]) -> Dict[str, Any]:
             for c in connectors
         ],
     }
+
+
+async def _tool_forget_memory(
+    *,
+    query: str,
+    user_id: str,
+    page_context: dict | None = None,
+) -> dict:
+    """Handler for the forget_memory agent tool."""
+    if not user_id:
+        return {"error": "forget_memory: missing user_id from config"}
+    if not query or not query.strip():
+        return {"error": "forget_memory: empty query"}
+
+    from src.services.agent.memory import (
+        delete_memory_by_query,
+        get_memory_store,
+    )
+
+    store = await get_memory_store()
+    if store is None:
+        return {"error": "forget_memory: memory store unavailable"}
+
+    result = await delete_memory_by_query(
+        store, user_id=user_id, query=query, limit=5
+    )
+    return {
+        "status": "completed",
+        "deleted": result["deleted"],
+        "matches": result["matches"],
+    }
