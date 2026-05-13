@@ -392,6 +392,51 @@ async def _persist_assistant_message(
     await db.commit()
 
 
+async def _persist_assistant_message_safe(
+    *,
+    thread_id: str,
+    content: str,
+    model_name: Optional[str],
+    tool_executions_out: Optional[list],
+) -> None:
+    """Background-task-safe wrapper around ``_persist_assistant_message``.
+
+    Opens its own ``AsyncSessionLocal()`` so it doesn't depend on the
+    request session being alive — by the time FastAPI runs background
+    tasks the original streaming session has already been closed.
+    Swallows + logs any exception so a background-task failure can't
+    crash the worker, and bumps
+    ``agent_assistant_persist_failures_total`` on failure so dashboards
+    surface silently-lost assistant rows.
+    """
+    try:
+        async with AsyncSessionLocal() as db:
+            await _persist_assistant_message(
+                db,
+                thread_id=thread_id,
+                content=content,
+                model_name=model_name,
+                tool_executions_out=tool_executions_out,
+            )
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(
+            "Background assistant persist failed for thread %s: %s",
+            thread_id,
+            exc,
+            exc_info=exc,
+        )
+        try:
+            from src.services.agent.observability import (
+                agent_assistant_persist_failures_total,
+            )
+
+            agent_assistant_persist_failures_total.inc()
+        except Exception:
+            # Metrics path is best-effort: never let a bookkeeping
+            # failure mask the real error (already logged above).
+            pass
+
+
 # DEPRECATED — remove after streaming path migration to background tasks (Task 5).
 # Compatibility shim preserving the old ``(thread_id, conversation_id)`` contract
 # used by callers in ``execute.py`` and the confirm path at ``jobs.py:629``.
@@ -587,8 +632,12 @@ async def _run_agent_graph(
                     thread_row = await db.get(_Thread, _UUID(thread_id))
                     if thread_row is not None:
                         conversation_id = str(thread_row.conversation_id)
-                    await _persist_assistant_message(
-                        db,
+                    # Run inline (no HTTP response to release here) but
+                    # route through the safe wrapper so background and
+                    # worker paths share the failure-metric bump on a
+                    # bad commit — Task 5 of
+                    # docs/plans/2026-05-13-agent-persist-perf.md.
+                    await _persist_assistant_message_safe(
                         thread_id=thread_id,
                         content=assistant_content,
                         model_name=request.model,
