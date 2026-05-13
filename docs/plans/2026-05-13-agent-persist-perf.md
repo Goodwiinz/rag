@@ -2,6 +2,26 @@
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
+## Execution Status (2026-05-13)
+
+| Task | Status | Commit | Notes |
+|------|--------|--------|-------|
+| 1. client_message_id column + partial unique index | ✅ done (spec review passed) | `8adf5da6` | Pre-existing alembic bug in `f931599b6b5b` (duplicate `CREATE TYPE`) worked around in `backend/tests/db/conftest.py`. Local dev DB at port 54322 has schema drift (`do_kb_uuid`, `tool_executions`) — not touched. |
+| 2. Wire client_message_id into AgentExecuteRequest | ⏳ todo | — | Independent. Safe to start anytime. |
+| 3. Replace dedup SELECT with INSERT ON CONFLICT | ⏳ todo | — | **Blocked on coordination:** edits `backend/src/api/agent/jobs.py` which other branch may also touch. Confirm clean before starting. |
+| 4. Persist user message before LLM call | ⏳ todo | — | Depends on Task 3. Touches `streaming.py` + `execute.py` — coordinate. |
+| 5. Move assistant persistence to background task | ⏳ todo | — | Depends on Task 3/4. Touches `streaming.py` + `observability.py` — coordinate. |
+| 6. Python CLI sends client_message_id | ⏳ todo | — | Independent of backend Tasks 3-5. Touches `backend/src/cli/`. |
+| 7. Node CLI sends client_message_id | ⏳ todo | — | Independent. Touches `frontend/cli/stream.ts`. |
+| 8. Node CLI append-only JSONL message cache | ⏳ todo | — | Independent. Touches `frontend/cli/services/`. |
+| 9. Add ?since= query param to GET /threads/{id}/messages | ⏳ todo | — | Independent backend route change. |
+| 10. Verification & PR | ⏳ todo | — | After 2–9. |
+
+**Resume guidance:** Tasks 2, 6, 7, 8, 9 are safe to run in parallel/any order. Tasks 3/4/5 require coordination on `backend/src/api/agent/{jobs,execute,streaming}.py`. Worktree at `/Users/goodwiinz/development/RAG_system/.worktrees/agent-persist-perf`, branch `feat/agent-persist-perf` (pushed to origin).
+
+---
+
+
 **Goal:** Cut per-turn agent latency by moving conversation persistence off the request hot path and replacing the time-window dedup SELECT with a client-supplied UUID + unique index; add an append-only local JSONL cache to the Node CLI so thread switches don't round-trip the API.
 
 **Architecture:**
