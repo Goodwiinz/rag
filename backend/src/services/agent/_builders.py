@@ -52,7 +52,11 @@ logger = logging.getLogger(__name__)
 # Soft circuit breakers
 # ---------------------------------------------------------------------------
 
-MAX_TOOL_LOOPS = 10
+# Lowered from 10 → 4. LangSmith showed slow general-intent roots (44-71s)
+# burned 5+ sequential LLM hops at ~5-10s each. Four iterations covers
+# plan → tool → refine → finalize; more is the agent re-running queries.
+# Research subgraph runs at 5 (MAX_RESEARCH_TOOL_LOOPS).
+MAX_TOOL_LOOPS = 4
 MAX_ERRORS = 3
 
 

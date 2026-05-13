@@ -90,7 +90,6 @@ async def research_llm_node(state: AgentState, config: RunnableConfig) -> dict:
     from langchain_core.messages import ToolMessage
 
     from src.core.config import get_settings
-    from src.services.agent.graph import _build_llm
 
     sanitized = _sanitize_messages(list(state["messages"]))
     messages = [SystemMessage(content=_build_research_system_prompt())] + sanitized
@@ -113,15 +112,17 @@ async def research_llm_node(state: AgentState, config: RunnableConfig) -> dict:
             "research_llm_node: using synthesis model after ToolMessage"
         )
     else:
-        llm = _build_llm()
-        # First-turn tool decision (no ToolMessage yet) doesn't need deep
-        # reasoning — the model just picks a tool name + writes a query
-        # string. Override to "minimal" via runnable bind so the cached
-        # client is reused. Saves 3-5s per tool-decision turn.
-        try:
-            llm = llm.bind(reasoning_effort="minimal")
-        except Exception:  # noqa: BLE001 - bind is best-effort
-            pass
+        # Tool-decision turn: route off model-router to the lightweight
+        # deployment (gpt-5-mini). LangSmith showed model-router hitting the
+        # 30s timeout cap on research_llm_node (trace 019e1da5) while gpt-5-mini
+        # handles the same node in <10s. Lightweight builder also defaults
+        # reasoning_effort=minimal (cheap tool name + query string decision).
+        from src.services.agent.llm_factory import build_lightweight_llm
+
+        llm = build_lightweight_llm(max_tokens=4096)
+        logger.debug(
+            "research_llm_node: using lightweight model for tool decision"
+        )
     # See graph.llm_node for rationale on parallel_tool_calls=False.
     llm_with_tools = llm.bind_tools(
         RESEARCH_TOOLS,
