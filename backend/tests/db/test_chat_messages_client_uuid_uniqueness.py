@@ -70,3 +70,64 @@ async def test_null_client_message_id_allows_many_rows(db_session, thread_factor
         select(ChatMessage).where(ChatMessage.thread_id == thread.id)
     )
     assert len(result.scalars().all()) == 3
+
+
+async def test_same_client_message_id_on_different_threads_succeeds(
+    db_session, thread_factory, user_factory
+):
+    """Index is scoped to (thread_id, client_message_id) — identical cmids on
+    different threads must not collide."""
+    user = await user_factory()
+    thread_a = await thread_factory(user=user)
+    thread_b = await thread_factory(user=user)
+    cmid = uuid4()
+
+    for thread in (thread_a, thread_b):
+        msg = ChatMessage(
+            thread_id=thread.id,
+            user_id=user.id,
+            role=MessageRole.USER,
+            content="hi",
+            client_message_id=cmid,
+        )
+        db_session.add(msg)
+        await db_session.commit()
+        db_session.info["_created"]["chat_messages"].append(msg.id)
+
+    rows = (
+        await db_session.execute(
+            select(ChatMessage).where(ChatMessage.client_message_id == cmid)
+        )
+    ).scalars().all()
+    assert {r.thread_id for r in rows} == {thread_a.id, thread_b.id}
+
+
+async def test_non_user_role_with_same_client_message_id_succeeds(
+    db_session, thread_factory, user_factory
+):
+    """Partial predicate excludes non-user rows — a user row and a
+    non-NULL-cmid assistant/tool row sharing the same key must coexist."""
+    user = await user_factory()
+    thread = await thread_factory(user=user)
+    cmid = uuid4()
+
+    user_msg = ChatMessage(
+        thread_id=thread.id,
+        user_id=user.id,
+        role=MessageRole.USER,
+        content="hi",
+        client_message_id=cmid,
+    )
+    db_session.add(user_msg)
+    await db_session.commit()
+    db_session.info["_created"]["chat_messages"].append(user_msg.id)
+
+    asst_msg = ChatMessage(
+        thread_id=thread.id,
+        role=MessageRole.ASSISTANT,
+        content="hey",
+        client_message_id=cmid,
+    )
+    db_session.add(asst_msg)
+    await db_session.commit()
+    db_session.info["_created"]["chat_messages"].append(asst_msg.id)

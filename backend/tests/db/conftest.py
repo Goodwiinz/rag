@@ -55,6 +55,20 @@ from src.models import (  # noqa: E402  (must come after encryption init)
 DEFAULT_ADMIN_DSN = "postgresql://postgres:postgres@localhost:54322/postgres"
 DEFAULT_TEST_DB = "chat_msg_idempotency_test"
 
+# Mirror of the partial unique index DDL in alembic revision v0a1b2c3d4e5.
+# Keep the WHERE clause + column order byte-identical to the migration so
+# tests exercise the same index shape production uses.
+_CLIENT_MSG_INDEX_DDL = (
+    "CREATE UNIQUE INDEX IF NOT EXISTS "
+    "uq_chat_messages_thread_client_msg_user "
+    "ON chat_messages (thread_id, client_message_id) "
+    "WHERE client_message_id IS NOT NULL AND role = 'user'"
+)
+
+_ALLOWED_CLEANUP_TABLES = frozenset(
+    {"chat_messages", "threads", "conversations", "workspaces", "users", "organizations"}
+)
+
 
 def _resolve_admin_dsn() -> str:
     return os.environ.get("TEST_PG_ADMIN_DSN", DEFAULT_ADMIN_DSN)
@@ -131,14 +145,7 @@ def _ensure_required_columns_and_indexes(sync_dsn: str) -> None:
                     "ADD COLUMN IF NOT EXISTS client_message_id uuid"
                 )
             )
-            conn.execute(
-                text(
-                    "CREATE UNIQUE INDEX IF NOT EXISTS "
-                    "uq_chat_messages_thread_client_msg_user "
-                    "ON chat_messages (thread_id, client_message_id) "
-                    "WHERE client_message_id IS NOT NULL AND role = 'user'"
-                )
-            )
+            conn.execute(text(_CLIENT_MSG_INDEX_DDL))
     finally:
         engine.dispose()
 
@@ -155,14 +162,7 @@ def _bootstrap_schema_from_models(sync_dsn: str) -> None:
         with engine.begin() as conn:
             Base.metadata.create_all(conn)
         with engine.begin() as conn:
-            conn.execute(
-                text(
-                    "CREATE UNIQUE INDEX IF NOT EXISTS "
-                    "uq_chat_messages_thread_client_msg_user "
-                    "ON chat_messages (thread_id, client_message_id) "
-                    "WHERE client_message_id IS NOT NULL AND role = 'user'"
-                )
-            )
+            conn.execute(text(_CLIENT_MSG_INDEX_DDL))
     finally:
         engine.dispose()
 
@@ -235,9 +235,15 @@ async def _cleanup(session: AsyncSession) -> None:
     ]:
         if not ids:
             continue
+        if table not in _ALLOWED_CLEANUP_TABLES:
+            # Defense in depth: the table name is interpolated into a text()
+            # DELETE below, so refuse anything not on the explicit allowlist
+            # to keep the f-string from ever becoming an injection vector if
+            # the _created dict gains untrusted keys in the future.
+            continue
         try:
             await session.execute(
-                text(f"DELETE FROM {table} WHERE id = ANY(:ids)"),
+                text(f"DELETE FROM {table} WHERE id = ANY(:ids)"),  # nosec B608
                 {"ids": [str(i) for i in ids]},
             )
             await session.commit()
