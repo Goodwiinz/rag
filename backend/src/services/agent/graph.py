@@ -187,7 +187,8 @@ def _get_execute_tool():
 
 logger = logging.getLogger(__name__)
 
-MAX_TOOL_LOOPS = 10
+# MAX_TOOL_LOOPS lives in _builders alongside MAX_ERRORS; re-exported at
+# the bottom of this module via the builders import.
 
 
 def _safe_json_loads(s: str) -> Any:
@@ -365,164 +366,6 @@ from src.services.agent._prompts import (  # noqa: E402  (re-export)
 )
 
 
-def _extract_prior_tool(messages: List[Any]) -> Optional[Dict[str, Any]]:
-    """Walk *messages* backwards and return the most recent tool call.
-
-    Returns a dict with keys ``name``, ``args``, and ``result`` (the matching
-    ToolMessage content as a string), or ``None`` if no tool call exists in
-    the conversation. Used to pass retry context to the intent classifier so
-    short follow-ups like "try again" route to the same intent as the prior
-    tool.
-    """
-    for ai_idx in range(len(messages) - 1, -1, -1):
-        msg = messages[ai_idx]
-        if not isinstance(msg, AIMessage):
-            continue
-        tool_calls = getattr(msg, "tool_calls", None)
-        if not tool_calls:
-            continue
-        first = tool_calls[0]
-        tool_call_id = first.get("id")
-        result = ""
-        # Only scan AFTER the AIMessage we found — otherwise a stale
-        # ToolMessage from a previous turn that happens to share an id
-        # (or a synthetic placeholder) gets returned, misleading the
-        # classifier about what just happened.
-        for follow in messages[ai_idx + 1 :]:
-            if isinstance(follow, ToolMessage) and follow.tool_call_id == tool_call_id:
-                result = str(follow.content)
-                break
-        return {
-            "name": first.get("name", ""),
-            "args": first.get("args", {}) or {},
-            "result": result,
-        }
-    return None
-
-
-async def _classify_core(state: AgentState, config: RunnableConfig) -> dict:
-    """Classify user intent using LLM with keyword fallback.
-
-    Used directly inside ``preprocessing_node`` (which composes its own
-    parallel tracking) and indirectly via ``intent_classifier_node``,
-    which wraps this with ``@track_node_execution`` for callers that
-    invoke it as a graph node.
-    """
-    from src.services.agent.classifier import classify_intent_with_fallback
-
-    last_user_msg = ""
-    for msg in reversed(state["messages"]):
-        if isinstance(msg, HumanMessage):
-            last_user_msg = msg.content
-            break
-
-    if not last_user_msg:
-        return {"intent": "general", "intent_confidence": 0.0}
-
-    previous_turn = ""
-    found_user = False
-    for msg in reversed(state["messages"]):
-        if isinstance(msg, HumanMessage):
-            if found_user:
-                break
-            found_user = True
-            continue
-        if found_user and isinstance(msg, AIMessage) and msg.content:
-            previous_turn = msg.content
-            break
-
-    prior_tool = _extract_prior_tool(state["messages"])
-    page_context = config.get("configurable", {}).get("page_context", {})
-    result = await classify_intent_with_fallback(
-        query=last_user_msg,
-        page_context=page_context,
-        previous_turn=previous_turn,
-        prior_tool=prior_tool,
-    )
-    logger.debug(
-        "Classified intent: %s (confidence=%.2f, source=%s)",
-        result.intent,
-        result.confidence,
-        result.source,
-    )
-    try:
-        from src.services.agent.observability import record_classifier_source
-
-        record_classifier_source(source=result.source, intent=result.intent)
-    except Exception:
-        pass
-    return {"intent": result.intent, "intent_confidence": result.confidence}
-
-
-# ``intent_classifier_node`` is the tracked graph-node version of
-# ``_classify_core``. Production wiring uses ``_classify_core`` directly via
-# ``preprocessing_node``; the tracked alias is kept for tests and any future
-# wiring that wants the per-node Prometheus metrics.
-intent_classifier_node = track_node_execution("intent_classifier_node")(_classify_core)
-
-
-@track_node_execution("preprocessing_node")
-async def preprocessing_node(state: AgentState, config: RunnableConfig) -> dict:
-    """Run RAG retrieval, intent classification, and memory retrieval in parallel.
-
-    Also resets per-turn ephemeral state (``plan``, ``reflection_count``,
-    ``_reflection_result``, ``tool_loop_count``, ``error_count``,
-    ``user_confirmed``) so that values carried over from the previous turn
-    via the checkpointer cannot:
-
-    - block the planner from re-planning against the new query (H-11);
-    - trigger a spurious revision at the start of the next turn from a
-      stale ``_reflection_result`` (H-01 / M-06);
-    - bypass the destructive-tool HITL gate via a stale ``user_confirmed``
-      flag (H-17);
-    - count this turn's first error against last turn's accumulated
-      ``error_count``.
-    """
-    rag_task = asyncio.create_task(rag_node(state, config))
-    classify_task = asyncio.create_task(_classify_core(state, config))
-    memory_task = asyncio.create_task(memory_retrieval_node(state, config))
-
-    results = await asyncio.gather(
-        rag_task, classify_task, memory_task, return_exceptions=True
-    )
-
-    defaults = [
-        {"retrieved_contexts": []},
-        {"intent": "general", "intent_confidence": 0.0},
-        {"user_memories": []},
-    ]
-    merged: dict = {
-        # Per-turn resets — must come BEFORE merging subtask results so a
-        # subtask that explicitly sets one of these keys still wins.
-        "plan": [],
-        "reflection_count": 0,
-        "_reflection_result": None,
-        "tool_loop_count": 0,
-        "error_count": 0,
-        "last_error": "",
-        "last_error_info": {},
-        "user_confirmed": False,
-        "pending_confirmation": {},
-    }
-    for result, default in zip(results, defaults):
-        if isinstance(result, Exception):
-            logger.warning("Preprocessing subtask failed: %s", result)
-            merged.update(default)
-        else:
-            merged.update(result)
-    return merged
-
-
-def route_by_intent(state: AgentState) -> str:
-    """Route to the appropriate sub-graph based on classified intent."""
-    intent = state.get("intent", "general")
-    if intent == "research":
-        return "research_subgraph"
-    if intent == "writing":
-        return "writing_subgraph"
-    if intent == "knowledge_graph":
-        return "data_subgraph"
-    return "llm_node"
 
 
 # ---------------------------------------------------------------------------
@@ -570,188 +413,34 @@ from src.services.agent._nodes_tools import (  # noqa: E402
 
 
 # ---------------------------------------------------------------------------
-# Conditional edge
+# Intent classification + parallel preprocessing — moved to _nodes_classify.
+# Re-export for callers (`from src.services.agent.graph import
+# preprocessing_node, route_by_intent`) and for tests patching
+# the classifier path.
 # ---------------------------------------------------------------------------
 
-
-MAX_ERRORS = 3
-
-
-def should_continue(state: AgentState) -> str:
-    """Decide whether to route to tool_node, interrupt_node, or reflection_gate (then END)."""
-    # Bail out if too many errors have accumulated
-    if state.get("error_count", 0) >= MAX_ERRORS:
-        logger.warning(
-            "Agent reached max error count (%d), stopping. Last error: %s",
-            MAX_ERRORS,
-            state.get("last_error", ""),
-        )
-        return "reflection_gate"
-
-    last = state["messages"][-1] if state["messages"] else None
-    if (
-        isinstance(last, AIMessage)
-        and last.tool_calls
-        and state.get("tool_loop_count", 0) < MAX_TOOL_LOOPS
-    ):
-        # Check if any tool call is destructive — route through interrupt
-        has_destructive = any(tc["name"] in DESTRUCTIVE_TOOLS for tc in last.tool_calls)
-        if has_destructive:
-            return "interrupt_node"
-        return "tool_node"
-    return "reflection_gate"
+from src.services.agent._nodes_classify import (  # noqa: E402
+    _classify_core,
+    _extract_prior_tool,
+    intent_classifier_node,
+    preprocessing_node,
+    route_by_intent,
+)
 
 
 # ---------------------------------------------------------------------------
-# Graph builders
+# Graph builders + conditional edges — moved to _builders. Re-export so
+# langgraph.json's `create_graph`, jobs.compile_agent_graph callers, and
+# tests importing `should_continue` / `MAX_ERRORS` / `MAX_TOOL_LOOPS`
+# keep working unchanged.
 # ---------------------------------------------------------------------------
 
-
-def after_interrupt(state: AgentState) -> str:
-    """Route after interrupt: proceed to tool_node if confirmed, else reflection gate and end."""
-    if state.get("user_confirmed", False):
-        return "tool_node"
-    return "reflection_gate"
-
-
-_RETRY_POLICY = RetryPolicy(max_attempts=3)
-
-
-def build_agent_graph() -> StateGraph:
-    """Build the uncompiled agent state graph.
-
-    Flow:
-      START -> preprocessing_node (RAG + classify + memory in parallel)
-        -> [route_by_intent]
-        -> research_subgraph | writing_subgraph | data_subgraph | general path
-
-      General path:
-        planner_node -> llm_node -> [should_continue]
-          -> tool_node -> compactor_node -> llm_node (loop)
-          -> interrupt_node -> [after_interrupt] -> tool_node | reflection_gate
-          -> reflection_gate -> [reflection_route] -> memory_save_node | llm_node (revise)
-
-      Sub-graphs (internal planner + compactor + reflection) -> memory_save_node -> END
-    """
-    from src.services.agent.subgraphs.data_agent import build_data_subgraph
-    from src.services.agent.subgraphs.research_agent import build_research_subgraph
-    from src.services.agent.subgraphs.writing_agent import build_writing_subgraph
-
-    # General-path v2 nodes
-    tool_names = [t.name for t in ALL_TOOLS]
-    planner_node_fn = make_planner_node(tool_names)
-    compactor_node_fn = make_compactor_node()
-    reflection_node_fn, reflection_route_fn = make_reflection_gate()
-
-    graph = StateGraph(AgentState)
-
-    graph.add_node("preprocessing_node", preprocessing_node)
-    graph.add_node("planner_node", planner_node_fn)
-    graph.add_node("llm_node", llm_node, retry=_RETRY_POLICY)
-    graph.add_node("tool_node", tool_node)
-    graph.add_node("compactor_node", compactor_node_fn)
-    graph.add_node("interrupt_node", interrupt_node)
-    graph.add_node("reflection_gate", reflection_node_fn)
-    graph.add_node("memory_save_node", memory_save_node, retry=_RETRY_POLICY)
-
-    # Sub-graphs compiled as nodes (they have internal planner/compactor/reflection)
-    graph.add_node("research_subgraph", build_research_subgraph().compile())
-    graph.add_node("writing_subgraph", build_writing_subgraph().compile())
-    graph.add_node("data_subgraph", build_data_subgraph().compile())
-
-    graph.set_entry_point("preprocessing_node")
-
-    # Route by intent after parallel preprocessing
-    graph.add_conditional_edges(
-        "preprocessing_node",
-        route_by_intent,
-        {
-            "research_subgraph": "research_subgraph",
-            "writing_subgraph": "writing_subgraph",
-            "data_subgraph": "data_subgraph",
-            "llm_node": "planner_node",
-        },
-    )
-
-    # Sub-graphs (with internal reflection) -> memory_save_node -> END
-    graph.add_edge("research_subgraph", "memory_save_node")
-    graph.add_edge("writing_subgraph", "memory_save_node")
-    graph.add_edge("data_subgraph", "memory_save_node")
-
-    # General path: planner -> llm
-    graph.add_edge("planner_node", "llm_node")
-
-    # General path: llm_node -> conditional
-    graph.add_conditional_edges(
-        "llm_node",
-        should_continue,
-        {
-            "tool_node": "tool_node",
-            "interrupt_node": "interrupt_node",
-            "reflection_gate": "reflection_gate",
-        },
-    )
-    graph.add_conditional_edges(
-        "interrupt_node",
-        after_interrupt,
-        {"tool_node": "tool_node", "reflection_gate": "reflection_gate"},
-    )
-
-    # General path: tool_node -> compactor_node -> llm_node (loop)
-    graph.add_edge("tool_node", "compactor_node")
-    graph.add_edge("compactor_node", "llm_node")
-
-    # Reflection gate routes: proceed -> memory_save, revise -> llm_node
-    graph.add_conditional_edges(
-        "reflection_gate",
-        reflection_route_fn,
-        {"proceed": "memory_save_node", "revise": "llm_node"},
-    )
-    graph.add_edge("memory_save_node", END)
-
-    return graph
-
-
-def compile_agent_graph(checkpointer=None, store=None, **kwargs):
-    """Compile the agent graph, optionally with a checkpointer and store.
-
-    ``checkpointer`` may be ``None`` (no checkpointing), an instance of
-    ``BaseCheckpointSaver``, or ``True`` to opt into the default in-memory
-    saver. Anything else is rejected with a clear error rather than
-    silently passing a bool to ``graph.compile()`` (which would crash with
-    ``AttributeError`` deep inside LangGraph at runtime).
-
-    ``store`` is an optional ``BaseStore`` for long-term, cross-thread
-    memory (user preferences, facts).  When provided, LangGraph injects it
-    into nodes that accept a ``Runtime`` parameter so they can use
-    ``runtime.store`` instead of importing the singleton directly.
-    """
-    graph = build_agent_graph()
-    from langgraph.checkpoint.base import BaseCheckpointSaver
-
-    compile_kwargs: dict = {}
-    if store is not None:
-        compile_kwargs["store"] = store
-
-    if checkpointer is None or checkpointer is False:
-        return graph.compile(**compile_kwargs)
-
-    if checkpointer is True:
-        # Convenience: ``True`` opts into the in-memory default so callers
-        # don't have to import MemorySaver themselves.
-        from langgraph.checkpoint.memory import MemorySaver
-
-        return graph.compile(checkpointer=MemorySaver(), **compile_kwargs)
-
-    if isinstance(checkpointer, BaseCheckpointSaver):
-        return graph.compile(checkpointer=checkpointer, **compile_kwargs)
-
-    raise TypeError(
-        "compile_agent_graph(checkpointer=...) must be None, True, False, "
-        f"or a BaseCheckpointSaver instance — got {type(checkpointer).__name__}"
-    )
-
-
-def create_graph():
-    """No-arg entry point for langgraph dev (langgraph.json)."""
-    return compile_agent_graph(checkpointer=True)
+from src.services.agent._builders import (  # noqa: E402
+    MAX_ERRORS,
+    MAX_TOOL_LOOPS,
+    after_interrupt,
+    build_agent_graph,
+    compile_agent_graph,
+    create_graph,
+    should_continue,
+)
