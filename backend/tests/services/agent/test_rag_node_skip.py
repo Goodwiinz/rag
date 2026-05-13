@@ -35,10 +35,10 @@ async def test_skip_for_hi_with_active_project():
     project_id = "5ed25258-5ad2-4b06-9678-4a4abe5ecac1"
 
     with patch(
-        "src.services.agent.graph._try_primary_do_kb_read",
+        "src.services.agent._nodes_rag._try_primary_do_kb_read",
         new=AsyncMock(side_effect=AssertionError("retrieval should be skipped")),
     ), patch(
-        "src.services.agent.graph._legacy_hybrid_search_fallback",
+        "src.services.agent._nodes_rag._legacy_hybrid_search_fallback",
         new=AsyncMock(side_effect=AssertionError("fallback should be skipped")),
     ):
         result = await rag_node(
@@ -57,7 +57,7 @@ async def test_skip_for_thanks_no_project():
     user.id = "user-1"
 
     with patch(
-        "src.services.agent.graph._try_primary_do_kb_read",
+        "src.services.agent._nodes_rag._try_primary_do_kb_read",
         new=AsyncMock(side_effect=AssertionError("retrieval should be skipped")),
     ):
         result = await rag_node(
@@ -76,7 +76,7 @@ async def test_substantive_query_with_project_forwards_project_id():
     project_id = "5ed25258-5ad2-4b06-9678-4a4abe5ecac1"
 
     with patch(
-        "src.services.agent.graph._try_primary_do_kb_read",
+        "src.services.agent._nodes_rag._try_primary_do_kb_read",
         new=AsyncMock(
             return_value=[
                 {"document_id": "d", "title": "t", "content": "c", "score": 1.0}
