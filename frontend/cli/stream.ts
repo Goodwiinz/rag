@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { loadConfig, saveConfig } from './auth/store';
 import { getApiBase, getCliAuthHeaders } from './services/client';
 
@@ -190,7 +191,9 @@ export async function* streamAgent(
     method: 'POST',
     headers,
     body: JSON.stringify({
-      messages: [{ role: 'user', content: message }],
+      messages: [
+        { role: 'user', content: message, client_message_id: randomUUID() },
+      ],
       page_context: pageContext,
       thread_id: config.thread_id ?? undefined,
       model: config.model ?? '',
