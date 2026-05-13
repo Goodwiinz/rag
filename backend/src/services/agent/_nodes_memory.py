@@ -163,6 +163,47 @@ async def memory_save_node(state: AgentState, config: RunnableConfig) -> dict:
                 "created_at": datetime.now(timezone.utc).isoformat(),
             },
         )
+
+        # Insight extraction every N turns. Cheap LLM call distills
+        # the conversation into preference-shaped strings that are
+        # far more useful for future recall than echoed user input.
+        from src.core.config import get_settings
+
+        every_n = get_settings().AGENT_INSIGHT_EVERY_N_TURNS
+        if every_n > 0 and turn_index > 0 and turn_index % every_n == 0:
+            try:
+                from src.services.agent.memory_store import extract_insights
+
+                serialised = [
+                    {"role": "user" if isinstance(m, HumanMessage) else "assistant",
+                     "content": m.content}
+                    for m in state["messages"]
+                    if getattr(m, "content", "")
+                ]
+                insights = await extract_insights(serialised, config)
+                for i, insight in enumerate(insights):
+                    if not insight or len(insight) < 10:
+                        continue
+                    insight_key = hashlib.md5(
+                        f"insight:{turn_index}:{i}:{insight[:60]}".encode(),
+                        usedforsecurity=False,
+                    ).hexdigest()[:12]
+                    await save_memory(
+                        store,
+                        str(current_user.id),
+                        insight_key,
+                        {
+                            "query": redact_pii(insight)[:300],
+                            "intent": "insight",
+                            "tools_used": [],
+                            "thread_id": thread_id,
+                            "turn_index": turn_index,
+                            "created_at": datetime.now(timezone.utc).isoformat(),
+                            "memory_type": "insight",
+                        },
+                    )
+            except Exception as exc:  # noqa: BLE001
+                logger.debug("insight extraction skipped: %s", exc)
         return {}
     except Exception as e:
         logger.warning("Memory save failed: %s", e)
