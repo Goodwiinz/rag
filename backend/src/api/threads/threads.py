@@ -7,6 +7,7 @@ Provides REST endpoints for thread and message management.
 import logging
 import threading
 import time
+from datetime import datetime
 from typing import List, Optional
 from uuid import UUID
 
@@ -762,6 +763,10 @@ async def list_messages(
     before_id: Optional[UUID] = Query(
         None, description="Get messages before this message ID"
     ),
+    since: Optional[datetime] = Query(
+        None,
+        description="Return only messages with created_at > since (ISO 8601)",
+    ),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -775,6 +780,7 @@ async def list_messages(
         limit=limit,
         offset=offset,
         before_id=before_id,
+        since=since,
     )
 
     page = (offset // limit) + 1 if limit > 0 else 1
