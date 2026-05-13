@@ -100,6 +100,20 @@ router = APIRouter(prefix="/api/v1/agent", tags=["agent"])
 class AgentMessage(BaseModel):
     role: Literal["user", "assistant"] = Field(..., description="Message role: user or assistant")
     content: str = Field(..., max_length=32000, description="Message content")
+    client_message_id: Optional[UUID] = Field(
+        default=None,
+        description=(
+            "Client-supplied idempotency key. Only honored for role='user'; "
+            "ignored otherwise. Used to dedupe retries without a server-side SELECT."
+        ),
+    )
+
+    @field_validator("client_message_id")
+    @classmethod
+    def _only_for_user(cls, v: Optional[UUID], info) -> Optional[UUID]:
+        if v is not None and info.data.get("role") != "user":
+            raise ValueError("client_message_id only valid on user messages")
+        return v
 
 
 class PageContextRequest(BaseModel):
