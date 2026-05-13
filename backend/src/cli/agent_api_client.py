@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-from collections.abc import AsyncIterator, Mapping
+from collections.abc import AsyncIterator, Mapping, Sequence
 from typing import Any
+from uuid import uuid4
 
 import httpx
 
@@ -13,6 +14,27 @@ class AgentAPIClientError(Exception):
     def __init__(self, message: str, status_code: int) -> None:
         super().__init__(message)
         self.status_code = status_code
+
+
+def build_execute_payload(
+    *,
+    messages: Sequence[Mapping[str, Any]],
+    **rest: Any,
+) -> dict[str, Any]:
+    """Build an /agent/execute or /agent/stream request body.
+
+    Injects a fresh UUID4 ``client_message_id`` onto any user message that
+    doesn't already carry one. Non-user messages are returned untouched.
+    """
+    out_messages: list[dict[str, Any]] = []
+    for msg in messages:
+        copy = dict(msg)
+        if copy.get("role") == "user" and "client_message_id" not in copy:
+            copy["client_message_id"] = str(uuid4())
+        out_messages.append(copy)
+    payload: dict[str, Any] = {"messages": out_messages}
+    payload.update(rest)
+    return payload
 
 
 def build_stream_headers(
