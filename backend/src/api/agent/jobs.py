@@ -463,6 +463,26 @@ async def _run_agent_graph(
 
     async with AsyncSessionLocal() as db:
         try:
+            # Persist the user turn BEFORE the LLM call so a graph failure or
+            # client cancellation still leaves the user row durable. The
+            # assistant row continues to be written after the graph
+            # finishes — Task 4 of docs/plans/2026-05-13-agent-persist-perf.md.
+            resolved_thread_id: Optional[str] = None
+            try:
+                thread_obj, _conversation_id = await _resolve_thread(
+                    db, current_user, request
+                )
+                if thread_obj is not None:
+                    resolved_thread_id = str(thread_obj.id)
+                    if request.thread_id != resolved_thread_id:
+                        request.thread_id = resolved_thread_id
+                    await _persist_user_message(db, current_user, request)
+            except Exception:
+                logger.warning(
+                    "Failed to persist user turn before agent graph run",
+                    exc_info=True,
+                )
+
             # Configure LangSmith tracing if available
             try:
                 from src.services.agent.observability import configure_langsmith
@@ -545,20 +565,35 @@ async def _run_agent_graph(
                     assistant_content = msg.content
                     break
 
-            # Persist thread & messages — session managed by AsyncSessionLocal context
+            # User row was already persisted up-front (before the graph ran).
+            # Only write the assistant row here — Task 4 of
+            # docs/plans/2026-05-13-agent-persist-perf.md.
             thread_id, conversation_id = "", ""
             try:
                 tool_executions_out = [
                     ToolExecutionResponse(**te)
                     for te in final_state.get("tool_executions", [])
                 ] or None
-                thread_id, conversation_id = await _persist_thread_messages(
-                    db,
-                    current_user,
-                    request,
-                    assistant_content,
-                    tool_executions_out,
-                )
+                if resolved_thread_id is not None:
+                    thread_id = resolved_thread_id
+                    # Re-fetch conversation_id for the response payload. The
+                    # _resolve_thread call already returned it but the local
+                    # variable was scoped to the up-front block; fetch from
+                    # the thread row to avoid threading an extra variable.
+                    from uuid import UUID as _UUID
+
+                    from src.models.thread import Thread as _Thread
+
+                    thread_row = await db.get(_Thread, _UUID(thread_id))
+                    if thread_row is not None:
+                        conversation_id = str(thread_row.conversation_id)
+                    await _persist_assistant_message(
+                        db,
+                        thread_id=thread_id,
+                        content=assistant_content,
+                        model_name=request.model,
+                        tool_executions_out=tool_executions_out,
+                    )
             except Exception as e:
                 logger.warning("Failed to persist thread", exc_info=e)
 
