@@ -124,9 +124,14 @@ _NO_OUTER_RETRY_TOOLS = {
 # task unbounded on the server even after the SSE client cancels (~30s
 # default), surfacing as CancelledError in LangSmith with no recovery.
 # Trace 019e04fc showed writing_llm_node cancelled at exactly 30s with no
-# fallback message. Picked at 90s: gpt-5 reasoning + tool synthesis can
-# legitimately take ~70s (trace 019e191a).
-AGENT_LLM_TIMEOUT_SECONDS = 90
+# fallback message.
+#
+# Dropped 90 → 50 after trace 019e21fe (90s research_llm_node stall): the
+# AzureChatOpenAI client has max_retries=2 + request_timeout=30, which can
+# accumulate to ~90s aggregate. With gpt-5-mini handling typical hops in
+# 5-10s, anything over 50s is the retry path eating the budget. Force
+# fail-fast at the aggregate so the fallback AIMessage fires sooner.
+AGENT_LLM_TIMEOUT_SECONDS = 50
 
 
 def _resolve_tool_concurrency(default: int = 3) -> int:
