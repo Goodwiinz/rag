@@ -208,8 +208,15 @@ os.environ['LANGSMITH_TRACING'] = 'false'
 from unittest.mock import patch, MagicMock
 from langchain_core.messages import HumanMessage
 from src.services.agent import graph as g
+from src.services.agent import _nodes_llm as _llm_node_mod
 
-g.AGENT_LLM_TIMEOUT_SECONDS = 1  # force timeout
+# After the T2.1 refactor, ``llm_node`` lives in ``_nodes_llm`` and
+# imports ``AGENT_LLM_TIMEOUT_SECONDS`` from ``_nodes_tools`` at
+# function-call time. Patch BOTH the re-export on graph (for any future
+# callers that still read it from there) AND the canonical binding the
+# live llm_node actually reads.
+g.AGENT_LLM_TIMEOUT_SECONDS = 1
+_llm_node_mod.AGENT_LLM_TIMEOUT_SECONDS = 1  # force timeout
 
 async def hang(*a, **kw):
     await asyncio.sleep(5)

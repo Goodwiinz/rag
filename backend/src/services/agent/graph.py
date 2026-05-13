@@ -384,11 +384,16 @@ from src.services.agent._nodes_llm import (  # noqa: E402
     llm_node,
 )
 
-# Prompt content (re-exported for subgraphs/tests/classifier).
+# Prompt content + render helpers (re-exported for subgraphs/tests/classifier).
+# Subgraph LLM nodes look these up via lazy import on every call, so they
+# must resolve from graph.py for back-compat with pre-T2.1 wiring.
 from src.services.agent._prompts import (  # noqa: E402
     INTENT_PROMPTS,
     SHARED_AGENT_RULES,
     _LLM_NODE_STATIC_PROMPT,
+    _build_page_context_line,
+    _merge_run_config,
+    _runtime_model_line,
 )
 
 

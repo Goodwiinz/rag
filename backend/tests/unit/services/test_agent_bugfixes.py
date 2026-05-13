@@ -25,13 +25,22 @@ class TestToolLoopCounter:
         """llm_node return should NOT include tool_loop_count."""
         from langchain_core.messages import AIMessage, HumanMessage
 
-        with patch("src.services.agent.graph._build_llm") as mock_build:
+        # After T1.1 split, llm_node may route through build_synthesis_llm
+        # for synthesis turns (last msg is ToolMessage OR intent="general").
+        # Patch both factories so tests work regardless of which branch fires.
+        with patch("src.services.agent.graph._build_llm") as mock_build, patch(
+            "src.services.agent.llm_factory.build_synthesis_llm"
+        ) as mock_synth, patch(
+            "src.services.agent.llm_factory.build_lightweight_llm"
+        ) as mock_light:
             mock_llm = MagicMock()
             mock_response = AIMessage(content="Hello")
             mock_llm.bind_tools.return_value.ainvoke = AsyncMock(
                 return_value=mock_response
             )
             mock_build.return_value = mock_llm
+            mock_synth.return_value = mock_llm
+            mock_light.return_value = mock_llm
 
             from src.services.agent.graph import llm_node
 
@@ -145,13 +154,22 @@ class TestMessageSanitizationIndex:
             "user_memories": [],
         }
 
-        with patch("src.services.agent.graph._build_llm") as mock_build:
+        # After T1.1 split, llm_node may route through build_synthesis_llm
+        # for synthesis turns (last msg is ToolMessage OR intent="general").
+        # Patch both factories so tests work regardless of which branch fires.
+        with patch("src.services.agent.graph._build_llm") as mock_build, patch(
+            "src.services.agent.llm_factory.build_synthesis_llm"
+        ) as mock_synth, patch(
+            "src.services.agent.llm_factory.build_lightweight_llm"
+        ) as mock_light:
             mock_llm = MagicMock()
             mock_response = AIMessage(content="Done")
             mock_llm.bind_tools.return_value.ainvoke = AsyncMock(
                 return_value=mock_response
             )
             mock_build.return_value = mock_llm
+            mock_synth.return_value = mock_llm
+            mock_light.return_value = mock_llm
 
             from src.services.agent.graph import llm_node
 
@@ -317,13 +335,22 @@ class TestSubgraphLlmNodeNoLoopIncrement:
     async def test_research_llm_node_no_loop_increment(self):
         from langchain_core.messages import AIMessage, HumanMessage
 
-        with patch("src.services.agent.graph._build_llm") as mock_build:
+        # After T1.1 split, llm_node may route through build_synthesis_llm
+        # for synthesis turns (last msg is ToolMessage OR intent="general").
+        # Patch both factories so tests work regardless of which branch fires.
+        with patch("src.services.agent.graph._build_llm") as mock_build, patch(
+            "src.services.agent.llm_factory.build_synthesis_llm"
+        ) as mock_synth, patch(
+            "src.services.agent.llm_factory.build_lightweight_llm"
+        ) as mock_light:
             mock_llm = MagicMock()
             mock_response = AIMessage(content="Research result")
             mock_llm.bind_tools.return_value.ainvoke = AsyncMock(
                 return_value=mock_response
             )
             mock_build.return_value = mock_llm
+            mock_synth.return_value = mock_llm
+            mock_light.return_value = mock_llm
 
             from src.services.agent.subgraphs.research_agent import (
                 research_llm_node,
@@ -339,13 +366,22 @@ class TestSubgraphLlmNodeNoLoopIncrement:
     async def test_writing_llm_node_no_loop_increment(self):
         from langchain_core.messages import AIMessage, HumanMessage
 
-        with patch("src.services.agent.graph._build_llm") as mock_build:
+        # After T1.1 split, llm_node may route through build_synthesis_llm
+        # for synthesis turns (last msg is ToolMessage OR intent="general").
+        # Patch both factories so tests work regardless of which branch fires.
+        with patch("src.services.agent.graph._build_llm") as mock_build, patch(
+            "src.services.agent.llm_factory.build_synthesis_llm"
+        ) as mock_synth, patch(
+            "src.services.agent.llm_factory.build_lightweight_llm"
+        ) as mock_light:
             mock_llm = MagicMock()
             mock_response = AIMessage(content="Writing result")
             mock_llm.bind_tools.return_value.ainvoke = AsyncMock(
                 return_value=mock_response
             )
             mock_build.return_value = mock_llm
+            mock_synth.return_value = mock_llm
+            mock_light.return_value = mock_llm
 
             from src.services.agent.subgraphs.writing_agent import (
                 writing_llm_node,
@@ -361,13 +397,22 @@ class TestSubgraphLlmNodeNoLoopIncrement:
     async def test_data_llm_node_no_loop_increment(self):
         from langchain_core.messages import AIMessage, HumanMessage
 
-        with patch("src.services.agent.graph._build_llm") as mock_build:
+        # After T1.1 split, llm_node may route through build_synthesis_llm
+        # for synthesis turns (last msg is ToolMessage OR intent="general").
+        # Patch both factories so tests work regardless of which branch fires.
+        with patch("src.services.agent.graph._build_llm") as mock_build, patch(
+            "src.services.agent.llm_factory.build_synthesis_llm"
+        ) as mock_synth, patch(
+            "src.services.agent.llm_factory.build_lightweight_llm"
+        ) as mock_light:
             mock_llm = MagicMock()
             mock_response = AIMessage(content="Data result")
             mock_llm.bind_tools.return_value.ainvoke = AsyncMock(
                 return_value=mock_response
             )
             mock_build.return_value = mock_llm
+            mock_synth.return_value = mock_llm
+            mock_light.return_value = mock_llm
 
             from src.services.agent.subgraphs.data_agent import data_llm_node
 
