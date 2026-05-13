@@ -835,7 +835,8 @@ class TestShouldContinue:
         }
         assert should_continue(state) == "interrupt_node"
 
-    def test_stops_at_max_tool_loops(self):
+    def test_routes_to_force_synthesis_at_max_tool_loops(self):
+        """At ceiling with unanswered tool_calls → force_synthesis_node."""
         from langchain_core.messages import AIMessage
 
         from src.services.agent.graph import MAX_TOOL_LOOPS, should_continue
@@ -851,5 +852,39 @@ class TestShouldContinue:
             ],
             "error_count": 0,
             "tool_loop_count": MAX_TOOL_LOOPS,
+        }
+        assert should_continue(state) == "force_synthesis_node"
+
+    def test_no_loop_back_into_force_synthesis(self):
+        """After force_synthesis fired, defective tool_calls route to reflection."""
+        from langchain_core.messages import AIMessage
+
+        from src.services.agent.graph import MAX_TOOL_LOOPS, should_continue
+
+        state = {
+            "messages": [
+                AIMessage(
+                    content="",
+                    tool_calls=[
+                        {"id": "tc1", "name": "search_arxiv", "args": {}}
+                    ],
+                )
+            ],
+            "error_count": 0,
+            "tool_loop_count": MAX_TOOL_LOOPS + 1,
+            "_force_synthesis_fired": True,
+        }
+        assert should_continue(state) == "reflection_gate"
+
+    def test_no_tool_calls_routes_to_reflection(self):
+        """Plain AIMessage with no tool_calls always exits via reflection."""
+        from langchain_core.messages import AIMessage
+
+        from src.services.agent.graph import should_continue
+
+        state = {
+            "messages": [AIMessage(content="final answer")],
+            "error_count": 0,
+            "tool_loop_count": 0,
         }
         assert should_continue(state) == "reflection_gate"

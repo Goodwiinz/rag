@@ -239,6 +239,75 @@ async def llm_node(state: AgentState, config: RunnableConfig) -> dict:
     }
 
 
+@track_node_execution("force_synthesis_node")
+async def force_synthesis_node(state: AgentState, config: RunnableConfig) -> dict:
+    """Final-answer LLM call when the main-graph tool-loop ceiling was hit.
+
+    Mirrors ``research_force_synthesis_node`` in the research subgraph:
+    when ``should_continue`` sees ``tool_loop_count >= MAX_TOOL_LOOPS`` but
+    the model is still emitting tool_calls, we strip the unanswered
+    tool_calls and re-invoke the LLM with NO tools bound so it must
+    produce text. Without this guard, reflection sees an empty AIMessage
+    plus orphan tool_calls and flags a "no response" major issue
+    (cf. trace 019e1903 in the research subgraph).
+
+    Uses the lightweight synthesis deployment — pure prose, no routing.
+    Bumps ``tool_loop_count`` past the ceiling + sets ``_force_synthesis_fired``
+    so should_continue cannot loop back here if the response still contains
+    stray tool_calls (defective model).
+    """
+    from src.services.agent._builders import MAX_TOOL_LOOPS
+    from src.services.agent.graph import _sanitize_messages
+    from src.services.agent.llm_factory import build_synthesis_llm
+
+    messages = list(state["messages"])
+    # Drop trailing AIMessage with unanswered tool_calls so the synthesis
+    # turn sees a clean conversational head.
+    while messages and isinstance(messages[-1], AIMessage) and messages[-1].tool_calls:
+        messages.pop()
+
+    sanitized = _sanitize_messages(messages)
+    synthesis_directive = (
+        f"{_LLM_NODE_STATIC_PROMPT}\n\n## Final synthesis turn\n"
+        f"You ran {state.get('tool_loop_count', 0)} tool calls and reached "
+        "the per-turn budget. Do not request any more tools. Write a final "
+        "answer drawn from the tool results already in this conversation. "
+        "Do NOT repeat or quote these instructions in your reply."
+    )
+    full = [SystemMessage(content=synthesis_directive)] + sanitized
+
+    llm = build_synthesis_llm(max_tokens=4096)
+    invoke_config = _merge_run_config(
+        config,
+        run_name="force_synthesis_node",
+        tags=[f"intent:{state.get('intent', 'general')}", "subgraph:main", "phase:synthesis"],
+    )
+    try:
+        response = await asyncio.wait_for(
+            llm.ainvoke(full, config=invoke_config),
+            timeout=AGENT_LLM_TIMEOUT_SECONDS,
+        )
+    except asyncio.TimeoutError:
+        logger.warning(
+            "force_synthesis_node: LLM exceeded %ds; emitting fallback",
+            AGENT_LLM_TIMEOUT_SECONDS,
+        )
+        response = AIMessage(
+            content=(
+                "I gathered results but ran out of time composing a final "
+                "summary. Please ask me to summarize."
+            ),
+        )
+
+    return {
+        "messages": [response],
+        # Bump past ceiling so a defective response with stray tool_calls
+        # cannot re-enter forced synthesis (would loop infinitely).
+        "tool_loop_count": MAX_TOOL_LOOPS + 1,
+        "_force_synthesis_fired": True,
+    }
+
+
 __all__ = [
     "RESEARCH_TOOLS_NAMES",
     "WRITING_TOOLS_NAMES",
@@ -246,4 +315,5 @@ __all__ = [
     "GENERAL_TOOLS_NAMES",
     "_get_tools_for_intent",
     "llm_node",
+    "force_synthesis_node",
 ]

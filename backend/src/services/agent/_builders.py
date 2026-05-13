@@ -66,7 +66,7 @@ MAX_ERRORS = 3
 
 
 def should_continue(state: AgentState) -> str:
-    """Decide whether to route to tool_node, interrupt_node, or reflection_gate (then END)."""
+    """Decide whether to route to tool_node, interrupt_node, force_synthesis_node, or reflection_gate."""
     # Bail out if too many errors have accumulated
     if state.get("error_count", 0) >= MAX_ERRORS:
         logger.warning(
@@ -77,16 +77,23 @@ def should_continue(state: AgentState) -> str:
         return "reflection_gate"
 
     last = state["messages"][-1] if state["messages"] else None
-    if (
-        isinstance(last, AIMessage)
-        and last.tool_calls
-        and state.get("tool_loop_count", 0) < MAX_TOOL_LOOPS
-    ):
-        # Check if any tool call is destructive — route through interrupt
+    has_pending_tool_calls = isinstance(last, AIMessage) and bool(last.tool_calls)
+
+    if has_pending_tool_calls and state.get("tool_loop_count", 0) < MAX_TOOL_LOOPS:
+        # Under budget — execute tools (or pause for confirmation).
         has_destructive = any(tc["name"] in DESTRUCTIVE_TOOLS for tc in last.tool_calls)
         if has_destructive:
             return "interrupt_node"
         return "tool_node"
+
+    # Loop ceiling tripped while model still wants more tools. Route through
+    # force_synthesis_node so the final AIMessage has real content instead of
+    # an empty body + orphan tool_calls (reflection_gate would otherwise flag
+    # "no response" — mirrors research_subgraph fix for trace 019e1903).
+    # If force_synthesis already fired and still emitted tool_calls (defective
+    # model), break the loop and exit through reflection.
+    if has_pending_tool_calls and not state.get("_force_synthesis_fired"):
+        return "force_synthesis_node"
     return "reflection_gate"
 
 
@@ -132,12 +139,15 @@ def build_agent_graph() -> StateGraph:
 
     graph = StateGraph(AgentState)
 
+    from src.services.agent._nodes_llm import force_synthesis_node
+
     graph.add_node("preprocessing_node", preprocessing_node)
     graph.add_node("planner_node", planner_node_fn)
     graph.add_node("llm_node", llm_node, retry=_RETRY_POLICY)
     graph.add_node("tool_node", tool_node)
     graph.add_node("compactor_node", compactor_node_fn)
     graph.add_node("interrupt_node", interrupt_node)
+    graph.add_node("force_synthesis_node", force_synthesis_node)
     graph.add_node("reflection_gate", reflection_node_fn)
     graph.add_node("memory_save_node", memory_save_node, retry=_RETRY_POLICY)
 
@@ -175,9 +185,12 @@ def build_agent_graph() -> StateGraph:
         {
             "tool_node": "tool_node",
             "interrupt_node": "interrupt_node",
+            "force_synthesis_node": "force_synthesis_node",
             "reflection_gate": "reflection_gate",
         },
     )
+    # Forced synthesis always exits through reflection (it produced final text).
+    graph.add_edge("force_synthesis_node", "reflection_gate")
     graph.add_conditional_edges(
         "interrupt_node",
         after_interrupt,

@@ -221,17 +221,26 @@ async def _execute_single_tool(
 
             current_user = configurable.get("current_user")
 
-            async def _call_tool():
+            async def _call_tool(args: dict):
                 return await asyncio.wait_for(
                     tool_executor(
                         tool_name=tool_name,
-                        args=tool_args,
+                        args=args,
                         user_id=str(current_user.id) if current_user else "",
                         db=configurable.get("db"),
                         current_user=current_user,
                     ),
                     timeout=timeout,
                 )
+
+            # Wrap with langsmith.traceable so per-tool spans land in LangSmith
+            # as run_type="tool". Previously zero tool spans existed because
+            # the tool_executor isn't a LangChain Tool — LangSmith had no
+            # visibility into arXiv 429s, KG latency, Qdrant retrieval, etc.
+            # Dynamic name keeps each tool distinguishable in the trace tree.
+            from langsmith import traceable as _ls_traceable
+
+            traced_call = _ls_traceable(run_type="tool", name=tool_name)(_call_tool)
 
             # retry_transient handles TimeoutError/ConnectionError with backoff.
             # max_attempts dropped from 3 → 2 after trace 019e1910 showed
@@ -242,7 +251,9 @@ async def _execute_single_tool(
             # avoid 2× wall-clock amplification (trace 019e040b: 85.5s).
             _outer_attempts = 1 if tool_name in _NO_OUTER_RETRY_TOOLS else 2
             result = await retry_transient(
-                _call_tool, max_attempts=_outer_attempts, base_delay=1.0
+                lambda: traced_call(tool_args),
+                max_attempts=_outer_attempts,
+                base_delay=1.0,
             )
 
             result_content = (

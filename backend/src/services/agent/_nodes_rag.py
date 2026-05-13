@@ -168,6 +168,23 @@ def _shape_do_kb_context(chunk, title_by_key: dict[str, tuple[str, str]]) -> dic
     }
 
 
+try:
+    from langsmith import traceable as _ls_traceable
+except Exception:  # noqa: BLE001 - langsmith optional at runtime
+    _ls_traceable = None
+
+
+def _maybe_traced_retriever(name: str):
+    """Return a langsmith traceable decorator with run_type=retriever, or no-op."""
+    if _ls_traceable is None:
+        def _identity(fn):
+            return fn
+
+        return _identity
+    return _ls_traceable(run_type="retriever", name=name)
+
+
+@_maybe_traced_retriever("do_kb_retriever")
 async def _try_primary_do_kb_read(
     query: str,
     current_user,
@@ -299,6 +316,7 @@ async def _try_primary_do_kb_read(
         return None
 
 
+@_maybe_traced_retriever("hybrid_search_retriever")
 async def _legacy_hybrid_search_fallback(
     query: str, current_user
 ) -> List[dict]:
