@@ -708,6 +708,32 @@ async def list_external_databases(
 
 
 # ---------------------------------------------------------------------------
+# Memory management
+# ---------------------------------------------------------------------------
+
+
+@tool
+async def forget_memory(
+    query: str,
+    config: RunnableConfig | None = None,
+) -> Dict[str, Any]:
+    """Forget previously-saved memories that match *query*.
+
+    Use when the user explicitly asks you to forget, delete, or wipe a
+    memory ("forget what I said about X", "stop remembering Y"). Returns
+    a summary of which memories were deleted.
+    """
+    config = config or {}
+    from src.api.agent.tools_impl import _tool_forget_memory
+
+    _db, current_user, page_ctx = _get_context(config)
+    user_id = str(current_user.id) if current_user else ""
+    return await _tool_forget_memory(
+        query=query, user_id=user_id, page_context=page_ctx
+    )
+
+
+# ---------------------------------------------------------------------------
 # Exported list
 # ---------------------------------------------------------------------------
 
@@ -732,4 +758,5 @@ ALL_TOOLS = [
     execute_code,
     search_external_database,
     list_external_databases,
+    forget_memory,
 ]

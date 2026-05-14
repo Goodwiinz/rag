@@ -294,6 +294,11 @@ class Settings(BaseSettings):
     # Cuts ~5-15s/turn on read-heavy queries like arxiv search results.
     AGENT_LIGHTWEIGHT_SYNTHESIS: bool = True
 
+    # Run the insight-extraction pass every N user turns inside memory_save_node.
+    # 0 disables. Default 5: cheap enough to not bloat token spend, frequent
+    # enough to keep recall surface useful within a session.
+    AGENT_INSIGHT_EVERY_N_TURNS: int = 5
+
     # When False, the agent LLM emits at most one tool_call per turn. gpt-5
     # fires runaway parallel batches by default (trace 019e18f0: 5-6 parallel
     # search_arxiv per round, 13+ total over 4 rounds, 95s wall). Flip to
