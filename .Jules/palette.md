@@ -4,3 +4,6 @@
 ## 2026-05-11 - Citation Graph Accessibility
 **Learning:** Replaced cryptic ASCII characters (+, -, [], R) in raw button tags with standard Lucide React icons wrapped in the app's native IconButton component within the CitationGraph controls. This significantly improves visual clarity, keyboard focus styling, and screen-reader accessibility via built-in aria-label and Tooltip handling.
 **Action:** Always scan for generic `<button>` implementations in rich interactive components like graphs or data tables and replace them with standard design system components like `IconButton` that enforce accessibility.
+## 2026-05-14 - [Add tablist accessibility pattern]
+**Learning:** Interactive tabs built from native `<button>`s require explicit ARIA roles (`role="tablist"`, `role="tab"`) and state indicators (`aria-selected`) to be correctly announced by screen readers.
+**Action:** When creating custom tab navigations, always implement the standard WAI-ARIA tab pattern rather than relying on generic button elements.
