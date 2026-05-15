@@ -1,0 +1,3 @@
+## 2026-05-15 - Add ARIA Labels to Chat Input Action Buttons
+**Learning:** Found action buttons in the main chat input (`ChatInput.tsx`) that used generic terminology like "HALT" or "TRANSMIT", but were missing explicitly declared `aria-label`s, which left screen reader users without adequate context about their functionality. Relying purely on visible text or `title` attributes is not sufficient.
+**Action:** Always ensure that custom semantic buttons (like Send or Stop generation) have clear, standardized `aria-label`s for screen reader compatibility, even if stylistic choices dictate unconventional visible text.

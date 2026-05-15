@@ -294,6 +294,7 @@ export function ChatInput({
               {isLoading ? (
                 <button
                   onClick={onStop}
+                  aria-label="Stop generation"
                   className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[var(--error-red)]/10 border border-[var(--error-red)]/50 text-[var(--error-red)] text-[10px] font-bold hover:bg-[var(--error-red)]/20 transition-all shadow-[0_0_10px_rgba(239,68,68,0.05)]"
                   style={{ fontFamily: "'JetBrains Mono', monospace" }}
                 >
@@ -305,6 +306,7 @@ export function ChatInput({
                   onClick={onSubmit}
                   disabled={!value.trim() || isDisabled}
                   title="Send message (Enter)"
+                  aria-label="Send message"
                   className={cn(
                     'flex items-center gap-2 px-6 py-2 rounded text-[10px] font-bold tracking-widest transition-all duration-300',
                     value.trim() && !isDisabled
