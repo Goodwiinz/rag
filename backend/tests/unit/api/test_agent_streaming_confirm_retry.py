@@ -6,6 +6,16 @@ from unittest.mock import AsyncMock, Mock, patch
 import pytest
 
 
+@pytest.fixture(autouse=True)
+def _reset_compiled_graph_cache():
+    """Clear cached compiled graph between tests to avoid cross-test leakage."""
+    import src.api.agent.streaming as mod
+
+    mod._COMPILED_GRAPH = None
+    yield
+    mod._COMPILED_GRAPH = None
+
+
 class _FakeGraphWithRetry:
     """Graph that returns None on first aget_state call, then succeeds."""
 
