@@ -20,20 +20,39 @@ import {
   type ThreadEntry,
 } from './services/threadStore';
 import { fetchProjects, type RemoteProjectSummary } from './services/projects';
+import {
+  fetchDocuments,
+  fetchProjectDocuments,
+  type RemoteDocumentSummary,
+} from './services/documents';
 import { countVisualRows, hasMarkdown, renderMarkdown } from './markdown';
 import { buildCompleter, isPromptCancel, readPrompt } from './prompt';
 import { readDraft, clearDraft } from './services/draft';
 import { classifyError } from './errors';
 import { withRetry } from './retry';
+import { c, glyph } from './theme';
+import {
+  ResponseWriter,
+  thinkingLineOut,
+  toolBadgePrefix,
+  turnSeparator,
+} from './output';
 
 interface ActiveProject {
   id: string;
   name: string;
 }
 
+interface ActivePaper {
+  id: string;
+  title: string;
+}
+
 interface ReplOptions {
   projectId?: string;
   projectName?: string;
+  paperId?: string;
+  paperTitle?: string;
 }
 
 // Drafts shorter than this (after trim) are treated as artifacts and not
@@ -49,9 +68,19 @@ export async function runRepl(options: ReplOptions = {}): Promise<void> {
   let activeProject: ActiveProject | null =
     options.projectId && options.projectName
       ? { id: options.projectId, name: options.projectName }
-      : null;
+      : config.project_id && config.project_name
+        ? { id: config.project_id, name: config.project_name }
+        : null;
+  let activePaper: ActivePaper | null =
+    options.paperId && options.paperTitle
+      ? { id: options.paperId, title: options.paperTitle }
+      : config.paper_id && config.paper_title
+        ? { id: config.paper_id, title: config.paper_title }
+        : null;
 
-  p.intro(`NOUS  ·  ${formatStatus(threadId, activeProject)}`);
+  p.intro(
+    `${c.boldCyan('NOUS')} ${c.gray('·')} ${c.dim(formatStatus(threadId, activeProject, activePaper))}`
+  );
 
   let pendingDraft: string | null = null;
   const initialDraft = readDraft();
@@ -98,11 +127,17 @@ export async function runRepl(options: ReplOptions = {}): Promise<void> {
         const done = await handleSlashCommand(parsed.command, parsed.args, {
           threadId,
           activeProject,
+          activePaper,
           onThreadChange: (t) => {
             threadId = t;
           },
           onProjectChange: (proj) => {
             activeProject = proj;
+            persistContext({ project: proj, paper: activePaper });
+          },
+          onPaperChange: (paper) => {
+            activePaper = paper;
+            persistContext({ project: activeProject, paper });
           },
           onExit: () => {
             p.outro('Bye.');
@@ -114,13 +149,7 @@ export async function runRepl(options: ReplOptions = {}): Promise<void> {
               p.log.warn('Nothing to retry.');
               return;
             }
-            const retryCtx = activeProject
-              ? {
-                  type: 'project',
-                  project_id: activeProject.id,
-                  project_name: activeProject.name,
-                }
-              : { type: 'chat' };
+            const retryCtx = buildPageContext(activeProject, activePaper);
             activeAbort = new AbortController();
             await streamToTerminal(
               lastUserMessage,
@@ -138,13 +167,7 @@ export async function runRepl(options: ReplOptions = {}): Promise<void> {
       }
 
       const previousThreadId = threadId;
-      const ctx = activeProject
-        ? {
-            type: 'project',
-            project_id: activeProject.id,
-            project_name: activeProject.name,
-          }
-        : { type: 'chat' };
+      const ctx = buildPageContext(activeProject, activePaper);
 
       activeAbort = new AbortController();
       await streamToTerminal(input, ctx, activeAbort.signal);
@@ -159,6 +182,8 @@ export async function runRepl(options: ReplOptions = {}): Promise<void> {
       if (threadId) {
         recordThreadUse(threadId, previousThreadId, input, activeProject);
       }
+
+      renderFooter(threadId, activeProject, activePaper);
     }
   } finally {
     process.off('SIGINT', onSigint);
@@ -174,21 +199,71 @@ export async function runOneShot(
 
 function formatStatus(
   threadId: string | null,
-  activeProject: ActiveProject | null
+  activeProject: ActiveProject | null,
+  activePaper: ActivePaper | null
 ): string {
+  const parts: string[] = [];
   if (!threadId) {
-    const parts = ['no thread'];
-    if (activeProject) parts.push(`project: ${activeProject.name}`);
-    return parts.join('  ·  ');
+    parts.push('no thread');
+  } else {
+    const entry = getThread(threadId);
+    const short = threadId.slice(0, 8);
+    parts.push(
+      entry ? `thread: ${short} · "${entry.title}"` : `thread: ${short}`
+    );
   }
-  const entry = getThread(threadId);
-  const short = threadId.slice(0, 8);
-  const label = entry
-    ? `thread: ${short} · "${entry.title}"`
-    : `thread: ${short}`;
-  const parts = [label];
-  if (activeProject) parts.push(`project: ${activeProject.name}`);
+  if (activeProject) parts.push(`proj: ${activeProject.name}`);
+  if (activePaper) parts.push(`paper: ${truncate(activePaper.title, 40)}`);
   return parts.join('  ·  ');
+}
+
+function buildPageContext(
+  activeProject: ActiveProject | null,
+  activePaper: ActivePaper | null
+): Record<string, unknown> {
+  const ctx: Record<string, unknown> = activeProject
+    ? {
+        type: 'project',
+        project_id: activeProject.id,
+        project_name: activeProject.name,
+      }
+    : { type: 'chat' };
+  if (activePaper) {
+    ctx.paper_id = activePaper.id;
+    ctx.paper_title = activePaper.title;
+  }
+  return ctx;
+}
+
+function persistContext(state: {
+  project: ActiveProject | null;
+  paper: ActivePaper | null;
+}): void {
+  const cfg = loadConfig();
+  if (!cfg) return;
+  saveConfig({
+    ...cfg,
+    project_id: state.project?.id ?? null,
+    project_name: state.project?.name ?? null,
+    paper_id: state.paper?.id ?? null,
+    paper_title: state.paper?.title ?? null,
+  });
+}
+
+function renderFooter(
+  threadId: string | null,
+  activeProject: ActiveProject | null,
+  activePaper: ActivePaper | null
+): void {
+  const status = formatStatus(threadId, activeProject, activePaper);
+  const cols =
+    process.stdout.isTTY && process.stdout.columns
+      ? process.stdout.columns
+      : 80;
+  const visiblePrefix = `╰─ ${status} `;
+  const padLen = Math.max(0, cols - visiblePrefix.length);
+  const rule = '─'.repeat(padLen);
+  process.stdout.write(`${c.gray('╰─')} ${c.dim(status)} ${c.gray(rule)}\n`);
 }
 
 function recordThreadUse(
@@ -227,12 +302,12 @@ async function streamToTerminal(
     outputTokens: number;
     costUsd: number | null;
   } | null = null;
-  let tokenBuffer = '';
+  let writer = new ResponseWriter();
   let retriedAfterMissingThread = false;
   let confirmRetried = false;
   let activeConfirmThreadId: string | null = null;
 
-  process.stdout.write('\n');
+  turnSeparator();
 
   type EventStream = AsyncGenerator<import('./stream').StreamEvent>;
   let current: EventStream;
@@ -247,9 +322,9 @@ async function streamToTerminal(
     );
   } catch (e) {
     process.stdout.write('\n');
-    const c = classifyError(e);
-    p.log.error(c.userMessage);
-    if (c.hint) p.log.message(`  ${c.hint}`);
+    const classified = classifyError(e);
+    p.log.error(classified.userMessage);
+    if (classified.hint) p.log.message(`  ${classified.hint}`);
     return;
   }
 
@@ -261,11 +336,12 @@ async function streamToTerminal(
     try {
       for await (const event of current) {
         if (event.type === 'token') {
-          process.stdout.write(event.content);
-          tokenBuffer += event.content;
+          writer.writeToken(event.content);
         } else if (event.type === 'tool_start') {
           const s = p.spinner();
-          s.start(formatToolLine(event.tool, event.args));
+          s.start(
+            `${toolBadgePrefix()} ${formatToolLine(event.tool, event.args)}`
+          );
           spinners.set(event.tool, s);
         } else if (event.type === 'tool_end') {
           const label = formatToolEndLine(
@@ -274,34 +350,47 @@ async function streamToTerminal(
             event.isError
           );
           const s = spinners.get(event.tool);
+          const decorated = `${toolBadgePrefix()} ${label}`;
           if (s) {
             if (event.isError) {
-              s.error(label);
+              s.error(decorated);
             } else {
-              s.stop(label);
+              s.stop(decorated);
             }
             spinners.delete(event.tool);
           } else if (event.isError) {
-            p.log.error(`✗ ${label}`);
+            p.log.error(`${c.red(glyph.cross)} ${label}`);
           } else {
-            p.log.success(`✓ ${label}`);
+            p.log.success(`${c.green(glyph.check)} ${label}`);
           }
         } else if (event.type === 'plan') {
           if (event.steps.length > 0) {
-            p.log.info(`Plan: ${event.steps.join(' → ')}`);
+            thinkingLineOut(
+              `${c.magenta(glyph.spark)} ${c.bold('Plan')}`,
+              event.steps.join(`  ${c.gray('→')}  `)
+            );
           }
         } else if (event.type === 'reflection') {
           if (event.passed) {
-            p.log.success(`Reflection #${event.round} passed`);
+            thinkingLineOut(
+              `${c.green(glyph.check)} ${c.bold(`Reflection #${event.round}`)}`,
+              c.dim('passed')
+            );
           } else {
-            p.log.warn(
-              `Reflection #${event.round}: ${event.issues.length > 0 ? event.issues.join('; ') : 'failed'}`
+            const detail =
+              event.issues.length > 0 ? event.issues.join('; ') : 'failed';
+            thinkingLineOut(
+              `${c.yellow(glyph.warn)} ${c.bold(`Reflection #${event.round}`)}`,
+              c.yellow(detail)
             );
           }
         } else if (event.type === 'rag_context') {
           if (event.contexts.length > 0) {
             collectedContexts.push(...event.contexts);
-            p.log.info(`Retrieved ${event.contexts.length} context(s)`);
+            thinkingLineOut(
+              `${c.blue(glyph.bullet)} ${c.bold('Context')}`,
+              c.dim(`retrieved ${event.contexts.length} chunk(s)`)
+            );
           }
         } else if (event.type === 'usage') {
           lastUsage = {
@@ -314,6 +403,7 @@ async function streamToTerminal(
             s.cancel(`${tool} (paused — awaiting confirmation)`);
           }
           spinners.clear();
+          writer.abort();
           process.stdout.write('\n');
           renderConfirmationDetails(event.details);
           const ok = await confirmKey({
@@ -329,14 +419,13 @@ async function streamToTerminal(
           activeConfirmThreadId = event.threadId;
           break;
         } else if (event.type === 'done') {
-          process.stdout.write('\n');
-          maybeReformatMarkdown(tokenBuffer);
+          writer.finish();
           renderCitationsFooter(collectedContexts);
           renderUsageLine(lastUsage);
           process.stdout.write('\n');
           return;
         } else if (event.type === 'error') {
-          process.stdout.write('\n');
+          writer.abort();
           const classified = classifyError(event.message);
           if (
             classified.kind === 'not_found_thread' &&
@@ -368,9 +457,9 @@ async function streamToTerminal(
         }
       }
     } catch (e) {
-      const c = classifyError(e);
-      if (c.kind === 'cancelled') {
-        process.stdout.write('\n');
+      const classified = classifyError(e);
+      if (classified.kind === 'cancelled') {
+        writer.abort();
         p.log.warn('Cancelled.');
         return;
       }
@@ -378,22 +467,22 @@ async function streamToTerminal(
     }
 
     if (retryConfirm && activeConfirmThreadId) {
-      tokenBuffer = '';
+      writer = new ResponseWriter();
       current = streamConfirm(activeConfirmThreadId, true, { signal });
       continue;
     }
 
     if (retryFreshThread) {
+      writer = new ResponseWriter();
       current = streamAgent(message, pageContext, { signal });
       continue;
     }
 
     if (pendingConfirmThreadId === null) break;
 
-    // Reset the markdown buffer between pre- and post-confirm halves so the
-    // post-confirm done-event re-render doesn't include the LLM's pre-confirm
-    // "I want to run this tool" preamble.
-    tokenBuffer = '';
+    // Reset the response block between pre- and post-confirm halves so the
+    // post-confirm finish doesn't include the LLM's pre-confirm preamble.
+    writer = new ResponseWriter();
     current = streamConfirm(pendingConfirmThreadId, true, { signal });
   }
 }
@@ -577,8 +666,10 @@ export function renderUsageLine(
 interface SlashContext {
   threadId: string | null;
   activeProject: ActiveProject | null;
+  activePaper: ActivePaper | null;
   onThreadChange: (t: string | null) => void;
   onProjectChange: (proj: ActiveProject | null) => void;
+  onPaperChange: (paper: ActivePaper | null) => void;
   onExit: () => void;
   lastUserMessage: string | null;
   retryLast: () => Promise<void>;
@@ -632,15 +723,27 @@ async function handleSlashCommand(
     await handleProjectsCommand(ctx);
     return true;
   }
+  if (command === 'papers' || command === 'paper') {
+    await handlePapersCommand(ctx);
+    return true;
+  }
   if (command === 'context') {
     if (args[0] === 'clear') {
       ctx.onProjectChange(null);
-      p.log.success('Project context cleared.');
+      ctx.onPaperChange(null);
+      p.log.success('Project + paper context cleared.');
       return true;
     }
     if (args[0] === 'project' && args[1]) {
       ctx.onProjectChange({ id: args[1], name: args[2] ?? args[1] });
       p.log.success(`Project set: ${args[2] ?? args[1]}`);
+      return true;
+    }
+    if (args[0] === 'paper' && args[1]) {
+      const id = args[1];
+      const title = args.slice(2).join(' ') || id;
+      ctx.onPaperChange({ id, title });
+      p.log.success(`Paper set: ${title}`);
       return true;
     }
   }
@@ -666,7 +769,7 @@ async function handleSlashCommand(
   }
   if (command === 'help') {
     p.log.message(
-      '/new  /clear  /thread  /threads  /history [n]  /forget [id]  /projects  /retry  /context project <id> [name]  /context clear  /settings [set api_url <url>]  /quit'
+      '/new  /clear  /thread  /threads  /history [n]  /forget [id]  /projects  /papers  /retry  /context project <id> [name]  /context paper <id> [title]  /context clear  /settings [set api_url <url>]  /quit'
     );
     return true;
   }
@@ -728,15 +831,91 @@ function formatProjectLabel(
 ): string {
   const marker = proj.id === activeId ? '● ' : '  ';
   const when = proj.updated_at ? formatRelative(proj.updated_at) : '';
-  return `${marker}${proj.name}  ·  ${proj.id.slice(0, 8)}${when ? `  ·  ${when}` : ''}`;
+  const name = truncate(proj.name, 50);
+  return when ? `${marker}${name} · ${when}` : `${marker}${name}`;
 }
 
 function projectHint(proj: RemoteProjectSummary): string | undefined {
-  const parts: string[] = [];
+  const parts: string[] = [`#${proj.id.slice(0, 8)}`];
   if (proj.document_count > 0) parts.push(`${proj.document_count} docs`);
   if (proj.note_count > 0) parts.push(`${proj.note_count} notes`);
   if (proj.draft_count > 0) parts.push(`${proj.draft_count} drafts`);
-  return parts.length > 0 ? parts.join(' · ') : undefined;
+  return parts.join(' · ');
+}
+
+async function handlePapersCommand(ctx: SlashContext): Promise<void> {
+  const spinner = p.spinner();
+  const scoped = ctx.activeProject;
+  spinner.start(scoped ? `Loading papers in ${scoped.name}` : 'Loading papers');
+  let documents: RemoteDocumentSummary[] = [];
+  try {
+    documents = scoped
+      ? await fetchProjectDocuments(scoped.id)
+      : await fetchDocuments({ limit: 50 });
+    spinner.stop(`Loaded ${documents.length} paper(s)`);
+  } catch (err) {
+    spinner.stop('Failed to load papers');
+    p.log.error((err as Error).message);
+    return;
+  }
+
+  if (documents.length === 0) {
+    p.log.info(
+      scoped
+        ? `No papers in ${scoped.name}. Add one via the web app or /context clear to browse all.`
+        : 'No documents yet. Ingest one first.'
+    );
+    return;
+  }
+
+  const sorted = [...documents].sort((a, b) =>
+    (b.updated_at || '').localeCompare(a.updated_at || '')
+  );
+
+  const choice = await p.select({
+    message: 'Pick a paper (esc to cancel)',
+    options: [
+      { value: '__clear__', label: '× Clear paper context' },
+      ...sorted.map((doc) => ({
+        value: doc.id,
+        label: formatPaperLabel(doc, ctx.activePaper?.id ?? null),
+        hint: paperHint(doc),
+      })),
+      { value: '__cancel__', label: '(cancel)' },
+    ],
+  });
+
+  if (p.isCancel(choice) || choice === '__cancel__') return;
+
+  if (choice === '__clear__') {
+    ctx.onPaperChange(null);
+    p.log.success('Paper context cleared.');
+    return;
+  }
+
+  const picked = sorted.find((d) => d.id === choice);
+  if (!picked) return;
+  ctx.onPaperChange({ id: picked.id, title: picked.title });
+  p.log.success(`Paper set: ${picked.title}`);
+}
+
+function formatPaperLabel(
+  doc: RemoteDocumentSummary,
+  activeId: string | null
+): string {
+  const marker = doc.id === activeId ? '● ' : '  ';
+  const when = doc.updated_at ? formatRelative(doc.updated_at) : '';
+  const title = truncate(doc.title || doc.filename || doc.id, 60);
+  return when ? `${marker}${title} · ${when}` : `${marker}${title}`;
+}
+
+function paperHint(doc: RemoteDocumentSummary): string | undefined {
+  const parts: string[] = [`#${doc.id.slice(0, 8)}`];
+  if (doc.document_type) parts.push(doc.document_type);
+  if (doc.processing_status && doc.processing_status !== 'completed') {
+    parts.push(doc.processing_status);
+  }
+  return parts.join(' · ');
 }
 
 async function handleThreadsCommand(ctx: SlashContext): Promise<void> {
@@ -777,7 +956,7 @@ async function handleThreadsCommand(ctx: SlashContext): Promise<void> {
       ...merged.map((entry) => ({
         value: entry.id,
         label: formatThreadLabel(entry, ctx.threadId),
-        hint: entry.preview ? entry.preview : undefined,
+        hint: threadHint(entry),
       })),
       { value: '__cancel__', label: '(cancel)' },
     ],
@@ -1000,13 +1179,20 @@ function mergeThreads(
   );
 }
 
+function threadHint(entry: ThreadEntry): string | undefined {
+  const parts: string[] = [`#${entry.id.slice(0, 8)}`];
+  if (entry.preview) parts.push(truncate(entry.preview, 60));
+  return parts.join(' · ');
+}
+
 function formatThreadLabel(
   entry: ThreadEntry,
   activeId: string | null
 ): string {
   const marker = entry.id === activeId ? '● ' : '  ';
   const when = formatRelative(entry.last_used_at);
-  return `${marker}${entry.title}  ·  ${entry.id.slice(0, 8)}  ·  ${when}`;
+  const title = truncate(entry.title || entry.id, 50);
+  return `${marker}${title} · ${when}`;
 }
 
 function formatRelative(iso: string): string {
@@ -1014,7 +1200,10 @@ function formatRelative(iso: string): string {
   const then = Date.parse(iso);
   if (Number.isNaN(then)) return iso;
   const diffMs = Date.now() - then;
+  // Clock skew or future timestamps → treat as "just now" instead of negative.
+  if (diffMs < 0) return 'just now';
   const sec = Math.round(diffMs / 1000);
+  if (sec < 5) return 'just now';
   if (sec < 60) return `${sec}s ago`;
   const min = Math.round(sec / 60);
   if (min < 60) return `${min}m ago`;

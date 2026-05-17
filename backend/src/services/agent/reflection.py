@@ -8,6 +8,7 @@ back to the LLM node for another attempt (max 2 rounds).
 
 import asyncio
 import logging
+import re
 from typing import Any, Callable, Literal, Optional
 
 from langchain_core.messages import AIMessage, HumanMessage
@@ -123,6 +124,130 @@ _REFLECTION_SYSTEM_PROMPT = (
 _REFLECTION_MIN_CONTENT_CHARS = 200
 
 
+def _is_transient_failure(te: Any) -> bool:
+    """A tool_execution that failed due to an upstream/transient cause —
+    rate limit, network timeout, 5xx — that regenerating the response
+    cannot fix. Match the shape produced by ``_execute_single_tool`` +
+    ``error_recovery.classify_error_from_payload``.
+    """
+    if not isinstance(te, dict):
+        return False
+    if te.get("status") != "failed":
+        return False
+    result = te.get("result")
+    if not isinstance(result, dict):
+        return False
+    return result.get("error_type") == "transient"
+
+
+# Ingest result statuses that indicate the tool ran but produced no usable
+# documents (or only some of the requested ones). Mirror the constants in
+# ``src/api/agent/tools_impl.py`` so the reflection gate can detect when an
+# AIMessage claims success despite the tool reporting zero/partial ingest.
+_INGEST_FAILURE_STATUSES = {"ingestion_failed", "ingestion_partial"}
+
+# Success verbs the agent commonly uses to claim ingest worked. Matched
+# case-insensitively against the AIMessage text. ``\b`` boundaries keep
+# substrings like "saddled" from triggering "added".
+_INGEST_SUCCESS_CLAIM_RE = re.compile(
+    r"\b(added|imported|ingested|attached|saved|loaded)\b",
+    re.IGNORECASE,
+)
+
+# Phrases that show the assistant disclosed the failure. If any of these
+# appear we do NOT flag the response as a lie — the user is informed.
+_INGEST_FAILURE_DISCLOSURE_RE = re.compile(
+    r"\b(failed|could not|couldn'?t|0 papers?|zero papers?|none|unable|"
+    r"did not|didn'?t|no papers?|error)\b",
+    re.IGNORECASE,
+)
+
+
+def _ingest_zero_count(te: Any) -> bool:
+    """Detect an ``ingest_arxiv_papers`` execution that ingested nothing.
+
+    The tool node marks the execution ``completed`` whenever the Python
+    call returned without raising — even when the tool's own ``status``
+    field is ``ingestion_failed``. We have to look one level deeper at
+    ``result.status`` / ``result.ingested_count`` to spot the lie.
+    """
+    if not isinstance(te, dict):
+        return False
+    if te.get("tool_name") != "ingest_arxiv_papers":
+        return False
+    result = te.get("result")
+    if not isinstance(result, dict):
+        return False
+    if result.get("status") in _INGEST_FAILURE_STATUSES:
+        return True
+    # Defensive: legacy result shape with no ``status`` but a count.
+    try:
+        return int(result.get("ingested_count", 0)) == 0
+    except (TypeError, ValueError):
+        return False
+
+
+def _detect_ingest_success_lie(state: dict) -> Optional[str]:
+    """Return an issue string when the AI claims ingest success but the
+    tool reported failure/partial, else None.
+
+    Deterministic guard for the failure mode in trace 019e1a1d, where
+    ``ingest_arxiv_papers`` returned ``ingested_count: 0`` and the agent
+    still told the user "Done — I added one paper". The LLM reflector
+    missed it (passed=true) because the AI text looks plausible.
+    """
+    tool_executions = state.get("tool_executions", []) or []
+    failing = [te for te in tool_executions if _ingest_zero_count(te)]
+    if not failing:
+        return None
+
+    last_ai = _last_ai_message(state)
+    if last_ai is None:
+        return None
+    content = last_ai.content
+    if isinstance(content, list):
+        text = " ".join(
+            b.get("text", "") if isinstance(b, dict) else str(b) for b in content
+        )
+    elif isinstance(content, str):
+        text = content
+    else:
+        return None
+
+    if not _INGEST_SUCCESS_CLAIM_RE.search(text):
+        return None
+    if _INGEST_FAILURE_DISCLOSURE_RE.search(text):
+        return None
+
+    paper_ids: list[str] = []
+    for te in failing:
+        result = te.get("result") or {}
+        for pid in result.get("paper_ids", []) or []:
+            if pid not in paper_ids:
+                paper_ids.append(str(pid))
+    return (
+        "Assistant claims ingest succeeded but "
+        f"ingest_arxiv_papers returned 0 documents (paper_ids="
+        f"{paper_ids or 'unknown'}). Tell the user the ingest failed "
+        "and propose a concrete next step (retry, different IDs, or "
+        "wait for very recent papers to be indexed)."
+    )
+
+
+def _is_completed_or_transient(te: Any) -> bool:
+    """Status counts toward the transient-acknowledged skip: completed
+    successes, transient failures, or deduped (already-counted) entries.
+    A non-transient failure (e.g. validation error, auth denied) should
+    NOT skip — those are agent-fixable and worth critiquing.
+    """
+    if not isinstance(te, dict):
+        return False
+    status = te.get("status")
+    if status in ("completed", "deduped"):
+        return True
+    return _is_transient_failure(te)
+
+
 def _last_ai_message(state: dict) -> AIMessage | None:
     """Return the most recent AIMessage in state, or None."""
     for msg in reversed(state.get("messages", [])):
@@ -175,6 +300,11 @@ def _should_skip_reflection(state: dict) -> tuple[bool, str]:
     # Fast-path: substantive final response with all tools succeeded —
     # skip the critique LLM (saves ~5-20s/turn). The cheap deterministic
     # checks above already gate the truly-trivial cases.
+    #
+    # Exclude ingest tools that returned status=ingestion_failed/partial:
+    # the outer ToolNode marks them ``completed`` (no exception raised),
+    # so happy-path would skip and the LLM reflector never sees the
+    # mismatch between "Done — I added one paper" and ``ingested_count=0``.
     if (
         not has_tool_calls
         and content_len >= _REFLECTION_MIN_CONTENT_CHARS
@@ -184,11 +314,44 @@ def _should_skip_reflection(state: dict) -> tuple[bool, str]:
             == "completed"
             for te in tool_executions
         )
+        and not any(_ingest_zero_count(te) for te in tool_executions)
     ):
         return (
             True,
             f"happy-path ({content_len} chars, {len(tool_executions)} tools all completed)",
         )
+
+    # Fast-path: tools ran but the only failures were transient/external
+    # (rate limits, timeouts, network errors). The agent cannot recover by
+    # regenerating its response — the failure is upstream. Critiquing as
+    # "did not execute tools" wastes ~3k tokens per turn and can trigger a
+    # useless revise loop.
+    #
+    # Trace (revision e8d8b1ad, "grab me more paper about ML in Health Care"):
+    # arXiv 429 → tool_executions=[{status:"failed", result:{error_type:
+    # "transient"}}] → reflection ran 2× and flagged "did not execute any
+    # tools" both times. Wrong: tool ran, external API failed.
+    if (
+        not has_tool_calls
+        and content_len >= _REFLECTION_MIN_CONTENT_CHARS
+        and tool_executions
+    ):
+        # Single pass: classify every entry once. Avoids the 3× iteration
+        # the predicate-pair version did (all + any + sum on the same list).
+        transient_count = 0
+        ok_to_skip = True
+        for te in tool_executions:
+            if _is_transient_failure(te):
+                transient_count += 1
+            elif not _is_completed_or_transient(te):
+                ok_to_skip = False
+                break
+        if ok_to_skip and transient_count:
+            return (
+                True,
+                f"transient-failure-acknowledged ({content_len} chars, "
+                f"{transient_count} transient failures)",
+            )
 
     return (False, "")
 
@@ -303,6 +466,23 @@ def make_reflection_gate(
         # Skip if max rounds reached
         if current_count >= 2:
             return {"reflection_count": current_count}
+
+        # Deterministic guard: AI claims ingest worked but the tool
+        # actually returned 0 documents (status=ingestion_failed/partial).
+        # Hard-fail without an LLM call — the issue is unambiguous from
+        # tool result + AI text, and the LLM reflector has been observed
+        # to miss it (trace 019e1a1d, passed=true after the lie).
+        ingest_issue = _detect_ingest_success_lie(state)
+        if ingest_issue is not None:
+            logger.warning(
+                "Reflection deterministic fail: ingest success-claim mismatch"
+            )
+            return {
+                "reflection_count": current_count + 1,
+                "_reflection_result": ReflectionResult(
+                    passed=False, issues=[ingest_issue], severity="major"
+                ),
+            }
 
         # Cheap pre-LLM gate: skip critique for trivial / tool-less turns.
         skip, reason = _should_skip_reflection(state)

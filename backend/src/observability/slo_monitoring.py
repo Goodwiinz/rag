@@ -13,9 +13,6 @@ from typing import Any, Dict, List, Optional, Tuple
 from .config import config
 from .logging import get_logger
 from .metrics import (
-    SLI_AVAILABILITY,
-    SLI_ERROR_RATE,
-    SLI_RESPONSE_TIME,
     increment_counter,
     increment_updown_counter,
     record_histogram,

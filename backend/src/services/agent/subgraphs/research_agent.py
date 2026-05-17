@@ -5,6 +5,7 @@ Tools: search_arxiv, ingest_arxiv_papers, search_documents,
        create_project, add_document_to_project, list_project_documents
 """
 
+import asyncio
 import logging
 
 from langchain_core.messages import AIMessage, SystemMessage
@@ -53,25 +54,24 @@ MAX_RESEARCH_TOOL_LOOPS = 5
 def _build_research_system_prompt() -> str:
     """Construct the research subgraph system prompt with shared rules embedded.
 
+    Driver protocol (tools, loop, constraints, heuristics) is sourced from
+    ``AGENTS_research.md`` — see ``agents_md_loader`` for the rationale.
+    Falls back to a minimal inline prompt if the file is missing so the
+    subgraph never crashes on a deploy that omits the markdown file.
+
     Imported lazily to avoid circular imports with graph.py.
     """
     from src.services.agent.graph import SHARED_AGENT_RULES
+    from src.services.agent.subgraphs.agents_md_loader import load_agents_md
 
+    driver_protocol = load_agents_md("research")
+    if driver_protocol:
+        return f"{driver_protocol}\n\n{SHARED_AGENT_RULES}"
+
+    # Fallback if AGENTS_research.md is missing (deploy issue).
     return (
         "You are a research assistant focused on discovering, searching, "
         "and organizing academic papers and documents.\n\n"
-        "Your tools:\n"
-        "- search_arxiv: Find papers on arXiv\n"
-        "- ingest_arxiv_papers: Import papers into the platform\n"
-        "- search_documents: Search indexed documents by title/filename\n"
-        "- do_kb_retrieve: Semantic retrieval over the org's knowledge base "
-        "(use for content-level questions across documents)\n"
-        "- create_project: Create a new research project (folder). Requires a name; "
-        "description/research_goals/tags are optional\n"
-        "- add_document_to_project: Organize documents into projects\n"
-        "- list_project_documents: View project contents\n\n"
-        "Important: After importing papers, use the document_ids (UUIDs) from the "
-        "response — not arXiv paper IDs.\n\n"
         f"{SHARED_AGENT_RULES}\n\n"
         "Be thorough in searching and systematic in organizing research."
     )
@@ -90,7 +90,6 @@ async def research_llm_node(state: AgentState, config: RunnableConfig) -> dict:
     from langchain_core.messages import ToolMessage
 
     from src.core.config import get_settings
-    from src.services.agent.graph import _build_llm
 
     sanitized = _sanitize_messages(list(state["messages"]))
     messages = [SystemMessage(content=_build_research_system_prompt())] + sanitized
@@ -106,28 +105,61 @@ async def research_llm_node(state: AgentState, config: RunnableConfig) -> dict:
         and isinstance(sanitized[-1], ToolMessage)
     )
     if use_lightweight_synthesis:
+        from src.services.agent.llm_factory import build_synthesis_llm
+
+        llm = build_synthesis_llm(max_tokens=4096)
+        logger.debug(
+            "research_llm_node: using synthesis model after ToolMessage"
+        )
+    else:
+        # Tool-decision turn: route off model-router to the lightweight
+        # deployment (gpt-5-mini). LangSmith showed model-router hitting the
+        # 30s timeout cap on research_llm_node (trace 019e1da5) while gpt-5-mini
+        # handles the same node in <10s. Lightweight builder also defaults
+        # reasoning_effort=minimal (cheap tool name + query string decision).
         from src.services.agent.llm_factory import build_lightweight_llm
 
         llm = build_lightweight_llm(max_tokens=4096)
         logger.debug(
-            "research_llm_node: using lightweight synthesis model after ToolMessage"
+            "research_llm_node: using lightweight model for tool decision"
         )
-    else:
-        llm = _build_llm()
-        # First-turn tool decision (no ToolMessage yet) doesn't need deep
-        # reasoning — the model just picks a tool name + writes a query
-        # string. Override to "minimal" via runnable bind so the cached
-        # client is reused. Saves 3-5s per tool-decision turn.
-        try:
-            llm = llm.bind(reasoning_effort="minimal")
-        except Exception:  # noqa: BLE001 - bind is best-effort
-            pass
     # See graph.llm_node for rationale on parallel_tool_calls=False.
     llm_with_tools = llm.bind_tools(
         RESEARCH_TOOLS,
         parallel_tool_calls=settings.AGENT_PARALLEL_TOOL_CALLS,
     )
-    response = await llm_with_tools.ainvoke(messages, config=config)
+    from src.services.agent.graph import (
+        AGENT_LLM_TIMEOUT_SECONDS,
+        _merge_run_config,
+    )
+
+    invoke_config = _merge_run_config(
+        config,
+        run_name="research_llm_node",
+        tags=["intent:research", "subgraph:research"],
+    )
+    try:
+        response = await asyncio.wait_for(
+            llm_with_tools.ainvoke(messages, config=invoke_config),
+            timeout=AGENT_LLM_TIMEOUT_SECONDS,
+        )
+    except asyncio.TimeoutError:
+        logger.warning(
+            "research_llm_node: LLM exceeded %ds; emitting fallback",
+            AGENT_LLM_TIMEOUT_SECONDS,
+        )
+        return {
+            "messages": [
+                AIMessage(
+                    content=(
+                        "The research model took too long to respond. Please "
+                        "try again or narrow the query."
+                    ),
+                ),
+            ],
+            "last_error": "research_llm_timeout",
+            "error_count": state.get("error_count", 0) + 1,
+        }
 
     return {
         "messages": [response],
@@ -144,10 +176,15 @@ def research_should_continue(state: AgentState) -> str:
             if any(tc["name"] in RESEARCH_DESTRUCTIVE_TOOLS for tc in last.tool_calls):
                 return "research_interrupt_node"
             return "research_tool_node"
-        # Loop ceiling tripped while the model still wants more tools. Route
-        # to a forced-synthesis turn so the final AIMessage has real content
-        # — otherwise reflection sees empty content + unanswered tool_calls
-        # and flags a "no response" major issue (trace 019e1903).
+        # Loop ceiling tripped while the model still wants more tools.
+        # If forced synthesis already ran once and the response STILL has
+        # tool_calls (defective model), route to reflection — never loop
+        # back into forced synthesis or we'd spin until checkpoint timeout.
+        if state.get("_force_synthesis_fired"):
+            return "research_reflection_gate"
+        # Route to a forced-synthesis turn so the final AIMessage has real
+        # content — otherwise reflection sees empty content + unanswered
+        # tool_calls and flags a "no response" major issue (trace 019e1903).
         return "research_force_synthesis_node"
     return "research_reflection_gate"
 
@@ -161,14 +198,20 @@ async def research_force_synthesis_node(
     wants more. We strip the unanswered tool_calls and re-invoke the LLM
     with NO tools bound so it must produce text.
 
+    Uses the lightweight deployment — this is a pure prose-synthesis
+    call with no tool routing, matching the post-ToolMessage path in
+    research_llm_node.
+
     The "no more tools, synthesize now" directive is embedded into the
     system prompt (NOT a separate SystemMessage). Trace 019e190c showed
     gpt-5 echoed a second SystemMessage verbatim into its response when
     we appended the directive as its own message.
-    """
-    from langchain_core.messages import HumanMessage
 
-    from src.services.agent.graph import _build_llm
+    Bumps tool_loop_count past the ceiling so research_should_continue
+    cannot route back here in a loop if the synthesis response somehow
+    contains tool_calls (defensive — the directive forbids it).
+    """
+    from src.services.agent.llm_factory import build_synthesis_llm
 
     messages = list(state["messages"])
 
@@ -190,11 +233,44 @@ async def research_force_synthesis_node(
     )
     full = [SystemMessage(content=base_prompt + synthesis_addendum)] + sanitized
 
-    llm = _build_llm()
+    llm = build_synthesis_llm(max_tokens=4096)
     # No bind_tools — force a pure text response.
-    response = await llm.ainvoke(full, config=config)
+    from src.services.agent.graph import (
+        AGENT_LLM_TIMEOUT_SECONDS,
+        _merge_run_config,
+    )
 
-    return {"messages": [response]}
+    invoke_config = _merge_run_config(
+        config,
+        run_name="research_force_synthesis_node",
+        tags=["intent:research", "subgraph:research", "phase:synthesis"],
+    )
+    try:
+        response = await asyncio.wait_for(
+            llm.ainvoke(full, config=invoke_config),
+            timeout=AGENT_LLM_TIMEOUT_SECONDS,
+        )
+    except asyncio.TimeoutError:
+        logger.warning(
+            "research_force_synthesis_node: LLM exceeded %ds; emitting fallback",
+            AGENT_LLM_TIMEOUT_SECONDS,
+        )
+        response = AIMessage(
+            content=(
+                "I gathered some results but ran out of time composing a "
+                "final summary. Please ask me to summarize the papers above."
+            ),
+        )
+
+    return {
+        "messages": [response],
+        # Bump past ceiling so a defective response with stray tool_calls
+        # cannot re-enter forced synthesis (would loop infinitely).
+        "tool_loop_count": MAX_RESEARCH_TOOL_LOOPS + 1,
+        # Marker for routing: research_should_continue checks this flag
+        # before sending back here.
+        "_force_synthesis_fired": True,
+    }
 
 
 async def research_interrupt_node(state: AgentState, config: RunnableConfig) -> dict:

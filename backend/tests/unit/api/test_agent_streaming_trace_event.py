@@ -9,6 +9,7 @@ class _FakeGraph:
         yield {
             "event": "on_chat_model_stream",
             "name": "llm_node",
+            "metadata": {"langgraph_node": "llm_node"},
             "data": {"chunk": SimpleNamespace(content="hello")},
         }
 

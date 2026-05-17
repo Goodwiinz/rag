@@ -428,6 +428,22 @@ async def classify_intent_with_fallback(
         # Caller aborted the request — propagate, don't swallow.
         raise
     except Exception as exc:
-        logger.warning("LLM classifier failed, using keyword result: %s", exc)
+        # Surface Azure deployment misconfiguration loudly so ops can fix
+        # AZURE_OPENAI_LIGHTWEIGHT_DEPLOYMENT — generic warning hides this
+        # behind "LLM classifier failed". NotFoundError comes from the
+        # ``openai`` package; import lazily to avoid hard dep at module load.
+        is_not_found = type(exc).__name__ == "NotFoundError" or (
+            getattr(exc, "status_code", None) == 404
+        )
+        if is_not_found:
+            from src.services.agent.llm_factory import get_lightweight_model_name
+
+            logger.error(
+                "Classifier LLM deployment '%s' returned 404 — check "
+                "AZURE_OPENAI_LIGHTWEIGHT_DEPLOYMENT. Falling back to keyword classifier.",
+                get_lightweight_model_name(),
+            )
+        else:
+            logger.warning("LLM classifier failed, using keyword result: %s", exc)
 
     return keyword_result
