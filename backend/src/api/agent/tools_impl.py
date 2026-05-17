@@ -7,9 +7,15 @@ and returns a dict result.
 
 import asyncio
 import logging
+import re
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 from uuid import UUID
+
+# Matches the trailing ``vN`` revision suffix arXiv appends to paper IDs
+# (e.g. ``2605.10877v1``). Used to compare requested vs. ingested IDs
+# without false negatives across version bumps.
+_ARXIV_VERSION_RE = re.compile(r"v\d+$")
 
 from sqlalchemy import desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -27,6 +33,16 @@ from .tool_helpers import (
 )
 
 logger = logging.getLogger(__name__)
+
+# Status values returned by ``_tool_ingest_arxiv``. Strings (not StrEnum)
+# because they're serialised to the LLM in tool output JSON; keeping them
+# as named constants prevents typo-drift across the docstring + branches.
+INGEST_STATUS_COMPLETE = "ingestion_complete"
+INGEST_STATUS_PARTIAL = "ingestion_partial"
+INGEST_STATUS_FAILED = "ingestion_failed"
+# Papers landed in the corpus but the project-attach step failed. The LLM
+# should NOT treat this as ordinary success; `link_error` carries the cause.
+INGEST_STATUS_COMPLETE_LINK_FAILED = "ingestion_complete_link_failed"
 
 
 def _escape_like(value: str) -> str:
@@ -626,6 +642,60 @@ async def execute_tool(
 # ---------------------------------------------------------------------------
 
 
+# In-process TTL cache for ``_tool_search_arxiv``. Trace 019e1a5a showed
+# the planner firing 4 near-identical arXiv searches in <2 min, tripping
+# the upstream 429 limiter. Keying on the normalized query lets repeated
+# tool calls within ``_ARXIV_SEARCH_CACHE_TTL`` seconds reuse the prior
+# result instead of hammering arxiv.org.
+_ARXIV_SEARCH_CACHE: Dict[tuple, tuple[float, Dict[str, Any]]] = {}
+_ARXIV_SEARCH_CACHE_TTL = 600.0  # 10 minutes
+_ARXIV_SEARCH_CACHE_MAX = 64
+
+
+def _arxiv_cache_key(
+    query: str,
+    max_results: int,
+    categories: Optional[List[str]],
+    recency_days: int,
+) -> tuple:
+    cats = tuple(sorted(categories)) if categories else ()
+    return (query.strip(), int(max_results), cats, int(recency_days))
+
+
+def _arxiv_cache_get(key: tuple) -> Optional[Dict[str, Any]]:
+    import time
+
+    hit = _ARXIV_SEARCH_CACHE.get(key)
+    if not hit:
+        return None
+    ts, value = hit
+    if time.monotonic() - ts > _ARXIV_SEARCH_CACHE_TTL:
+        _ARXIV_SEARCH_CACHE.pop(key, None)
+        return None
+    return value
+
+
+def _arxiv_cache_set(key: tuple, value: Dict[str, Any]) -> None:
+    import time
+
+    if len(_ARXIV_SEARCH_CACHE) >= _ARXIV_SEARCH_CACHE_MAX:
+        # Drop oldest. Small N so linear scan is fine.
+        oldest = min(_ARXIV_SEARCH_CACHE.items(), key=lambda kv: kv[1][0])[0]
+        _ARXIV_SEARCH_CACHE.pop(oldest, None)
+    _ARXIV_SEARCH_CACHE[key] = (time.monotonic(), value)
+
+
+def _is_valid_uuid(value: Any) -> bool:
+    """Return True if ``value`` parses as a UUID string."""
+    if not isinstance(value, str):
+        return False
+    try:
+        UUID(value)
+        return True
+    except (ValueError, AttributeError, TypeError):
+        return False
+
+
 async def _tool_search_arxiv(args: Dict[str, Any]) -> Dict[str, Any]:
     """Search arXiv for papers."""
     from datetime import datetime, timedelta, timezone
@@ -648,6 +718,9 @@ async def _tool_search_arxiv(args: Dict[str, Any]) -> Dict[str, Any]:
         recency_days = int(recency_days_raw)
     except (TypeError, ValueError):
         recency_days = 365
+    # Clamp to ≥0; negative values silently disable the filter under the
+    # > 0 check, but the contract is "0 disables, positive caps lookback".
+    recency_days = max(0, recency_days)
     if recency_days > 0:
         cutoff = datetime.now(timezone.utc) - timedelta(days=recency_days)
         cutoff_str = cutoff.strftime("%Y%m%d%H%M")
@@ -655,6 +728,11 @@ async def _tool_search_arxiv(args: Dict[str, Any]) -> Dict[str, Any]:
         # the search_query parameter. Compose it AND the user's query.
         date_filter = f"submittedDate:[{cutoff_str} TO 999912312359]"
         query = f"({query}) AND {date_filter}" if query else date_filter
+
+    cache_key = _arxiv_cache_key(query, max_results, categories, recency_days)
+    cached = _arxiv_cache_get(cache_key)
+    if cached is not None:
+        return {**cached, "cached": True}
 
     try:
         async with ArXivIngestionService() as service:
@@ -680,9 +758,21 @@ async def _tool_search_arxiv(args: Dict[str, Any]) -> Dict[str, Any]:
                         "pdf_url": p.get("pdf_url", ""),
                     }
                 )
-            return {"papers": results, "total": len(results), "query": query}
+            payload = {"papers": results, "total": len(results), "query": query}
+            _arxiv_cache_set(cache_key, payload)
+            return payload
     except Exception as e:
         logger.error("ArXiv search tool failed", exc_info=e)
+        # On 429 or other failure, fall back to a stale cache hit (any TTL)
+        # so the LLM can proceed with prior results instead of looping.
+        stale = _ARXIV_SEARCH_CACHE.get(cache_key)
+        if stale is not None:
+            return {
+                **stale[1],
+                "cached": True,
+                "stale": True,
+                "warning": f"ArXiv unavailable ({e}); returned cached results.",
+            }
         return {"error": f"ArXiv search failed: {str(e)}", "query": query}
 
 
@@ -697,10 +787,30 @@ async def _tool_ingest_arxiv(
     from src.services.arxiv.arxiv_service import ArXivIngestionService
 
     paper_ids = args.get("paper_ids", [])
+    project_id = args.get("project_id")
     if not paper_ids:
         return {"error": "No paper IDs provided"}
     if len(paper_ids) > 10:
         return {"error": "Maximum 10 papers per ingest request"}
+
+    # Reject placeholder/hallucinated project_ids early so we don't ingest
+    # papers we can't link. Trace 019e1a1c showed the planner passing
+    # project_id="proj_12345" (non-UUID) and the tool happily continuing.
+    if project_id is not None and not _is_valid_uuid(project_id):
+        return {
+            "error": (
+                f"Invalid project_id {project_id!r}; expected a UUID. "
+                "Call list_projects to find the correct ID, or omit "
+                "project_id to ingest without project attachment."
+            ),
+            "error_type": "invalid_project_id",
+            "paper_ids": paper_ids,
+        }
+
+    # Per-paper failure tracking. Keys are requested arXiv IDs; value is the
+    # reason a paper didn't end up as an ingested Document. Empty on full
+    # success.
+    failed_papers: Dict[str, str] = {}
 
     try:
         async with ArXivIngestionService() as service:
@@ -719,10 +829,18 @@ async def _tool_ingest_arxiv(
                         logger.warning(
                             "arXiv metadata fetch failed for %s: %s", pid, exc
                         )
+                        failed_papers[pid] = f"metadata fetch failed: {exc}"
                         results = None
                 if results:
                     return results[0]
-                # Fallback: minimal paper dict so ingest can still proceed
+                # Fallback: minimal paper dict so ingest can still proceed.
+                # Record the miss so the caller knows which IDs lacked
+                # real arXiv metadata (likely invalid or very new).
+                failed_papers.setdefault(
+                    pid,
+                    "arXiv returned no metadata (invalid ID or paper not yet "
+                    "indexed)",
+                )
                 return {
                     "id": pid,
                     "title": f"arXiv:{pid}",
@@ -743,6 +861,30 @@ async def _tool_ingest_arxiv(
                 download_pdfs=True,
                 extract_content=True,
             )
+
+            # Detect which requested paper_ids the service dropped during
+            # download/extract so we can surface per-paper failure reasons
+            # instead of a generic zero-count message.
+            # arXiv returns versioned IDs (``2605.10877v1``) while callers
+            # typically pass unversioned IDs — strip ``vN`` before comparing
+            # so successfully ingested papers aren't flagged as failures.
+            def _strip_version(aid: str) -> str:
+                return _ARXIV_VERSION_RE.sub("", aid)
+
+            ingested_arxiv_ids: set[str] = set()
+            for doc in ingested or []:
+                meta = getattr(doc, "document_metadata", None) or {}
+                aid = meta.get("arxiv_id") if isinstance(meta, dict) else None
+                if aid:
+                    ingested_arxiv_ids.add(_strip_version(str(aid)))
+            for pid in paper_ids:
+                if (
+                    _strip_version(pid) not in ingested_arxiv_ids
+                    and pid not in failed_papers
+                ):
+                    failed_papers[pid] = (
+                        "PDF download or content extraction failed"
+                    )
 
             document_ids = []
             if ingested and current_user:
@@ -822,12 +964,102 @@ async def _tool_ingest_arxiv(
                     if doc_id:
                         document_ids.append(str(doc_id))
 
+            # Auto-attach to active project if one is in context.
+            linked_project_id: Optional[str] = None
+            linked_project_name: Optional[str] = None
+            link_error: Optional[str] = None
+            if project_id and document_ids and current_user:
+                from src.api.agent.tool_helpers import _link_documents_to_project
+                from src.core.database import AsyncSessionLocal as _LinkSession
+
+                try:
+                    async with _LinkSession() as link_db:
+                        project = await _verify_project_ownership(
+                            project_id, link_db, current_user
+                        )
+                        if not project:
+                            link_error = (
+                                f"Project '{project_id}' not found or access denied; "
+                                "documents ingested but NOT attached."
+                            )
+                        else:
+                            result = await _link_documents_to_project(
+                                link_db, project, document_ids
+                            )
+                            await link_db.commit()
+                            linked_project_id = str(project.id)
+                            linked_project_name = project.name
+                            logger.info(
+                                "Linked %d (skipped %d already-linked) ingested "
+                                "docs to project %s (%s)",
+                                result["linked"],
+                                result["already_linked"],
+                                linked_project_id,
+                                linked_project_name,
+                            )
+                except Exception as link_err:
+                    logger.error(
+                        "Failed to link ingested docs to project %s", project_id,
+                        exc_info=link_err,
+                    )
+                    link_error = f"Project link failed: {link_err}"
+
+            ingested_count = len(document_ids)
+            requested_count = len(paper_ids)
+
+            # Classify outcome so the LLM doesn't read "ingestion_complete"
+            # as success when zero papers actually landed.
+            if ingested_count == 0:
+                status = INGEST_STATUS_FAILED
+                message = (
+                    f"Ingested 0 of {requested_count} paper(s). The arXiv IDs "
+                    "may be invalid, very new (not yet on arxiv.org), or the "
+                    "download/extract step failed. Try again with different "
+                    "IDs or wait a few hours for very recent papers."
+                )
+            elif ingested_count < requested_count:
+                status = INGEST_STATUS_PARTIAL
+                message = (
+                    f"Ingested {ingested_count} of {requested_count} paper(s). "
+                    f"{requested_count - ingested_count} failed — likely "
+                    "invalid IDs or download errors."
+                )
+            else:
+                status = INGEST_STATUS_COMPLETE
+                message = f"Ingested {ingested_count} paper(s) into the RAG system."
+
+            if linked_project_name:
+                message += f" Attached to project '{linked_project_name}'."
+
+            # Promote link failure to a distinct status so the LLM doesn't
+            # confuse "ingested fine but never attached" with full success.
+            if link_error and status == INGEST_STATUS_COMPLETE:
+                status = INGEST_STATUS_COMPLETE_LINK_FAILED
+
+            failed_papers_list = [
+                {"paper_id": pid, "reason": reason}
+                for pid, reason in failed_papers.items()
+            ]
+            if failed_papers_list and ingested_count == 0:
+                # Append per-paper failure detail so the LLM/user can see
+                # exactly which IDs failed and why.
+                reasons = ", ".join(
+                    f"{fp['paper_id']} ({fp['reason']})"
+                    for fp in failed_papers_list
+                )
+                message += f" Details: {reasons}."
+
             return {
-                "status": "ingestion_complete",
+                "status": status,
                 "paper_ids": paper_ids,
                 "document_ids": document_ids,
-                "ingested_count": len(document_ids),
-                "message": f"Ingested {len(document_ids)} paper(s) into the RAG system.",
+                "ingested_count": ingested_count,
+                "requested_count": requested_count,
+                "failed_papers": failed_papers_list,
+                "project_id": linked_project_id,
+                "project_name": linked_project_name,
+                "link_error": link_error,
+                "message": message,
             }
     except Exception as e:
         logger.error("ArXiv ingest tool failed", exc_info=e)
@@ -946,8 +1178,13 @@ async def _tool_do_kb_retrieve(
 
         storage_keys = {c.document_id for c in result.chunks if c.document_id}
         if storage_keys:
+            from src.services.agent.graph import _escape_like
+
             filters = [Document.storage_path == k for k in storage_keys]
-            filters += [Document.storage_path.like(f"%/{k}") for k in storage_keys]
+            filters += [
+                Document.storage_path.like(f"%/{_escape_like(k)}", escape="\\")
+                for k in storage_keys
+            ]
             rows = await db.execute(
                 select(Document.id, Document.storage_path, Document.title)
                 .where(Document.organization_id == current_user.organization_id)
@@ -1058,24 +1295,18 @@ async def _tool_add_document_to_project(
             if not project:
                 return {"error": "Project not found or access denied"}
 
-            # Check if already linked
-            existing_stmt = select(CollectionDocument).where(
-                CollectionDocument.collection_id == project.id,
-                CollectionDocument.document_id == doc_uuid,
+            from src.api.agent.tool_helpers import _link_documents_to_project
+
+            result = await _link_documents_to_project(
+                fresh_db, project, [str(doc_uuid)]
             )
-            existing_result = await fresh_db.execute(existing_stmt)
-            if existing_result.scalar_one_or_none():
+            await fresh_db.commit()
+
+            if result["linked"] == 0 and result["already_linked"] >= 1:
                 return {
                     "status": "already_linked",
                     "message": f"Document '{doc.title}' is already in project '{project.name}'.",
                 }
-
-            link = CollectionDocument(
-                collection_id=project.id,
-                document_id=doc_uuid,
-            )
-            fresh_db.add(link)
-            await fresh_db.commit()
 
             return {
                 "status": "success",
@@ -2112,4 +2343,35 @@ async def _tool_list_external_databases(args: Dict[str, Any]) -> Dict[str, Any]:
             }
             for c in connectors
         ],
+    }
+
+
+async def _tool_forget_memory(
+    *,
+    query: str,
+    user_id: str,
+    page_context: dict | None = None,
+) -> dict:
+    """Handler for the forget_memory agent tool."""
+    if not user_id:
+        return {"error": "forget_memory: missing user_id from config"}
+    if not query or not query.strip():
+        return {"error": "forget_memory: empty query"}
+
+    from src.services.agent.memory import (
+        delete_memory_by_query,
+        get_memory_store,
+    )
+
+    store = await get_memory_store()
+    if store is None:
+        return {"error": "forget_memory: memory store unavailable"}
+
+    result = await delete_memory_by_query(
+        store, user_id=user_id, query=query, limit=5
+    )
+    return {
+        "status": "completed",
+        "deleted": result["deleted"],
+        "matches": result["matches"],
     }

@@ -5,6 +5,7 @@ Tools: create_draft, create_project_note, export_bibliography,
        summarize_document, compare_documents
 """
 
+import asyncio
 import logging
 
 from langchain_core.messages import AIMessage, SystemMessage
@@ -22,6 +23,7 @@ from src.services.agent.tools import (
     create_draft,
     create_project_note,
     export_bibliography,
+    ingest_arxiv_papers,
     summarize_document,
 )
 
@@ -33,6 +35,13 @@ WRITING_TOOLS = [
     export_bibliography,
     summarize_document,
     compare_documents,
+    # ingest_arxiv_papers is exposed here ONLY as a recovery path for
+    # summarize_document / compare_documents when they return
+    # error_type="recoverable" with suggestion="ingest_arxiv_papers"
+    # (see _build_writing_system_prompt). Without it the LLM hits a
+    # dead end on "Summarize arxiv 2201.00978" because the source paper
+    # isn't ingested yet. Destructive — gated through the HITL interrupt.
+    ingest_arxiv_papers,
 ]
 
 WRITING_TOOL_NAMES_LIST = [t.name for t in WRITING_TOOLS]
@@ -41,24 +50,30 @@ WRITING_TOOL_NAMES_LIST = [t.name for t in WRITING_TOOLS]
 # DESTRUCTIVE_TOOLS gate only fires from the top-level interrupt_node and
 # is bypassed once intent routes us into a subgraph, so the subgraph has
 # to enforce HITL itself for any tool that mutates user data.
-WRITING_DESTRUCTIVE_TOOLS = {"create_project_note", "create_draft"}
+WRITING_DESTRUCTIVE_TOOLS = {
+    "create_project_note",
+    "create_draft",
+    "ingest_arxiv_papers",
+}
 
 def _build_writing_system_prompt() -> str:
     """Construct the writing subgraph system prompt with shared rules embedded.
 
+    Driver protocol sourced from ``AGENTS_writing.md`` — see
+    ``agents_md_loader``. Inline fallback for missing-file safety.
+
     Imported lazily to avoid circular imports with graph.py.
     """
     from src.services.agent.graph import SHARED_AGENT_RULES
+    from src.services.agent.subgraphs.agents_md_loader import load_agents_md
+
+    driver_protocol = load_agents_md("writing")
+    if driver_protocol:
+        return f"{driver_protocol}\n\n{SHARED_AGENT_RULES}"
 
     return (
         "You are a specialized Writing Agent focused on creating content, "
         "summarizing documents, and managing bibliographies.\n\n"
-        "Your tools:\n"
-        "- summarize_document: Create summaries of documents\n"
-        "- compare_documents: Compare multiple documents\n"
-        "- create_draft: Generate literature review drafts\n"
-        "- create_project_note: Write notes in projects\n"
-        "- export_bibliography: Export citations in various formats\n\n"
         f"{SHARED_AGENT_RULES}\n\n"
         "Write clearly and academically. Cite sources when available."
     )
@@ -66,13 +81,60 @@ def _build_writing_system_prompt() -> str:
 
 async def writing_llm_node(state: AgentState, config: RunnableConfig) -> dict:
     """Writing-specialized LLM node."""
-    from src.services.agent.graph import _build_llm
+    from langchain_core.messages import ToolMessage
 
-    messages = [SystemMessage(content=_build_writing_system_prompt())] + _sanitize_messages(list(state["messages"]))
+    from src.core.config import get_settings
+    from src.services.agent.graph import AGENT_LLM_TIMEOUT_SECONDS, _build_llm
 
-    llm = _build_llm()
+    sanitized = _sanitize_messages(list(state["messages"]))
+    messages = [SystemMessage(content=_build_writing_system_prompt())] + sanitized
+
+    # Post-tool synthesis turn → use the synthesis deployment. Mirrors
+    # research_llm_node + main llm_node. Trace 019e191a showed gpt-5
+    # spending 70s on prose synthesis after a tool result.
+    settings = get_settings()
+    use_synthesis = bool(
+        settings.AGENT_LIGHTWEIGHT_SYNTHESIS
+        and sanitized
+        and isinstance(sanitized[-1], ToolMessage)
+    )
+    if use_synthesis:
+        from src.services.agent.llm_factory import build_synthesis_llm
+
+        llm = build_synthesis_llm(max_tokens=4096)
+        logger.debug("writing_llm_node: using synthesis model after ToolMessage")
+    else:
+        llm = _build_llm()
     llm_with_tools = llm.bind_tools(WRITING_TOOLS)
-    response = await llm_with_tools.ainvoke(messages, config=config)
+    from src.services.agent.graph import _merge_run_config
+
+    invoke_config = _merge_run_config(
+        config,
+        run_name="writing_llm_node",
+        tags=["intent:writing", "subgraph:writing"],
+    )
+    try:
+        response = await asyncio.wait_for(
+            llm_with_tools.ainvoke(messages, config=invoke_config),
+            timeout=AGENT_LLM_TIMEOUT_SECONDS,
+        )
+    except asyncio.TimeoutError:
+        logger.warning(
+            "writing_llm_node: LLM exceeded %ds; emitting fallback",
+            AGENT_LLM_TIMEOUT_SECONDS,
+        )
+        return {
+            "messages": [
+                AIMessage(
+                    content=(
+                        "The writing model took too long to respond. Please "
+                        "try again with a shorter or more specific request."
+                    ),
+                ),
+            ],
+            "last_error": "writing_llm_timeout",
+            "error_count": state.get("error_count", 0) + 1,
+        }
 
     return {
         "messages": [response],

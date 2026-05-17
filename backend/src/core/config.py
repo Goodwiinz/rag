@@ -269,16 +269,35 @@ class Settings(BaseSettings):
     # Lightweight model for auxiliary agent tasks (classifier, compactor, etc.)
     AZURE_OPENAI_LIGHTWEIGHT_DEPLOYMENT: Optional[str] = None
 
+    # Optional separate deployment for post-tool prose synthesis. Falls back
+    # to AZURE_OPENAI_LIGHTWEIGHT_DEPLOYMENT when unset. Use a slightly
+    # stronger model here (e.g. gpt-5-mini) while keeping classifier/planner
+    # on nano. Cheap tier for routing, mid tier for final-answer quality.
+    AZURE_OPENAI_SYNTHESIS_DEPLOYMENT: Optional[str] = None
+
     # gpt-5 reasoning_effort knobs. Lower = faster.
     # Accepted values: "minimal" | "low" | "medium" | "high"
     # Defaults tuned for fast responses; raise to "medium" for tougher tasks.
     AGENT_MAIN_REASONING_EFFORT: str = "low"
     AGENT_LIGHTWEIGHT_REASONING_EFFORT: str = "minimal"
 
+    # Bound Azure LLM call wall-clock to prevent model-router hangs. LangSmith
+    # has observed traces with end_time=null blocking root for 70s+. Default
+    # 60s for main agent LLM (synthesis can be long), 30s for lightweight
+    # auxiliary calls (classifier/planner/reflection — should be fast).
+    AGENT_LLM_REQUEST_TIMEOUT: float = 60.0
+    AGENT_LIGHTWEIGHT_REQUEST_TIMEOUT: float = 30.0
+    AGENT_LLM_MAX_RETRIES: int = 2
+
     # When True, post-tool synthesis turns (final-answer LLM call right after
     # a ToolMessage) use the lightweight deployment instead of the main one.
     # Cuts ~5-15s/turn on read-heavy queries like arxiv search results.
     AGENT_LIGHTWEIGHT_SYNTHESIS: bool = True
+
+    # Run the insight-extraction pass every N user turns inside memory_save_node.
+    # 0 disables. Default 5: cheap enough to not bloat token spend, frequent
+    # enough to keep recall surface useful within a session.
+    AGENT_INSIGHT_EVERY_N_TURNS: int = 5
 
     # When False, the agent LLM emits at most one tool_call per turn. gpt-5
     # fires runaway parallel batches by default (trace 019e18f0: 5-6 parallel
@@ -286,6 +305,13 @@ class Settings(BaseSettings):
     # True only when comparing two documents in parallel is the explicit
     # user intent.
     AGENT_PARALLEL_TOOL_CALLS: bool = False
+
+    # Per-turn append-only iteration ledger (K-Dense rowan-autosearch
+    # pattern). When AGENT_LEDGER_DIR is set, every memory_save_node turn
+    # writes runs/<thread_id>/iterations/<turn_n>.json with a full audit
+    # record (intent, plan, tool_executions, retrieved_contexts summary,
+    # ai_response, reflection_result, tokens, timing). Empty disables.
+    AGENT_LEDGER_DIR: Optional[str] = None
 
     # Azure AI Cohere Reranking Configuration
     COHERE_RERANK_ENDPOINT: Optional[str] = None

@@ -31,6 +31,38 @@ _SSE_HEADERS = {
     "X-Accel-Buffering": "no",
 }
 
+# Only chat-model streams originating from these LangGraph nodes are
+# forwarded as user-visible `token` SSE events. Internal LLM calls
+# (intent classifier inside rag_node, planner's structured-output
+# complexity check, reflection critique, summarisers inside subgraph
+# tool nodes) ALSO trigger on_chat_model_stream — emitting their tokens
+# leaks raw JSON ({"intent":…}, {"step_count":1}) and interleaves
+# parallel summarisations into the response stream. The four allow-listed
+# nodes are the only ones whose chat output the user is meant to see.
+_USER_FACING_LLM_NODES = frozenset(
+    {
+        "llm_node",
+        "research_llm_node",
+        "writing_llm_node",
+        "data_llm_node",
+    }
+)
+
+
+def _is_user_facing_token_event(event: Dict[str, Any]) -> bool:
+    """Return True when this on_chat_model_stream event came from a node
+    whose tokens we want to forward to the client.
+
+    astream_events v2 records the originating LangGraph node on
+    ``event['metadata']['langgraph_node']``. Nested subgraph nodes set
+    this to the subgraph's own node name (e.g. ``research_llm_node``),
+    not the parent's ``research_subgraph`` wrapper — so a flat allow-list
+    on the inner node names is enough.
+    """
+    metadata = event.get("metadata") or {}
+    node = metadata.get("langgraph_node")
+    return node in _USER_FACING_LLM_NODES
+
 
 def _bootstrap_langsmith() -> None:
     """Enable LangSmith tracing when the API key is configured."""
@@ -106,21 +138,6 @@ def _format_sse_event(event_type: str, data: Dict[str, Any]) -> str:
     return f"event: {event_type}\ndata: {_json.dumps(data)}\n\n"
 
 
-_COMPILED_GRAPH = None
-
-
-async def _get_compiled_graph():
-    """Return a cached compiled agent graph (stateless; safe for concurrent use)."""
-    global _COMPILED_GRAPH
-    if _COMPILED_GRAPH is None:
-        from src.services.agent.checkpointer import get_checkpointer
-        from src.services.agent.graph import compile_agent_graph
-
-        checkpointer = await get_checkpointer()
-        _COMPILED_GRAPH = compile_agent_graph(checkpointer=checkpointer)
-    return _COMPILED_GRAPH
-
-
 async def stream_event_generator(
     request_body: Any,  # AgentExecuteRequest
     request: Any,  # FastAPI Request
@@ -132,6 +149,10 @@ async def stream_event_generator(
     rag_context, plan, reflection, confirmation, done, error.
     """
     from langchain_core.messages import HumanMessage
+
+    from src.services.agent.checkpointer import get_checkpointer, reset_checkpointer
+    from src.services.agent.graph import compile_agent_graph
+    from src.services.agent.memory import get_memory_store
 
     # Lazy import schemas to avoid circular imports
     from .execute import (
@@ -147,7 +168,9 @@ async def stream_event_generator(
     graph = None  # type: ignore[assignment]
     try:
         _bootstrap_langsmith()
-        graph = await _get_compiled_graph()
+        checkpointer = await get_checkpointer()
+        store = await get_memory_store()
+        graph = compile_agent_graph(checkpointer=checkpointer, store=store)
 
         messages = [
             HumanMessage(content=m.content)
@@ -207,10 +230,43 @@ async def stream_event_generator(
         # resume an interrupt, so re-firing it would block this turn.
         await _clear_stale_pending_confirmation(graph, config)
 
-        async with asyncio.timeout(300):  # 5 minutes
-            async for event in graph.astream_events(
+        # If the checkpointer's pgbouncer/Supabase connection was
+        # idle-killed since the singleton was built, the first aget_tuple
+        # inside astream_events raises psycopg.OperationalError("the
+        # connection is closed"). Reset + rebuild + retry once before
+        # failing the whole stream.
+        from psycopg import OperationalError as _PgOpError
+
+        async def _open_event_stream():
+            return graph.astream_events(
                 initial_state, config=config, version="v2"
-            ):
+            ).__aiter__()
+
+        event_stream_iter = await _open_event_stream()
+        first_event_yielded = False
+        async with asyncio.timeout(300):  # 5 minutes
+            while True:
+                try:
+                    event = await event_stream_iter.__anext__()
+                except StopAsyncIteration:
+                    break
+                except _PgOpError as op_err:
+                    if first_event_yielded:
+                        raise
+                    logger.warning(
+                        "stream: checkpointer connection dead (%s); "
+                        "resetting and retrying",
+                        op_err,
+                    )
+                    await reset_checkpointer()
+                    checkpointer = await get_checkpointer()
+                    graph = compile_agent_graph(
+                        checkpointer=checkpointer, store=store
+                    )
+                    await _clear_stale_pending_confirmation(graph, config)
+                    event_stream_iter = await _open_event_stream()
+                    continue
+                first_event_yielded = True
                 if await request.is_disconnected():
                     break
 
@@ -218,6 +274,8 @@ async def stream_event_generator(
                 name = event.get("name", "")
 
                 if kind == "on_chat_model_stream":
+                    if not _is_user_facing_token_event(event):
+                        continue
                     chunk = event.get("data", {}).get("chunk")
                     if chunk and hasattr(chunk, "content") and chunk.content:
                         yield f"event: token\ndata: {_json.dumps({'content': chunk.content})}\n\n"
@@ -367,6 +425,7 @@ async def stream_confirm_event_generator(
 
     from src.services.agent.checkpointer import get_checkpointer, reset_checkpointer
     from src.services.agent.graph import compile_agent_graph
+    from src.services.agent.memory import get_memory_store
 
     # Lazy import schemas
     from .execute import (
@@ -379,7 +438,9 @@ async def stream_confirm_event_generator(
     db = AsyncSessionLocal()
     try:
         _bootstrap_langsmith()
-        graph = await _get_compiled_graph()
+        checkpointer = await get_checkpointer()
+        store = await get_memory_store()
+        graph = compile_agent_graph(checkpointer=checkpointer, store=store)
 
         snapshot_config = {
             "configurable": {
@@ -399,7 +460,8 @@ async def stream_confirm_event_generator(
             )
             await reset_checkpointer()
             checkpointer = await get_checkpointer()
-            graph = compile_agent_graph(checkpointer=checkpointer)
+            store = await get_memory_store()
+            graph = compile_agent_graph(checkpointer=checkpointer, store=store)
             snapshot_config = {
                 "configurable": {
                     "thread_id": request_body.thread_id,
@@ -466,6 +528,8 @@ async def stream_confirm_event_generator(
                 name = event.get("name", "")
 
                 if kind == "on_chat_model_stream":
+                    if not _is_user_facing_token_event(event):
+                        continue
                     chunk = event.get("data", {}).get("chunk")
                     if chunk and hasattr(chunk, "content") and chunk.content:
                         yield f"event: token\ndata: {_json.dumps({'content': chunk.content})}\n\n"

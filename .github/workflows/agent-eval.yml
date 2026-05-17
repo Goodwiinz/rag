@@ -1,0 +1,72 @@
+name: Agent Regression Eval
+
+# Runs the LangSmith golden-set sweep against the compiled agent graph.
+# Scheduled weekly + manual dispatch. Self-hosted runner so the backend
+# stack (Postgres, Redis, Qdrant, Neo4j) is reachable.
+
+on:
+  schedule:
+    - cron: "0 6 * * 1"   # every Monday 06:00 UTC
+  workflow_dispatch:
+    inputs:
+      experiment_prefix:
+        description: "LangSmith experiment prefix (default: agent-regression)"
+        required: false
+        default: "agent-regression"
+
+jobs:
+  eval:
+    runs-on: [self-hosted, linux]
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      LANGCHAIN_API_KEY: ${{ secrets.LANGSMITH_API_KEY }}
+      LANGSMITH_API_KEY: ${{ secrets.LANGSMITH_API_KEY }}
+      LANGSMITH_TRACING: "false"
+      AGENT_EVAL_DATASET_NAME: agent-accuracy-benchmark
+      # workflow_dispatch input passed via env to avoid command injection
+      INPUT_EXPERIMENT_PREFIX: ${{ inputs.experiment_prefix }}
+      AZURE_OPENAI_CHAT_ENDPOINT: ${{ secrets.AZURE_OPENAI_CHAT_ENDPOINT }}
+      AZURE_OPENAI_CHAT_API_KEY: ${{ secrets.AZURE_OPENAI_CHAT_API_KEY }}
+      AZURE_OPENAI_CHAT_API_VERSION: ${{ secrets.AZURE_OPENAI_CHAT_API_VERSION }}
+      AZURE_OPENAI_CHAT_DEPLOYMENT_NAME: ${{ secrets.AZURE_OPENAI_CHAT_DEPLOYMENT_NAME }}
+      AZURE_OPENAI_LIGHTWEIGHT_DEPLOYMENT: ${{ secrets.AZURE_OPENAI_LIGHTWEIGHT_DEPLOYMENT }}
+      AZURE_OPENAI_EMBEDDING_ENDPOINT: ${{ secrets.AZURE_OPENAI_EMBEDDING_ENDPOINT }}
+      AZURE_OPENAI_EMBEDDING_API_KEY: ${{ secrets.AZURE_OPENAI_EMBEDDING_API_KEY }}
+      DATABASE_URL: ${{ secrets.EVAL_DATABASE_URL }}
+      QDRANT_URL: ${{ secrets.EVAL_QDRANT_URL }}
+      NEO4J_URI: ${{ secrets.EVAL_NEO4J_URI }}
+      NEO4J_USER: ${{ secrets.EVAL_NEO4J_USER }}
+      NEO4J_PASSWORD: ${{ secrets.EVAL_NEO4J_PASSWORD }}
+      REDIS_URL: ${{ secrets.EVAL_REDIS_URL }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve experiment prefix
+        run: |
+          PREFIX="${INPUT_EXPERIMENT_PREFIX:-agent-regression}"
+          # Defensive sanitization: keep only [A-Za-z0-9_-] characters
+          PREFIX="$(printf '%s' "$PREFIX" | tr -cd 'A-Za-z0-9_-')"
+          if [ -z "$PREFIX" ]; then PREFIX="agent-regression"; fi
+          echo "AGENT_EVAL_EXPERIMENT_PREFIX=$PREFIX" >> "$GITHUB_ENV"
+
+      - name: Ensure venv
+        run: |
+          if [ ! -d .venv ]; then
+            python3 -m venv .venv
+          fi
+          .venv/bin/pip install -q -r requirements.txt
+
+      - name: Run regression sweep
+        run: |
+          .venv/bin/pytest -m langsmith tests/eval/test_agent_regression.py -v --tb=short
+
+      - name: Summary on failure
+        if: failure()
+        run: |
+          echo "::error::Agent regression failed. Inspect experiment in LangSmith:"
+          echo "Dataset: $AGENT_EVAL_DATASET_NAME"
+          echo "Prefix:  $AGENT_EVAL_EXPERIMENT_PREFIX"

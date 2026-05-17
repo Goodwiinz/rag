@@ -5,6 +5,7 @@ Tools: extract_entities, search_knowledge_graph, search_documents,
        list_project_documents
 """
 
+import asyncio
 import logging
 
 from langchain_core.messages import AIMessage, SystemMessage
@@ -43,23 +44,21 @@ DATA_TOOL_NAMES_LIST = [t.name for t in DATA_TOOLS]
 def _build_data_system_prompt() -> str:
     """Construct the data subgraph system prompt with shared rules embedded.
 
+    Driver protocol sourced from ``AGENTS_data.md`` — see ``agents_md_loader``.
+    Inline fallback for missing-file safety.
+
     Imported lazily to avoid circular imports with graph.py.
     """
     from src.services.agent.graph import SHARED_AGENT_RULES
+    from src.services.agent.subgraphs.agents_md_loader import load_agents_md
+
+    driver_protocol = load_agents_md("data")
+    if driver_protocol:
+        return f"{driver_protocol}\n\n{SHARED_AGENT_RULES}"
 
     return (
         "You are a specialized Data Agent focused on extracting entities, "
         "exploring knowledge graphs, and analyzing structured data from documents.\n\n"
-        "Your tools:\n"
-        "- search_knowledge_graph: Search for entities by name or type\n"
-        "- explore_entity_neighborhood: Explore an entity's connections (use entity_id from search results)\n"
-        "- find_entity_paths: Find how two entities are connected (use entity_ids from search results)\n"
-        "- get_graph_stats: Get overview statistics of the knowledge graph\n"
-        "- extract_entities: Extract named entities from a document\n"
-        "- search_documents: Find documents to analyze\n"
-        "- list_project_documents: View project contents\n\n"
-        "Workflow tip: When exploring relationships, first use search_knowledge_graph to find "
-        "entity IDs, then use explore_entity_neighborhood or find_entity_paths with those IDs.\n\n"
         f"{SHARED_AGENT_RULES}\n\n"
         "Be analytical and thorough. Present findings in structured formats."
     )
@@ -67,13 +66,57 @@ def _build_data_system_prompt() -> str:
 
 async def data_llm_node(state: AgentState, config: RunnableConfig) -> dict:
     """Data-specialized LLM node."""
-    from src.services.agent.graph import _build_llm
+    from langchain_core.messages import ToolMessage
 
-    messages = [SystemMessage(content=_build_data_system_prompt())] + _sanitize_messages(list(state["messages"]))
+    from src.core.config import get_settings
+    from src.services.agent.graph import AGENT_LLM_TIMEOUT_SECONDS, _build_llm
 
-    llm = _build_llm()
+    sanitized = _sanitize_messages(list(state["messages"]))
+    messages = [SystemMessage(content=_build_data_system_prompt())] + sanitized
+
+    settings = get_settings()
+    use_synthesis = bool(
+        settings.AGENT_LIGHTWEIGHT_SYNTHESIS
+        and sanitized
+        and isinstance(sanitized[-1], ToolMessage)
+    )
+    if use_synthesis:
+        from src.services.agent.llm_factory import build_synthesis_llm
+
+        llm = build_synthesis_llm(max_tokens=4096)
+        logger.debug("data_llm_node: using synthesis model after ToolMessage")
+    else:
+        llm = _build_llm()
     llm_with_tools = llm.bind_tools(DATA_TOOLS)
-    response = await llm_with_tools.ainvoke(messages, config=config)
+    from src.services.agent.graph import _merge_run_config
+
+    invoke_config = _merge_run_config(
+        config,
+        run_name="data_llm_node",
+        tags=["intent:knowledge_graph", "subgraph:data"],
+    )
+    try:
+        response = await asyncio.wait_for(
+            llm_with_tools.ainvoke(messages, config=invoke_config),
+            timeout=AGENT_LLM_TIMEOUT_SECONDS,
+        )
+    except asyncio.TimeoutError:
+        logger.warning(
+            "data_llm_node: LLM exceeded %ds; emitting fallback",
+            AGENT_LLM_TIMEOUT_SECONDS,
+        )
+        return {
+            "messages": [
+                AIMessage(
+                    content=(
+                        "The data model took too long to respond. Please "
+                        "try again with a narrower query."
+                    ),
+                ),
+            ],
+            "last_error": "data_llm_timeout",
+            "error_count": state.get("error_count", 0) + 1,
+        }
 
     return {
         "messages": [response],

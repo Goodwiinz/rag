@@ -25,6 +25,14 @@ ACTIONABLE_VERBS: frozenset[str] = frozenset(
         "fetch", "download", "extract", "list", "create",
     }
 )
+_CONVERSATIONAL_STARTS: frozenset[str] = frozenset(
+    {
+        "hi", "hello", "hey", "thanks", "thank", "ok", "okay",
+        "yes", "no", "sure", "what", "who", "when", "where",
+        "why", "is", "are", "can", "could", "would", "will",
+    }
+)
+_LEADING_PUNCTUATION = "?!,:"
 _ARXIV_ID_RE = re.compile(r"\b\d{4}\.\d{4,5}\b")
 
 
@@ -44,7 +52,11 @@ class PlanStep(BaseModel):
 
     step: int
     description: str
-    tool: str
+    # ``tool`` is conceptually required but LLMs occasionally emit a final
+    # "summarize / present results" step with no tool. Default to "" so the
+    # whole plan doesn't fail validation; downstream consumers already treat
+    # the plan as advisory and gracefully ignore empty tool names.
+    tool: str = ""
     # Accept dict (preferred, structured) or str (LLM descriptive form).
     # Observed planner traces (019e1554) showed gpt-5 returning args_hint as
     # a string like "query='X'; max_results=5" which failed strict dict
@@ -57,7 +69,9 @@ class AgentPlan(BaseModel):
     """Full execution plan produced by the planner LLM."""
 
     steps: list[PlanStep]
-    reasoning: str
+    # Some models omit the top-level reasoning field even when explicitly
+    # asked for it. Don't fail the whole plan over a missing rationale.
+    reasoning: str = ""
 
 
 # ---------------------------------------------------------------------------
@@ -126,10 +140,14 @@ async def generate_plan(
         "For each step, specify:\n"
         "- step: sequential step number starting at 1\n"
         "- description: what this step does\n"
-        "- tool: which tool to use (must be one of the available tools)\n"
+        "- tool: which tool to use — MUST be one of the available tools "
+        "listed above; do not invent tool names; do not leave blank. "
+        "If a step is purely summarisation with no tool call, omit it "
+        "from the plan entirely.\n"
         "- args_hint: suggested arguments (can reference prior steps)\n"
         "- depends_on: list of step numbers this step depends on\n\n"
-        "Also provide reasoning explaining the overall approach."
+        "Also provide a top-level ``reasoning`` string explaining the "
+        "overall approach (required)."
     )
 
     result = await structured_llm.ainvoke([HumanMessage(content=prompt)])
@@ -188,7 +206,7 @@ def make_planner_node(
         # Tool-trigger detection runs first so short imperatives like
         # "Add arxiv 1706.03762 to my library" still reach the planner.
         words = query.split()
-        first_word = words[0].lower().rstrip("?!,:") if words else ""
+        first_word = words[0].lower().rstrip(_LEADING_PUNCTUATION) if words else ""
         needs_tool = (
             first_word in ACTIONABLE_VERBS
             or bool(_ARXIV_ID_RE.search(query))
@@ -197,15 +215,7 @@ def make_planner_node(
         if not needs_tool:
             if len(words) < 12:
                 return {}
-            conversational_starts = {
-                "hi", "hello", "hey", "thanks", "thank", "ok", "okay",
-                "yes", "no", "sure", "what", "who", "when", "where",
-                "why", "is", "are", "can", "could", "would", "will",
-            }
-            if (
-                words[0].lower().rstrip("?!,") in conversational_starts
-                and len(words) < 18
-            ):
+            if first_word in _CONVERSATIONAL_STARTS and len(words) < 18:
                 return {}
 
         page_context = state.get("page_context", {})

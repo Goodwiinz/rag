@@ -117,21 +117,24 @@ else:
     # Instead, we rely on pool_recycle to handle stale connections.
     #
     # Pool sizing: Supabase's session-mode pooler caps each client at pool_size
-    # slots (Nano defaults to 15, Small to 25). A single backend process here
-    # previously held up to pool_size (10) + max_overflow (20) = 30 connections,
-    # which alone saturates Nano and leaves nothing for celery workers/beat.
-    # Defaults below keep one process at <=10 and are overridable via env for
-    # prod capacity tuning.
+    # slots (Nano defaults to 15, Small to 25). Defaults below target the Small
+    # tier (15 + 5 = 20 max) and remain env-overridable. Tune downward when
+    # running on Nano or alongside celery workers.
+    #
+    # Statement cache: Supabase session-mode supports prepared statements, so
+    # asyncpg's statement cache is enabled. Disable (size=0) only when routing
+    # through PgBouncer in transaction mode.
+    _stmt_cache = _env_int("DB_ASYNC_STMT_CACHE_SIZE", 100)
     async_engine = create_async_engine(
         ASYNC_DATABASE_URL,
-        pool_size=_env_int("DB_ASYNC_POOL_SIZE", 5),
-        max_overflow=_env_int("DB_ASYNC_MAX_OVERFLOW", 3),
+        pool_size=_env_int("DB_ASYNC_POOL_SIZE", 15),
+        max_overflow=_env_int("DB_ASYNC_MAX_OVERFLOW", 5),
         pool_timeout=_env_int("DB_ASYNC_POOL_TIMEOUT", 30),
-        pool_recycle=300,
+        pool_recycle=_env_int("DB_ASYNC_POOL_RECYCLE", 1500),
         pool_pre_ping=False,  # Disabled - causes greenlet issues with asyncpg
         connect_args={
-            "prepared_statement_cache_size": 0,
-            "statement_cache_size": 0,
+            "prepared_statement_cache_size": _stmt_cache,
+            "statement_cache_size": _stmt_cache,
         },
         echo=os.getenv("ENVIRONMENT") == "development",
     )

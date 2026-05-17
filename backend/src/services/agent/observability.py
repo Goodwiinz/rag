@@ -132,6 +132,43 @@ try:
         ["node", "error_type"],
     )
 
+    # Distribution across classifier paths. Lets dashboards alert when LLM
+    # path drops (e.g. Azure 404s) and keyword fallback share rises.
+    AGENT_CLASSIFIER_SOURCE = _get_or_create_counter(
+        "agent_classifier_source_total",
+        "Intent classifier path (llm/keyword/shortcut/fallback) per intent",
+        ["source", "intent"],
+    )
+
+    # Tool-level error counter with structured category from
+    # error_recovery.classify_error (transient/permanent/auth/validation/
+    # not_found/...). Lets us separate "search_arxiv timeout spike" from
+    # "create_project auth failure" on the same dashboard.
+    AGENT_TOOL_ERRORS = _get_or_create_counter(
+        "agent_tool_errors_total",
+        "Tool execution errors by tool + category",
+        ["tool", "category"],
+    )
+
+    # Memory recall hit rate — emits 0 (miss) or 1 (hit, >=1 memory returned)
+    # per recall call. Use rate() in Prometheus / Grafana to derive hit-rate %.
+    AGENT_MEMORY_RECALL = _get_or_create_counter(
+        "agent_memory_recall_total",
+        "Memory recall outcomes per call",
+        ["outcome"],  # "hit" | "miss"
+    )
+
+    # Quality histogram: max similarity score returned per recall call.
+    # Trace evidence showed score=null for every recalled item — once the
+    # store has a semantic index wired this histogram surfaces whether
+    # recalls actually returned ranked, useful memories.
+    AGENT_MEMORY_SCORE = _get_or_create_histogram(
+        "agent_memory_relevance_score",
+        "Max relevance score returned by memory recall",
+        [],
+        [0.0, 0.1, 0.25, 0.5, 0.75, 0.9, 1.0],
+    )
+
     _METRICS_AVAILABLE = True
 except ImportError:
     _METRICS_AVAILABLE = False
@@ -216,6 +253,40 @@ def record_error(error_type: str, node: str = "unknown"):
     """
     if _METRICS_AVAILABLE:
         AGENT_ERRORS.labels(node=node, error_type=error_type).inc()
+
+
+def record_classifier_source(source: str, intent: str) -> None:
+    """Record which classifier path produced the intent.
+
+    Source values: llm, keyword, shortcut, fallback.
+    """
+    if _METRICS_AVAILABLE:
+        AGENT_CLASSIFIER_SOURCE.labels(source=source, intent=intent).inc()
+
+
+def record_tool_error(tool: str, category: str) -> None:
+    """Record a tool failure with classified category."""
+    if _METRICS_AVAILABLE:
+        AGENT_TOOL_ERRORS.labels(tool=tool, category=category).inc()
+
+
+def record_memory_recall(hit: bool, max_score: float | None = None) -> None:
+    """Record memory recall outcome + optional max similarity score.
+
+    ``hit`` increments the counter under outcome="hit" or "miss".
+    ``max_score`` (when not None) feeds the relevance histogram so
+    dashboards can distinguish "we returned 5 memories with score=0.1"
+    from "we returned 5 strong matches".
+    """
+    if not _METRICS_AVAILABLE:
+        return
+    AGENT_MEMORY_RECALL.labels(outcome="hit" if hit else "miss").inc()
+    if max_score is not None:
+        AGENT_MEMORY_SCORE.observe(max_score)
+
+
+# Backwards-compat alias — earlier code paths referenced the old name.
+record_memory_retrieval = record_memory_recall
 
 
 @asynccontextmanager
