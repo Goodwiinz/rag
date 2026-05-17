@@ -7,3 +7,7 @@
 ## 2026-05-14 - [Add tablist accessibility pattern]
 **Learning:** Interactive tabs built from native `<button>`s require explicit ARIA roles (`role="tablist"`, `role="tab"`) and state indicators (`aria-selected`) to be correctly announced by screen readers.
 **Action:** When creating custom tab navigations, always implement the standard WAI-ARIA tab pattern rather than relying on generic button elements.
+
+## 2024-05-17 - Enforce IconButton usage for Pagination Components
+**Learning:** Pagination controls (like prev/next arrows) often lack accessible names when implemented as simple icon-only buttons (`<button>` or `<Button>`). Using the dedicated `IconButton` component ensures all icon-only interactions are explicitly labeled via the required `label` property, improving screen reader support and tooltip consistency.
+**Action:** Use `IconButton` universally across the codebase when building custom pagination controls instead of styling raw `<button>` tags.

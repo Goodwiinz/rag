@@ -2,6 +2,7 @@
 
 import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { IconButton } from '@/components/ui/icon-button';
 
 interface PaginationProps {
   currentPage: number;
@@ -67,23 +68,21 @@ export function Pagination({
       </div>
 
       <div className="flex items-center gap-2">
-        <button
+        <IconButton
           onClick={() => onPageChange(1)}
           disabled={currentPage === 1}
-          className="p-2 rounded-lg border border-[var(--terminal-border)] hover:bg-[var(--terminal-surface)] disabled:opacity-30 disabled:hover:bg-transparent transition-all"
-          title="First Page"
-        >
-          <ChevronsLeft className="w-4 h-4 text-[var(--terminal-text)]" />
-        </button>
+          className="p-2 h-auto w-auto rounded-lg border border-[var(--terminal-border)] hover:bg-[var(--terminal-surface)] disabled:opacity-30 disabled:hover:bg-transparent transition-all"
+          label="First Page"
+          icon={<ChevronsLeft className="w-4 h-4 text-[var(--terminal-text)]" />}
+        />
         
-        <button
+        <IconButton
           onClick={() => onPageChange(currentPage - 1)}
           disabled={currentPage === 1}
-          className="p-2 rounded-lg border border-[var(--terminal-border)] hover:bg-[var(--terminal-surface)] disabled:opacity-30 disabled:hover:bg-transparent transition-all"
-          title="Previous Page"
-        >
-          <ChevronLeft className="w-4 h-4 text-[var(--terminal-text)]" />
-        </button>
+          className="p-2 h-auto w-auto rounded-lg border border-[var(--terminal-border)] hover:bg-[var(--terminal-surface)] disabled:opacity-30 disabled:hover:bg-transparent transition-all"
+          label="Previous Page"
+          icon={<ChevronLeft className="w-4 h-4 text-[var(--terminal-text)]" />}
+        />
 
         <div className="flex items-center gap-1 bg-[var(--terminal-surface)] rounded-lg border border-[var(--terminal-border)] p-1">
           {getPageNumbers().map((page, idx) => (
@@ -94,7 +93,7 @@ export function Pagination({
                 key={page}
                 onClick={() => onPageChange(page as number)}
                 className={cn(
-                  "min-w-[32px] h-8 rounded-md font-mono text-xs font-bold transition-all",
+                  "min-w-[32px] h-8 rounded-md font-mono text-xs font-bold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--phosphor-green)]",
                   currentPage === page
                     ? "bg-[var(--phosphor-green)] text-[var(--terminal-bg)] shadow-[0_0_10px_var(--phosphor-green-glow)]"
                     : "text-[var(--terminal-text-dim)] hover:text-[var(--terminal-text)] hover:bg-[var(--terminal-elevated)]"
@@ -106,23 +105,21 @@ export function Pagination({
           ))}
         </div>
 
-        <button
+        <IconButton
           onClick={() => onPageChange(currentPage + 1)}
           disabled={currentPage === totalPages}
-          className="p-2 rounded-lg border border-[var(--terminal-border)] hover:bg-[var(--terminal-surface)] disabled:opacity-30 disabled:hover:bg-transparent transition-all"
-          title="Next Page"
-        >
-          <ChevronRight className="w-4 h-4 text-[var(--terminal-text)]" />
-        </button>
+          className="p-2 h-auto w-auto rounded-lg border border-[var(--terminal-border)] hover:bg-[var(--terminal-surface)] disabled:opacity-30 disabled:hover:bg-transparent transition-all"
+          label="Next Page"
+          icon={<ChevronRight className="w-4 h-4 text-[var(--terminal-text)]" />}
+        />
 
-        <button
+        <IconButton
           onClick={() => onPageChange(totalPages)}
           disabled={currentPage === totalPages}
-          className="p-2 rounded-lg border border-[var(--terminal-border)] hover:bg-[var(--terminal-surface)] disabled:opacity-30 disabled:hover:bg-transparent transition-all"
-          title="Last Page"
-        >
-          <ChevronsRight className="w-4 h-4 text-[var(--terminal-text)]" />
-        </button>
+          className="p-2 h-auto w-auto rounded-lg border border-[var(--terminal-border)] hover:bg-[var(--terminal-surface)] disabled:opacity-30 disabled:hover:bg-transparent transition-all"
+          label="Last Page"
+          icon={<ChevronsRight className="w-4 h-4 text-[var(--terminal-text)]" />}
+        />
       </div>
     </div>
   );
