@@ -59,7 +59,8 @@ async def _warm_quality_metrics() -> None:
                     """
                     SELECT DISTINCT organization_id
                     FROM quality_metrics
-                    WHERE measured_at >= NOW() - INTERVAL '30 days'
+                    WHERE created_at >= NOW() - INTERVAL '30 days'
+                      AND is_deleted = false
                     LIMIT 10
                     """
                 )
