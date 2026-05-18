@@ -26,7 +26,7 @@ async def test_stream_event_generator_bootstraps_langsmith_before_compile():
         nonlocal configured
         configured = True
 
-    def fake_compile_agent_graph(*, checkpointer):
+    def fake_compile_agent_graph(*, checkpointer, store=None):
         assert configured, "configure_langsmith must run before graph compilation"
         return _FakeGraph()
 
@@ -74,7 +74,7 @@ async def test_stream_confirm_event_generator_bootstraps_langsmith_before_compil
         nonlocal configured
         configured = True
 
-    def fake_compile_agent_graph(*, checkpointer):
+    def fake_compile_agent_graph(*, checkpointer, store=None):
         assert configured, "configure_langsmith must run before graph compilation"
         return _FakeGraph(current_snapshot)
 
