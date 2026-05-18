@@ -198,32 +198,28 @@ async def _clear_stale_pending_confirmation(graph: Any, config: Dict[str, Any]) 
 # ---------------------------------------------------------------------------
 
 
-async def _persist_thread_messages(
+async def _resolve_thread(
     db: AsyncSession,
     current_user: User,
     request: Any,  # AgentExecuteRequest
-    assistant_content: str,
-    tool_executions_out: Optional[list] = None,
-) -> tuple[str, str]:
-    """Persist thread & messages to the database.
+) -> tuple[Optional[Any], str]:
+    """Resolve or create the Thread + Conversation for this request.
 
-    Returns ``(thread_id, conversation_id)`` as strings.
+    Returns ``(thread, conversation_id)``. ``thread`` is ``None`` when no
+    workspace exists for the user (caller should treat this as "skip
+    persistence"). When a fresh thread/conversation is created it is
+    committed so the row has an ``id`` callers can reference.
     """
     from uuid import UUID
 
     from sqlalchemy import select
 
-    from src.models.chat_message import ChatMessage, MessageRole
     from src.models.conversation import Conversation
     from src.models.thread import Thread, ThreadStatus
     from src.models.workspace import Workspace
 
     AGENT_THREAD_MARKER = {"source": "agent"}
 
-    thread_id = request.thread_id or ""
-    conversation_id = ""
-
-    # Resolve or create thread — validate ownership to prevent cross-user injection
     thread: Optional[Thread] = None
     if request.thread_id:
         stmt = (
@@ -237,7 +233,6 @@ async def _persist_thread_messages(
         thread = result.scalar_one_or_none()
 
     if thread is None:
-        # Need a workspace + conversation for the thread
         ws_stmt = (
             select(Workspace).where(Workspace.owner_id == current_user.id).limit(1)
         )
@@ -245,7 +240,6 @@ async def _persist_thread_messages(
         workspace = ws_result.scalar_one_or_none()
 
         if workspace:
-            # Create conversation
             conv = Conversation(
                 workspace_id=workspace.id,
                 title="Agent Chat",
@@ -254,7 +248,6 @@ async def _persist_thread_messages(
             db.add(conv)
             await db.flush()
 
-            # Derive title from first user message
             first_msg = next(
                 (m.content for m in request.messages if m.role == "user"), ""
             )
@@ -269,76 +262,222 @@ async def _persist_thread_messages(
                 message_count=0,
             )
             db.add(thread)
-            await db.flush()
+            await db.commit()
+            # Refresh so caller sees a usable id / conversation_id without
+            # an additional roundtrip in the same transaction.
+            await db.refresh(thread)
 
-    if thread:
-        thread_id = str(thread.id)
-        conversation_id = str(thread.conversation_id)
+    conversation_id = str(thread.conversation_id) if thread is not None else ""
+    return thread, conversation_id
 
-        # Save user message (only the latest one). Skip the insert if an
-        # identical user message was already persisted within the last 60s
-        # — this can happen when a client reconnects mid-stream or retries
-        # a request that already wrote the user turn.
-        last_user_content = next(
-            (m.content for m in reversed(request.messages) if m.role == "user"),
-            None,
+
+async def _persist_user_message(
+    db: AsyncSession,
+    current_user: User,
+    request: Any,  # AgentExecuteRequest
+) -> bool:
+    """Insert the latest user message idempotently.
+
+    Uses ``INSERT ... ON CONFLICT DO NOTHING`` against the partial unique
+    index on ``chat_messages (thread_id, client_message_id) WHERE
+    client_message_id IS NOT NULL AND role = 'user'`` (Alembic revision
+    v0a1b2c3d4e5). The ``index_where`` clause passed here mirrors the
+    index predicate exactly so Postgres can infer the index.
+
+    Returns ``True`` if a new row was inserted, ``False`` if a duplicate
+    was silently dropped or there is nothing to insert (no user message
+    in the request or no ``request.thread_id``).
+
+    Commits independently of ``_persist_assistant_message``; callers that
+    rely on a single all-or-nothing commit must adapt — a partial commit
+    (user row durable, assistant row missing) is possible if the
+    assistant write later fails.
+    """
+    from uuid import UUID
+
+    from sqlalchemy.dialects.postgresql import insert
+
+    from src.models.chat_message import ChatMessage, MessageRole
+    from src.models.thread import Thread
+
+    if request.thread_id is None:
+        return False
+
+    last = next(
+        (m for m in reversed(request.messages) if m.role == "user"), None
+    )
+    if last is None:
+        return False
+
+    cmid = getattr(last, "client_message_id", None)
+    cmid_value = str(cmid) if cmid is not None else None
+
+    stmt = (
+        insert(ChatMessage)
+        .values(
+            thread_id=UUID(request.thread_id),
+            user_id=current_user.id,
+            role=MessageRole.USER,
+            content=last.content,
+            client_message_id=cmid_value,
         )
-        wrote_user_message = False
-        if last_user_content:
-            recent_cutoff = datetime.now(timezone.utc) - timedelta(seconds=60)
-            dup_stmt = (
-                select(ChatMessage.id)
-                .where(
-                    ChatMessage.thread_id == thread.id,
-                    ChatMessage.user_id == current_user.id,
-                    ChatMessage.role == MessageRole.USER,
-                    ChatMessage.content == last_user_content,
-                    ChatMessage.created_at >= recent_cutoff,
-                )
-                .limit(1)
-            )
-            dup_result = await db.execute(dup_stmt)
-            if dup_result.scalar_one_or_none() is None:
-                user_msg = ChatMessage(
-                    thread_id=thread.id,
-                    user_id=current_user.id,
-                    role=MessageRole.USER,
-                    content=last_user_content,
-                )
-                db.add(user_msg)
-                wrote_user_message = True
+        .on_conflict_do_nothing(
+            index_elements=["thread_id", "client_message_id"],
+            index_where=(
+                ChatMessage.client_message_id.isnot(None)
+                & (ChatMessage.role == MessageRole.USER)
+            ),
+        )
+    )
+    result = await db.execute(stmt)
+    inserted = result.rowcount == 1
+    if inserted:
+        thread = await db.get(Thread, UUID(request.thread_id))
+        if thread is not None:
+            thread.message_count = (thread.message_count or 0) + 1
+            thread.last_message_at = datetime.now(timezone.utc)
+    await db.commit()
+    return inserted
 
-        # Save assistant message with tool executions
-        tool_exec_data = None
-        if tool_executions_out:
-            tool_exec_data = [
-                {
-                    "id": te.id,
-                    "tool_name": te.tool_name,
-                    "tool_display_name": te.tool_display_name,
-                    "args": te.args,
-                    "status": te.status,
-                    "result": te.result,
-                    "error": te.error,
-                    "duration_ms": te.duration_ms,
-                }
-                for te in tool_executions_out
-            ]
-        asst_msg = ChatMessage(
-            thread_id=thread.id,
+
+async def _persist_assistant_message(
+    db: AsyncSession,
+    *,
+    thread_id: str,
+    content: str,
+    model_name: Optional[str],
+    tool_executions_out: Optional[list],
+) -> None:
+    """Insert the assistant turn and bump ``thread.message_count`` by 1.
+
+    Commits independently of ``_persist_user_message``. A failure here
+    after a successful user-row commit leaves the user message durable
+    without its assistant counterpart — callers that depend on the old
+    single-commit behavior must handle this.
+    """
+    from uuid import UUID
+
+    from src.models.chat_message import ChatMessage, MessageRole
+    from src.models.thread import Thread
+
+    tool_exec_data = None
+    if tool_executions_out:
+        tool_exec_data = [
+            {
+                "id": te.id,
+                "tool_name": te.tool_name,
+                "tool_display_name": te.tool_display_name,
+                "args": te.args,
+                "status": te.status,
+                "result": te.result,
+                "error": te.error,
+                "duration_ms": te.duration_ms,
+            }
+            for te in tool_executions_out
+        ]
+
+    db.add(
+        ChatMessage(
+            thread_id=UUID(thread_id),
             role=MessageRole.ASSISTANT,
-            content=assistant_content,
-            model_name=request.model,
+            content=content,
+            model_name=model_name,
             tool_executions=tool_exec_data,
         )
-        db.add(asst_msg)
-
-        # Update thread stats — count only what we actually inserted.
-        inserted = 1 + (1 if wrote_user_message else 0)
-        thread.message_count = (thread.message_count or 0) + inserted
+    )
+    thread = await db.get(Thread, UUID(thread_id))
+    if thread is not None:
+        thread.message_count = (thread.message_count or 0) + 1
         thread.last_message_at = datetime.now(timezone.utc)
+    await db.commit()
 
-        await db.commit()
+
+async def _persist_assistant_message_safe(
+    *,
+    thread_id: str,
+    content: str,
+    model_name: Optional[str],
+    tool_executions_out: Optional[list],
+) -> None:
+    """Background-task-safe wrapper around ``_persist_assistant_message``.
+
+    Opens its own ``AsyncSessionLocal()`` so it doesn't depend on the
+    request session being alive — by the time FastAPI runs background
+    tasks the original streaming session has already been closed.
+    Swallows + logs any exception so a background-task failure can't
+    crash the worker, and bumps
+    ``agent_assistant_persist_failures_total`` on failure so dashboards
+    surface silently-lost assistant rows.
+    """
+    try:
+        async with AsyncSessionLocal() as db:
+            await _persist_assistant_message(
+                db,
+                thread_id=thread_id,
+                content=content,
+                model_name=model_name,
+                tool_executions_out=tool_executions_out,
+            )
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(
+            "Background assistant persist failed for thread %s: %s",
+            thread_id,
+            exc,
+            exc_info=exc,
+        )
+        try:
+            from src.services.agent.observability import (
+                agent_assistant_persist_failures_total,
+            )
+
+            agent_assistant_persist_failures_total.inc()
+        except Exception:
+            # Metrics path is best-effort: never let a bookkeeping
+            # failure mask the real error (already logged above).
+            pass
+
+
+# DEPRECATED — remove after streaming path migration to background tasks (Task 5).
+# Compatibility shim preserving the old ``(thread_id, conversation_id)`` contract
+# used by callers in ``execute.py`` and the confirm path at ``jobs.py:629``.
+# Internally delegates to the three split helpers above, which each commit
+# independently (see their docstrings for the partial-commit warning).
+async def _persist_thread_messages(
+    db: AsyncSession,
+    current_user: User,
+    request: Any,  # AgentExecuteRequest
+    assistant_content: str,
+    tool_executions_out: Optional[list] = None,
+) -> tuple[str, str]:
+    """Persist thread & messages to the database (deprecated shim).
+
+    Returns ``(thread_id, conversation_id)`` as strings. See the module-level
+    notice above: this function is preserved for compatibility while Task 5
+    migrates the streaming path to background tasks; new code should call
+    ``_persist_user_message`` / ``_persist_assistant_message`` directly.
+    """
+    thread, conversation_id = await _resolve_thread(db, current_user, request)
+    if thread is None:
+        return request.thread_id or "", ""
+
+    # Materialize the thread id before any further DB work so the resolved
+    # id is returned even if a later commit fails.
+    thread_id = str(thread.id)
+
+    # Mutate the request so the user-write helper targets the just-resolved
+    # thread (the original code path handled both pre-existing and freshly
+    # created threads uniformly).
+    if request.thread_id != thread_id:
+        request.thread_id = thread_id
+
+    await _persist_user_message(db, current_user, request)
+    await _persist_assistant_message(
+        db,
+        thread_id=thread_id,
+        content=assistant_content,
+        model_name=request.model,
+        tool_executions_out=tool_executions_out,
+    )
 
     return thread_id, conversation_id
 
@@ -369,6 +508,26 @@ async def _run_agent_graph(
 
     async with AsyncSessionLocal() as db:
         try:
+            # Persist the user turn BEFORE the LLM call so a graph failure or
+            # client cancellation still leaves the user row durable. The
+            # assistant row continues to be written after the graph
+            # finishes — Task 4 of docs/plans/2026-05-13-agent-persist-perf.md.
+            resolved_thread_id: Optional[str] = None
+            try:
+                thread_obj, _conversation_id = await _resolve_thread(
+                    db, current_user, request
+                )
+                if thread_obj is not None:
+                    resolved_thread_id = str(thread_obj.id)
+                    if request.thread_id != resolved_thread_id:
+                        request.thread_id = resolved_thread_id
+                    await _persist_user_message(db, current_user, request)
+            except Exception:
+                logger.warning(
+                    "Failed to persist user turn before agent graph run",
+                    exc_info=True,
+                )
+
             # Configure LangSmith tracing if available
             try:
                 from src.services.agent.observability import configure_langsmith
@@ -451,20 +610,39 @@ async def _run_agent_graph(
                     assistant_content = msg.content
                     break
 
-            # Persist thread & messages — session managed by AsyncSessionLocal context
+            # User row was already persisted up-front (before the graph ran).
+            # Only write the assistant row here — Task 4 of
+            # docs/plans/2026-05-13-agent-persist-perf.md.
             thread_id, conversation_id = "", ""
             try:
                 tool_executions_out = [
                     ToolExecutionResponse(**te)
                     for te in final_state.get("tool_executions", [])
                 ] or None
-                thread_id, conversation_id = await _persist_thread_messages(
-                    db,
-                    current_user,
-                    request,
-                    assistant_content,
-                    tool_executions_out,
-                )
+                if resolved_thread_id is not None:
+                    thread_id = resolved_thread_id
+                    # Re-fetch conversation_id for the response payload. The
+                    # _resolve_thread call already returned it but the local
+                    # variable was scoped to the up-front block; fetch from
+                    # the thread row to avoid threading an extra variable.
+                    from uuid import UUID as _UUID
+
+                    from src.models.thread import Thread as _Thread
+
+                    thread_row = await db.get(_Thread, _UUID(thread_id))
+                    if thread_row is not None:
+                        conversation_id = str(thread_row.conversation_id)
+                    # Run inline (no HTTP response to release here) but
+                    # route through the safe wrapper so background and
+                    # worker paths share the failure-metric bump on a
+                    # bad commit — Task 5 of
+                    # docs/plans/2026-05-13-agent-persist-perf.md.
+                    await _persist_assistant_message_safe(
+                        thread_id=thread_id,
+                        content=assistant_content,
+                        model_name=request.model,
+                        tool_executions_out=tool_executions_out,
+                    )
             except Exception as e:
                 logger.warning("Failed to persist thread", exc_info=e)
 

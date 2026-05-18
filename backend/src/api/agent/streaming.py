@@ -15,11 +15,15 @@ from langgraph.errors import GraphInterrupt
 from src.core.database import AsyncSessionLocal
 from src.models.user import User
 
+from . import jobs as _jobs_mod
 from .jobs import (
     _clear_stale_pending_confirmation,
     _get_latest_user_content,
     _page_context_to_dict,
+    _persist_assistant_message,
     _persist_thread_messages,
+    _persist_user_message,
+    _resolve_thread,
 )
 from .trace_context import build_trace_payload
 
@@ -142,6 +146,8 @@ async def stream_event_generator(
     request_body: Any,  # AgentExecuteRequest
     request: Any,  # FastAPI Request
     current_user: User,
+    *,
+    background_tasks: Any = None,  # fastapi.BackgroundTasks (optional for tests)
 ):
     """SSE event generator for the /stream endpoint.
 
@@ -166,7 +172,27 @@ async def stream_event_generator(
     config: Dict[str, Any] = {}  # Initialize before try block for safe access in except handlers
     db = AsyncSessionLocal()
     graph = None  # type: ignore[assignment]
+    resolved_thread_id: Optional[str] = None
     try:
+        # Persist the user turn BEFORE the LLM call so a mid-stream client
+        # disconnect (or any failure inside ``astream_events``) still leaves
+        # the user row durable. The assistant row is written after the
+        # stream completes — Task 4 of docs/plans/2026-05-13-agent-persist-perf.md.
+        try:
+            thread_obj, _conversation_id = await _resolve_thread(
+                db, current_user, request_body
+            )
+            if thread_obj is not None:
+                resolved_thread_id = str(thread_obj.id)
+                if request_body.thread_id != resolved_thread_id:
+                    request_body.thread_id = resolved_thread_id
+                await _persist_user_message(db, current_user, request_body)
+        except Exception:
+            logger.warning(
+                "Failed to persist user turn before LLM call",
+                exc_info=True,
+            )
+
         _bootstrap_langsmith()
         checkpointer = await get_checkpointer()
         store = await get_memory_store()
@@ -359,9 +385,33 @@ async def stream_event_generator(
                 for te in final_values.get("tool_executions", [])
             ] or None
 
-            await _persist_thread_messages(
-                db, current_user, request_body, assistant_content, tool_executions_out,
-            )
+            # User row was already persisted up-front (before the LLM call).
+            # Defer the assistant-row commit to a FastAPI BackgroundTask so
+            # the SSE `done` event releases the response without waiting on
+            # one more DB roundtrip — Task 5 of
+            # docs/plans/2026-05-13-agent-persist-perf.md. Resolved late
+            # via the jobs module so tests can monkeypatch the safe
+            # wrapper at runtime.
+            if resolved_thread_id is not None:
+                persist_kwargs = dict(
+                    thread_id=resolved_thread_id,
+                    content=assistant_content,
+                    model_name=request_body.model,
+                    tool_executions_out=tool_executions_out,
+                )
+                if background_tasks is not None:
+                    background_tasks.add_task(
+                        _jobs_mod._persist_assistant_message_safe,
+                        **persist_kwargs,
+                    )
+                else:
+                    # No BackgroundTasks plumbing available (e.g. unit
+                    # tests that directly invoke the generator without
+                    # passing one). Run inline through the safe wrapper
+                    # so the failure-metric path is still exercised.
+                    await _jobs_mod._persist_assistant_message_safe(
+                        **persist_kwargs
+                    )
         except Exception as e:
             logger.warning("Failed to persist SSE thread messages", exc_info=e)
 

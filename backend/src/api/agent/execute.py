@@ -100,6 +100,20 @@ router = APIRouter(prefix="/api/v1/agent", tags=["agent"])
 class AgentMessage(BaseModel):
     role: Literal["user", "assistant"] = Field(..., description="Message role: user or assistant")
     content: str = Field(..., max_length=32000, description="Message content")
+    client_message_id: Optional[UUID] = Field(
+        default=None,
+        description=(
+            "Client-supplied idempotency key. Only honored for role='user'; "
+            "ignored otherwise. Used to dedupe retries without a server-side SELECT."
+        ),
+    )
+
+    @field_validator("client_message_id")
+    @classmethod
+    def _only_for_user(cls, v: Optional[UUID], info) -> Optional[UUID]:
+        if v is not None and info.data.get("role") != "user":
+            raise ValueError("client_message_id only valid on user messages")
+        return v
 
 
 class PageContextRequest(BaseModel):
@@ -315,6 +329,7 @@ async def confirm_agent_action(
 async def stream_agent(
     request_body: AgentExecuteRequest,
     request: Request,
+    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
 ):
     """Stream agent responses via Server-Sent Events.
@@ -322,9 +337,12 @@ async def stream_agent(
     SSE event types: token, tool_start, tool_end, rag_context, done, error
     """
     return StreamingResponse(
-        stream_event_generator(request_body, request, current_user),
+        stream_event_generator(
+            request_body, request, current_user, background_tasks=background_tasks
+        ),
         media_type="text/event-stream",
         headers=_SSE_HEADERS,
+        background=background_tasks,
     )
 
 

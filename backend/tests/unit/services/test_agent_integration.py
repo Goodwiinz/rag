@@ -569,7 +569,13 @@ class TestSSEStreamPersistence:
     """Test that the SSE /stream endpoint persists messages after completion."""
 
     async def test_stream_endpoint_persists_messages(self):
-        """event_generator should call _persist_thread_messages after streaming."""
+        """event_generator should persist user up-front and assistant post-stream.
+
+        Task 4 of docs/plans/2026-05-13-agent-persist-perf.md split the old
+        single ``_persist_thread_messages`` call into two phases: the user row
+        is written before the LLM call, the assistant row after the stream
+        finishes. This structural test pins the new contract.
+        """
         from langchain_core.messages import AIMessage
 
         # We'll test the event_generator logic by verifying the persistence
@@ -580,7 +586,9 @@ class TestSSEStreamPersistence:
         from src.api.agent.streaming import stream_event_generator
 
         source = inspect.getsource(stream_event_generator)
-        assert "_persist_thread_messages" in source
+        assert "_resolve_thread" in source
+        assert "_persist_user_message" in source
+        assert "_persist_assistant_message" in source
         assert "aget_state" in source
 
     async def test_stream_has_timeout(self):

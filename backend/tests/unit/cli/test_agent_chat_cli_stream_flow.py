@@ -6,6 +6,7 @@ from collections.abc import AsyncIterator
 import runpy
 import sys
 from types import SimpleNamespace
+from uuid import UUID
 
 import pytest
 
@@ -75,9 +76,12 @@ async def test_run_turn_updates_trace_and_resumes_confirmation_flow() -> None:
         output_hook=output_hook,
     )
 
-    assert captured_request_body["messages"] == [
-        {"role": "user", "content": "summarize the project"}
-    ]
+    sent_messages = captured_request_body["messages"]
+    assert len(sent_messages) == 1
+    sent_msg = sent_messages[0]
+    assert sent_msg["role"] == "user"
+    assert sent_msg["content"] == "summarize the project"
+    UUID(sent_msg["client_message_id"])
     assert captured_request_body["use_rag"] is True
     assert captured_request_body["page_context"] == {
         "type": "project",
@@ -294,9 +298,12 @@ async def test_async_main_login_command_updates_auth_and_continues(
 
     assert exit_code == 0
     assert updated_auth == [("cli-token", "org-1")]
-    assert stream_bodies[0]["messages"] == [
-        {"role": "user", "content": "summarize my projects"}
-    ]
+    sent_messages = stream_bodies[0]["messages"]
+    assert len(sent_messages) == 1
+    sent_msg = sent_messages[0]
+    assert sent_msg["role"] == "user"
+    assert sent_msg["content"] == "summarize my projects"
+    UUID(sent_msg["client_message_id"])
 
 
 @pytest.mark.asyncio

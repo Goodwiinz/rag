@@ -5,6 +5,7 @@ import { streamAgent, streamConfirm } from './stream';
 import { confirmKey, isConfirmCancel } from './confirmKey';
 import {
   fetchThreadMessages,
+  loadThreadMessagesWithCache,
   fetchThreads,
   type RemoteThreadSummary,
 } from './services/threads';
@@ -974,8 +975,12 @@ async function handleThreadsCommand(ctx: SlashContext): Promise<void> {
   p.log.success(`Switched to "${picked.title}" (${picked.id.slice(0, 8)})`);
 
   try {
-    const messages = await fetchThreadMessages(picked.id);
-    const conversation = messages.filter(
+    const remoteMeta = remote.find((r) => r.id === picked.id) ?? null;
+    const view = await loadThreadMessagesWithCache(
+      picked.id,
+      remoteMeta?.last_message_at ?? null
+    );
+    const conversation = view.messages.filter(
       (m) => m.role.toLowerCase() !== 'tool'
     );
     if (conversation.length > 0) {
@@ -988,7 +993,14 @@ async function handleThreadsCommand(ctx: SlashContext): Promise<void> {
         );
       }
       for (const msg of tail) {
-        renderPreviewMessage(msg);
+        renderPreviewMessage({
+          role: msg.role,
+          content: msg.content,
+          created_at:
+            'created_at' in msg
+              ? (msg as { created_at: string }).created_at
+              : (msg as { ended_at: string }).ended_at,
+        });
       }
       p.log.message('  ╰───────────────────────╯');
     }
