@@ -1,9 +1,3 @@
-# Depot CI Migration
-# Source: .github/workflows/test-pipeline.yml
-#
-# Changes made:
-# - Changed GitHub runs-on labels to their Depot equivalents
-
 name: Test Pipeline
 on:
   push:
@@ -53,7 +47,7 @@ jobs:
   # ==========================================================================
   lint-backend:
     name: Lint Backend
-    runs-on: depot-ubuntu-24.04-8
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
       - name: Build lint image
@@ -71,7 +65,7 @@ jobs:
         continue-on-error: true # Allow failures during gradual adoption
   lint-frontend:
     name: Lint Frontend
-    runs-on: depot-ubuntu-24.04
+    runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: frontend
@@ -99,7 +93,7 @@ jobs:
   # ==========================================================================
   unit-tests:
     name: Unit Tests
-    runs-on: depot-ubuntu-24.04-8
+    runs-on: ubuntu-latest
     needs: lint-backend
     steps:
       - uses: actions/checkout@v6
@@ -126,7 +120,7 @@ jobs:
             ${{ runner.os }}-pip-
       - name: Install dependencies
         run: |
-          pip install pytest pytest-asyncio pytest-cov pytest-xdist respx==0.21.1 hypothesis==6.112.2
+          pip install pytest pytest-asyncio pytest-cov pytest-xdist 'respx>=0.22.0,<0.23' hypothesis==6.112.2
           pip install --build-constraint backend/constraints-ci.txt -r backend/requirements.txt
       - name: Run unit tests
         run: |
@@ -147,6 +141,15 @@ jobs:
         env:
           ENVIRONMENT: testing
           DATABASE_URL: "sqlite:///:memory:"
+          # Dummy Azure OpenAI creds — agent graph constructor refuses to
+          # import without them. Unit tests mock real Azure calls, so any
+          # syntactically-valid placeholder is enough.
+          AZURE_OPENAI_CHAT_ENDPOINT: "https://example.invalid"
+          AZURE_OPENAI_CHAT_API_KEY: "test-key-not-real"
+          AZURE_OPENAI_CHAT_DEPLOYMENT_NAME: "test-deployment"
+          AZURE_OPENAI_CHAT_API_VERSION: "2024-02-01"
+          AZURE_OPENAI_ENDPOINT: "https://example.invalid"
+          AZURE_OPENAI_API_KEY: "test-key-not-real"
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
         with:
@@ -160,7 +163,7 @@ jobs:
   # ==========================================================================
   security-scan:
     name: Security Scan
-    runs-on: depot-ubuntu-24.04
+    runs-on: ubuntu-latest
     needs: lint-backend
     steps:
       - uses: actions/checkout@v6
@@ -181,7 +184,7 @@ jobs:
   # ==========================================================================
   frontend-tests:
     name: Frontend Tests
-    runs-on: depot-ubuntu-24.04
+    runs-on: ubuntu-latest
     needs: lint-frontend
     defaults:
       run:
@@ -217,7 +220,7 @@ jobs:
   # ==========================================================================
   integration-tests:
     name: Integration Tests
-    runs-on: depot-ubuntu-24.04-8
+    runs-on: ubuntu-latest
     timeout-minutes: 15
     continue-on-error: true # Don't block workflow if integration tests fail/timeout
     needs: [unit-tests, frontend-tests]
@@ -290,7 +293,7 @@ jobs:
   # ==========================================================================
   resilience-tests:
     name: Resilience Tests
-    runs-on: depot-ubuntu-24.04-8
+    runs-on: ubuntu-latest
     timeout-minutes: 10
     continue-on-error: true # Non-critical in PR checks; don't block merges
     needs: unit-tests
@@ -345,7 +348,7 @@ jobs:
   # ==========================================================================
   api-contract-tests:
     name: API Contract Tests
-    runs-on: depot-ubuntu-24.04-8
+    runs-on: ubuntu-latest
     continue-on-error: true # Non-critical in PR checks; don't block merges
     needs: [unit-tests, frontend-tests]
     services:
@@ -391,7 +394,7 @@ jobs:
   # ==========================================================================
   e2e-tests:
     name: E2E Tests
-    runs-on: depot-ubuntu-24.04-8
+    runs-on: ubuntu-latest
     # E2E build is infrastructure-flaky on PR runners (PyTorch-sized backend
     # image; disk/timeout issues). Kept as a push gate on develop/main where
     # regressions are still caught, but skipped on PR events so the red check
@@ -622,7 +625,7 @@ jobs:
   # ==========================================================================
   performance-tests:
     name: Performance Tests
-    runs-on: depot-ubuntu-24.04-8
+    runs-on: ubuntu-latest
     continue-on-error: true # Non-critical in PR checks; don't block merges
     needs: integration-tests
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -675,7 +678,7 @@ jobs:
   # ==========================================================================
   test-summary:
     name: Test Summary
-    runs-on: depot-ubuntu-24.04
+    runs-on: ubuntu-latest
     needs: [unit-tests, integration-tests, resilience-tests, frontend-tests, security-scan, api-contract-tests]
     if: always()
     env:

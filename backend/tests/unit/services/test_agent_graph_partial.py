@@ -65,7 +65,21 @@ async def _capture_system_prompt(node_fn, state, config) -> str:
     fake_llm = MagicMock()
     fake_llm.bind_tools.return_value = fake_with_tools
 
-    with patch("src.services.agent.graph._build_llm", return_value=fake_llm):
+    # Subgraph LLM nodes (research/writing/data) build LLMs via
+    # llm_factory.build_lightweight_llm or build_synthesis_llm — not the
+    # graph._build_llm helper used by the main llm_node — so patch every
+    # entry point a node might import.
+    with (
+        patch("src.services.agent.graph._build_llm", return_value=fake_llm),
+        patch(
+            "src.services.agent.llm_factory.build_lightweight_llm",
+            return_value=fake_llm,
+        ),
+        patch(
+            "src.services.agent.llm_factory.build_synthesis_llm",
+            return_value=fake_llm,
+        ),
+    ):
         await node_fn(state, config)
 
     assert captured["messages"], "node did not call the LLM"
@@ -78,19 +92,19 @@ def _assert_shared_rules_present(system_text: str) -> None:
     assert "Handling retry follow-ups" in system_text
     # Project reuse rule (PR #397)
     assert "Reusing project IDs from conversation history" in system_text
-    assert "REUSE its project_id" in system_text
+    assert "reuse its project_id" in system_text
     # Honesty rule (PR #397)
     assert "Honest tool-call reporting" in system_text
-    assert "Never invent troubleshooting steps" in system_text
+    assert "Do not invent troubleshooting steps" in system_text
     # Query derivation rule (this PR — bug #7)
     assert "Deriving search queries from active context" in system_text
-    assert "Do NOT use arXiv paper IDs" in system_text
+    assert "Do not use arXiv paper IDs" in system_text
     # Document coreference rule (9d5709f — resolves "it"/"that paper" to a UUID)
     assert "Reusing document IDs from conversation history" in system_text
-    assert "Do NOT ask the user for the document_id" in system_text
+    assert "Do not ask the user for the document_id" in system_text
     # Always-reply rule (b96bd89 — prevents silent blank after tool success)
     assert "Always reply after a tool call" in system_text
-    assert "never return empty content" in system_text
+    assert "do not return empty content" in system_text
 
 
 # ---------------------------------------------------------------------------
@@ -651,13 +665,20 @@ class TestHumanInTheLoopFlow:
             new_callable=AsyncMock,
             return_value={"status": "success", "document_ids": ["doc-uuid-1"]},
         ):
-            # Also mock the LLM for the post-tool response
-            with patch("src.services.agent.graph._build_llm") as mock_build:
-                mock_llm = MagicMock()
-                mock_response = AIMessage(content="Papers ingested successfully!")
-                mock_llm.bind_tools.return_value.ainvoke = AsyncMock(return_value=mock_response)
-                mock_build.return_value = mock_llm
-
+            # Also mock the LLM for the post-tool response. llm_node may
+            # route to build_synthesis_llm (llm_factory) when the
+            # lightweight-synthesis path is enabled, so patch both entry
+            # points.
+            mock_llm = MagicMock()
+            mock_response = AIMessage(content="Papers ingested successfully!")
+            mock_llm.bind_tools.return_value.ainvoke = AsyncMock(return_value=mock_response)
+            with (
+                patch("src.services.agent.graph._build_llm", return_value=mock_llm),
+                patch(
+                    "src.services.agent.llm_factory.build_synthesis_llm",
+                    return_value=mock_llm,
+                ),
+            ):
                 result = await graph.ainvoke(
                     Command(resume={"confirmed": True}),
                     config=config,
@@ -711,14 +732,25 @@ class TestHumanInTheLoopFlow:
             new_callable=AsyncMock,
             return_value={"status": "success", "document_ids": ["doc-uuid-1"]},
         ) as mock_execute_tool:
-            with patch("src.services.agent.graph._build_llm") as mock_build:
-                mock_llm = MagicMock()
-                mock_response = AIMessage(content="Paper ingested successfully.")
-                mock_llm.bind_tools.return_value.ainvoke = AsyncMock(
-                    return_value=mock_response
-                )
-                mock_build.return_value = mock_llm
-
+            # research_llm_node uses llm_factory.build_lightweight_llm /
+            # build_synthesis_llm rather than graph._build_llm — patch
+            # every entry point a node might import.
+            mock_llm = MagicMock()
+            mock_response = AIMessage(content="Paper ingested successfully.")
+            mock_llm.bind_tools.return_value.ainvoke = AsyncMock(
+                return_value=mock_response
+            )
+            with (
+                patch("src.services.agent.graph._build_llm", return_value=mock_llm),
+                patch(
+                    "src.services.agent.llm_factory.build_lightweight_llm",
+                    return_value=mock_llm,
+                ),
+                patch(
+                    "src.services.agent.llm_factory.build_synthesis_llm",
+                    return_value=mock_llm,
+                ),
+            ):
                 result = await graph.ainvoke(
                     Command(resume={"confirmed": True}),
                     config=config,
@@ -806,18 +838,24 @@ class TestHumanInTheLoopFlow:
 
         graph.update_state(config, values=state, as_node="llm_node")
 
-        # Mock tool execution and LLM for the post-tool response
+        # Mock tool execution and LLM for the post-tool response.
+        # llm_node may route to build_synthesis_llm (llm_factory) for the
+        # post-tool synthesis pass — patch both entry points.
+        mock_llm = MagicMock()
+        mock_response = AIMessage(content="No papers found.")
+        mock_llm.bind_tools.return_value.ainvoke = AsyncMock(return_value=mock_response)
         with patch(
             "src.api.agent.execute.execute_tool",
             new_callable=AsyncMock,
             return_value={"results": [], "total": 0},
         ):
-            with patch("src.services.agent.graph._build_llm") as mock_build:
-                mock_llm = MagicMock()
-                mock_response = AIMessage(content="No papers found.")
-                mock_llm.bind_tools.return_value.ainvoke = AsyncMock(return_value=mock_response)
-                mock_build.return_value = mock_llm
-
+            with (
+                patch("src.services.agent.graph._build_llm", return_value=mock_llm),
+                patch(
+                    "src.services.agent.llm_factory.build_synthesis_llm",
+                    return_value=mock_llm,
+                ),
+            ):
                 result = await graph.ainvoke(None, config=config)
 
         # Should complete without any interrupt
