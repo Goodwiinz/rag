@@ -112,22 +112,10 @@ class TestPromptRulesPresent:
         assert CLEAR_RULE in prompt
         assert CLEAR_BODY in prompt
 
-    @pytest.mark.xfail(
-        reason=(
-            "Pre-existing failure exposed by depot→github-hosted runner switch "
-            "(PR #518). For intent='general', llm_node now routes to "
-            "build_synthesis_llm which uses a trimmed synthesis prompt that "
-            "omits the 'MANDATORY WORKFLOW for adding papers to a project' "
-            "block. Test needs to be re-anchored against the synthesis prompt "
-            "or parametrized over the (no-tool-route) decision prompt. "
-            "Tracked in GOO-XXX-FILE_FOLLOWUP. Quarantined to unblock CI; "
-            "remove this mark when fixed."
-        ),
-        strict=False,
-    )
     async def test_existing_workflow_block_still_present(self) -> None:
-        """Sanity: we appended, didn't replace. The MANDATORY WORKFLOW
-        block from before this PR still anchors the prompt."""
+        """Sanity: we appended, didn't replace. The workflow block from
+        before this PR still anchors the prompt. Strings were renamed
+        (not removed) — see _prompts.py:205/217."""
         prompt = await _capture_system_prompt("general")
-        assert "MANDATORY WORKFLOW for adding papers to a project" in prompt
-        assert "NEVER fabricate UUIDs" in prompt
+        assert "Workflow for adding papers to a project" in prompt
+        assert "Never invent IDs like 'proj_12345'" in prompt
