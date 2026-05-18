@@ -981,8 +981,14 @@ class ChatService:
         limit: int = 100,
         offset: int = 0,
         before_id: Optional[UUID] = None,
+        since: Optional[datetime] = None,
     ) -> Tuple[List[ChatMessage], int]:
-        """List messages in a thread"""
+        """List messages in a thread.
+
+        ``since`` (optional) filters to messages with ``created_at > since``
+        (strict). Used by clients (CLI, web) to delta-fetch only rows newer
+        than their last-seen timestamp.
+        """
         # Verify thread access
         thread = await self.get_thread(thread_id, user_id)
         if not thread:
@@ -1000,6 +1006,9 @@ class ChatService:
             before_msg = before_result.scalars().first()
             if before_msg:
                 base_conditions.append(ChatMessage.created_at < before_msg.created_at)
+
+        if since is not None:
+            base_conditions.append(ChatMessage.created_at > since)
 
         # Count total
         count_stmt = select(func.count(ChatMessage.id)).where(*base_conditions)
