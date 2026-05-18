@@ -141,6 +141,15 @@ jobs:
         env:
           ENVIRONMENT: testing
           DATABASE_URL: "sqlite:///:memory:"
+          # Dummy Azure OpenAI creds — agent graph constructor refuses to
+          # import without them. Unit tests mock real Azure calls, so any
+          # syntactically-valid placeholder is enough.
+          AZURE_OPENAI_CHAT_ENDPOINT: "https://example.invalid"
+          AZURE_OPENAI_CHAT_API_KEY: "test-key-not-real"
+          AZURE_OPENAI_CHAT_DEPLOYMENT_NAME: "test-deployment"
+          AZURE_OPENAI_CHAT_API_VERSION: "2024-02-01"
+          AZURE_OPENAI_ENDPOINT: "https://example.invalid"
+          AZURE_OPENAI_API_KEY: "test-key-not-real"
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
         with:
