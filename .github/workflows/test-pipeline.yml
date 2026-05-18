@@ -72,7 +72,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - name: Set up pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6
         with:
           version: 9
       - name: Set up Node.js
@@ -151,7 +151,7 @@ jobs:
           AZURE_OPENAI_ENDPOINT: "https://example.invalid"
           AZURE_OPENAI_API_KEY: "test-key-not-real"
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v6
         with:
           files: coverage.xml
           flags: unit
@@ -192,7 +192,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - name: Set up pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6
         with:
           version: 9
       - name: Set up Node.js
@@ -210,7 +210,7 @@ jobs:
           CI: true
       - name: Upload coverage
         if: always()
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v6
         with:
           files: frontend/coverage/lcov.info
           flags: frontend
@@ -283,7 +283,7 @@ jobs:
           DATABASE_URL: "postgresql://test:test@localhost:${{ job.services.postgres.ports['5432'] }}/test_db"
           REDIS_URL: "redis://localhost:${{ job.services.redis.ports['6379'] }}/0"
       - name: Upload coverage
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v6
         with:
           files: coverage.xml
           flags: integration
@@ -338,7 +338,7 @@ jobs:
           ENVIRONMENT: testing
           DATABASE_URL: "sqlite:///:memory:"
       - name: Upload coverage
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v6
         with:
           files: coverage.xml
           flags: resilience
