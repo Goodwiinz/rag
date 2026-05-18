@@ -78,19 +78,19 @@ def _assert_shared_rules_present(system_text: str) -> None:
     assert "Handling retry follow-ups" in system_text
     # Project reuse rule (PR #397)
     assert "Reusing project IDs from conversation history" in system_text
-    assert "REUSE its project_id" in system_text
+    assert "reuse its project_id" in system_text
     # Honesty rule (PR #397)
     assert "Honest tool-call reporting" in system_text
-    assert "Never invent troubleshooting steps" in system_text
+    assert "Do not invent troubleshooting steps" in system_text
     # Query derivation rule (this PR — bug #7)
     assert "Deriving search queries from active context" in system_text
-    assert "Do NOT use arXiv paper IDs" in system_text
+    assert "Do not use arXiv paper IDs" in system_text
     # Document coreference rule (9d5709f — resolves "it"/"that paper" to a UUID)
     assert "Reusing document IDs from conversation history" in system_text
-    assert "Do NOT ask the user for the document_id" in system_text
+    assert "Do not ask the user for the document_id" in system_text
     # Always-reply rule (b96bd89 — prevents silent blank after tool success)
     assert "Always reply after a tool call" in system_text
-    assert "never return empty content" in system_text
+    assert "do not return empty content" in system_text
 
 
 # ---------------------------------------------------------------------------
