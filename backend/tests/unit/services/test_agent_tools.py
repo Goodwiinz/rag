@@ -59,7 +59,7 @@ class TestAddDocumentToProject:
             "Tracked in GOO-XXX-FILE_FOLLOWUP. Quarantined to unblock CI; "
             "remove this mark when the issue is fixed."
         ),
-        strict=False,
+        strict=True,
     )
     async def test_success_uses_fresh_session(self):
         """Tool should commit via AsyncSessionLocal, not the passed-in db."""
@@ -141,7 +141,7 @@ class TestAddDocumentToProject:
             "Tracked in GOO-XXX-FILE_FOLLOWUP. Quarantined to unblock CI; "
             "remove this mark when the issue is fixed."
         ),
-        strict=False,
+        strict=True,
     )
     async def test_already_linked_returns_status(self):
         """Tool should detect and report already-linked documents."""

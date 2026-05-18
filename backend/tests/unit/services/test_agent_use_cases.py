@@ -87,7 +87,7 @@ class TestSearchIngestAddWorkflow:
             "Tracked in GOO-XXX-FILE_FOLLOWUP. Quarantined to unblock CI; "
             "remove this mark when the issue is fixed."
         ),
-        strict=False,
+        strict=True,
     )
     async def test_full_search_ingest_add_flow(self):
         """Papers found by search should be ingestable and addable to a project."""
