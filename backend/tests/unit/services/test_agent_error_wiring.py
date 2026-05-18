@@ -21,7 +21,10 @@ class TestErrorRecoveryWiring:
                 raise asyncio.TimeoutError()
             return {"status": "ok", "papers": []}
 
-        tc = {"name": "search_arxiv", "args": {"query": "test"}, "id": "tc1"}
+        # search_arxiv is in _NO_OUTER_RETRY_TOOLS (the tool retries internally
+        # via arxiv_service to avoid 2x wall-clock amplification). Use
+        # search_documents which still receives the outer retry_transient.
+        tc = {"name": "search_documents", "args": {"query": "test"}, "id": "tc1"}
         config = {"configurable": {"current_user": MagicMock(id="u1"), "db": None}}
 
         with patch("src.services.agent.graph.execute_tool", side_effect=mock_execute_tool):
