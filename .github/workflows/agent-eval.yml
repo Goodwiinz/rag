@@ -43,7 +43,7 @@ jobs:
       REDIS_URL: ${{ secrets.EVAL_REDIS_URL }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Resolve experiment prefix
         run: |
