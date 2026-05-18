@@ -161,6 +161,14 @@ def compile_graph_with_mocks(mock_llm_instance, mock_tool_fn):
 
     patchers = [
         patch("src.services.agent.graph._build_llm", return_value=mock_llm_instance),
+        patch(
+            "src.services.agent.llm_factory.build_synthesis_llm",
+            return_value=mock_llm_instance,
+        ),
+        patch(
+            "src.services.agent.llm_factory.build_lightweight_llm",
+            return_value=mock_llm_instance,
+        ),
         patch("src.services.agent.graph.execute_tool", new=mock_tool_fn),
         patch("src.services.agent.graph._get_execute_tool", return_value=mock_tool_fn),
         patch(
