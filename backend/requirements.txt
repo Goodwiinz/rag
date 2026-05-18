@@ -77,7 +77,6 @@ opentelemetry-instrumentation-fastapi==0.62b1
 opentelemetry-instrumentation-sqlalchemy==0.62b1
 opentelemetry-instrumentation-redis==0.62b1
 opentelemetry-instrumentation-httpx==0.62b1
-opentelemetry-exporter-jaeger==1.21.0
 opentelemetry-exporter-otlp==1.41.1
 opentelemetry-exporter-prometheus==0.62b1
 opentelemetry-propagator-b3==1.41.1

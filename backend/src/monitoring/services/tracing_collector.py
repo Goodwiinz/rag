@@ -16,7 +16,6 @@ from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional, Union
 
 from opentelemetry import trace
-from opentelemetry.exporter.jaeger.thrift import JaegerExporter
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
@@ -574,16 +573,15 @@ class TracingCollector:
     async def _initialize_exporters(self) -> None:
         """Initialize trace exporters"""
         try:
-            # Jaeger exporter
-            if self.config.jaeger_enabled:
-                jaeger_exporter = JaegerExporter(
-                    endpoint=self.config.jaeger_endpoint,
-                    collector_endpoint=self.config.jaeger_endpoint,
+            # Jaeger native exporter was dropped from opentelemetry-python in
+            # 1.35; Jaeger 1.35+ ingests OTLP directly. Point OTLP at the
+            # Jaeger collector's :4317 port to keep Jaeger working.
+            if self.config.jaeger_enabled and not self.config.otlp_enabled:
+                logger.warning(
+                    "jaeger_enabled=true without otlp_enabled — Jaeger native "
+                    "exporter is removed. Enable OTLP and point "
+                    "otlp_endpoint at the Jaeger collector :4317."
                 )
-                span_processor = BatchSpanProcessor(jaeger_exporter)
-                self._tracer_provider.add_span_processor(span_processor)
-                self._exporters.append(jaeger_exporter)
-                logger.info("✅ Jaeger exporter initialized")
 
             # OTLP exporter
             if self.config.otlp_enabled:
