@@ -630,18 +630,6 @@ class TestHumanInTheLoopFlow:
         assert any(t["name"] == "ingest_arxiv_papers" for t in confirmation["tools"])
         assert "message" in confirmation
 
-    @pytest.mark.xfail(
-        reason=(
-            "Pre-existing failure exposed by depot→github-hosted runner switch "
-            "(PR #518). After ToolMessage, llm_node now routes to "
-            "build_synthesis_llm (llm_factory) when AGENT_LIGHTWEIGHT_SYNTHESIS "
-            "is enabled, but the test only patches graph._build_llm. The real "
-            "synthesis client tries to reach Azure OpenAI and fails with "
-            "APIConnectionError. Tracked in GOO-XXX-FILE_FOLLOWUP. "
-            "Quarantined to unblock CI; remove this mark when fixed."
-        ),
-        strict=False,
-    )
     async def test_confirmed_interrupt_resumes_execution(self):
         """After confirming, the graph should resume and execute the tool."""
         from langgraph.types import Command
@@ -677,13 +665,20 @@ class TestHumanInTheLoopFlow:
             new_callable=AsyncMock,
             return_value={"status": "success", "document_ids": ["doc-uuid-1"]},
         ):
-            # Also mock the LLM for the post-tool response
-            with patch("src.services.agent.graph._build_llm") as mock_build:
-                mock_llm = MagicMock()
-                mock_response = AIMessage(content="Papers ingested successfully!")
-                mock_llm.bind_tools.return_value.ainvoke = AsyncMock(return_value=mock_response)
-                mock_build.return_value = mock_llm
-
+            # Also mock the LLM for the post-tool response. llm_node may
+            # route to build_synthesis_llm (llm_factory) when the
+            # lightweight-synthesis path is enabled, so patch both entry
+            # points.
+            mock_llm = MagicMock()
+            mock_response = AIMessage(content="Papers ingested successfully!")
+            mock_llm.bind_tools.return_value.ainvoke = AsyncMock(return_value=mock_response)
+            with (
+                patch("src.services.agent.graph._build_llm", return_value=mock_llm),
+                patch(
+                    "src.services.agent.llm_factory.build_synthesis_llm",
+                    return_value=mock_llm,
+                ),
+            ):
                 result = await graph.ainvoke(
                     Command(resume={"confirmed": True}),
                     config=config,
@@ -703,18 +698,6 @@ class TestHumanInTheLoopFlow:
         snapshot = await graph.aget_state(config)
         assert not snapshot.next, "Graph should have completed (no next nodes)"
 
-    @pytest.mark.xfail(
-        reason=(
-            "Pre-existing failure exposed by depot→github-hosted runner switch "
-            "(PR #518). research_llm_node never uses graph._build_llm — it "
-            "imports build_lightweight_llm / build_synthesis_llm from "
-            "llm_factory. The test only patches graph._build_llm, so the real "
-            "Azure OpenAI client is constructed and APIConnectionError is "
-            "raised. Tracked in GOO-XXX-FILE_FOLLOWUP. Quarantined to unblock "
-            "CI; remove this mark when fixed."
-        ),
-        strict=False,
-    )
     async def test_confirmed_research_interrupt_resumes_tool_execution(self):
         """Research subgraph should execute destructive tools after confirmation."""
         from langgraph.types import Command
@@ -749,14 +732,25 @@ class TestHumanInTheLoopFlow:
             new_callable=AsyncMock,
             return_value={"status": "success", "document_ids": ["doc-uuid-1"]},
         ) as mock_execute_tool:
-            with patch("src.services.agent.graph._build_llm") as mock_build:
-                mock_llm = MagicMock()
-                mock_response = AIMessage(content="Paper ingested successfully.")
-                mock_llm.bind_tools.return_value.ainvoke = AsyncMock(
-                    return_value=mock_response
-                )
-                mock_build.return_value = mock_llm
-
+            # research_llm_node uses llm_factory.build_lightweight_llm /
+            # build_synthesis_llm rather than graph._build_llm — patch
+            # every entry point a node might import.
+            mock_llm = MagicMock()
+            mock_response = AIMessage(content="Paper ingested successfully.")
+            mock_llm.bind_tools.return_value.ainvoke = AsyncMock(
+                return_value=mock_response
+            )
+            with (
+                patch("src.services.agent.graph._build_llm", return_value=mock_llm),
+                patch(
+                    "src.services.agent.llm_factory.build_lightweight_llm",
+                    return_value=mock_llm,
+                ),
+                patch(
+                    "src.services.agent.llm_factory.build_synthesis_llm",
+                    return_value=mock_llm,
+                ),
+            ):
                 result = await graph.ainvoke(
                     Command(resume={"confirmed": True}),
                     config=config,
@@ -820,18 +814,6 @@ class TestHumanInTheLoopFlow:
         snapshot = await graph.aget_state(config)
         assert not snapshot.next, "Graph should have completed (no next nodes)"
 
-    @pytest.mark.xfail(
-        reason=(
-            "Pre-existing failure exposed by depot→github-hosted runner switch "
-            "(PR #518). After ToolMessage, llm_node routes to "
-            "build_synthesis_llm (llm_factory) for post-tool synthesis; the "
-            "test only patches graph._build_llm. Real Azure client is created "
-            "and APIConnectionError is raised. Tracked in "
-            "GOO-XXX-FILE_FOLLOWUP. Quarantined to unblock CI; remove this "
-            "mark when fixed."
-        ),
-        strict=False,
-    )
     async def test_non_destructive_tool_skips_interrupt(self):
         """Non-destructive tool calls should bypass the interrupt node entirely."""
         from src.services.agent.graph import compile_agent_graph
@@ -856,18 +838,24 @@ class TestHumanInTheLoopFlow:
 
         graph.update_state(config, values=state, as_node="llm_node")
 
-        # Mock tool execution and LLM for the post-tool response
+        # Mock tool execution and LLM for the post-tool response.
+        # llm_node may route to build_synthesis_llm (llm_factory) for the
+        # post-tool synthesis pass — patch both entry points.
+        mock_llm = MagicMock()
+        mock_response = AIMessage(content="No papers found.")
+        mock_llm.bind_tools.return_value.ainvoke = AsyncMock(return_value=mock_response)
         with patch(
             "src.api.agent.execute.execute_tool",
             new_callable=AsyncMock,
             return_value={"results": [], "total": 0},
         ):
-            with patch("src.services.agent.graph._build_llm") as mock_build:
-                mock_llm = MagicMock()
-                mock_response = AIMessage(content="No papers found.")
-                mock_llm.bind_tools.return_value.ainvoke = AsyncMock(return_value=mock_response)
-                mock_build.return_value = mock_llm
-
+            with (
+                patch("src.services.agent.graph._build_llm", return_value=mock_llm),
+                patch(
+                    "src.services.agent.llm_factory.build_synthesis_llm",
+                    return_value=mock_llm,
+                ),
+            ):
                 result = await graph.ainvoke(None, config=config)
 
         # Should complete without any interrupt
