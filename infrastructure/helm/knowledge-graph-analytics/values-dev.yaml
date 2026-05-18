@@ -112,7 +112,10 @@ backend:
       memory: 2Gi
     requests:
       cpu: 250m
-      memory: 512Mi
+      # Bumped from 512Mi: real RSS observed ~1.3Gi (gunicorn 2 forks + model
+      # load). Under-requesting caused kubelet eviction (exit 137) under node
+      # memory pressure on 6.5Gi-allocatable nodes.
+      memory: 1500Mi
   autoscaling:
     enabled: false
   envFrom:
@@ -144,9 +147,13 @@ backend:
     - name: LOG_LEVEL
       value: "DEBUG"
     - name: WORKERS
-      value: "2"
+      value: "1"
     - name: TIMEOUT
       value: "300"
+    # Cap glibc per-thread arenas to reduce RSS bloat (default 8*CPU on
+    # multi-core). Combined with WORKERS=1, cuts steady-state memory ~30-40%.
+    - name: MALLOC_ARENA_MAX
+      value: "2"
     - name: CORS_ORIGINS
       value: "https://dev-app.gen-text.app,http://localhost:3000,http://127.0.0.1:3000"
     # Database pool sizing: tuned for Supabase session-mode pooler limits
