@@ -524,7 +524,7 @@ class TestGatherExceptionToolMessages:
             raise RuntimeError("Connection failed")
 
         with patch(
-            "src.services.agent.graph._execute_single_tool",
+            "src.services.agent._nodes_tools._execute_single_tool",
             side_effect=mock_execute,
         ):
             result = await tool_node(state, config)
