@@ -367,10 +367,22 @@ app.add_middleware(AnalyticsRateLimitMiddleware, redis_client=redis_client)
 # available when rate limit decisions are made (registered after = executes first).
 app.add_middleware(MultiTenancyMiddleware)
 
-# Add trusted host middleware for production
+# Add trusted host middleware for production.
+# Kubelet HTTP probes set Host header to the pod IP, which is not in the
+# allow-list — that produced HTTP 400 on /health and crash-looped pods.
+# Exempt kube probe paths from host validation.
 if not settings.DEBUG:
+    _PROBE_PATHS = {"/health", "/healthz", "/readyz", "/livez", "/metrics"}
+
+    class _ProbeAwareTrustedHostMiddleware(TrustedHostMiddleware):
+        async def __call__(self, scope, receive, send):
+            if scope.get("type") == "http" and scope.get("path") in _PROBE_PATHS:
+                await self.app(scope, receive, send)
+                return
+            await super().__call__(scope, receive, send)
+
     app.add_middleware(
-        TrustedHostMiddleware,
+        _ProbeAwareTrustedHostMiddleware,
         allowed_hosts=["localhost", "127.0.0.1", "testserver", "*.gen-text.app"],
     )
 
