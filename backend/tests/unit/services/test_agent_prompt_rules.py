@@ -68,7 +68,17 @@ async def _capture_system_prompt(intent: str) -> str:
     fake_llm = MagicMock()
     fake_llm.bind_tools.return_value = fake_with_tools
 
-    with patch("src.services.agent.graph._build_llm", return_value=fake_llm):
+    # For intent="general", llm_node routes to llm_factory.build_synthesis_llm
+    # (see _nodes_llm.py:191 — the lightweight-synthesis optimisation). For
+    # other intents it uses graph._build_llm. Patch both so the fake LLM is
+    # returned regardless of intent.
+    with (
+        patch("src.services.agent.graph._build_llm", return_value=fake_llm),
+        patch(
+            "src.services.agent.llm_factory.build_synthesis_llm",
+            return_value=fake_llm,
+        ),
+    ):
         await llm_node(_make_initial_state(intent=intent), _make_config())
 
     assert captured["messages"], "llm_node did not call the LLM"
@@ -103,8 +113,9 @@ class TestPromptRulesPresent:
         assert CLEAR_BODY in prompt
 
     async def test_existing_workflow_block_still_present(self) -> None:
-        """Sanity: we appended, didn't replace. The MANDATORY WORKFLOW
-        block from before this PR still anchors the prompt."""
+        """Sanity: we appended, didn't replace. The workflow block from
+        before this PR still anchors the prompt. Strings were renamed
+        (not removed) — see _prompts.py:205/217."""
         prompt = await _capture_system_prompt("general")
-        assert "MANDATORY WORKFLOW for adding papers to a project" in prompt
-        assert "NEVER fabricate UUIDs" in prompt
+        assert "Workflow for adding papers to a project" in prompt
+        assert "Never invent IDs like 'proj_12345'" in prompt
