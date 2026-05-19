@@ -44,3 +44,21 @@ def test_build_rule_body_rejects_naive_datetime() -> None:
             sampling_rate=1.0,
             backfill_from=_dt.datetime(2026, 5, 18, 0, 0),  # no tzinfo
         )
+
+
+def test_summarize_results_returns_nonzero_when_any_failure() -> None:
+    results = [
+        ("Tool Call Validity", "ok", None),
+        ("No Tool Loop", "failed", "HTTPError 500"),
+    ]
+    code = uploader._summarize_results(results)
+    assert code == 1
+
+
+def test_summarize_results_returns_zero_when_all_ok() -> None:
+    results = [
+        ("Tool Call Validity", "ok", None),
+        ("No Tool Loop", "ok", None),
+    ]
+    code = uploader._summarize_results(results)
+    assert code == 0

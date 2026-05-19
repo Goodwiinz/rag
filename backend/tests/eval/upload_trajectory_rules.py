@@ -165,6 +165,25 @@ def _build_rule_body(
     return body
 
 
+def _summarize_results(results) -> int:
+    """Print a per-rule status table and return an exit code.
+
+    `results` is an iterable of ``(display_name, status, error_message_or_None)``
+    where ``status`` is either ``"ok"`` or ``"failed"``. Returns 0 when every
+    entry is "ok", 1 when at least one entry failed.
+    """
+    failures = [(name, msg) for name, status, msg in results if status != "ok"]
+    for name, status, msg in results:
+        marker = "OK" if status == "ok" else "FAIL"
+        suffix = f" — {msg}" if msg else ""
+        print(f"  [{marker}] {name}{suffix}")
+    if failures:
+        print(f"\n{len(failures)} of {len(results)} rules failed to sync.", file=sys.stderr)
+        return 1
+    print(f"\nAll {len(results)} rules synced.")
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--dry-run", action="store_true")
@@ -212,26 +231,31 @@ def main() -> int:
             hours=args.backfill_hours
         )
 
+    results = []
     for display, fn_name, code in payloads:
-        if display in existing_by_name:
-            rule_id = existing_by_name[display]["id"]
-            print(f"Removing existing rule {display!r} (id={rule_id})")
-            _delete_rule(api_key, endpoint, rule_id)
+        try:
+            if display in existing_by_name:
+                rule_id = existing_by_name[display]["id"]
+                print(f"Removing existing rule {display!r} (id={rule_id})")
+                _delete_rule(api_key, endpoint, rule_id)
 
-        body = _build_rule_body(
-            display_name=display,
-            session_id=session_id,
-            code=code,
-            sampling_rate=args.sampling_rate,
-            backfill_from=backfill_from,
-        )
-        result = _request(
-            "POST", f"{endpoint}/api/v1/runs/rules", api_key, body
-        )
-        print(f"Created rule {display!r} id={result.get('id', '<unknown>')}")
+            body = _build_rule_body(
+                display_name=display,
+                session_id=session_id,
+                code=code,
+                sampling_rate=args.sampling_rate,
+                backfill_from=backfill_from,
+            )
+            result = _request(
+                "POST", f"{endpoint}/api/v1/runs/rules", api_key, body
+            )
+            print(f"Created rule {display!r} id={result.get('id', '<unknown>')}")
+            results.append((display, "ok", None))
+        except Exception as exc:
+            print(f"Failed to sync {display!r}: {exc}", file=sys.stderr)
+            results.append((display, "failed", str(exc)))
 
-    print("\nDone.")
-    return 0
+    return _summarize_results(results)
 
 
 if __name__ == "__main__":
