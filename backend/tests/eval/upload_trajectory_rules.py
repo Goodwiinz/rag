@@ -214,13 +214,17 @@ def main() -> int:
         code = _extract_function(source, fn_name)
         payloads.append((display, fn_name, code))
 
-    session_id = _resolve_session_id(api_key, endpoint, args.project)
-    print(f"Session: {session_id} ({args.project})")
-
     if args.dry_run:
+        # Short-circuit BEFORE any HTTP call so PR smoke jobs can run with a
+        # dummy API key. We still print a session line so output shape is
+        # stable for log scrapers.
+        print(f"Session: <dry-run> ({args.project})")
         for display, fn_name, code in payloads:
             print(f"\n--- {display} ({fn_name}) ---\n{code}")
         return 0
+
+    session_id = _resolve_session_id(api_key, endpoint, args.project)
+    print(f"Session: {session_id} ({args.project})")
 
     existing = _existing_rules(api_key, endpoint, session_id)
     existing_by_name = {r["display_name"]: r for r in existing}
