@@ -1,0 +1,48 @@
+name: Evaluator PR Smoke
+
+# Validates that the LangSmith trajectory evaluator surface is healthy on
+# PRs that touch it: parses, passes unit tests, and dry-runs without
+# hitting the LangSmith API.
+#
+# Safety: no inline template expansion in run: blocks; no secrets needed.
+
+on:
+  pull_request:
+    paths:
+      - "backend/tests/eval/**"
+      - ".github/workflows/sync-langsmith-evaluators.yml"
+      - ".github/workflows/eval-pr-smoke.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    name: Evaluator Smoke
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        # actions/checkout@v4.2.2 — pinned for supply-chain safety
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+
+      - name: Set up Python
+        # actions/setup-python@v5.3.0 — pinned for supply-chain safety
+        uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b
+        with:
+          python-version: "3.12"
+
+      - name: Install pytest
+        run: python -m pip install --no-cache-dir "pytest>=8,<9"
+
+      - name: Compile-check evaluator + uploader
+        run: |
+          python -m py_compile backend/tests/eval/langsmith_trajectory_evaluators.py
+          python -m py_compile backend/tests/eval/upload_trajectory_rules.py
+
+      - name: Run unit tests
+        run: pytest backend/tests/eval/test_upload_trajectory_rules.py backend/tests/eval/test_trajectory_evaluators.py -v
+
+      - name: Dry-run uploader (no API call)
+        env:
+          LANGSMITH_API_KEY: dummy-not-used-during-dry-run
+        run: python backend/tests/eval/upload_trajectory_rules.py --dry-run --project rag-agent-dev-local
