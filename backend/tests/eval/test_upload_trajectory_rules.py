@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import datetime as _dt
 import importlib
+import re
 import sys
 from pathlib import Path
 
@@ -11,6 +12,13 @@ import pytest
 MODULE_PATH = Path(__file__).resolve().parent / "upload_trajectory_rules.py"
 sys.path.insert(0, str(MODULE_PATH.parent))
 uploader = importlib.import_module("upload_trajectory_rules")
+
+
+_MINIMAL_EVAL_SOURCE = (
+    "def _extract_messages(run):\n    return []\n\n"
+    "def _iter_tool_calls(messages):\n    yield from ()\n\n"
+    "def my_metric(run):\n    return {'score': 1}\n"
+)
 
 
 def test_build_rule_body_includes_backfill_when_provided() -> None:
@@ -70,23 +78,13 @@ def test_summarize_results_returns_zero_for_empty() -> None:
 
 
 def test_extract_function_renames_target() -> None:
-    source = (
-        "def _extract_messages(run):\n    return []\n\n"
-        "def _iter_tool_calls(messages):\n    yield from ()\n\n"
-        "def my_metric(run):\n    return {'score': 1}\n"
-    )
-    code = uploader._extract_function(source, "my_metric")
-    assert "def perform_eval(run):" in code
-    assert "def my_metric(" not in code
+    code = uploader._extract_function(_MINIMAL_EVAL_SOURCE, "my_metric")
+    assert re.search(r"^def perform_eval\(run\):", code, re.MULTILINE)
+    assert not re.search(r"^def my_metric\(", code, re.MULTILINE)
 
 
 def test_extract_function_includes_both_helpers() -> None:
-    source = (
-        "def _extract_messages(run):\n    return []\n\n"
-        "def _iter_tool_calls(messages):\n    yield from ()\n\n"
-        "def my_metric(run):\n    return {'score': 1}\n"
-    )
-    code = uploader._extract_function(source, "my_metric")
+    code = uploader._extract_function(_MINIMAL_EVAL_SOURCE, "my_metric")
     assert "def _extract_messages(" in code
     assert "def _iter_tool_calls(" in code
 
@@ -96,5 +94,5 @@ def test_extract_function_raises_when_target_missing() -> None:
         "def _extract_messages(run):\n    return []\n\n"
         "def _iter_tool_calls(messages):\n    yield from ()\n"
     )
-    with pytest.raises(RuntimeError, match="not found"):
+    with pytest.raises(RuntimeError, match=r"Function does_not_exist not found"):
         uploader._extract_function(source, "does_not_exist")
