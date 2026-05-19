@@ -383,7 +383,13 @@ if not settings.DEBUG:
 
     app.add_middleware(
         _ProbeAwareTrustedHostMiddleware,
-        allowed_hosts=["localhost", "127.0.0.1", "testserver", "*.gen-text.app"],
+        allowed_hosts=[
+            "localhost",
+            "127.0.0.1",
+            "testserver",
+            "*.gen-text.app",
+            "*.svc.cluster.local",
+        ],
     )
 
 
