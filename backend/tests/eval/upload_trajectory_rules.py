@@ -165,22 +165,22 @@ def _build_rule_body(
     return body
 
 
-def _summarize_results(results) -> int:
+def _summarize_results(results: list[tuple[str, str, str | None]]) -> int:
     """Print a per-rule status table and return an exit code.
 
     `results` is an iterable of ``(display_name, status, error_message_or_None)``
     where ``status`` is either ``"ok"`` or ``"failed"``. Returns 0 when every
     entry is "ok", 1 when at least one entry failed.
     """
-    failures = [(name, msg) for name, status, msg in results if status != "ok"]
-    for name, status, msg in results:
+    rows = list(results)
+    failures = [(name, msg) for name, status, msg in rows if status != "ok"]
+    for name, status, _msg in rows:
         marker = "OK" if status == "ok" else "FAIL"
-        suffix = f" — {msg}" if msg else ""
-        print(f"  [{marker}] {name}{suffix}")
+        print(f"  [{marker}] {name}")
     if failures:
-        print(f"\n{len(failures)} of {len(results)} rules failed to sync.", file=sys.stderr)
+        print(f"\n{len(failures)} of {len(rows)} rules failed to sync.", file=sys.stderr)
         return 1
-    print(f"\nAll {len(results)} rules synced.")
+    print(f"\nAll {len(rows)} rules synced.")
     return 0
 
 
@@ -233,6 +233,9 @@ def main() -> int:
 
     results = []
     for display, fn_name, code in payloads:
+        # If delete succeeds but POST fails, the rule is absent on the
+        # server; a re-run will take the clean-POST path. No manual
+        # cleanup needed.
         try:
             if display in existing_by_name:
                 rule_id = existing_by_name[display]["id"]

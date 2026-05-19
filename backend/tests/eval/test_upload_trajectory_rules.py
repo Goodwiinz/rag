@@ -62,3 +62,8 @@ def test_summarize_results_returns_zero_when_all_ok() -> None:
     ]
     code = uploader._summarize_results(results)
     assert code == 0
+
+
+def test_summarize_results_returns_zero_for_empty() -> None:
+    code = uploader._summarize_results([])
+    assert code == 0
