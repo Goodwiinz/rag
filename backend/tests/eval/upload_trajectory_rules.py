@@ -139,8 +139,14 @@ def _build_rule_body(
     session_id: str,
     code: str,
     sampling_rate: float,
-    backfill_from: "datetime.datetime | None" = None,
+    backfill_from: datetime.datetime | None = None,
 ) -> dict:
+    """Return the request body dict for a LangSmith run rule POST.
+
+    `backfill_from`, when provided, must be timezone-aware; it is serialised
+    to ISO 8601 and included as the `backfill_from` field. When None the
+    field is omitted entirely (LangSmith default = no backfill).
+    """
     body: dict = {
         "display_name": display_name,
         "session_id": session_id,
@@ -150,6 +156,10 @@ def _build_rule_body(
         "code_evaluators": [{"code": code, "language": "python"}],
     }
     if backfill_from is not None:
+        if backfill_from.tzinfo is None:
+            raise ValueError(
+                "backfill_from must be timezone-aware; got a naive datetime."
+            )
         body["backfill_from"] = backfill_from.isoformat()
     return body
 
@@ -195,17 +205,18 @@ def main() -> int:
     existing = _existing_rules(api_key, endpoint, session_id)
     existing_by_name = {r["display_name"]: r for r in existing}
 
+    backfill_from: datetime.datetime | None = None
+    if args.backfill_hours > 0:
+        backfill_from = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(
+            hours=args.backfill_hours
+        )
+
     for display, fn_name, code in payloads:
         if display in existing_by_name:
             rule_id = existing_by_name[display]["id"]
             print(f"Removing existing rule {display!r} (id={rule_id})")
             _delete_rule(api_key, endpoint, rule_id)
 
-        backfill_from = None
-        if args.backfill_hours > 0:
-            backfill_from = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(
-                hours=args.backfill_hours
-            )
         body = _build_rule_body(
             display_name=display,
             session_id=session_id,

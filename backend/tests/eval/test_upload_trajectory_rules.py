@@ -33,3 +33,14 @@ def test_build_rule_body_omits_backfill_when_none() -> None:
         backfill_from=None,
     )
     assert "backfill_from" not in body
+
+
+def test_build_rule_body_rejects_naive_datetime() -> None:
+    with pytest.raises(ValueError, match="timezone-aware"):
+        uploader._build_rule_body(
+            display_name="x",
+            session_id="00000000-0000-0000-0000-000000000000",
+            code="def perform_check(run): return {'score': 1}",
+            sampling_rate=1.0,
+            backfill_from=_dt.datetime(2026, 5, 18, 0, 0),  # no tzinfo
+        )
