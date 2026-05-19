@@ -54,7 +54,7 @@ pytesseract==0.3.13
 pillow==10.3.0
 opencv-python==4.13.0.92
 setuptools>=70.0.0,<72.0.0  # pkg_resources removed in 72+, needed by pybtex
-camelot-py[cv]>=0.11.0
+camelot-py[cv]>=1.0.9
 tabula-py>=2.9.0
 
 # NLP
