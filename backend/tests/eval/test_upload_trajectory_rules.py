@@ -96,3 +96,35 @@ def test_extract_function_raises_when_target_missing() -> None:
     )
     with pytest.raises(RuntimeError, match=r"Function does_not_exist not found"):
         uploader._extract_function(source, "does_not_exist")
+
+
+def test_main_dry_run_does_not_call_resolve_session_id(monkeypatch) -> None:
+    """Dry-run must short-circuit before any network call."""
+    monkeypatch.setenv("LANGSMITH_API_KEY", "dummy")
+    monkeypatch.setattr(sys, "argv", [
+        "upload_trajectory_rules.py",
+        "--dry-run",
+        "--project",
+        "rag-agent-dev-local",
+    ])
+    calls = {"resolve": 0, "existing": 0, "request": 0}
+
+    def fake_resolve(*a, **kw):
+        calls["resolve"] += 1
+        raise AssertionError("dry-run should not call _resolve_session_id")
+
+    def fake_existing(*a, **kw):
+        calls["existing"] += 1
+        raise AssertionError("dry-run should not call _existing_rules")
+
+    def fake_request(*a, **kw):
+        calls["request"] += 1
+        raise AssertionError("dry-run should not call _request")
+
+    monkeypatch.setattr(uploader, "_resolve_session_id", fake_resolve)
+    monkeypatch.setattr(uploader, "_existing_rules", fake_existing)
+    monkeypatch.setattr(uploader, "_request", fake_request)
+
+    rc = uploader.main()
+    assert rc == 0
+    assert calls == {"resolve": 0, "existing": 0, "request": 0}
