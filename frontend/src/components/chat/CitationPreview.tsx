@@ -2,6 +2,7 @@
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { IconButton } from "@/components/ui/icon-button";
 import { cn } from '@/lib/utils';
 import { THEME } from '@/theme/constants';
 import {
@@ -171,15 +172,15 @@ export function CitationPreview({
 
           {/* Close button */}
           {onClose && (
-            <button
+            <IconButton
+              label="Close preview"
+              icon={<X className="w-4 h-4 text-muted-foreground hover:text-foreground" />}
               onClick={(e) => {
                 e.stopPropagation();
                 onClose();
               }}
               className="p-1 rounded hover:bg-muted transition-colors"
-            >
-              <X className="w-4 h-4 text-muted-foreground hover:text-foreground" />
-            </button>
+            />
           )}
         </div>
       </div>
@@ -203,20 +204,21 @@ export function CitationPreview({
                   >
                     Content Preview
                   </span>
-                  <button
+                  <IconButton
+                    label="Copy citation content"
+                    icon={
+                      copied ? (
+                        <Check
+                          className="w-3 h-3"
+                          style={{ color: THEME.colors.primary }}
+                        />
+                      ) : (
+                        <Copy className="w-3 h-3 text-muted-foreground hover:text-foreground" />
+                      )
+                    }
                     onClick={handleCopy}
                     className="p-1 rounded hover:bg-muted transition-colors"
-                    title="Copy content"
-                  >
-                    {copied ? (
-                      <Check
-                        className="w-3 h-3"
-                        style={{ color: THEME.colors.primary }}
-                      />
-                    ) : (
-                      <Copy className="w-3 h-3 text-muted-foreground hover:text-foreground" />
-                    )}
-                  </button>
+                  />
                 </div>
                 <div
                   className={cn(
