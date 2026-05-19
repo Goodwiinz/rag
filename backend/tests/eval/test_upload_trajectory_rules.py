@@ -67,3 +67,34 @@ def test_summarize_results_returns_zero_when_all_ok() -> None:
 def test_summarize_results_returns_zero_for_empty() -> None:
     code = uploader._summarize_results([])
     assert code == 0
+
+
+def test_extract_function_renames_target() -> None:
+    source = (
+        "def _extract_messages(run):\n    return []\n\n"
+        "def _iter_tool_calls(messages):\n    yield from ()\n\n"
+        "def my_metric(run):\n    return {'score': 1}\n"
+    )
+    code = uploader._extract_function(source, "my_metric")
+    assert "def perform_eval(run):" in code
+    assert "def my_metric(" not in code
+
+
+def test_extract_function_includes_both_helpers() -> None:
+    source = (
+        "def _extract_messages(run):\n    return []\n\n"
+        "def _iter_tool_calls(messages):\n    yield from ()\n\n"
+        "def my_metric(run):\n    return {'score': 1}\n"
+    )
+    code = uploader._extract_function(source, "my_metric")
+    assert "def _extract_messages(" in code
+    assert "def _iter_tool_calls(" in code
+
+
+def test_extract_function_raises_when_target_missing() -> None:
+    source = (
+        "def _extract_messages(run):\n    return []\n\n"
+        "def _iter_tool_calls(messages):\n    yield from ()\n"
+    )
+    with pytest.raises(RuntimeError, match="not found"):
+        uploader._extract_function(source, "does_not_exist")
