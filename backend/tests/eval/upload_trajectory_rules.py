@@ -11,6 +11,7 @@ Idempotent: deletes existing rules with matching display_name before recreate.
 from __future__ import annotations
 
 import argparse
+import datetime
 import json
 import os
 import re
@@ -132,6 +133,27 @@ def _delete_rule(api_key: str, endpoint: str, rule_id: str) -> None:
     _request("DELETE", f"{endpoint}/api/v1/runs/rules/{rule_id}", api_key)
 
 
+def _build_rule_body(
+    *,
+    display_name: str,
+    session_id: str,
+    code: str,
+    sampling_rate: float,
+    backfill_from: "datetime.datetime | None" = None,
+) -> dict:
+    body: dict = {
+        "display_name": display_name,
+        "session_id": session_id,
+        "is_enabled": True,
+        "sampling_rate": sampling_rate,
+        "filter": "eq(is_root, true)",
+        "code_evaluators": [{"code": code, "language": "python"}],
+    }
+    if backfill_from is not None:
+        body["backfill_from"] = backfill_from.isoformat()
+    return body
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--dry-run", action="store_true")
@@ -145,6 +167,12 @@ def main() -> int:
         type=float,
         default=1.0,
         help="Fraction of root runs evaluated (0–1).",
+    )
+    parser.add_argument(
+        "--backfill-hours",
+        type=int,
+        default=0,
+        help="Backfill window in hours. 0 disables backfill (default).",
     )
     args = parser.parse_args()
 
@@ -173,14 +201,18 @@ def main() -> int:
             print(f"Removing existing rule {display!r} (id={rule_id})")
             _delete_rule(api_key, endpoint, rule_id)
 
-        body = {
-            "display_name": display,
-            "session_id": session_id,
-            "is_enabled": True,
-            "sampling_rate": args.sampling_rate,
-            "filter": "eq(is_root, true)",
-            "code_evaluators": [{"code": code, "language": "python"}],
-        }
+        backfill_from = None
+        if args.backfill_hours > 0:
+            backfill_from = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(
+                hours=args.backfill_hours
+            )
+        body = _build_rule_body(
+            display_name=display,
+            session_id=session_id,
+            code=code,
+            sampling_rate=args.sampling_rate,
+            backfill_from=backfill_from,
+        )
         result = _request(
             "POST", f"{endpoint}/api/v1/runs/rules", api_key, body
         )
