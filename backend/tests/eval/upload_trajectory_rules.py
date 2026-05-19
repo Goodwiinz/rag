@@ -24,7 +24,7 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[3]
 ENV_FILE = REPO / "backend" / ".env"
 EVALUATORS_FILE = Path(__file__).with_name("langsmith_trajectory_evaluators.py")
-PROJECT_NAME = "rag-agent-dev-local"
+DEFAULT_PROJECT_NAME = "rag-agent-dev-local"
 
 METRICS = [
     ("tool_call_validity", "Tool Call Validity"),
@@ -34,12 +34,24 @@ METRICS = [
 
 
 def _load_env() -> tuple[str, str]:
-    for line in subprocess.check_output(
-        ["grep", "-E", "^(LANGSMITH_API_KEY|LANGSMITH_ENDPOINT)=", str(ENV_FILE)]
-    ).decode().splitlines():
-        k, _, v = line.partition("=")
-        os.environ[k] = v
-    return os.environ["LANGSMITH_API_KEY"], os.environ.get(
+    """Resolve API key + endpoint.
+
+    Priority: existing environment > backend/.env file. CI runners only set
+    env vars, so the .env lookup is skipped when both are already present.
+    """
+    if not os.environ.get("LANGSMITH_API_KEY") and ENV_FILE.exists():
+        for line in subprocess.check_output(
+            ["grep", "-E", "^(LANGSMITH_API_KEY|LANGSMITH_ENDPOINT)=", str(ENV_FILE)]
+        ).decode().splitlines():
+            k, _, v = line.partition("=")
+            os.environ.setdefault(k, v)
+    try:
+        api_key = os.environ["LANGSMITH_API_KEY"]
+    except KeyError as exc:
+        raise RuntimeError(
+            "LANGSMITH_API_KEY missing — set env var or populate backend/.env."
+        ) from exc
+    return api_key, os.environ.get(
         "LANGSMITH_ENDPOINT", "https://api.smith.langchain.com"
     )
 
@@ -100,12 +112,14 @@ def _extract_function(source: str, fn_name: str) -> str:
     return "\n".join(helpers + [body]) + "\n"
 
 
-def _resolve_session_id(api_key: str, endpoint: str) -> str:
-    q = urllib.parse.urlencode({"name": PROJECT_NAME, "limit": 5})
+def _resolve_session_id(
+    api_key: str, endpoint: str, project_name: str = DEFAULT_PROJECT_NAME
+) -> str:
+    q = urllib.parse.urlencode({"name": project_name, "limit": 5})
     data = _request("GET", f"{endpoint}/api/v1/sessions?{q}", api_key)
-    matches = [s for s in data if s.get("name") == PROJECT_NAME]
+    matches = [s for s in data if s.get("name") == project_name]
     if not matches:
-        raise RuntimeError(f"Project {PROJECT_NAME!r} not found.")
+        raise RuntimeError(f"Project {project_name!r} not found.")
     return matches[0]["id"]
 
 
@@ -122,6 +136,11 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument(
+        "--project",
+        default=os.environ.get("LANGSMITH_PROJECT", DEFAULT_PROJECT_NAME),
+        help="LangSmith project (session) name to attach rules to.",
+    )
+    parser.add_argument(
         "--sampling-rate",
         type=float,
         default=1.0,
@@ -137,8 +156,8 @@ def main() -> int:
         code = _extract_function(source, fn_name)
         payloads.append((display, fn_name, code))
 
-    session_id = _resolve_session_id(api_key, endpoint)
-    print(f"Session: {session_id} ({PROJECT_NAME})")
+    session_id = _resolve_session_id(api_key, endpoint, args.project)
+    print(f"Session: {session_id} ({args.project})")
 
     if args.dry_run:
         for display, fn_name, code in payloads:

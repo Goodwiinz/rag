@@ -1,0 +1,101 @@
+name: Sync LangSmith Evaluators
+
+# Runs after a successful Deploy workflow on main, or via manual dispatch.
+# Idempotently uploads trajectory online-evaluators (Tool Call Validity,
+# No Tool Loop, Terminates With Answer) as run rules on the LangSmith
+# project for the chosen environment.
+#
+# Safety: all template expansions are routed through `env:` blocks so that
+# nothing reaches `run:` as inline expansion (avoids workflow injection
+# vectors).
+
+on:
+  workflow_run:
+    workflows: ["Deploy to DigitalOcean Kubernetes"]
+    types:
+      - completed
+    branches:
+      - main
+
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment"
+        required: true
+        default: "staging"
+        type: choice
+        options:
+          - staging
+          - production
+
+permissions:
+  contents: read
+
+jobs:
+  detect-env:
+    name: Detect Target Environment
+    runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
+    outputs:
+      environments: ${{ steps.pick.outputs.environments }}
+    steps:
+      - name: Pick environment(s)
+        id: pick
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_ENV: ${{ github.event.inputs.environment }}
+        run: |
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            printf 'environments=["%s"]\n' "$INPUT_ENV" >> "$GITHUB_OUTPUT"
+          else
+            printf 'environments=["staging","production"]\n' >> "$GITHUB_OUTPUT"
+          fi
+
+  sync:
+    name: Sync Evaluators
+    needs: detect-env
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        environment: ${{ fromJson(needs.detect-env.outputs.environments) }}
+    environment:
+      name: ${{ matrix.environment }}
+    steps:
+      - name: Checkout repository
+        # actions/checkout@v4.2.2 — pinned for supply-chain safety
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+
+      - name: Set up Python
+        # actions/setup-python@v5.3.0 — pinned for supply-chain safety
+        uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b
+        with:
+          python-version: "3.12"
+
+      - name: Verify uploader files present
+        run: |
+          test -f backend/tests/eval/upload_trajectory_rules.py
+          test -f backend/tests/eval/langsmith_trajectory_evaluators.py
+
+      - name: Upload trajectory rules
+        env:
+          TARGET_ENV: ${{ matrix.environment }}
+          LANGSMITH_API_KEY: ${{ secrets.LANGSMITH_API_KEY }}
+          LANGSMITH_ENDPOINT: ${{ vars.LANGSMITH_ENDPOINT }}
+          LANGSMITH_PROJECT: ${{ vars.LANGSMITH_PROJECT }}
+        run: |
+          if [ -z "$LANGSMITH_API_KEY" ]; then
+            echo "LANGSMITH_API_KEY secret missing for $TARGET_ENV." >&2
+            exit 1
+          fi
+          : "${LANGSMITH_ENDPOINT:=https://api.smith.langchain.com}"
+          if [ -z "$LANGSMITH_PROJECT" ]; then
+            LANGSMITH_PROJECT="rag-agent-$TARGET_ENV"
+          fi
+          export LANGSMITH_ENDPOINT LANGSMITH_PROJECT
+          echo "Target project: $LANGSMITH_PROJECT"
+          python backend/tests/eval/upload_trajectory_rules.py \
+            --project "$LANGSMITH_PROJECT" \
+            --sampling-rate 1.0
