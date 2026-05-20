@@ -7,3 +7,7 @@
 ## 2026-05-14 - [Add tablist accessibility pattern]
 **Learning:** Interactive tabs built from native `<button>`s require explicit ARIA roles (`role="tablist"`, `role="tab"`) and state indicators (`aria-selected`) to be correctly announced by screen readers.
 **Action:** When creating custom tab navigations, always implement the standard WAI-ARIA tab pattern rather than relying on generic button elements.
+
+## 2026-05-20 - Add tablist accessibility pattern
+**Learning:** Interactive tabs built from native `<button>`s require explicit ARIA roles (`role="tablist"`, `role="tab"`), state indicators (`aria-selected`), and focus visible utility classes (like `focus-visible:ring-2`) to be correctly announced by screen readers and visibly navigable via keyboard when default outlines are suppressed.
+**Action:** When creating custom tab navigations, always implement the standard WAI-ARIA tab pattern, including descriptive `aria-label`s on the tablist container and explicit focus-visible classes for keyboard accessibility.
