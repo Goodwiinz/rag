@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useMemo, ReactNode } from 'react';
 import { useWebSocketConnection } from '@/hooks/useWebSocketConnection';
 import { useRealtimeProcessingStore } from '@/store/realtimeProcessingStore';
 
@@ -43,11 +43,14 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
 
   const isReady = connection.isConnected;
 
-  const contextValue: WebSocketContextType = {
-    connection,
-    sendMessage: connection.sendMessage,
-    isReady,
-  };
+  const contextValue = useMemo<WebSocketContextType>(
+    () => ({
+      connection,
+      sendMessage: connection.sendMessage,
+      isReady,
+    }),
+    [connection, isReady]
+  );
 
   return (
     <WebSocketContext.Provider value={contextValue}>
