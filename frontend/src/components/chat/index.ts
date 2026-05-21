@@ -55,3 +55,5 @@ export type {
 } from './shared/TerminalChatBubble';
 export type { TerminalChatComposerProps } from './shared/TerminalChatComposer';
 export type { ChatMessageViewModel } from './shared/messageViewModel';
+export { ChatDialogs } from './ChatDialogs';
+export { ChatMessageList } from './ChatMessageList';
