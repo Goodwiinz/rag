@@ -23,6 +23,9 @@ import {
 } from '../types/realtime-processing';
 import { getPublicWebSocketOrigin } from '@/utils/publicEndpoints';
 
+// Maximum number of documents to track in the real-time store
+const MAX_TRACKED_DOCUMENTS = 200;
+
 // WebSocket Service
 import RealtimeWebSocketService from '../services/realtime-websocket-service';
 
@@ -246,6 +249,23 @@ export const useRealtimeStore = create<RealtimeStore>()(
               };
               draft.documents.set(documentId, updatedDoc);
             } else {
+              // Evict oldest document when exceeding the cap
+              if (draft.documents.size >= MAX_TRACKED_DOCUMENTS) {
+                let oldestKey: string | null = null;
+                let oldestTime = Infinity;
+                for (const [key, doc] of draft.documents) {
+                  const t = new Date(doc.metadata.uploadStartedAt).getTime();
+                  if (t < oldestTime) {
+                    oldestTime = t;
+                    oldestKey = key;
+                  }
+                }
+                if (oldestKey) {
+                  draft.documents.delete(oldestKey);
+                  draft.subscribedDocuments.delete(oldestKey);
+                }
+              }
+
               // Create new document entry if it doesn't exist
               const newDoc: DocumentProcessingState = {
                 id: documentId,
