@@ -7,3 +7,8 @@
 **Vulnerability:** API endpoints (e.g. API keys management) were leaking raw database/application exceptions to the client by passing `str(e)` directly into `HTTPException(status_code=500, detail=f"... {str(e)}")`.
 **Learning:** Developers frequently pass exception details to the frontend to aid debugging, which inadvertently exposes internal architecture (like SQL statements, file paths, or third-party API errors) to potential attackers.
 **Prevention:** Never pass raw exception strings to the client in HTTP response details, especially for 500 Internal Server Errors. Always log the actual exception securely on the server (`logger.error(e)`) and return a sanitized, generic error message (e.g., "Internal server error") to the user.
+
+## 2025-05-18 - Information Disclosure via HTTPException Detail in Security Operations
+**Vulnerability:** Exception handlers in `backend/src/api/security/encryption.py` were returning raw exception details (e.g., `str(e)`) to the client inside HTTP 500 error responses (e.g., `raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")`).
+**Learning:** Returning exception details from security-sensitive operations like data decryption and key rotation could expose critical details regarding the cryptographic environment, database state, or execution context. This defeats the purpose of returning a 500 error by leaking internal implementation specifics.
+**Prevention:** Always log detailed exceptions on the server-side using the `logging` module and return generic, non-descriptive error messages (e.g., "Internal server error") for HTTP 500 responses.
