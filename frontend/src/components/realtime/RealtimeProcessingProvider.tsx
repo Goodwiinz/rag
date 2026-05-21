@@ -4,6 +4,7 @@ import React, {
   useEffect,
   useRef,
   useCallback,
+  useMemo,
 } from 'react';
 import { useRealtimeProcessingStore } from '@/store/realtimeProcessingStore';
 import { useAuth } from '@/hooks/useAuth';
@@ -291,12 +292,15 @@ export const RealtimeProcessingProvider: React.FC<
   );
   const isConnected = connectionStatus === 'connected';
 
-  const contextValue: RealtimeProcessingContextType = {
-    isConnected,
-    reconnect,
-    disconnect,
-    manager: managerRef.current,
-  };
+  const contextValue = useMemo<RealtimeProcessingContextType>(
+    () => ({
+      isConnected,
+      reconnect,
+      disconnect,
+      manager: managerRef.current,
+    }),
+    [isConnected, reconnect, disconnect]
+  );
 
   return (
     <RealtimeProcessingContext.Provider value={contextValue}>
