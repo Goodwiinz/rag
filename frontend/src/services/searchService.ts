@@ -1,4 +1,4 @@
-import { apiClient } from './apiClient';
+import { api } from '@/services/api-client';
 import { APIResponse } from '@/types/api';
 import {
   SearchRequest,
@@ -273,7 +273,7 @@ export class SearchService {
     };
 
     try {
-      const response = (await apiClient.post(
+      const response = (await api.post(
         this.searchPrimaryPath,
         backendRequest,
         signal ? { signal } : undefined
@@ -283,7 +283,7 @@ export class SearchService {
     } catch (error: any) {
       if (this.isNotFoundError(error)) {
         try {
-          const fallbackResponse = (await apiClient.post(
+          const fallbackResponse = (await api.post(
             this.searchFallbackPath,
             { ...backendRequest, search_type: 'fulltext' },
             signal ? { signal } : undefined
@@ -319,7 +319,7 @@ export class SearchService {
   async enhancedSearch(
     request: EnhancedSearchRequest
   ): Promise<APIResponse<SearchResult>> {
-    return apiClient.post(`${this.basePath}/enhanced`, request);
+    return api.post(`${this.basePath}/enhanced`, request);
   }
 
   /**
@@ -331,9 +331,7 @@ export class SearchService {
   ): Promise<APIResponse<QuerySuggestions>> {
     try {
       // Backend returns suggestions array directly
-      const response = (await apiClient.get(`${this.basePath}/suggestions`, {
-        params: { q: query, limit },
-      })) as string[];
+      const response = (await api.get(`${this.basePath}/suggestions?q=${encodeURIComponent(query)}&limit=${limit}`)) as string[];
 
       // Transform to match expected format
       const suggestions: QuerySuggestions = {
@@ -367,9 +365,7 @@ export class SearchService {
   async getSearchHistory(
     limit: number = 50
   ): Promise<APIResponse<QueryHistory[]>> {
-    return apiClient.get(`${this.basePath}/history`, {
-      params: { limit },
-    });
+    return api.get(`${this.basePath}/history?limit=${limit}`);
   }
 
   /**
@@ -379,19 +375,14 @@ export class SearchService {
     query: string,
     resultId: string
   ): Promise<APIResponse<void>> {
-    return apiClient.post(`${this.basePath}/history`, null, {
-      params: {
-        query,
-        result_id: resultId,
-      },
-    });
+    return api.post(`${this.basePath}/history?query=${encodeURIComponent(query)}&result_id=${encodeURIComponent(resultId)}`);
   }
 
   /**
    * Clear search history
    */
   async clearSearchHistory(): Promise<APIResponse<void>> {
-    return apiClient.delete(`${this.basePath}/history`);
+    return api.delete(`${this.basePath}/history`);
   }
 
   /**
@@ -400,7 +391,7 @@ export class SearchService {
   async getQuerySession(
     sessionId: string
   ): Promise<APIResponse<QueryProcessingSession>> {
-    return apiClient.get(`${this.basePath}/sessions/${sessionId}`);
+    return api.get(`${this.basePath}/sessions/${sessionId}`);
   }
 
   /**
@@ -409,14 +400,14 @@ export class SearchService {
   async startQuerySession(
     request: EnhancedSearchRequest
   ): Promise<APIResponse<QueryProcessingSession>> {
-    return apiClient.post(`${this.basePath}/sessions`, request);
+    return api.post(`${this.basePath}/sessions`, request);
   }
 
   /**
    * Cancel query processing session
    */
   async cancelQuerySession(sessionId: string): Promise<APIResponse<void>> {
-    return apiClient.delete(`${this.basePath}/sessions/${sessionId}`);
+    return api.delete(`${this.basePath}/sessions/${sessionId}`);
   }
 
   /**
@@ -426,9 +417,7 @@ export class SearchService {
     query: string,
     limit: number = 5
   ): Promise<APIResponse<string[]>> {
-    return apiClient.get(`${this.basePath}/similar`, {
-      params: { q: query, limit },
-    });
+    return api.get(`${this.basePath}/similar?q=${encodeURIComponent(query)}&limit=${limit}`);
   }
 
   /**
@@ -438,9 +427,7 @@ export class SearchService {
     resultId: string,
     limit: number = 5
   ): Promise<APIResponse<string[]>> {
-    return apiClient.get(`${this.basePath}/related/${resultId}`, {
-      params: { limit },
-    });
+    return api.get(`${this.basePath}/related/${resultId}?limit=${limit}`);
   }
 
   /**
@@ -467,9 +454,8 @@ export class SearchService {
     sessionId: string,
     onMessage: (update: QueryProcessingUpdate) => void
   ): Promise<WebSocket> {
-    const ws = await apiClient.createWebSocket(
-      `${this.basePath}/stream/${sessionId}`
-    );
+    const wsUrl = `${this.basePath}/stream/${sessionId}`.replace(/^http/, 'ws');
+    const ws = new WebSocket(wsUrl);
 
     ws.onmessage = (event) => {
       try {
@@ -509,9 +495,7 @@ export class SearchService {
       }>;
     }>
   > {
-    return apiClient.get(`${this.basePath}/analytics`, {
-      params: { days },
-    });
+    return api.get(`${this.basePath}/analytics?days=${days}`);
   }
 
   /**
@@ -522,7 +506,7 @@ export class SearchService {
     rating: number,
     feedback?: string
   ): Promise<APIResponse<void>> {
-    return apiClient.post(`${this.basePath}/rate`, {
+    return api.post(`${this.basePath}/rate`, {
       result_id: resultId,
       rating,
       feedback,
@@ -536,18 +520,11 @@ export class SearchService {
     resultIds: string[],
     format: 'json' | 'csv' | 'pdf' = 'json'
   ): Promise<Blob> {
-    const response = await apiClient.client.post(
-      `${this.basePath}/export`,
-      {
-        result_ids: resultIds,
-        format,
-      },
-      {
-        responseType: 'blob',
-      }
-    );
-
-    return response.data;
+    return api.request(`${this.basePath}/export`, {
+      method: 'POST',
+      body: JSON.stringify({ result_ids: resultIds, format }),
+      headers: { 'Content-Type': 'application/json' },
+    });
   }
 
   /**
@@ -568,7 +545,7 @@ export class SearchService {
       };
     }>
   > {
-    return apiClient.get(`${this.basePath}/performance`);
+    return api.get(`${this.basePath}/performance`);
   }
 
   /**
@@ -579,7 +556,7 @@ export class SearchService {
     filters?: SearchRequest['filters'],
     name?: string
   ): Promise<APIResponse<{ alert_id: string }>> {
-    return apiClient.post(`${this.basePath}/alerts`, {
+    return api.post(`${this.basePath}/alerts`, {
       query,
       filters,
       name,
@@ -602,14 +579,14 @@ export class SearchService {
       }>
     >
   > {
-    return apiClient.get(`${this.basePath}/alerts`);
+    return api.get(`${this.basePath}/alerts`);
   }
 
   /**
    * Delete search alert
    */
   async deleteSearchAlert(alertId: string): Promise<APIResponse<void>> {
-    return apiClient.delete(`${this.basePath}/alerts/${alertId}`);
+    return api.delete(`${this.basePath}/alerts/${alertId}`);
   }
 }
 

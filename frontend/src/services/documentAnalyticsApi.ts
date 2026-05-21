@@ -4,7 +4,7 @@
  * processing status, and paginated document lists from the backend.
  */
 
-import apiClient from './apiClient';
+import { api } from '@/services/api-client';
 
 // Response Types
 export interface FileTypeStats {
@@ -97,7 +97,7 @@ class DocumentAnalyticsApiService {
    * Get file statistics including type distribution and processing status
    */
   async getFileStats(): Promise<FileStatsResponse> {
-    return apiClient.get<FileStatsResponse>(`${this.basePath}/stats`);
+    return api.get<FileStatsResponse>(`${this.basePath}/stats`);
   }
 
   /**
@@ -126,14 +126,14 @@ class DocumentAnalyticsApiService {
       ? `${this.documentsPath}/?${queryString}`
       : `${this.documentsPath}/`;
 
-    return apiClient.get<DocumentListResponse>(url);
+    return api.get<DocumentListResponse>(url);
   }
 
   /**
    * Get single document details
    */
   async getDocument(documentId: string): Promise<DocumentResponse> {
-    return apiClient.get<DocumentResponse>(
+    return api.get<DocumentResponse>(
       `${this.documentsPath}/${documentId}`
     );
   }
@@ -142,7 +142,7 @@ class DocumentAnalyticsApiService {
    * Get document processing status
    */
   async getDocumentStatus(documentId: string): Promise<DocumentStatusResponse> {
-    return apiClient.get<DocumentStatusResponse>(
+    return api.get<DocumentStatusResponse>(
       `${this.documentsPath}/${documentId}/status`
     );
   }
@@ -275,7 +275,7 @@ class SearchAnalyticsApiService {
   async getSearchAnalytics(
     days: number = 30
   ): Promise<SearchAnalyticsResponse> {
-    return apiClient.get<SearchAnalyticsResponse>(
+    return api.get<SearchAnalyticsResponse>(
       `${this.searchPath}/analytics?days=${days}`
     );
   }
@@ -284,7 +284,7 @@ class SearchAnalyticsApiService {
    * Get search analytics from quality metrics service
    */
   async getQualitySearchAnalytics(): Promise<SearchAnalyticsResponse> {
-    return apiClient.get<SearchAnalyticsResponse>(
+    return api.get<SearchAnalyticsResponse>(
       `${this.qualityPath}/analytics/search`
     );
   }
@@ -297,7 +297,7 @@ class SearchAnalyticsApiService {
   ): Promise<SearchPerformanceResponse> {
     // Backend MetricTimeRange enum accepts value-form only (`1h`, `24h`, `7d`,
     // `30d`, `90d`). Passing the enum NAME (e.g. `LAST_7D`) returns 422.
-    return apiClient.get<SearchPerformanceResponse>(
+    return api.get<SearchPerformanceResponse>(
       `${this.performancePath}/search-performance?time_range=${timeRange}`
     );
   }
@@ -444,7 +444,7 @@ class UserBehaviorApiService {
     trendData: TrendDataPoint[];
   }> {
     try {
-      const response = await apiClient.get<any>(
+      const response = await api.get<any>(
         `${this.basePath}/organization/trends?days=${days}`
       );
 
@@ -495,7 +495,7 @@ class UserBehaviorApiService {
     newUsersThisWeek: number;
   }> {
     try {
-      const response = await apiClient.get<any>(
+      const response = await api.get<any>(
         `${this.basePath}/organization/users`
       );
       return {
@@ -528,7 +528,7 @@ class PerformanceApiService {
     errorRate: number;
   }> {
     try {
-      const response = await apiClient.get<any>(`${this.basePath}/overview`);
+      const response = await api.get<any>(`${this.basePath}/overview`);
       return {
         totalUsers: response.total_users || 0,
         activeUsers: response.active_users || 0,
@@ -558,7 +558,7 @@ class PerformanceApiService {
    */
   async getSystemHealth(): Promise<SystemHealthMetrics> {
     try {
-      const response = await apiClient.get<any>(
+      const response = await api.get<any>(
         `${this.basePath}/system-health`
       );
       return {
@@ -597,7 +597,7 @@ class PerformanceApiService {
     pageViews: number;
   }> {
     try {
-      const response = await apiClient.get<any>(
+      const response = await api.get<any>(
         `${this.basePath}/user-engagement`
       );
       return {
@@ -631,7 +631,7 @@ class PerformanceApiService {
     requestsPerMinute: number;
   }> {
     try {
-      const response = await apiClient.get<any>(`${this.basePath}/dashboard`);
+      const response = await api.get<any>(`${this.basePath}/dashboard`);
       return {
         activeUsers:
           response.active_users || response.realtime?.active_users || 0,
@@ -662,7 +662,7 @@ class PerformanceApiService {
    */
   async getTrendData(days: number = 30): Promise<TrendDataPoint[]> {
     try {
-      const response = await apiClient.get<any>(
+      const response = await api.get<any>(
         `${this.basePath}/charts/overview?days=${days}`
       );
 

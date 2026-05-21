@@ -10,7 +10,7 @@
  * - Graph Visualization API (Port 8010) - Layout computation and rendering data
  */
 
-import { apiClient } from './apiClient';
+import { api } from '@/services/api-client';
 import {
   GraphFilters,
   EntityDetails,
@@ -94,9 +94,9 @@ class GraphService {
   }> {
     const [graphHealth, analyticsHealth, visualizationHealth] =
       await Promise.allSettled([
-        apiClient.get(`${this.baseUrl}/health`),
-        apiClient.get(`${this.analyticsUrl}/health`),
-        apiClient.get(`${this.visualizationUrl}/health`),
+        api.get(`${this.baseUrl}/health`),
+        api.get(`${this.analyticsUrl}/health`),
+        api.get(`${this.visualizationUrl}/health`),
       ]);
 
     return {
@@ -111,7 +111,7 @@ class GraphService {
    * BACKEND RESPONSIBILITY: Layout computation, analytics calculations
    */
   async getGraphData(request: GraphDataRequest): Promise<KnowledgeGraphData> {
-    const response = await apiClient.post<KnowledgeGraphData>(
+    const response = await api.post<KnowledgeGraphData>(
       `${this.visualizationUrl}/graph/comprehensive`,
       request
     );
@@ -140,9 +140,11 @@ class GraphService {
       include_mention_contexts: true,
     }
   ): Promise<EntityDetails> {
-    const response = await apiClient.get<EntityDetails>(
-      `${this.baseUrl}/entities/${entityId}`,
-      { params: options }
+    const qs = new URLSearchParams(
+      Object.entries(options).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)])
+    ).toString();
+    const response = await api.get<EntityDetails>(
+      `${this.baseUrl}/entities/${entityId}${qs ? `?${qs}` : ''}`
     );
     return response.data;
   }
@@ -157,7 +159,7 @@ class GraphService {
     search_time: number;
     ranking_metadata: Record<string, any>;
   }> {
-    const response = await apiClient.post<{
+    const response = await api.post<{
       entities: GraphNode[];
       total_count: number;
       search_time: number;
@@ -173,7 +175,7 @@ class GraphService {
   async getAnalyticsDashboard(
     request: AnalyticsRequest
   ): Promise<GraphAnalyticsDashboard> {
-    const response = await apiClient.post<GraphAnalyticsDashboard>(
+    const response = await api.post<GraphAnalyticsDashboard>(
       `${this.analyticsUrl}/analytics/comprehensive`,
       request
     );
@@ -198,7 +200,7 @@ class GraphService {
       include_analytics: true,
     }
   ): Promise<KnowledgeGraphData> {
-    const response = await apiClient.post<KnowledgeGraphData>(
+    const response = await api.post<KnowledgeGraphData>(
       `${this.visualizationUrl}/neighborhood`,
       { node_id: nodeId, ...options }
     );
@@ -222,7 +224,7 @@ class GraphService {
       weight: number;
     }>;
   }> {
-    const response = await apiClient.post<{
+    const response = await api.post<{
       path: string[];
       total_weight: number;
       computation_time: number;
@@ -263,7 +265,7 @@ class GraphService {
       conductance?: number;
     };
   }> {
-    const response = await apiClient.post<{
+    const response = await api.post<{
       communities: Community[];
       modularity_score: number;
       computation_time: number;
@@ -291,7 +293,7 @@ class GraphService {
       include_path_lengths: true,
     }
   ): Promise<RelatedEntity[]> {
-    const response = await apiClient.post<RelatedEntity[]>(
+    const response = await api.post<RelatedEntity[]>(
       `${this.analyticsUrl}/entities/${entityId}/related`,
       options
     );
@@ -303,7 +305,7 @@ class GraphService {
    * BACKEND RESPONSIBILITY: Data formatting, conversion, export preparation
    */
   async exportGraph(options: GraphExportOptions): Promise<Blob> {
-    const response = await apiClient.post(`${this.baseUrl}/export`, options, {
+    const response = await api.post(`${this.baseUrl}/export`, options, {
       responseType: 'blob',
     });
     return response.data;
@@ -314,7 +316,7 @@ class GraphService {
    * BACKEND RESPONSIBILITY: Metrics collection, aggregation
    */
   async getPerformanceMetrics(): Promise<PerformanceMetrics> {
-    const response = await apiClient.get<PerformanceMetrics>(
+    const response = await api.get<PerformanceMetrics>(
       `${this.analyticsUrl}/performance/metrics`
     );
     return response.data;
@@ -338,7 +340,7 @@ class GraphService {
     warnings: Array<{ id: string; warning: string }>;
     operation_id: string;
   }> {
-    const response = await apiClient.post<{
+    const response = await api.post<{
       success: string[];
       errors: Array<{ id: string; error: string }>;
       warnings: Array<{ id: string; warning: string }>;
@@ -367,7 +369,7 @@ class GraphService {
     largest_component_size: number;
     update_timestamp: string;
   }> {
-    const response = await apiClient.post<{
+    const response = await api.post<{
       node_count: number;
       edge_count: number;
       entity_type_counts: Record<string, number>;
@@ -389,9 +391,8 @@ class GraphService {
   async createWebSocketSubscription(
     filters?: GraphFilters
   ): Promise<WebSocket> {
-    const ws = await apiClient.createWebSocket(
-      `${this.visualizationUrl}/ws/subscribe`
-    );
+    const wsUrl = `${this.visualizationUrl}/ws/subscribe`.replace(/^http/, 'ws');
+    const ws = new WebSocket(wsUrl);
 
     // Send subscription message
     if (ws.readyState === WebSocket.OPEN) {
@@ -431,7 +432,7 @@ class GraphService {
     }>;
     validation_time: number;
   }> {
-    const response = await apiClient.post<{
+    const response = await api.post<{
       is_valid: boolean;
       issues: Array<{
         type: 'error' | 'warning';

@@ -5,7 +5,7 @@
  * Frontend only displays analytics, performs no computations.
  */
 
-import { apiClient } from './apiClient';
+import { api } from '@/services/api-client';
 import { GraphAnalyticsData } from './graphService';
 
 export interface CentralityMetrics {
@@ -88,7 +88,7 @@ class AnalyticsService {
    * Get complete analytics dashboard - backend aggregates all metrics
    */
   async getAnalyticsDashboard(filters?: any): Promise<AnalyticsDashboard> {
-    const response = await apiClient.post<AnalyticsDashboard>(
+    const response = await api.post<AnalyticsDashboard>(
       `${this.baseUrl}/dashboard`,
       {
         filters,
@@ -113,7 +113,7 @@ class AnalyticsService {
       'pagerank',
     ]
   ): Promise<CentralityMetrics[]> {
-    const response = await apiClient.post<{ metrics: CentralityMetrics[] }>(
+    const response = await api.post<{ metrics: CentralityMetrics[] }>(
       `${this.baseUrl}/centrality`,
       {
         node_ids: nodeIds,
@@ -132,7 +132,7 @@ class AnalyticsService {
     algorithm: string = 'louvain',
     resolution: number = 1.0
   ): Promise<CommunityAnalytics[]> {
-    const response = await apiClient.post<{
+    const response = await api.post<{
       communities: CommunityAnalytics[];
     }>(`${this.baseUrl}/communities`, {
       algorithm,
@@ -151,7 +151,7 @@ class AnalyticsService {
     targetId: string,
     algorithm: string = 'dijkstra'
   ): Promise<PathAnalytics> {
-    const response = await apiClient.post<PathAnalytics>(
+    const response = await api.post<PathAnalytics>(
       `${this.baseUrl}/path-analytics`,
       {
         source_id: sourceId,
@@ -171,14 +171,9 @@ class AnalyticsService {
     timeRange: string = '30d',
     granularity: string = 'daily'
   ): Promise<GraphEvolutionMetrics[]> {
-    const response = await apiClient.get<{
+    const response = await api.get<{
       evolution: GraphEvolutionMetrics[];
-    }>(`${this.baseUrl}/evolution`, {
-      params: {
-        time_range: timeRange,
-        granularity,
-      },
-    });
+    }>(`${this.baseUrl}/evolution?time_range=${timeRange}&granularity=${granularity}`);
     return response.data.evolution;
   }
 
@@ -188,7 +183,7 @@ class AnalyticsService {
   async getTopologicalInsights(
     insightTypes: string[] = ['anomaly', 'trend', 'pattern', 'recommendation']
   ): Promise<InsightData[]> {
-    const response = await apiClient.post<{ insights: InsightData[] }>(
+    const response = await api.post<{ insights: InsightData[] }>(
       `${this.baseUrl}/insights`,
       {
         insight_types: insightTypes,
@@ -213,7 +208,7 @@ class AnalyticsService {
       criteria_scores: Record<string, number>;
     }>
   > {
-    const response = await apiClient.post<{
+    const response = await api.post<{
       rankings: Array<{
         nodeId: string;
         rank: number;
@@ -235,7 +230,7 @@ class AnalyticsService {
     format: 'json' | 'csv' | 'xlsx',
     analyticsType: 'all' | 'centrality' | 'communities' | 'insights'
   ): Promise<Blob> {
-    const response = await apiClient.post(
+    const response = await api.post(
       `${this.baseUrl}/export`,
       {
         format,

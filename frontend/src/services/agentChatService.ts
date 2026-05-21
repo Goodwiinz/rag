@@ -1,4 +1,4 @@
-import { apiClient } from '@/services/apiClient';
+import { api } from '@/services/api-client';
 import { createClient } from '@/lib/supabase/client';
 
 async function getStreamAuthHeaders(): Promise<Record<string, string>> {
@@ -110,7 +110,7 @@ export interface ThreadMessagesResponse {
 
 class AgentChatService {
   async startJob(request: AgentExecuteRequest): Promise<{ job_id: string }> {
-    return apiClient.post<{ job_id: string }>('/agent/execute', request);
+    return api.post<{ job_id: string }>('/agent/execute', request);
   }
 
   async pollJob(jobId: string): Promise<{
@@ -132,14 +132,14 @@ class AgentChatService {
       message?: string;
     };
   }> {
-    return apiClient.get(`/agent/jobs/${encodeURIComponent(jobId)}`);
+    return api.get(`/agent/jobs/${encodeURIComponent(jobId)}`);
   }
 
   async confirmAction(
     jobId: string,
     confirmed: boolean
   ): Promise<{ status: string; job_id: string }> {
-    return apiClient.post(`/agent/confirm/${encodeURIComponent(jobId)}`, {
+    return api.post(`/agent/confirm/${encodeURIComponent(jobId)}`, {
       confirmed,
     });
   }
@@ -459,11 +459,11 @@ class AgentChatService {
   }
 
   async listThreads(): Promise<ThreadListResponse> {
-    return apiClient.get<ThreadListResponse>('/agent/threads');
+    return api.get<ThreadListResponse>('/agent/threads');
   }
 
   async getThreadMessages(threadId: string): Promise<ThreadMessagesResponse> {
-    return apiClient.get<ThreadMessagesResponse>(
+    return api.get<ThreadMessagesResponse>(
       `/agent/threads/${encodeURIComponent(threadId)}/messages`
     );
   }

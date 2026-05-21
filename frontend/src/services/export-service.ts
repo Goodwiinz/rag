@@ -7,20 +7,7 @@
  * - Export format metadata
  */
 
-import { createClient } from '@/lib/supabase/client';
-
-/** Get the current Supabase access token for API calls */
-async function getAccessToken(): Promise<string | null> {
-  try {
-    const supabase = createClient();
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-    return session?.access_token ?? null;
-  } catch {
-    return null;
-  }
-}
+import { api } from '@/services/api-client';
 
 export type ExportFormat = 'markdown' | 'pdf' | 'json' | 'html';
 
@@ -72,45 +59,21 @@ export async function exportThread(
     include_feedback: String(options.includeFeedback ?? false),
   });
 
-  const token = await getAccessToken();
-  const response = await fetch(
+  const filename = `thread_export.${format === 'markdown' ? 'md' : format}`;
+  // api.download handles auth, blob fetch, and triggers browser download
+  await api.download(
     `/api/v1/export/thread/${threadId}?${params.toString()}`,
-    {
-      method: 'POST',
-      headers: {
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-    }
+    filename
   );
-
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.detail || 'Export failed');
-  }
-
-  // Get filename from Content-Disposition header
-  const disposition = response.headers.get('Content-Disposition');
-  const filenameMatch = disposition?.match(/filename="(.+?)"/);
-  const filename =
-    filenameMatch?.[1] ||
-    `thread_export.${format === 'markdown' ? 'md' : format}`;
-
-  // Download the file
-  const blob = await response.blob();
-  downloadBlob(blob, filename);
 }
 
 /**
  * Export multiple threads as a ZIP file.
  */
 export async function exportBatch(request: BatchExportRequest): Promise<void> {
-  const token = await getAccessToken();
-  const response = await fetch('/api/v1/export/batch', {
+  const blob: Blob = await api.request('/api/v1/export/batch', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       thread_ids: request.threadIds,
       format: request.format,
@@ -125,16 +88,7 @@ export async function exportBatch(request: BatchExportRequest): Promise<void> {
     }),
   });
 
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.detail || 'Batch export failed');
-  }
-
-  const disposition = response.headers.get('Content-Disposition');
-  const filenameMatch = disposition?.match(/filename="(.+?)"/);
-  const filename = filenameMatch?.[1] || 'thread_export.zip';
-
-  const blob = await response.blob();
+  const filename = 'thread_export.zip';
   downloadBlob(blob, filename);
 }
 
@@ -146,20 +100,11 @@ export async function getExportFormats(): Promise<{
   options: Record<string, string>;
   limits: { maxBatchSize: number; maxThreadMessages: number };
 }> {
-  const token = await getAccessToken();
-  const response = await fetch('/api/v1/export/formats', {
-    method: 'GET',
-    headers: {
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-  });
-
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.detail || 'Failed to get export formats');
-  }
-
-  const data = await response.json();
+  const data = await api.get<{
+    formats: ExportFormatInfo[];
+    options: Record<string, string>;
+    limits: { max_batch_size: number; max_thread_messages: number };
+  }>('/api/v1/export/formats');
 
   return {
     formats: data.formats,
@@ -178,24 +123,15 @@ export async function previewExport(
   threadId: string,
   format: ExportFormat = 'markdown'
 ): Promise<ExportPreview> {
-  const token = await getAccessToken();
-  const response = await fetch(
-    `/api/v1/export/preview/${threadId}?format=${format}`,
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-    }
-  );
-
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.detail || 'Preview failed');
-  }
-
-  const data = await response.json();
+  const data = await api.post<{
+    thread_id: string;
+    title: string | null;
+    format: string;
+    message_count: number;
+    citation_count: number;
+    estimated_size_bytes: number;
+    exportable: boolean;
+  }>(`/api/v1/export/preview/${threadId}?format=${format}`);
 
   return {
     threadId: data.thread_id,

@@ -30,182 +30,7 @@ import {
   WorkspaceDetail,
   WorkspaceUpdate,
 } from '@/types/workspace';
-import { getPublicApiOrigin } from '@/utils/publicEndpoints';
-import axios, { AxiosInstance } from 'axios';
-
-// Session token cache — avoids a Supabase getSession() call on every API request.
-// JWT lifetime is typically 1 hour; we refresh 1 minute before the token's own expiry
-// or after 4 minutes as a safety cap so we never send a stale token.
-let _sessionCache: {
-  token: string;
-  organizationId: string | null;
-  expiresAt: number;
-} | null = null;
-
-const getAuthContext = async (): Promise<{
-  token: string | null;
-  organizationId: string | null;
-}> => {
-  if (typeof window === 'undefined') {
-    return { token: null, organizationId: null };
-  }
-
-  if (_sessionCache && Date.now() < _sessionCache.expiresAt) {
-    return {
-      token: _sessionCache.token,
-      organizationId: _sessionCache.organizationId,
-    };
-  }
-
-  try {
-    const { createClient } = await import('@/lib/supabase/client');
-    const supabase = createClient();
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-    const token = session?.access_token ?? null;
-    const organizationId =
-      session?.user?.user_metadata?.organization_id ?? null;
-
-    if (token) {
-      // Cache for 4 minutes (well within the typical 5-minute JWT refresh window)
-      _sessionCache = {
-        token,
-        organizationId,
-        expiresAt: Date.now() + 4 * 60 * 1000,
-      };
-    } else {
-      _sessionCache = null;
-    }
-
-    return { token, organizationId };
-  } catch (e) {
-    _sessionCache = null;
-    console.warn(
-      '[WorkspaceService] Failed to get auth context from Supabase:',
-      e
-    );
-    return { token: null, organizationId: null };
-  }
-};
-
-const getDirectApiBaseUrl = (): string | null => {
-  const configured = getPublicApiOrigin();
-  return configured || null;
-};
-
-// Create a dedicated axios instance for v2 API
-// Use empty baseURL to work with relative paths (goes through Next.js proxy)
-// The API_PREFIX handles the /api/v2 path
-const v2Client: AxiosInstance = axios.create({
-  baseURL: '',
-  timeout: 30000,
-  headers: {
-    'Content-Type': 'application/json',
-  },
-});
-
-// Add auth interceptor for v2 client
-v2Client.interceptors.request.use(async (config) => {
-  // Only access Supabase on client-side
-  if (typeof window === 'undefined') {
-    return config;
-  }
-
-  try {
-    const { token, organizationId } = await getAuthContext();
-
-    console.debug(
-      '[WorkspaceService] Token:',
-      token ? `${token.substring(0, 20)}...` : 'none'
-    );
-    console.debug('[WorkspaceService] Org ID:', organizationId || 'none');
-
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    if (organizationId) {
-      config.headers['X-Organization-ID'] = organizationId;
-    }
-  } catch (e) {
-    console.warn('[WorkspaceService] Failed to get auth context:', e);
-  }
-  return config;
-});
-
-// Add response interceptor for better error handling
-v2Client.interceptors.response.use(
-  (response) => response,
-  async (error) => {
-    // Fallback: if Next.js rewrite/proxy path fails at network layer, retry once
-    // directly against NEXT_PUBLIC_API_URL.
-    const isNetworkError =
-      !error.response &&
-      (error.code === 'ERR_NETWORK' ||
-        /Network Error/i.test(error.message || ''));
-    const originalConfig = error.config as
-      | (typeof error.config & { _retryDirect?: boolean })
-      | undefined;
-    const directApiBaseUrl = getDirectApiBaseUrl();
-
-    if (
-      isNetworkError &&
-      originalConfig &&
-      !originalConfig._retryDirect &&
-      directApiBaseUrl &&
-      typeof originalConfig.url === 'string' &&
-      originalConfig.url.startsWith('/api/v2/')
-    ) {
-      originalConfig._retryDirect = true;
-      originalConfig.baseURL = directApiBaseUrl;
-      console.warn(
-        '[WorkspaceService] Proxy request failed, retrying direct API URL:',
-        `${directApiBaseUrl}${originalConfig.url}`
-      );
-      return v2Client.request(originalConfig);
-    }
-
-    // Log detailed error info to help diagnose "Network Error" issues
-    const errorInfo = {
-      url: error.config?.url,
-      baseURL: error.config?.baseURL,
-      method: error.config?.method,
-      status: error.response?.status,
-      statusText: error.response?.statusText,
-      data: error.response?.data,
-      message: error.message,
-      code: error.code,
-      name: error.name,
-    };
-
-    // Filter out undefined values for cleaner logging
-    const cleanedInfo = Object.fromEntries(
-      Object.entries(errorInfo).filter(([_, v]) => v !== undefined)
-    );
-
-    // If no useful info, it's likely a network-level error
-    if (Object.keys(cleanedInfo).length === 0) {
-      console.error(
-        '[WorkspaceService] Network error - backend may be unreachable:',
-        error.toString?.() || error
-      );
-    } else {
-      console.error('[WorkspaceService] Request failed:', cleanedInfo);
-    }
-
-    // If it's a 401, the user needs to re-authenticate (403 is forbidden, not unauthenticated)
-    if (error.response?.status === 401) {
-      console.warn('[WorkspaceService] Authentication error - logging out');
-      clearWorkspaceServiceCache();
-      // Dynamic import to avoid circular dependencies
-      import('@/stores/authStore').then(({ useAuthStore }) => {
-        useAuthStore.getState().signOut();
-      });
-    }
-
-    return Promise.reject(error);
-  }
-);
+import { api } from '@/services/api-client';
 
 const API_PREFIX = '/api/v2';
 
@@ -213,9 +38,8 @@ const WS_CACHE_KEY = 'default-workspace-object';
 const WS_CACHE_AT_KEY = 'default-workspace-cached-at';
 const WS_CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 
-/** Clear all workspace service caches (session token + localStorage). Called on 401. */
+/** Clear all workspace service caches (localStorage). Called on auth errors. */
 export function clearWorkspaceServiceCache(): void {
-  _sessionCache = null;
   if (typeof window !== 'undefined') {
     localStorage.removeItem(WS_CACHE_KEY);
     localStorage.removeItem(WS_CACHE_AT_KEY);
@@ -232,45 +56,31 @@ export function clearWorkspaceServiceCache(): void {
 export const workspaceService = {
   // Workspace CRUD
   async listWorkspaces(): Promise<Workspace[]> {
-    const response = await v2Client.get<Workspace[]>(
-      `${API_PREFIX}/workspaces`
-    );
-    return response.data;
+    return api.get<Workspace[]>(`${API_PREFIX}/workspaces`);
   },
 
   async createWorkspace(data: WorkspaceCreate): Promise<Workspace> {
-    const { organizationId } = await getAuthContext();
-    const payload: WorkspaceCreate = {
-      ...data,
-      organization_id: data.organization_id || organizationId || undefined,
-    };
-    const response = await v2Client.post<Workspace>(
-      `${API_PREFIX}/workspaces`,
-      payload
-    );
-    return response.data;
+    return api.post<Workspace>(`${API_PREFIX}/workspaces`, data);
   },
 
   async getWorkspace(workspaceId: string): Promise<WorkspaceDetail> {
-    const response = await v2Client.get<WorkspaceDetail>(
+    return api.get<WorkspaceDetail>(
       `${API_PREFIX}/workspaces/${workspaceId}`
     );
-    return response.data;
   },
 
   async updateWorkspace(
     workspaceId: string,
     data: WorkspaceUpdate
   ): Promise<Workspace> {
-    const response = await v2Client.patch<Workspace>(
+    return api.patch<Workspace>(
       `${API_PREFIX}/workspaces/${workspaceId}`,
       data
     );
-    return response.data;
   },
 
   async deleteWorkspace(workspaceId: string): Promise<void> {
-    await v2Client.delete(`${API_PREFIX}/workspaces/${workspaceId}`);
+    await api.delete(`${API_PREFIX}/workspaces/${workspaceId}`);
   },
 
   // ============================================================================
@@ -288,39 +98,34 @@ export const workspaceService = {
 
     const queryString = params.toString();
     const url = `${API_PREFIX}/workspaces/${workspaceId}/conversations${queryString ? `?${queryString}` : ''}`;
-    const response = await v2Client.get<ConversationListResponse>(url);
-    return response.data;
+    return api.get<ConversationListResponse>(url);
   },
 
   async createConversation(data: ConversationCreate): Promise<Conversation> {
-    // Use hierarchical path with workspace_id from request
-    const response = await v2Client.post<Conversation>(
+    return api.post<Conversation>(
       `${API_PREFIX}/workspaces/${data.workspace_id}/conversations`,
       data
     );
-    return response.data;
   },
 
   async getConversation(conversationId: string): Promise<Conversation> {
-    const response = await v2Client.get<Conversation>(
+    return api.get<Conversation>(
       `${API_PREFIX}/conversations/${conversationId}`
     );
-    return response.data;
   },
 
   async updateConversation(
     conversationId: string,
     data: ConversationUpdate
   ): Promise<Conversation> {
-    const response = await v2Client.patch<Conversation>(
+    return api.patch<Conversation>(
       `${API_PREFIX}/conversations/${conversationId}`,
       data
     );
-    return response.data;
   },
 
   async deleteConversation(conversationId: string): Promise<void> {
-    await v2Client.delete(`${API_PREFIX}/conversations/${conversationId}`);
+    await api.delete(`${API_PREFIX}/conversations/${conversationId}`);
   },
 
   // ============================================================================
@@ -337,39 +142,27 @@ export const workspaceService = {
 
     const queryString = params.toString();
     const url = `${API_PREFIX}/conversations/${conversationId}/threads${queryString ? `?${queryString}` : ''}`;
-    const response = await v2Client.get<ThreadListResponse>(url);
-    return response.data;
+    return api.get<ThreadListResponse>(url);
   },
 
   async createThread(data: ThreadCreate): Promise<Thread> {
-    const response = await v2Client.post<Thread>(`${API_PREFIX}/threads`, data);
-    return response.data;
+    return api.post<Thread>(`${API_PREFIX}/threads`, data);
   },
 
   async getThread(threadId: string): Promise<ThreadDetail> {
-    const response = await v2Client.get<ThreadDetail>(
-      `${API_PREFIX}/threads/${threadId}`
-    );
-    return response.data;
+    return api.get<ThreadDetail>(`${API_PREFIX}/threads/${threadId}`);
   },
 
   async updateThread(threadId: string, data: ThreadUpdate): Promise<Thread> {
-    const response = await v2Client.patch<Thread>(
-      `${API_PREFIX}/threads/${threadId}`,
-      data
-    );
-    return response.data;
+    return api.patch<Thread>(`${API_PREFIX}/threads/${threadId}`, data);
   },
 
   async deleteThread(threadId: string): Promise<void> {
-    await v2Client.delete(`${API_PREFIX}/threads/${threadId}`);
+    await api.delete(`${API_PREFIX}/threads/${threadId}`);
   },
 
   async regenerateThreadSummary(threadId: string): Promise<Thread> {
-    const response = await v2Client.post<Thread>(
-      `${API_PREFIX}/threads/${threadId}/summarize`
-    );
-    return response.data;
+    return api.post<Thread>(`${API_PREFIX}/threads/${threadId}/summarize`);
   },
 
   // ============================================================================
@@ -377,35 +170,35 @@ export const workspaceService = {
   // ============================================================================
 
   async bulkResolveThreads(threadIds: string[]): Promise<BulkThreadResponse> {
-    const response = await v2Client.post<BulkThreadResponse>(
+    return api.post<BulkThreadResponse>(
       `${API_PREFIX}/threads/bulk/resolve`,
       { thread_ids: threadIds }
     );
-    return response.data;
   },
 
   async bulkArchiveThreads(threadIds: string[]): Promise<BulkThreadResponse> {
-    const response = await v2Client.post<BulkThreadResponse>(
+    return api.post<BulkThreadResponse>(
       `${API_PREFIX}/threads/bulk/archive`,
       { thread_ids: threadIds }
     );
-    return response.data;
   },
 
   async bulkSummarizeThreads(threadIds: string[]): Promise<BulkThreadResponse> {
-    const response = await v2Client.post<BulkThreadResponse>(
+    return api.post<BulkThreadResponse>(
       `${API_PREFIX}/threads/bulk/summarize`,
       { thread_ids: threadIds }
     );
-    return response.data;
   },
 
   async bulkDeleteThreads(threadIds: string[]): Promise<BulkThreadResponse> {
-    const response = await v2Client.delete<BulkThreadResponse>(
+    return api.request<BulkThreadResponse>(
       `${API_PREFIX}/threads/bulk`,
-      { data: { thread_ids: threadIds } }
+      {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ thread_ids: threadIds }),
+      }
     );
-    return response.data;
   },
 
   // ============================================================================
@@ -425,38 +218,29 @@ export const workspaceService = {
 
     const queryString = params.toString();
     const url = `${API_PREFIX}/threads/${threadId}/messages${queryString ? `?${queryString}` : ''}`;
-    const response = await v2Client.get<ChatMessageListResponse>(url);
-    return response.data;
+    return api.get<ChatMessageListResponse>(url);
   },
 
   async createMessage(data: ChatMessageCreate): Promise<ChatMessage> {
-    const response = await v2Client.post<ChatMessage>(
-      `${API_PREFIX}/messages`,
-      data
-    );
-    return response.data;
+    return api.post<ChatMessage>(`${API_PREFIX}/messages`, data);
   },
 
   async getMessage(messageId: string): Promise<ChatMessage> {
-    const response = await v2Client.get<ChatMessage>(
-      `${API_PREFIX}/messages/${messageId}`
-    );
-    return response.data;
+    return api.get<ChatMessage>(`${API_PREFIX}/messages/${messageId}`);
   },
 
   async updateMessage(
     messageId: string,
     data: ChatMessageUpdate
   ): Promise<ChatMessage> {
-    const response = await v2Client.patch<ChatMessage>(
+    return api.patch<ChatMessage>(
       `${API_PREFIX}/messages/${messageId}`,
       data
     );
-    return response.data;
   },
 
   async deleteMessage(messageId: string): Promise<void> {
-    await v2Client.delete(`${API_PREFIX}/messages/${messageId}`);
+    await api.delete(`${API_PREFIX}/messages/${messageId}`);
   },
 
   // ============================================================================
@@ -473,61 +257,53 @@ export const workspaceService = {
 
     const queryString = params.toString();
     const url = `${API_PREFIX}/workspaces/${workspaceId}/collections${queryString ? `?${queryString}` : ''}`;
-    const response = await v2Client.get<CollectionListResponse>(url);
-    return response.data;
+    return api.get<CollectionListResponse>(url);
   },
 
   async createCollection(data: CollectionCreate): Promise<Collection> {
-    const response = await v2Client.post<Collection>(
-      `${API_PREFIX}/collections`,
-      data
-    );
-    return response.data;
+    return api.post<Collection>(`${API_PREFIX}/collections`, data);
   },
 
   async getCollection(collectionId: string): Promise<CollectionDetail> {
-    const response = await v2Client.get<CollectionDetail>(
+    return api.get<CollectionDetail>(
       `${API_PREFIX}/collections/${collectionId}`
     );
-    return response.data;
   },
 
   async updateCollection(
     collectionId: string,
     data: CollectionUpdate
   ): Promise<Collection> {
-    const response = await v2Client.patch<Collection>(
+    return api.patch<Collection>(
       `${API_PREFIX}/collections/${collectionId}`,
       data
     );
-    return response.data;
   },
 
   async deleteCollection(collectionId: string): Promise<void> {
-    await v2Client.delete(`${API_PREFIX}/collections/${collectionId}`);
+    await api.delete(`${API_PREFIX}/collections/${collectionId}`);
   },
 
   async addDocumentsToCollection(
     collectionId: string,
     documentIds: string[]
   ): Promise<Collection> {
-    const response = await v2Client.post<Collection>(
+    return api.post<Collection>(
       `${API_PREFIX}/collections/${collectionId}/documents`,
-      {
-        document_ids: documentIds,
-      }
+      { document_ids: documentIds }
     );
-    return response.data;
   },
 
   async removeDocumentsFromCollection(
     collectionId: string,
     documentIds: string[]
   ): Promise<void> {
-    await v2Client.delete(
+    await api.request(
       `${API_PREFIX}/collections/${collectionId}/documents`,
       {
-        data: { document_ids: documentIds },
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ document_ids: documentIds }),
       }
     );
   },
@@ -539,11 +315,10 @@ export const workspaceService = {
   async sendChatCompletion(
     data: ChatCompletionRequest
   ): Promise<ChatCompletionResponse> {
-    const response = await v2Client.post<ChatCompletionResponse>(
+    return api.post<ChatCompletionResponse>(
       `${API_PREFIX}/chat/completions`,
       data
     );
-    return response.data;
   },
 
   // ============================================================================
@@ -586,8 +361,8 @@ export const workspaceService = {
               cacheWorkspace(workspace);
               return workspace;
             } catch (error: unknown) {
-              const status = (error as { response?: { status?: number } })
-                ?.response?.status;
+              const apiError = error as { error?: { status_code?: number } };
+              const status = apiError?.error?.status_code;
               if (status === 403 || status === 404) {
                 clearCachedWorkspace();
               }
@@ -677,8 +452,8 @@ export const workspaceService = {
         return conv;
       }
     } catch (error: unknown) {
-      const status = (error as { response?: { status?: number } })?.response
-        ?.status;
+      const apiError = error as { error?: { status_code?: number } };
+      const status = apiError?.error?.status_code;
       if (status === 404) {
         console.warn(
           '[WorkspaceService] Workspace not found (404), clearing stale data'
