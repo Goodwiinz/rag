@@ -8,6 +8,7 @@ and returns a dict result.
 import asyncio
 import logging
 import re
+from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 from uuid import UUID
@@ -2081,6 +2082,53 @@ async def _tool_create_draft(
         return {"error": f"Draft creation failed: {str(e)}"}
 
 
+@dataclass
+class _CitationProxy:
+    """Lightweight stand-in for Citation ORM objects.
+
+    BibliographyService reads these attributes via duck typing — no DB row
+    required.  Built from Document.document_metadata when no Citation records
+    exist for a document.
+    """
+
+    document_title: str = ""
+    authors: List[str] = field(default_factory=list)
+    year: Optional[int] = None
+    venue: Optional[str] = None
+    doi: Optional[str] = None
+    arxiv_id: Optional[str] = None
+    abstract: Optional[str] = None
+
+
+def _citations_from_documents(documents: list) -> List[_CitationProxy]:
+    """Build CitationProxy objects from Document.document_metadata."""
+    proxies: List[_CitationProxy] = []
+    for doc in documents:
+        meta = doc.document_metadata or {}
+        year = None
+        pub_date = meta.get("publication_date")
+        if pub_date:
+            try:
+                if isinstance(pub_date, str):
+                    year = int(pub_date[:4])
+                elif hasattr(pub_date, "year"):
+                    year = pub_date.year
+            except (ValueError, TypeError):
+                pass
+        proxies.append(
+            _CitationProxy(
+                document_title=meta.get("title") or doc.title or "",
+                authors=meta.get("authors") or [],
+                year=year,
+                venue=meta.get("journal_reference"),
+                doi=meta.get("doi"),
+                arxiv_id=meta.get("arxiv_id"),
+                abstract=meta.get("description"),
+            )
+        )
+    return proxies
+
+
 async def _tool_export_bibliography(
     args: Dict[str, Any],
     db: Optional[AsyncSession],
@@ -2117,14 +2165,14 @@ async def _tool_export_bibliography(
 
     try:
         # Batch ownership check: only documents in the user's organization
-        owned_stmt = select(Document.id).where(
+        owned_stmt = select(Document).where(
             Document.id.in_(valid_uuids),
             Document.organization_id == current_user.organization_id,
             Document.is_deleted == False,
         )
         owned_result = await db.execute(owned_stmt)
-        owned_ids = [row[0] for row in owned_result.all()]
-        if not owned_ids:
+        owned_docs = list(owned_result.scalars().all())
+        if not owned_docs:
             return {
                 "bibliography": "",
                 "format": bib_format,
@@ -2132,22 +2180,31 @@ async def _tool_export_bibliography(
                 "message": "No accessible documents found for the given IDs.",
             }
 
+        owned_ids = [d.id for d in owned_docs]
+
         # Batch citation fetch for accessible documents
         citation_stmt = select(Citation).where(Citation.document_id.in_(owned_ids))
         citation_result = await db.execute(citation_stmt)
         citations = list(citation_result.scalars().all())
 
+        # Fallback: build bibliography from Document metadata when no
+        # Citation records exist (common for freshly ingested papers).
         if not citations:
-            return {
-                "bibliography": "",
-                "format": bib_format,
-                "count": 0,
-                "message": "No citations found for the given documents.",
-            }
+            proxies = _citations_from_documents(owned_docs)
+            if not proxies:
+                return {
+                    "bibliography": "",
+                    "format": bib_format,
+                    "count": 0,
+                    "message": "No citations found for the given documents.",
+                }
+            citations = proxies
 
         from src.services.research.bibliography_service import BibliographyService
 
-        bibliography = BibliographyService.format_bibliography(citations, bib_format)
+        bibliography = BibliographyService.format_bibliography(
+            citations, bib_format  # type: ignore[arg-type]
+        )
 
         return {
             "bibliography": bibliography,

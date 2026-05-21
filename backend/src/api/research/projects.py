@@ -968,6 +968,19 @@ async def get_project_bibliography(
         citation_result = await db.execute(citation_query)
         citations = citation_result.scalars().all()
 
+        # Fallback: build bibliography from Document metadata when no
+        # Citation records exist (common for freshly ingested papers).
+        if not citations:
+            from src.api.agent.tools_impl import _citations_from_documents
+
+            doc_stmt = select(Document).where(
+                Document.id.in_(document_ids),
+                Document.is_deleted == False,
+            )
+            doc_result2 = await db.execute(doc_stmt)
+            docs = list(doc_result2.scalars().all())
+            citations = _citations_from_documents(docs)  # type: ignore[assignment]
+
         if not citations:
             return {
                 "project_id": str(project_id),
@@ -981,7 +994,7 @@ async def get_project_bibliography(
 
         # Format bibliography
         bibliography = BibliographyService.format_bibliography(
-            citations=list(citations),
+            citations=list(citations),  # type: ignore[arg-type]
             format_type=format,
         )
 
