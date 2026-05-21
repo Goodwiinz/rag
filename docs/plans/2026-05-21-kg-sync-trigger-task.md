@@ -383,6 +383,8 @@ async def test_sync_counts_orphans_when_kg_has_extra_docs():
     result = await svc.run(run_id="t-orphans")
 
     assert result.orphan_count == 2
+    assert set(result.metadata["orphan_doc_ids"]) == {"c", "d"}
+    assert result.metadata["missing_doc_ids"] == []
     assert result.fixed_count == 0
     neo4j.delete_orphan_documents.assert_not_called()
 
@@ -402,8 +404,23 @@ async def test_sync_repairs_orphans_when_auto_repair_enabled():
     result = await svc.run(run_id="t-repair")
 
     assert result.orphan_count == 2
+    assert set(result.metadata["orphan_doc_ids"]) == {"b", "c"}
     assert result.fixed_count == 2
     neo4j.delete_orphan_documents.assert_awaited_once_with({"b", "c"})
+
+
+@pytest.mark.asyncio
+async def test_sync_marks_run_failed_when_gateway_raises():
+    pg = AsyncMock()
+    neo4j = AsyncMock()
+    pg.fetch_indexed_document_ids.side_effect = RuntimeError("boom")
+
+    svc = KGSyncService(pg=pg, neo4j=neo4j, auto_repair=False)
+    result = await svc.run(run_id="t-failure")
+
+    assert result.status == "failed"
+    assert result.error == "boom"
+    assert result.completed_at is not None
 ```
 
 **Step 2: Run, verify both PASS** (service already supports this from Task 3).
@@ -447,6 +464,7 @@ async def test_sync_flags_entity_count_drift_above_threshold():
     result = await svc.run(run_id="t-drift")
 
     assert result.drift_count == 1  # only doc "b" exceeds threshold
+    assert result.metadata["drift_doc_ids"] == ["b"]
 
 
 @pytest.mark.asyncio

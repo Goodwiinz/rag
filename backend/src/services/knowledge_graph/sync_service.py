@@ -51,6 +51,8 @@ class KGSyncService:
             missing = pg_docs - kg_docs
             result.orphan_count = len(orphans)
             result.missing_count = len(missing)
+            result.metadata["orphan_doc_ids"] = sorted(orphans)[:50]
+            result.metadata["missing_doc_ids"] = sorted(missing)[:50]
 
             pg_counts = await self.pg.fetch_entity_counts()
             kg_counts = await self.neo4j.fetch_entity_counts()
@@ -59,6 +61,7 @@ class KGSyncService:
                 if abs(pg_counts.get(d, 0) - kg_counts.get(d, 0)) >= self.DRIFT_THRESHOLD
             ]
             result.drift_count = len(drift_docs)
+            result.metadata["drift_doc_ids"] = sorted(drift_docs)[:50]
 
             untenanted = await self.neo4j.fetch_nodes_missing_tenant()
             result.metadata["untenanted_node_ids"] = untenanted[:50]
