@@ -1,4 +1,4 @@
-import { CreateMLCEngine, InitProgressReport, MLCEngine } from "@mlc-ai/web-llm";
+import type { InitProgressReport, MLCEngine } from "@mlc-ai/web-llm";
 import { useCallback, useRef, useState } from 'react';
 
 export interface Message {
@@ -38,6 +38,7 @@ export const useWebLLM = (): UseWebLLMReturn => {
         setError(null);
         try {
             if (!engine.current) {
+                const { CreateMLCEngine } = await import("@mlc-ai/web-llm");
                 engine.current = await CreateMLCEngine(modelId, {
                     initProgressCallback,
                 });
