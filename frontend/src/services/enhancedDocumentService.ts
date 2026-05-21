@@ -4,7 +4,7 @@
  * knowledge graph integration, and multimodal processing
  */
 
-import { apiClient } from './apiClient';
+import { api } from '@/services/api-client';
 import { APIResponse } from '@/types/api';
 
 // Enhanced types for the new API
@@ -192,7 +192,7 @@ export class EnhancedDocumentService {
 
     // Make the upload request using the correct v1 endpoint
     // DON'T set Content-Type header manually - Axios will set it correctly for FormData
-    const response = await apiClient.post<DocumentUploadResponse>(
+    const response = await api.post<DocumentUploadResponse>(
       '/files/upload',
       formData
     );
@@ -287,7 +287,7 @@ export class EnhancedDocumentService {
   ): Promise<APIResponse<UploadProgressResponse>> {
     // For v1 API, we need to get document status instead of upload progress
     // This is a limitation of the v1 API
-    return apiClient.get(`/documents/status`);
+    return api.get(`/documents/status`);
   }
 
   /**
@@ -305,7 +305,7 @@ export class EnhancedDocumentService {
       this.websocketConnections.delete(uploadId);
     }
 
-    return apiClient.delete(`/files/cancel/${uploadId}`);
+    return api.delete(`/files/cancel/${uploadId}`);
   }
 
   /**
@@ -314,7 +314,7 @@ export class EnhancedDocumentService {
   async getDocumentQuality(
     documentId: string
   ): Promise<APIResponse<QualityAssessmentResponse>> {
-    return apiClient.get(`${this.basePath}/${documentId}/quality`);
+    return api.get(`${this.basePath}/${documentId}/quality`);
   }
 
   /**
@@ -328,7 +328,7 @@ export class EnhancedDocumentService {
       scanned_at: string;
     }>
   > {
-    return apiClient.post(`${this.basePath}/${documentId}/rescan`);
+    return api.post(`${this.basePath}/${documentId}/rescan`);
   }
 
   /**
@@ -337,7 +337,7 @@ export class EnhancedDocumentService {
   async getProcessingJobStatus(
     jobId: string
   ): Promise<APIResponse<ProcessingJobStatus>> {
-    return apiClient.get(`/processing/jobs/${jobId}`);
+    return api.get(`/processing/jobs/${jobId}`);
   }
 
   /**
@@ -346,7 +346,7 @@ export class EnhancedDocumentService {
   async getDocumentEntities(
     documentId: string
   ): Promise<APIResponse<EntityExtractionResult>> {
-    return apiClient.get(`/documents/${documentId}/entities`);
+    return api.get(`/documents/${documentId}/entities`);
   }
 
   /**
@@ -364,7 +364,7 @@ export class EnhancedDocumentService {
       jobs: ProcessingJobStatus[];
     }>
   > {
-    return apiClient.get(`/documents/${documentId}/status`);
+    return api.get(`/documents/${documentId}/status`);
   }
 
   /**
@@ -373,7 +373,7 @@ export class EnhancedDocumentService {
   async retryDocumentProcessing(
     documentId: string
   ): Promise<APIResponse<{ job_id: string }>> {
-    return apiClient.post(`/documents/${documentId}/reprocess`);
+    return api.post(`/documents/${documentId}/reprocess`);
   }
 
   /**
@@ -394,7 +394,7 @@ export class EnhancedDocumentService {
     // Add metadata for each file
     formData.append('upload_requests', JSON.stringify(requests));
 
-    const response = await apiClient.post<{
+    const response = await api.post<{
       responses: DocumentUploadResponse[];
     }>(`${this.basePath}/batch`, formData);
 
@@ -540,7 +540,7 @@ export class EnhancedDocumentService {
     }
 
     try {
-      const status = await apiClient.get<DocumentProcessingStatusResponse>(
+      const status = await api.get<DocumentProcessingStatusResponse>(
         `/documents/${response.document_id}/status`
       );
 

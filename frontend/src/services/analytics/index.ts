@@ -8,16 +8,9 @@ export {
   reportApi,
   alertApi,
   exportApi,
-  BaseApiService,
   createApiError,
   isApiError,
   handleApiError,
-} from './analyticsApi';
-
-export type {
-  ApiResponse,
-  ApiError,
-  RequestConfig,
 } from './analyticsApi';
 
 // WebSocket Service

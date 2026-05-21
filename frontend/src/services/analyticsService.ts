@@ -1,4 +1,4 @@
-import { apiClient } from './apiClient';
+import { api } from '@/services/api-client';
 import {
   RAGTriadMetrics,
   SystemPerformanceMetrics,
@@ -162,15 +162,13 @@ export interface RecommendationRule {
 }
 
 class AnalyticsService {
-  private apiClient = apiClient;
-
   // Quality Metrics
   async getQualityMetrics(): Promise<{
     metrics: QualityMetric[];
     alerts: QualityAlert[];
   }> {
     try {
-      const response = (await this.apiClient.get(
+      const response = (await api.get(
         '/analytics/quality/metrics'
       )) as any;
       return response.data;
@@ -187,7 +185,7 @@ class AnalyticsService {
     sessions: UserSession[];
   }> {
     try {
-      const response = (await this.apiClient.get(
+      const response = (await api.get(
         `/analytics/user-behavior?timeRange=${timeRange}`
       )) as any;
       return response.data;
@@ -210,7 +208,7 @@ class AnalyticsService {
     // The 404 falls through to the mock fallback below. When a backend index
     // handler (or a shape-matching sub-path) lands, wire it up here.
     try {
-      const response = (await this.apiClient.get(
+      const response = (await api.get(
         '/analytics/performance'
       )) as any;
       return response.data;
@@ -226,7 +224,7 @@ class AnalyticsService {
     improvements: any[];
   }> {
     try {
-      const response = (await this.apiClient.get(
+      const response = (await api.get(
         '/analytics/recommendations'
       )) as any;
       return response.data;
@@ -242,7 +240,7 @@ class AnalyticsService {
     status: Recommendation['status']
   ): Promise<void> {
     try {
-      await this.apiClient.patch(
+      await api.patch(
         `/analytics/recommendations/${recommendationId}`,
         { status }
       );
@@ -258,7 +256,7 @@ class AnalyticsService {
     voteType: 'up' | 'down'
   ): Promise<void> {
     try {
-      await this.apiClient.post(
+      await api.post(
         `/analytics/recommendations/${recommendationId}/vote`,
         { voteType }
       );
@@ -274,9 +272,9 @@ class AnalyticsService {
   ): Promise<{ metrics: RAGTriadMetrics }> {
     try {
       const params = isCustomTimeRange(timeRange)
-        ? { start: timeRange.start, end: timeRange.end }
-        : { preset: timeRange };
-      return await this.apiClient.get('/analytics/rag-triad', { params });
+        ? new URLSearchParams({ start: timeRange.start, end: timeRange.end })
+        : new URLSearchParams({ preset: timeRange });
+      return await api.get(`/analytics/rag-triad?${params}`);
     } catch (error) {
       console.error('Failed to fetch RAG triad metrics:', error);
       throw error;
@@ -289,7 +287,7 @@ class AnalyticsService {
     timeRange: TimeRange
   ): Promise<PerformanceAnalytics> {
     try {
-      return await this.apiClient.post('/analytics/performance', {
+      return await api.post('/analytics/performance', {
         filters,
         timeRange,
       });
@@ -303,9 +301,9 @@ class AnalyticsService {
   async getUsageAnalytics(timeRange: TimeRange): Promise<UsageAnalytics> {
     try {
       const params = isCustomTimeRange(timeRange)
-        ? { start: timeRange.start, end: timeRange.end }
-        : { preset: timeRange };
-      return await this.apiClient.get('/analytics/usage', { params });
+        ? new URLSearchParams({ start: timeRange.start, end: timeRange.end })
+        : new URLSearchParams({ preset: timeRange });
+      return await api.get(`/analytics/usage?${params}`);
     } catch (error) {
       console.error('Failed to fetch usage analytics:', error);
       throw error;
@@ -315,7 +313,7 @@ class AnalyticsService {
   // Real-time Metrics (New architecture)
   async getRealTimeMetrics(): Promise<{ metrics: RAGTriadMetrics }> {
     try {
-      return await this.apiClient.get('/analytics/real-time');
+      return await api.get('/analytics/real-time');
     } catch (error) {
       console.error('Failed to fetch real-time metrics:', error);
       throw error;
@@ -329,11 +327,9 @@ class AnalyticsService {
   ): Promise<any> {
     try {
       const params = isCustomTimeRange(timeRange)
-        ? { start: timeRange.start, end: timeRange.end }
-        : { preset: timeRange };
-      return await this.apiClient.get(`/analytics/trends/${metric}`, {
-        params,
-      });
+        ? new URLSearchParams({ start: timeRange.start, end: timeRange.end })
+        : new URLSearchParams({ preset: timeRange });
+      return await api.get(`/analytics/trends/${metric}?${params}`);
     } catch (error) {
       console.error('Failed to fetch historical trends:', error);
       throw error;
@@ -343,7 +339,7 @@ class AnalyticsService {
   // Comparison Data (New architecture)
   async getComparisonData(timeRanges: TimeRange[]): Promise<any> {
     try {
-      return await this.apiClient.post('/analytics/compare', {
+      return await api.post('/analytics/compare', {
         timeRanges,
       });
     } catch (error) {
@@ -359,7 +355,7 @@ class AnalyticsService {
     timeRange: TimeRange
   ): Promise<void> {
     try {
-      await this.apiClient.download(
+      await api.download(
         `/analytics/export?format=${format}`,
         `analytics-${Date.now()}.${format}`
       );

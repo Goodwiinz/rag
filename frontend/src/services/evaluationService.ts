@@ -1,8 +1,6 @@
+import { api } from '@/services/api-client';
 import { EvaluationMetrics } from '@/types/evaluation';
-import {
-  getPublicApiOrigin,
-  getPublicWebSocketOrigin,
-} from '@/utils/publicEndpoints';
+import { getPublicWebSocketOrigin } from '@/utils/publicEndpoints';
 
 // Types for API requests/responses
 export interface EvaluationDataset {
@@ -74,45 +72,20 @@ export interface EvaluationAlert {
   created_at: string;
 }
 
-// Base API configuration
-const API_BASE_URL = getPublicApiOrigin() || 'http://localhost:8000';
-const DEFAULT_HEADERS = {
-  'Content-Type': 'application/json',
-};
-
-// Helper function for API requests
-async function apiRequest<T>(
-  url: string,
-  options: RequestInit = {}
-): Promise<T> {
-  const response = await fetch(url, {
-    ...options,
-    headers: {
-      ...DEFAULT_HEADERS,
-      ...options.headers,
-    },
-  });
-
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({}));
-    throw new Error(error.message || `HTTP error! status: ${response.status}`);
-  }
-
-  return response.json();
-}
+const EVAL_BASE = '/evaluations';
 
 // Dataset Management
 export const datasetService = {
   // Get all datasets
   getDatasets: (): Promise<EvaluationDataset[]> =>
-    apiRequest(`${API_BASE_URL}/evaluations/datasets`),
+    api.get(`${EVAL_BASE}/datasets`),
 
   // Get single dataset
   getDataset: (id: string): Promise<EvaluationDataset> =>
-    apiRequest(`${API_BASE_URL}/evaluations/datasets/${id}`),
+    api.get(`${EVAL_BASE}/datasets/${id}`),
 
   // Create dataset
-  createDataset: (data: {
+  createDataset: async (data: {
     name: string;
     description?: string;
     files: File[];
@@ -122,12 +95,9 @@ export const datasetService = {
     if (data.description) formData.append('description', data.description);
     data.files.forEach((file) => formData.append('files', file));
 
-    return fetch(`${API_BASE_URL}/evaluations/datasets`, {
+    return api.request<EvaluationDataset>(`${EVAL_BASE}/datasets`, {
       method: 'POST',
       body: formData,
-    }).then((res) => {
-      if (!res.ok) throw new Error('Failed to create dataset');
-      return res.json();
     });
   },
 
@@ -136,16 +106,11 @@ export const datasetService = {
     id: string,
     data: Partial<EvaluationDataset>
   ): Promise<EvaluationDataset> =>
-    apiRequest(`${API_BASE_URL}/evaluations/datasets/${id}`, {
-      method: 'PUT',
-      body: JSON.stringify(data),
-    }),
+    api.put(`${EVAL_BASE}/datasets/${id}`, data),
 
   // Delete dataset
   deleteDataset: (id: string): Promise<void> =>
-    apiRequest(`${API_BASE_URL}/evaluations/datasets/${id}`, {
-      method: 'DELETE',
-    }),
+    api.delete(`${EVAL_BASE}/datasets/${id}`),
 
   // Validate dataset
   validateDataset: (
@@ -155,63 +120,52 @@ export const datasetService = {
     errors: string[];
     warnings: string[];
     sample_queries: string[];
-  }> => apiRequest(`${API_BASE_URL}/evaluations/datasets/${id}/validate`),
+  }> => api.get(`${EVAL_BASE}/datasets/${id}/validate`),
 };
 
 // Template Management
 export const templateService = {
   // Get all templates
   getTemplates: (): Promise<EvaluationTemplate[]> =>
-    apiRequest(`${API_BASE_URL}/evaluations/templates`),
+    api.get(`${EVAL_BASE}/templates`),
 
   // Get single template
   getTemplate: (id: string): Promise<EvaluationTemplate> =>
-    apiRequest(`${API_BASE_URL}/evaluations/templates/${id}`),
+    api.get(`${EVAL_BASE}/templates/${id}`),
 
   // Create template
   createTemplate: (
     data: Omit<EvaluationTemplate, 'id' | 'created_at'>
   ): Promise<EvaluationTemplate> =>
-    apiRequest(`${API_BASE_URL}/evaluations/templates`, {
-      method: 'POST',
-      body: JSON.stringify(data),
-    }),
+    api.post(`${EVAL_BASE}/templates`, data),
 
   // Update template
   updateTemplate: (
     id: string,
     data: Partial<EvaluationTemplate>
   ): Promise<EvaluationTemplate> =>
-    apiRequest(`${API_BASE_URL}/evaluations/templates/${id}`, {
-      method: 'PUT',
-      body: JSON.stringify(data),
-    }),
+    api.put(`${EVAL_BASE}/templates/${id}`, data),
 
   // Delete template
   deleteTemplate: (id: string): Promise<void> =>
-    apiRequest(`${API_BASE_URL}/evaluations/templates/${id}`, {
-      method: 'DELETE',
-    }),
+    api.delete(`${EVAL_BASE}/templates/${id}`),
 
   // Clone template
   cloneTemplate: (id: string, name: string): Promise<EvaluationTemplate> =>
-    apiRequest(`${API_BASE_URL}/evaluations/templates/${id}/clone`, {
-      method: 'POST',
-      body: JSON.stringify({ name }),
-    }),
+    api.post(`${EVAL_BASE}/templates/${id}/clone`, { name }),
 };
 
 // Evaluation Scheduling
 export const scheduleService = {
   // Get all schedules
   getSchedules: (): Promise<EvaluationSchedule[]> =>
-    apiRequest(`${API_BASE_URL}/evaluations/schedules`),
+    api.get(`${EVAL_BASE}/schedules`),
 
   // Get schedules for evaluation
   getEvaluationSchedules: (
     evaluationId: string
   ): Promise<EvaluationSchedule[]> =>
-    apiRequest(`${API_BASE_URL}/evaluations/${evaluationId}/schedules`),
+    api.get(`${EVAL_BASE}/${evaluationId}/schedules`),
 
   // Create schedule
   createSchedule: (
@@ -220,87 +174,64 @@ export const scheduleService = {
       'id' | 'created_at' | 'last_run' | 'next_run'
     >
   ): Promise<EvaluationSchedule> =>
-    apiRequest(`${API_BASE_URL}/evaluations/schedules`, {
-      method: 'POST',
-      body: JSON.stringify(data),
-    }),
+    api.post(`${EVAL_BASE}/schedules`, data),
 
   // Update schedule
   updateSchedule: (
     id: string,
     data: Partial<EvaluationSchedule>
   ): Promise<EvaluationSchedule> =>
-    apiRequest(`${API_BASE_URL}/evaluations/schedules/${id}`, {
-      method: 'PUT',
-      body: JSON.stringify(data),
-    }),
+    api.put(`${EVAL_BASE}/schedules/${id}`, data),
 
   // Delete schedule
   deleteSchedule: (id: string): Promise<void> =>
-    apiRequest(`${API_BASE_URL}/evaluations/schedules/${id}`, {
-      method: 'DELETE',
-    }),
+    api.delete(`${EVAL_BASE}/schedules/${id}`),
 
   // Enable/disable schedule
   toggleSchedule: (id: string, enabled: boolean): Promise<EvaluationSchedule> =>
-    apiRequest(`${API_BASE_URL}/evaluations/schedules/${id}/toggle`, {
-      method: 'POST',
-      body: JSON.stringify({ enabled }),
-    }),
+    api.post(`${EVAL_BASE}/schedules/${id}/toggle`, { enabled }),
 
   // Run schedule manually
   runScheduleManually: (id: string): Promise<{ run_id: string }> =>
-    apiRequest(`${API_BASE_URL}/evaluations/schedules/${id}/run`, {
-      method: 'POST',
-    }),
+    api.post(`${EVAL_BASE}/schedules/${id}/run`),
 };
 
 // Batch Evaluation Management
 export const batchService = {
   // Get all batches
   getBatches: (): Promise<EvaluationBatch[]> =>
-    apiRequest(`${API_BASE_URL}/evaluations/batches`),
+    api.get(`${EVAL_BASE}/batches`),
 
   // Get single batch
   getBatch: (id: string): Promise<EvaluationBatch> =>
-    apiRequest(`${API_BASE_URL}/evaluations/batches/${id}`),
+    api.get(`${EVAL_BASE}/batches/${id}`),
 
   // Create batch
   createBatch: (data: {
     name: string;
     evaluations: string[];
   }): Promise<EvaluationBatch> =>
-    apiRequest(`${API_BASE_URL}/evaluations/batches`, {
-      method: 'POST',
-      body: JSON.stringify(data),
-    }),
+    api.post(`${EVAL_BASE}/batches`, data),
 
   // Run batch
   runBatch: (id: string): Promise<EvaluationBatch> =>
-    apiRequest(`${API_BASE_URL}/evaluations/batches/${id}/run`, {
-      method: 'POST',
-    }),
+    api.post(`${EVAL_BASE}/batches/${id}/run`),
 
   // Cancel batch
   cancelBatch: (id: string): Promise<EvaluationBatch> =>
-    apiRequest(`${API_BASE_URL}/evaluations/batches/${id}/cancel`, {
-      method: 'POST',
-    }),
+    api.post(`${EVAL_BASE}/batches/${id}/cancel`),
 
   // Get batch results
   getBatchResults: (id: string): Promise<EvaluationBatch['results']> =>
-    apiRequest(`${API_BASE_URL}/evaluations/batches/${id}/results`),
+    api.get(`${EVAL_BASE}/batches/${id}/results`),
 
   // Export batch results
   exportBatchResults: (
     id: string,
     format: 'csv' | 'json' | 'pdf'
   ): Promise<Blob> =>
-    fetch(
-      `${API_BASE_URL}/evaluations/batches/${id}/export?format=${format}`
-    ).then((res) => {
-      if (!res.ok) throw new Error('Failed to export batch results');
-      return res.blob();
+    api.request(`${EVAL_BASE}/batches/${id}/export?format=${format}`, {
+      method: 'GET',
     }),
 };
 
@@ -308,42 +239,32 @@ export const batchService = {
 export const alertService = {
   // Get all alerts
   getAlerts: (): Promise<EvaluationAlert[]> =>
-    apiRequest(`${API_BASE_URL}/evaluations/alerts`),
+    api.get(`${EVAL_BASE}/alerts`),
 
   // Get alerts for evaluation
   getEvaluationAlerts: (evaluationId: string): Promise<EvaluationAlert[]> =>
-    apiRequest(`${API_BASE_URL}/evaluations/${evaluationId}/alerts`),
+    api.get(`${EVAL_BASE}/${evaluationId}/alerts`),
 
   // Create alert
   createAlert: (
     data: Omit<EvaluationAlert, 'id' | 'created_at' | 'last_triggered'>
   ): Promise<EvaluationAlert> =>
-    apiRequest(`${API_BASE_URL}/evaluations/alerts`, {
-      method: 'POST',
-      body: JSON.stringify(data),
-    }),
+    api.post(`${EVAL_BASE}/alerts`, data),
 
   // Update alert
   updateAlert: (
     id: string,
     data: Partial<EvaluationAlert>
   ): Promise<EvaluationAlert> =>
-    apiRequest(`${API_BASE_URL}/evaluations/alerts/${id}`, {
-      method: 'PUT',
-      body: JSON.stringify(data),
-    }),
+    api.put(`${EVAL_BASE}/alerts/${id}`, data),
 
   // Delete alert
   deleteAlert: (id: string): Promise<void> =>
-    apiRequest(`${API_BASE_URL}/evaluations/alerts/${id}`, {
-      method: 'DELETE',
-    }),
+    api.delete(`${EVAL_BASE}/alerts/${id}`),
 
   // Test alert
   testAlert: (id: string): Promise<{ success: boolean; message: string }> =>
-    apiRequest(`${API_BASE_URL}/evaluations/alerts/${id}/test`, {
-      method: 'POST',
-    }),
+    api.post(`${EVAL_BASE}/alerts/${id}/test`),
 
   // Get alert history
   getAlertHistory: (
@@ -359,8 +280,8 @@ export const alertService = {
       notification_sent: boolean;
     }>
   > =>
-    apiRequest(
-      `${API_BASE_URL}/evaluations/alerts/${id}/history${limit ? `?limit=${limit}` : ''}`
+    api.get(
+      `${EVAL_BASE}/alerts/${id}/history${limit ? `?limit=${limit}` : ''}`
     ),
 };
 
@@ -376,10 +297,7 @@ export const metricsService = {
     faithfulness: Array<{ timestamp: string; value: number }>;
     contextual_relevancy: Array<{ timestamp: string; value: number }>;
   }> =>
-    apiRequest(`${API_BASE_URL}/evaluations/metrics/rag-triad`, {
-      method: 'POST',
-      body: JSON.stringify(filters),
-    }),
+    api.post(`${EVAL_BASE}/metrics/rag-triad`, filters),
 
   // Get performance metrics
   getPerformanceMetrics: (filters: {
@@ -392,10 +310,7 @@ export const metricsService = {
     error_rate: Array<{ timestamp: string; value: number }>;
     cache_hit_rate: Array<{ timestamp: string; value: number }>;
   }> =>
-    apiRequest(`${API_BASE_URL}/evaluations/metrics/performance`, {
-      method: 'POST',
-      body: JSON.stringify(filters),
-    }),
+    api.post(`${EVAL_BASE}/metrics/performance`, filters),
 
   // Get quality metrics
   getQualityMetrics: (filters: {
@@ -407,10 +322,7 @@ export const metricsService = {
     factual_accuracy: Array<{ timestamp: string; value: number }>;
     coherence_score: Array<{ timestamp: string; value: number }>;
   }> =>
-    apiRequest(`${API_BASE_URL}/evaluations/metrics/quality`, {
-      method: 'POST',
-      body: JSON.stringify(filters),
-    }),
+    api.post(`${EVAL_BASE}/metrics/quality`, filters),
 
   // Get real-time metrics
   getRealTimeMetrics: (): Promise<{
@@ -431,7 +343,7 @@ export const metricsService = {
       active_evaluations: number;
       queued_jobs: number;
     };
-  }> => apiRequest(`${API_BASE_URL}/evaluations/metrics/realtime`),
+  }> => api.get(`${EVAL_BASE}/metrics/realtime`),
 
   // Get metrics summary
   getMetricsSummary: (
@@ -458,7 +370,7 @@ export const metricsService = {
       contextual_relevancy: 'improving' | 'declining' | 'stable';
     };
   }> =>
-    apiRequest(`${API_BASE_URL}/evaluations/${evaluationId}/metrics/summary`),
+    api.get(`${EVAL_BASE}/${evaluationId}/metrics/summary`),
 };
 
 // Export and Reporting
@@ -480,12 +392,10 @@ export const exportService = {
     if (options?.sections)
       params.append('sections', options.sections.join(','));
 
-    return fetch(
-      `${API_BASE_URL}/evaluations/${evaluationId}/runs/${runId}/export?${params}`
-    ).then((res) => {
-      if (!res.ok) throw new Error('Failed to export results');
-      return res.blob();
-    });
+    return api.request(
+      `${EVAL_BASE}/${evaluationId}/runs/${runId}/export?${params}`,
+      { method: 'GET' }
+    );
   },
 
   // Generate evaluation report
@@ -494,12 +404,10 @@ export const exportService = {
     runId: string,
     template: 'standard' | 'detailed' | 'executive'
   ): Promise<Blob> =>
-    fetch(
-      `${API_BASE_URL}/evaluations/${evaluationId}/runs/${runId}/report?template=${template}`
-    ).then((res) => {
-      if (!res.ok) throw new Error('Failed to generate report');
-      return res.blob();
-    }),
+    api.request(
+      `${EVAL_BASE}/${evaluationId}/runs/${runId}/report?template=${template}`,
+      { method: 'GET' }
+    ),
 
   // Get export history
   getExportHistory: (
@@ -515,18 +423,15 @@ export const exportService = {
       expires_at: string;
     }>
   > =>
-    apiRequest(
-      `${API_BASE_URL}/evaluations/exports/history${evaluationId ? `?evaluation_id=${evaluationId}` : ''}`
+    api.get(
+      `${EVAL_BASE}/exports/history${evaluationId ? `?evaluation_id=${evaluationId}` : ''}`
     ),
 
   // Download exported file
   downloadExport: (exportId: string): Promise<Blob> =>
-    fetch(`${API_BASE_URL}/evaluations/exports/${exportId}/download`).then(
-      (res) => {
-        if (!res.ok) throw new Error('Failed to download export');
-        return res.blob();
-      }
-    ),
+    api.request(`${EVAL_BASE}/exports/${exportId}/download`, {
+      method: 'GET',
+    }),
 };
 
 // WebSocket connection for real-time updates

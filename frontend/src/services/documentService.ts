@@ -1,13 +1,13 @@
 import { createClient } from '@/lib/supabase/client';
 import { useAuthStore } from '@/stores/authStore';
-import { APIResponse } from '@/types/api';
+import { APIResponse, API_CONFIG } from '@/types/api';
 import {
   Document,
   DocumentFilters,
   DocumentListResponse,
   UploadProgress,
 } from '@/types/document';
-import { apiClient } from './apiClient';
+import { api } from '@/services/api-client';
 
 export class DocumentService {
   private readonly basePath = 'documents';
@@ -19,7 +19,7 @@ export class DocumentService {
     file: File,
     onProgress?: (progress: number) => void
   ): Promise<APIResponse<Document>> {
-    return apiClient.upload(`${this.basePath}/upload`, file, onProgress);
+    return api.upload(`${this.basePath}/upload`, file, { onProgress });
   }
 
   /**
@@ -79,7 +79,7 @@ export class DocumentService {
 
       xhr.open(
         'POST',
-        `${apiClient.client.defaults.baseURL}${this.basePath}/batch-upload`
+        `${API_CONFIG.BASE_URL}${this.basePath}/batch-upload`
       );
 
       // Add auth headers
@@ -123,14 +123,17 @@ export class DocumentService {
       }
     }
 
-    return apiClient.get(`${this.basePath}`, { params });
+    const queryString = new URLSearchParams(
+      Object.entries(params).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)])
+    ).toString();
+    return api.get(`${this.basePath}${queryString ? `?${queryString}` : ''}`);
   }
 
   /**
    * Get document by ID
    */
   async getDocument(id: string): Promise<APIResponse<Document>> {
-    return apiClient.get(`${this.basePath}/${id}`);
+    return api.get(`${this.basePath}/${id}`);
   }
 
   /**
@@ -142,28 +145,28 @@ export class DocumentService {
       Pick<Document, 'title' | 'description' | 'tags' | 'custom_fields'>
     >
   ): Promise<APIResponse<Document>> {
-    return apiClient.patch(`${this.basePath}/${id}`, updates);
+    return api.patch(`${this.basePath}/${id}`, updates);
   }
 
   /**
    * Delete document
    */
   async deleteDocument(id: string): Promise<APIResponse<void>> {
-    return apiClient.delete(`${this.basePath}/${id}`);
+    return api.delete(`${this.basePath}/${id}`);
   }
 
   /**
    * Get upload progress
    */
   async getUploadProgress(jobId: string): Promise<APIResponse<UploadProgress>> {
-    return apiClient.get(`${this.basePath}/upload-progress/${jobId}`);
+    return api.get(`${this.basePath}/upload-progress/${jobId}`);
   }
 
   /**
    * Download document
    */
   async downloadDocument(id: string, filename?: string): Promise<void> {
-    return apiClient.download(`${this.basePath}/${id}/download`, filename);
+    return api.download(`${this.basePath}/${id}/download`, filename);
   }
 
   /**
@@ -172,29 +175,28 @@ export class DocumentService {
   async getDocumentPreview(
     id: string
   ): Promise<APIResponse<{ preview: string }>> {
-    return apiClient.get(`${this.basePath}/${id}/preview`);
+    return api.get(`${this.basePath}/${id}/preview`);
   }
 
   /**
    * Get document thumbnail
    */
   getDocumentThumbnailUrl(id: string): string {
-    const baseURL = apiClient.client.defaults.baseURL;
-    return `${baseURL}${this.basePath}/${id}/thumbnail`;
+    return `${API_CONFIG.BASE_URL}${this.basePath}/${id}/thumbnail`;
   }
 
   /**
    * Get processing status
    */
   async getProcessingStatus(id: string): Promise<APIResponse<UploadProgress>> {
-    return apiClient.get(`${this.basePath}/${id}/processing-status`);
+    return api.get(`${this.basePath}/${id}/processing-status`);
   }
 
   /**
    * Retry failed processing
    */
   async retryProcessing(id: string): Promise<APIResponse<Document>> {
-    return apiClient.post(`${this.basePath}/${id}/retry-processing`);
+    return api.post(`${this.basePath}/${id}/retry-processing`);
   }
 
   /**
@@ -214,7 +216,10 @@ export class DocumentService {
       params.document_ids = documentIds.join(',');
     }
 
-    return apiClient.get(`${this.basePath}/search`, { params });
+    const qs = new URLSearchParams(
+      Object.entries(params).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)])
+    ).toString();
+    return api.get(`${this.basePath}/search${qs ? `?${qs}` : ''}`);
   }
 
   /**
@@ -229,7 +234,7 @@ export class DocumentService {
       recent_uploads: Document[];
     }>
   > {
-    return apiClient.get(`${this.basePath}/stats`);
+    return api.get(`${this.basePath}/stats`);
   }
 }
 
