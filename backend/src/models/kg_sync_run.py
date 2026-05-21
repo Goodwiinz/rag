@@ -39,3 +39,6 @@ class KGSyncRun(Base):
     status: Mapped[str] = mapped_column(Text, nullable=False)
     error: Mapped[str | None] = mapped_column(Text)
     run_metadata: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+
+    def __repr__(self) -> str:
+        return f"<KGSyncRun(run_id={self.run_id!r}, status={self.status!r})>"

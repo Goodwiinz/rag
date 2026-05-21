@@ -755,7 +755,8 @@ async def run_kg_sync(
 ):
     run_id = idempotency_key or f"kg-sync-{datetime.now(timezone.utc).isoformat()}-{uuid.uuid4().hex[:8]}"
 
-    existing = await session.get(KGSyncRun, {"run_id": run_id})  # adjust if PK not run_id
+    from sqlalchemy import select
+    existing = await session.scalar(select(KGSyncRun).where(KGSyncRun.run_id == run_id))
     if existing:
         raise HTTPException(status_code=409, detail={"reason": "duplicate_run", "run_id": run_id})
 
