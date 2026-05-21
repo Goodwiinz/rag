@@ -169,7 +169,7 @@ export const EntityGraph: React.FC<EntityGraphProps> = ({
       .enter()
       .append('g')
       .call(
-        (d3.drag() as d3.DragBehavior<SVGGElement, any, any>)
+        (d3.drag() as any)
           .on('start', (event: any, d: any) => {
             if (!event.active) simulation.alphaTarget(0.3).restart();
             d.fx = d.x;
