@@ -14,28 +14,21 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Input } from '@/components/ui/input';
-import type { ChatPageMessage } from '@/components/chat/shared/cloudMessageView';
-import { ChatConversation, generateConversationTitle } from '@/hooks/chat/chatTypes';
 import {
   getNewChatUrl,
   getSelectedThreadUrl,
 } from '@/components/chat/shared/chatNavigation';
 import { InlineAgentSummary } from '@/components/chat/shared/InlineAgentSummary';
 import { TerminalChatBubble } from '@/components/chat/shared/TerminalChatBubble';
-import { buildThreadCreateRequest } from '@/components/chat/shared/threadCreation';
-import { agentChatService } from '@/services/agentChatService';
 import { enhancedDocumentService } from '@/services/enhancedDocumentService';
 import { workspaceService } from '@/services/workspaceService';
-import { useChatStore } from '@/store/chat-store';
-import { useAgentActivityStore } from '@/stores/agentActivityStore';
-import { deriveAgentName, deriveTask } from '@/components/context-rail';
-import { MessageRole } from '@/types/workspace';
 import { Citation } from '@/utils/citationParser';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Activity, ArrowDown, Loader2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useChatSession } from '@/hooks/chat/useChatSession';
+import { useChatStreaming } from '@/hooks/chat/useChatStreaming';
 
 // ============================================
 // CONSTANTS
@@ -72,24 +65,39 @@ function ChatPageContent() {
     loadThreadsFromDb,
   } = useChatSession();
 
-  const [input, setInput] = useState('');
-
-  // Loading states
-  const [isLoading, setIsLoading] = useState(false);
-
   // RAG state
   const [enableRAG, setEnableRAG] = useState(true);
 
-  // Agent state
-  const agentThreadMapRef = useRef<Record<string, string>>({});
-
-  // HITL confirmation state
-  const [pendingConfirmation, setPendingConfirmation] = useState<{
-    threadId: string;
-    workspaceThreadId: string;
-    confirmation: Record<string, unknown>;
-  } | null>(null);
-  const [isConfirming, setIsConfirming] = useState(false);
+  // Streaming / submit / HITL logic (extracted hook)
+  const {
+    input,
+    setInput,
+    isLoading,
+    handleSubmit,
+    handleStop,
+    pendingConfirmation,
+    isConfirming,
+    handleConfirmation,
+    chatInputRef,
+    storeIsStreaming,
+    storeStreamingContent,
+    streamingTimestampRef,
+    selectedModel,
+    setSelectedModel,
+  } = useChatStreaming({
+    messages,
+    setMessages,
+    conversations,
+    setConversations,
+    activeConversationId,
+    setActiveConversationId,
+    activeConversationIdRef,
+    dbConversation,
+    isAuthenticated,
+    setCurrentThread,
+    addMessageToStore,
+    enableRAG,
+  });
 
   // Dialog state for rename/delete — replaces window.prompt/confirm
   const [renameDialog, setRenameDialog] = useState<{
@@ -110,9 +118,6 @@ function ChatPageContent() {
   // Refs
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const chatInputRef = useRef<HTMLTextAreaElement>(null);
-  const lastStreamedContentRef = useRef<string>('');
-  const abortControllerRef = useRef<AbortController | null>(null);
 
   // Scroll state
   const [showScrollButton, setShowScrollButton] = useState(false);
@@ -126,24 +131,7 @@ function ChatPageContent() {
     undefined
   );
 
-  // Streaming state from store
-  const storeStopStreaming = useChatStore((state) => state.stopStreaming);
-  const storeIsStreaming = useChatStore((state) => state.isStreaming);
-  const storeStreamingContent = useChatStore((state) => state.streamingContent);
-
-  // Model selection
-  const selectedModel = useChatStore((state) => state.selectedModel);
-  const setSelectedModel = useChatStore((state) => state.setSelectedModel);
-
   const router = useRouter();
-
-  // Capture a stable timestamp when streaming begins
-  const streamingTimestampRef = useRef(Date.now());
-  useEffect(() => {
-    if (storeIsStreaming) {
-      streamingTimestampRef.current = Date.now();
-    }
-  }, [storeIsStreaming]);
 
   // Listen for populate-chat-input events from Follow-up Suggestions
   useEffect(() => {
@@ -165,7 +153,7 @@ function ChatPageContent() {
         handlePopulateChatInput as EventListener
       );
     };
-  }, []);
+  }, [setInput, chatInputRef]);
 
   // Auto-scroll when new messages arrive or streaming content updates
   useEffect(() => {
@@ -189,417 +177,6 @@ function ChatPageContent() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     setShowScrollButton(false);
   }, []);
-
-  // Send message
-  const handleSubmit = async (contentOverride?: string) => {
-    const rawContent =
-      typeof contentOverride === 'string' ? contentOverride : input;
-    const content = rawContent.trim();
-    if (!content || isLoading || storeIsStreaming) return;
-
-    const userMessage: ChatPageMessage = {
-      role: 'user',
-      content,
-      timestamp: Date.now(),
-    };
-
-    const newMessages = [...messages, userMessage];
-    setMessages(newMessages);
-    setInput('');
-    setIsLoading(true);
-
-    // Create new thread if needed (when no active conversation).
-    // Read from ref first (synchronous, immune to React batching), then
-    // state, then Zustand store as final fallback.
-    let currentConversationId =
-      activeConversationIdRef.current ||
-      activeConversationId ||
-      useChatStore.getState().currentThreadId;
-    let currentThreadId = currentConversationId;
-
-    if (!currentConversationId && dbConversation) {
-      try {
-        const dynamicTitle = generateConversationTitle(content);
-        console.log(
-          '[Chat] Creating new thread in database with title:',
-          dynamicTitle
-        );
-        const newThread = await workspaceService.createThread(
-          buildThreadCreateRequest({
-            conversationId: dbConversation.id,
-            title: dynamicTitle,
-          })
-        );
-
-        currentConversationId = newThread.id;
-        currentThreadId = newThread.id;
-
-        const newConv: ChatConversation = {
-          id: newThread.id,
-          title: newThread.title || dynamicTitle,
-          messages: newMessages,
-          createdAt: Date.now(),
-          updatedAt: Date.now(),
-          threadId: newThread.id,
-          conversationId: dbConversation.id,
-        };
-
-        setConversations((prev) => [newConv, ...prev]);
-        setActiveConversationId(newConv.id);
-        activeConversationIdRef.current = newConv.id;
-        setCurrentThread(newConv.id);
-        queueMicrotask(() =>
-          router.replace(getSelectedThreadUrl(newThread.id))
-        );
-        console.log('[Chat] Created new thread:', newThread.id);
-      } catch (error) {
-        console.error('[Chat] Failed to create thread:', error);
-        setIsLoading(false);
-        return;
-      }
-    }
-
-    try {
-      // Stream via Agent (LangGraph) backend
-      const existingAgentThreadId = currentThreadId
-        ? agentThreadMapRef.current[currentThreadId]
-        : undefined;
-
-      console.log(
-        '[Chat] Starting agent stream, workspace thread:',
-        currentThreadId,
-        'agent thread:',
-        existingAgentThreadId
-      );
-
-      let assistantContent = '';
-      lastStreamedContentRef.current = '';
-      let streamHadError = false;
-      let streamHadConfirmation = false;
-
-      // Set streaming state in store for UI
-      useChatStore.setState({
-        isStreaming: true,
-        streamingContent: '',
-      });
-
-      if (currentThreadId) {
-        useAgentActivityStore
-          .getState()
-          .startRun(currentThreadId, deriveAgentName(), deriveTask(content));
-      }
-
-      const streamAbort = new AbortController();
-      abortControllerRef.current = streamAbort;
-
-      await agentChatService.streamMessage(
-        {
-          messages: newMessages.map((m) => ({
-            role: m.role,
-            content: m.content,
-          })),
-          page_context: { type: 'chat' },
-          use_rag: enableRAG,
-          thread_id: existingAgentThreadId,
-          model: selectedModel,
-        },
-        {
-          onToken: (content) => {
-            assistantContent += content;
-            lastStreamedContentRef.current = assistantContent;
-            useChatStore.setState({
-              streamingContent: assistantContent,
-            });
-          },
-          onToolStart: (tool, args) => {
-            console.log('[Agent] Tool start:', tool, args);
-            if (currentThreadId) {
-              useAgentActivityStore
-                .getState()
-                .pushToolStart(currentThreadId, tool);
-            }
-          },
-          onToolEnd: (tool, result, isError) => {
-            console.log('[Agent] Tool end:', tool, result, { isError });
-            if (currentThreadId) {
-              useAgentActivityStore
-                .getState()
-                .pushToolEnd(currentThreadId, tool, !isError);
-            }
-          },
-          onRagContext: (contexts) => {
-            console.log('[Agent] RAG contexts:', contexts.length);
-            useChatStore.setState({
-              streamingCitations: contexts,
-            });
-          },
-          onPlan: (steps) => {
-            if (!currentThreadId) return;
-            // Coerce each plan step into a single human-readable string.
-            // Backend emits `{steps: [...], reasoning: ...}` — step items may
-            // be plain strings or objects with `description`/`text`/`title`.
-            const items = (steps ?? [])
-              .map((step) => {
-                if (typeof step === 'string') return step;
-                if (step && typeof step === 'object') {
-                  const s = step as Record<string, unknown>;
-                  return String(
-                    s.description ?? s.text ?? s.title ?? s.step ?? ''
-                  );
-                }
-                return '';
-              })
-              .filter((s) => s.length > 0);
-            if (items.length > 0) {
-              useAgentActivityStore.getState().setPlan(currentThreadId, items);
-            }
-          },
-          onTrace: (threadId) => {
-            // Capture agent thread_id from trace event for subsequent sends
-            if (currentThreadId) {
-              agentThreadMapRef.current[currentThreadId] = threadId;
-            }
-          },
-          onConfirmation: (threadId, confirmation) => {
-            console.log('[Agent] HITL confirmation needed:', confirmation);
-            streamHadConfirmation = true;
-            // Store agent thread ID for confirmation flow
-            if (currentThreadId) {
-              agentThreadMapRef.current[currentThreadId] = threadId;
-            }
-            setPendingConfirmation({
-              threadId,
-              workspaceThreadId: currentThreadId || '',
-              confirmation,
-            });
-          },
-          onDone: () => {
-            console.log('[Agent] Stream complete');
-            if (currentThreadId) {
-              useAgentActivityStore
-                .getState()
-                .finishRun(currentThreadId, 'done');
-            }
-          },
-          onError: (error) => {
-            console.error('[Agent] Stream error:', error);
-            streamHadError = true;
-            if (currentThreadId) {
-              useAgentActivityStore
-                .getState()
-                .finishRun(currentThreadId, 'error');
-            }
-            // Show error as assistant message instead of blank bubble
-            const errorMsg: ChatPageMessage = {
-              role: 'assistant',
-              content: `Stream error: ${error}`,
-              timestamp: Date.now(),
-            };
-            setMessages([...newMessages, errorMsg]);
-          },
-        },
-        streamAbort.signal
-      );
-
-      // Don't append a normal message if stream errored or needs confirmation
-      if (streamHadError || streamHadConfirmation) {
-        useChatStore.setState({
-          isStreaming: false,
-          streamingContent: '',
-          streamingCitations: [],
-        });
-        setIsLoading(false);
-        return;
-      }
-
-      // Guard against empty content (no tokens received). Surface the failure
-      // to the user instead of leaving an empty bubble — every "agent broke
-      // upstream" failure (DNS, auth, model error) used to look identical from
-      // the UI side.
-      const finalContent = assistantContent || lastStreamedContentRef.current;
-      if (!finalContent.trim()) {
-        const emptyResponseMessage: ChatPageMessage = {
-          role: 'assistant',
-          content:
-            '⚠ No response received from the agent. The stream completed without any tokens — check backend logs.',
-          timestamp: Date.now(),
-        };
-        setMessages([...newMessages, emptyResponseMessage]);
-        useChatStore.setState({
-          isStreaming: false,
-          streamingContent: '',
-          streamingCitations: [],
-        });
-        setIsLoading(false);
-        return;
-      }
-
-      // After streaming completes, build final message.
-      // Clear the streaming state BEFORE appending the final assistant message
-      // so the virtual streaming bubble unmounts atomically with the real one
-      // mounting. Otherwise the final message and the streaming bubble render
-      // together during the (awaited) DB save window below.
-      const finalAssistantMessage: ChatPageMessage = {
-        role: 'assistant',
-        content: finalContent,
-        timestamp: Date.now(),
-      };
-
-      useChatStore.setState({
-        isStreaming: false,
-        streamingContent: '',
-        streamingCitations: [],
-      });
-      lastStreamedContentRef.current = '';
-
-      const finalMessages = [...newMessages, finalAssistantMessage];
-      setMessages(finalMessages);
-
-      // Save messages to workspace database for persistence
-      if (currentThreadId && isAuthenticated) {
-        try {
-          // Save user message
-          const savedUserMessage = await workspaceService.createMessage({
-            thread_id: currentThreadId,
-            content,
-            role: MessageRole.USER,
-          });
-          addMessageToStore(currentThreadId, savedUserMessage);
-
-          // Save assistant message
-          const savedAssistantMessage = await workspaceService.createMessage({
-            thread_id: currentThreadId,
-            content: finalAssistantMessage.content,
-            role: MessageRole.ASSISTANT,
-          });
-          addMessageToStore(currentThreadId, savedAssistantMessage);
-          console.log('[Chat] Saved messages to database');
-        } catch (error) {
-          console.error('[Chat] Failed to save messages:', error);
-        }
-      }
-
-      // Update conversation
-      setConversations((prev) =>
-        prev.map((conv) =>
-          conv.id === currentConversationId
-            ? { ...conv, messages: finalMessages, updatedAt: Date.now() }
-            : conv
-        )
-      );
-    } catch (err) {
-      console.error('Failed to send message:', err);
-      const errorMessage =
-        'Error: ' +
-        (err instanceof Error ? err.message : 'Failed to get response');
-
-      setMessages([
-        ...newMessages,
-        {
-          role: 'assistant',
-          content: errorMessage,
-          timestamp: Date.now(),
-        },
-      ]);
-    } finally {
-      setIsLoading(false);
-      useChatStore.setState({
-        isStreaming: false,
-        streamingContent: '',
-        streamingCitations: [],
-      });
-      lastStreamedContentRef.current = '';
-    }
-  };
-
-  const handleStop = () => {
-    abortControllerRef.current?.abort();
-    abortControllerRef.current = null;
-    setIsLoading(false);
-    if (storeIsStreaming) {
-      storeStopStreaming();
-    }
-    useChatStore.setState({
-      isStreaming: false,
-      streamingContent: '',
-      streamingCitations: [],
-    });
-  };
-
-  const handleConfirmation = async (confirmed: boolean) => {
-    if (!pendingConfirmation) return;
-    setIsConfirming(true);
-    useChatStore.setState({ isStreaming: true, streamingContent: '' });
-
-    let confirmContent = '';
-    const confirmMessages = [...messages];
-
-    const confirmAbort = new AbortController();
-    abortControllerRef.current = confirmAbort;
-
-    try {
-      await agentChatService.streamConfirm(
-        { thread_id: pendingConfirmation.threadId, confirmed },
-        {
-          onToken: (content) => {
-            confirmContent += content;
-            useChatStore.setState({ streamingContent: confirmContent });
-          },
-          onToolStart: (tool) => {
-            useAgentActivityStore
-              .getState()
-              .pushToolStart(pendingConfirmation.workspaceThreadId, tool);
-          },
-          onToolEnd: (tool, _result, isError) => {
-            useAgentActivityStore
-              .getState()
-              .pushToolEnd(
-                pendingConfirmation.workspaceThreadId,
-                tool,
-                !isError
-              );
-          },
-          onDone: () => {
-            if (confirmContent.trim()) {
-              const msg: ChatPageMessage = {
-                role: 'assistant',
-                content: confirmContent,
-                timestamp: Date.now(),
-              };
-              setMessages([...confirmMessages, msg]);
-            }
-          },
-          onError: (error) => {
-            const msg: ChatPageMessage = {
-              role: 'assistant',
-              content: `Confirmation error: ${error}`,
-              timestamp: Date.now(),
-            };
-            setMessages([...confirmMessages, msg]);
-          },
-        },
-        confirmAbort.signal
-      );
-    } catch (err) {
-      const errorMessage =
-        err instanceof Error
-          ? err.message
-          : 'Network error during confirmation';
-      const msg: ChatPageMessage = {
-        role: 'assistant',
-        content: `Confirmation failed: ${errorMessage}`,
-        timestamp: Date.now(),
-      };
-      setMessages([...confirmMessages, msg]);
-    } finally {
-      setPendingConfirmation(null);
-      setIsConfirming(false);
-      useChatStore.setState({
-        isStreaming: false,
-        streamingContent: '',
-      });
-    }
-  };
 
   const handlePromptSelect = (prompt: string) => {
     setInput(prompt);
