@@ -29,7 +29,7 @@ def upgrade() -> None:
         sa.Column("fixed_count", sa.Integer(), nullable=False, server_default="0"),
         sa.Column("status", sa.Text(), nullable=False),
         sa.Column("error", sa.Text(), nullable=True),
-        sa.Column("metadata", postgresql.JSONB(astext_type=sa.Text()), nullable=True),
+        sa.Column("run_metadata", postgresql.JSONB(astext_type=sa.Text()), nullable=True),
         sa.CheckConstraint(
             "status IN ('running','success','failed')",
             name="kg_sync_runs_status_check",

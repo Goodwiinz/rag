@@ -20,18 +20,14 @@ from sqlalchemy.pool import NullPool
 
 
 def _resolve_async_dsn() -> str | None:
-    override = os.environ.get("TEST_PG_ASYNC_URL")
-    if override:
-        return override
-    # Fallback: local Supabase from backend/alembic.ini, converted to asyncpg.
-    return "postgresql+asyncpg://postgres:postgres@localhost:54322/postgres"
+    return os.environ.get("TEST_PG_ASYNC_URL")
 
 
 @pytest_asyncio.fixture()
 async def db_session():
     dsn = _resolve_async_dsn()
     if not dsn:
-        pytest.skip("TEST_PG_ASYNC_URL not set; cannot verify migration against Postgres")
+        pytest.skip("TEST_PG_ASYNC_URL not set; skipping migration verification")
     engine = create_async_engine(dsn, future=True, poolclass=NullPool)
     try:
         async with engine.connect() as conn:
@@ -40,7 +36,7 @@ async def db_session():
             await conn.execute(text("SELECT 1"))
     except Exception as exc:  # noqa: BLE001
         await engine.dispose()
-        pytest.skip(f"Test PostgreSQL DB unreachable: {exc}")
+        pytest.fail(f"Test PostgreSQL DB unreachable: {exc}")
 
     Session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
     try:
@@ -59,6 +55,6 @@ async def test_kg_sync_runs_table_exists(db_session):
         assert {
             "id", "run_id", "started_at", "completed_at",
             "orphan_count", "missing_count", "drift_count",
-            "fixed_count", "status", "error", "metadata",
+            "fixed_count", "status", "error", "run_metadata",
         }.issubset(cols)
     await db_session.run_sync(lambda s: _inspect(s.connection()))
