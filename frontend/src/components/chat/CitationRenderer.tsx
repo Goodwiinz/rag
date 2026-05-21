@@ -2,8 +2,20 @@
 
 import React, { useMemo, Fragment } from 'react';
 import ReactMarkdown from 'react-markdown';
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import dynamic from 'next/dynamic';
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
+
+const SyntaxHighlighter = dynamic(
+  () => import('react-syntax-highlighter/dist/esm/prism').then((mod) => mod.default),
+  {
+    loading: () => (
+      <pre className="p-4 rounded bg-[var(--terminal-bg)] text-xs font-mono overflow-x-auto">
+        <code>Loading...</code>
+      </pre>
+    ),
+    ssr: false,
+  }
+);
 import { cn } from '@/lib/utils';
 import { CitationLink } from './CitationLink';
 import {
