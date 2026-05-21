@@ -5,7 +5,7 @@ pytest-cov==7.1.0
 pytest-mock==3.15.1
 pytest-xdist==3.8.0
 pytest-repeat==0.9.4
-pytest-rerunfailures==16.1
+pytest-rerunfailures==16.2
 pytest-timeout==2.4.0
 pytest-benchmark==5.2.3
 pytest-html==4.2.0
@@ -28,7 +28,7 @@ respx==0.23.1
 pytest-postgresql==6.1.0
 pytest-redis==3.1.2
 freezegun==1.5.5
-hypothesis==6.152.6
+hypothesis==6.152.9
 sqlalchemy-utils==0.42.1
 
 # Async Testing
@@ -54,7 +54,7 @@ bandit==1.9.4
 safety==3.7.0
 
 # Code Quality
-black==26.3.1
+black==26.5.1
 isort==5.13.2
 flake8==7.3.0
 mypy==1.11.1
