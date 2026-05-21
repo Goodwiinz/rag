@@ -55,6 +55,7 @@ from .encrypted_user import (
 from .entity import Entity, EntityType, ExtractionMethod, entity_relationships
 from .extraction_matrix import ExtractionCell, ExtractionMatrix
 from .integrity_score import IntegrityScore
+from .kg_sync_run import KGSyncRun
 from .research_pipeline import ResearchPipeline
 from .generated_draft import GeneratedDraft
 from .message_attachment import MessageAttachment
@@ -218,6 +219,8 @@ __all__ = [
     "ExtractionCell",
     # Integrity Score models
     "IntegrityScore",
+    # KG Sync audit models
+    "KGSyncRun",
     # Research Engine models
     "ResearchProject",
     "ResearchBlueprint",
