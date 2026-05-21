@@ -42,18 +42,20 @@ interface AgentActivityState {
   finishRun: (threadId: string, state: 'done' | 'error') => void;
 }
 
+// Eviction constants — cap unbounded growth of runs and steps
+const MAX_RUNS = 20;
+const MAX_STEPS_PER_RUN = 50;
+
 let seq = 0;
 const nextId = () => `step-${Date.now()}-${++seq}`;
 
 export const useAgentActivityStore = create<AgentActivityState>((set) => ({
-  // TODO: add eviction (cap N most-recent threads + cap steps per run) — see review of commit 7c302dd.
   runs: {},
   currentThreadId: null,
 
   startRun: (threadId, name, task) =>
-    set((s) => ({
-      currentThreadId: threadId,
-      runs: {
+    set((s) => {
+      const newRuns = {
         ...s.runs,
         [threadId]: {
           threadId,
@@ -61,11 +63,25 @@ export const useAgentActivityStore = create<AgentActivityState>((set) => ({
           task,
           steps: [],
           plan: [],
-          state: 'running',
+          state: 'running' as const,
           startedAt: Date.now(),
         },
-      },
-    })),
+      };
+
+      // Evict oldest runs when exceeding the cap
+      const keys = Object.keys(newRuns);
+      if (keys.length > MAX_RUNS) {
+        const sorted = keys.sort(
+          (a, b) => (newRuns[a].startedAt ?? 0) - (newRuns[b].startedAt ?? 0)
+        );
+        const toEvict = sorted.slice(0, keys.length - MAX_RUNS);
+        for (const key of toEvict) {
+          delete newRuns[key];
+        }
+      }
+
+      return { currentThreadId: threadId, runs: newRuns };
+    }),
 
   pushToolStart: (threadId, tool) =>
     set((s) => {
@@ -84,10 +100,15 @@ export const useAgentActivityStore = create<AgentActivityState>((set) => ({
         status: 'active',
         at: Date.now(),
       };
+      // Cap steps per run — keep the newest steps
+      let steps = [...run.steps, step];
+      if (steps.length > MAX_STEPS_PER_RUN) {
+        steps = steps.slice(steps.length - MAX_STEPS_PER_RUN);
+      }
       return {
         runs: {
           ...s.runs,
-          [threadId]: { ...run, steps: [...run.steps, step] },
+          [threadId]: { ...run, steps },
         },
       };
     }),

@@ -222,6 +222,7 @@ interface ChatActions {
     data: ChatMessageUpdate
   ) => Promise<ChatMessage | null>;
   deleteMessage: (id: string) => Promise<boolean>;
+  clearThread: (threadId: string) => void;
 
   // UI actions
   setShortcutsDialogOpen: (open: boolean) => void;
@@ -251,6 +252,10 @@ type ChatStore = ChatState & ChatActions;
 
 // Maximum retry attempts for reinitialization to prevent infinite loops
 const MAX_REINIT_RETRIES = 3;
+
+// Maximum number of thread message caches to retain in memory.
+// When exceeded, the oldest threads (by key insertion order) are evicted.
+const MAX_CACHED_THREADS = 50;
 
 // Helper type for the recovery handler
 type RecoveryResult =
@@ -983,6 +988,23 @@ export const useChatStore = create<ChatStore>()(
             for (const msg of response.messages) {
               state.messageToThread[msg.id] = threadId;
             }
+
+            // Evict oldest cached threads when exceeding the cap (FIFO by key insertion order)
+            const threadKeys = Object.keys(state.messages);
+            if (threadKeys.length > MAX_CACHED_THREADS) {
+              const toEvict = threadKeys.slice(
+                0,
+                threadKeys.length - MAX_CACHED_THREADS
+              );
+              for (const key of toEvict) {
+                // Clean up reverse index entries for evicted messages
+                for (const msg of state.messages[key] || []) {
+                  delete state.messageToThread[msg.id];
+                }
+                delete state.messages[key];
+              }
+            }
+
             state.isLoadingMessages = false;
           });
         } catch (error) {
@@ -1106,6 +1128,16 @@ export const useChatStore = create<ChatStore>()(
           });
           return false;
         }
+      },
+
+      clearThread: (threadId) => {
+        set((state) => {
+          // Clean up reverse index entries for evicted messages
+          for (const msg of state.messages[threadId] || []) {
+            delete state.messageToThread[msg.id];
+          }
+          delete state.messages[threadId];
+        });
       },
 
       // ========================================================================

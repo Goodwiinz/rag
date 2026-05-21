@@ -10,6 +10,11 @@ import {
   ProcessingStage
 } from '@/types/realtime-processing';
 
+// Maximum number of documents in the processing queue
+const MAX_QUEUE_DOCUMENTS = 100;
+// Age threshold (ms) for trimming completed/failed documents
+const QUEUE_TRIM_AGE_MS = 60 * 60 * 1000; // 1 hour
+
 interface RealtimeProcessingActions {
   // Connection actions
   setConnectionStatus: (status: WebSocketConnectionState['status']) => void;
@@ -166,6 +171,24 @@ export const useRealtimeProcessingStore = create<RealtimeProcessingState & Realt
             } else {
               state.queue.documents.unshift(document);
             }
+
+            // Trim completed/failed documents older than 1 hour when queue exceeds cap
+            if (state.queue.documents.length > MAX_QUEUE_DOCUMENTS) {
+              const now = Date.now();
+              state.queue.documents = state.queue.documents.filter((doc) => {
+                if (doc.status !== 'completed' && doc.status !== 'failed') return true;
+                const completedAt = doc.metadata.completedAt
+                  ? new Date(doc.metadata.completedAt).getTime()
+                  : new Date(doc.metadata.uploadStartedAt).getTime();
+                return now - completedAt < QUEUE_TRIM_AGE_MS;
+              });
+              // Remove from selection any evicted document ids
+              const remainingIds = new Set(state.queue.documents.map((d) => d.id));
+              state.ui.selectedDocuments = state.ui.selectedDocuments.filter(
+                (id) => remainingIds.has(id)
+              );
+            }
+
             state.queue.summary.total = state.queue.documents.length;
             state.queue.summary[document.status] = (state.queue.summary[document.status] || 0) + 1;
           }),

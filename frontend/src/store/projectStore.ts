@@ -143,7 +143,18 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     set({ loading: true, error: null });
     try {
       const project = await projectService.getProject(projectId);
-      set({ currentProject: project, loading: false });
+      // Clear stale documents/notes from the previous project on switch
+      const prev = get().currentProject;
+      if (prev && prev.id !== projectId) {
+        set({
+          currentProject: project,
+          projectDocuments: [],
+          projectNotes: [],
+          loading: false,
+        });
+      } else {
+        set({ currentProject: project, loading: false });
+      }
     } catch (error: unknown) {
       console.error('[ProjectStore] Failed to fetch project:', error);
       set({
@@ -217,7 +228,13 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   },
 
   setCurrentProject: (project) => {
-    set({ currentProject: project });
+    const prev = get().currentProject;
+    // Clear stale documents/notes when switching to a different project
+    if (prev && project && prev.id !== project.id) {
+      set({ currentProject: project, projectDocuments: [], projectNotes: [] });
+    } else {
+      set({ currentProject: project });
+    }
   },
 
   // =========================================================================
