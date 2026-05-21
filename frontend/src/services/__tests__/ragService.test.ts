@@ -2,15 +2,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Mocked } from 'vitest';
 import { APIErrorClass } from '@/types/api';
 import { retrieveRAGContext } from '../ragService';
-import { apiClient } from '../apiClient';
+import { api } from '../api-client';
 
-vi.mock('../apiClient', () => ({
-  apiClient: {
+vi.mock('../api-client', () => ({
+  api: {
     post: vi.fn(),
   },
 }));
 
-const mockApiClient = apiClient as Mocked<typeof apiClient>;
+const mockApi = api as Mocked<typeof api>;
 
 describe('retrieveRAGContext', () => {
   beforeEach(() => {
@@ -18,7 +18,7 @@ describe('retrieveRAGContext', () => {
   });
 
   it('calls authenticated hybrid search endpoint', async () => {
-    mockApiClient.post.mockResolvedValue({
+    mockApi.post.mockResolvedValue({
       query: 'What is RAG?',
       search_id: 's-1',
       total_results: 1,
@@ -37,7 +37,7 @@ describe('retrieveRAGContext', () => {
 
     await retrieveRAGContext('What is RAG?');
 
-    expect(mockApiClient.post).toHaveBeenCalledWith(
+    expect(mockApi.post).toHaveBeenCalledWith(
       '/search/hybrid',
       expect.objectContaining({
         query: 'What is RAG?',
@@ -49,7 +49,7 @@ describe('retrieveRAGContext', () => {
 
   it('logs APIErrorClass status/details when retrieval fails', async () => {
     const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-    mockApiClient.post.mockRejectedValue(
+    mockApi.post.mockRejectedValue(
       new APIErrorClass({
         message: 'Not Found',
         status_code: 404,

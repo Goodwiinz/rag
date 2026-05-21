@@ -8,7 +8,7 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuthStore } from '@/stores/authStore';
-import { apiClient } from '@/services/apiClient';
+import { api } from '@/services/api-client';
 import { Document, APIErrorClass } from '@/types';
 import { cn } from '@/lib/utils';
 import {
@@ -80,7 +80,7 @@ export default function DocumentDetailPage() {
 
     setLoading(true);
     try {
-      const response = await apiClient.get<Document>(
+      const response = await api.get<Document>(
         `/documents/${documentId}`
       );
       if (response) {
@@ -123,7 +123,7 @@ export default function DocumentDetailPage() {
       )
     ) {
       try {
-        await apiClient.delete(`/documents/${document.id}`);
+        await api.delete(`/documents/${document.id}`);
         router.push('/documents');
       } catch (err) {
         console.error('Failed to delete document:', err);
@@ -136,7 +136,7 @@ export default function DocumentDetailPage() {
     if (!document) return;
 
     try {
-      await apiClient.post(`/documents/${document.id}/reprocess`);
+      await api.post(`/documents/${document.id}/reprocess`);
       fetchDocument();
     } catch (err) {
       console.error('Failed to retry processing:', err);

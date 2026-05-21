@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Mock } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { GraphHealthMonitor } from '@/components/entities/GraphHealthMonitor';
-import { apiClient } from '@/services/apiClient';
+import { api } from '@/services/api-client';
 
 vi.mock('react-hot-toast', () => ({
   __esModule: true,
@@ -12,8 +12,8 @@ vi.mock('react-hot-toast', () => ({
   },
 }));
 
-vi.mock('@/services/apiClient', () => ({
-  apiClient: {
+vi.mock('@/services/api-client', () => ({
+  api: {
     get: vi.fn(),
   },
 }));
@@ -24,7 +24,7 @@ describe('GraphHealthMonitor', () => {
   });
 
   it('renders health metrics when API returns backend health shape', async () => {
-    (apiClient.get as Mock).mockResolvedValue({
+    (api.get as Mock).mockResolvedValue({
       status: 'healthy',
       neo4j_version: '5.0',
       database_size: '1.2 GB',

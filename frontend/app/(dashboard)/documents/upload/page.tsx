@@ -39,7 +39,7 @@ import {
   DocumentUploadRequest,
   WebSocketProgressUpdate,
 } from '@/services/enhancedDocumentService';
-import { apiClient } from '@/services/apiClient';
+import { api } from '@/services/api-client';
 import { useAuthStore } from '@/stores/authStore';
 import { cn } from '@/lib/utils';
 
@@ -147,7 +147,7 @@ export default function DocumentUploadPage() {
         // Pre-upload duplicate check via content hash
         try {
           const sha256 = await computeSHA256(file);
-          const response: any = await apiClient.post(
+          const response: any = await api.post(
             '/documents/check-duplicate',
             {
               sha256,
