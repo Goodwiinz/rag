@@ -21,7 +21,6 @@ import {
 import { InlineAgentSummary } from '@/components/chat/shared/InlineAgentSummary';
 import { TerminalChatBubble } from '@/components/chat/shared/TerminalChatBubble';
 import { enhancedDocumentService } from '@/services/enhancedDocumentService';
-import { workspaceService } from '@/services/workspaceService';
 import { Citation } from '@/utils/citationParser';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Activity, ArrowDown, Loader2 } from 'lucide-react';
@@ -29,6 +28,7 @@ import { useRouter } from 'next/navigation';
 import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useChatSession } from '@/hooks/chat/useChatSession';
 import { useChatStreaming } from '@/hooks/chat/useChatStreaming';
+import { useChatThreadActions } from '@/hooks/chat/useChatThreadActions';
 
 // ============================================
 // CONSTANTS
@@ -99,21 +99,29 @@ function ChatPageContent() {
     enableRAG,
   });
 
-  // Dialog state for rename/delete — replaces window.prompt/confirm
-  const [renameDialog, setRenameDialog] = useState<{
-    open: boolean;
-    threadId: string;
-    currentTitle: string;
-    value: string;
-  }>({ open: false, threadId: '', currentTitle: '', value: '' });
-  const [deleteDialog, setDeleteDialog] = useState<{
-    open: boolean;
-    threadId: string;
-  }>({ open: false, threadId: '' });
-  const [bulkDeleteDialog, setBulkDeleteDialog] = useState<{
-    open: boolean;
-    ids: string[];
-  }>({ open: false, ids: [] });
+  // Rename/delete/bulk-delete thread action handlers and dialog state
+  const {
+    renameDialog,
+    setRenameDialog,
+    deleteDialog,
+    setDeleteDialog,
+    bulkDeleteDialog,
+    setBulkDeleteDialog,
+    handleRenameThread,
+    commitRename,
+    handleDeleteThread,
+    commitDeleteThread,
+    handleBulkDeleteThreads,
+    commitBulkDelete,
+  } = useChatThreadActions({
+    conversations,
+    setConversations,
+    activeConversationId,
+    setActiveConversationId,
+    activeConversationIdRef,
+    setMessages,
+    setCurrentThread,
+  });
 
   // Refs
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -216,83 +224,6 @@ function ChatPageContent() {
     },
     [workspace]
   );
-
-  const handleRenameThread = useCallback(
-    async (threadId: string) => {
-      const target = conversations.find((c) => c.id === threadId);
-      setRenameDialog({
-        open: true,
-        threadId,
-        currentTitle: target?.title ?? '',
-        value: target?.title ?? '',
-      });
-    },
-    [conversations]
-  );
-
-  const commitRename = useCallback(async () => {
-    const { threadId, value, currentTitle } = renameDialog;
-    const trimmed = value.trim();
-    setRenameDialog((d) => ({ ...d, open: false }));
-    if (!trimmed || trimmed === currentTitle) return;
-    try {
-      const updated = await workspaceService.updateThread(threadId, {
-        title: trimmed,
-      });
-      const nextTitleValue = updated.title ?? trimmed;
-      setConversations((prev) =>
-        prev.map((c) =>
-          c.id === threadId ? { ...c, title: nextTitleValue } : c
-        )
-      );
-    } catch (err) {
-      console.error('[Chat] Rename failed', err);
-    }
-  }, [renameDialog, setConversations]);
-
-  const handleDeleteThread = useCallback((threadId: string) => {
-    setDeleteDialog({ open: true, threadId });
-  }, []);
-
-  const commitDeleteThread = useCallback(async () => {
-    const { threadId } = deleteDialog;
-    setDeleteDialog({ open: false, threadId: '' });
-    try {
-      await workspaceService.deleteThread(threadId);
-      setConversations((prev) => prev.filter((c) => c.id !== threadId));
-      if (activeConversationId === threadId) {
-        setActiveConversationId(null);
-        activeConversationIdRef.current = null;
-        setMessages([]);
-        setCurrentThread(null);
-        router.push(getNewChatUrl());
-      }
-    } catch (err) {
-      console.error('[Chat] Delete failed', err);
-    }
-  }, [deleteDialog, activeConversationId, router, setCurrentThread, setConversations, setActiveConversationId, activeConversationIdRef, setMessages]);
-
-  const handleBulkDeleteThreads = useCallback((ids: string[]) => {
-    setBulkDeleteDialog({ open: true, ids });
-  }, []);
-
-  const commitBulkDelete = useCallback(async () => {
-    const { ids } = bulkDeleteDialog;
-    setBulkDeleteDialog({ open: false, ids: [] });
-    try {
-      await workspaceService.bulkDeleteThreads(ids);
-      setConversations((prev) => prev.filter((c) => !ids.includes(c.id)));
-      if (activeConversationId && ids.includes(activeConversationId)) {
-        setActiveConversationId(null);
-        activeConversationIdRef.current = null;
-        setMessages([]);
-        setCurrentThread(null);
-        router.push(getNewChatUrl());
-      }
-    } catch (err) {
-      console.error('[Chat] Bulk delete failed', err);
-    }
-  }, [bulkDeleteDialog, activeConversationId, router, setCurrentThread, setConversations, setActiveConversationId, activeConversationIdRef, setMessages]);
 
   const handleRegenerate = useCallback(
     (assistantMessageIndex: number) => {
