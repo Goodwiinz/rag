@@ -18,6 +18,8 @@ import {
   selectDisplayedMessages,
   syncConversationMessagesWithStore,
 } from '@/components/chat/shared/cloudMessageView';
+import type { ChatPageMessage } from '@/components/chat/shared/cloudMessageView';
+import { ChatConversation, generateConversationTitle } from '@/hooks/chat/chatTypes';
 import {
   getNewChatUrl,
   getSelectedThreadUrl,
@@ -47,79 +49,6 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 
 // ============================================
-// HELPERS
-// ============================================
-
-/**
- * Generate a dynamic conversation title from the first message
- * Creates a clean, readable title instead of just truncating
- */
-function generateConversationTitle(message: string): string {
-  // Clean up the message
-  let title = message.trim();
-
-  // Remove common prefixes that don't add meaning
-  const prefixesToRemove = [
-    /^(hi|hello|hey|good morning|good afternoon|good evening)[,!\s]*/i,
-    /^(can you|could you|would you|please|i need|i want|i'd like)[,\s]*/i,
-    /^(help me|assist me|tell me|show me|explain)[,\s]*/i,
-  ];
-
-  for (const prefix of prefixesToRemove) {
-    title = title.replace(prefix, '');
-  }
-
-  // Capitalize first letter
-  title = title.charAt(0).toUpperCase() + title.slice(1);
-
-  // Truncate to reasonable length (40 chars) at word boundary
-  if (title.length > 40) {
-    const truncated = title.substring(0, 40);
-    const lastSpace = truncated.lastIndexOf(' ');
-    if (lastSpace > 20) {
-      title = truncated.substring(0, lastSpace) + '...';
-    } else {
-      title = truncated + '...';
-    }
-  }
-
-  // If we stripped too much and title is too short, use a default approach
-  if (title.length < 3) {
-    title = message.trim().substring(0, 40);
-    if (message.length > 40) title += '...';
-  }
-
-  return title;
-}
-
-// ============================================
-// TYPES
-// ============================================
-
-interface Message {
-  id?: string;
-  role: 'user' | 'assistant';
-  content: string;
-  timestamp: number;
-  citations?: Citation[];
-  diagnosticsTraceId?: string;
-}
-
-// UI Conversation type (mapped from DB Thread)
-interface Conversation {
-  id: string;
-  title: string;
-  messages: Message[];
-  modelId?: string;
-  createdAt: number;
-  updatedAt: number;
-  threadId: string; // Links to DB Thread
-  conversationId: string; // Links to DB Conversation
-  previewText?: string;
-  messageCount?: number;
-}
-
-// ============================================
 // CONSTANTS
 // ============================================
 
@@ -129,11 +58,11 @@ interface Conversation {
 
 function ChatPageContent() {
   // Core state
-  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [conversations, setConversations] = useState<ChatConversation[]>([]);
   const [activeConversationId, setActiveConversationId] = useState<
     string | null
   >(null);
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [messages, setMessages] = useState<ChatPageMessage[]>([]);
   const [input, setInput] = useState('');
 
   // Database state
@@ -226,7 +155,7 @@ function ChatPageContent() {
 
   // Map DB messages to UI messages
   const mapDbMessageToUiMessage = useCallback(
-    (dbMsg: DBChatMessage): Message => {
+    (dbMsg: DBChatMessage): ChatPageMessage => {
       return {
         id: dbMsg.id,
         role: dbMsg.role === MessageRole.USER ? 'user' : 'assistant',
@@ -402,7 +331,7 @@ function ChatPageContent() {
         );
 
         // Map threads without loading messages (lazy-loaded on selection)
-        const uiConversations: Conversation[] = threadResponse.threads.map(
+        const uiConversations: ChatConversation[] = threadResponse.threads.map(
           (thread) => ({
             id: thread.id,
             title: thread.title || 'New Chat',
@@ -519,7 +448,7 @@ function ChatPageContent() {
 
           if (warmData) {
             const [threadListResponse, threadDetail] = warmData;
-            const uiConversations: Conversation[] =
+            const uiConversations: ChatConversation[] =
               threadListResponse.threads.map((thread) => ({
                 id: thread.id,
                 title: thread.title || 'New Chat',
@@ -738,7 +667,7 @@ function ChatPageContent() {
     const content = rawContent.trim();
     if (!content || isLoading || storeIsStreaming) return;
 
-    const userMessage: Message = {
+    const userMessage: ChatPageMessage = {
       role: 'user',
       content,
       timestamp: Date.now(),
@@ -775,7 +704,7 @@ function ChatPageContent() {
         currentConversationId = newThread.id;
         currentThreadId = newThread.id;
 
-        const newConv: Conversation = {
+        const newConv: ChatConversation = {
           id: newThread.id,
           title: newThread.title || dynamicTitle,
           messages: newMessages,
@@ -931,7 +860,7 @@ function ChatPageContent() {
                 .finishRun(currentThreadId, 'error');
             }
             // Show error as assistant message instead of blank bubble
-            const errorMsg: Message = {
+            const errorMsg: ChatPageMessage = {
               role: 'assistant',
               content: `Stream error: ${error}`,
               timestamp: Date.now(),
@@ -959,7 +888,7 @@ function ChatPageContent() {
       // the UI side.
       const finalContent = assistantContent || lastStreamedContentRef.current;
       if (!finalContent.trim()) {
-        const emptyResponseMessage: Message = {
+        const emptyResponseMessage: ChatPageMessage = {
           role: 'assistant',
           content:
             '⚠ No response received from the agent. The stream completed without any tokens — check backend logs.',
@@ -980,7 +909,7 @@ function ChatPageContent() {
       // so the virtual streaming bubble unmounts atomically with the real one
       // mounting. Otherwise the final message and the streaming bubble render
       // together during the (awaited) DB save window below.
-      const finalAssistantMessage: Message = {
+      const finalAssistantMessage: ChatPageMessage = {
         role: 'assistant',
         content: finalContent,
         timestamp: Date.now(),
@@ -1102,7 +1031,7 @@ function ChatPageContent() {
           },
           onDone: () => {
             if (confirmContent.trim()) {
-              const msg: Message = {
+              const msg: ChatPageMessage = {
                 role: 'assistant',
                 content: confirmContent,
                 timestamp: Date.now(),
@@ -1111,7 +1040,7 @@ function ChatPageContent() {
             }
           },
           onError: (error) => {
-            const msg: Message = {
+            const msg: ChatPageMessage = {
               role: 'assistant',
               content: `Confirmation error: ${error}`,
               timestamp: Date.now(),
@@ -1126,7 +1055,7 @@ function ChatPageContent() {
         err instanceof Error
           ? err.message
           : 'Network error during confirmation';
-      const msg: Message = {
+      const msg: ChatPageMessage = {
         role: 'assistant',
         content: `Confirmation failed: ${errorMessage}`,
         timestamp: Date.now(),
