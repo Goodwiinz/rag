@@ -75,17 +75,44 @@ function resolvePostLoginPath(rawNextPath: string | null): string {
   return rawNextPath;
 }
 
+function describeAuthCallbackError(
+  code: string | null,
+  description: string | null
+): string {
+  if (!code) return '';
+  if (description) return description;
+  switch (code) {
+    case 'auth_callback_failed':
+      return 'Authentication callback failed. Please try signing in again.';
+    case 'access_denied':
+      return 'The confirmation link was rejected. It may have expired or already been used.';
+    case 'otp_expired':
+    case 'expired_link':
+      return 'This confirmation link has expired. Request a new one from registration.';
+    case 'exchange_failed':
+      return 'We could not establish a session from the confirmation link.';
+    case 'missing_code':
+      return 'The confirmation link is missing its verification code.';
+    default:
+      return 'Authentication failed.';
+  }
+}
+
 function LoginPageContent(): React.JSX.Element | null {
   const { login, isAuthenticated, isLoading } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
   const nextPath = resolvePostLoginPath(searchParams.get('next'));
+  const callbackError = describeAuthCallbackError(
+    searchParams.get('error'),
+    searchParams.get('error_description')
+  );
   const [formData, setFormData] = useState<LoginFormData>({
     email: '',
     password: '',
     downloadCliAuth: false,
   });
-  const [error, setError] = useState<string>('');
+  const [error, setError] = useState<string>(callbackError);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [mounted, setMounted] = useState(false);

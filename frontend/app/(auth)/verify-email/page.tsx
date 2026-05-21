@@ -1,135 +1,202 @@
 'use client';
 
+import { useAuth } from '@/hooks/useAuth';
 import { createClient } from '@/lib/supabase/client';
 import { motion } from 'framer-motion';
-import { AlertCircle, CheckCircle, Loader2 } from 'lucide-react';
+import { AlertTriangle, CheckCircle, RefreshCw } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Suspense, useCallback, useEffect, useState } from 'react';
+import React, { Suspense, useEffect, useRef, useState } from 'react';
 
-type VerifyStatus = 'verifying' | 'success' | 'error';
+const VERIFIED_REDIRECT_PATH = '/dashboard';
+const VERIFIED_REDIRECT_DELAY_MS = 2500;
+const PENDING_AUTH_TIMEOUT_MS = 6000;
 
-function VerifyEmailContent() {
+type ViewState = 'pending' | 'verified' | 'error';
+
+function describeError(
+  code: string | null,
+  description: string | null
+): string {
+  if (description) return description;
+  switch (code) {
+    case 'access_denied':
+      return 'The confirmation link was rejected. It may have expired or already been used.';
+    case 'otp_expired':
+    case 'expired_link':
+      return 'This confirmation link has expired. Request a new one from the registration screen.';
+    case 'exchange_failed':
+      return 'We could not exchange the confirmation code for a session. The link may be invalid.';
+    case 'missing_code':
+      return 'No verification code was provided. Open the link from the confirmation email.';
+    case 'otp_verification_failed':
+      return 'We could not verify this confirmation link. It may have expired or already been used.';
+    default:
+      return 'We could not verify your account from this link.';
+  }
+}
+
+function VerifyEmailContent(): React.JSX.Element | null {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [status, setStatus] = useState<VerifyStatus>('verifying');
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const { isAuthenticated, isLoading } = useAuth();
 
+  const errorCode = searchParams.get('error');
+  const errorDescription = searchParams.get('error_description');
   const tokenHash = searchParams.get('token_hash');
-  const type = searchParams.get('type');
+  const tokenType = searchParams.get('type');
+
+  const [mounted, setMounted] = useState(false);
+  const [view, setView] = useState<ViewState>(errorCode ? 'error' : 'pending');
+  const [otpErrorMessage, setOtpErrorMessage] = useState<string | null>(null);
+  const isAuthenticatedRef = useRef(isAuthenticated);
+  isAuthenticatedRef.current = isAuthenticated;
 
   useEffect(() => {
-    if (!tokenHash || !type) {
-      setStatus('success');
-      return;
-    }
+    setMounted(true);
+  }, []);
 
-    const verify = async () => {
+  // Magic-link / token_hash flow: run verifyOtp client-side. Supabase only
+  // sends these params when the email template is configured for the OTP
+  // (non-PKCE) flow; the PKCE flow goes through /auth/callback instead.
+  useEffect(() => {
+    if (errorCode) return;
+    if (!tokenHash || !tokenType) return;
+
+    let cancelled = false;
+    (async () => {
       try {
         const supabase = createClient();
         const { error } = await supabase.auth.verifyOtp({
           token_hash: tokenHash,
-          type: type as 'signup' | 'email',
+          type: tokenType as 'signup' | 'email',
         });
-        if (error) throw error;
-        setStatus('success');
+        if (cancelled) return;
+        if (error) {
+          setOtpErrorMessage(error.message);
+          setView('error');
+          return;
+        }
+        setView('verified');
       } catch (err) {
-        setStatus('error');
-        setErrorMessage(
+        if (cancelled) return;
+        setOtpErrorMessage(
           err instanceof Error ? err.message : 'Verification failed'
         );
+        setView('error');
       }
+    })();
+
+    return () => {
+      cancelled = true;
     };
+  }, [errorCode, tokenHash, tokenType]);
 
-    verify();
-  }, [tokenHash, type]);
-
+  // PKCE flow: /auth/callback already exchanged the code, so we just need
+  // to wait for the auth state to propagate.
   useEffect(() => {
-    if (status !== 'success') return;
-    const timer = setTimeout(() => router.push('/login'), 4000);
+    if (errorCode) {
+      setView('error');
+      return;
+    }
+
+    // Token-hash flow drives its own state above.
+    if (tokenHash && tokenType) return;
+
+    if (isLoading) return;
+
+    if (isAuthenticated) {
+      setView('verified');
+      return;
+    }
+
+    // Auth finished loading but no session — give the SIGNED_IN listener
+    // a brief window in case it is still propagating, then show an error.
+    const timer = setTimeout(() => {
+      if (!isAuthenticatedRef.current) {
+        setView('error');
+      }
+    }, PENDING_AUTH_TIMEOUT_MS);
+
     return () => clearTimeout(timer);
-  }, [status, router]);
+  }, [errorCode, tokenHash, tokenType, isAuthenticated, isLoading]);
 
-  const handleResend = useCallback(async () => {
-    setErrorMessage('Please return to the registration page to resend.');
-  }, []);
-
-  if (status === 'verifying') {
-    return (
-      <div className="rounded-2xl border border-[var(--terminal-border)] bg-[var(--terminal-surface)] p-10 text-center">
-        <div className="flex items-center justify-center w-16 h-16 rounded-full bg-[var(--phosphor-green)]/10 border border-[var(--phosphor-green)]/30 mx-auto mb-6">
-          <Loader2 className="w-8 h-8 text-[var(--phosphor-green)] animate-spin" />
-        </div>
-        <h2 className="text-xl font-mono font-bold text-[var(--terminal-text)] uppercase tracking-[0.15em] mb-3">
-          Verifying Identity
-        </h2>
-        <p className="text-sm font-mono text-[var(--terminal-text-muted)] leading-relaxed">
-          Please wait while we confirm your email...
-        </p>
-      </div>
+  // Once verified, redirect to the dashboard.
+  useEffect(() => {
+    if (view !== 'verified') return;
+    const timer = setTimeout(
+      () => router.push(VERIFIED_REDIRECT_PATH),
+      VERIFIED_REDIRECT_DELAY_MS
     );
-  }
+    return () => clearTimeout(timer);
+  }, [view, router]);
 
-  if (status === 'error') {
+  if (!mounted) return null;
+
+  if (view === 'error') {
+    const message =
+      otpErrorMessage ?? describeError(errorCode, errorDescription);
     return (
-      <div className="rounded-2xl border border-[var(--terminal-border)] bg-[var(--terminal-surface)] p-10 text-center">
-        <div className="flex items-center justify-center w-16 h-16 rounded-full bg-red-500/10 border border-red-500/30 mx-auto mb-6">
-          <AlertCircle className="w-8 h-8 text-red-400" />
-        </div>
-        <h2 className="text-xl font-mono font-bold text-[var(--terminal-text)] uppercase tracking-[0.15em] mb-3">
-          Verification Failed
-        </h2>
-        <p className="text-sm font-mono text-[var(--terminal-text-muted)] mb-6 leading-relaxed">
-          {errorMessage || 'The verification link may have expired or already been used.'}
-        </p>
-        <div className="flex flex-col items-center gap-3">
-          <button
-            onClick={handleResend}
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl border border-[var(--terminal-border)] bg-[var(--terminal-bg)] font-mono text-xs font-bold uppercase tracking-[0.15em] text-[var(--terminal-text-muted)] hover:border-[var(--phosphor-green)]/50 hover:text-[var(--phosphor-green)] transition-all"
-          >
-            Resend Verification
-          </button>
-          <Link
-            href="/register"
-            className="text-[10px] font-mono text-[var(--terminal-text-dim)] uppercase tracking-widest hover:text-[var(--phosphor-green)] transition-colors"
-          >
-            Return to Registration
-          </Link>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="rounded-2xl border border-[var(--terminal-border)] bg-[var(--terminal-surface)] p-10 text-center">
-      <div className="flex items-center justify-center w-16 h-16 rounded-full bg-[var(--phosphor-green)]/10 border border-[var(--phosphor-green)]/30 mx-auto mb-6">
-        <CheckCircle className="w-8 h-8 text-[var(--phosphor-green)]" />
-      </div>
-      <h2 className="text-xl font-mono font-bold text-[var(--terminal-text)] uppercase tracking-[0.15em] mb-3">
-        Identity Verified
-      </h2>
-      <p className="text-sm font-mono text-[var(--terminal-text-muted)] mb-6 leading-relaxed">
-        Your account has been activated. Redirecting to login...
-      </p>
-      <div className="h-1 w-24 mx-auto rounded-full bg-[var(--terminal-border)] overflow-hidden mb-6">
+      <div className="min-h-screen flex items-center justify-center bg-[var(--terminal-bg)]">
         <motion.div
-          initial={{ width: 0 }}
-          animate={{ width: '100%' }}
-          transition={{ duration: 4 }}
-          className="h-full bg-[var(--phosphor-green)]"
-        />
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="max-w-md w-full mx-6"
+        >
+          <div className="rounded-2xl border border-red-500/30 bg-[var(--terminal-surface)] p-10 text-center">
+            <div className="flex items-center justify-center w-16 h-16 rounded-full bg-red-500/10 border border-red-500/30 mx-auto mb-6">
+              <AlertTriangle className="w-8 h-8 text-red-400" />
+            </div>
+            <h2 className="text-xl font-mono font-bold text-[var(--terminal-text)] uppercase tracking-[0.15em] mb-3">
+              Verification Failed
+            </h2>
+            <p className="text-sm font-mono text-[var(--terminal-text-muted)] mb-8 leading-relaxed">
+              {message}
+            </p>
+            <div className="flex flex-col gap-3 items-center">
+              <Link
+                href="/register"
+                className="text-[10px] font-mono text-[var(--phosphor-green)] uppercase tracking-widest hover:underline"
+              >
+                Request a new confirmation link
+              </Link>
+              <Link
+                href="/login"
+                className="text-[10px] font-mono text-[var(--terminal-text-dim)] uppercase tracking-widest hover:text-[var(--phosphor-green)] transition-colors"
+              >
+                Return to Access Terminal
+              </Link>
+            </div>
+          </div>
+        </motion.div>
       </div>
-      <Link
-        href="/login"
-        className="text-[10px] font-mono text-[var(--terminal-text-dim)] uppercase tracking-widest hover:text-[var(--phosphor-green)] transition-colors"
-      >
-        Go to Access Terminal
-      </Link>
-    </div>
-  );
-}
+    );
+  }
 
-export default function VerifyEmailPage() {
+  if (view === 'pending') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[var(--terminal-bg)]">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="max-w-md w-full mx-6"
+        >
+          <div className="rounded-2xl border border-[var(--terminal-border)] bg-[var(--terminal-surface)] p-10 text-center">
+            <div className="flex items-center justify-center w-16 h-16 rounded-full bg-[var(--phosphor-green)]/10 border border-[var(--phosphor-green)]/30 mx-auto mb-6">
+              <RefreshCw className="w-8 h-8 text-[var(--phosphor-green)] animate-spin" />
+            </div>
+            <h2 className="text-xl font-mono font-bold text-[var(--terminal-text)] uppercase tracking-[0.15em] mb-3">
+              Verifying Identity
+            </h2>
+            <p className="text-sm font-mono text-[var(--terminal-text-muted)] mb-8 leading-relaxed">
+              Establishing your session. This only takes a moment...
+            </p>
+          </div>
+        </motion.div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-[var(--terminal-bg)]">
       <motion.div
@@ -137,16 +204,40 @@ export default function VerifyEmailPage() {
         animate={{ opacity: 1, scale: 1 }}
         className="max-w-md w-full mx-6"
       >
-        <Suspense
-          fallback={
-            <div className="rounded-2xl border border-[var(--terminal-border)] bg-[var(--terminal-surface)] p-10 text-center">
-              <Loader2 className="w-8 h-8 text-[var(--phosphor-green)] animate-spin mx-auto" />
-            </div>
-          }
-        >
-          <VerifyEmailContent />
-        </Suspense>
+        <div className="rounded-2xl border border-[var(--terminal-border)] bg-[var(--terminal-surface)] p-10 text-center">
+          <div className="flex items-center justify-center w-16 h-16 rounded-full bg-[var(--phosphor-green)]/10 border border-[var(--phosphor-green)]/30 mx-auto mb-6">
+            <CheckCircle className="w-8 h-8 text-[var(--phosphor-green)]" />
+          </div>
+          <h2 className="text-xl font-mono font-bold text-[var(--terminal-text)] uppercase tracking-[0.15em] mb-3">
+            Identity Verified
+          </h2>
+          <p className="text-sm font-mono text-[var(--terminal-text-muted)] mb-6 leading-relaxed">
+            Your account has been activated. Redirecting to your workspace...
+          </p>
+          <div className="h-1 w-24 mx-auto rounded-full bg-[var(--terminal-border)] overflow-hidden mb-6">
+            <motion.div
+              initial={{ width: 0 }}
+              animate={{ width: '100%' }}
+              transition={{ duration: VERIFIED_REDIRECT_DELAY_MS / 1000 }}
+              className="h-full bg-[var(--phosphor-green)]"
+            />
+          </div>
+          <Link
+            href={VERIFIED_REDIRECT_PATH}
+            className="text-[10px] font-mono text-[var(--terminal-text-dim)] uppercase tracking-widest hover:text-[var(--phosphor-green)] transition-colors"
+          >
+            Continue to Workspace
+          </Link>
+        </div>
       </motion.div>
     </div>
+  );
+}
+
+export default function VerifyEmailPage(): React.JSX.Element {
+  return (
+    <Suspense fallback={null}>
+      <VerifyEmailContent />
+    </Suspense>
   );
 }
