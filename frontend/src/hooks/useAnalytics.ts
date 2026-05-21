@@ -103,17 +103,17 @@ export const useUsageAnalytics = (timeRange?: TimeRange) => {
 export const useRealTimeMetrics = () => {
   const queryClient = useQueryClient();
   const { setRealTimeMetrics, setRealTimeConnection } = useAnalyticsStore();
+  const wsConnectedRef = React.useRef(false);
 
   const query = useQuery({
     queryKey: ['real-time-metrics'],
     queryFn: () => analyticsService.getRealTimeMetrics(),
     select: (data) => data.metrics,
-    staleTime: 30 * 1000, // 30 seconds
-    gcTime: 2 * 60 * 1000, // 2 minutes
-    refetchInterval: 30 * 1000, // 30 seconds
+    staleTime: 30 * 1000,
+    gcTime: 2 * 60 * 1000,
+    refetchInterval: () => (wsConnectedRef.current ? false : 30 * 1000),
   });
 
-  // Handle success/error with useEffect
   React.useEffect(() => {
     if (query.data) {
       setRealTimeMetrics(query.data);
@@ -124,35 +124,36 @@ export const useRealTimeMetrics = () => {
     }
   }, [query.data, query.error, setRealTimeMetrics, setRealTimeConnection]);
 
-  // WebSocket for real-time updates
   React.useEffect(() => {
-    const ws = new WebSocket(`${getPublicWebSocketOrigin()}/analytics/metrics`);
+    let ws: WebSocket | null = null;
+    let reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
 
-    ws.onopen = () => {
-      setRealTimeConnection(true);
+    const connectWs = () => {
+      ws = new WebSocket(`${getPublicWebSocketOrigin()}/analytics/metrics`);
+
+      ws.onopen = () => {
+        wsConnectedRef.current = true;
+        setRealTimeConnection(true);
+      };
+
+      ws.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        setRealTimeMetrics(data);
+        queryClient.setQueryData(['real-time-metrics'], data);
+      };
+
+      ws.onclose = () => {
+        wsConnectedRef.current = false;
+        setRealTimeConnection(false);
+        reconnectTimeout = setTimeout(connectWs, 5000);
+      };
     };
 
-    ws.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-      setRealTimeMetrics(data);
-      queryClient.setQueryData(['real-time-metrics'], data);
-    };
-
-    ws.onclose = () => {
-      setRealTimeConnection(false);
-      // Attempt to reconnect after 5 seconds
-      setTimeout(() => {
-        const newWs = new WebSocket(
-          `${getPublicWebSocketOrigin()}/analytics/metrics`
-        );
-        ws.onopen = newWs.onopen;
-        ws.onmessage = newWs.onmessage;
-        ws.onclose = newWs.onclose;
-      }, 5000);
-    };
+    connectWs();
 
     return () => {
-      ws.close();
+      if (reconnectTimeout) clearTimeout(reconnectTimeout);
+      if (ws) ws.close();
     };
   }, [queryClient, setRealTimeMetrics, setRealTimeConnection]);
 };
