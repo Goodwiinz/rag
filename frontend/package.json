@@ -46,7 +46,6 @@
     "@types/uuid": "^10.0.0",
     "@uidotdev/usehooks": "^2.4.1",
     "@use-gesture/react": "^10.3.1",
-    "axios": "^1.15.2",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.0",
     "cytoscape": "^3.33.2",

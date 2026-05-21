@@ -1,17 +1,17 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Mocked } from 'vitest';
 import { EnhancedDocumentService } from '@/services/enhancedDocumentService';
-import { apiClient } from '@/services/apiClient';
+import { api } from '@/services/api-client';
 
-vi.mock('@/services/apiClient', () => ({
-  apiClient: {
+vi.mock('@/services/api-client', () => ({
+  api: {
     post: vi.fn(),
     get: vi.fn(),
     delete: vi.fn(),
   },
 }));
 
-const mockedApiClient = apiClient as Mocked<typeof apiClient>;
+const mockedApi = api as Mocked<typeof api>;
 
 describe('EnhancedDocumentService', () => {
   beforeEach(() => {
@@ -25,7 +25,7 @@ describe('EnhancedDocumentService', () => {
   });
 
   it('polls document status when upload completes without a websocket', async () => {
-    mockedApiClient.post.mockResolvedValue({
+    mockedApi.post.mockResolvedValue({
       document_id: 'doc-123',
       upload_id: 'upload-123',
       title: 'Upload Test',
@@ -40,7 +40,7 @@ describe('EnhancedDocumentService', () => {
       created_at: '2026-04-13T00:00:00.000Z',
     });
 
-    mockedApiClient.get
+    mockedApi.get
       .mockResolvedValueOnce({
         document_id: 'doc-123',
         processing_status: 'processing',
@@ -71,11 +71,11 @@ describe('EnhancedDocumentService', () => {
 
     await vi.advanceTimersByTimeAsync(4000);
 
-    expect(mockedApiClient.get).toHaveBeenNthCalledWith(
+    expect(mockedApi.get).toHaveBeenNthCalledWith(
       1,
       '/documents/doc-123/status'
     );
-    expect(mockedApiClient.get).toHaveBeenNthCalledWith(
+    expect(mockedApi.get).toHaveBeenNthCalledWith(
       2,
       '/documents/doc-123/status'
     );

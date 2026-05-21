@@ -17,8 +17,8 @@ const mockGet = vi.fn();
 const mockDelete = vi.fn();
 const mockPost = vi.fn();
 
-vi.mock('@/services/apiClient', () => ({
-  apiClient: {
+vi.mock('@/services/api-client', () => ({
+  api: {
     get: (...args: unknown[]) => mockGet(...args),
     delete: (...args: unknown[]) => mockDelete(...args),
     post: (...args: unknown[]) => mockPost(...args),
@@ -175,12 +175,12 @@ describe('useDocuments', () => {
         await result.current.fetchDocuments(1, 20);
       });
 
-      expect(mockGet).toHaveBeenCalledWith('/documents/', {
-        params: expect.objectContaining({
-          page: 1,
-          page_size: 20,
-        }),
-      });
+      expect(mockGet).toHaveBeenCalledWith(
+        expect.stringContaining('/documents/?')
+      );
+      const calledUrl = mockGet.mock.calls[0][0] as string;
+      expect(calledUrl).toContain('page=1');
+      expect(calledUrl).toContain('page_size=20');
     });
   });
 
@@ -452,7 +452,7 @@ describe('useDocuments', () => {
       renderHook(() => useDocuments());
 
       await waitFor(() => {
-        expect(mockGet).toHaveBeenCalledWith('/documents/', expect.any(Object));
+        expect(mockGet).toHaveBeenCalledWith(expect.stringContaining('/documents/?'));
       });
     });
 

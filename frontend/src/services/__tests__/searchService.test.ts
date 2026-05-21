@@ -1,11 +1,11 @@
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Mocked } from 'vitest';
 import { APIErrorClass } from '@/types/api';
-import { apiClient } from '../apiClient';
+import { api } from '../api-client';
 import { searchService } from '../searchService';
 
-vi.mock('../apiClient', () => ({
-  apiClient: {
+vi.mock('../api-client', () => ({
+  api: {
     post: vi.fn(),
     get: vi.fn(),
     delete: vi.fn(),
@@ -16,7 +16,7 @@ vi.mock('../apiClient', () => ({
   },
 }));
 
-const mockApiClient = apiClient as Mocked<typeof apiClient>;
+const mockApi = api as Mocked<typeof api>;
 
 describe('searchService deterministic routing', () => {
   const originalResearchIds = process.env.NEXT_PUBLIC_RESEARCH_DOCUMENT_IDS;
@@ -31,7 +31,7 @@ describe('searchService deterministic routing', () => {
   });
 
   it('uses /search/hybrid with search_type hybrid by default', async () => {
-    mockApiClient.post.mockResolvedValueOnce({
+    mockApi.post.mockResolvedValueOnce({
       search_id: 'search-1',
       query: 'prompt injection',
       results: [],
@@ -41,7 +41,7 @@ describe('searchService deterministic routing', () => {
 
     const result = await searchService.search({ query: 'prompt injection' });
 
-    expect(mockApiClient.post).toHaveBeenCalledWith(
+    expect(mockApi.post).toHaveBeenCalledWith(
       '/search/hybrid',
       expect.objectContaining({
         query: 'prompt injection',
@@ -49,13 +49,13 @@ describe('searchService deterministic routing', () => {
       }),
       undefined
     );
-    expect(mockApiClient.post).toHaveBeenCalledTimes(1);
+    expect(mockApi.post).toHaveBeenCalledTimes(1);
     expect(result.success).toBe(true);
     expect(result.data.query).toBe('prompt injection');
   });
 
   it('falls back to /search/ with search_type fulltext on 404 from hybrid', async () => {
-    mockApiClient.post
+    mockApi.post
       .mockRejectedValueOnce(
         new APIErrorClass({
           message: 'Not Found',
@@ -84,7 +84,7 @@ describe('searchService deterministic routing', () => {
 
     expect(result.success).toBe(true);
     expect(result.data.query).toBe('prompt injection');
-    expect(mockApiClient.post).toHaveBeenNthCalledWith(
+    expect(mockApi.post).toHaveBeenNthCalledWith(
       1,
       '/search/hybrid',
       expect.objectContaining({
@@ -93,7 +93,7 @@ describe('searchService deterministic routing', () => {
       }),
       undefined
     );
-    expect(mockApiClient.post).toHaveBeenNthCalledWith(
+    expect(mockApi.post).toHaveBeenNthCalledWith(
       2,
       '/search/',
       expect.objectContaining({
@@ -102,11 +102,11 @@ describe('searchService deterministic routing', () => {
       }),
       undefined
     );
-    expect(mockApiClient.post).toHaveBeenCalledTimes(2);
+    expect(mockApi.post).toHaveBeenCalledTimes(2);
   });
 
   it('does not fall back for non-404 hybrid failures and returns success false', async () => {
-    mockApiClient.post.mockRejectedValueOnce(
+    mockApi.post.mockRejectedValueOnce(
       new APIErrorClass({
         message: 'Server Error',
         status_code: 500,
@@ -117,8 +117,8 @@ describe('searchService deterministic routing', () => {
 
     const result = await searchService.search({ query: 'prompt injection' });
 
-    expect(mockApiClient.post).toHaveBeenCalledTimes(1);
-    expect(mockApiClient.post).toHaveBeenNthCalledWith(
+    expect(mockApi.post).toHaveBeenCalledTimes(1);
+    expect(mockApi.post).toHaveBeenNthCalledWith(
       1,
       '/search/hybrid',
       expect.objectContaining({
@@ -133,7 +133,7 @@ describe('searchService deterministic routing', () => {
   });
 
   it('falls back on Axios-style 404 error response and preserves payload mapping shape', async () => {
-    mockApiClient.post
+    mockApi.post
       .mockRejectedValueOnce({
         message: 'Request failed with status code 404',
         response: {
@@ -158,8 +158,8 @@ describe('searchService deterministic routing', () => {
 
     const result = await searchService.search({ query: 'vector search' });
 
-    expect(mockApiClient.post).toHaveBeenCalledTimes(2);
-    expect(mockApiClient.post).toHaveBeenNthCalledWith(
+    expect(mockApi.post).toHaveBeenCalledTimes(2);
+    expect(mockApi.post).toHaveBeenNthCalledWith(
       2,
       '/search/',
       expect.objectContaining({
@@ -173,23 +173,20 @@ describe('searchService deterministic routing', () => {
   });
 
   it('sends addToHistory payload as query params', async () => {
-    mockApiClient.post.mockResolvedValueOnce({
+    mockApi.post.mockResolvedValueOnce({
       success: true,
       data: undefined,
     });
 
     await searchService.addToHistory('rag systems', 'search-2');
 
-    expect(mockApiClient.post).toHaveBeenCalledWith('/search/history', null, {
-      params: {
-        query: 'rag systems',
-        result_id: 'search-2',
-      },
-    });
+    expect(mockApi.post).toHaveBeenCalledWith(
+      '/search/history?query=rag%20systems&result_id=search-2'
+    );
   });
 
   it('builds a non-empty assistant answer text from search results', async () => {
-    mockApiClient.post.mockResolvedValueOnce({
+    mockApi.post.mockResolvedValueOnce({
       search_id: 'search-3',
       query: 'hello',
       results: [
@@ -213,7 +210,7 @@ describe('searchService deterministic routing', () => {
   });
 
   it('maps deterministic trace and quality fields from backend response', async () => {
-    mockApiClient.post.mockResolvedValueOnce({
+    mockApi.post.mockResolvedValueOnce({
       search_id: 'search-3',
       query: 'deterministic quality check',
       results: [],
@@ -244,7 +241,7 @@ describe('searchService deterministic routing', () => {
   });
 
   it('sends selected document_ids filter to backend for research mode queries', async () => {
-    mockApiClient.post.mockResolvedValueOnce({
+    mockApi.post.mockResolvedValueOnce({
       search_id: 'search-4',
       query: 'filtered search',
       results: [],
@@ -257,7 +254,7 @@ describe('searchService deterministic routing', () => {
       filters: { document_ids: ['doc-a', 'doc-b'] },
     });
 
-    expect(mockApiClient.post).toHaveBeenCalledWith(
+    expect(mockApi.post).toHaveBeenCalledWith(
       '/search/hybrid',
       expect.objectContaining({
         filters: expect.objectContaining({
@@ -270,7 +267,7 @@ describe('searchService deterministic routing', () => {
 
   it('uses NEXT_PUBLIC_RESEARCH_DOCUMENT_IDS as default source filter when request filter is missing', async () => {
     process.env.NEXT_PUBLIC_RESEARCH_DOCUMENT_IDS = 'doc-x, doc-y';
-    mockApiClient.post.mockResolvedValueOnce({
+    mockApi.post.mockResolvedValueOnce({
       search_id: 'search-5',
       query: 'env filtered search',
       results: [],
@@ -280,7 +277,7 @@ describe('searchService deterministic routing', () => {
 
     await searchService.search({ query: 'env filtered search' });
 
-    expect(mockApiClient.post).toHaveBeenCalledWith(
+    expect(mockApi.post).toHaveBeenCalledWith(
       '/search/hybrid',
       expect.objectContaining({
         filters: expect.objectContaining({
