@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Document, DocumentFilters, APIErrorClass } from '@/types';
-import { apiClient } from '@/services/apiClient';
+import { api } from '@/services/api-client';
 import { useAuth } from '@/hooks/useAuth';
 
 // Type for the backend document response (before transformation)
@@ -246,9 +246,10 @@ export const useDocuments = (options: UseDocumentsOptions = {}) => {
         }
 
         console.log('Making API call to getDocuments with params:', params);
-        const response = (await apiClient.get('/documents/', {
-          params,
-        })) as DocumentsApiResponse; // Added trailing slash to avoid 307 redirect
+        const queryString = new URLSearchParams(
+          Object.entries(params).map(([k, v]) => [k, String(v)])
+        ).toString();
+        const response = (await api.get(`/documents/?${queryString}`)) as DocumentsApiResponse;
         console.log('API response received:', response);
 
         // Check if response has the expected structure
@@ -362,7 +363,7 @@ export const useDocuments = (options: UseDocumentsOptions = {}) => {
         }));
       }
     },
-    [apiClient, handleAuthError, isAuthenticated, authLoading]
+    [handleAuthError, isAuthenticated, authLoading]
   );
 
   const updateFilters = useCallback(
@@ -449,7 +450,7 @@ export const useDocuments = (options: UseDocumentsOptions = {}) => {
       }
 
       try {
-        await apiClient.delete(`/documents/${documentId}`);
+        await api.delete(`/documents/${documentId}`);
 
         // Refresh documents list
         await fetchDocuments();
@@ -499,7 +500,7 @@ export const useDocuments = (options: UseDocumentsOptions = {}) => {
         throw new Error(errorMessage);
       }
     },
-    [apiClient, fetchDocuments, isAuthenticated, handleAuthError]
+    [fetchDocuments, isAuthenticated, handleAuthError]
   );
 
   const deleteSelectedDocuments = useCallback(async () => {
@@ -537,7 +538,7 @@ export const useDocuments = (options: UseDocumentsOptions = {}) => {
       setState((prev) => ({ ...prev, loading: true, error: null }));
 
       try {
-        const result = await apiClient.post(
+        const result = await api.post(
           `/documents/${documentId}/reprocess`
         );
 
@@ -609,7 +610,7 @@ export const useDocuments = (options: UseDocumentsOptions = {}) => {
         throw new Error(errorMessage);
       }
     },
-    [apiClient, fetchDocuments, isAuthenticated, handleAuthError]
+    [fetchDocuments, isAuthenticated, handleAuthError]
   );
 
   // Auto-fetch on mount and when dependencies change

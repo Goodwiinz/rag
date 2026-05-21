@@ -1,5 +1,5 @@
 import { createClient as createSupabaseBrowserClient } from '@/lib/supabase/client';
-import { apiClient } from '@/services/apiClient';
+import { api } from '@/services/api-client';
 import { clearWorkspaceServiceCache } from '@/services/workspaceService';
 import { Organization, RegisterResult, User } from '@/types';
 import type { SupabaseClient } from '@supabase/supabase-js';
@@ -102,7 +102,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       // before the SSR cookie is established
       if (data.session) {
         const accessToken = data.session.access_token;
-        const profileData = await apiClient.get<ProfileResponse>('/auth/me', {
+        const profileData = await api.get<ProfileResponse>('/auth/me', {
           headers: { Authorization: `Bearer ${accessToken}` },
         });
 
@@ -239,7 +239,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
 
       const accessToken = sessionData.session.access_token;
 
-      const profileData = await apiClient.get<ProfileResponse>('/auth/me', {
+      const profileData = await api.get<ProfileResponse>('/auth/me', {
         headers: { Authorization: `Bearer ${accessToken}` },
       });
 
@@ -273,7 +273,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
     set({ isLoading: true, error: null });
 
     try {
-      const data: SwitchOrganizationResponse = await apiClient.post(
+      const data: SwitchOrganizationResponse = await api.post(
         '/auth/switch-organization',
         { organizationId }
       );

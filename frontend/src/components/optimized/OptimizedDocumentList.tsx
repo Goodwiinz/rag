@@ -21,6 +21,7 @@ import { debounce, throttle } from 'lodash-es';
 import { Document, ProcessingStatus } from '@/types/api';
 import { useWebSocketConnection } from '@/hooks/useWebSocketConnection';
 import { performanceMonitor } from '@/utils/performance';
+import { api } from '@/services/api-client';
 
 // Lazy load heavy components
 const DocumentRow = lazy(() => import('./DocumentRow'));
@@ -218,26 +219,14 @@ export const OptimizedDocumentList: React.FC<OptimizedDocumentListProps> = ({
 
       const startTime = performance.now();
 
-      const response = await fetch(`/api/v1/documents/search`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
+      const result = await api.post('/api/v1/documents/search', {
+        organizationId: orgId,
+        filters: currentFilters,
+        pagination: {
+          page: pageParam,
+          limit: BATCH_SIZE,
         },
-        body: JSON.stringify({
-          organizationId: orgId,
-          filters: currentFilters,
-          pagination: {
-            page: pageParam,
-            limit: BATCH_SIZE,
-          },
-        }),
       });
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch documents');
-      }
-
-      const result = await response.json();
 
       // Performance monitoring
       const endTime = performance.now();

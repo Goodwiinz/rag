@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { CheckCircle, AlertCircle, Loader2, Zap } from 'lucide-react';
-import { apiClient } from '@/services/apiClient';
+import { api } from '@/services/api-client';
 
 interface ExtractionProgress {
   status: 'idle' | 'running' | 'completed' | 'error';

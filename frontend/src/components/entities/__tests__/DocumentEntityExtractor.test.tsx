@@ -3,7 +3,7 @@ import type { Mock } from 'vitest';
 import { render, waitFor } from '@testing-library/react';
 import { DocumentEntityExtractor } from '@/components/entities/DocumentEntityExtractor';
 import toast from 'react-hot-toast';
-import { apiClient } from '@/services/apiClient';
+import { api } from '@/services/api-client';
 
 class MockResizeObserver {
   observe() {}
@@ -22,9 +22,14 @@ vi.mock('react-hot-toast', () => ({
   },
 }));
 
-vi.mock('@/services/apiClient', () => ({
-  apiClient: {
+vi.mock('@/services/api-client', () => ({
+  api: {
     get: vi.fn(),
+    post: vi.fn(),
+    put: vi.fn(),
+    patch: vi.fn(),
+    delete: vi.fn(),
+    upload: vi.fn(),
   },
 }));
 
@@ -35,7 +40,7 @@ describe('DocumentEntityExtractor', () => {
 
   it('handles documents fetch failure without logging console.error', async () => {
     const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-    (apiClient.get as Mock).mockRejectedValue(new Error('Request failed'));
+    (api.get as Mock).mockRejectedValue(new Error('Request failed'));
 
     render(<DocumentEntityExtractor />);
 

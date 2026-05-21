@@ -5,7 +5,7 @@ import {
   EvaluationConfig,
 } from '@/types/evaluation';
 import { PerformanceAnalytics, UsageAnalytics } from '@/types/analytics';
-import { getPublicApiOrigin } from '@/utils/publicEndpoints';
+import { api } from '@/services/api-client';
 
 // API Types
 interface CreateEvaluationRequest {
@@ -47,85 +47,54 @@ interface EvaluationComparison {
   }[];
 }
 
-// Base API URL
-const API_BASE_URL = getPublicApiOrigin() || 'http://localhost:8000';
-
 // API client functions
 const evaluationApi = {
   // Evaluations
   getEvaluations: async (): Promise<Evaluation[]> => {
-    const response = await fetch(`${API_BASE_URL}/api/v1/evaluations`);
-    if (!response.ok) throw new Error('Failed to fetch evaluations');
-    return response.json();
+    return api.get<Evaluation[]>('/api/v1/evaluations');
   },
 
   getEvaluation: async (id: string): Promise<Evaluation> => {
-    const response = await fetch(`${API_BASE_URL}/api/v1/evaluations/${id}`);
-    if (!response.ok) throw new Error('Failed to fetch evaluation');
-    return response.json();
+    return api.get<Evaluation>(`/api/v1/evaluations/${id}`);
   },
 
   createEvaluation: async (
     data: CreateEvaluationRequest
   ): Promise<Evaluation> => {
-    const response = await fetch(`${API_BASE_URL}/api/v1/evaluations`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    });
-    if (!response.ok) throw new Error('Failed to create evaluation');
-    return response.json();
+    return api.post<Evaluation>('/api/v1/evaluations', data);
   },
 
   updateEvaluation: async (
     id: string,
     data: Partial<Evaluation>
   ): Promise<Evaluation> => {
-    const response = await fetch(`${API_BASE_URL}/api/v1/evaluations/${id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    });
-    if (!response.ok) throw new Error('Failed to update evaluation');
-    return response.json();
+    return api.put<Evaluation>(`/api/v1/evaluations/${id}`, data);
   },
 
   deleteEvaluation: async (id: string): Promise<void> => {
-    const response = await fetch(`${API_BASE_URL}/api/v1/evaluations/${id}`, {
-      method: 'DELETE',
-    });
-    if (!response.ok) throw new Error('Failed to delete evaluation');
+    await api.delete(`/api/v1/evaluations/${id}`);
   },
 
   // Evaluation Runs
   runEvaluation: async (evaluationId: string): Promise<EvaluationRun> => {
-    const response = await fetch(
-      `${API_BASE_URL}/api/v1/evaluations/${evaluationId}/run`,
-      {
-        method: 'POST',
-      }
+    return api.post<EvaluationRun>(
+      `/api/v1/evaluations/${evaluationId}/run`
     );
-    if (!response.ok) throw new Error('Failed to run evaluation');
-    return response.json();
   },
 
   getEvaluationRuns: async (evaluationId: string): Promise<EvaluationRun[]> => {
-    const response = await fetch(
-      `${API_BASE_URL}/api/v1/evaluations/${evaluationId}/runs`
+    return api.get<EvaluationRun[]>(
+      `/api/v1/evaluations/${evaluationId}/runs`
     );
-    if (!response.ok) throw new Error('Failed to fetch evaluation runs');
-    return response.json();
   },
 
   getEvaluationRun: async (
     evaluationId: string,
     runId: string
   ): Promise<EvaluationRun> => {
-    const response = await fetch(
-      `${API_BASE_URL}/api/v1/evaluations/${evaluationId}/runs/${runId}`
+    return api.get<EvaluationRun>(
+      `/api/v1/evaluations/${evaluationId}/runs/${runId}`
     );
-    if (!response.ok) throw new Error('Failed to fetch evaluation run');
-    return response.json();
   },
 
   // Evaluation Results
@@ -133,11 +102,9 @@ const evaluationApi = {
     evaluationId: string,
     runId: string
   ): Promise<EvaluationMetrics[]> => {
-    const response = await fetch(
-      `${API_BASE_URL}/api/v1/evaluations/${evaluationId}/runs/${runId}/results`
+    return api.get<EvaluationMetrics[]>(
+      `/api/v1/evaluations/${evaluationId}/runs/${runId}/results`
     );
-    if (!response.ok) throw new Error('Failed to fetch evaluation results');
-    return response.json();
   },
 
   exportEvaluationResults: async (
@@ -145,11 +112,10 @@ const evaluationApi = {
     runId: string,
     format: 'csv' | 'json' | 'pdf'
   ): Promise<Blob> => {
-    const response = await fetch(
-      `${API_BASE_URL}/api/v1/evaluations/${evaluationId}/runs/${runId}/export?format=${format}`
+    return api.request<Blob>(
+      `/api/v1/evaluations/${evaluationId}/runs/${runId}/export?format=${format}`,
+      { method: 'GET' }
     );
-    if (!response.ok) throw new Error('Failed to export evaluation results');
-    return response.blob();
   },
 
   // Comparisons
@@ -157,32 +123,22 @@ const evaluationApi = {
     name: string;
     evaluations: string[];
   }): Promise<EvaluationComparison> => {
-    const response = await fetch(
-      `${API_BASE_URL}/api/v1/evaluations/comparisons`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      }
+    return api.post<EvaluationComparison>(
+      '/api/v1/evaluations/comparisons',
+      data
     );
-    if (!response.ok) throw new Error('Failed to create comparison');
-    return response.json();
   },
 
   getComparisons: async (): Promise<EvaluationComparison[]> => {
-    const response = await fetch(
-      `${API_BASE_URL}/api/v1/evaluations/comparisons`
+    return api.get<EvaluationComparison[]>(
+      '/api/v1/evaluations/comparisons'
     );
-    if (!response.ok) throw new Error('Failed to fetch comparisons');
-    return response.json();
   },
 
   getComparison: async (id: string): Promise<EvaluationComparison> => {
-    const response = await fetch(
-      `${API_BASE_URL}/api/v1/evaluations/comparisons/${id}`
+    return api.get<EvaluationComparison>(
+      `/api/v1/evaluations/comparisons/${id}`
     );
-    if (!response.ok) throw new Error('Failed to fetch comparison');
-    return response.json();
   },
 };
 
