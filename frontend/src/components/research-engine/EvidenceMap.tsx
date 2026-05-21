@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, Loader2, AlertCircle, X } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { getProject } from '@/services/researchEngineService';
-import { apiClient } from '@/services/apiClient';
+import { api } from '@/services/api-client';
 
 // --------------------------------------------------------------------------
 // Types
@@ -163,7 +163,7 @@ export function EvidenceMap({ projectId }: EvidenceMapProps) {
     setError(null);
     try {
       // Try to fetch evidence graph from API
-      const data = (await apiClient.get(
+      const data = (await api.get(
         `/api/v1/research-engine/projects/${projectId}/evidence-graph`
       )) as EvidenceGraphData;
       setGraphData(data);

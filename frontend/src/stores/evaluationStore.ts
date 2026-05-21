@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
 import { Evaluation, EvaluationConfig, EvaluationResults, ComparisonData } from '@/types';
+import { api } from '@/services/api-client';
 
 interface EvaluationState {
   // Current evaluation
@@ -178,18 +179,7 @@ export const useEvaluationStore = create<EvaluationState>()(
         set({ isCreatingEvaluation: true, creationErrors: {} });
 
         try {
-          const response = await fetch('/api/evaluations', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(config),
-          });
-
-          if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.message || 'Failed to create evaluation');
-          }
-
-          const evaluation = await response.json();
+          const evaluation = await api.post<Evaluation>('/api/evaluations', config);
           get().addEvaluation(evaluation);
           set({ currentEvaluation: evaluation, isCreatingEvaluation: false });
         } catch (error) {
@@ -202,14 +192,7 @@ export const useEvaluationStore = create<EvaluationState>()(
 
       runEvaluation: async (id) => {
         try {
-          const response = await fetch(`/api/evaluations/${id}/run`, {
-            method: 'POST',
-          });
-
-          if (!response.ok) {
-            throw new Error('Failed to run evaluation');
-          }
-
+          await api.post(`/api/evaluations/${id}/run`);
           get().updateEvaluation(id, { status: 'running' });
         } catch (error) {
           console.error('Failed to run evaluation:', error);
@@ -220,17 +203,7 @@ export const useEvaluationStore = create<EvaluationState>()(
         set({ comparisonLoading: true });
 
         try {
-          const response = await fetch('/api/evaluations/compare', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ evaluationIds }),
-          });
-
-          if (!response.ok) {
-            throw new Error('Failed to compare evaluations');
-          }
-
-          const comparisonData = await response.json();
+          const comparisonData = await api.post<ComparisonData>('/api/evaluations/compare', { evaluationIds });
           set({ comparisonData, comparisonLoading: false });
         } catch (error) {
           set({
@@ -246,13 +219,7 @@ export const useEvaluationStore = create<EvaluationState>()(
         if (!currentEvaluation) return;
 
         try {
-          const response = await fetch(`/api/evaluations/${currentEvaluation.id}/export?format=${format}`);
-
-          if (!response.ok) {
-            throw new Error('Failed to export results');
-          }
-
-          const blob = await response.blob();
+          const blob = await api.request<Blob>(`/api/evaluations/${currentEvaluation.id}/export?format=${format}`, { method: 'GET' });
           const url = window.URL.createObjectURL(blob);
           const a = document.createElement('a');
           a.href = url;

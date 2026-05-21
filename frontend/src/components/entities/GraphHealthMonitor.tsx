@@ -19,7 +19,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
-import { apiClient } from '@/services/apiClient';
+import { api } from '@/services/api-client';
 import toast from 'react-hot-toast';
 
 interface HealthIssue {
@@ -134,7 +134,7 @@ export const GraphHealthMonitor: React.FC = () => {
   const fetchHealth = async () => {
     try {
       setLoading(true);
-      const data = await apiClient.get<
+      const data = await api.get<
         Partial<GraphHealthStatus & BackendGraphHealthStatus>
       >(
         'knowledge-graph/health'

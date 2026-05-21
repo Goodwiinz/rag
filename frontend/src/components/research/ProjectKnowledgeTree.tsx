@@ -8,7 +8,7 @@ import {
   Network,
   RefreshCw,
 } from 'lucide-react';
-import { apiClient } from '@/services/apiClient';
+import { api } from '@/services/api-client';
 import { APIErrorClass } from '@/types/api';
 
 interface KnowledgeEntity {
@@ -64,14 +64,9 @@ export function ProjectKnowledgeTree({ projectId }: ProjectKnowledgeTreeProps) {
     setError(null);
     try {
       const [entityPage, relList] = await Promise.all([
-        apiClient.get<PaginatedEntities>('/knowledge-graph/entities', {
-          params: { project_id: projectId, limit: ENTITY_FETCH_LIMIT },
-        }),
-        apiClient.get<KnowledgeRelationship[]>(
-          '/knowledge-graph/relationships',
-          {
-            params: { project_id: projectId, limit: RELATIONSHIP_FETCH_LIMIT },
-          }
+        api.get<PaginatedEntities>(`/knowledge-graph/entities?project_id=${projectId}&limit=${ENTITY_FETCH_LIMIT}`),
+        api.get<KnowledgeRelationship[]>(
+          `/knowledge-graph/relationships?project_id=${projectId}&limit=${RELATIONSHIP_FETCH_LIMIT}`
         ),
       ]);
       setEntities(entityPage.entities);

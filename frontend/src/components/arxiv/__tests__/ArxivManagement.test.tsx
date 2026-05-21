@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Mocked } from 'vitest';
 import ArxivManagement from '@/components/arxiv/ArxivManagement';
-import { apiClient } from '@/services/apiClient';
+import { api } from '@/services/api-client';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 
 let mockAuthStoreState = {
@@ -9,10 +9,14 @@ let mockAuthStoreState = {
   isLoading: false,
 };
 
-vi.mock('@/services/apiClient', () => ({
-  apiClient: {
+vi.mock('@/services/api-client', () => ({
+  api: {
     get: vi.fn(),
-    postWithLongTimeout: vi.fn(),
+    post: vi.fn(),
+    put: vi.fn(),
+    patch: vi.fn(),
+    delete: vi.fn(),
+    upload: vi.fn(),
   },
 }));
 
@@ -51,7 +55,7 @@ vi.mock('framer-motion', () => {
   };
 });
 
-const mockApiClient = apiClient as Mocked<typeof apiClient>;
+const mockApi = api as Mocked<typeof api>;
 
 const statsResponse = {
   status: 'success',
@@ -77,7 +81,7 @@ describe('ArxivManagement', () => {
       isAuthenticated: true,
       isLoading: false,
     };
-    mockApiClient.get.mockResolvedValue(statsResponse as never);
+    mockApi.get.mockResolvedValue(statsResponse as never);
   });
 
   it('searches, selects, and queues ingestion from the ingest tab', async () => {
@@ -93,7 +97,7 @@ describe('ArxivManagement', () => {
       },
     ];
 
-    mockApiClient.postWithLongTimeout.mockImplementation(
+    mockApi.post.mockImplementation(
       async (url: string) => {
         if (url === '/arxiv/search') {
           return searchResult as never;
@@ -122,12 +126,13 @@ describe('ArxivManagement', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Search Papers' }));
 
     await waitFor(() => {
-      expect(mockApiClient.postWithLongTimeout).toHaveBeenCalledWith(
+      expect(mockApi.post).toHaveBeenCalledWith(
         '/arxiv/search',
         expect.objectContaining({
           query: 'transformer',
           max_results: 50,
-        })
+        }),
+        { timeout: 300000 }
       );
     });
 
@@ -140,13 +145,14 @@ describe('ArxivManagement', () => {
     fireEvent.click(queueButton);
 
     await waitFor(() => {
-      expect(mockApiClient.postWithLongTimeout).toHaveBeenCalledWith(
+      expect(mockApi.post).toHaveBeenCalledWith(
         '/arxiv/ingest',
         expect.objectContaining({
           paper_ids: ['1706.03762'],
           download_pdfs: false,
           extract_content: true,
-        })
+        }),
+        { timeout: 300000 }
       );
     });
 
@@ -157,7 +163,7 @@ describe('ArxivManagement', () => {
   });
 
   it('allows searching without category filters', async () => {
-    mockApiClient.postWithLongTimeout.mockResolvedValue([] as never);
+    mockApi.post.mockResolvedValue([] as never);
 
     render(<ArxivManagement />);
 
@@ -173,12 +179,13 @@ describe('ArxivManagement', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Search Papers' }));
 
     await waitFor(() => {
-      expect(mockApiClient.postWithLongTimeout).toHaveBeenCalledWith(
+      expect(mockApi.post).toHaveBeenCalledWith(
         '/arxiv/search',
         expect.objectContaining({
           query: 'graph neural networks',
           categories: null,
-        })
+        }),
+        { timeout: 300000 }
       );
     });
   });
@@ -200,7 +207,7 @@ describe('ArxivManagement', () => {
       isAuthenticated: false,
       isLoading: false,
     };
-    mockApiClient.postWithLongTimeout.mockResolvedValue(searchResult as never);
+    mockApi.post.mockResolvedValue(searchResult as never);
 
     render(<ArxivManagement />);
 
@@ -232,7 +239,7 @@ describe('ArxivManagement', () => {
   });
 
   it('replaces raw tracking transport errors with retry guidance', async () => {
-    mockApiClient.postWithLongTimeout.mockRejectedValue(
+    mockApi.post.mockRejectedValue(
       new Error('Request failed with status code 500')
     );
 
@@ -248,7 +255,7 @@ describe('ArxivManagement', () => {
   });
 
   it('extracts features from paper IDs in the extract tab', async () => {
-    mockApiClient.postWithLongTimeout.mockImplementation(
+    mockApi.post.mockImplementation(
       async (url: string) => {
         if (url === '/arxiv/extraction/extract-features') {
           return {
@@ -296,7 +303,7 @@ describe('ArxivManagement', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Extract Features' }));
 
     await waitFor(() => {
-      expect(mockApiClient.postWithLongTimeout).toHaveBeenCalledWith(
+      expect(mockApi.post).toHaveBeenCalledWith(
         '/arxiv/extraction/extract-features',
         expect.objectContaining({
           paper_ids: ['1706.03762', '1810.04805'],
@@ -306,7 +313,8 @@ describe('ArxivManagement', () => {
           extract_citations: true,
           extract_summaries: true,
           update_knowledge_graph: true,
-        })
+        }),
+        { timeout: 300000 }
       );
     });
 
@@ -321,7 +329,7 @@ describe('ArxivManagement', () => {
   });
 
   it('normalizes extraction IDs from urls and prefixes before request', async () => {
-    mockApiClient.postWithLongTimeout.mockResolvedValue({
+    mockApi.post.mockResolvedValue({
       status: 'success',
       message: 'Extraction complete',
       processed_count: 2,
@@ -344,11 +352,12 @@ describe('ArxivManagement', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Extract Features' }));
 
     await waitFor(() => {
-      expect(mockApiClient.postWithLongTimeout).toHaveBeenCalledWith(
+      expect(mockApi.post).toHaveBeenCalledWith(
         '/arxiv/extraction/extract-features',
         expect.objectContaining({
           paper_ids: ['1706.03762', '1810.04805v2'],
-        })
+        }),
+        { timeout: 300000 }
       );
     });
   });

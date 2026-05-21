@@ -3,7 +3,6 @@
  */
 
 import { create } from 'zustand';
-import axios from 'axios';
 import { projectService } from '@/services/projectService';
 import type {
   Project,
@@ -125,7 +124,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       // true, but on unmount nothing replaces us and the spinner would
       // otherwise stick in the global store until the next visit.
       if (
-        axios.isCancel(error) ||
+        (error instanceof Error && error.name === 'AbortError') ||
         (error instanceof Error && error.name === 'CanceledError')
       ) {
         set({ loading: false });

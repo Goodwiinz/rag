@@ -2,7 +2,7 @@
 
 import { useAuth } from '@/hooks/useAuth';
 import { cn } from '@/lib/utils';
-import { apiClient } from '@/services/apiClient';
+import { api } from '@/services/api-client';
 import { ArrowLeft, CheckCircle2, Shield } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -36,7 +36,7 @@ function CliAuthPageContent(): React.JSX.Element {
     setIsSubmitting(true);
 
     try {
-      await apiClient.post('/cli-auth/approve', {
+      await api.post('/cli-auth/approve', {
         session_id: sessionId,
         verification_code: verificationCode,
       });
