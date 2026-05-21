@@ -32,7 +32,25 @@ const nextConfig = {
     // Optimize CSS
     optimizeCss: true,
     // Optimize package imports
-    optimizePackageImports: ['lucide-react', '@radix-ui/react-icons'],
+    optimizePackageImports: [
+      'lucide-react',
+      '@radix-ui/react-icons',
+      'lodash-es',
+      'date-fns',
+      'recharts',
+    ],
+  },
+
+  // Tree-shaking for utility libraries
+  modularizeImports: {
+    'lodash-es': {
+      transform: 'lodash-es/{{member}}',
+      preventFullImport: true,
+    },
+    'date-fns': {
+      transform: 'date-fns/{{member}}',
+      preventFullImport: true,
+    },
   },
 
   // Image optimization
@@ -54,6 +72,36 @@ const nextConfig = {
 
   // Webpack configuration for file uploads
   webpack: (config, { isServer }) => {
+    if (!isServer) {
+      config.optimization = {
+        ...config.optimization,
+        splitChunks: {
+          ...config.optimization?.splitChunks,
+          cacheGroups: {
+            ...config.optimization?.splitChunks?.cacheGroups,
+            vendor: {
+              test: /[\\/]node_modules[\\/]/,
+              name: 'vendors',
+              chunks: 'all',
+              priority: 10,
+            },
+            react: {
+              test: /[\\/]node_modules[\\/](react|react-dom)[\\/]/,
+              name: 'react',
+              chunks: 'all',
+              priority: 20,
+            },
+            ui: {
+              test: /[\\/]node_modules[\\/](@radix-ui)[\\/]/,
+              name: 'ui',
+              chunks: 'all',
+              priority: 15,
+            },
+          },
+        },
+      };
+    }
+
     // Handle file uploads for documents
     config.module.rules.push({
       test: /\.(pdf|docx?|txt|jpe?g|png|mp3|mp4|mov|avi|wav)$/i,
