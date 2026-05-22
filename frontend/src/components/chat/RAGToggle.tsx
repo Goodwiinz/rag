@@ -130,11 +130,11 @@ export function RAGToggle({
         )}
       </div>
 
-      {/* Label */}
+      {/* Label — hidden on small screens */}
       {!compact && (
         <span
           className={cn(
-            'text-xs uppercase tracking-wider transition-colors',
+            'text-xs uppercase tracking-wider transition-colors hidden sm:inline',
             enabled ? 'text-[var(--phosphor-green)]' : 'text-[var(--terminal-text-dim)]'
           )}
         >

@@ -43,7 +43,7 @@ export function WelcomeState({
 
   return (
     <div
-      className="flex-1 flex flex-col items-center justify-center p-8 perspective-1000"
+      className="flex-1 flex flex-col items-center justify-center p-4 sm:p-8 perspective-1000"
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
     >
@@ -54,14 +54,14 @@ export function WelcomeState({
         style={{ rotateX, rotateY, transformStyle: 'preserve-3d' }}
         className="text-center max-w-2xl relative"
       >
-        {/* Orbital decoration */}
-        <div className="relative mb-12 flex items-center justify-center h-64 w-64 mx-auto transform-gpu">
+        {/* Orbital decoration — scaled down on mobile */}
+        <div className="relative mb-8 sm:mb-12 flex items-center justify-center h-40 w-40 sm:h-64 sm:w-64 mx-auto transform-gpu">
           {/* Outer Ring - Counter Rotate */}
           <motion.div
             style={{ translateZ: 20 }}
             className="absolute inset-0 flex items-center justify-center"
           >
-            <div className="w-56 h-56 rounded-full border border-[var(--terminal-border)]/50 animate-[spin_30s_linear_infinite_reverse] orbital-ring-reverse" />
+            <div className="w-36 h-36 sm:w-56 sm:h-56 rounded-full border border-[var(--terminal-border)]/50 animate-[spin_30s_linear_infinite_reverse] orbital-ring-reverse" />
           </motion.div>
 
           {/* Inner Ring - Rotate */}
@@ -69,18 +69,16 @@ export function WelcomeState({
             style={{ translateZ: 40 }}
             className="absolute inset-0 flex items-center justify-center"
           >
-            <div className="w-32 h-32 rounded-full border border-[var(--terminal-border)] animate-[spin_20s_linear_infinite] orbital-ring" />
+            <div className="w-20 h-20 sm:w-32 sm:h-32 rounded-full border border-[var(--terminal-border)] animate-[spin_20s_linear_infinite] orbital-ring" />
           </motion.div>
 
           {/* Core Container */}
           <motion.div
             style={{ translateZ: 60 }}
-            className="relative w-24 h-24 flex items-center justify-center"
+            className="relative w-16 h-16 sm:w-24 sm:h-24 flex items-center justify-center"
           >
-            {/* Satellite Icon with Float */}
-            <Satellite className="w-12 h-12 text-[var(--phosphor-green)] float-gentle drop-shadow-[0_0_15px_rgba(212,160,57,0.3)]" />
+            <Satellite className="w-8 h-8 sm:w-12 sm:h-12 text-[var(--phosphor-green)] float-gentle drop-shadow-[0_0_15px_rgba(212,160,57,0.3)]" />
 
-            {/* Scanning Beam Effect */}
             <motion.div
               animate={{ top: ['0%', '100%', '0%'], opacity: [0, 1, 0] }}
               transition={{ duration: 3, repeat: Infinity, ease: 'linear' }}
@@ -99,7 +97,7 @@ export function WelcomeState({
 
         <motion.div style={{ translateZ: 30 }}>
           <h2
-            className="text-xl text-[var(--terminal-text)] tracking-wider mb-2"
+            className="text-base sm:text-xl text-[var(--terminal-text)] tracking-wider mb-2"
             style={{ fontFamily: "'JetBrains Mono', monospace" }}
           >
             {selectedModel
@@ -107,7 +105,7 @@ export function WelcomeState({
               : 'AWAITING NEURAL CORE SELECTION'}
           </h2>
           <p
-            className="text-sm text-[var(--terminal-text-muted)] text-center max-w-md mx-auto"
+            className="text-xs sm:text-sm text-[var(--terminal-text-muted)] text-center max-w-md mx-auto"
             style={{ fontFamily: "'JetBrains Mono', monospace" }}
           >
             {selectedModel
@@ -122,7 +120,7 @@ export function WelcomeState({
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3 }}
             style={{ translateZ: 20 }}
-            className="mt-8 grid grid-cols-2 gap-4 max-w-lg mx-auto"
+            className="mt-6 sm:mt-8 grid grid-cols-2 gap-2 sm:gap-4 max-w-lg mx-auto"
           >
             {[
               {
@@ -148,17 +146,17 @@ export function WelcomeState({
             ].map((item, idx) => (
               <div
                 key={idx}
-                className="p-4 rounded-lg border border-[var(--terminal-border)] bg-[var(--terminal-surface)]/50 text-left hover:border-[var(--phosphor-green)]/20 transition-all group backdrop-blur-sm"
+                className="p-3 sm:p-4 rounded-lg border border-[var(--terminal-border)] bg-[var(--terminal-surface)]/50 text-left hover:border-[var(--phosphor-green)]/20 transition-all group backdrop-blur-sm"
               >
-                <item.icon className="w-5 h-5 text-[var(--phosphor-green)] mb-2 group-hover:scale-110 transition-transform" />
+                <item.icon className="w-4 h-4 sm:w-5 sm:h-5 text-[var(--phosphor-green)] mb-1.5 sm:mb-2 group-hover:scale-110 transition-transform" />
                 <h3
-                  className="text-xs text-[var(--terminal-text)] mb-1"
+                  className="text-[10px] sm:text-xs text-[var(--terminal-text)] mb-0.5 sm:mb-1"
                   style={{ fontFamily: "'JetBrains Mono', monospace" }}
                 >
                   {item.label}
                 </h3>
                 <p
-                  className="text-[10px] text-[var(--terminal-text-muted)]"
+                  className="text-[9px] sm:text-[10px] text-[var(--terminal-text-muted)]"
                   style={{ fontFamily: "'JetBrains Mono', monospace" }}
                 >
                   {item.desc}
