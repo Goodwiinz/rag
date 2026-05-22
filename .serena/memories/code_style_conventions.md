@@ -1,71 +1,43 @@
-# Code Style and Conventions
+# Code Style Conventions
 
 ## Python (Backend)
 
 ### Formatting
-- **Black**: line-length 88, target Python 3.11
-- **isort**: profile "black", multi_line_output 3
+- Black: line-length 88, target Python 3.12
+- isort: profile "black"
+- mypy: strict mode
 
-### Type Hints
-- **mypy**: strict mode enabled
-  - `disallow_untyped_defs = true`
-  - `warn_return_any = true`
-- All functions should have type annotations
-
-### Docstrings
-- Use triple-quoted docstrings for functions and classes
-- Example from codebase:
-  ```python
-  @asynccontextmanager
-  async def lifespan(app: FastAPI):
-      """Application lifespan events"""
-  ```
-
-### Naming Conventions
-- snake_case for functions and variables
+### Naming
+- snake_case for functions/variables
 - PascalCase for classes
 - UPPER_CASE for constants
 
-### Import Order
-1. Standard library
-2. Third-party packages
-3. Local imports (from src.*)
-
 ### Logging
-- Use structlog for structured logging
-- Logger per module: `logger = structlog.get_logger(__name__)`
+- structlog: `logger = structlog.get_logger(__name__)`
 
-### Error Handling
-- Use try/except with specific exceptions
-- Log errors with context
-- Continue gracefully when possible
+### Imports
+1. Standard library
+2. Third-party
+3. Local (from src.*)
 
 ## TypeScript (Frontend)
 
-### Formatting (Prettier)
-- Semi: true
-- Single quotes
-- Trailing comma: es5
-- Print width: 80
-- Tab width: 2
+### Formatting
+- Prettier: semi, single quotes, trailing comma es5, width 80, tab 2
+- ESLint with React hooks + TypeScript recommended
 
-### ESLint Rules
-- React hooks rules enabled
-- TypeScript recommended rules
-- Unused vars with `_` prefix allowed
+### Naming
+- camelCase for functions/variables (CLAUDE.md says camelCase files too)
+- PascalCase for components/types
 
 ### Path Aliases
-- `@/*` → `./src/*` or `./app/*`
-- `@/components/*` → `./src/components/*`
-- `@/lib/*` → `./src/lib/*`
+- @/* → ./src/* or ./app/*
 
-### Component Structure
-- Functional components with TypeScript
-- Radix UI primitives with shadcn/ui styling
-- Zustand for state management
-- TanStack Query for server state
+### Package Manager
+- pnpm (NOT npm) — only pnpm-lock.yaml committed
 
-### Naming Conventions
-- camelCase for functions and variables
-- PascalCase for components and types
-- kebab-case for file names
+## General
+- No hardcoded hex colors — use CSS vars / Tailwind theme classes
+- IconButton requires aria-label
+- Don't name query params same as imported modules (e.g. status shadows fastapi.status)
+- PostCSS uses 'tailwindcss' plugin, NOT '@tailwindcss/postcss' (v3)

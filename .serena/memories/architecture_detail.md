@@ -1,35 +1,41 @@
 # Architecture Detail
 
-## Stack
-- **Backend**: Python 3.11, FastAPI 0.104.1, SQLAlchemy, Celery+Redis, Gunicorn/Uvicorn
-- **Frontend**: Next.js 15.1.3, React 18, TypeScript, shadcn/ui+Radix, Zustand 5.0.8, TanStack Query v5, Cytoscape, Recharts
-- **AI/ML**: OpenAI GPT-4, Anthropic Claude, CrewAI, sentence-transformers, Whisper, spaCy, custom CV
-- **Databases**: PostgreSQL (primary), Qdrant (vectors), Neo4j 5.15 (graph), Redis (cache/jobs)
+## Agent System (LangGraph)
+- StateGraph with intent-based routing to specialized subgraphs
+- Flow: rag_node → intent_classifier → memory_retrieval → [route by intent] → tool_node → memory_save → END
+- Subgraphs: research, writing, data, general
+- 12 tools, 30s timeout, max 3 concurrent via semaphore
+- Destructive tools (ingest, create_note, create_draft) trigger interrupt() for HITL
+- Checkpointing: AsyncPostgresSaver (postgresql://, NOT postgresql+asyncpg://)
+- Key file: backend/src/services/agent/graph.py
 
-## Key Components
-- Multi-Agent Orchestration (`src/agents/`): CrewAI agents - orchestrator, retrieval, graph, vector, QA, synthesis
-- Multimodal Ingestion (`src/ingestion/`): PDF, TXT, JPG/PNG, MP3/MP4 with OCR, transcription, frame extraction
-- Knowledge Graph (`src/knowledge_graph/`): Neo4j entity/relationship management
-- Vector Store (`src/vector_store/`): Qdrant semantic similarity
-- Hybrid Search (`src/search/`): Parallel vector+graph+keyword with reranking
-- Real-time (`src/services/`): WebSocket status updates, 10k+ concurrent connections
-- Evaluation (`src/evaluation/`): DeepEval RAG Triad metrics
+## Agent Endpoints (/api/v1/agent/)
+- POST /execute — async job-based (returns job_id, poll via GET /jobs/{job_id})
+- POST /stream — SSE streaming (token, tool_start, tool_end, rag_context, done)
+- POST /confirm/{job_id} — resume HITL interrupts
+- GET /threads, /threads/{id}/messages — thread management
 
-## RAG Quality Targets
-- Answer Relevancy >70%, Faithfulness >90%, Context Relevancy >70%
-- Latency <2000ms, Hallucination Rate <10%
+## Search
+- Hybrid: parallel vector + graph + keyword with reranking
+- Endpoint: /api/v1/search/hybrid
 
-## Security
+## Auth
+- Production: Supabase SSR auth (cookie sessions, no localStorage)
+- Dev: JWT-based with access (30min) + refresh (7/30 day) tokens
 - WebSocket auth via Sec-WebSocket-Protocol header (NOT URL params)
-- SQL injection prevention via validated enums (`src/shared/enums.py`)
-- CORS explicit allowlists (no wildcards)
-- IconButton enforces aria-label
-- RBAC in `src/security/`
 
-## API Endpoints
-- Health: `/api/v1/infrastructure/health`
-- Documents: `/api/v1/documents/`
-- Search: `/api/v1/search/`
-- WebSocket: `ws://localhost:8000/api/v2/ws/connect`
-- Real-time status: `/api/v2/realtime/documents/{id}/status`
-- WS health: `/api/v2/ws/status`
+## Multi-Tenancy
+- Workspace-based isolation
+- SQL injection prevention via validated enums (src/shared/enums.py)
+- CORS explicit allowlists, no wildcards
+
+## Background Jobs
+- Trigger.dev v4 (NOT Celery — migrated)
+- Tasks in trigger/ directory
+- Scheduled: queue-depth-monitor (~5min), system-health-monitor (~15min)
+
+## Observability
+- LangSmith tracing for agent
+- Prometheus metrics (agent_execution_duration_seconds, agent_tool_calls_total)
+- structlog for structured logging
+- Test markers: @unit, @integration, @e2e, @performance, @deepeval, @langsmith

@@ -1,114 +1,41 @@
-# Suggested Commands for RAG_system
+# Suggested Commands
 
-## Document Indexing & Vector Database
+## Docker (Development)
 ```bash
-# Index ArXiv papers to Qdrant
-source .venv/bin/activate
-python scripts/index_full_papers.py \
-  --dataset "backend/data/arxiv/evaluation_dataset_improved.json" \
-  --pdf-dir "backend/data/arxiv" \
-  --clear  # Optional: clears existing collection
-
-# Setup all databases (PostgreSQL, Neo4j, Qdrant, Redis)
-python scripts/setup_databases.py
-
-# Check Qdrant collections
-curl -s http://localhost:6333/collections | python3 -m json.tool
-
-# Check Neo4j (via Docker)
-docker exec docker-compose-neo4j-1 cypher-shell -u neo4j -p password \
-  "MATCH ()-[r]->() RETURN count(r) as relations"
-```
-
-## Docker Services (Development)
-```bash
-# Start all services
 docker-compose -f docker-compose.development.yml up -d
-
-# Start specific service
-docker-compose -f docker-compose.development.yml up -d backend
-docker-compose -f docker-compose.development.yml up -d frontend
-
-# View logs
 docker-compose -f docker-compose.development.yml logs -f backend
-docker-compose -f docker-compose.development.yml logs -f frontend
-
-# Rebuild service
 docker-compose -f docker-compose.development.yml up -d --build backend
-
-# Stop services
 docker-compose -f docker-compose.development.yml down
 ```
 
-## Backend (Python)
+## Backend
 ```bash
-# Local development (from backend/)
-uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
-
-# Run tests
-pytest tests/ --cov=src --cov-report=html
-pytest tests/specs/ -v  # Specific test suites
-pytest tests/ -k "test_name"  # Single test
-
-# Linting & Formatting
-black backend/src/
-isort backend/src/
-mypy backend/src/
-
-# Database migrations
+cd backend && uvicorn src.main:app --reload --port 8000
+pytest tests/ --cov=src
+pytest tests/ -k "test_name"
+black backend/src/ && isort backend/src/
 cd backend && alembic upgrade head
 cd backend && alembic revision --autogenerate -m "description"
 ```
 
-## Frontend (TypeScript/Next.js)
+## Frontend (pnpm, NOT npm)
 ```bash
-# Development (from frontend/)
-npm run dev
-
-# Build
-npm run build
-
-# Testing
-npm run test              # Jest unit tests
-npm run test:e2e          # Playwright E2E tests
-npm run test:e2e:ui       # Playwright with UI
-
-# Linting & Formatting
-npm run lint
-npm run lint:fix
-npm run format
-npm run type-check
-
-# Validate all
-npm run validate
+cd frontend && pnpm dev
+cd frontend && pnpm run type-check
+cd frontend && pnpm run test
+cd frontend && pnpm run lint
+cd frontend && pnpm run validate  # lint + type-check + test
+cd frontend && pnpm run build
 ```
 
-## Monorepo (from root)
+## Database Checks
 ```bash
-npm run dev              # Start frontend dev
-npm run build            # Build frontend
-npm run lint             # Lint all workspaces
-npm run test             # Test all workspaces
-npm run test:e2e         # E2E tests
+curl -s http://localhost:6333/collections | python3 -m json.tool
+docker exec rag-postgres-1 psql -U postgres -d multimodal_rag_dev -c "SELECT count(*) FROM documents"
 ```
 
-## System Utilities (macOS/Darwin)
+## Git
 ```bash
-# File operations
-ls -la                   # List files
-find . -name "*.py"      # Find files
-grep -r "pattern" .      # Search in files
-
-# Git
-git status
-git diff
-git log --oneline -10
-
-# Process management
-lsof -i :8000            # Check port usage
-kill -9 <PID>            # Kill process
-
-# Docker
-docker ps                # Running containers
-docker logs <container>  # Container logs
+# Feature branches from develop, PRs target develop
+git checkout develop && git pull && git checkout -b feature/name
 ```

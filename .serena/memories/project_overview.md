@@ -1,61 +1,53 @@
-# RAG_system Project Overview
+# NOUS Platform Overview
 
 ## Purpose
-Multimodal Enterprise RAG (Retrieval-Augmented Generation) System that processes text, images, audio, and video files. Features evaluation-first architecture with comprehensive testing and metrics tracking.
+Multimodal Intelligence Platform — RAG system processing text, images, audio, video. Evaluation-first architecture.
 
 ## Tech Stack
 
-### Backend (Python 3.11)
-- **Web Framework**: FastAPI 0.104.1 with Uvicorn/Gunicorn
-- **Database**: PostgreSQL (SQLAlchemy 2.0, Alembic migrations)
-- **Vector Store**: Qdrant
-- **Graph Database**: Neo4j 5.15
-- **Cache/Queue**: Redis, Celery 5.3.4
-- **AI/ML**: OpenAI, Anthropic, sentence-transformers, Whisper, spaCy
-- **Multimodal**: PyMuPDF, pytesseract, OpenCV, Whisper
-- **Observability**: Prometheus, OpenTelemetry, Sentry, structlog
+### Backend (Python 3.12)
+- **Web**: FastAPI, Uvicorn/Gunicorn
+- **Database**: PostgreSQL (SQLAlchemy 2.0, Alembic), Qdrant (vectors), Neo4j (graph), Redis/Valkey (cache)
+- **Agent**: LangGraph StateGraph with intent routing → specialized subgraphs (research, writing, data, general)
+- **AI/ML**: OpenAI, Anthropic, Azure OpenAI, sentence-transformers, spaCy
+- **Background Jobs**: Trigger.dev v4
+- **Observability**: LangSmith, Prometheus, structlog
 
-### Frontend (TypeScript/Node 18+)
-- **Framework**: Next.js 15.1.3
-- **UI**: React 18, Radix UI, Tailwind CSS, shadcn/ui
+### Frontend (TypeScript)
+- **Framework**: Next.js 15, React 18
+- **UI**: shadcn/ui, Radix, Tailwind CSS
 - **State**: Zustand, TanStack Query v5
-- **Forms**: react-hook-form, zod
-- **Visualization**: Recharts, Cytoscape, vis-network
-- **Testing**: Jest, Playwright
+- **Package Manager**: pnpm (not npm)
 
 ### Infrastructure
-- Docker Compose (development, production, Azure variants)
-- Kubernetes/Helm charts
-- Terraform
-- GitHub Actions CI/CD
+- Docker Compose (dev), DigitalOcean DOKS (staging/prod)
+- ArgoCD GitOps, Helm charts, Depot CI
+- Supabase (auth in production)
 
 ## Key Features
-- Multi-agent orchestration (CrewAI)
-- Hybrid search (vector + graph + keyword)
-- Real-time WebSocket document processing
-- RAG evaluation with DeepEval
-- Multimodal file processing (PDF, images, audio, video)
-- Chat persistence with workspace/conversation/thread hierarchy
-- ArXiv paper tracking and feature extraction
-- Terminal Observatory theme (Dashboard, Settings, ArXiv)
-- Settings page with profile, appearance, notifications, security controls
-- **30-day session persistence with "Remember Me" functionality**
-- **AI-generated follow-up suggestions** via `/api/v1/chat/suggestions` endpoint
-- **Dynamic Context Panel** showing active document, related results, and suggestions
+- LangGraph agent with HITL (human-in-the-loop) for destructive tools
+- Hybrid search (vector + graph + keyword with reranking)
+- Research projects with literature review drafts
+- Project-chat integration (threads scoped to project documents)
+- ArXiv paper tracking and ingestion
+- SSE streaming for agent responses
+- Multi-tenant architecture
 
-## Recent Security Fixes (2026-01-09)
+## Brand
+- **Name**: NOUS (Greek: νοῦς — mind/intellect)
+- **Colors**: Erebus #0A0A0E, Selene #F7F7F5, Sol #D4A039
+- **Fonts**: Inter (headings), Source Serif 4 (body), JetBrains Mono (code)
 
-### CodeRabbit Review Fixes
-1. **API Key Security**: Removed hardcoded Linear API key from `.mcp.json`, now uses `${LINEAR_API_KEY}` env var
-2. **Authentication**: Added `get_current_user` dependency to `/chat/suggestions` endpoint to prevent unauthorized LLM API consumption
-3. **PII Logging**: Removed `user_email` from logging in cache stats/clear endpoints (GDPR/CCPA compliance)
-4. **Thread Safety**: Added `asyncio.Lock()` to `LLMResponseCache` for safe concurrent cache modifications
-5. **Timezone Handling**: Fixed timezone-naive datetime parsing in cache deserialization
-6. **Config Validation**: Added Pydantic validators for LLM cache config (TTL, max_entries, similarity_threshold)
-7. **Build Artifacts**: Added `*.tsbuildinfo` to `.gitignore`
-8. **RAG Cache Consistency**: Cache now stores `retrieved_contexts` with responses to ensure citations match returned contexts
-9. **Redis Hit Count Sync**: Redis cache hits now persist updated `hit_count` back to Redis with remaining TTL
+## Connections
+| Service | Port |
+|---------|------|
+| PostgreSQL | 5432 |
+| Neo4j | 7687 |
+| Qdrant | 6333 |
+| Redis/Valkey | 6379 |
+| Backend | 8000 |
+| Frontend | 3000 |
 
-### Docker Networking Fix
-- Fixed Next.js rewrites to use `BACKEND_URL` env var for Docker container networking
-- Frontend container now correctly proxies to backend via Docker service name (`http://backend:8000`)
+## Dev Credentials
+- Admin: admin@multimodal-rag.com / admin123
+- Demo: demo@multimodal-rag.com / demo123
