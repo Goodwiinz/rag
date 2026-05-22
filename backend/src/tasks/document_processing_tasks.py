@@ -8,11 +8,10 @@ from datetime import datetime
 from typing import Any, Dict, Optional
 
 from celery.exceptions import Retry
-from sqlalchemy import create_engine, text
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy import text
 
 from src.core.config import settings
-from src.core.database import get_db
+from src.core.database import SessionLocal, get_db
 from src.models.document import Document, ProcessingStatus
 from src.models.processing import JobStatus, ProcessingJob
 from src.services.documents.document_quality_service import DocumentQualityService
@@ -23,10 +22,6 @@ from src.services.processing.multimodal_processing_service import (
 from src.tasks.celery_app import celery_app
 
 logger = logging.getLogger(__name__)
-
-# Database setup for background tasks
-engine = create_engine(settings.DATABASE_URL)
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
 def get_db_session():

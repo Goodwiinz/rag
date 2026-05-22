@@ -10,11 +10,9 @@ from datetime import datetime, timedelta
 from typing import Any, Dict
 
 from celery import Task, current_app
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
 
 from src.core.config import settings
-from src.core.database import get_db
+from src.core.database import SessionLocal, get_db
 from src.tasks.celery_app import celery_app
 from src.models.document import Document, ProcessingStatus
 from src.models.entity import Entity
@@ -36,10 +34,6 @@ from src.services.processing.processing_service import ProcessingPipeline
 from src.services.search.fulltext_search_service import fulltext_search_service
 
 logger = logging.getLogger(__name__)
-
-# Database session for tasks
-engine = create_engine(settings.DATABASE_URL)
-SessionLocal = sessionmaker(bind=engine)
 
 
 class ProcessingTask(Task):

@@ -13,17 +13,12 @@ from uuid import UUID
 sys.path.append(os.path.join(os.path.dirname(__file__), "..", ".."))
 
 from celery import Task, current_app, group
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
 
 from src.core.config import settings
+from src.core.database import SessionLocal
 from src.models.thread import Thread, ThreadStatus
 
 logger = logging.getLogger(__name__)
-
-# Database session for tasks
-engine = create_engine(settings.DATABASE_URL)
-SessionLocal = sessionmaker(bind=engine)
 
 
 class SummarizationTask(Task):

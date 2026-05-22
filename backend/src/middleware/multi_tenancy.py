@@ -101,38 +101,43 @@ class MultiTenancyMiddleware(BaseHTTPMiddleware):
         if not token_data or not token_data.user_id:
             return None
 
-        # JIT-provision user + org on first authenticated request.
-        # Uses a separate session to avoid tainting the middleware's
-        # main session with a potential rollback from IntegrityError.
-        try:
-            async with AsyncSessionLocal() as prov_db:
-                provisioned = await ensure_user_and_org(prov_db, token_data)
-                if provisioned:
-                    await prov_db.commit()
-        except Exception as e:
-            logger.debug("JIT-provision skipped (non-fatal): %s", e)
-
         # Fast path: org_id already embedded in JWT (CLI tokens, future Supabase tokens)
         if token_data.organization_id:
+            # JIT-provision only when we haven't resolved the user from DB yet.
+            # Uses a separate session to avoid tainting the caller's session
+            # with a potential rollback from IntegrityError (duplicate insert).
+            try:
+                async with AsyncSessionLocal() as prov_db:
+                    provisioned = await ensure_user_and_org(prov_db, token_data)
+                    if provisioned:
+                        await prov_db.commit()
+            except Exception as e:
+                logger.debug("JIT-provision skipped (non-fatal): %s", e)
             return {
                 "organization_id": str(token_data.organization_id),
                 "user_id": str(token_data.user_id),
                 "role": token_data.role or "user",
             }
 
-        # Fallback: resolve org from DB (current Supabase JWTs don't embed org_id)
+        # Fallback: resolve org from DB (current Supabase JWTs don't embed org_id).
+        # Reuses the caller's session — no extra connection needed.
         try:
-            if db is not None:
+            result = await db.execute(
+                select(User).where(User.id == token_data.user_id)
+            )
+            user = result.scalars().first()
+            if not user:
+                # User doesn't exist yet — JIT-provision, then re-query.
+                try:
+                    async with AsyncSessionLocal() as prov_db:
+                        await ensure_user_and_org(prov_db, token_data)
+                        await prov_db.commit()
+                except Exception as e:
+                    logger.debug("JIT-provision skipped (non-fatal): %s", e)
                 result = await db.execute(
                     select(User).where(User.id == token_data.user_id)
                 )
                 user = result.scalars().first()
-            else:
-                async with AsyncSessionLocal() as session:
-                    result = await session.execute(
-                        select(User).where(User.id == token_data.user_id)
-                    )
-                    user = result.scalars().first()
             if not user or not user.organization_id:
                 return None
             return {

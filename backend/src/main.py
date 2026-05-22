@@ -179,6 +179,17 @@ async def lifespan(app: FastAPI):
             environment,
         )
 
+    # Initialize field-level encryption (requires ENCRYPTION_MASTER_KEY env var).
+    # Non-fatal: if the key is missing the app still boots but encrypted fields
+    # (first_name, last_name) return raw/ciphertext values instead of plaintext.
+    try:
+        from src.core.encryption import initialize_encryption
+
+        initialize_encryption()
+        logger.info("Field-level encryption initialized")
+    except Exception as e:
+        logger.warning("Encryption initialization skipped: %s", e)
+
     # Check Redis connection
     if redis_client:
         try:
