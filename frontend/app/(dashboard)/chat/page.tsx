@@ -112,6 +112,9 @@ function ChatPageContent() {
     setCurrentThread,
   });
 
+  // Mobile sidebar drawer state
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+
   // Citation panel state
   const [isCitationPanelOpen, setIsCitationPanelOpen] = useState(false);
   const [citationPanelCitations, setCitationPanelCitations] = useState<
@@ -217,7 +220,49 @@ function ChatPageContent() {
 
   return (
     <div className="flex h-full w-full overflow-hidden bg-[var(--terminal-bg)]">
-      {/* Chat Sidebar */}
+      {/* Mobile sidebar backdrop + drawer */}
+      {mobileSidebarOpen && (
+        <div
+          className="fixed inset-0 z-50 md:hidden"
+          onClick={() => setMobileSidebarOpen(false)}
+        >
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
+          <motion.div
+            initial={{ x: -280 }}
+            animate={{ x: 0 }}
+            exit={{ x: -280 }}
+            transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+            className="absolute left-0 top-0 bottom-0 w-[280px] bg-[var(--terminal-bg)] border-r border-[var(--terminal-border)] shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <ChatSidebar
+              conversations={conversations}
+              activeId={activeConversationId}
+              onSelect={(id) => {
+                setActiveConversationId(id);
+                activeConversationIdRef.current = id;
+                setCurrentThread(id);
+                router.push(getSelectedThreadUrl(id));
+                setMobileSidebarOpen(false);
+              }}
+              onNew={() => {
+                setActiveConversationId(null);
+                activeConversationIdRef.current = null;
+                setMessages([]);
+                setCurrentThread(null);
+                router.push(getNewChatUrl());
+                setMobileSidebarOpen(false);
+              }}
+              onRename={handleRenameThread}
+              onDelete={handleDeleteThread}
+              onBulkDelete={handleBulkDeleteThreads}
+              currentWorkspace={workspace}
+            />
+          </motion.div>
+        </div>
+      )}
+
+      {/* Desktop sidebar */}
       <div className="hidden md:block h-full shrink-0">
         <ChatSidebar
           conversations={conversations}
@@ -256,6 +301,7 @@ function ChatPageContent() {
               .join('\n\n');
             navigator.clipboard.writeText(text).catch(() => {});
           }}
+          onMobileSidebarToggle={() => setMobileSidebarOpen((v) => !v)}
         />
 
         {/* Messages Area */}
@@ -377,7 +423,7 @@ function ChatPageContent() {
 
         {/* HITL Confirmation Banner */}
         {pendingConfirmation && (
-          <div className="mx-4 mb-2 p-4 rounded-xl border border-[var(--sol)]/30 bg-[var(--sol)]/5">
+          <div className="mx-2 sm:mx-4 mb-2 p-3 sm:p-4 rounded-xl border border-[var(--sol)]/30 bg-[var(--sol)]/5">
             <p className="text-xs font-mono text-[var(--terminal-text-muted)] uppercase tracking-wider mb-2">
               Action Requires Approval
             </p>

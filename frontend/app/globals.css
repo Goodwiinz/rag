@@ -3,6 +3,23 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Safe area insets for notched/pill-shaped phones */
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  .safe-area-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .safe-area-top {
+    padding-top: env(safe-area-inset-top);
+  }
+}
+
+/* Touch-friendly: show actions on mobile without hover */
+@media (hover: none) and (pointer: coarse) {
+  .touch-show {
+    opacity: 1 !important;
+  }
+}
+
 @keyframes fade-in {
   from {
     opacity: 0;

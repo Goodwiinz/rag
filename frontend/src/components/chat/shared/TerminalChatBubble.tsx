@@ -67,8 +67,8 @@ export function TerminalChatBubble({
   return (
     <div
       className={cn(
-        'group relative mb-4',
-        isUser ? 'ml-4 sm:ml-10' : 'mr-4 sm:mr-10'
+        'group relative mb-3 sm:mb-4',
+        isUser ? 'ml-2 sm:ml-10' : 'mr-2 sm:mr-10'
       )}
     >
       <div
@@ -112,11 +112,11 @@ export function TerminalChatBubble({
         )}
         <span className="text-[var(--terminal-text-dim)]/90">{timestamp}</span>
 
-        <div className="flex items-center gap-1 opacity-0 transition-all duration-200 group-hover:opacity-100">
+        <div className="flex items-center gap-1 opacity-0 transition-all duration-200 group-hover:opacity-100 touch-show">
           <button
             onClick={handleCopy}
             className={cn(
-              'rounded border border-transparent p-1 transition-all hover:border-[var(--terminal-border)] hover:bg-[var(--terminal-elevated)]',
+              'rounded border border-transparent p-2 sm:p-1 transition-all hover:border-[var(--terminal-border)] hover:bg-[var(--terminal-elevated)]',
               copied
                 ? 'text-[var(--phosphor-green)]'
                 : 'text-[var(--terminal-text-dim)] hover:text-[var(--terminal-text)]'
@@ -125,19 +125,19 @@ export function TerminalChatBubble({
             title={copied ? 'Copied!' : 'Copy message'}
           >
             {copied ? (
-              <Check className="h-3.5 w-3.5" />
+              <Check className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
             ) : (
-              <Copy className="h-3.5 w-3.5" />
+              <Copy className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
             )}
           </button>
           {message.role === 'assistant' && onRetry && (
             <button
               onClick={onRetry}
-              className="rounded border border-transparent p-1 text-[var(--terminal-text-dim)] transition-all hover:border-[var(--terminal-border)] hover:bg-[var(--terminal-elevated)] hover:text-[var(--terminal-text)]"
+              className="rounded border border-transparent p-2 sm:p-1 text-[var(--terminal-text-dim)] transition-all hover:border-[var(--terminal-border)] hover:bg-[var(--terminal-elevated)] hover:text-[var(--terminal-text)]"
               aria-label="Regenerate response"
               title="Regenerate response"
             >
-              <RefreshCw className="h-3.5 w-3.5" />
+              <RefreshCw className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
             </button>
           )}
         </div>
@@ -152,7 +152,7 @@ export function TerminalChatBubble({
         )}
       >
 
-        <div className="relative z-10 p-4 sm:p-5 overflow-hidden break-words">
+        <div className="relative z-10 p-3 sm:p-5 overflow-hidden break-words">
           {isStreaming && !streamingContent ? (
             <div
               className="text-[14px] leading-relaxed text-[var(--terminal-text)]"
@@ -200,7 +200,7 @@ export function TerminalChatBubble({
           ) : (
             <div
               className={cn(
-                'text-[15px] leading-relaxed',
+                'text-[14px] sm:text-[15px] leading-relaxed',
                 isUser
                   ? 'text-[var(--terminal-text)]'
                   : 'text-[var(--terminal-text)]'

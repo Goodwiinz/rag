@@ -43,6 +43,9 @@ export default function RootLayout({
       suppressHydrationWarning
       className={`${inter.variable} ${jetbrainsMono.variable} ${outfit.variable} ${sourceSerif4.variable}`}
     >
+      <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+      </head>
       <body
         className={`${inter.className} antialiased bg-background text-foreground`}
         suppressHydrationWarning

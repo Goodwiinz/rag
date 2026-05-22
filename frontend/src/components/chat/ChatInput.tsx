@@ -139,7 +139,7 @@ export function ChatInput({
   const isNearLimit = charCount > maxChars * 0.8;
 
   return (
-    <div className="z-40 bg-[var(--terminal-bg)] pt-2 pb-4 px-4 border-t border-[var(--terminal-border)]">
+    <div className="z-40 bg-[var(--terminal-bg)] pt-2 pb-4 px-2 sm:px-4 border-t border-[var(--terminal-border)] safe-area-bottom">
       <div className="max-w-4xl mx-auto">
         <motion.div
           className={cn(
@@ -150,12 +150,12 @@ export function ChatInput({
           )}
         >
           {/* Top Bar: Agent Label, RAG Toggle & Status */}
-          <div className="flex items-center justify-between px-4 py-1.5 bg-[var(--terminal-elevated)]/50 border-b border-[var(--terminal-border)] rounded-t-xl">
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg border bg-[var(--terminal-surface)] border-[var(--terminal-border)]">
+          <div className="flex items-center justify-between px-2 sm:px-4 py-1.5 bg-[var(--terminal-elevated)]/50 border-b border-[var(--terminal-border)] rounded-t-xl gap-2 overflow-x-auto">
+            <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+              <div className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-1.5 rounded-lg border bg-[var(--terminal-surface)] border-[var(--terminal-border)] shrink-0">
                 <Bot className="w-3.5 h-3.5 text-[var(--phosphor-green)]" />
                 <span
-                  className="text-[var(--terminal-text)] text-xs"
+                  className="text-[var(--terminal-text)] text-xs hidden sm:inline"
                   style={{ fontFamily: "'JetBrains Mono', monospace" }}
                 >
                   NOUS AGENT
@@ -171,18 +171,19 @@ export function ChatInput({
                 disabled={isLoading}
               />
               {onModelChange && (
-                <ModelSelector
-                  models={AVAILABLE_MODELS}
-                  selectedModelId={selectedModelId}
-                  onModelChange={onModelChange}
-                />
+                <div className="hidden sm:block">
+                  <ModelSelector
+                    models={AVAILABLE_MODELS}
+                    selectedModelId={selectedModelId}
+                    onModelChange={onModelChange}
+                  />
+                </div>
               )}
             </div>
-            <div className="flex items-center gap-3">
-              {/* RAG loading indicator */}
+            <div className="flex items-center gap-2 sm:gap-3 shrink-0">
               {isRAGLoading && (
                 <span
-                  className="text-[9px] text-[var(--phosphor-green)] animate-pulse"
+                  className="text-[9px] text-[var(--phosphor-green)] animate-pulse hidden sm:inline"
                   style={{ fontFamily: "'JetBrains Mono', monospace" }}
                 >
                   RETRIEVING...
@@ -190,7 +191,7 @@ export function ChatInput({
               )}
               <span
                 className={cn(
-                  'text-[9px] transition-colors',
+                  'text-[9px] transition-colors whitespace-nowrap',
                   isNearLimit
                     ? 'text-[var(--amber-gold)]'
                     : 'text-[var(--terminal-text-dim)]'
@@ -202,7 +203,7 @@ export function ChatInput({
             </div>
           </div>
 
-          <div className="p-3 sm:p-4">
+          <div className="p-2.5 sm:p-4">
             <textarea
               ref={textareaRef}
               value={value}
@@ -222,15 +223,15 @@ export function ChatInput({
             />
 
             <div className="flex items-center justify-between mt-2">
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-0.5 sm:gap-1">
                 <TooltipProvider>
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <label
-                        className="p-2 rounded-lg hover:bg-[var(--terminal-elevated)] text-[var(--terminal-text-dim)] hover:text-[var(--terminal-text)] transition-colors group cursor-pointer inline-flex"
+                        className="p-2.5 sm:p-2 rounded-lg hover:bg-[var(--terminal-elevated)] text-[var(--terminal-text-dim)] hover:text-[var(--terminal-text)] transition-colors group cursor-pointer inline-flex"
                         aria-label="Attach artifact"
                       >
-                        <Paperclip className="w-4 h-4 group-hover:text-[var(--phosphor-green)] transition-colors" />
+                        <Paperclip className="w-5 h-5 sm:w-4 sm:h-4 group-hover:text-[var(--phosphor-green)] transition-colors" />
                         <input
                           type="file"
                           multiple
@@ -255,7 +256,7 @@ export function ChatInput({
                         disabled={!voiceSupported}
                         aria-pressed={isListening}
                         className={cn(
-                          'p-2 rounded-lg transition-colors group',
+                          'p-2.5 sm:p-2 rounded-lg transition-colors group',
                           voiceSupported
                             ? 'hover:bg-[var(--terminal-elevated)] text-[var(--terminal-text-dim)] hover:text-[var(--terminal-text)]'
                             : 'text-[var(--terminal-text-dim)]/40 cursor-not-allowed',
@@ -272,7 +273,7 @@ export function ChatInput({
                       >
                         <Mic
                           className={cn(
-                            'w-4 h-4 transition-colors',
+                            'w-5 h-5 sm:w-4 sm:h-4 transition-colors',
                             isListening
                               ? 'text-[var(--phosphor-green)] animate-pulse'
                               : 'group-hover:text-[var(--phosphor-green)]'
@@ -294,10 +295,10 @@ export function ChatInput({
               {isLoading ? (
                 <button
                   onClick={onStop}
-                  className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[var(--error-red)]/10 border border-[var(--error-red)]/50 text-[var(--error-red)] text-[10px] font-bold hover:bg-[var(--error-red)]/20 transition-all shadow-[0_0_10px_rgba(239,68,68,0.05)]"
+                  className="flex items-center gap-2 px-4 py-2.5 sm:py-2 rounded-lg bg-[var(--error-red)]/10 border border-[var(--error-red)]/50 text-[var(--error-red)] text-[10px] font-bold hover:bg-[var(--error-red)]/20 transition-all shadow-[0_0_10px_rgba(239,68,68,0.05)] min-h-[44px] sm:min-h-0"
                   style={{ fontFamily: "'JetBrains Mono', monospace" }}
                 >
-                  <Square className="w-3 h-3" />
+                  <Square className="w-3.5 h-3.5 sm:w-3 sm:h-3" />
                   HALT
                 </button>
               ) : (
@@ -306,15 +307,15 @@ export function ChatInput({
                   disabled={!value.trim() || isDisabled}
                   title="Send message (Enter)"
                   className={cn(
-                    'flex items-center gap-2 px-6 py-2 rounded text-[10px] font-bold tracking-widest transition-all duration-300',
+                    'flex items-center gap-1.5 sm:gap-2 px-4 sm:px-6 py-2.5 sm:py-2 rounded text-[10px] font-bold tracking-widest transition-all duration-300 min-h-[44px] sm:min-h-0',
                     value.trim() && !isDisabled
                       ? 'bg-[var(--phosphor-green)] text-[#0A0A0A] hover:bg-[var(--phosphor-green)]/90 hover:shadow-[0_0_15px_rgba(212,160,57,0.3)] active:scale-95'
                       : 'bg-transparent text-[var(--terminal-text-dim)] border border-[var(--terminal-border)] cursor-not-allowed'
                   )}
                   style={{ fontFamily: "'JetBrains Mono', monospace" }}
                 >
-                  TRANSMIT
-                  <ArrowUp className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">TRANSMIT</span>
+                  <ArrowUp className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
                 </button>
               )}
             </div>

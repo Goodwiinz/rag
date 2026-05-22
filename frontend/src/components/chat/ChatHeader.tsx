@@ -12,6 +12,7 @@ import {
   Download,
   FileJson,
   FileText,
+  Menu,
   Search,
 } from 'lucide-react';
 import { memo, useEffect, useRef, useState } from 'react';
@@ -28,6 +29,7 @@ interface ChatHeaderProps {
   messages?: ExportableMessage[];
   chatTitle?: string;
   onCopyAll?: () => void;
+  onMobileSidebarToggle?: () => void;
 }
 
 export const ChatHeader = memo(function ChatHeader({
@@ -35,6 +37,7 @@ export const ChatHeader = memo(function ChatHeader({
   messages = [],
   chatTitle = 'Chat',
   onCopyAll,
+  onMobileSidebarToggle,
 }: ChatHeaderProps) {
   const [exportOpen, setExportOpen] = useState(false);
   const exportRef = useRef<HTMLDivElement>(null);
@@ -71,10 +74,30 @@ export const ChatHeader = memo(function ChatHeader({
   };
 
   return (
-    <div className="flex h-14 shrink-0 items-center gap-3 border-b border-[var(--terminal-border)] bg-[var(--terminal-bg)]/95 px-4 z-40">
-      {/* Left: sidebar trigger + breadcrumb + workspace (compact, no-wrap) */}
-      <div className="flex items-center gap-3 shrink-0 min-w-0">
-        <SidebarTrigger className="h-7 w-7 shrink-0 text-[var(--terminal-text-dim)] hover:text-[var(--phosphor-green)] hover:bg-[var(--terminal-elevated)] transition-all rounded" />
+    <div className="flex h-12 sm:h-14 shrink-0 items-center gap-2 sm:gap-3 border-b border-[var(--terminal-border)] bg-[var(--terminal-bg)]/95 px-3 sm:px-4 z-40">
+      {/* Left: sidebar trigger + mobile menu + breadcrumb */}
+      <div className="flex items-center gap-2 sm:gap-3 shrink-0 min-w-0">
+        {/* Mobile sidebar toggle */}
+        {onMobileSidebarToggle && (
+          <button
+            type="button"
+            onClick={onMobileSidebarToggle}
+            className="md:hidden h-9 w-9 shrink-0 flex items-center justify-center text-[var(--terminal-text-dim)] hover:text-[var(--phosphor-green)] hover:bg-[var(--terminal-elevated)] transition-all rounded-lg"
+            aria-label="Toggle chat history"
+          >
+            <Menu className="w-5 h-5" />
+          </button>
+        )}
+
+        <SidebarTrigger className="hidden md:flex h-7 w-7 shrink-0 text-[var(--terminal-text-dim)] hover:text-[var(--phosphor-green)] hover:bg-[var(--terminal-elevated)] transition-all rounded" />
+
+        {/* Mobile: show chat title */}
+        <span
+          className="md:hidden text-xs text-[var(--terminal-text)] truncate max-w-[140px]"
+          style={{ fontFamily: "'JetBrains Mono', monospace" }}
+        >
+          {chatTitle}
+        </span>
 
         <div
           className="hidden lg:flex items-center whitespace-nowrap"

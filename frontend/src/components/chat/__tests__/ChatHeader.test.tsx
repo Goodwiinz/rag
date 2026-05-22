@@ -23,7 +23,8 @@ describe('ChatHeader', () => {
   it('renders breadcrumb with Dashboard / Chat', () => {
     render(<ChatHeader />);
     expect(screen.getByText('Dashboard /')).toBeInTheDocument();
-    expect(screen.getByText('Chat')).toBeInTheDocument();
+    const chatElements = screen.getAllByText('Chat');
+    expect(chatElements.length).toBeGreaterThanOrEqual(1);
   });
 
   it('does not include a workspace selector (moved to ChatSidebar)', () => {
