@@ -122,7 +122,9 @@ export class APIClient {
 
     const url = endpoint.startsWith('http')
       ? endpoint
-      : `${this.baseURL}${endpoint}`;
+      : endpoint.startsWith('/api/')
+        ? endpoint
+        : `${this.baseURL}${endpoint}`;
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeout);

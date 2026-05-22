@@ -307,7 +307,7 @@ class EntityService {
   }
 
   async getProcessingJob(jobId: string): Promise<ProcessingJobStatus> {
-    return api.get<ProcessingJobStatus>(`processing/jobs/${jobId}`);
+    return api.get<ProcessingJobStatus>(`/processing/jobs/${jobId}`);
   }
 
   async listProcessingJobs(params?: {
@@ -322,7 +322,7 @@ class EntityService {
     if (params?.limit !== undefined) searchParams.append('limit', params.limit.toString());
     if (params?.offset !== undefined) searchParams.append('offset', params.offset.toString());
     const qs = searchParams.toString();
-    return api.get<ProcessingJobsListResponse>(`processing/jobs${qs ? `?${qs}` : ''}`);
+    return api.get<ProcessingJobsListResponse>(`/processing/jobs${qs ? `?${qs}` : ''}`);
   }
 
   /**
