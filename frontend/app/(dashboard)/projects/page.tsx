@@ -6,7 +6,6 @@
  */
 
 import { useEffect, useMemo, useState } from 'react';
-import { useDebounce } from '@/utils/performance';
 import toast from 'react-hot-toast';
 import { useRouter } from 'next/navigation';
 import { FolderOpen, Loader2, Network, Plus, Search } from 'lucide-react';
@@ -46,7 +45,6 @@ export default function ProjectsPage() {
   const [tagFilter, setTagFilter] = useState('');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const debouncedSearch = useDebounce(searchQuery, 300);
 
   useEffect(() => {
     setMounted(true);
@@ -74,7 +72,7 @@ export default function ProjectsPage() {
     void fetchProjects(
       {
         workspace_id: effectiveWorkspaceId || undefined,
-        search: debouncedSearch || undefined,
+        search: searchQuery || undefined,
         project_status: statusFilter || undefined,
         project_type: typeFilter || undefined,
         tag: tagFilter || undefined,
@@ -87,7 +85,7 @@ export default function ProjectsPage() {
     isAuthenticated,
     currentWorkspaceId,
     currentWorkspace?.id,
-    debouncedSearch,
+    searchQuery,
     statusFilter,
     typeFilter,
     tagFilter,

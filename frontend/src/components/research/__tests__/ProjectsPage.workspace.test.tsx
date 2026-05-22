@@ -30,7 +30,6 @@ vi.mock('@/store/projectStore', () => ({
   useProjectStore: () => ({
     projects: [],
     loading: false,
-    mutating: false,
     error: null,
     total: 0,
     fetchProjects: mockFetchProjects,

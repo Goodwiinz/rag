@@ -74,9 +74,6 @@ vi.mock('@/components/research/NoteEditor', () => ({
 vi.mock('@/components/research/NoteList', () => ({
   NoteList: () => <div>Notes</div>,
 }));
-vi.mock('@/components/upload', () => ({
-  DocumentUploadWizard: () => null,
-}));
 
 const mockUseProjectStore = useProjectStore as unknown as Mock;
 const mockProjectService = vi.mocked(projectService);
@@ -123,7 +120,6 @@ describe('ProjectDetailPage agent sync', () => {
       projectNotes: [],
       bibliography: null,
       loading: false,
-      mutating: false,
       documentsLoading: false,
       notesLoading: false,
       error: null,

@@ -35,7 +35,6 @@ interface ProjectState {
   loading: boolean;
   documentsLoading: boolean;
   notesLoading: boolean;
-  mutating: boolean;
   error: string | null;
   total: number;
 
@@ -100,7 +99,6 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   projectNotes: [],
   bibliography: null,
   loading: false,
-  mutating: false,
   documentsLoading: false,
   notesLoading: false,
   error: null,
@@ -166,27 +164,27 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   },
 
   createProject: async (data) => {
-    set({ mutating: true, error: null });
+    set({ loading: true, error: null });
     try {
       const project = await projectService.createProject(data);
       set((state) => ({
         projects: [project, ...state.projects],
         total: state.total + 1,
-        mutating: false,
+        loading: false,
       }));
       return project;
     } catch (error: unknown) {
       console.error('[ProjectStore] Failed to create project:', error);
       set({
         error: getErrorMessage(error, 'Failed to create project'),
-        mutating: false,
+        loading: false,
       });
       throw error;
     }
   },
 
   updateProject: async (projectId, data) => {
-    set({ mutating: true, error: null });
+    set({ loading: true, error: null });
     try {
       const updated = await projectService.updateProject(projectId, data);
       set((state) => ({
@@ -195,20 +193,20 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
           state.currentProject?.id === projectId
             ? updated
             : state.currentProject,
-        mutating: false,
+        loading: false,
       }));
     } catch (error: unknown) {
       console.error('[ProjectStore] Failed to update project:', error);
       set({
         error: getErrorMessage(error, 'Failed to update project'),
-        mutating: false,
+        loading: false,
       });
       throw error;
     }
   },
 
   deleteProject: async (projectId) => {
-    set({ mutating: true, error: null });
+    set({ loading: true, error: null });
     try {
       await projectService.deleteProject(projectId);
       set((state) => ({
@@ -216,13 +214,13 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         currentProject:
           state.currentProject?.id === projectId ? null : state.currentProject,
         total: state.total - 1,
-        mutating: false,
+        loading: false,
       }));
     } catch (error: unknown) {
       console.error('[ProjectStore] Failed to delete project:', error);
       set({
         error: getErrorMessage(error, 'Failed to delete project'),
-        mutating: false,
+        loading: false,
       });
       throw error;
     }
@@ -446,7 +444,6 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       projectNotes: [],
       bibliography: null,
       loading: false,
-      mutating: false,
       documentsLoading: false,
       notesLoading: false,
       error: null,

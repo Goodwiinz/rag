@@ -1051,6 +1051,7 @@ async def _get_project_with_auth(
 
     query = (
         select(Collection)
+        .options(selectinload(Collection.documents))
         .join(Workspace, Collection.workspace_id == Workspace.id)
         .where(
             and_(
@@ -1113,7 +1114,7 @@ def _to_project_response(project: Collection) -> ProjectResponse:
     # Accessing `project.documents` when it wasn't eagerly loaded can raise:
     # "greenlet_spawn has not been called; can't call await_only() here."
     documents = project.__dict__.get("documents")
-    document_count = len(documents) if documents is not None else 0
+    document_count = len(documents) if documents else 0
 
     return ProjectResponse(
         id=project.id,

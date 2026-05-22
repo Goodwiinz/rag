@@ -21,7 +21,6 @@ import {
   Grid3X3,
   GitBranch,
   Network,
-  Upload,
 } from 'lucide-react';
 import { ProjectHeader } from '@/components/research/ProjectHeader';
 import { DocumentList } from '@/components/research/DocumentList';
@@ -36,7 +35,6 @@ import { ExtractionMatrix } from '@/components/research/ExtractionMatrix';
 import { ResearchPipeline } from '@/components/research/ResearchPipeline';
 import { NoteEditor } from '@/components/research/NoteEditor';
 import { NoteList } from '@/components/research/NoteList';
-import { DocumentUploadWizard } from '@/components/upload';
 import {
   projectService,
   type Draft,
@@ -126,10 +124,6 @@ export default function ProjectDetailPage() {
   const [selectedNoteTag, setSelectedNoteTag] = useState('');
   const [matrixId, setMatrixId] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
-  const pollTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(
-    null
-  );
-  const [showUploadWizard, setShowUploadWizard] = useState(false);
   const [projectError, setProjectError] = useState<{
     status: number;
     message: string;
@@ -276,15 +270,6 @@ export default function ProjectDetailPage() {
     projectId,
   ]);
 
-  // Clean up draft generation polling on unmount
-  useEffect(() => {
-    return () => {
-      if (pollTimeoutRef.current) {
-        clearTimeout(pollTimeoutRef.current);
-      }
-    };
-  }, []);
-
   const handleDraftVersionChange = useCallback(
     async (version: number) => {
       setDraftComparison(null);
@@ -338,11 +323,11 @@ export default function ProjectDetailPage() {
   const handleTabChange = useCallback(
     (tab: TabType) => {
       setActiveTab(tab);
-      if (tab === 'bibliography') {
+      if (tab === 'bibliography' && !bibliography) {
         fetchBibliography(projectId, bibFormat);
       }
     },
-    [projectId, bibFormat, fetchBibliography]
+    [projectId, bibliography, bibFormat, fetchBibliography]
   );
 
   const handleRemoveDocument = async (documentId: string) => {
@@ -438,24 +423,6 @@ export default function ProjectDetailPage() {
     loadDrafts,
     projectId,
   ]);
-
-  const handleUploadComplete = useCallback(
-    async (documentIds: string[]) => {
-      setShowUploadWizard(false);
-      try {
-        await Promise.all(
-          documentIds.map((docId) =>
-            projectService.addDocumentToProject(projectId, docId)
-          )
-        );
-        await fetchProjectDocuments(projectId);
-      } catch {
-        // linking may partially fail — still refresh to show what succeeded
-        await fetchProjectDocuments(projectId);
-      }
-    },
-    [projectId, fetchProjectDocuments]
-  );
 
   if (!mounted || initialLoading) {
     return (
@@ -582,27 +549,18 @@ export default function ProjectDetailPage() {
             ))}
           </div>
         </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <button
-            onClick={() => setShowUploadWizard(true)}
-            className="inline-flex items-center justify-center gap-2 rounded-md bg-primary px-3 py-2 text-sm text-primary-foreground transition-colors hover:bg-primary/90"
-          >
-            <Upload className="h-4 w-4" />
-            Upload
-          </button>
-          <button
-            onClick={() => {
-              void handleRefresh();
-            }}
-            disabled={refreshing}
-            className="inline-flex items-center justify-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-sm text-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            <RefreshCw
-              className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`}
-            />
-            Refresh
-          </button>
-        </div>
+        <button
+          onClick={() => {
+            void handleRefresh();
+          }}
+          disabled={refreshing}
+          className="inline-flex items-center justify-center gap-2 shrink-0 rounded-md border border-border bg-card px-3 py-2 text-sm text-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          <RefreshCw
+            className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`}
+          />
+          Refresh
+        </button>
       </div>
 
       {/* Tab Content */}
@@ -725,8 +683,6 @@ export default function ProjectDetailPage() {
               <DraftGenerationProgress
                 status={generationStatus}
                 onCancel={async () => {
-                  if (pollTimeoutRef.current)
-                    clearTimeout(pollTimeoutRef.current);
                   await projectService.cancelGeneration(
                     projectId,
                     generationTaskId
@@ -735,8 +691,6 @@ export default function ProjectDetailPage() {
                   setGenerationStatus(null);
                 }}
                 onComplete={async (draftId) => {
-                  if (pollTimeoutRef.current)
-                    clearTimeout(pollTimeoutRef.current);
                   setGenerationTaskId(null);
                   setGenerationStatus(null);
                   try {
@@ -788,10 +742,7 @@ export default function ProjectDetailPage() {
                                   status.status
                                 )
                               ) {
-                                pollTimeoutRef.current = setTimeout(
-                                  pollStatus,
-                                  1000
-                                );
+                                setTimeout(pollStatus, 1000);
                               }
                             } catch (err) {
                               console.error('Poll error:', err);
@@ -1018,12 +969,6 @@ export default function ProjectDetailPage() {
           }}
         />
       )}
-
-      <DocumentUploadWizard
-        isOpen={showUploadWizard}
-        onClose={() => setShowUploadWizard(false)}
-        onComplete={handleUploadComplete}
-      />
     </div>
   );
 }
