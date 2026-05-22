@@ -10,7 +10,7 @@ import {
 import { api } from '@/services/api-client';
 
 export class DocumentService {
-  private readonly basePath = 'documents';
+  private readonly basePath = '/documents';
 
   /**
    * Upload a single file

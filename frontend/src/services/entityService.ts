@@ -111,7 +111,7 @@ export interface ProcessingJobsListResponse {
 }
 
 class EntityService {
-  private baseUrl = 'knowledge-graph';
+  private baseUrl = '/knowledge-graph';
 
   /**
    * Get all entities with pagination (with retry)
