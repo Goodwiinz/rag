@@ -68,6 +68,7 @@ frontend:
       cert-manager.io/cluster-issuer: "letsencrypt-prod"
       nginx.ingress.kubernetes.io/rate-limit: "100"
       nginx.ingress.kubernetes.io/rate-limit-window: "1m"
+      nginx.ingress.kubernetes.io/proxy-buffer-size: "16k"
     hosts:
       - host: analytics.yourdomain.com
         paths:
