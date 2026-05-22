@@ -37,6 +37,7 @@ class FileUploadResponse(BaseModel):
     document_id: str
     upload_id: str  # Same as document_id for v1 API compatibility
     id: str  # Deprecated, use document_id
+    job_id: Optional[str] = None
     title: str
     filename: str
     document_type: str
@@ -162,17 +163,29 @@ async def upload_file(
         }
         frontend_status = status_mapping.get(document.processing_status.value, "queued")
 
+        # Fetch the processing job created by file_service
+        from src.models.processing import ProcessingJob
+
+        job_result = await db.execute(
+            select(ProcessingJob)
+            .where(ProcessingJob.document_id == document.id)
+            .order_by(ProcessingJob.created_at.desc())
+            .limit(1)
+        )
+        processing_job = job_result.scalars().first()
+
         return FileUploadResponse(
             document_id=str(document.id),
-            upload_id=str(document.id),  # Same as document_id for v1 API
-            id=str(document.id),  # Deprecated, maintain compatibility
+            upload_id=str(document.id),
+            id=str(document.id),
+            job_id=str(processing_job.id) if processing_job else None,
             title=document.title,
             filename=document.filename,
             document_type=document.document_type.value,
             file_size_bytes=document.file_size_bytes,
             file_size_mb=document.file_size_mb,
             mime_type=document.mime_type or "application/octet-stream",
-            processing_status=frontend_status,  # Use frontend-compatible lowercase status
+            processing_status=frontend_status,
             upload_timestamp=document.created_at.isoformat(),
             created_at=document.created_at.isoformat(),
             message="File uploaded successfully",

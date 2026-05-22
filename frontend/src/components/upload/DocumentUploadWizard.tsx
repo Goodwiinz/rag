@@ -20,7 +20,12 @@ import { useDocumentUpload } from '@/hooks/upload/useDocumentUpload';
 import { FileValidationError, validateFileBatch } from '@/utils/fileValidation';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 
 export interface DocumentUploadWizardProps {
   isOpen: boolean;
@@ -50,7 +55,9 @@ export const DocumentUploadWizard: React.FC<DocumentUploadWizardProps> = ({
 }) => {
   const [currentStep, setCurrentStep] = useState<WizardStep>('upload');
   const [selectedFiles, setSelectedFiles] = useState<FileWithPreview[]>([]);
-  const [validationErrors, setValidationErrors] = useState<FileValidationError[]>([]);
+  const [validationErrors, setValidationErrors] = useState<
+    FileValidationError[]
+  >([]);
   const [showPreview, setShowPreview] = useState<string | null>(null);
   const [isClosing, setIsClosing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -93,44 +100,51 @@ export const DocumentUploadWizard: React.FC<DocumentUploadWizardProps> = ({
   };
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
-    onDrop: useCallback((acceptedFiles: File[], rejectedFiles: any[]) => {
-      // Clear previous validation errors
-      setValidationErrors([]);
+    onDrop: useCallback(
+      (acceptedFiles: File[], rejectedFiles: any[]) => {
+        // Clear previous validation errors
+        setValidationErrors([]);
 
-      // Create files with preview
-      const filesWithPreview: FileWithPreview[] = acceptedFiles.map(file => ({
-        ...file,
-        id: Math.random().toString(36).substr(2, 9),
-        preview: file.type.startsWith('image/') ? URL.createObjectURL(file) : undefined,
-      }));
-
-      // Validate files
-      const validation = validateFileBatch(
-        [...acceptedFiles, ...rejectedFiles.map(r => r.file)],
-        selectedFiles.length,
-        currentQuotaUsed,
-        {
-          maxFileSize,
-          maxFiles,
-          allowedTypes: Object.keys(acceptedTypes),
-          maxQuota,
-        }
-      );
-
-      if (validation.errors.length > 0) {
-        setValidationErrors(validation.errors);
-      }
-
-      // Only add valid files
-      const validFiles = filesWithPreview.filter(file => {
-        const fileValidation = validation.errors.find(error =>
-          error.details?.fileName === file.name
+        // Create files with preview
+        const filesWithPreview: FileWithPreview[] = acceptedFiles.map(
+          (file) =>
+            Object.assign(file, {
+              id: Math.random().toString(36).substr(2, 9),
+              preview: file.type.startsWith('image/')
+                ? URL.createObjectURL(file)
+                : undefined,
+            }) as FileWithPreview
         );
-        return !fileValidation;
-      });
 
-      setSelectedFiles(prev => [...prev, ...validFiles].slice(0, maxFiles));
-    }, [selectedFiles, currentQuotaUsed, maxFileSize, maxFiles, maxQuota]),
+        // Validate files
+        const validation = validateFileBatch(
+          [...acceptedFiles, ...rejectedFiles.map((r) => r.file)],
+          selectedFiles.length,
+          currentQuotaUsed,
+          {
+            maxFileSize,
+            maxFiles,
+            allowedTypes: Object.keys(acceptedTypes),
+            maxQuota,
+          }
+        );
+
+        if (validation.errors.length > 0) {
+          setValidationErrors(validation.errors);
+        }
+
+        // Only add valid files
+        const validFiles = filesWithPreview.filter((file) => {
+          const fileValidation = validation.errors.find(
+            (error) => error.details?.fileName === file.name
+          );
+          return !fileValidation;
+        });
+
+        setSelectedFiles((prev) => [...prev, ...validFiles].slice(0, maxFiles));
+      },
+      [selectedFiles, currentQuotaUsed, maxFileSize, maxFiles, maxQuota]
+    ),
     accept: acceptedTypes,
     maxFiles: maxFiles - selectedFiles.length,
     maxSize: maxFileSize,
@@ -181,7 +195,11 @@ export const DocumentUploadWizard: React.FC<DocumentUploadWizardProps> = ({
 
   const handleClose = useCallback(() => {
     if (hasActiveUploads) {
-      if (!confirm('Uploads are still in progress. Are you sure you want to close?')) {
+      if (
+        !confirm(
+          'Uploads are still in progress. Are you sure you want to close?'
+        )
+      ) {
         return;
       }
     }
@@ -189,7 +207,7 @@ export const DocumentUploadWizard: React.FC<DocumentUploadWizardProps> = ({
     setIsClosing(true);
 
     // Cleanup
-    selectedFiles.forEach(file => {
+    selectedFiles.forEach((file) => {
       if (file.preview) {
         URL.revokeObjectURL(file.preview);
       }
@@ -211,22 +229,36 @@ export const DocumentUploadWizard: React.FC<DocumentUploadWizardProps> = ({
     // Call completion callback
     if (onComplete && allCompleted) {
       const completedDocumentIds = queueItems
-        .filter(item => item.status === 'completed' && item.documentId)
-        .map(item => item.documentId!);
+        .filter((item) => item.status === 'completed' && item.documentId)
+        .map((item) => item.documentId!);
       if (completedDocumentIds.length > 0) {
         onComplete(completedDocumentIds);
       }
     }
-  }, [hasActiveUploads, selectedFiles, onClose, onComplete, allCompleted, queueItems, cancelAllUploads]);
+  }, [
+    hasActiveUploads,
+    selectedFiles,
+    onClose,
+    onComplete,
+    allCompleted,
+    queueItems,
+    cancelAllUploads,
+  ]);
 
-  const removeFile = useCallback((fileId: string) => {
-    setSelectedFiles(prev => prev.filter(file => file.id !== fileId));
-    removeFromQueue(fileId);
-  }, [removeFromQueue]);
+  const removeFile = useCallback(
+    (fileId: string) => {
+      setSelectedFiles((prev) => prev.filter((file) => file.id !== fileId));
+      removeFromQueue(fileId);
+    },
+    [removeFromQueue]
+  );
 
-  const retryFile = useCallback((fileId: string) => {
-    retryUpload(fileId);
-  }, [retryUpload]);
+  const retryFile = useCallback(
+    (fileId: string) => {
+      retryUpload(fileId);
+    },
+    [retryUpload]
+  );
 
   const getStepTitle = useCallback((): string => {
     switch (currentStep) {
@@ -291,7 +323,7 @@ export const DocumentUploadWizard: React.FC<DocumentUploadWizardProps> = ({
   // Cleanup previews on unmount
   useEffect(() => {
     return () => {
-      selectedFiles.forEach(file => {
+      selectedFiles.forEach((file) => {
         if (file.preview) {
           URL.revokeObjectURL(file.preview);
         }
@@ -315,36 +347,38 @@ export const DocumentUploadWizard: React.FC<DocumentUploadWizardProps> = ({
 
         {/* Progress Steps */}
         <div className="flex items-center justify-center space-x-2 py-4">
-          {(['upload', 'review', 'processing', 'complete'] as WizardStep[]).map((step, index) => (
-            <React.Fragment key={step}>
-              <div
-                className={cn(
-                  "w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium",
-                  currentStep === step
-                    ? "bg-primary text-primary-foreground"
-                    : currentStepIndex(step) < currentStepIndex(currentStep)
-                    ? "bg-green-500 text-white"
-                    : "bg-muted text-muted-foreground"
-                )}
-              >
-                {currentStepIndex(step) < currentStepIndex(currentStep) ? (
-                  <CheckCircleIcon className="w-4 h-4" />
-                ) : (
-                  index + 1
-                )}
-              </div>
-              {index < 3 && (
+          {(['upload', 'review', 'processing', 'complete'] as WizardStep[]).map(
+            (step, index) => (
+              <React.Fragment key={step}>
                 <div
                   className={cn(
-                    "w-12 h-0.5",
-                    currentStepIndex(step) < currentStepIndex(currentStep)
-                      ? "bg-green-500"
-                      : "bg-muted"
+                    'w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium',
+                    currentStep === step
+                      ? 'bg-primary text-primary-foreground'
+                      : currentStepIndex(step) < currentStepIndex(currentStep)
+                        ? 'bg-green-500 text-white'
+                        : 'bg-muted text-muted-foreground'
                   )}
-                />
-              )}
-            </React.Fragment>
-          ))}
+                >
+                  {currentStepIndex(step) < currentStepIndex(currentStep) ? (
+                    <CheckCircleIcon className="w-4 h-4" />
+                  ) : (
+                    index + 1
+                  )}
+                </div>
+                {index < 3 && (
+                  <div
+                    className={cn(
+                      'w-12 h-0.5',
+                      currentStepIndex(step) < currentStepIndex(currentStep)
+                        ? 'bg-green-500'
+                        : 'bg-muted'
+                    )}
+                  />
+                )}
+              </React.Fragment>
+            )
+          )}
         </div>
 
         {/* Step Content */}
@@ -362,7 +396,10 @@ export const DocumentUploadWizard: React.FC<DocumentUploadWizardProps> = ({
                       </h4>
                       <ul className="mt-2 text-sm text-destructive/80 space-y-1">
                         {validationErrors.map((error, index) => (
-                          <li key={index} className="flex items-start space-x-2">
+                          <li
+                            key={index}
+                            className="flex items-start space-x-2"
+                          >
                             <span className="text-destructive/60 mt-1">•</span>
                             <span>{getErrorMessage(error)}</span>
                           </li>
@@ -385,10 +422,10 @@ export const DocumentUploadWizard: React.FC<DocumentUploadWizardProps> = ({
               <div
                 {...getRootProps()}
                 className={cn(
-                  "relative border-2 border-dashed rounded-lg p-12 text-center cursor-pointer transition-colors",
-                  "hover:border-primary hover:bg-primary/5",
-                  "focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent",
-                  isDragActive && "border-primary bg-primary/10"
+                  'relative border-2 border-dashed rounded-lg p-12 text-center cursor-pointer transition-colors',
+                  'hover:border-primary hover:bg-primary/5',
+                  'focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent',
+                  isDragActive && 'border-primary bg-primary/10'
                 )}
               >
                 <input {...getInputProps()} />
@@ -402,11 +439,11 @@ export const DocumentUploadWizard: React.FC<DocumentUploadWizardProps> = ({
                     <p className="text-lg font-medium text-foreground">
                       {isDragActive
                         ? 'Drop files here...'
-                        : 'Drag & drop files here, or click to select'
-                      }
+                        : 'Drag & drop files here, or click to select'}
                     </p>
                     <p className="text-sm text-muted-foreground mt-2">
-                      Maximum {maxFiles} files, up to {formatFileSize(maxFileSize)} each
+                      Maximum {maxFiles} files, up to{' '}
+                      {formatFileSize(maxFileSize)} each
                     </p>
                     <p className="text-xs text-muted-foreground mt-1">
                       Supported formats: PDF, TXT, JPG, PNG, MP3, WAV, MP4, MOV
@@ -449,8 +486,11 @@ export const DocumentUploadWizard: React.FC<DocumentUploadWizardProps> = ({
                               onClick={() => setShowPreview(file.preview!)}
                             />
                           ) : (
-                            <div className="h-10 w-10 bg-muted rounded flex items-center justify-center text-lg">
-                              {getFileIcon(file)}
+                            <div className="h-10 w-10 bg-muted rounded flex items-center justify-center">
+                              <FileTypeIcon
+                                type={getFileIcon(file)}
+                                className="h-5 w-5 text-muted-foreground"
+                              />
                             </div>
                           )}
 
@@ -459,7 +499,8 @@ export const DocumentUploadWizard: React.FC<DocumentUploadWizardProps> = ({
                               {file.name}
                             </p>
                             <p className="text-xs text-muted-foreground">
-                              {formatFileSize(file.size)} • {file.type || 'Unknown type'}
+                              {formatFileSize(file.size)} •{' '}
+                              {file.type || 'Unknown type'}
                             </p>
                           </div>
                         </div>
@@ -508,8 +549,11 @@ export const DocumentUploadWizard: React.FC<DocumentUploadWizardProps> = ({
                           onClick={() => setShowPreview(file.preview!)}
                         />
                       ) : (
-                        <div className="h-12 w-12 bg-muted rounded flex items-center justify-center text-xl">
-                          {getFileIcon(file)}
+                        <div className="h-12 w-12 bg-muted rounded flex items-center justify-center">
+                          <FileTypeIcon
+                            type={getFileIcon(file)}
+                            className="h-6 w-6 text-muted-foreground"
+                          />
                         </div>
                       )}
 
@@ -553,16 +597,22 @@ export const DocumentUploadWizard: React.FC<DocumentUploadWizardProps> = ({
 
               {/* Upload Summary */}
               <div className="p-4 bg-muted/50 rounded-lg">
-                <h4 className="font-medium text-foreground mb-2">Upload Summary</h4>
+                <h4 className="font-medium text-foreground mb-2">
+                  Upload Summary
+                </h4>
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div>
                     <span className="text-muted-foreground">Total Files:</span>
-                    <span className="ml-2 font-medium">{selectedFiles.length}</span>
+                    <span className="ml-2 font-medium">
+                      {selectedFiles.length}
+                    </span>
                   </div>
                   <div>
                     <span className="text-muted-foreground">Total Size:</span>
                     <span className="ml-2 font-medium">
-                      {formatFileSize(selectedFiles.reduce((sum, file) => sum + file.size, 0))}
+                      {formatFileSize(
+                        selectedFiles.reduce((sum, file) => sum + file.size, 0)
+                      )}
                     </span>
                   </div>
                 </div>
@@ -615,15 +665,13 @@ export const DocumentUploadWizard: React.FC<DocumentUploadWizardProps> = ({
               {/* Individual File Progress */}
               <div className="space-y-3 max-h-80 overflow-y-auto">
                 {queueItems.map((item) => (
-                  <div
-                    key={item.id}
-                    className="p-4 bg-card border rounded-lg"
-                  >
+                  <div key={item.id} className="p-4 bg-card border rounded-lg">
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center space-x-2 flex-1 min-w-0">
-                        <div className="text-lg">
-                          {getFileIcon(item.file)}
-                        </div>
+                        <FileTypeIcon
+                          type={getFileIcon(item.file)}
+                          className="h-5 w-5 text-muted-foreground"
+                        />
                         <span className="text-sm font-medium text-foreground truncate">
                           {item.file.name}
                         </span>
@@ -632,10 +680,13 @@ export const DocumentUploadWizard: React.FC<DocumentUploadWizardProps> = ({
                       <div className="flex items-center space-x-2">
                         <Badge
                           variant={
-                            item.status === 'completed' ? 'default' :
-                            item.status === 'error' ? 'destructive' :
-                            item.status === 'processing' ? 'secondary' :
-                            'outline'
+                            item.status === 'completed'
+                              ? 'default'
+                              : item.status === 'error'
+                                ? 'destructive'
+                                : item.status === 'processing'
+                                  ? 'secondary'
+                                  : 'outline'
                           }
                           className="text-xs"
                         >
@@ -695,13 +746,15 @@ export const DocumentUploadWizard: React.FC<DocumentUploadWizardProps> = ({
                   Upload Complete!
                 </h3>
                 <p className="text-muted-foreground">
-                  {stats.completedFiles} of {stats.totalFiles} files have been successfully uploaded and processed.
+                  {stats.completedFiles} of {stats.totalFiles} files have been
+                  successfully uploaded and processed.
                 </p>
 
                 {hasErrors && (
                   <div className="mt-4 p-4 bg-destructive/10 border border-destructive/20 rounded-lg">
                     <p className="text-sm text-destructive">
-                      {stats.failedFiles} file(s) failed to process. You can retry them from the document library.
+                      {stats.failedFiles} file(s) failed to process. You can
+                      retry them from the document library.
                     </p>
                   </div>
                 )}
@@ -712,7 +765,9 @@ export const DocumentUploadWizard: React.FC<DocumentUploadWizardProps> = ({
                   <div className="text-2xl font-bold text-green-600">
                     {stats.completedFiles}
                   </div>
-                  <div className="text-sm text-muted-foreground">Successful</div>
+                  <div className="text-sm text-muted-foreground">
+                    Successful
+                  </div>
                 </div>
                 <div className="p-4 bg-card border rounded-lg">
                   <div className="text-2xl font-bold text-red-600">
@@ -746,12 +801,16 @@ export const DocumentUploadWizard: React.FC<DocumentUploadWizardProps> = ({
               onClick={handleClose}
               disabled={isClosing}
             >
-              {currentStep === 'processing' && hasActiveUploads ? 'Close Anyway' : 'Cancel'}
+              {currentStep === 'processing' && hasActiveUploads
+                ? 'Close Anyway'
+                : 'Cancel'}
             </Button>
 
             {canGoNext() && (
               <Button onClick={handleNext} disabled={isClosing}>
-                {currentStep === 'complete' ? 'Done' : (
+                {currentStep === 'complete' ? (
+                  'Done'
+                ) : (
                   <>
                     Next
                     <ArrowRightIcon className="h-4 w-4 ml-2" />
@@ -785,11 +844,16 @@ export const DocumentUploadWizard: React.FC<DocumentUploadWizardProps> = ({
 // Helper functions
 const currentStepIndex = (step: WizardStep): number => {
   switch (step) {
-    case 'upload': return 0;
-    case 'review': return 1;
-    case 'processing': return 2;
-    case 'complete': return 3;
-    default: return 0;
+    case 'upload':
+      return 0;
+    case 'review':
+      return 1;
+    case 'processing':
+      return 2;
+    case 'complete':
+      return 3;
+    default:
+      return 0;
   }
 };
 
@@ -811,12 +875,36 @@ const getErrorMessage = (error: FileValidationError): string => {
 };
 
 const getFileTypeCategory = (file: File): string => {
-  if (file.type === 'application/pdf') return 'PDF';
-  if (file.type === 'text/plain') return 'Text';
-  if (file.type.startsWith('image/')) return 'Image';
-  if (file.type.startsWith('audio/')) return 'Audio';
-  if (file.type.startsWith('video/')) return 'Video';
+  const type = file.type ?? '';
+  if (type === 'application/pdf') return 'PDF';
+  if (type === 'text/plain') return 'Text';
+  if (type.startsWith('image/')) return 'Image';
+  if (type.startsWith('audio/')) return 'Audio';
+  if (type.startsWith('video/')) return 'Video';
   return 'Other';
+};
+
+const FILE_TYPE_ICONS: Record<
+  string,
+  React.ComponentType<{ className?: string }>
+> = {
+  pdf: DocumentTextIcon,
+  text: DocumentTextIcon,
+  image: PhotoIcon,
+  audio: MusicalNoteIcon,
+  video: VideoCameraIcon,
+  file: DocumentIcon,
+};
+
+const FileTypeIcon = ({
+  type,
+  className,
+}: {
+  type: string;
+  className?: string;
+}) => {
+  const Icon = FILE_TYPE_ICONS[type] ?? DocumentIcon;
+  return <Icon className={className} />;
 };
 
 export default DocumentUploadWizard;

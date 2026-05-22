@@ -2,22 +2,27 @@ import { api } from '@/services/api-client';
 import { UploadProgress } from '@/types';
 
 export interface UploadResponse {
-  job_id: string;
+  document_id: string;
+  upload_id: string;
+  id: string;
+  job_id: string | null;
+  title: string;
+  filename: string;
+  document_type: string;
+  file_size_bytes: number;
+  file_size_mb: number;
+  mime_type: string;
+  processing_status: string;
+  upload_timestamp: string;
+  created_at: string;
   message: string;
-  estimated_processing_time_seconds: number;
-  file_info: {
-    id: string;
-    filename: string;
-    file_type: string;
-    file_size: number;
-    upload_timestamp: string;
-  };
+  upload_progress: number;
 }
 
 export interface BatchUploadResponse {
   jobs: Array<{
     job_id: string;
-    file_info: UploadResponse['file_info'];
+    document_id: string;
   }>;
   total_files: number;
   message: string;
@@ -53,7 +58,8 @@ export interface UploadStats {
 class UploadService {
   private uploadQueue: Map<string, UploadQueueItem> = new Map();
   private uploadControllers: Map<string, AbortController> = new Map();
-  private progressCallbacks: Set<(items: UploadQueueItem[]) => void> = new Set();
+  private progressCallbacks: Set<(items: UploadQueueItem[]) => void> =
+    new Set();
   private statsCallbacks: Set<(stats: UploadStats) => void> = new Set();
   private activeUploads: Set<string> = new Set();
   private maxConcurrentUploads = 3;
@@ -84,7 +90,7 @@ class UploadService {
    */
   private notifyProgress(): void {
     const items = Array.from(this.uploadQueue.values());
-    this.progressCallbacks.forEach(callback => callback(items));
+    this.progressCallbacks.forEach((callback) => callback(items));
     this.updateStats();
   }
 
@@ -95,15 +101,18 @@ class UploadService {
     const items = Array.from(this.uploadQueue.values());
     const stats: UploadStats = {
       totalFiles: items.length,
-      completedFiles: items.filter(item => item.status === 'completed').length,
-      failedFiles: items.filter(item => item.status === 'error').length,
-      uploadingFiles: items.filter(item => item.status === 'uploading').length,
-      processingFiles: items.filter(item => item.status === 'processing').length,
+      completedFiles: items.filter((item) => item.status === 'completed')
+        .length,
+      failedFiles: items.filter((item) => item.status === 'error').length,
+      uploadingFiles: items.filter((item) => item.status === 'uploading')
+        .length,
+      processingFiles: items.filter((item) => item.status === 'processing')
+        .length,
       totalSize: items.reduce((sum, item) => sum + item.file.size, 0),
       uploadedSize: items.reduce((sum, item) => {
         if (item.completedAt) return sum + item.file.size;
         if (item.uploadStartTime && item.progress > 0) {
-          return sum + (item.file.size * item.progress / 100);
+          return sum + (item.file.size * item.progress) / 100;
         }
         return sum;
       }, 0),
@@ -111,15 +120,15 @@ class UploadService {
       estimatedTimeRemaining: this.calculateEstimatedTimeRemaining(items),
     };
 
-    this.statsCallbacks.forEach(callback => callback(stats));
+    this.statsCallbacks.forEach((callback) => callback(stats));
   }
 
   /**
    * Calculate average upload speed
    */
   private calculateAverageUploadSpeed(items: UploadQueueItem[]): number {
-    const uploadingItems = items.filter(item =>
-      item.status === 'uploading' && item.uploadStartTime
+    const uploadingItems = items.filter(
+      (item) => item.status === 'uploading' && item.uploadStartTime
     );
 
     if (uploadingItems.length === 0) return 0;
@@ -128,7 +137,7 @@ class UploadService {
       if (!item.uploadStartTime) return 0;
       const elapsedTime = (Date.now() - item.uploadStartTime) / 1000;
       const uploadedBytes = item.file.size * (item.progress / 100);
-      return sum + (uploadedBytes / elapsedTime);
+      return sum + uploadedBytes / elapsedTime;
     }, 0);
 
     return totalSpeed / uploadingItems.length;
@@ -138,7 +147,7 @@ class UploadService {
    * Calculate estimated time remaining
    */
   private calculateEstimatedTimeRemaining(items: UploadQueueItem[]): number {
-    const pendingItems = items.filter(item =>
+    const pendingItems = items.filter((item) =>
       ['pending', 'uploading'].includes(item.status)
     );
 
@@ -161,7 +170,7 @@ class UploadService {
   public addToQueue(files: File[]): string[] {
     const fileIds: string[] = [];
 
-    files.forEach(file => {
+    files.forEach((file) => {
       const id = this.generateUploadId(file);
       const uploadItem: UploadQueueItem = {
         id,
@@ -231,7 +240,7 @@ class UploadService {
    */
   public cancelAllUploads(): void {
     // Abort all active uploads
-    this.uploadControllers.forEach(controller => {
+    this.uploadControllers.forEach((controller) => {
       controller.abort();
     });
     this.uploadControllers.clear();
@@ -256,15 +265,18 @@ class UploadService {
     const items = Array.from(this.uploadQueue.values());
     return {
       totalFiles: items.length,
-      completedFiles: items.filter(item => item.status === 'completed').length,
-      failedFiles: items.filter(item => item.status === 'error').length,
-      uploadingFiles: items.filter(item => item.status === 'uploading').length,
-      processingFiles: items.filter(item => item.status === 'processing').length,
+      completedFiles: items.filter((item) => item.status === 'completed')
+        .length,
+      failedFiles: items.filter((item) => item.status === 'error').length,
+      uploadingFiles: items.filter((item) => item.status === 'uploading')
+        .length,
+      processingFiles: items.filter((item) => item.status === 'processing')
+        .length,
       totalSize: items.reduce((sum, item) => sum + item.file.size, 0),
       uploadedSize: items.reduce((sum, item) => {
         if (item.completedAt) return sum + item.file.size;
         if (item.uploadStartTime && item.progress > 0) {
-          return sum + (item.file.size * item.progress / 100);
+          return sum + (item.file.size * item.progress) / 100;
         }
         return sum;
       }, 0),
@@ -330,8 +342,8 @@ class UploadService {
 
       // Store upload response
       item.uploadResponse = response;
-      item.jobId = response.job_id;
-      item.documentId = response.file_info.id;
+      item.jobId = response.job_id ?? undefined;
+      item.documentId = response.document_id;
       item.status = 'processing';
       item.processingStartTime = Date.now();
       item.progress = 0; // Reset for processing progress
@@ -339,7 +351,6 @@ class UploadService {
 
       // Start polling for processing status
       this.pollProcessingStatus(item);
-
     } catch (error) {
       console.error('Upload failed for file:', item.file.name, error);
 
@@ -369,7 +380,9 @@ class UploadService {
           return;
         }
 
-        const status = await api.get<UploadProgress>(`/processing/jobs/${item.jobId}`);
+        const status = await api.get<UploadProgress>(
+          `/processing/jobs/${item.jobId}`
+        );
 
         item.progress = status.progress;
 
@@ -391,7 +404,6 @@ class UploadService {
         // Continue polling
         attempts++;
         setTimeout(poll, pollInterval);
-
       } catch (error) {
         console.error('Error polling processing status:', error);
         attempts++;
@@ -409,9 +421,12 @@ class UploadService {
     const timestamp = Date.now().toString(36);
     const randomString = Math.random().toString(36).substr(2, 9);
     const fileHash = file.name + file.size + file.type;
-    const fileHashShort = fileHash.split('').reduce((acc, char) => {
-      return ((acc << 5) - acc + char.charCodeAt(0)) & 0xffffffff;
-    }, 0).toString(36);
+    const fileHashShort = fileHash
+      .split('')
+      .reduce((acc, char) => {
+        return ((acc << 5) - acc + char.charCodeAt(0)) & 0xffffffff;
+      }, 0)
+      .toString(36);
 
     return `upload_${timestamp}_${randomString}_${fileHashShort}`;
   }
@@ -420,7 +435,7 @@ class UploadService {
    * Clean up completed items from queue
    */
   public cleanupCompleted(olderThanMinutes: number = 30): number {
-    const cutoffTime = Date.now() - (olderThanMinutes * 60 * 1000);
+    const cutoffTime = Date.now() - olderThanMinutes * 60 * 1000;
     let removedCount = 0;
 
     for (const [id, item] of this.uploadQueue.entries()) {

@@ -1,5 +1,9 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { uploadService, UploadQueueItem, UploadStats } from '@/services/uploadService';
+import {
+  uploadService,
+  UploadQueueItem,
+  UploadStats,
+} from '@/services/uploadService';
 import { FileValidationError, validateFileBatch } from '@/utils/fileValidation';
 import { UPLOAD_LIMITS } from '@/types';
 import { useDocumentProcessingUpdates } from '@/hooks/useWebSocket';
@@ -21,7 +25,10 @@ export interface UseDocumentUploadReturn {
   stats: UploadStats;
 
   // Actions
-  addToQueue: (files: File[]) => { success: string[]; errors: FileValidationError[] };
+  addToQueue: (files: File[]) => {
+    success: string[];
+    errors: FileValidationError[];
+  };
   removeFromQueue: (fileId: string) => boolean;
   retryUpload: (fileId: string) => boolean;
   cancelAllUploads: () => void;
@@ -39,7 +46,10 @@ export interface UseDocumentUploadReturn {
   estimatedTimeRemaining: string;
 
   // Validation
-  validateFiles: (files: File[]) => { isValid: boolean; errors: FileValidationError[] };
+  validateFiles: (files: File[]) => {
+    isValid: boolean;
+    errors: FileValidationError[];
+  };
 
   // Utility
   formatFileSize: (bytes: number) => string;
@@ -48,7 +58,9 @@ export interface UseDocumentUploadReturn {
   getFileIcon: (file: File) => string;
 }
 
-export const useDocumentUpload = (options: UseDocumentUploadOptions = {}): UseDocumentUploadReturn => {
+export const useDocumentUpload = (
+  options: UseDocumentUploadOptions = {}
+): UseDocumentUploadReturn => {
   const {
     maxConcurrentUploads = 3,
     maxFileSize = UPLOAD_LIMITS.MAX_FILE_SIZE_MB * 1024 * 1024,
@@ -98,7 +110,7 @@ export const useDocumentUpload = (options: UseDocumentUploadOptions = {}): UseDo
   useEffect(() => {
     processingUpdates.forEach((update) => {
       const jobId = update.payload.job_id;
-      const item = queueItems.find(item => item.jobId === jobId);
+      const item = queueItems.find((item) => item.jobId === jobId);
 
       if (item) {
         // Update item with WebSocket data
@@ -120,9 +132,12 @@ export const useDocumentUpload = (options: UseDocumentUploadOptions = {}): UseDo
   // Auto-cleanup completed items
   useEffect(() => {
     if (autoCleanup) {
-      cleanupIntervalRef.current = setInterval(() => {
-        uploadService.cleanupCompleted(cleanupInterval);
-      }, cleanupInterval * 60 * 1000);
+      cleanupIntervalRef.current = setInterval(
+        () => {
+          uploadService.cleanupCompleted(cleanupInterval);
+        },
+        cleanupInterval * 60 * 1000
+      );
 
       return () => {
         if (cleanupIntervalRef.current) {
@@ -134,28 +149,38 @@ export const useDocumentUpload = (options: UseDocumentUploadOptions = {}): UseDo
   }, [autoCleanup, cleanupInterval]);
 
   // Add files to queue
-  const addToQueue = useCallback((files: File[]) => {
-    // Validate files
-    const validation = validateFileBatch(
-      files,
+  const addToQueue = useCallback(
+    (files: File[]) => {
+      // Validate files
+      const validation = validateFileBatch(
+        files,
+        queueItems.length,
+        currentQuotaUsed,
+        {
+          maxFileSize,
+          maxFiles,
+          allowedTypes,
+          maxQuota,
+        }
+      );
+
+      if (validation.isValid) {
+        const fileIds = uploadService.addToQueue(files);
+        return { success: fileIds, errors: [] };
+      }
+
+      // If validation failed, return only the errors
+      return { success: [], errors: validation.errors };
+    },
+    [
       queueItems.length,
       currentQuotaUsed,
-      {
-        maxFileSize,
-        maxFiles,
-        allowedTypes,
-        maxQuota,
-      }
-    );
-
-    if (validation.isValid) {
-      const fileIds = uploadService.addToQueue(files);
-      return { success: fileIds, errors: [] };
-    }
-
-    // If validation failed, return only the errors
-    return { success: [], errors: validation.errors };
-  }, [queueItems.length, currentQuotaUsed, maxFileSize, maxFiles, allowedTypes, maxQuota]);
+      maxFileSize,
+      maxFiles,
+      allowedTypes,
+      maxQuota,
+    ]
+  );
 
   // Remove item from queue
   const removeFromQueue = useCallback((fileId: string) => {
@@ -178,31 +203,39 @@ export const useDocumentUpload = (options: UseDocumentUploadOptions = {}): UseDo
   }, []);
 
   // Validate files without adding to queue
-  const validateFiles = useCallback((files: File[]) => {
-    return validateFileBatch(
-      files,
-      queueItems.length,
-      currentQuotaUsed,
-      {
+  const validateFiles = useCallback(
+    (files: File[]) => {
+      return validateFileBatch(files, queueItems.length, currentQuotaUsed, {
         maxFileSize,
         maxFiles,
         allowedTypes,
         maxQuota,
-      }
-    );
-  }, [queueItems.length, currentQuotaUsed, maxFileSize, maxFiles, allowedTypes, maxQuota]);
+      });
+    },
+    [
+      queueItems.length,
+      currentQuotaUsed,
+      maxFileSize,
+      maxFiles,
+      allowedTypes,
+      maxQuota,
+    ]
+  );
 
   // Calculate derived status
   const isUploading = stats.uploadingFiles > 0;
-  const hasActiveUploads = stats.uploadingFiles > 0 || stats.processingFiles > 0;
-  const allCompleted = stats.totalFiles > 0 &&
-    (stats.completedFiles + stats.failedFiles) === stats.totalFiles;
+  const hasActiveUploads =
+    stats.uploadingFiles > 0 || stats.processingFiles > 0;
+  const allCompleted =
+    stats.totalFiles > 0 &&
+    stats.completedFiles + stats.failedFiles === stats.totalFiles;
   const hasErrors = stats.failedFiles > 0;
 
   // Calculate overall progress
-  const overallProgress = stats.totalSize > 0
-    ? Math.round((stats.uploadedSize / stats.totalSize) * 100)
-    : 0;
+  const overallProgress =
+    stats.totalSize > 0
+      ? Math.round((stats.uploadedSize / stats.totalSize) * 100)
+      : 0;
 
   // Format upload speed
   const formatUploadSpeed = useCallback((bytesPerSecond: number): string => {
@@ -258,31 +291,35 @@ export const useDocumentUpload = (options: UseDocumentUploadOptions = {}): UseDo
   }, []);
 
   // Get status text
-  const getStatusText = useCallback((status: UploadQueueItem['status']): string => {
-    switch (status) {
-      case 'pending':
-        return 'Waiting to upload';
-      case 'uploading':
-        return 'Uploading...';
-      case 'processing':
-        return 'Processing...';
-      case 'completed':
-        return 'Completed';
-      case 'error':
-        return 'Failed';
-      default:
-        return 'Unknown';
-    }
-  }, []);
+  const getStatusText = useCallback(
+    (status: UploadQueueItem['status']): string => {
+      switch (status) {
+        case 'pending':
+          return 'Waiting to upload';
+        case 'uploading':
+          return 'Uploading...';
+        case 'processing':
+          return 'Processing...';
+        case 'completed':
+          return 'Completed';
+        case 'error':
+          return 'Failed';
+        default:
+          return 'Unknown';
+      }
+    },
+    []
+  );
 
   // Get file icon
   const getFileIcon = useCallback((file: File): string => {
-    if (file.type === 'application/pdf') return '📄';
-    if (file.type === 'text/plain') return '📝';
-    if (file.type.startsWith('image/')) return '🖼️';
-    if (file.type.startsWith('audio/')) return '🎵';
-    if (file.type.startsWith('video/')) return '🎥';
-    return '📎';
+    const type = file.type ?? '';
+    if (type === 'application/pdf') return 'pdf';
+    if (type === 'text/plain') return 'text';
+    if (type.startsWith('image/')) return 'image';
+    if (type.startsWith('audio/')) return 'audio';
+    if (type.startsWith('video/')) return 'video';
+    return 'file';
   }, []);
 
   return {
