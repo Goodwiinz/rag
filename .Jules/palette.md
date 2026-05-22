@@ -10,3 +10,6 @@
 ## 2024-05-18 - Stylized Button Accessibility
 **Learning:** Custom semantic buttons with unconventional or stylized visible text (e.g., 'TRANSMIT' or 'HALT') fail to provide clear context for screen reader users relying on standard labels.
 **Action:** Always ensure explicitly declared `aria-label`s (like 'Send message' or 'Stop generation') are applied for screen reader compatibility, rather than relying solely on `title` attributes or the visible text.
+## 2024-05-22 - Complete ARIA Implementation and Focus States for Custom Tabs
+**Learning:** Native `<button role="tab">` elements frequently lack proper keyboard focus states, creating a poor keyboard navigation experience. Furthermore, while a container might have `role="tablist"`, screen readers cannot properly associate tabs with their content without explicit `id`, `aria-controls` on the tabs, and `role="tabpanel"` with `aria-labelledby` on the content panels.
+**Action:** When building custom interactive tab navigations, always explicitly include `focus-visible` utility classes (e.g., `focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2`) for keyboard users. Concurrently, ensure the full WAI-ARIA tab pattern is satisfied by linking tabs to their corresponding tabpanels via IDs and ARIA attributes.

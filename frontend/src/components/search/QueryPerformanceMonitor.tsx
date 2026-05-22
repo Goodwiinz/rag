@@ -95,11 +95,13 @@ const PerformanceDetail: React.FC<PerformanceDetailProps> = ({
               (tab) => (
                 <button
                   key={tab}
+                  id={`tab-${tab}`}
                   role="tab"
                   aria-selected={activeTab === tab}
+                  aria-controls={`panel-${tab}`}
                   onClick={() => setActiveTab(tab as any)}
                   className={cn(
-                    'py-2 px-1 border-b-2 font-medium text-sm capitalize',
+                    'py-2 px-1 border-b-2 font-medium text-sm capitalize focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2',
                     activeTab === tab
                       ? 'border-blue-500 text-blue-600'
                       : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
@@ -115,7 +117,12 @@ const PerformanceDetail: React.FC<PerformanceDetailProps> = ({
         <div className="mt-6">
           {/* Overview Tab */}
           {activeTab === 'overview' && (
-            <div className="space-y-6">
+            <div
+              id="panel-overview"
+              role="tabpanel"
+              aria-labelledby="tab-overview"
+              className="space-y-6"
+            >
               {/* Key Metrics */}
               <div className="grid grid-cols-4 gap-4">
                 <div className="p-4 bg-blue-50 rounded-lg">
@@ -384,7 +391,12 @@ const PerformanceDetail: React.FC<PerformanceDetailProps> = ({
 
           {/* Latency Breakdown Tab */}
           {activeTab === 'latency' && (
-            <div className="space-y-6">
+            <div
+              id="panel-latency"
+              role="tabpanel"
+              aria-labelledby="tab-latency"
+              className="space-y-6"
+            >
               <h3 className="text-lg font-semibold text-gray-900">
                 Stage Latency Breakdown
               </h3>
@@ -448,7 +460,12 @@ const PerformanceDetail: React.FC<PerformanceDetailProps> = ({
 
           {/* Quality Metrics Tab */}
           {activeTab === 'quality' && (
-            <div className="space-y-6">
+            <div
+              id="panel-quality"
+              role="tabpanel"
+              aria-labelledby="tab-quality"
+              className="space-y-6"
+            >
               <h3 className="text-lg font-semibold text-gray-900">
                 Quality Analysis
               </h3>
@@ -535,7 +552,12 @@ const PerformanceDetail: React.FC<PerformanceDetailProps> = ({
 
           {/* Resources Tab */}
           {activeTab === 'resources' && (
-            <div className="space-y-6">
+            <div
+              id="panel-resources"
+              role="tabpanel"
+              aria-labelledby="tab-resources"
+              className="space-y-6"
+            >
               <h3 className="text-lg font-semibold text-gray-900">
                 Resource Utilization
               </h3>
@@ -629,7 +651,12 @@ const PerformanceDetail: React.FC<PerformanceDetailProps> = ({
 
           {/* Bottlenecks Tab */}
           {activeTab === 'bottlenecks' && (
-            <div className="space-y-4">
+            <div
+              id="panel-bottlenecks"
+              role="tabpanel"
+              aria-labelledby="tab-bottlenecks"
+              className="space-y-4"
+            >
               <h3 className="text-lg font-semibold text-gray-900">
                 Performance Bottlenecks
               </h3>
