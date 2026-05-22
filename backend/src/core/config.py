@@ -485,7 +485,7 @@ class Settings(BaseSettings):
         return self
 
     class Config:
-        env_file = "../.env"
+        env_file = ".env"
         case_sensitive = True
         extra = "ignore"
 

@@ -87,7 +87,7 @@ class MultiTenancyMiddleware(BaseHTTPMiddleware):
         return any(request.url.path.startswith(path) for path in skip_paths)
 
     async def _extract_tenant_info(
-        self, request: Request, db: Optional[AsyncSession] = None
+        self, request: Request, db: AsyncSession
     ) -> Optional[dict]:
         """Extract tenant information by verifying the Bearer JWT and resolving org via DB."""
         auth_header = request.headers.get("Authorization", "")
@@ -101,9 +101,7 @@ class MultiTenancyMiddleware(BaseHTTPMiddleware):
         if not token_data or not token_data.user_id:
             return None
 
-        # JIT-provision user + org on first authenticated request.
-        # Uses a separate session to avoid tainting the middleware's
-        # main session with a potential rollback from IntegrityError.
+        # JIT-provision: separate session to isolate potential IntegrityError rollback
         try:
             async with AsyncSessionLocal() as prov_db:
                 provisioned = await ensure_user_and_org(prov_db, token_data)
@@ -112,7 +110,7 @@ class MultiTenancyMiddleware(BaseHTTPMiddleware):
         except Exception as e:
             logger.debug("JIT-provision skipped (non-fatal): %s", e)
 
-        # Fast path: org_id already embedded in JWT (CLI tokens, future Supabase tokens)
+        # Fast path: org_id already embedded in JWT
         if token_data.organization_id:
             return {
                 "organization_id": str(token_data.organization_id),
@@ -120,19 +118,12 @@ class MultiTenancyMiddleware(BaseHTTPMiddleware):
                 "role": token_data.role or "user",
             }
 
-        # Fallback: resolve org from DB (current Supabase JWTs don't embed org_id)
+        # Fallback: resolve org from DB (reuses dispatch session)
         try:
-            if db is not None:
-                result = await db.execute(
-                    select(User).where(User.id == token_data.user_id)
-                )
-                user = result.scalars().first()
-            else:
-                async with AsyncSessionLocal() as session:
-                    result = await session.execute(
-                        select(User).where(User.id == token_data.user_id)
-                    )
-                    user = result.scalars().first()
+            result = await db.execute(
+                select(User).where(User.id == token_data.user_id)
+            )
+            user = result.scalars().first()
             if not user or not user.organization_id:
                 return None
             return {
@@ -147,27 +138,17 @@ class MultiTenancyMiddleware(BaseHTTPMiddleware):
     async def _validate_tenant_access(
         self,
         organization_id: str,
-        db: Optional[AsyncSession] = None,
+        db: AsyncSession,
     ) -> bool:
         """Validate that the organization exists and is active"""
         try:
-            if db is not None:
-                result = await db.execute(
-                    select(Organization).where(
-                        Organization.id == organization_id,
-                        Organization.is_active == True,
-                    )
+            result = await db.execute(
+                select(Organization).where(
+                    Organization.id == organization_id,
+                    Organization.is_active == True,
                 )
-                organization = result.scalars().first()
-            else:
-                async with AsyncSessionLocal() as session:
-                    result = await session.execute(
-                        select(Organization).where(
-                            Organization.id == organization_id,
-                            Organization.is_active == True,
-                        )
-                    )
-                    organization = result.scalars().first()
+            )
+            organization = result.scalars().first()
 
             if not organization:
                 raise PermissionDeniedException(
