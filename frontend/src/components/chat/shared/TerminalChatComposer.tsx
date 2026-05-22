@@ -78,6 +78,8 @@ export function TerminalChatComposer({
               {isLoading ? (
                 <button
                   onClick={onStop}
+                  aria-label="Stop generation"
+                  title="Stop generation"
                   className="flex items-center gap-2 rounded-lg border border-[var(--error-red)]/50 bg-[var(--error-red)]/10 px-4 py-2 text-[10px] font-bold text-[var(--error-red)] transition-all hover:bg-[var(--error-red)]/20"
                   style={{ fontFamily: "'JetBrains Mono', monospace" }}
                 >
@@ -89,6 +91,7 @@ export function TerminalChatComposer({
                   onClick={onSubmit}
                   disabled={!value.trim() || isDisabled}
                   title="Send message (Enter)"
+                  aria-label="Send message"
                   className={cn(
                     'flex items-center gap-2 rounded-lg px-5 py-2 text-[10px] font-bold tracking-widest transition-all duration-300',
                     value.trim() && !isDisabled
