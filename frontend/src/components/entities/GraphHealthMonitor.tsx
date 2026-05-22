@@ -82,7 +82,10 @@ const normalizeHealthStatus = (
           ? 'degraded'
           : 'healthy';
 
-  const totalEntities = toNumber(raw.total_entities, toNumber(raw.node_count, 0));
+  const totalEntities = toNumber(
+    raw.total_entities,
+    toNumber(raw.node_count, 0)
+  );
   const totalRelationships = toNumber(
     raw.total_relationships,
     toNumber(raw.relationship_count, 0)
@@ -90,7 +93,10 @@ const normalizeHealthStatus = (
 
   return {
     overall_status: normalizedStatus,
-    health_score: toNumber(raw.health_score, normalizedStatus === 'healthy' ? 100 : 50),
+    health_score: toNumber(
+      raw.health_score,
+      normalizedStatus === 'healthy' ? 100 : 50
+    ),
     total_entities: totalEntities,
     total_relationships: totalRelationships,
     issues: Array.isArray(raw.issues) ? raw.issues : [],
@@ -100,10 +106,19 @@ const normalizeHealthStatus = (
         raw.metrics?.entities_without_confidence,
         0
       ),
-      low_confidence_entities: toNumber(raw.metrics?.low_confidence_entities, 0),
+      low_confidence_entities: toNumber(
+        raw.metrics?.low_confidence_entities,
+        0
+      ),
       orphaned_relationships: toNumber(raw.metrics?.orphaned_relationships, 0),
-      duplicate_relationships: toNumber(raw.metrics?.duplicate_relationships, 0),
-      avg_relationship_strength: toNumber(raw.metrics?.avg_relationship_strength, 0),
+      duplicate_relationships: toNumber(
+        raw.metrics?.duplicate_relationships,
+        0
+      ),
+      avg_relationship_strength: toNumber(
+        raw.metrics?.avg_relationship_strength,
+        0
+      ),
       weakly_connected_components: toNumber(
         raw.metrics?.weakly_connected_components,
         0
@@ -136,9 +151,7 @@ export const GraphHealthMonitor: React.FC = () => {
       setLoading(true);
       const data = await api.get<
         Partial<GraphHealthStatus & BackendGraphHealthStatus>
-      >(
-        'knowledge-graph/health'
-      );
+      >('/knowledge-graph/health');
       setHealth(normalizeHealthStatus(data));
     } catch (error) {
       console.error('Error fetching health:', error);
@@ -212,7 +225,10 @@ export const GraphHealthMonitor: React.FC = () => {
 
   const connectivityScore =
     health.total_entities > 0
-      ? Math.max(0, 100 - (health.metrics.isolated_entities / health.total_entities) * 100)
+      ? Math.max(
+          0,
+          100 - (health.metrics.isolated_entities / health.total_entities) * 100
+        )
       : 0;
 
   return (
@@ -500,14 +516,10 @@ export const GraphHealthMonitor: React.FC = () => {
                   Connectivity
                 </span>
                 <span className="text-[var(--terminal-text-dim)]">
-                  {connectivityScore.toFixed(0)}
-                  %
+                  {connectivityScore.toFixed(0)}%
                 </span>
               </div>
-              <Progress
-                value={connectivityScore}
-                className="h-2"
-              />
+              <Progress value={connectivityScore} className="h-2" />
             </div>
             <div className="space-y-1">
               <div className="flex items-center justify-between text-xs font-mono">

@@ -127,7 +127,7 @@ export interface WeightExperimentResult {
 
 // --- Service ---
 
-const API_PREFIX = '/api/v1';
+const API_PREFIX = '';
 
 export const diagnosticsService = {
   async getTrace(
@@ -147,9 +147,7 @@ export const diagnosticsService = {
   },
 
   async getAggregateStats(hours = 24): Promise<AggregateStats> {
-    return api.get(
-      `${API_PREFIX}/diagnostics/aggregate?hours=${hours}`
-    );
+    return api.get(`${API_PREFIX}/diagnostics/aggregate?hours=${hours}`);
   },
 
   async experimentWeights(

@@ -51,50 +51,44 @@ interface EvaluationComparison {
 const evaluationApi = {
   // Evaluations
   getEvaluations: async (): Promise<Evaluation[]> => {
-    return api.get<Evaluation[]>('/api/v1/evaluations');
+    return api.get<Evaluation[]>('/evaluations');
   },
 
   getEvaluation: async (id: string): Promise<Evaluation> => {
-    return api.get<Evaluation>(`/api/v1/evaluations/${id}`);
+    return api.get<Evaluation>(`/evaluations/${id}`);
   },
 
   createEvaluation: async (
     data: CreateEvaluationRequest
   ): Promise<Evaluation> => {
-    return api.post<Evaluation>('/api/v1/evaluations', data);
+    return api.post<Evaluation>('/evaluations', data);
   },
 
   updateEvaluation: async (
     id: string,
     data: Partial<Evaluation>
   ): Promise<Evaluation> => {
-    return api.put<Evaluation>(`/api/v1/evaluations/${id}`, data);
+    return api.put<Evaluation>(`/evaluations/${id}`, data);
   },
 
   deleteEvaluation: async (id: string): Promise<void> => {
-    await api.delete(`/api/v1/evaluations/${id}`);
+    await api.delete(`/evaluations/${id}`);
   },
 
   // Evaluation Runs
   runEvaluation: async (evaluationId: string): Promise<EvaluationRun> => {
-    return api.post<EvaluationRun>(
-      `/api/v1/evaluations/${evaluationId}/run`
-    );
+    return api.post<EvaluationRun>(`/evaluations/${evaluationId}/run`);
   },
 
   getEvaluationRuns: async (evaluationId: string): Promise<EvaluationRun[]> => {
-    return api.get<EvaluationRun[]>(
-      `/api/v1/evaluations/${evaluationId}/runs`
-    );
+    return api.get<EvaluationRun[]>(`/evaluations/${evaluationId}/runs`);
   },
 
   getEvaluationRun: async (
     evaluationId: string,
     runId: string
   ): Promise<EvaluationRun> => {
-    return api.get<EvaluationRun>(
-      `/api/v1/evaluations/${evaluationId}/runs/${runId}`
-    );
+    return api.get<EvaluationRun>(`/evaluations/${evaluationId}/runs/${runId}`);
   },
 
   // Evaluation Results
@@ -103,7 +97,7 @@ const evaluationApi = {
     runId: string
   ): Promise<EvaluationMetrics[]> => {
     return api.get<EvaluationMetrics[]>(
-      `/api/v1/evaluations/${evaluationId}/runs/${runId}/results`
+      `/evaluations/${evaluationId}/runs/${runId}/results`
     );
   },
 
@@ -113,7 +107,7 @@ const evaluationApi = {
     format: 'csv' | 'json' | 'pdf'
   ): Promise<Blob> => {
     return api.request<Blob>(
-      `/api/v1/evaluations/${evaluationId}/runs/${runId}/export?format=${format}`,
+      `/evaluations/${evaluationId}/runs/${runId}/export?format=${format}`,
       { method: 'GET' }
     );
   },
@@ -123,22 +117,15 @@ const evaluationApi = {
     name: string;
     evaluations: string[];
   }): Promise<EvaluationComparison> => {
-    return api.post<EvaluationComparison>(
-      '/api/v1/evaluations/comparisons',
-      data
-    );
+    return api.post<EvaluationComparison>('/evaluations/comparisons', data);
   },
 
   getComparisons: async (): Promise<EvaluationComparison[]> => {
-    return api.get<EvaluationComparison[]>(
-      '/api/v1/evaluations/comparisons'
-    );
+    return api.get<EvaluationComparison[]>('/evaluations/comparisons');
   },
 
   getComparison: async (id: string): Promise<EvaluationComparison> => {
-    return api.get<EvaluationComparison>(
-      `/api/v1/evaluations/comparisons/${id}`
-    );
+    return api.get<EvaluationComparison>(`/evaluations/comparisons/${id}`);
   },
 };
 

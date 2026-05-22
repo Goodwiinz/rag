@@ -111,7 +111,7 @@ export interface ProcessingJobsListResponse {
 }
 
 class EntityService {
-  private baseUrl = 'knowledge-graph';
+  private baseUrl = '/knowledge-graph';
 
   /**
    * Get all entities with pagination (with retry)
@@ -131,9 +131,13 @@ class EntityService {
         params.connected_only = true;
       }
       const qs = new URLSearchParams(
-        Object.entries(params).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)])
+        Object.entries(params)
+          .filter(([, v]) => v !== undefined)
+          .map(([k, v]) => [k, String(v)])
       ).toString();
-      const response = await api.get(`${this.baseUrl}/entities${qs ? `?${qs}` : ''}`);
+      const response = await api.get(
+        `${this.baseUrl}/entities${qs ? `?${qs}` : ''}`
+      );
       return response as PaginatedEntitiesResponse;
     });
   }
@@ -146,7 +150,9 @@ class EntityService {
     offset: number = 0
   ): Promise<GraphEdge[]> {
     try {
-      const response = await api.get(`${this.baseUrl}/relationships?limit=${limit}&offset=${offset}`);
+      const response = await api.get(
+        `${this.baseUrl}/relationships?limit=${limit}&offset=${offset}`
+      );
       // Transform backend response to GraphEdge format
       const relationships = (response as any[]) || [];
       return relationships.map((rel) => ({
@@ -219,8 +225,11 @@ class EntityService {
     limit: number = 50
   ): Promise<Entity[]> {
     const qs = new URLSearchParams(
-      Object.entries({ query, entity_types: entityTypes?.join(','), limit: String(limit) })
-        .filter(([, v]) => v !== undefined) as [string, string][]
+      Object.entries({
+        query,
+        entity_types: entityTypes?.join(','),
+        limit: String(limit),
+      }).filter(([, v]) => v !== undefined) as [string, string][]
     ).toString();
     const response = await api.get<Entity[]>(
       `${this.baseUrl}/entities/search${qs ? `?${qs}` : ''}`
@@ -237,8 +246,13 @@ class EntityService {
     limit: number = 50
   ): Promise<GraphEdge[]> {
     const qs = new URLSearchParams(
-      Object.entries({ relationship_type: relationshipType, limit: String(limit) })
-        .filter(([, v]) => v !== undefined && v !== 'undefined') as [string, string][]
+      Object.entries({
+        relationship_type: relationshipType,
+        limit: String(limit),
+      }).filter(([, v]) => v !== undefined && v !== 'undefined') as [
+        string,
+        string,
+      ][]
     ).toString();
     const response = await api.get<GraphEdge[]>(
       `${this.baseUrl}/entities/${entityId}/relationships${qs ? `?${qs}` : ''}`
@@ -307,7 +321,7 @@ class EntityService {
   }
 
   async getProcessingJob(jobId: string): Promise<ProcessingJobStatus> {
-    return api.get<ProcessingJobStatus>(`processing/jobs/${jobId}`);
+    return api.get<ProcessingJobStatus>(`/processing/jobs/${jobId}`);
   }
 
   async listProcessingJobs(params?: {
@@ -319,10 +333,14 @@ class EntityService {
     const searchParams = new URLSearchParams();
     if (params?.status) searchParams.append('status', params.status);
     if (params?.job_type) searchParams.append('job_type', params.job_type);
-    if (params?.limit !== undefined) searchParams.append('limit', params.limit.toString());
-    if (params?.offset !== undefined) searchParams.append('offset', params.offset.toString());
+    if (params?.limit !== undefined)
+      searchParams.append('limit', params.limit.toString());
+    if (params?.offset !== undefined)
+      searchParams.append('offset', params.offset.toString());
     const qs = searchParams.toString();
-    return api.get<ProcessingJobsListResponse>(`processing/jobs${qs ? `?${qs}` : ''}`);
+    return api.get<ProcessingJobsListResponse>(
+      `/processing/jobs${qs ? `?${qs}` : ''}`
+    );
   }
 
   /**
@@ -335,7 +353,9 @@ class EntityService {
   ): Promise<Array<{ entity: GraphNode; similarity: number }>> {
     const response = await api.get<
       Array<{ entity: GraphNode; similarity: number }>
-    >(`${this.baseUrl}/entities/${entityId}/similar?limit=${limit}&min_similarity=${minSimilarity}`);
+    >(
+      `${this.baseUrl}/entities/${entityId}/similar?limit=${limit}&min_similarity=${minSimilarity}`
+    );
     return response;
   }
 

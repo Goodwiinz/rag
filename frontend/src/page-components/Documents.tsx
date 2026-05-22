@@ -35,7 +35,9 @@ const Documents: React.FC = () => {
     try {
       // TODO: Implement actual download functionality
       console.log('Downloading document:', doc.id);
-      const blob = await api.request<Blob>(`/api/documents/${doc.id}/download`, { method: 'GET' });
+      const blob = await api.request<Blob>(`/documents/${doc.id}/download`, {
+        method: 'GET',
+      });
       const url = window.URL.createObjectURL(blob);
       const a = window.document.createElement('a');
       a.href = url;
@@ -54,12 +56,15 @@ const Documents: React.FC = () => {
     console.log('Sharing document:', document.id);
     // For now, just copy the URL to clipboard
     const shareUrl = `${window.location.origin}/documents/${document.id}`;
-    navigator.clipboard.writeText(shareUrl).then(() => {
-      // TODO: Show success toast
-      console.log('Document URL copied to clipboard');
-    }).catch((error) => {
-      console.error('Failed to copy URL:', error);
-    });
+    navigator.clipboard
+      .writeText(shareUrl)
+      .then(() => {
+        // TODO: Show success toast
+        console.log('Document URL copied to clipboard');
+      })
+      .catch((error) => {
+        console.error('Failed to copy URL:', error);
+      });
   };
 
   const handleEditMetadata = (document: Document) => {
@@ -72,11 +77,14 @@ const Documents: React.FC = () => {
     setEditingDocument(null);
   };
 
-  const handleSaveMetadata = async (documentId: string, metadata: Partial<Document>) => {
+  const handleSaveMetadata = async (
+    documentId: string,
+    metadata: Partial<Document>
+  ) => {
     try {
       // TODO: Implement actual metadata save functionality
       console.log('Saving metadata for document:', documentId, metadata);
-      await api.patch(`/api/documents/${documentId}/metadata`, metadata);
+      await api.patch(`/documents/${documentId}/metadata`, metadata);
 
       // TODO: Show success toast and refresh documents
       console.log('Metadata saved successfully');

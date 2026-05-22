@@ -120,9 +120,10 @@ export class APIClient {
       ...fetchOptions
     } = options;
 
-    const url = endpoint.startsWith('http')
-      ? endpoint
-      : `${this.baseURL}${endpoint}`;
+    const url =
+      endpoint.startsWith('http') || endpoint.startsWith('/api/')
+        ? endpoint
+        : `${this.baseURL}/${endpoint.replace(/^\//, '')}`;
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeout);
@@ -187,7 +188,9 @@ export class APIClient {
     await this.ensureAuth();
 
     const response = await fetch(
-      endpoint.startsWith('http') ? endpoint : `${this.baseURL}${endpoint}`,
+      endpoint.startsWith('http') || endpoint.startsWith('/api/')
+        ? endpoint
+        : `${this.baseURL}/${endpoint.replace(/^\//, '')}`,
       {
         ...options,
         headers: {
@@ -330,9 +333,10 @@ export class APIClient {
   ): Promise<T> {
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
-      const url = endpoint.startsWith('http')
-        ? endpoint
-        : `${this.baseURL}${endpoint}`;
+      const url =
+        endpoint.startsWith('http') || endpoint.startsWith('/api/')
+          ? endpoint
+          : `${this.baseURL}/${endpoint.replace(/^\//, '')}`;
 
       xhr.open('POST', url);
 
@@ -387,7 +391,9 @@ export class APIClient {
     await this.ensureAuth();
 
     const response = await fetch(
-      url.startsWith('http') ? url : `${this.baseURL}${url}`,
+      url.startsWith('http') || url.startsWith('/api/')
+        ? url
+        : `${this.baseURL}/${url.replace(/^\//, '')}`,
       {
         headers: this.getHeaders(),
       }

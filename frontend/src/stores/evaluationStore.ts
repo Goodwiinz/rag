@@ -1,6 +1,11 @@
 import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
-import { Evaluation, EvaluationConfig, EvaluationResults, ComparisonData } from '@/types';
+import {
+  Evaluation,
+  EvaluationConfig,
+  EvaluationResults,
+  ComparisonData,
+} from '@/types';
 import { api } from '@/services/api-client';
 
 interface EvaluationState {
@@ -48,7 +53,9 @@ interface EvaluationState {
   removeEvaluation: (id: string) => void;
   setEvaluationsLoading: (loading: boolean) => void;
   setEvaluationsError: (error: string | null) => void;
-  setEvaluationsPagination: (pagination: Partial<EvaluationState['evaluationsPagination']>) => void;
+  setEvaluationsPagination: (
+    pagination: Partial<EvaluationState['evaluationsPagination']>
+  ) => void;
 
   setSelectedEvaluations: (ids: string[]) => void;
   toggleEvaluationSelection: (id: string) => void;
@@ -105,7 +112,8 @@ export const useEvaluationStore = create<EvaluationState>()(
       sortOrder: 'desc',
 
       // Actions
-      setCurrentEvaluation: (evaluation) => set({ currentEvaluation: evaluation }),
+      setCurrentEvaluation: (evaluation) =>
+        set({ currentEvaluation: evaluation }),
 
       setEvaluationConfig: (config) => set({ evaluationConfig: config }),
 
@@ -121,7 +129,7 @@ export const useEvaluationStore = create<EvaluationState>()(
       updateEvaluation: (id, updates) => {
         const { evaluations } = get();
         set({
-          evaluations: evaluations.map(evaluation =>
+          evaluations: evaluations.map((evaluation) =>
             evaluation.id === id ? { ...evaluation, ...updates } : evaluation
           ),
         });
@@ -129,7 +137,9 @@ export const useEvaluationStore = create<EvaluationState>()(
 
       removeEvaluation: (id) => {
         const { evaluations } = get();
-        set({ evaluations: evaluations.filter(evaluation => evaluation.id !== id) });
+        set({
+          evaluations: evaluations.filter((evaluation) => evaluation.id !== id),
+        });
       },
 
       setEvaluationsLoading: (loading) => set({ evaluationsLoading: loading }),
@@ -148,7 +158,11 @@ export const useEvaluationStore = create<EvaluationState>()(
       toggleEvaluationSelection: (id) => {
         const { selectedEvaluations } = get();
         if (selectedEvaluations.includes(id)) {
-          set({ selectedEvaluations: selectedEvaluations.filter(eid => eid !== id) });
+          set({
+            selectedEvaluations: selectedEvaluations.filter(
+              (eid) => eid !== id
+            ),
+          });
         } else {
           set({ selectedEvaluations: [...selectedEvaluations, id] });
         }
@@ -158,7 +172,8 @@ export const useEvaluationStore = create<EvaluationState>()(
 
       setComparisonLoading: (loading) => set({ comparisonLoading: loading }),
 
-      setIsCreatingEvaluation: (creating) => set({ isCreatingEvaluation: creating }),
+      setIsCreatingEvaluation: (creating) =>
+        set({ isCreatingEvaluation: creating }),
 
       setCreationStep: (step) => set({ creationStep: step }),
 
@@ -179,12 +194,17 @@ export const useEvaluationStore = create<EvaluationState>()(
         set({ isCreatingEvaluation: true, creationErrors: {} });
 
         try {
-          const evaluation = await api.post<Evaluation>('/api/evaluations', config);
+          const evaluation = await api.post<Evaluation>('/evaluations', config);
           get().addEvaluation(evaluation);
           set({ currentEvaluation: evaluation, isCreatingEvaluation: false });
         } catch (error) {
           set({
-            creationErrors: { general: error instanceof Error ? error.message : 'Failed to create evaluation' },
+            creationErrors: {
+              general:
+                error instanceof Error
+                  ? error.message
+                  : 'Failed to create evaluation',
+            },
             isCreatingEvaluation: false,
           });
         }
@@ -192,7 +212,7 @@ export const useEvaluationStore = create<EvaluationState>()(
 
       runEvaluation: async (id) => {
         try {
-          await api.post(`/api/evaluations/${id}/run`);
+          await api.post(`/evaluations/${id}/run`);
           get().updateEvaluation(id, { status: 'running' });
         } catch (error) {
           console.error('Failed to run evaluation:', error);
@@ -203,7 +223,10 @@ export const useEvaluationStore = create<EvaluationState>()(
         set({ comparisonLoading: true });
 
         try {
-          const comparisonData = await api.post<ComparisonData>('/api/evaluations/compare', { evaluationIds });
+          const comparisonData = await api.post<ComparisonData>(
+            '/evaluations/compare',
+            { evaluationIds }
+          );
           set({ comparisonData, comparisonLoading: false });
         } catch (error) {
           set({
@@ -219,7 +242,10 @@ export const useEvaluationStore = create<EvaluationState>()(
         if (!currentEvaluation) return;
 
         try {
-          const blob = await api.request<Blob>(`/api/evaluations/${currentEvaluation.id}/export?format=${format}`, { method: 'GET' });
+          const blob = await api.request<Blob>(
+            `/evaluations/${currentEvaluation.id}/export?format=${format}`,
+            { method: 'GET' }
+          );
           const url = window.URL.createObjectURL(blob);
           const a = document.createElement('a');
           a.href = url;
@@ -240,14 +266,21 @@ export const useEvaluationStore = create<EvaluationState>()(
 );
 
 // Selector hooks
-export const useCurrentEvaluation = () => useEvaluationStore((state) => state.currentEvaluation);
-export const useEvaluationConfig = () => useEvaluationStore((state) => state.evaluationConfig);
-export const useEvaluationResults = () => useEvaluationStore((state) => state.evaluationResults);
-export const useEvaluationsList = () => useEvaluationStore((state) => state.evaluations);
-export const useSelectedEvaluations = () => useEvaluationStore((state) => state.selectedEvaluations);
-export const useComparisonData = () => useEvaluationStore((state) => state.comparisonData);
-export const useCreationState = () => useEvaluationStore((state) => ({
-  isCreating: state.isCreatingEvaluation,
-  step: state.creationStep,
-  errors: state.creationErrors,
-}));
+export const useCurrentEvaluation = () =>
+  useEvaluationStore((state) => state.currentEvaluation);
+export const useEvaluationConfig = () =>
+  useEvaluationStore((state) => state.evaluationConfig);
+export const useEvaluationResults = () =>
+  useEvaluationStore((state) => state.evaluationResults);
+export const useEvaluationsList = () =>
+  useEvaluationStore((state) => state.evaluations);
+export const useSelectedEvaluations = () =>
+  useEvaluationStore((state) => state.selectedEvaluations);
+export const useComparisonData = () =>
+  useEvaluationStore((state) => state.comparisonData);
+export const useCreationState = () =>
+  useEvaluationStore((state) => ({
+    isCreating: state.isCreatingEvaluation,
+    step: state.creationStep,
+    errors: state.creationErrors,
+  }));
