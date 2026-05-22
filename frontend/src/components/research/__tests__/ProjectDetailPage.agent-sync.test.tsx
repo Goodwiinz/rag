@@ -120,6 +120,7 @@ describe('ProjectDetailPage agent sync', () => {
       projectNotes: [],
       bibliography: null,
       loading: false,
+      mutating: false,
       documentsLoading: false,
       notesLoading: false,
       error: null,
