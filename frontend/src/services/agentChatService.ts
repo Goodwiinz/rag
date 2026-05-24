@@ -190,8 +190,8 @@ class AgentChatService {
         if (text) {
           try {
             const parsed = JSON.parse(text);
-            backendMessage =
-              parsed?.detail || parsed?.error || parsed?.message || text;
+            const raw = parsed?.detail || parsed?.error || parsed?.message || text;
+            backendMessage = typeof raw === 'string' ? raw : (raw?.message || JSON.stringify(raw));
           } catch {
             backendMessage = text.slice(0, 500);
           }
@@ -325,8 +325,8 @@ class AgentChatService {
         if (text) {
           try {
             const parsed = JSON.parse(text);
-            backendMessage =
-              parsed?.detail || parsed?.error || parsed?.message || text;
+            const raw = parsed?.detail || parsed?.error || parsed?.message || text;
+            backendMessage = typeof raw === 'string' ? raw : (raw?.message || JSON.stringify(raw));
           } catch {
             backendMessage = text.slice(0, 500);
           }
