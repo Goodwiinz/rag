@@ -601,11 +601,15 @@ async def general_exception_handler(request: Request, exc: Exception):
     """Handle general exceptions"""
     logger.error("Unhandled exception: %s", exc, exc_info=True)
 
+    message = "Internal server error"
+    if settings.ENVIRONMENT not in ("production",):
+        message = f"{type(exc).__name__}: {exc}"
+
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         content={
             "error": {
-                "message": "Internal server error",
+                "message": message,
                 "status_code": 500,
                 "type": "internal_error",
             }
