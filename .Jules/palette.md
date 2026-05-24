@@ -10,3 +10,7 @@
 ## 2024-05-18 - Stylized Button Accessibility
 **Learning:** Custom semantic buttons with unconventional or stylized visible text (e.g., 'TRANSMIT' or 'HALT') fail to provide clear context for screen reader users relying on standard labels.
 **Action:** Always ensure explicitly declared `aria-label`s (like 'Send message' or 'Stop generation') are applied for screen reader compatibility, rather than relying solely on `title` attributes or the visible text.
+
+## 2024-05-18 - Added focus-visible classes and semantic type="button" to close icon buttons
+**Learning:** Found custom inline `<button>` elements (e.g. `×` tags for tags and quick filters, retry processing icons) that lacked explicit focus states (`focus-visible:ring-2`) and proper semantic defaults (`type="button"`). They only relied on hover styles for interaction feedback, making keyboard navigation difficult and increasing the risk of accidental form submissions when embedded in forms.
+**Action:** Applied `type="button"` and `focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1 rounded-sm` (or similar utility classes) to small interactive icons and quick filter pills across `ProcessingStatus`, `DocumentCard`, `DocumentMetadataEditor` and `SearchInterface` components to enforce consistent keyboard accessibility indicators.

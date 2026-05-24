@@ -348,9 +348,10 @@ export const ProcessingStatus: React.FC<ProcessingStatusProps> = ({
           <span className="text-xs text-muted-foreground w-8 text-right">{overallProgress}%</span>
           {hasError && onRetry && (
             <button
+              type="button"
               onClick={onRetry}
-              className="p-1 text-muted-foreground hover:text-foreground hover:bg-accent rounded transition-colors"
-              aria-label="Retry processing"
+              className="p-1 text-muted-foreground hover:text-foreground hover:bg-accent rounded transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1"
+              aria-label="Retry processing document"
             >
               <ArrowPathIcon className="h-3 w-3" />
             </button>
@@ -412,9 +413,10 @@ export const ProcessingStatus: React.FC<ProcessingStatusProps> = ({
           </div>
 
           <button
+            type="button"
             onClick={() => setExpanded(!expanded)}
-            className="p-2 text-muted-foreground hover:text-foreground hover:bg-accent rounded transition-colors"
-            aria-label={expanded ? "Collapse details" : "Expand details"}
+            className="p-2 text-muted-foreground hover:text-foreground hover:bg-accent rounded transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1"
+            aria-label={expanded ? "Collapse document details" : "Expand document details"}
           >
             <InformationCircleIcon className="h-5 w-5" />
           </button>
@@ -515,8 +517,9 @@ export const ProcessingStatus: React.FC<ProcessingStatusProps> = ({
         <div className="flex items-center space-x-2">
           {onViewDetails && (
             <button
+              type="button"
               onClick={onViewDetails}
-              className="text-sm text-primary hover:text-primary/80 transition-colors"
+              className="text-sm text-primary hover:text-primary/80 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 rounded-md px-2 py-1"
             >
               View Details
             </button>
@@ -524,8 +527,10 @@ export const ProcessingStatus: React.FC<ProcessingStatusProps> = ({
 
           {hasError && onRetry && (
             <button
+              type="button"
               onClick={onRetry}
-              className="inline-flex items-center px-3 py-1 text-sm font-medium text-primary hover:text-primary/80 transition-colors"
+              className="inline-flex items-center px-3 py-1 text-sm font-medium text-primary hover:text-primary/80 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 rounded-md"
+              aria-label="Retry processing document"
             >
               <ArrowPathIcon className="h-3 w-3 mr-1" />
               Retry

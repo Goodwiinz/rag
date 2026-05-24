@@ -159,12 +159,13 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
         data-selected={selected}
       >
         <button
+          type="button"
           onClick={(e) => {
             e.stopPropagation();
             handleSelect();
           }}
           className={cn(
-            'h-5 w-5 rounded border transition-colors flex items-center justify-center',
+            'h-5 w-5 rounded border transition-colors flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1',
             selected
               ? 'bg-primary border-primary text-primary-foreground'
               : 'bg-background border-input hover:border-primary'
