@@ -42,21 +42,21 @@ export function ProjectHeader({ project }: ProjectHeaderProps) {
   const router = useRouter();
 
   return (
-    <div className="mb-8 space-y-4">
+    <div className="mb-4 sm:mb-8 space-y-2 sm:space-y-4">
       {/* Back link */}
       <button
         onClick={() => router.push('/projects')}
-        className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+        className="inline-flex items-center gap-1.5 text-xs sm:text-sm text-muted-foreground hover:text-foreground transition-colors"
       >
-        <ArrowLeft className="h-4 w-4" />
+        <ArrowLeft className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
         Projects
       </button>
 
       {/* Hero card */}
-      <div className="rounded-xl border border-border bg-card p-6">
-        <div className="space-y-3">
-          <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+      <div className="rounded-xl border border-border bg-card p-4 sm:p-6">
+        <div className="space-y-2 sm:space-y-3">
+          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+            <h1 className="text-lg sm:text-2xl font-semibold tracking-tight text-foreground">
               {project.name}
             </h1>
             {project.project_type && (
@@ -75,12 +75,12 @@ export function ProjectHeader({ project }: ProjectHeaderProps) {
           </div>
 
           {project.description && (
-            <p className="text-sm text-muted-foreground leading-relaxed max-w-2xl">
+            <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed max-w-2xl line-clamp-2 sm:line-clamp-none">
               {project.description}
             </p>
           )}
 
-          <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-xs text-muted-foreground">
             {project.deadline && (
               <span className="inline-flex items-center gap-1">
                 <Calendar className="h-3 w-3" />
