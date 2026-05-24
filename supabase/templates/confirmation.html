@@ -31,7 +31,7 @@
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
                 <tr>
                   <td align="center">
-                    <a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=signup"
+                    <a href="{{ .SiteURL }}/verify-email?token_hash={{ .TokenHash }}&type=signup"
                        style="display:inline-block;padding:14px 32px;background-color:#D4A039;color:#0A0A0E;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.2em;text-decoration:none;border-radius:8px;">
                       Verify Identity
                     </a>
@@ -40,7 +40,7 @@
               </table>
               <!-- Fallback URL -->
               <p style="margin:24px 0 0 0;font-size:10px;color:#666;text-align:center;word-break:break-all;">
-                Or copy this link: {{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=signup
+                Or copy this link: {{ .SiteURL }}/verify-email?token_hash={{ .TokenHash }}&type=signup
               </p>
             </td>
           </tr>
