@@ -334,10 +334,9 @@ export function useChatStreaming(
                   .finishRun(currentThreadId, 'error');
               }
               // Show error as assistant message instead of blank bubble
-              const errorText = typeof error === 'string' ? error : (error?.message || JSON.stringify(error));
               const errorMsg: ChatPageMessage = {
                 role: 'assistant',
-                content: `Stream error: ${errorText}`,
+                content: `Stream error: ${error}`,
                 timestamp: Date.now(),
               };
               setMessages([...newMessages, errorMsg]);
