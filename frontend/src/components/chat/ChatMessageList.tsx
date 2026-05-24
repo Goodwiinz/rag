@@ -127,7 +127,7 @@ export const ChatMessageList = React.memo(function ChatMessageList({
                     timestamp: streamingTimestamp,
                   }}
                   index={messages.length}
-                  modelName="NOUS AGENT"
+                  modelName="NOUS"
                   isStreaming={true}
                   streamingContent={storeStreamingContent}
                   onCitationClick={onCitationClick}
@@ -148,12 +148,12 @@ export const ChatMessageList = React.memo(function ChatMessageList({
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 10, scale: 0.9 }}
               onClick={scrollToBottom}
-              className="flex items-center gap-2 px-4 py-2 rounded-full bg-[var(--phosphor-green)] text-[var(--terminal-bg)] text-xs font-bold shadow-[0_0_20px_var(--phosphor-green-glow)] hover:shadow-[0_0_30px_var(--phosphor-green-glow)] transition-all pointer-events-auto border border-[var(--terminal-bg)]"
-              style={{ fontFamily: "'JetBrains Mono', monospace" }}
+              className="flex items-center justify-center w-9 h-9 sm:w-auto sm:h-auto sm:gap-2 sm:px-4 sm:py-2 rounded-full bg-[var(--nous-sol)] text-[var(--nous-erebus)] text-xs font-semibold shadow-md hover:shadow-lg transition-all pointer-events-auto"
+              style={{ fontFamily: 'var(--nous-font-ui)' }}
             >
               <ArrowDown className="w-4 h-4" />
-              <span className="hidden sm:inline tracking-wider">
-                NEW MESSAGES
+              <span className="hidden sm:inline">
+                New messages
               </span>
             </motion.button>
           </div>
