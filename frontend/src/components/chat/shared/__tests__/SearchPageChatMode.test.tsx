@@ -13,8 +13,8 @@ vi.mock('@/components/search/ResultsPanel', () => ({
   ResultsPanel: () => <div>Results Panel</div>,
 }));
 
-vi.mock('@/components/chat/shared/TerminalChatBubble', () => ({
-  TerminalChatBubble: () => <div>Bubble</div>,
+vi.mock('@/components/chat/shared/ChatBubble', () => ({
+  ChatBubble: () => <div>Bubble</div>,
 }));
 
 vi.mock('@/components/chat/CitationPanel', () => ({

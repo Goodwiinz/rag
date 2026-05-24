@@ -53,7 +53,7 @@ const LOGS = [
   "Normalizing batch vectors..."
 ];
 
-export function HeroAgentCard({ className }: { className?: string }) {
+export function HeroProcessCard({ className }: { className?: string }) {
   const [stepIndex, setStepIndex] = useState(0);
   const [logIndex, setLogIndex] = useState(0);
   

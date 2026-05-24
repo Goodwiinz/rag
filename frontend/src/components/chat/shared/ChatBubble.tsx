@@ -6,7 +6,7 @@ import { Activity, Check, Copy, RefreshCw } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { CitationRenderer } from '../CitationRenderer';
 
-export interface TerminalChatBubbleMessage {
+export interface ChatBubbleMessage {
   id?: string;
   role: 'user' | 'assistant';
   content: string;
@@ -15,8 +15,8 @@ export interface TerminalChatBubbleMessage {
   diagnosticsTraceId?: string;
 }
 
-export interface TerminalChatBubbleProps {
-  message: TerminalChatBubbleMessage;
+export interface ChatBubbleProps {
+  message: ChatBubbleMessage;
   index: number;
   modelName?: string;
   isTyping?: boolean;
@@ -26,7 +26,7 @@ export interface TerminalChatBubbleProps {
   onCitationClick?: (citations: Citation[], clickedCitation: Citation) => void;
 }
 
-export function TerminalChatBubble({
+export function ChatBubble({
   message,
   index: _index,
   modelName,
@@ -35,7 +35,7 @@ export function TerminalChatBubble({
   streamingContent,
   onRetry,
   onCitationClick,
-}: TerminalChatBubbleProps) {
+}: ChatBubbleProps) {
   const isUser = message.role === 'user';
   const [copied, setCopied] = useState(false);
 
@@ -242,4 +242,4 @@ export function TerminalChatBubble({
   );
 }
 
-export default TerminalChatBubble;
+export default ChatBubble;

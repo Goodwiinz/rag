@@ -1,5 +1,5 @@
 /**
- * Chat Store - Zustand store for Terminal Observatory thread-centric chat system
+ * Chat Store - Zustand store for NOUS thread-centric chat system
  * Manages workspace, conversation, thread, and message state with persistence
  */
 

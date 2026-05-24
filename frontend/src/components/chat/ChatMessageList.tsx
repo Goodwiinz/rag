@@ -4,7 +4,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ArrowDown } from 'lucide-react';
 import { InlineAgentSummary } from '@/components/chat/shared/InlineAgentSummary';
-import { TerminalChatBubble } from '@/components/chat/shared/TerminalChatBubble';
+import { ChatBubble } from '@/components/chat/shared/ChatBubble';
 import type { ChatPageMessage } from '@/components/chat/shared/cloudMessageView';
 import type { Citation } from '@/utils/citationParser';
 
@@ -84,7 +84,7 @@ export const ChatMessageList = React.memo(function ChatMessageList({
                   !storeIsStreaming && (
                     <InlineAgentSummary threadId={activeThreadId} />
                   )}
-                <TerminalChatBubble
+                <ChatBubble
                   message={message}
                   index={index}
                   modelName={
@@ -120,7 +120,7 @@ export const ChatMessageList = React.memo(function ChatMessageList({
                 transition={{ duration: 0.3 }}
               >
                 <InlineAgentSummary threadId={activeThreadId} />
-                <TerminalChatBubble
+                <ChatBubble
                   message={{
                     role: 'assistant',
                     content: '',

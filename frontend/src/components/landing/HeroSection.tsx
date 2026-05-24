@@ -1,6 +1,6 @@
 'use client';
 
-import { HeroAgentCard } from '@/components/hero-agent-card';
+import { HeroProcessCard } from '@/components/hero-process-card';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import type { MotionValue } from 'framer-motion';
@@ -259,7 +259,7 @@ export function HeroSection({ isAuthenticated, scrollOpacity }: HeroSectionProps
                 }}
                 className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-20 will-change-transform transform-gpu"
               >
-                <HeroAgentCard />
+                <HeroProcessCard />
               </motion.div>
 
               {/* Decorative Elements — hidden on mobile to reduce animation load */}
