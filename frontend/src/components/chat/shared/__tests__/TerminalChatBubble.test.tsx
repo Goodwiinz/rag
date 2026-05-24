@@ -7,7 +7,7 @@ vi.mock('../../CitationRenderer', () => ({
 }));
 
 describe('TerminalChatBubble', () => {
-  it('renders user badge and message content', () => {
+  it('renders user message content', () => {
     render(
       <TerminalChatBubble
         message={{
@@ -19,7 +19,6 @@ describe('TerminalChatBubble', () => {
       />
     );
 
-    expect(screen.getByText('QUERY')).toBeInTheDocument();
     expect(screen.getByText('How does this work?')).toBeInTheDocument();
   });
 

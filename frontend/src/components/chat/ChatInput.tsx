@@ -139,29 +139,26 @@ export function ChatInput({
   const isNearLimit = charCount > maxChars * 0.8;
 
   return (
-    <div className="z-40 bg-[var(--terminal-bg)] pt-2 pb-4 px-2 sm:px-4 border-t border-[var(--terminal-border)] safe-area-bottom">
+    <div className="z-40 pt-2 pb-4 px-2 sm:px-4 safe-area-bottom">
       <div className="max-w-4xl mx-auto">
         <motion.div
           className={cn(
-            'relative rounded-lg overflow-visible transition-all duration-300',
-            'bg-[var(--terminal-surface)] border border-[var(--terminal-border)]',
-            isFocused &&
-              'border-[var(--phosphor-green)]/30 ring-1 ring-[var(--phosphor-green)]/10 shadow-[0_0_15px_-5px_rgba(212,160,57,0.1)]'
+            'nous-glass nous-composer-glow relative rounded-2xl overflow-visible',
+            isFocused && 'nous-composer-glow'
           )}
+          animate={isFocused ? { y: -2 } : { y: 0 }}
+          transition={{ type: 'spring', stiffness: 400, damping: 30 }}
         >
-          {/* Top Bar: Agent Label, RAG Toggle & Status */}
-          <div className="flex items-center justify-between px-2 sm:px-4 py-1.5 bg-[var(--terminal-elevated)]/50 border-b border-[var(--terminal-border)] rounded-t-xl gap-2 overflow-x-auto">
+          {/* Toolbar row */}
+          <div className="flex items-center justify-between px-3 sm:px-4 py-2 border-b border-[var(--nous-border-1)] gap-2 overflow-x-auto">
             <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-              <div className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-1.5 rounded-lg border bg-[var(--terminal-surface)] border-[var(--terminal-border)] shrink-0">
-                <Bot className="w-3.5 h-3.5 text-[var(--phosphor-green)]" />
+              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[var(--nous-sol)]/10 border border-[var(--nous-sol)]/20 shrink-0">
+                <Bot className="w-3.5 h-3.5 text-[var(--nous-sol)]" />
                 <span
-                  className="text-[var(--terminal-text)] text-xs hidden sm:inline"
-                  style={{ fontFamily: "'JetBrains Mono', monospace" }}
+                  className="text-[var(--nous-fg-1)] text-[11px] font-medium hidden sm:inline"
+                  style={{ fontFamily: 'var(--nous-font-ui)' }}
                 >
-                  NOUS AGENT
-                </span>
-                <span className="px-1 py-0.5 rounded bg-[var(--phosphor-green)]/20 text-[var(--phosphor-green)] text-[8px] uppercase">
-                  Agent
+                  NOUS
                 </span>
               </div>
               <RAGToggle
@@ -180,30 +177,31 @@ export function ChatInput({
                 </div>
               )}
             </div>
-            <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+            <div className="flex items-center gap-2 shrink-0">
               {isRAGLoading && (
                 <span
-                  className="text-[9px] text-[var(--phosphor-green)] animate-pulse hidden sm:inline"
-                  style={{ fontFamily: "'JetBrains Mono', monospace" }}
+                  className="text-[9px] text-[var(--nous-sol)] animate-pulse hidden sm:inline"
+                  style={{ fontFamily: 'var(--nous-font-mono)' }}
                 >
-                  RETRIEVING...
+                  RETRIEVING
                 </span>
               )}
               <span
                 className={cn(
                   'text-[9px] transition-colors whitespace-nowrap',
                   isNearLimit
-                    ? 'text-[var(--amber-gold)]'
-                    : 'text-[var(--terminal-text-dim)]'
+                    ? 'text-[var(--nous-corona)]'
+                    : 'text-[var(--nous-fg-3)]'
                 )}
-                style={{ fontFamily: "'JetBrains Mono', monospace" }}
+                style={{ fontFamily: 'var(--nous-font-mono)' }}
               >
                 {charCount}/{maxChars}
               </span>
             </div>
           </div>
 
-          <div className="p-2.5 sm:p-4">
+          {/* Textarea */}
+          <div className="p-3 sm:p-4">
             <textarea
               ref={textareaRef}
               value={value}
@@ -213,25 +211,27 @@ export function ChatInput({
               onBlur={() => setIsFocused(false)}
               placeholder="Message NOUS…"
               rows={1}
-              className="w-full bg-transparent text-[var(--terminal-text)] text-sm resize-none outline-none placeholder:text-[var(--terminal-text-dim)]/50 selection:bg-[var(--phosphor-green)]/20 selection:text-[var(--phosphor-green)]"
+              className="w-full bg-transparent text-[var(--nous-fg-1)] text-[15px] sm:text-base resize-none outline-none placeholder:text-[var(--nous-fg-3)]/60 selection:bg-[var(--nous-sol)]/20"
               style={{
-                fontFamily: "'JetBrains Mono', monospace",
+                fontFamily: 'var(--nous-font-body)',
+                lineHeight: '1.6',
                 minHeight: '44px',
                 maxHeight: '200px',
               }}
               disabled={isDisabled}
             />
 
-            <div className="flex items-center justify-between mt-2">
-              <div className="flex items-center gap-0.5 sm:gap-1">
+            {/* Action row */}
+            <div className="flex items-center justify-between mt-2 pt-1">
+              <div className="flex items-center gap-0.5">
                 <TooltipProvider>
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <label
-                        className="p-2.5 sm:p-2 rounded-lg hover:bg-[var(--terminal-elevated)] text-[var(--terminal-text-dim)] hover:text-[var(--terminal-text)] transition-colors group cursor-pointer inline-flex"
+                        className="p-2.5 sm:p-2 rounded-xl hover:bg-[var(--nous-sol)]/8 text-[var(--nous-fg-3)] hover:text-[var(--nous-fg-1)] transition-colors group cursor-pointer inline-flex"
                         aria-label="Attach artifact"
                       >
-                        <Paperclip className="w-5 h-5 sm:w-4 sm:h-4 group-hover:text-[var(--phosphor-green)] transition-colors" />
+                        <Paperclip className="w-5 h-5 sm:w-[18px] sm:h-[18px] group-hover:text-[var(--nous-sol)] transition-colors" />
                         <input
                           type="file"
                           multiple
@@ -256,12 +256,12 @@ export function ChatInput({
                         disabled={!voiceSupported}
                         aria-pressed={isListening}
                         className={cn(
-                          'p-2.5 sm:p-2 rounded-lg transition-colors group',
+                          'p-2.5 sm:p-2 rounded-xl transition-colors group',
                           voiceSupported
-                            ? 'hover:bg-[var(--terminal-elevated)] text-[var(--terminal-text-dim)] hover:text-[var(--terminal-text)]'
-                            : 'text-[var(--terminal-text-dim)]/40 cursor-not-allowed',
+                            ? 'hover:bg-[var(--nous-sol)]/8 text-[var(--nous-fg-3)] hover:text-[var(--nous-fg-1)]'
+                            : 'text-[var(--nous-fg-3)]/40 cursor-not-allowed',
                           isListening &&
-                            'bg-[var(--phosphor-green)]/10 text-[var(--phosphor-green)]'
+                            'bg-[var(--nous-sol)]/10 text-[var(--nous-sol)]'
                         )}
                         aria-label={
                           !voiceSupported
@@ -273,10 +273,10 @@ export function ChatInput({
                       >
                         <Mic
                           className={cn(
-                            'w-5 h-5 sm:w-4 sm:h-4 transition-colors',
+                            'w-5 h-5 sm:w-[18px] sm:h-[18px] transition-colors',
                             isListening
-                              ? 'text-[var(--phosphor-green)] animate-pulse'
-                              : 'group-hover:text-[var(--phosphor-green)]'
+                              ? 'text-[var(--nous-sol)] animate-pulse'
+                              : 'group-hover:text-[var(--nous-sol)]'
                           )}
                         />
                       </button>
@@ -295,11 +295,11 @@ export function ChatInput({
               {isLoading ? (
                 <button
                   onClick={onStop}
-                  className="flex items-center gap-2 px-4 py-2.5 sm:py-2 rounded-lg bg-[var(--error-red)]/10 border border-[var(--error-red)]/50 text-[var(--error-red)] text-[10px] font-bold hover:bg-[var(--error-red)]/20 transition-all shadow-[0_0_10px_rgba(239,68,68,0.05)] min-h-[44px] sm:min-h-0"
-                  style={{ fontFamily: "'JetBrains Mono', monospace" }}
+                  className="flex items-center gap-2 px-4 py-2.5 sm:py-2 rounded-full bg-[var(--nous-mars)]/10 border border-[var(--nous-mars)]/40 text-[var(--nous-mars)] text-[11px] font-semibold hover:bg-[var(--nous-mars)]/20 transition-all min-h-[44px] sm:min-h-0"
+                  style={{ fontFamily: 'var(--nous-font-ui)' }}
                 >
                   <Square className="w-3.5 h-3.5 sm:w-3 sm:h-3" />
-                  HALT
+                  Stop
                 </button>
               ) : (
                 <button
@@ -307,15 +307,12 @@ export function ChatInput({
                   disabled={!value.trim() || isDisabled}
                   title="Send message (Enter)"
                   className={cn(
-                    'flex items-center gap-1.5 sm:gap-2 px-4 sm:px-6 py-2.5 sm:py-2 rounded text-[10px] font-bold tracking-widest transition-all duration-300 min-h-[44px] sm:min-h-0',
-                    value.trim() && !isDisabled
-                      ? 'bg-[var(--phosphor-green)] text-[#0A0A0A] hover:bg-[var(--phosphor-green)]/90 hover:shadow-[0_0_15px_rgba(212,160,57,0.3)] active:scale-95'
-                      : 'bg-transparent text-[var(--terminal-text-dim)] border border-[var(--terminal-border)] cursor-not-allowed'
+                    'nous-send-pill flex items-center gap-1.5 px-5 sm:px-6 py-2.5 sm:py-2 text-[12px] min-h-[44px] sm:min-h-0',
+                    !(value.trim() && !isDisabled) && 'opacity-100'
                   )}
-                  style={{ fontFamily: "'JetBrains Mono', monospace" }}
                 >
-                  <span className="hidden sm:inline">TRANSMIT</span>
                   <ArrowUp className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
+                  <span className="hidden sm:inline">Send</span>
                 </button>
               )}
             </div>
