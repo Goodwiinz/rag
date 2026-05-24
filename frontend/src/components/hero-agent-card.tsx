@@ -88,11 +88,11 @@ export function HeroAgentCard({ className }: { className?: string }) {
     return () => clearInterval(interval);
   }, []);
 
-  // Log Cycle
+  // Log Cycle — slower on mobile to reduce mount/unmount churn
   useEffect(() => {
     const interval = setInterval(() => {
       setLogIndex((prev) => (prev + 1) % LOGS.length);
-    }, 800);
+    }, 2000);
     return () => clearInterval(interval);
   }, []);
 
@@ -109,7 +109,7 @@ export function HeroAgentCard({ className }: { className?: string }) {
           transformStyle: "preserve-3d",
         }}
         className={cn(
-          "terminal-window terminal-scanlines w-80 p-0 overflow-hidden border border-[var(--terminal-border)] shadow-[0_20px_50px_rgba(0,0,0,0.5)] bg-[var(--terminal-bg)]/95 backdrop-blur-2xl relative transition-shadow duration-500",
+          "terminal-window terminal-scanlines w-80 p-0 overflow-hidden border border-[var(--terminal-border)] shadow-[0_20px_50px_rgba(0,0,0,0.5)] bg-[var(--terminal-bg)] relative transition-shadow duration-500",
           "group-hover:shadow-[0_30px_60px_rgba(212,160,57,0.15)] group-hover:border-[var(--phosphor-green-dim)]",
           className
         )}
@@ -118,7 +118,7 @@ export function HeroAgentCard({ className }: { className?: string }) {
         <div className="absolute inset-0 opacity-[0.08] pointer-events-none terminal-grid animate-float" />
         
         {/* Holo Gradient Blob */}
-        <div className="absolute -top-20 -right-20 w-40 h-40 bg-[var(--phosphor-green)]/20 blur-[60px] rounded-full pointer-events-none mix-blend-screen animate-pulse-glow" />
+        <div className="hidden sm:block absolute -top-20 -right-20 w-40 h-40 bg-[var(--phosphor-green)]/20 blur-[60px] rounded-full pointer-events-none mix-blend-screen" />
 
         {/* Scan Beam */}
         <div className="scan-beam opacity-50" />
@@ -147,11 +147,11 @@ export function HeroAgentCard({ className }: { className?: string }) {
             <AnimatePresence mode="wait">
               <motion.div
                 key={stepIndex}
-                initial={{ opacity: 0, scale: 0.95, filter: "blur(4px)" }}
-                animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }}
-                exit={{ opacity: 0, scale: 1.05, filter: "blur(2px)" }}
-                transition={{ duration: 0.4, ease: "circOut" }}
-                className="space-y-3"
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -6 }}
+                transition={{ duration: 0.3, ease: "circOut" }}
+                className="space-y-3 will-change-transform"
               >
                 <div className="flex gap-2 items-center">
                   <div className={cn("p-1.5 rounded-md bg-opacity-10 backdrop-blur-sm border border-opacity-20", currentStep.bg, currentStep.color.replace('text-', 'border-'))}>
@@ -167,22 +167,15 @@ export function HeroAgentCard({ className }: { className?: string }) {
                   </div>
                 </div>
                 
-                {/* Progress Bar with Data Stream */}
+                {/* Progress Bar */}
                 <div className="relative h-2 w-full bg-[#11111b] rounded-sm overflow-hidden border border-[var(--terminal-border)]">
-                  <motion.div 
-                    initial={{ width: "0%" }}
-                    animate={{ width: "100%" }}
+                  <motion.div
+                    initial={{ scaleX: 0 }}
+                    animate={{ scaleX: 1 }}
                     transition={{ duration: 3.5, ease: "linear" }}
-                    className={cn("h-full relative overflow-hidden", currentStep.bg)}
-                  >
-                     {/* Striped barber pole effect */}
-                    <div className="absolute inset-0 opacity-40" 
-                         style={{ 
-                           backgroundImage: 'linear-gradient(45deg,rgba(255,255,255,.15) 25%,transparent 25%,transparent 50%,rgba(255,255,255,.15) 50%,rgba(255,255,255,.15) 75%,transparent 75%,transparent)', 
-                           backgroundSize: '1rem 1rem' 
-                         }} 
-                    />
-                  </motion.div>
+                    style={{ transformOrigin: "left" }}
+                    className={cn("h-full will-change-transform", currentStep.bg)}
+                  />
                 </div>
 
                 <div className="flex items-center justify-between text-[9px]">

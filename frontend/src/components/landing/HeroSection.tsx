@@ -7,15 +7,10 @@ import type { MotionValue } from 'framer-motion';
 import { motion } from 'framer-motion';
 import {
   ArrowRight,
-  Box,
-  Brain,
   Database,
-  FileCode,
   LayoutDashboard,
-  Link as LinkIcon,
   Lock,
   Network,
-  Share2,
   Shield,
   Terminal,
   Zap,
@@ -41,43 +36,27 @@ const Badge = ({
   </div>
 );
 
-const TechTicker = () => {
-  const techs = [
-    { name: 'PYTHON', icon: FileCode },
-    { name: 'REACT', icon: Box },
-    { name: 'OPENAI', icon: Brain },
-    { name: 'LANGCHAIN', icon: LinkIcon },
-    { name: 'PINECONE', icon: Database },
-    { name: 'DOCKER', icon: Box },
-    { name: 'KUBERNETES', icon: Network },
-    { name: 'GRAPHQL', icon: Share2 },
-  ];
+const TECH_NAMES = ['PYTHON', 'REACT', 'OPENAI', 'LANGCHAIN', 'PINECONE', 'DOCKER', 'KUBERNETES', 'GRAPHQL'];
 
-  return (
-    <div className="w-full bg-[var(--terminal-bg)] border-y border-[var(--terminal-border)] overflow-hidden py-4 relative">
-      <div className="absolute inset-y-0 left-0 w-32 bg-gradient-to-r from-[var(--terminal-bg)] to-transparent z-10" />
-      <div className="absolute inset-y-0 right-0 w-32 bg-gradient-to-l from-[var(--terminal-bg)] to-transparent z-10" />
-
-      <motion.div
-        className="flex gap-12 whitespace-nowrap"
-        animate={{ x: [0, -1000] }}
-        transition={{ repeat: Infinity, duration: 40, ease: 'linear' }}
-      >
-        {[...techs, ...techs, ...techs].map((tech, i) => (
-          <div
-            key={i}
-            className="flex items-center gap-3 opacity-30 hover:opacity-100 transition-opacity cursor-default group"
-          >
-            <tech.icon className="w-5 h-5 group-hover:text-[var(--phosphor-green)] transition-colors" />
-            <span className="font-mono text-xs font-bold tracking-widest text-[var(--terminal-text)]">
-              {tech.name}
-            </span>
-          </div>
-        ))}
-      </motion.div>
+const TechTicker = () => (
+  <div className="w-full bg-[var(--terminal-bg)] border-y border-[var(--terminal-border)] overflow-hidden py-4 relative">
+    <div className="absolute inset-y-0 left-0 w-20 bg-gradient-to-r from-[var(--terminal-bg)] to-transparent z-10" />
+    <div className="absolute inset-y-0 right-0 w-20 bg-gradient-to-l from-[var(--terminal-bg)] to-transparent z-10" />
+    <div
+      className="flex gap-12 whitespace-nowrap will-change-transform"
+      style={{ animation: 'ticker-scroll 30s linear infinite' }}
+    >
+      {[...TECH_NAMES, ...TECH_NAMES].map((name, i) => (
+        <span
+          key={i}
+          className="font-mono text-xs font-bold tracking-widest text-[var(--terminal-text)] opacity-30"
+        >
+          {name}
+        </span>
+      ))}
     </div>
-  );
-};
+  </div>
+);
 
 // --- Main Component ---
 
@@ -250,10 +229,10 @@ export function HeroSection({ isAuthenticated, scrollOpacity }: HeroSectionProps
             className="relative h-[500px] lg:h-[600px] flex items-center justify-center pointer-events-none"
           >
             <div className="relative w-full max-w-[600px] aspect-square">
-              {/* Concentric Rings */}
-              <div className="absolute inset-0 rounded-full border border-[var(--terminal-border)] opacity-20 animate-[spin_120s_linear_infinite]" />
-              <div className="absolute inset-12 rounded-full border border-dashed border-[var(--terminal-border)] opacity-20 animate-[spin_60s_linear_infinite_reverse]" />
-              <div className="absolute inset-32 rounded-full border border-[var(--phosphor-green)] opacity-5 animate-[spin_30s_linear_infinite]" />
+              {/* Concentric Rings — GPU-accelerated */}
+              <div className="absolute inset-0 rounded-full border border-[var(--terminal-border)] opacity-20 animate-[spin_120s_linear_infinite] will-change-transform transform-gpu" />
+              <div className="absolute inset-12 rounded-full border border-dashed border-[var(--terminal-border)] opacity-20 animate-[spin_60s_linear_infinite_reverse] will-change-transform transform-gpu" />
+              <div className="absolute inset-32 rounded-full border border-[var(--phosphor-green)] opacity-5 animate-[spin_30s_linear_infinite] will-change-transform transform-gpu" />
 
               {/* Floating Cards Depth */}
 
@@ -278,16 +257,16 @@ export function HeroSection({ isAuthenticated, scrollOpacity }: HeroSectionProps
                   duration: 6,
                   ease: 'easeInOut',
                 }}
-                className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-20"
+                className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-20 will-change-transform transform-gpu"
               >
                 <HeroAgentCard />
               </motion.div>
 
-              {/* Decorative Elements */}
-              <div className="absolute top-20 right-10 p-3 rounded-xl bg-[var(--terminal-surface)] border border-[var(--terminal-border)] animate-float-delayed shadow-xl">
+              {/* Decorative Elements — hidden on mobile to reduce animation load */}
+              <div className="hidden md:block absolute top-20 right-10 p-3 rounded-xl bg-[var(--terminal-surface)] border border-[var(--terminal-border)] animate-float-delayed shadow-xl transform-gpu">
                 <Database className="w-6 h-6 text-[var(--cyan)]" />
               </div>
-              <div className="absolute bottom-20 left-10 p-3 rounded-xl bg-[var(--terminal-surface)] border border-[var(--terminal-border)] animate-float shadow-xl">
+              <div className="hidden md:block absolute bottom-20 left-10 p-3 rounded-xl bg-[var(--terminal-surface)] border border-[var(--terminal-border)] animate-float shadow-xl transform-gpu">
                 <Network className="w-6 h-6 text-[var(--amber-gold)]" />
               </div>
             </div>
