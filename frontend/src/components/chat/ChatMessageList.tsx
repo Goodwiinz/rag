@@ -88,7 +88,7 @@ export const ChatMessageList = React.memo(function ChatMessageList({
                   message={message}
                   index={index}
                   modelName={
-                    message.role === 'assistant' ? 'NOUS AGENT' : undefined
+                    message.role === 'assistant' ? 'NOUS' : undefined
                   }
                   isTyping={
                     index === messages.length - 1 &&

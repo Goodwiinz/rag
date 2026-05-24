@@ -67,14 +67,14 @@ export function ChatBubble({
   return (
     <div
       className={cn(
-        'group relative mb-4 sm:mb-5',
-        isUser ? 'ml-4 sm:ml-16' : 'mr-4 sm:mr-16'
+        'group relative mb-2 sm:mb-3',
+        isUser ? 'ml-8 sm:ml-24' : 'mr-8 sm:mr-24'
       )}
     >
       {/* Meta row */}
       <div
         className={cn(
-          'mb-1.5 flex items-center gap-2 text-[11px]',
+          'mb-1 flex items-center gap-2 text-[10px]',
           isUser ? 'justify-end pr-1' : 'pl-1'
         )}
         style={{ fontFamily: 'var(--nous-font-ui)' }}
@@ -129,13 +129,13 @@ export function ChatBubble({
       {/* Bubble */}
       <div
         className={cn(
-          'relative overflow-hidden rounded-2xl transition-all duration-200',
+          'relative overflow-hidden rounded-xl transition-all duration-200',
           isUser
             ? 'nous-bubble-user'
             : 'nous-bubble-assistant hover:border-[var(--nous-sol)]/20'
         )}
       >
-        <div className="relative z-10 p-3.5 sm:p-5 overflow-hidden break-words">
+        <div className="relative z-10 px-3.5 py-2.5 sm:px-4 sm:py-3 overflow-hidden break-words">
           {isStreaming && !streamingContent ? (
             <div className="nous-chat-body">
               <span
@@ -175,12 +175,7 @@ export function ChatBubble({
               </span>
             </div>
           ) : (
-            <div
-              className={cn(
-                'nous-chat-body',
-                isUser && 'text-[var(--nous-erebus)]'
-              )}
-            >
+            <div className="nous-chat-body">
               {isUser ? (
                 <p className="whitespace-pre-wrap">{message.content}</p>
               ) : (
