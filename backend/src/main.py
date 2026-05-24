@@ -566,14 +566,21 @@ async def root():
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
     """Handle validation errors"""
     logger.error(f"Validation error on {request.url.path}: {exc.errors()}")
+    safe_errors = []
+    for err in exc.errors():
+        safe = {k: v for k, v in err.items() if k != "ctx"}
+        if "ctx" in err and isinstance(err["ctx"], dict):
+            safe["ctx"] = {k: str(v) for k, v in err["ctx"].items()}
+        safe_errors.append(safe)
+    first_msg = safe_errors[0].get("msg", "Validation error") if safe_errors else "Validation error"
     return JSONResponse(
         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
         content={
             "error": {
-                "message": "Validation error",
+                "message": first_msg,
                 "status_code": 422,
                 "type": "validation_error",
-                "details": exc.errors(),
+                "details": safe_errors,
             }
         },
     )

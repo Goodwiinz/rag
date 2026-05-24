@@ -375,7 +375,7 @@ const initialState: ChatState = {
   shortcutsDialogOpen: false,
   copiedMessageId: null,
   sidebarCollapsed: false,
-  selectedModel: 'gpt-4o',
+  selectedModel: '',
   selectedThreadIds: new Set<string>(),
   isSelectMode: false,
   // Streaming state
