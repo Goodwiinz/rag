@@ -139,7 +139,7 @@ export function ChatInput({
   const isNearLimit = charCount > maxChars * 0.8;
 
   return (
-    <div className="z-40 pt-2 pb-4 px-2 sm:px-4 safe-area-bottom">
+    <div className="z-40 pt-2 pb-[72px] md:pb-4 px-2 sm:px-4 safe-area-bottom">
       <div className="max-w-4xl mx-auto">
         <motion.div
           className={cn(
