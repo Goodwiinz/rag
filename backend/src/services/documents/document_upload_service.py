@@ -187,7 +187,7 @@ class DocumentUploadService:
         except Exception as e:
             logger.error(f"Document upload failed: {e}")
             self.db.rollback()
-            raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
+            raise HTTPException(status_code=500, detail="Upload failed")
 
     async def _validate_file(self, file: UploadFile) -> Dict[str, Any]:
         """Validate uploaded file"""

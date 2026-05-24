@@ -108,7 +108,7 @@ async def export_thread(
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
         logger.error("Export failed", thread_id=thread_id, error=str(e))
-        raise HTTPException(status_code=500, detail=f"Export failed: {e}")
+        raise HTTPException(status_code=500, detail="Export failed")
 
 
 @router.post(
@@ -155,7 +155,7 @@ async def export_thread_stream(
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
         logger.error("Streaming export failed", thread_id=thread_id, error=str(e))
-        raise HTTPException(status_code=500, detail=f"Export failed: {e}")
+        raise HTTPException(status_code=500, detail="Export failed")
 
 
 @router.post(
@@ -215,7 +215,7 @@ async def export_batch(
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.error("Batch export failed", error=str(e))
-        raise HTTPException(status_code=500, detail=f"Batch export failed: {e}")
+        raise HTTPException(status_code=500, detail="Batch export failed")
 
 
 @router.get(
@@ -314,4 +314,4 @@ async def preview_export(
         raise
     except Exception as e:
         logger.error("Export preview failed", thread_id=thread_id, error=str(e))
-        raise HTTPException(status_code=500, detail=f"Preview failed: {e}")
+        raise HTTPException(status_code=500, detail="Preview failed")
