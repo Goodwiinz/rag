@@ -7,7 +7,7 @@
 
 import { useState } from 'react';
 import { useDocumentAnalytics, useUIAnalytics } from '@/hooks/useAnalyticsTracking';
-import { EnhancedDocumentUploadZone } from '@/components/documents/EnhancedDocumentUploadZone';
+import { DocumentUploadZone } from '@/components/documents/DocumentUploadZone';
 
 export default function DocumentUploadWithAnalytics() {
   const [uploadResults, setUploadResults] = useState<Array<{id: string, result: any}>>([]);
@@ -81,7 +81,7 @@ export default function DocumentUploadWithAnalytics() {
           </p>
         </div>
 
-        <EnhancedDocumentUploadZone
+        <DocumentUploadZone
           onUploadStart={handleUploadStart}
           onUploadComplete={handleUploadComplete}
           onUploadError={handleUploadError}

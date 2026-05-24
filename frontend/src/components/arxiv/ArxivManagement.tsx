@@ -19,7 +19,7 @@ import {
 import Link from 'next/link';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 
-import { ProgressBar } from './arxivControls';
+import { ProgressBar } from './ArxivControls';
 import {
   CORE_AI_CATEGORIES,
   ExtractionResult,

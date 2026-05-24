@@ -1,5 +1,5 @@
 /**
- * EnhancedSearch Component
+ * EntitySearch Component
  * Comprehensive graph search with path finding capabilities
  */
 
@@ -55,11 +55,11 @@ interface GraphSearchResponse {
   search_time: number;
 }
 
-interface EnhancedSearchProps {
+interface EntitySearchProps {
   onEntityClick?: (entityId: string) => void;
 }
 
-export const EnhancedSearch: React.FC<EnhancedSearchProps> = ({ onEntityClick }) => {
+export const EntitySearch: React.FC<EntitySearchProps> = ({ onEntityClick }) => {
   const [query, setQuery] = useState('');
   const [maxDepth, setMaxDepth] = useState(3);
   const [minStrength, setMinStrength] = useState(0.1);
