@@ -271,7 +271,7 @@ class AgentChatService {
                   callbacks.onDone?.();
                   break;
                 case 'error':
-                  callbacks.onError?.(data.error);
+                  callbacks.onError?.(typeof data.error === 'string' ? data.error : String(data.error?.message || JSON.stringify(data.error)));
                   break;
               }
             } catch {
@@ -390,7 +390,7 @@ class AgentChatService {
                   callbacks.onDone?.();
                   break;
                 case 'error':
-                  callbacks.onError?.(data.error);
+                  callbacks.onError?.(typeof data.error === 'string' ? data.error : String(data.error?.message || JSON.stringify(data.error)));
                   break;
               }
             } catch {
