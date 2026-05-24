@@ -1,15 +1,15 @@
 import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
-import { TerminalChatBubble } from '../shared/TerminalChatBubble';
+import { ChatBubble } from '../shared/ChatBubble';
 
 vi.mock('../CitationRenderer', () => ({
   CitationRenderer: ({ content }: { content: string }) => <p>{content}</p>,
 }));
 
-describe('TerminalChatBubble regenerate action', () => {
+describe('ChatBubble regenerate action', () => {
   it('does NOT show retry on user messages', () => {
     render(
-      <TerminalChatBubble
+      <ChatBubble
         message={{ role: 'user', content: 'hi', timestamp: Date.now() }}
         index={0}
         onRetry={() => {}}
@@ -20,7 +20,7 @@ describe('TerminalChatBubble regenerate action', () => {
 
   it('does NOT show retry on assistant messages without onRetry', () => {
     render(
-      <TerminalChatBubble
+      <ChatBubble
         message={{ role: 'assistant', content: 'hi', timestamp: Date.now() }}
         index={0}
       />
@@ -31,7 +31,7 @@ describe('TerminalChatBubble regenerate action', () => {
   it('calls onRetry when regenerate button clicked on assistant message', () => {
     const onRetry = vi.fn();
     render(
-      <TerminalChatBubble
+      <ChatBubble
         message={{ role: 'assistant', content: 'hi', timestamp: Date.now() }}
         index={0}
         onRetry={onRetry}

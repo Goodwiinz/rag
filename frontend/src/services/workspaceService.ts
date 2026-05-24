@@ -1,5 +1,5 @@
 /**
- * Workspace Service for Terminal Observatory thread-centric chat system
+ * Workspace Service for NOUS thread-centric chat system
  * Communicates with backend /api/v2/workspaces/* endpoints
  */
 
@@ -423,7 +423,7 @@ export const workspaceService = {
     );
     const newWorkspace = await this.createWorkspace({
       name: 'My Workspace',
-      description: 'Default workspace for Terminal Observatory',
+      description: 'Default workspace',
       is_public: false,
     });
 

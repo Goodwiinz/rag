@@ -1,13 +1,13 @@
 import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
-import { TerminalChatComposer } from '../TerminalChatComposer';
+import { SearchComposer } from '../SearchComposer';
 
-describe('TerminalChatComposer', () => {
+describe('SearchComposer', () => {
   it('submits on Enter without Shift', () => {
     const onSubmit = vi.fn();
 
     render(
-      <TerminalChatComposer
+      <SearchComposer
         value="hello"
         onChange={vi.fn()}
         onSubmit={onSubmit}
@@ -27,7 +27,7 @@ describe('TerminalChatComposer', () => {
     const onSubmit = vi.fn();
 
     render(
-      <TerminalChatComposer
+      <SearchComposer
         value="hello"
         onChange={vi.fn()}
         onSubmit={onSubmit}

@@ -1,15 +1,15 @@
 import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
-import { TerminalChatBubble } from '../TerminalChatBubble';
+import { ChatBubble } from '../ChatBubble';
 
 vi.mock('../../CitationRenderer', () => ({
   CitationRenderer: ({ content }: { content: string }) => <p>{content}</p>,
 }));
 
-describe('TerminalChatBubble', () => {
+describe('ChatBubble', () => {
   it('renders user message content', () => {
     render(
-      <TerminalChatBubble
+      <ChatBubble
         message={{
           role: 'user',
           content: 'How does this work?',
@@ -24,7 +24,7 @@ describe('TerminalChatBubble', () => {
 
   it('renders streaming cursor for assistant streaming state', () => {
     const { container } = render(
-      <TerminalChatBubble
+      <ChatBubble
         message={{
           role: 'assistant',
           content: '',
@@ -52,7 +52,7 @@ describe('TerminalChatBubble', () => {
     ];
 
     render(
-      <TerminalChatBubble
+      <ChatBubble
         message={{
           role: 'assistant',
           content: 'See source [1] for details.',
@@ -74,7 +74,7 @@ describe('TerminalChatBubble', () => {
 
   it('does not render citation chips when the assistant text has no inline citations', () => {
     render(
-      <TerminalChatBubble
+      <ChatBubble
         message={{
           role: 'assistant',
           content: 'Hello! How can I assist you today?',

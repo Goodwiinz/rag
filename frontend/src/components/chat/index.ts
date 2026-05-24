@@ -35,8 +35,8 @@ export { WelcomeState, default as WelcomeStateComponent } from './WelcomeState';
 export { RAGToggle, default as RAGToggleComponent } from './RAGToggle';
 
 // Shared chat primitives
-export { TerminalChatBubble } from './shared/TerminalChatBubble';
-export { TerminalChatComposer } from './shared/TerminalChatComposer';
+export { ChatBubble } from './shared/ChatBubble';
+export { SearchComposer } from './shared/SearchComposer';
 export {
   mapChatMessageToViewModel,
   mapSearchResultToChatMessages,
@@ -50,10 +50,10 @@ export type { Model, ExtendedModel } from './ModelSelector';
 export type { WelcomeStateProps } from './WelcomeState';
 export type { RAGToggleProps } from './RAGToggle';
 export type {
-  TerminalChatBubbleProps,
-  TerminalChatBubbleMessage,
-} from './shared/TerminalChatBubble';
-export type { TerminalChatComposerProps } from './shared/TerminalChatComposer';
+  ChatBubbleProps,
+  ChatBubbleMessage,
+} from './shared/ChatBubble';
+export type { SearchComposerProps } from './shared/SearchComposer';
 export type { ChatMessageViewModel } from './shared/messageViewModel';
 export { ChatDialogs } from './ChatDialogs';
 export { ChatMessageList } from './ChatMessageList';
