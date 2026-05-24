@@ -46,12 +46,12 @@ export function InlineAgentSummary({
       <button
         onClick={() => setOpen((v) => !v)}
         className={cn(
-          'group inline-flex items-center gap-2 rounded-md border px-2.5 py-1 text-[11px] transition-colors',
-          'border-[var(--terminal-border)] bg-[var(--terminal-surface)]/60',
-          'text-[var(--terminal-text-dim)] hover:text-[var(--terminal-text)]',
-          'hover:border-[var(--phosphor-green)]/30'
+          'group inline-flex items-center gap-2 rounded-lg border px-2.5 py-1 text-[11px] transition-colors',
+          'border-[var(--nous-border-1)] bg-[var(--nous-bg-2)]/60',
+          'text-[var(--nous-fg-3)] hover:text-[var(--nous-fg-1)]',
+          'hover:border-[var(--nous-sol)]/30'
         )}
-        style={{ fontFamily: "'JetBrains Mono', monospace" }}
+        style={{ fontFamily: 'var(--nous-font-mono)' }}
         aria-expanded={open}
         aria-label={
           open ? 'Hide agent steps' : `Show agent steps: ${summary}`
@@ -61,10 +61,10 @@ export function InlineAgentSummary({
           className={cn(
             'h-3 w-3 shrink-0',
             run.state === 'running' && active > 0
-              ? 'animate-pulse text-[var(--phosphor-green)]'
+              ? 'animate-pulse text-[var(--nous-sol)]'
               : run.state === 'error'
-                ? 'text-[var(--error-red)]'
-                : 'text-[var(--terminal-text-dim)]'
+                ? 'text-[var(--nous-mars)]'
+                : 'text-[var(--nous-fg-3)]'
           )}
         />
         <span>{summary}</span>
@@ -79,7 +79,7 @@ export function InlineAgentSummary({
       {open && (
         <ul
           className="mt-2 ml-1 space-y-1"
-          style={{ fontFamily: "'JetBrains Mono', monospace" }}
+          style={{ fontFamily: 'var(--nous-font-mono)' }}
         >
           {run.steps.map((step) => (
             <li
@@ -90,12 +90,12 @@ export function InlineAgentSummary({
                 className={cn(
                   'h-1.5 w-1.5 shrink-0 rounded-full',
                   step.status === 'active' &&
-                    'animate-pulse bg-[var(--phosphor-green)]',
-                  step.status === 'done' && 'bg-[var(--phosphor-green)]/60',
-                  step.status === 'error' && 'bg-[var(--error-red)]'
+                    'animate-pulse bg-[var(--nous-sol)]',
+                  step.status === 'done' && 'bg-[var(--nous-sol)]/60',
+                  step.status === 'error' && 'bg-[var(--nous-mars)]'
                 )}
               />
-              <span className="text-[var(--terminal-text-dim)]">
+              <span className="text-[var(--nous-fg-3)]">
                 {step.label}
               </span>
             </li>

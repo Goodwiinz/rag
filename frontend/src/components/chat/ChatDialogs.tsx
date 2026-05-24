@@ -46,14 +46,18 @@ export function ChatDialogs({
         open={renameDialog.open}
         onOpenChange={(open) => setRenameDialog((d) => ({ ...d, open }))}
       >
-        <AlertDialogContent className="terminal-window border-[var(--terminal-border)] bg-[var(--terminal-bg)]">
+        <AlertDialogContent className="rounded-xl border-[var(--nous-border-1)] bg-[var(--nous-bg-2)]">
           <AlertDialogHeader>
-            <AlertDialogTitle className="text-[var(--terminal-text)] font-mono tracking-tight">
+            <AlertDialogTitle
+              className="text-[var(--nous-fg-1)] tracking-tight"
+              style={{ fontFamily: 'var(--nous-font-ui)' }}
+            >
               Rename thread
             </AlertDialogTitle>
           </AlertDialogHeader>
           <Input
-            className="font-mono text-sm bg-[var(--terminal-surface)] border-[var(--terminal-border)] text-[var(--terminal-text)]"
+            className="text-sm bg-[var(--nous-bg-1)] border-[var(--nous-border-1)] text-[var(--nous-fg-1)]"
+            style={{ fontFamily: 'var(--nous-font-ui)' }}
             value={renameDialog.value}
             onChange={(e) =>
               setRenameDialog((d) => ({ ...d, value: e.target.value }))
@@ -62,12 +66,16 @@ export function ChatDialogs({
             autoFocus
           />
           <AlertDialogFooter>
-            <AlertDialogCancel className="font-mono text-xs uppercase tracking-wider">
+            <AlertDialogCancel
+              className="text-xs uppercase tracking-wider"
+              style={{ fontFamily: 'var(--nous-font-ui)' }}
+            >
               Cancel
             </AlertDialogCancel>
             <AlertDialogAction
               onClick={commitRename}
-              className="font-mono text-xs uppercase tracking-wider"
+              className="text-xs uppercase tracking-wider"
+              style={{ fontFamily: 'var(--nous-font-ui)' }}
             >
               Rename
             </AlertDialogAction>
@@ -80,22 +88,32 @@ export function ChatDialogs({
         open={deleteDialog.open}
         onOpenChange={(open) => setDeleteDialog((d) => ({ ...d, open }))}
       >
-        <AlertDialogContent className="terminal-window border-[var(--terminal-border)] bg-[var(--terminal-bg)]">
+        <AlertDialogContent className="rounded-xl border-[var(--nous-border-1)] bg-[var(--nous-bg-2)]">
           <AlertDialogHeader>
-            <AlertDialogTitle className="text-[var(--terminal-text)] font-mono tracking-tight">
+            <AlertDialogTitle
+              className="text-[var(--nous-fg-1)] tracking-tight"
+              style={{ fontFamily: 'var(--nous-font-ui)' }}
+            >
               Delete thread?
             </AlertDialogTitle>
-            <AlertDialogDescription className="text-[var(--terminal-text-muted)] font-mono text-xs">
+            <AlertDialogDescription
+              className="text-[var(--nous-fg-3)] text-xs"
+              style={{ fontFamily: 'var(--nous-font-ui)' }}
+            >
               This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel className="font-mono text-xs uppercase tracking-wider">
+            <AlertDialogCancel
+              className="text-xs uppercase tracking-wider"
+              style={{ fontFamily: 'var(--nous-font-ui)' }}
+            >
               Cancel
             </AlertDialogCancel>
             <AlertDialogAction
               onClick={commitDeleteThread}
-              className="bg-red-500/10 border border-red-500/50 text-red-400 hover:bg-red-500/20 font-mono text-xs uppercase tracking-wider"
+              className="bg-[var(--nous-mars)]/10 border border-[var(--nous-mars)]/50 text-[var(--nous-mars)] hover:bg-[var(--nous-mars)]/20 text-xs uppercase tracking-wider"
+              style={{ fontFamily: 'var(--nous-font-ui)' }}
             >
               Delete
             </AlertDialogAction>
@@ -108,22 +126,32 @@ export function ChatDialogs({
         open={bulkDeleteDialog.open}
         onOpenChange={(open) => setBulkDeleteDialog((d) => ({ ...d, open }))}
       >
-        <AlertDialogContent className="terminal-window border-[var(--terminal-border)] bg-[var(--terminal-bg)]">
+        <AlertDialogContent className="rounded-xl border-[var(--nous-border-1)] bg-[var(--nous-bg-2)]">
           <AlertDialogHeader>
-            <AlertDialogTitle className="text-[var(--terminal-text)] font-mono tracking-tight">
+            <AlertDialogTitle
+              className="text-[var(--nous-fg-1)] tracking-tight"
+              style={{ fontFamily: 'var(--nous-font-ui)' }}
+            >
               Delete {bulkDeleteDialog.ids.length} threads?
             </AlertDialogTitle>
-            <AlertDialogDescription className="text-[var(--terminal-text-muted)] font-mono text-xs">
+            <AlertDialogDescription
+              className="text-[var(--nous-fg-3)] text-xs"
+              style={{ fontFamily: 'var(--nous-font-ui)' }}
+            >
               This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel className="font-mono text-xs uppercase tracking-wider">
+            <AlertDialogCancel
+              className="text-xs uppercase tracking-wider"
+              style={{ fontFamily: 'var(--nous-font-ui)' }}
+            >
               Cancel
             </AlertDialogCancel>
             <AlertDialogAction
               onClick={commitBulkDelete}
-              className="bg-red-500/10 border border-red-500/50 text-red-400 hover:bg-red-500/20 font-mono text-xs uppercase tracking-wider"
+              className="bg-[var(--nous-mars)]/10 border border-[var(--nous-mars)]/50 text-[var(--nous-mars)] hover:bg-[var(--nous-mars)]/20 text-xs uppercase tracking-wider"
+              style={{ fontFamily: 'var(--nous-font-ui)' }}
             >
               Delete all
             </AlertDialogAction>

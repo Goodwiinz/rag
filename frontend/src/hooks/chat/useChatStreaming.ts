@@ -91,6 +91,8 @@ export function useChatStreaming(
   const abortControllerRef = useRef<AbortController | null>(null);
   const chatInputRef = useRef<HTMLTextAreaElement>(null);
   const streamingTimestampRef = useRef(Date.now());
+  const streamingRafRef = useRef<number | null>(null);
+  const pendingStreamContentRef = useRef<string | null>(null);
 
   // ---- Store bindings ----
   const storeStopStreaming = useChatStore((state) => state.stopStreaming);
@@ -109,6 +111,15 @@ export function useChatStreaming(
       streamingTimestampRef.current = Date.now();
     }
   }, [storeIsStreaming]);
+
+  // Cleanup RAF on unmount
+  useEffect(() => {
+    return () => {
+      if (streamingRafRef.current !== null) {
+        cancelAnimationFrame(streamingRafRef.current);
+      }
+    };
+  }, []);
 
   // ---- Handlers ----
 
@@ -229,9 +240,18 @@ export function useChatStreaming(
             onToken: (content) => {
               assistantContent += content;
               lastStreamedContentRef.current = assistantContent;
-              useChatStore.setState({
-                streamingContent: assistantContent,
-              });
+              pendingStreamContentRef.current = assistantContent;
+              if (streamingRafRef.current === null) {
+                streamingRafRef.current = requestAnimationFrame(() => {
+                  streamingRafRef.current = null;
+                  if (pendingStreamContentRef.current !== null) {
+                    useChatStore.setState({
+                      streamingContent: pendingStreamContentRef.current,
+                    });
+                    pendingStreamContentRef.current = null;
+                  }
+                });
+              }
             },
             onToolStart: (tool, args) => {
               console.log('[Agent] Tool start:', tool, args);
@@ -324,6 +344,13 @@ export function useChatStreaming(
           },
           streamAbort.signal
         );
+
+        // Cancel any pending RAF flush — streaming is done
+        if (streamingRafRef.current !== null) {
+          cancelAnimationFrame(streamingRafRef.current);
+          streamingRafRef.current = null;
+        }
+        pendingStreamContentRef.current = null;
 
         // Don't append a normal message if stream errored or needs confirmation
         if (streamHadError || streamHadConfirmation) {
@@ -487,7 +514,18 @@ export function useChatStreaming(
           {
             onToken: (content) => {
               confirmContent += content;
-              useChatStore.setState({ streamingContent: confirmContent });
+              pendingStreamContentRef.current = confirmContent;
+              if (streamingRafRef.current === null) {
+                streamingRafRef.current = requestAnimationFrame(() => {
+                  streamingRafRef.current = null;
+                  if (pendingStreamContentRef.current !== null) {
+                    useChatStore.setState({
+                      streamingContent: pendingStreamContentRef.current,
+                    });
+                    pendingStreamContentRef.current = null;
+                  }
+                });
+              }
             },
             onToolStart: (tool) => {
               useAgentActivityStore

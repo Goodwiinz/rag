@@ -32,29 +32,53 @@ export const ChatMessageList = React.memo(function ChatMessageList({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [showScrollButton, setShowScrollButton] = useState(false);
+  const scrollRafRef = useRef<number | null>(null);
+  const prevMessageCountRef = useRef(messages.length);
 
-  // Auto-scroll when new messages arrive or streaming content updates
+  // Throttled auto-scroll: only one scrollIntoView per animation frame
   useEffect(() => {
-    if (!showScrollButton) {
+    if (showScrollButton) return;
+    if (scrollRafRef.current !== null) return;
+    scrollRafRef.current = requestAnimationFrame(() => {
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }
+      scrollRafRef.current = null;
+    });
   }, [messages, storeStreamingContent, showScrollButton]);
 
-  // Handle scroll to detect if user scrolled up
-  const handleScroll = useCallback(() => {
-    const container = scrollContainerRef.current;
-    if (!container) return;
+  useEffect(() => {
+    return () => {
+      if (scrollRafRef.current !== null) {
+        cancelAnimationFrame(scrollRafRef.current);
+      }
+    };
+  }, []);
 
-    const { scrollTop, scrollHeight, clientHeight } = container;
-    const isNearBottom = scrollHeight - scrollTop - clientHeight < 100;
-    setShowScrollButton(!isNearBottom && messages.length > 0);
+  // Track which messages are "new" for entrance animation
+  const isNewMessage = messages.length > prevMessageCountRef.current;
+  useEffect(() => {
+    prevMessageCountRef.current = messages.length;
   }, [messages.length]);
 
-  // Scroll to bottom function
+  const scrollTickRef = useRef(false);
+  const handleScroll = useCallback(() => {
+    if (scrollTickRef.current) return;
+    scrollTickRef.current = true;
+    requestAnimationFrame(() => {
+      scrollTickRef.current = false;
+      const container = scrollContainerRef.current;
+      if (!container) return;
+      const { scrollTop, scrollHeight, clientHeight } = container;
+      const isNearBottom = scrollHeight - scrollTop - clientHeight < 100;
+      setShowScrollButton(!isNearBottom && messages.length > 0);
+    });
+  }, [messages.length]);
+
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     setShowScrollButton(false);
   }, []);
+
+  const lastIndex = messages.length - 1;
 
   return (
     <div className="flex-1 relative min-h-0">
@@ -64,23 +88,14 @@ export const ChatMessageList = React.memo(function ChatMessageList({
         className="h-full overflow-y-auto overflow-x-hidden terminal-scrollbar"
       >
         <div className="max-w-4xl mx-auto pt-3 sm:pt-4 px-2 sm:px-4 pb-4 sm:pb-6">
-          <AnimatePresence>
-            {messages.map((message, index) => (
-              <motion.div
-                key={message.id || `msg-${index}`}
-                initial={{ opacity: 0, y: 20, scale: 0.98 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, transition: { duration: 0.2 } }}
-                transition={{
-                  duration: 0.4,
-                  ease: [0.25, 0.46, 0.45, 0.94],
-                }}
-              >
-                {/* Cowork-style inline tool summary: only above the last
-                    assistant message, and only when not currently
-                    streaming (the streaming bubble shows its own). */}
+          {messages.map((message, index) => {
+            const isLast = index === lastIndex;
+            const shouldAnimate = isLast && isNewMessage;
+
+            const bubble = (
+              <>
                 {message.role === 'assistant' &&
-                  index === messages.length - 1 &&
+                  isLast &&
                   !storeIsStreaming && (
                     <InlineAgentSummary threadId={activeThreadId} />
                   )}
@@ -91,7 +106,7 @@ export const ChatMessageList = React.memo(function ChatMessageList({
                     message.role === 'assistant' ? 'NOUS' : undefined
                   }
                   isTyping={
-                    index === messages.length - 1 &&
+                    isLast &&
                     isLoading &&
                     !storeIsStreaming &&
                     message.role === 'assistant'
@@ -103,21 +118,41 @@ export const ChatMessageList = React.memo(function ChatMessageList({
                   }
                   onCitationClick={onCitationClick}
                 />
-              </motion.div>
-            ))}
+              </>
+            );
 
-            {/* Virtual streaming assistant message (shown during SSE streaming) */}
+            if (shouldAnimate) {
+              return (
+                <motion.div
+                  key={message.id || `msg-${index}`}
+                  initial={{ opacity: 0, y: 16 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{
+                    duration: 0.3,
+                    ease: [0.25, 0.46, 0.45, 0.94],
+                  }}
+                >
+                  {bubble}
+                </motion.div>
+              );
+            }
+
+            return (
+              <div key={message.id || `msg-${index}`}>
+                {bubble}
+              </div>
+            );
+          })}
+
+          {/* Streaming assistant message */}
+          <AnimatePresence>
             {storeIsStreaming && (
               <motion.div
                 key="streaming-message"
-                initial={{ opacity: 0, y: 20, scale: 0.98 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{
-                  opacity: 0,
-                  y: -10,
-                  transition: { duration: 0.2 },
-                }}
-                transition={{ duration: 0.3 }}
+                initial={{ opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, transition: { duration: 0.15 } }}
+                transition={{ duration: 0.25 }}
               >
                 <InlineAgentSummary threadId={activeThreadId} />
                 <ChatBubble
@@ -139,7 +174,7 @@ export const ChatMessageList = React.memo(function ChatMessageList({
         </div>
       </div>
 
-      {/* Scroll to bottom button - Absolute positioned within wrapper */}
+      {/* Scroll to bottom button */}
       <AnimatePresence>
         {showScrollButton && (
           <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-50 pointer-events-none">

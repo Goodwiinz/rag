@@ -9,7 +9,7 @@ const SyntaxHighlighter = dynamic(
   () => import('react-syntax-highlighter/dist/esm/prism').then((mod) => mod.default),
   {
     loading: () => (
-      <pre className="p-4 rounded bg-[var(--terminal-bg)] text-xs font-mono overflow-x-auto">
+      <pre className="p-4 rounded-lg bg-[var(--nous-bg-1)] text-xs font-mono overflow-x-auto">
         <code>Loading...</code>
       </pre>
     ),
@@ -205,7 +205,7 @@ export function MessageBubble({
             'relative rounded-2xl px-4 py-3 shadow-sm transition-all hover:shadow-md',
             isUser
               ? 'bg-gradient-to-br from-primary to-primary/80 text-primary-foreground ml-auto max-w-[92%] sm:max-w-[80%] shadow-[0_0_15px_hsl(var(--primary)/0.15)]'
-              : 'bg-[var(--terminal-surface)] border border-[var(--terminal-border)] max-w-[95%] sm:max-w-[90%] hover:border-[var(--phosphor-green)]/30'
+              : 'bg-[var(--nous-bg-2)] border border-[var(--nous-border-1)] max-w-[95%] sm:max-w-[90%] hover:border-[var(--nous-sol)]/30'
           )}
         >
           {isTyping ? (
