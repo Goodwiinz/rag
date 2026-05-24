@@ -211,7 +211,7 @@ export function ChatInput({
               onBlur={() => setIsFocused(false)}
               placeholder="Message NOUS…"
               rows={1}
-              className="w-full bg-transparent text-[var(--nous-fg-1)] text-[15px] sm:text-base resize-none outline-none placeholder:text-[var(--nous-fg-3)]/60 selection:bg-[var(--nous-sol)]/20"
+              className="w-full bg-transparent text-[var(--nous-fg-1)] text-base resize-none outline-none placeholder:text-[var(--nous-fg-3)]/60 selection:bg-[var(--nous-sol)]/20"
               style={{
                 fontFamily: 'var(--nous-font-body)',
                 lineHeight: '1.6',

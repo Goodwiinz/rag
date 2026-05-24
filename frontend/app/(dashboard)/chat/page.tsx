@@ -350,27 +350,27 @@ function ChatPageContent() {
                   className="text-center max-w-md"
                 >
                   <div className="relative w-16 h-16 mx-auto mb-6">
-                    <div className="absolute inset-0 rounded-full bg-[var(--error-red)]/10" />
-                    <div className="absolute inset-2 rounded-full border border-[var(--error-red)]/30 flex items-center justify-center">
-                      <Activity className="w-6 h-6 text-[var(--error-red)]" />
+                    <div className="absolute inset-0 rounded-full bg-[var(--nous-mars)]/10" />
+                    <div className="absolute inset-2 rounded-full border border-[var(--nous-mars)]/30 flex items-center justify-center">
+                      <Activity className="w-6 h-6 text-[var(--nous-mars)]" />
                     </div>
                   </div>
                   <h2
-                    className="text-lg text-[var(--error-red)] mb-3"
-                    style={{ fontFamily: "'JetBrains Mono', monospace" }}
+                    className="text-lg text-[var(--nous-mars)] mb-3"
+                    style={{ fontFamily: 'var(--nous-font-mono)' }}
                   >
                     CONNECTION ERROR
                   </h2>
                   <p
-                    className="text-xs text-[var(--terminal-text-muted)] mb-6 p-3 rounded bg-[var(--error-red)]/5 border border-[var(--error-red)]/10"
-                    style={{ fontFamily: "'JetBrains Mono', monospace" }}
+                    className="text-xs text-[var(--nous-fg-3)] mb-6 p-3 rounded-lg bg-[var(--nous-mars)]/5 border border-[var(--nous-mars)]/10"
+                    style={{ fontFamily: 'var(--nous-font-mono)' }}
                   >
                     {initError}
                   </p>
                   <button
                     onClick={() => window.location.reload()}
-                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[var(--terminal-surface)] border border-[var(--terminal-border)] text-[var(--terminal-text)] text-xs font-medium hover:border-[var(--phosphor-green)]/30 transition-all"
-                    style={{ fontFamily: "'JetBrains Mono', monospace" }}
+                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[var(--nous-bg-2)] border border-[var(--nous-border-1)] text-[var(--nous-fg-1)] text-xs font-medium hover:border-[var(--nous-sol)]/30 transition-all"
+                    style={{ fontFamily: 'var(--nous-font-mono)' }}
                   >
                     <Activity className="w-3.5 h-3.5" />
                     RETRY CONNECTION
@@ -388,10 +388,10 @@ function ChatPageContent() {
                   animate={{ opacity: 1 }}
                   className="text-center"
                 >
-                  <Loader2 className="w-8 h-8 text-[var(--phosphor-green)] animate-spin mx-auto mb-4" />
+                  <Loader2 className="w-8 h-8 text-[var(--nous-sol)] animate-spin mx-auto mb-4" />
                   <p
-                    className="text-xs text-[var(--terminal-text-muted)] tracking-wider"
-                    style={{ fontFamily: "'JetBrains Mono', monospace" }}
+                    className="text-xs text-[var(--nous-fg-3)] tracking-wider"
+                    style={{ fontFamily: 'var(--nous-font-mono)' }}
                   >
                     LOADING MESSAGES...
                   </p>
@@ -423,13 +423,19 @@ function ChatPageContent() {
 
         {/* HITL Confirmation Banner */}
         {pendingConfirmation && (
-          <div className="mx-2 sm:mx-4 mb-2 p-3 sm:p-4 rounded-xl border border-[var(--sol)]/30 bg-[var(--sol)]/5">
-            <p className="text-xs font-mono text-[var(--terminal-text-muted)] uppercase tracking-wider mb-2">
+          <div className="mx-2 sm:mx-4 mb-2 p-3 sm:p-4 rounded-xl border border-[var(--nous-sol)]/30 bg-[var(--nous-sol)]/5">
+            <p
+              className="text-[10px] text-[var(--nous-fg-3)] uppercase tracking-wider mb-2"
+              style={{ fontFamily: 'var(--nous-font-mono)' }}
+            >
               Action Requires Approval
             </p>
-            <p className="text-sm font-mono text-[var(--terminal-text)] mb-3">
+            <p
+              className="text-sm text-[var(--nous-fg-1)] mb-3"
+              style={{ fontFamily: 'var(--nous-font-mono)' }}
+            >
               The agent wants to run{' '}
-              <span className="font-bold text-[var(--sol)]">
+              <span className="font-bold text-[var(--nous-sol)]">
                 {String(
                   pendingConfirmation.confirmation?.tool_name ||
                     'a destructive action'
@@ -440,14 +446,16 @@ function ChatPageContent() {
               <button
                 onClick={() => handleConfirmation(true)}
                 disabled={isConfirming}
-                className="px-4 py-2 rounded-lg bg-[var(--phosphor-green)] text-[var(--terminal-bg)] text-xs font-mono font-bold uppercase tracking-wider hover:shadow-[0_0_15px_var(--phosphor-green-glow)] disabled:opacity-50 transition-all"
+                className="px-4 py-2 rounded-xl bg-[var(--nous-sol)] text-[var(--nous-erebus)] text-xs font-bold uppercase tracking-wider hover:brightness-110 disabled:opacity-50 transition-all"
+                style={{ fontFamily: 'var(--nous-font-ui)' }}
               >
                 {isConfirming ? 'Processing...' : 'Approve'}
               </button>
               <button
                 onClick={() => handleConfirmation(false)}
                 disabled={isConfirming}
-                className="px-4 py-2 rounded-lg border border-red-500/30 bg-red-500/5 text-red-400 text-xs font-mono font-bold uppercase tracking-wider hover:bg-red-500/10 disabled:opacity-50 transition-all"
+                className="px-4 py-2 rounded-xl border border-[var(--nous-mars)]/40 bg-[var(--nous-mars)]/5 text-[var(--nous-mars)] text-xs font-bold uppercase tracking-wider hover:bg-[var(--nous-mars)]/10 disabled:opacity-50 transition-all"
+                style={{ fontFamily: 'var(--nous-font-ui)' }}
               >
                 Deny
               </button>
@@ -505,8 +513,11 @@ export default function ChatPage() {
       fallback={
         <div className="flex-1 flex flex-col items-center justify-center p-8">
           <div className="text-center">
-            <Loader2 className="w-12 h-12 text-[var(--phosphor-green)] animate-spin mx-auto mb-4" />
-            <p className="text-sm font-mono text-[var(--terminal-text-muted)]">
+            <Loader2 className="w-12 h-12 text-[var(--nous-sol)] animate-spin mx-auto mb-4" />
+            <p
+              className="text-sm text-[var(--nous-fg-3)]"
+              style={{ fontFamily: 'var(--nous-font-ui)' }}
+            >
               Loading chat...
             </p>
           </div>

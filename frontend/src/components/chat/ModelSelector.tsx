@@ -31,11 +31,6 @@ export interface ExtendedModel extends Model {
   provider?: 'openai' | 'local';
 }
 
-// Only `model-router` is provisioned in the Azure resource. The router
-// auto-selects the underlying model (gpt-5, claude-*, llama-*, etc.) per
-// request, so we don't expose individual model picks here. Empty `id`
-// falls back to the deployment configured server-side via
-// AZURE_OPENAI_CHAT_DEPLOYMENT_NAME.
 export const AVAILABLE_MODELS: ExtendedModel[] = [
   {
     id: '',
@@ -93,34 +88,32 @@ export function ModelSelector({
         disabled={isLoading}
         className={cn(
           'flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-all duration-200 whitespace-nowrap',
-          'bg-[var(--terminal-surface)] border-[var(--terminal-border)]',
-          'hover:border-[var(--phosphor-green)]/30',
+          'bg-[var(--nous-bg-2)] border-[var(--nous-border-1)]',
+          'hover:border-[var(--nous-sol)]/30',
           'active:scale-[0.98]',
           isOpen &&
-            'border-[var(--phosphor-green)]/50 bg-[var(--phosphor-green)]/5',
+            'border-[var(--nous-sol)]/50 bg-[var(--nous-sol)]/5',
           isLoading && 'opacity-50 cursor-not-allowed'
         )}
-        style={{ fontFamily: "'JetBrains Mono', monospace" }}
+        style={{ fontFamily: 'var(--nous-font-mono)' }}
       >
         <Cpu
           className={cn(
-            'w-3.5 h-3.5 shrink-0 transition-colors',
-            isOpen
-              ? 'text-[var(--phosphor-green)] animate-pulse'
-              : 'text-[var(--phosphor-green)]'
+            'w-3.5 h-3.5 shrink-0 transition-colors text-[var(--nous-sol)]',
+            isOpen && 'animate-pulse'
           )}
         />
-        <span className="text-[var(--terminal-text)] text-xs">
+        <span className="text-[var(--nous-fg-1)] text-xs">
           {selectedModel?.name || 'SELECT MODEL'}
         </span>
         {selectedModel?.isCloud && (
-          <span className="px-1 py-0.5 rounded bg-[var(--amber-gold)]/20 text-[var(--amber-gold)] text-[8px] uppercase shrink-0">
+          <span className="px-1 py-0.5 rounded bg-[var(--nous-sol)]/20 text-[var(--nous-sol)] text-[8px] uppercase shrink-0">
             Cloud
           </span>
         )}
         <ChevronDown
           className={cn(
-            'w-3 h-3 shrink-0 text-[var(--terminal-text-muted)] transition-transform',
+            'w-3 h-3 shrink-0 text-[var(--nous-fg-3)] transition-transform',
             isOpen && 'rotate-180'
           )}
         />
@@ -140,7 +133,7 @@ export function ModelSelector({
               initial={{ opacity: 0, y: -8 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -8 }}
-              className="absolute bottom-full left-0 mb-2 w-80 terminal-window z-50"
+              className="absolute bottom-full left-0 mb-2 w-80 rounded-xl border border-[var(--nous-border-1)] bg-[var(--nous-bg-2)] shadow-xl z-50"
             >
               <div className="p-2 max-h-80 overflow-y-auto terminal-scrollbar">
                 {models.map((model) => (
@@ -151,18 +144,18 @@ export function ModelSelector({
                       setIsOpen(false);
                     }}
                     className={cn(
-                      'w-full flex items-start gap-3 px-3 py-2.5 rounded text-left transition-colors',
+                      'w-full flex items-start gap-3 px-3 py-2.5 rounded-lg text-left transition-colors',
                       model.id === selectedModelId
-                        ? 'bg-[var(--phosphor-green)]/10 border border-[var(--phosphor-green)]/30'
-                        : 'hover:bg-[var(--terminal-elevated)]'
+                        ? 'bg-[var(--nous-sol)]/10 border border-[var(--nous-sol)]/30'
+                        : 'hover:bg-[var(--nous-sol)]/5'
                     )}
                   >
                     <Cpu
                       className={cn(
                         'w-4 h-4 mt-0.5',
                         model.id === selectedModelId
-                          ? 'text-[var(--phosphor-green)]'
-                          : 'text-[var(--terminal-text-muted)]'
+                          ? 'text-[var(--nous-sol)]'
+                          : 'text-[var(--nous-fg-3)]'
                       )}
                     />
                     <div className="flex-1 min-w-0">
@@ -171,33 +164,33 @@ export function ModelSelector({
                           className={cn(
                             'text-xs font-medium',
                             model.id === selectedModelId
-                              ? 'text-[var(--phosphor-green)]'
-                              : 'text-[var(--terminal-text)]'
+                              ? 'text-[var(--nous-sol)]'
+                              : 'text-[var(--nous-fg-1)]'
                           )}
-                          style={{ fontFamily: "'JetBrains Mono', monospace" }}
+                          style={{ fontFamily: 'var(--nous-font-mono)' }}
                         >
                           {model.name}
                         </span>
                         {model.isCloud && (
-                          <span className="px-1.5 py-0.5 rounded bg-[var(--amber-gold)]/20 text-[var(--amber-gold)] text-[8px] uppercase">
+                          <span className="px-1.5 py-0.5 rounded bg-[var(--nous-sol)]/20 text-[var(--nous-sol)] text-[8px] uppercase">
                             Cloud
                           </span>
                         )}
                         {model.isFeatured && (
-                          <span className="px-1.5 py-0.5 rounded bg-[var(--phosphor-green)]/20 text-[var(--phosphor-green)] text-[8px] uppercase">
+                          <span className="px-1.5 py-0.5 rounded bg-[var(--nous-sol)]/20 text-[var(--nous-sol)] text-[8px] uppercase">
                             Featured
                           </span>
                         )}
                       </div>
                       <p
-                        className="text-[10px] text-[var(--terminal-text-muted)] mt-0.5"
-                        style={{ fontFamily: "'JetBrains Mono', monospace" }}
+                        className="text-[10px] text-[var(--nous-fg-3)] mt-0.5"
+                        style={{ fontFamily: 'var(--nous-font-mono)' }}
                       >
                         {model.description}
                       </p>
                       <div
-                        className="flex items-center gap-3 mt-1 text-[10px] text-[var(--terminal-text-dim)]"
-                        style={{ fontFamily: "'JetBrains Mono', monospace" }}
+                        className="flex items-center gap-3 mt-1 text-[10px] text-[var(--nous-fg-3)]"
+                        style={{ fontFamily: 'var(--nous-font-mono)' }}
                       >
                         <span>PARAMS: {model.parameters}</span>
                         <span>RAM: {model.ram}</span>

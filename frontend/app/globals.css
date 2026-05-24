@@ -1192,16 +1192,16 @@ input:-webkit-autofill ~ button svg {
 }
 
 .terminal-scrollbar::-webkit-scrollbar-track {
-  background: var(--terminal-bg);
+  background: transparent;
 }
 
 .terminal-scrollbar::-webkit-scrollbar-thumb {
-  background: var(--terminal-border);
+  background: var(--nous-border-1);
   border-radius: 3px;
 }
 
 .terminal-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: var(--phosphor-green-dim);
+  background: var(--nous-fg-3);
 }
 
 /* ASCII art border effect */

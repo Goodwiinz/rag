@@ -3,7 +3,7 @@
 import { cn } from '@/lib/utils';
 import { getReferencedCitations, type Citation } from '@/utils/citationParser';
 import { Activity, Check, Copy, RefreshCw } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { CitationRenderer } from '../CitationRenderer';
 
 export interface ChatBubbleMessage {
@@ -26,7 +26,7 @@ export interface ChatBubbleProps {
   onCitationClick?: (citations: Citation[], clickedCitation: Citation) => void;
 }
 
-export function ChatBubble({
+export const ChatBubble = React.memo(function ChatBubble({
   message,
   index: _index,
   modelName,
@@ -235,6 +235,6 @@ export function ChatBubble({
       </div>
     </div>
   );
-}
+});
 
 export default ChatBubble;
