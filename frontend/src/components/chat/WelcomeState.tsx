@@ -1,7 +1,7 @@
 'use client';
 
-import { motion, useMotionValue, useSpring, useTransform } from 'framer-motion';
-import { Activity, Cpu, Satellite, Shield, Zap } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { ArrowRight, BookOpen, Code2, Search, Sparkles } from 'lucide-react';
 import React from 'react';
 
 export interface WelcomeStateProps {
@@ -9,159 +9,103 @@ export interface WelcomeStateProps {
   selectedModel?: string;
 }
 
+const SUGGESTED_PROMPTS = [
+  {
+    icon: Search,
+    label: 'Research a topic',
+    prompt: 'Help me research ',
+  },
+  {
+    icon: BookOpen,
+    label: 'Summarize a document',
+    prompt: 'Summarize the key points of ',
+  },
+  {
+    icon: Code2,
+    label: 'Explain code',
+    prompt: 'Explain how this code works: ',
+  },
+  {
+    icon: Sparkles,
+    label: 'Generate ideas',
+    prompt: 'Help me brainstorm ideas for ',
+  },
+];
+
 export function WelcomeState({
-  onPromptSelect: _onPromptSelect,
+  onPromptSelect,
   selectedModel,
 }: WelcomeStateProps) {
-  // Mouse tracking for parallax effect
-  const x = useMotionValue(0);
-  const y = useMotionValue(0);
-
-  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    const centerX = rect.left + rect.width / 2;
-    const centerY = rect.top + rect.height / 2;
-    x.set(e.clientX - centerX);
-    y.set(e.clientY - centerY);
-  };
-
-  const handleMouseLeave = () => {
-    x.set(0);
-    y.set(0);
-  };
-
-  // Smooth spring physics for the tilt
-  const springConfig = { damping: 25, stiffness: 150 };
-  const rotateX = useSpring(
-    useTransform(y, [-100, 100], [10, -10]),
-    springConfig
-  );
-  const rotateY = useSpring(
-    useTransform(x, [-100, 100], [-10, 10]),
-    springConfig
-  );
-
   return (
-    <div
-      className="flex-1 flex flex-col items-center justify-center p-4 sm:p-8 perspective-1000"
-      onMouseMove={handleMouseMove}
-      onMouseLeave={handleMouseLeave}
-    >
+    <div className="flex-1 flex flex-col items-center justify-center p-4 sm:p-8">
       <motion.div
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ duration: 0.8 }}
-        style={{ rotateX, rotateY, transformStyle: 'preserve-3d' }}
-        className="text-center max-w-2xl relative"
+        initial={{ opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+        className="text-center max-w-lg w-full"
       >
-        {/* Orbital decoration — scaled down on mobile */}
-        <div className="relative mb-8 sm:mb-12 flex items-center justify-center h-40 w-40 sm:h-64 sm:w-64 mx-auto transform-gpu">
-          {/* Outer Ring - Counter Rotate */}
-          <motion.div
-            style={{ translateZ: 20 }}
-            className="absolute inset-0 flex items-center justify-center"
-          >
-            <div className="w-36 h-36 sm:w-56 sm:h-56 rounded-full border border-[var(--terminal-border)]/50 animate-[spin_30s_linear_infinite_reverse] orbital-ring-reverse" />
-          </motion.div>
-
-          {/* Inner Ring - Rotate */}
-          <motion.div
-            style={{ translateZ: 40 }}
-            className="absolute inset-0 flex items-center justify-center"
-          >
-            <div className="w-20 h-20 sm:w-32 sm:h-32 rounded-full border border-[var(--terminal-border)] animate-[spin_20s_linear_infinite] orbital-ring" />
-          </motion.div>
-
-          {/* Core Container */}
-          <motion.div
-            style={{ translateZ: 60 }}
-            className="relative w-16 h-16 sm:w-24 sm:h-24 flex items-center justify-center"
-          >
-            <Satellite className="w-8 h-8 sm:w-12 sm:h-12 text-[var(--phosphor-green)] float-gentle drop-shadow-[0_0_15px_rgba(212,160,57,0.3)]" />
-
-            <motion.div
-              animate={{ top: ['0%', '100%', '0%'], opacity: [0, 1, 0] }}
-              transition={{ duration: 3, repeat: Infinity, ease: 'linear' }}
-              className="absolute left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-sol to-transparent w-full"
-            />
-          </motion.div>
-
-          {/* Radar Pings - Background */}
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-            <div
-              className="w-full h-full rounded-full border border-sol/5 animate-ping"
-              style={{ animationDuration: '3s' }}
-            />
+        {/* Brand mark */}
+        <motion.div
+          initial={{ scale: 0.8, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ delay: 0.1, duration: 0.5 }}
+          className="mb-6 sm:mb-10 flex items-center justify-center"
+        >
+          <div className="relative w-16 h-16 sm:w-20 sm:h-20 flex items-center justify-center">
+            <div className="absolute inset-0 rounded-full bg-[var(--nous-sol)]/10 animate-pulse" style={{ animationDuration: '3s' }} />
+            <div className="absolute inset-2 rounded-full bg-[var(--nous-sol)]/5" />
+            <span
+              className="text-2xl sm:text-3xl font-semibold text-[var(--nous-sol)]"
+              style={{ fontFamily: 'var(--nous-font-heading)' }}
+            >
+              N
+            </span>
           </div>
-        </div>
+        </motion.div>
 
-        <motion.div style={{ translateZ: 30 }}>
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2, duration: 0.5 }}
+        >
           <h2
-            className="text-base sm:text-xl text-[var(--terminal-text)] tracking-wider mb-2"
-            style={{ fontFamily: "'JetBrains Mono', monospace" }}
+            className="text-xl sm:text-2xl font-medium text-[var(--nous-fg-1)] mb-2"
+            style={{ fontFamily: 'var(--nous-font-heading)' }}
           >
-            {selectedModel
-              ? 'NEURAL LINK ESTABLISHED'
-              : 'AWAITING NEURAL CORE SELECTION'}
+            {selectedModel ? 'How can I help?' : 'Select a model to begin'}
           </h2>
           <p
-            className="text-xs sm:text-sm text-[var(--terminal-text-muted)] text-center max-w-md mx-auto"
-            style={{ fontFamily: "'JetBrains Mono', monospace" }}
+            className="text-sm sm:text-base text-[var(--nous-fg-3)] max-w-sm mx-auto"
+            style={{ fontFamily: 'var(--nous-font-body)', lineHeight: '1.6' }}
           >
             {selectedModel
-              ? 'Ready to receive transmissions. Enter your query below.'
-              : 'Select a neural core from the command bar to initialize the interface.'}
+              ? 'Ask anything — I can research, summarize, and reason across your documents.'
+              : 'Choose a model from the toolbar above to start a conversation.'}
           </p>
         </motion.div>
 
         {selectedModel && (
           <motion.div
-            initial={{ opacity: 0, y: 10 }}
+            initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
-            style={{ translateZ: 20 }}
-            className="mt-6 sm:mt-8 grid grid-cols-2 gap-2 sm:gap-4 max-w-lg mx-auto"
+            transition={{ delay: 0.4, duration: 0.5 }}
+            className="mt-6 sm:mt-10 grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3"
           >
-            {[
-              {
-                icon: Zap,
-                label: 'RAPID PROCESSING',
-                desc: 'Sub-second response latency',
-              },
-              {
-                icon: Shield,
-                label: 'LOCAL ONLY',
-                desc: 'All data stays on device',
-              },
-              {
-                icon: Cpu,
-                label: 'NEURAL INFERENCE',
-                desc: 'Advanced language model',
-              },
-              {
-                icon: Activity,
-                label: 'REAL-TIME STREAM',
-                desc: 'Live response generation',
-              },
-            ].map((item, idx) => (
-              <div
+            {SUGGESTED_PROMPTS.map((item, idx) => (
+              <button
                 key={idx}
-                className="p-3 sm:p-4 rounded-lg border border-[var(--terminal-border)] bg-[var(--terminal-surface)]/50 text-left hover:border-[var(--phosphor-green)]/20 transition-all group backdrop-blur-sm"
+                onClick={() => onPromptSelect(item.prompt)}
+                className="group flex items-center gap-3 p-3.5 sm:p-4 rounded-xl border border-[var(--nous-border-1)] bg-[var(--nous-bg-2)]/50 text-left transition-all duration-200 hover:border-[var(--nous-sol)]/30 hover:bg-[var(--nous-sol)]/5 active:scale-[0.98]"
               >
-                <item.icon className="w-4 h-4 sm:w-5 sm:h-5 text-[var(--phosphor-green)] mb-1.5 sm:mb-2 group-hover:scale-110 transition-transform" />
-                <h3
-                  className="text-[10px] sm:text-xs text-[var(--terminal-text)] mb-0.5 sm:mb-1"
-                  style={{ fontFamily: "'JetBrains Mono', monospace" }}
+                <item.icon className="w-4 h-4 text-[var(--nous-fg-3)] group-hover:text-[var(--nous-sol)] transition-colors shrink-0" />
+                <span
+                  className="text-[13px] sm:text-sm text-[var(--nous-fg-2)] group-hover:text-[var(--nous-fg-1)] transition-colors flex-1"
+                  style={{ fontFamily: 'var(--nous-font-ui)' }}
                 >
                   {item.label}
-                </h3>
-                <p
-                  className="text-[9px] sm:text-[10px] text-[var(--terminal-text-muted)]"
-                  style={{ fontFamily: "'JetBrains Mono', monospace" }}
-                >
-                  {item.desc}
-                </p>
-              </div>
+                </span>
+                <ArrowRight className="w-3.5 h-3.5 text-[var(--nous-fg-3)]/0 group-hover:text-[var(--nous-sol)] transition-all translate-x-0 group-hover:translate-x-0.5" />
+              </button>
             ))}
           </motion.div>
         )}

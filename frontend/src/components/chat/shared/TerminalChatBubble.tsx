@@ -67,59 +67,42 @@ export function TerminalChatBubble({
   return (
     <div
       className={cn(
-        'group relative mb-3 sm:mb-4',
-        isUser ? 'ml-2 sm:ml-10' : 'mr-2 sm:mr-10'
+        'group relative mb-4 sm:mb-5',
+        isUser ? 'ml-4 sm:ml-16' : 'mr-4 sm:mr-16'
       )}
     >
+      {/* Meta row */}
       <div
         className={cn(
-          'absolute top-0 h-full w-[1px] opacity-30',
-          isUser
-            ? 'right-0 bg-gradient-to-b from-[var(--amber-gold)] via-[var(--amber-gold)]/10 to-transparent'
-            : 'left-0 bg-gradient-to-b from-[var(--phosphor-green)] via-[var(--phosphor-green)]/10 to-transparent'
+          'mb-1.5 flex items-center gap-2 text-[11px]',
+          isUser ? 'justify-end pr-1' : 'pl-1'
         )}
-      />
-
-      <div
-        className={cn(
-          'mb-2 flex items-center gap-3 text-[11px] tracking-wide',
-          isUser ? 'justify-end pr-4' : 'pl-4'
-        )}
-        style={{ fontFamily: "'JetBrains Mono', monospace" }}
+        style={{ fontFamily: 'var(--nous-font-ui)' }}
       >
         {!isUser && (
           <>
-            <div className="rounded border border-[var(--terminal-border)] bg-[var(--terminal-surface)] px-2 py-0.5">
-              <span className="text-[10px] font-bold text-[var(--phosphor-green)]">
-                {isStreaming
-                  ? 'STREAMING'
-                  : isTyping
-                    ? 'PROCESSING'
-                    : 'RECEIVED'}
+            {(isStreaming || isTyping) && (
+              <span className="text-[10px] font-medium text-[var(--nous-sol)] animate-pulse">
+                {isStreaming ? 'Streaming' : 'Thinking'}
               </span>
-            </div>
+            )}
             {modelName && (
-              <span className="rounded border border-[var(--terminal-border)] bg-[var(--terminal-surface)] px-2 py-0.5 text-[var(--terminal-text-dim)]/90">
+              <span className="text-[var(--nous-fg-3)] text-[10px]">
                 {modelName}
               </span>
             )}
           </>
         )}
-        {isUser && (
-          <span className="rounded border border-[var(--amber-gold)]/20 bg-[var(--amber-gold)]/10 px-2 py-0.5 text-[10px] font-bold text-[var(--amber-gold)]">
-            QUERY
-          </span>
-        )}
-        <span className="text-[var(--terminal-text-dim)]/90">{timestamp}</span>
+        <span className="text-[var(--nous-fg-3)]">{timestamp}</span>
 
-        <div className="flex items-center gap-1 opacity-0 transition-all duration-200 group-hover:opacity-100 touch-show">
+        <div className="flex items-center gap-0.5 opacity-0 transition-all duration-200 group-hover:opacity-100 touch-show">
           <button
             onClick={handleCopy}
             className={cn(
-              'rounded border border-transparent p-2 sm:p-1 transition-all hover:border-[var(--terminal-border)] hover:bg-[var(--terminal-elevated)]',
+              'rounded-lg p-2 sm:p-1.5 transition-all hover:bg-[var(--nous-sol)]/8',
               copied
-                ? 'text-[var(--phosphor-green)]'
-                : 'text-[var(--terminal-text-dim)] hover:text-[var(--terminal-text)]'
+                ? 'text-[var(--nous-terra)]'
+                : 'text-[var(--nous-fg-3)] hover:text-[var(--nous-fg-1)]'
             )}
             aria-label={copied ? 'Copied!' : 'Copy message'}
             title={copied ? 'Copied!' : 'Copy message'}
@@ -133,7 +116,7 @@ export function TerminalChatBubble({
           {message.role === 'assistant' && onRetry && (
             <button
               onClick={onRetry}
-              className="rounded border border-transparent p-2 sm:p-1 text-[var(--terminal-text-dim)] transition-all hover:border-[var(--terminal-border)] hover:bg-[var(--terminal-elevated)] hover:text-[var(--terminal-text)]"
+              className="rounded-lg p-2 sm:p-1.5 text-[var(--nous-fg-3)] transition-all hover:bg-[var(--nous-sol)]/8 hover:text-[var(--nous-fg-1)]"
               aria-label="Regenerate response"
               title="Regenerate response"
             >
@@ -143,69 +126,60 @@ export function TerminalChatBubble({
         </div>
       </div>
 
+      {/* Bubble */}
       <div
         className={cn(
-          'relative overflow-hidden rounded-xl border transition-colors duration-200',
+          'relative overflow-hidden rounded-2xl transition-all duration-200',
           isUser
-            ? 'mr-4 border-[var(--amber-gold)]/15 bg-[var(--terminal-surface)] hover:border-[var(--amber-gold)]/30'
-            : 'ml-4 border-[var(--terminal-border)] bg-[var(--terminal-surface)] hover:border-[var(--phosphor-green)]/25'
+            ? 'nous-bubble-user'
+            : 'nous-bubble-assistant hover:border-[var(--nous-sol)]/20'
         )}
       >
-
-        <div className="relative z-10 p-3 sm:p-5 overflow-hidden break-words">
+        <div className="relative z-10 p-3.5 sm:p-5 overflow-hidden break-words">
           {isStreaming && !streamingContent ? (
-            <div
-              className="text-[14px] leading-relaxed text-[var(--terminal-text)]"
-              style={{ fontFamily: "'JetBrains Mono', monospace" }}
-            >
+            <div className="nous-chat-body">
               <span
-                className="ml-0.5 inline-block h-4 w-2 animate-pulse bg-[var(--phosphor-green)]"
+                className="ml-0.5 inline-block h-4 w-[3px] rounded-sm animate-pulse bg-[var(--nous-sol)]"
                 data-testid="streaming-cursor"
               />
             </div>
           ) : isStreaming && streamingContent ? (
-            <div
-              className="text-[14px] leading-relaxed text-[var(--terminal-text)]"
-              style={{ fontFamily: 'Inter, system-ui, sans-serif' }}
-            >
+            <div className="nous-chat-body">
               <span className="whitespace-pre-wrap">{streamingContent}</span>
               <span
-                className="ml-0.5 inline-block h-4 w-2 animate-pulse bg-[var(--phosphor-green)]"
+                className="ml-0.5 inline-block h-4 w-[3px] rounded-sm animate-pulse bg-[var(--nous-sol)]"
                 data-testid="streaming-cursor"
               />
             </div>
           ) : isTyping && !message.content ? (
             <div
-              className="flex items-center gap-3 text-sm text-[var(--phosphor-green)]"
-              style={{ fontFamily: "'JetBrains Mono', monospace" }}
+              className="flex items-center gap-3 text-sm text-[var(--nous-sol)]"
+              style={{ fontFamily: 'var(--nous-font-ui)' }}
             >
               <div className="flex items-center gap-1.5">
                 <span
-                  className="h-1 w-1 animate-bounce rounded-full bg-[var(--phosphor-green)]"
+                  className="h-1.5 w-1.5 animate-bounce rounded-full bg-[var(--nous-sol)]"
                   style={{ animationDelay: '0ms' }}
                 />
                 <span
-                  className="h-1 w-1 animate-bounce rounded-full bg-[var(--phosphor-green)]"
+                  className="h-1.5 w-1.5 animate-bounce rounded-full bg-[var(--nous-sol)]/70"
                   style={{ animationDelay: '150ms' }}
                 />
                 <span
-                  className="h-1 w-1 animate-bounce rounded-full bg-[var(--phosphor-green)]"
+                  className="h-1.5 w-1.5 animate-bounce rounded-full bg-[var(--nous-sol)]/40"
                   style={{ animationDelay: '300ms' }}
                 />
               </div>
-              <span className="text-[10px] uppercase tracking-wider opacity-70">
-                Processing...
+              <span className="text-[11px] font-medium text-[var(--nous-fg-3)]">
+                Thinking…
               </span>
             </div>
           ) : (
             <div
               className={cn(
-                'text-[14px] sm:text-[15px] leading-relaxed',
-                isUser
-                  ? 'text-[var(--terminal-text)]'
-                  : 'text-[var(--terminal-text)]'
+                'nous-chat-body',
+                isUser && 'text-[var(--nous-erebus)]'
               )}
-              style={{ fontFamily: 'Inter, system-ui, sans-serif' }}
             >
               {isUser ? (
                 <p className="whitespace-pre-wrap">{message.content}</p>
@@ -224,8 +198,9 @@ export function TerminalChatBubble({
           )}
         </div>
 
+        {/* Citations footer */}
         {!isUser && visibleCitations.length > 0 && (
-          <div className="relative border-t border-[var(--terminal-border)] bg-[var(--terminal-bg)]/30 p-3">
+          <div className="relative border-t border-[var(--nous-border-1)] bg-[var(--nous-bg-1)]/50 p-3">
             <div className="flex flex-wrap items-center gap-2">
               {visibleCitations.map((citation, idx) => (
                 <button
@@ -236,14 +211,14 @@ export function TerminalChatBubble({
                       onCitationClick(visibleCitations, citation);
                     }
                   }}
-                  className="group/citation flex items-center gap-2 rounded border border-[var(--terminal-border)] bg-[var(--terminal-surface)] px-2.5 py-1.5 text-[10px] transition-all hover:border-[var(--phosphor-green)]/40 hover:bg-[var(--terminal-elevated)]"
-                  style={{ fontFamily: "'JetBrains Mono', monospace" }}
+                  className="group/citation flex items-center gap-2 rounded-lg border border-[var(--nous-border-1)] bg-[var(--nous-bg-2)] px-2.5 py-1.5 text-[10px] transition-all hover:border-[var(--nous-sol)]/30 hover:bg-[var(--nous-sol)]/5"
+                  style={{ fontFamily: 'var(--nous-font-mono)' }}
                 >
-                  <div className="h-1 w-1 rounded-full bg-[var(--phosphor-green)]/30 transition-colors group-hover/citation:bg-[var(--phosphor-green)]" />
-                  <span className="max-w-[180px] truncate text-[var(--terminal-text)]">
+                  <div className="h-1.5 w-1.5 rounded-full bg-[var(--nous-sol)]/30 transition-colors group-hover/citation:bg-[var(--nous-sol)]" />
+                  <span className="max-w-[180px] truncate text-[var(--nous-fg-1)]">
                     {citation.title}
                   </span>
-                  <span className="border-l border-[var(--terminal-border)] pl-2 text-[var(--terminal-text-dim)]/90">
+                  <span className="border-l border-[var(--nous-border-1)] pl-2 text-[var(--nous-fg-3)]">
                     {Math.round(citation.score * 100)}%
                   </span>
                 </button>
@@ -251,8 +226,8 @@ export function TerminalChatBubble({
               {message.diagnosticsTraceId && (
                 <a
                   href={`/diagnostics?trace=${encodeURIComponent(message.diagnosticsTraceId)}`}
-                  className="ml-auto flex items-center gap-1 rounded border border-[var(--terminal-border)] bg-[var(--terminal-surface)] px-2 py-1 text-[9px] text-[var(--cyan-pulse)] transition-all hover:border-[var(--cyan-pulse)]/40 hover:bg-[var(--terminal-elevated)]"
-                  style={{ fontFamily: "'JetBrains Mono', monospace" }}
+                  className="ml-auto flex items-center gap-1 rounded-lg border border-[var(--nous-border-1)] bg-[var(--nous-bg-2)] px-2 py-1 text-[9px] text-[var(--nous-fg-3)] transition-all hover:border-[var(--nous-sol)]/30 hover:text-[var(--nous-sol)]"
+                  style={{ fontFamily: 'var(--nous-font-mono)' }}
                   title="View retrieval diagnostics"
                 >
                   <Activity className="h-3 w-3" />

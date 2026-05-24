@@ -74,69 +74,66 @@ export const ChatHeader = memo(function ChatHeader({
   };
 
   return (
-    <div className="flex h-12 sm:h-14 shrink-0 items-center gap-2 sm:gap-3 border-b border-[var(--terminal-border)] bg-[var(--terminal-bg)]/95 px-3 sm:px-4 z-40">
+    <div className="nous-glass flex h-12 sm:h-14 shrink-0 items-center gap-2 sm:gap-3 border-b border-[var(--nous-border-1)] px-3 sm:px-4 z-40">
       {/* Left: sidebar trigger + mobile menu + breadcrumb */}
       <div className="flex items-center gap-2 sm:gap-3 shrink-0 min-w-0">
-        {/* Mobile sidebar toggle */}
         {onMobileSidebarToggle && (
           <button
             type="button"
             onClick={onMobileSidebarToggle}
-            className="md:hidden h-9 w-9 shrink-0 flex items-center justify-center text-[var(--terminal-text-dim)] hover:text-[var(--phosphor-green)] hover:bg-[var(--terminal-elevated)] transition-all rounded-lg"
+            className="md:hidden h-9 w-9 shrink-0 flex items-center justify-center text-[var(--nous-fg-3)] hover:text-[var(--nous-sol)] hover:bg-[var(--nous-sol)]/8 transition-all rounded-xl"
             aria-label="Toggle chat history"
           >
             <Menu className="w-5 h-5" />
           </button>
         )}
 
-        <SidebarTrigger className="hidden md:flex h-7 w-7 shrink-0 text-[var(--terminal-text-dim)] hover:text-[var(--phosphor-green)] hover:bg-[var(--terminal-elevated)] transition-all rounded" />
+        <SidebarTrigger className="hidden md:flex h-7 w-7 shrink-0 text-[var(--nous-fg-3)] hover:text-[var(--nous-sol)] hover:bg-[var(--nous-sol)]/8 transition-all rounded-lg" />
 
         {/* Mobile: show chat title */}
         <span
-          className="md:hidden text-xs text-[var(--terminal-text)] truncate max-w-[140px]"
-          style={{ fontFamily: "'JetBrains Mono', monospace" }}
+          className="md:hidden text-[13px] font-medium text-[var(--nous-fg-1)] truncate max-w-[160px]"
+          style={{ fontFamily: 'var(--nous-font-ui)' }}
         >
           {chatTitle}
         </span>
 
         <div
           className="hidden lg:flex items-center whitespace-nowrap"
-          style={{ fontFamily: "'JetBrains Mono', monospace" }}
+          style={{ fontFamily: 'var(--nous-font-ui)' }}
         >
-          <span className="text-xs text-[var(--terminal-text-dim)]">
+          <span className="text-xs text-[var(--nous-fg-3)]">
             Dashboard /{' '}
-            <span className="text-[var(--terminal-text)]">Chat</span>
+            <span className="text-[var(--nous-fg-1)] font-medium">Chat</span>
           </span>
         </div>
 
       </div>
 
-      {/* Middle: compact ⌘K command-palette trigger. The sidebar already has
-          a session search; this is the global command affordance only. */}
+      {/* Command palette trigger */}
       <button
         type="button"
         onClick={onCommandPaletteOpen}
         aria-label="Open command palette"
-        className="hidden md:flex items-center gap-2 px-2.5 py-1.5 rounded-md border border-[var(--terminal-border)] bg-[var(--terminal-surface)] hover:border-[var(--phosphor-green)]/30 transition-colors"
-        style={{ fontFamily: "'JetBrains Mono', monospace" }}
+        className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-lg border border-[var(--nous-border-1)] bg-[var(--nous-bg-2)]/50 hover:border-[var(--nous-sol)]/25 transition-colors"
+        style={{ fontFamily: 'var(--nous-font-ui)' }}
       >
-        <Search className="w-3.5 h-3.5 text-[var(--terminal-text-dim)]" />
-        <span className="text-[10px] text-[var(--terminal-text-dim)] uppercase tracking-wider">
-          Command
+        <Search className="w-3.5 h-3.5 text-[var(--nous-fg-3)]" />
+        <span className="text-[11px] text-[var(--nous-fg-3)]">
+          Search
         </span>
-        <span className="px-1.5 py-0.5 rounded bg-[var(--terminal-elevated)] border border-[var(--terminal-border)] text-[9px] text-[var(--terminal-text-dim)] whitespace-nowrap">
+        <span className="px-1.5 py-0.5 rounded-md bg-[var(--nous-bg-1)] border border-[var(--nous-border-1)] text-[9px] text-[var(--nous-fg-3)] whitespace-nowrap">
           ⌘K
         </span>
       </button>
 
-      {/* Right: chat-level actions only. The model picker belongs next to
-          the composer, not in the global page chrome. */}
-      <div className="flex items-center gap-2 shrink-0 ml-auto">
+      {/* Right: chat actions */}
+      <div className="flex items-center gap-1.5 shrink-0 ml-auto">
         {messages.length > 0 && onCopyAll && (
           <IconButton
             label="Copy all messages"
             icon={<ClipboardCopy className="w-4 h-4" />}
-            className="p-1.5 text-[var(--terminal-text-dim)] hover:text-[var(--terminal-text)] transition-colors"
+            className="p-1.5 text-[var(--nous-fg-3)] hover:text-[var(--nous-fg-1)] hover:bg-[var(--nous-sol)]/8 rounded-lg transition-colors"
             onClick={onCopyAll}
           />
         )}
@@ -146,7 +143,7 @@ export const ChatHeader = memo(function ChatHeader({
             <IconButton
               label="Export chat"
               icon={<Download className="w-4 h-4" />}
-              className="p-1.5 text-[var(--terminal-text-dim)] hover:text-[var(--terminal-text)] transition-colors"
+              className="p-1.5 text-[var(--nous-fg-3)] hover:text-[var(--nous-fg-1)] hover:bg-[var(--nous-sol)]/8 rounded-lg transition-colors"
               onClick={() => setExportOpen((v) => !v)}
             />
             <AnimatePresence>
@@ -156,21 +153,21 @@ export const ChatHeader = memo(function ChatHeader({
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -5 }}
                   transition={{ duration: 0.15 }}
-                  className="absolute right-0 top-full mt-1 w-44 rounded border border-[var(--terminal-border)] bg-[var(--terminal-surface)] shadow-lg z-50 overflow-hidden"
-                  style={{ fontFamily: "'JetBrains Mono', monospace" }}
+                  className="absolute right-0 top-full mt-1 w-48 rounded-xl border border-[var(--nous-border-1)] bg-[var(--nous-bg-2)] shadow-lg z-50 overflow-hidden p-1"
+                  style={{ fontFamily: 'var(--nous-font-ui)' }}
                 >
                   <button
                     onClick={handleExportMarkdown}
-                    className="w-full flex items-center gap-2 px-3 py-2 text-xs text-[var(--terminal-text)] hover:bg-[var(--terminal-elevated)] focus-visible:bg-[var(--terminal-elevated)] focus-visible:outline-none transition-colors"
+                    className="w-full flex items-center gap-2 px-3 py-2 text-[12px] text-[var(--nous-fg-2)] hover:bg-[var(--nous-sol)]/8 hover:text-[var(--nous-fg-1)] focus-visible:bg-[var(--nous-sol)]/8 focus-visible:outline-none rounded-lg transition-colors"
                   >
-                    <FileText className="w-3.5 h-3.5 text-[var(--terminal-text-dim)]" />
+                    <FileText className="w-3.5 h-3.5 text-[var(--nous-fg-3)]" />
                     Export as Markdown
                   </button>
                   <button
                     onClick={handleExportJson}
-                    className="w-full flex items-center gap-2 px-3 py-2 text-xs text-[var(--terminal-text)] hover:bg-[var(--terminal-elevated)] focus-visible:bg-[var(--terminal-elevated)] focus-visible:outline-none transition-colors"
+                    className="w-full flex items-center gap-2 px-3 py-2 text-[12px] text-[var(--nous-fg-2)] hover:bg-[var(--nous-sol)]/8 hover:text-[var(--nous-fg-1)] focus-visible:bg-[var(--nous-sol)]/8 focus-visible:outline-none rounded-lg transition-colors"
                   >
-                    <FileJson className="w-3.5 h-3.5 text-[var(--terminal-text-dim)]" />
+                    <FileJson className="w-3.5 h-3.5 text-[var(--nous-fg-3)]" />
                     Export as JSON
                   </button>
                 </motion.div>
