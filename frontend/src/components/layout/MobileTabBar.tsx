@@ -4,6 +4,7 @@ import { cn } from '@/lib/utils';
 import { Files, LayoutDashboard, MessageSquare, Search } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useEffect, useState } from 'react';
 
 const TABS = [
   { href: '/chat', label: 'Chat', icon: MessageSquare },
@@ -12,8 +13,25 @@ const TABS = [
   { href: '/dashboard', label: 'Home', icon: LayoutDashboard },
 ] as const;
 
+function useKeyboardOpen() {
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const check = () => {
+      setOpen(vv.height < window.innerHeight * 0.75);
+    };
+    vv.addEventListener('resize', check);
+    return () => vv.removeEventListener('resize', check);
+  }, []);
+  return open;
+}
+
 export function MobileTabBar() {
   const pathname = usePathname();
+  const keyboardOpen = useKeyboardOpen();
+
+  if (keyboardOpen) return null;
 
   return (
     <nav
