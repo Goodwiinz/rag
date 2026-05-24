@@ -27,7 +27,7 @@ frontend:
   replicaCount: 1
   image:
     repository: registry.digitalocean.com/ragsystemregistry/frontend
-    tag: "17c10ec"
+    tag: "85fe552"
     pullPolicy: IfNotPresent
   service:
     type: ClusterIP
@@ -80,7 +80,7 @@ backend:
   replicaCount: 1
   image:
     repository: registry.digitalocean.com/ragsystemregistry/backend
-    tag: "17c10ec"
+    tag: "85fe552"
     pullPolicy: IfNotPresent
   service:
     type: ClusterIP
