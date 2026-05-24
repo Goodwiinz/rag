@@ -70,8 +70,15 @@
 }
 
 .nous-bubble-user {
-  background: linear-gradient(135deg, var(--nous-sol), color-mix(in oklab, var(--nous-sol) 85%, var(--nous-helios)));
-  color: var(--nous-erebus);
+  background: var(--nous-bg-2);
+  border: 1px solid var(--nous-border-2);
+  border-right: 2px solid var(--nous-sol-safe);
+}
+
+.dark .nous-bubble-user {
+  background: var(--nous-umber);
+  border: 1px solid var(--nous-dusk);
+  border-right: 2px solid var(--nous-sol);
 }
 
 .nous-bubble-assistant {
