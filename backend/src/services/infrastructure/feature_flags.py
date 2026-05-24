@@ -16,7 +16,7 @@ try:
     LAUNCHDARKLY_AVAILABLE = True
 except ImportError:
     LAUNCHDARKLY_AVAILABLE = False
-    logging.warning("LaunchDarkly SDK not available. Using mock implementation.")
+    logging.info("LaunchDarkly SDK not available. Using mock implementation.")
 
 logger = logging.getLogger(__name__)
 

@@ -25,8 +25,8 @@ try:
     CREWAI_AVAILABLE = True
 except ImportError:
     CREWAI_AVAILABLE = False
-    BaseTool = object  # Fallback base class
-    logging.warning(
+    BaseTool = object
+    logging.info(
         "CrewAI not available. Multi-agent search will use fallback implementation."
     )
 

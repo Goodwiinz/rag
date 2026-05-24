@@ -27,6 +27,7 @@ from .slo_monitoring import (
     get_slo_monitor,
     record_slo_metrics,
 )
+from .instrumentation import instrument_app, instrument_services
 from .tracer import configure_tracing, get_tracer, trace_function, trace_span
 
 __all__ = [
@@ -57,4 +58,7 @@ __all__ = [
     "evaluate_slos",
     "SLOStatus",
     "AlertSeverity",
+    # Instrumentation
+    "instrument_app",
+    "instrument_services",
 ]

@@ -188,7 +188,7 @@ async def lifespan(app: FastAPI):
         initialize_encryption()
         logger.info("Field-level encryption initialized")
     except Exception as e:
-        logger.warning("Encryption initialization skipped: %s", e)
+        logger.info("Encryption initialization skipped: %s", e)
 
     # Check Redis connection
     if redis_client:
