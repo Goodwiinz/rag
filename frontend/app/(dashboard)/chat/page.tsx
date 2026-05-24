@@ -219,20 +219,20 @@ function ChatPageContent() {
   );
 
   return (
-    <div className="flex h-full w-full overflow-hidden bg-[var(--terminal-bg)]">
+    <div className="flex h-full w-full overflow-hidden bg-[var(--nous-bg-1)]">
       {/* Mobile sidebar backdrop + drawer */}
       {mobileSidebarOpen && (
         <div
           className="fixed inset-0 z-50 md:hidden"
           onClick={() => setMobileSidebarOpen(false)}
         >
-          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
           <motion.div
             initial={{ x: -280 }}
             animate={{ x: 0 }}
             exit={{ x: -280 }}
             transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-            className="absolute left-0 top-0 bottom-0 w-[280px] bg-[var(--terminal-bg)] border-r border-[var(--terminal-border)] shadow-xl"
+            className="absolute left-0 top-0 bottom-0 w-[280px] nous-glass border-r border-[var(--nous-border-1)] shadow-xl"
             onClick={(e) => e.stopPropagation()}
           >
             <ChatSidebar
@@ -310,8 +310,8 @@ function ChatPageContent() {
             <div className="h-full overflow-y-auto overflow-x-hidden terminal-scrollbar">
               <div className="h-full flex flex-col items-center justify-center p-8">
                 <div className="text-center">
-                  <Loader2 className="w-8 h-8 text-[var(--amber-gold)] animate-spin mx-auto mb-4" />
-                  <p className="text-sm font-mono text-[var(--terminal-text-muted)] mt-2">
+                  <Loader2 className="w-8 h-8 text-[var(--nous-sol)] animate-spin mx-auto mb-4" />
+                  <p className="text-sm text-[var(--nous-fg-3)] mt-2" style={{ fontFamily: 'var(--nous-font-ui)' }}>
                     Authentication required. Redirecting...
                   </p>
                 </div>
@@ -328,13 +328,13 @@ function ChatPageContent() {
                   className="text-center"
                 >
                   <div className="relative w-12 h-12 mx-auto mb-6">
-                    <Loader2 className="w-12 h-12 text-[var(--phosphor-green)] animate-spin" />
+                    <Loader2 className="w-12 h-12 text-[var(--nous-sol)] animate-spin" />
                   </div>
                   <h2
-                    className="text-sm text-[var(--phosphor-green)] mb-2 tracking-widest"
-                    style={{ fontFamily: "'JetBrains Mono', monospace" }}
+                    className="text-sm text-[var(--nous-fg-3)] mb-2"
+                    style={{ fontFamily: 'var(--nous-font-ui)' }}
                   >
-                    INITIALIZING...
+                    Initializing...
                   </h2>
                 </motion.div>
               </div>

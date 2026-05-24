@@ -54,9 +54,9 @@ describe('ChatSidebar', () => {
     expect(screen.getByText('3')).toBeInTheDocument();
   });
 
-  it('calls onNew when NEW SESSION button is clicked', () => {
+  it('calls onNew when New chat button is clicked', () => {
     render(<ChatSidebar {...defaultProps} />);
-    fireEvent.click(screen.getByText('NEW SESSION'));
+    fireEvent.click(screen.getByText('New chat'));
     expect(defaultProps.onNew).toHaveBeenCalledTimes(1);
   });
 
@@ -68,7 +68,7 @@ describe('ChatSidebar', () => {
 
   it('filters conversations by search query', () => {
     render(<ChatSidebar {...defaultProps} />);
-    const searchInput = screen.getByPlaceholderText('Search Logs...');
+    const searchInput = screen.getByPlaceholderText('Search chats...');
     fireEvent.change(searchInput, { target: { value: 'alpha' } });
 
     expect(screen.getByText('Alpha Chat')).toBeInTheDocument();
