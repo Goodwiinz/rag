@@ -73,7 +73,7 @@ interface UploadedFile {
   expanded?: boolean; // For showing/hiding configuration
 }
 
-interface EnhancedDocumentUploadZoneProps {
+interface DocumentUploadZoneProps {
   onUploadComplete?: (documentId: string, result: any) => void;
   onUploadError?: (error: string, file: UploadedFile) => void;
   maxFiles?: number;
@@ -81,8 +81,8 @@ interface EnhancedDocumentUploadZoneProps {
   showAdvancedOptions?: boolean;
 }
 
-export const EnhancedDocumentUploadZone: React.FC<
-  EnhancedDocumentUploadZoneProps
+export const DocumentUploadZone: React.FC<
+  DocumentUploadZoneProps
 > = ({
   onUploadComplete,
   onUploadError,

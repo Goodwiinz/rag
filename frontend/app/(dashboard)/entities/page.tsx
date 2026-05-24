@@ -57,7 +57,7 @@ import { RelationshipForm } from '@/components/entities/RelationshipForm';
 import { PathFinder } from '@/components/entities/PathFinder';
 import { NeighborhoodExplorer } from '@/components/entities/NeighborhoodExplorer';
 import { GraphAnalyticsDashboard } from '@/components/entities/GraphAnalyticsDashboard';
-import { EnhancedSearch } from '@/components/entities/EnhancedSearch';
+import { EntitySearch } from '@/components/entities/EntitySearch';
 import { BulkOperations } from '@/components/entities/BulkOperations';
 import { DocumentEntityExtractor } from '@/components/entities/DocumentEntityExtractor';
 import { EntityMergeTool } from '@/components/entities/EntityMergeTool';
@@ -1003,7 +1003,7 @@ function EntityManagementContent() {
 
           {/* Enhanced Search Tab */}
           <TabsContent value="search" className="mt-0 outline-none">
-            <EnhancedSearch
+            <EntitySearch
               onEntityClick={(entityId) => {
                 const entity = entities.find((e) => e.id === entityId);
                 if (entity) {

@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import React from 'react';
 
-import { CustomSlider, ToggleSwitch } from '../arxivControls';
+import { CustomSlider, ToggleSwitch } from '../ArxivControls';
 import { ArXivPaper, IngestionResult } from '../arxivTypes';
 
 interface IngestTabProps {

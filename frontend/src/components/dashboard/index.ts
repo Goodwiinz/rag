@@ -1,6 +1,14 @@
-export { ActivityFeed } from './ActivityFeed';
-export { AIInsightsPanel } from './AIInsightsPanel';
-// Note: QuickActionsGrid requires type fixes - commented out for strict mode
-// export { QuickActionsGrid } from './QuickActionsGrid';
-export { StatsCard } from './StatsCard';
-
+export {
+  UploadTrendsChart,
+  DocumentTypeDistribution,
+  SearchActivitySparkline,
+} from './DashboardCharts';
+export { KeyboardShortcuts } from './KeyboardShortcuts';
+export { QuickActionsGrid } from './QuickActionsGrid';
+export { QuickSearch } from './QuickSearch';
+export {
+  StatsCardSkeleton,
+  AIInsightSkeleton,
+  ActivityFeedSkeleton,
+  ChartSkeleton,
+} from './SkeletonLoader';
