@@ -1,14 +1,9 @@
 'use client';
 
+import { InteractiveKnowledgeGraph } from '@/components/InteractiveKnowledgeGraph';
 import { Button } from '@/components/ui/button';
 import { motion } from 'framer-motion';
-import {
-  ArrowRight,
-  Cpu,
-  Lock,
-  Network,
-  Zap,
-} from 'lucide-react';
+import { ArrowRight, Cpu, Lock, Network, Zap } from 'lucide-react';
 
 // --- Helper Components ---
 
@@ -83,17 +78,7 @@ export function CapabilitiesSection() {
                 </p>
               </div>
               <div className="w-full h-32 rounded-xl bg-[var(--terminal-bg)] border border-[var(--terminal-border)] relative overflow-hidden">
-                <div className="absolute inset-0 flex items-center justify-center opacity-30">
-                  <div className="w-full h-full terminal-grid animate-[pulse_4s_ease-in-out_infinite]" />
-                </div>
-                {/* Mock Graph Nodes */}
-                <div className="absolute top-1/2 left-1/4 w-3 h-3 rounded-full bg-[var(--phosphor-green)] shadow-[0_0_10px_var(--phosphor-green)]" />
-                <div className="absolute top-1/3 left-1/2 w-2 h-2 rounded-full bg-[var(--cyan)]" />
-                <div className="absolute top-2/3 right-1/3 w-2 h-2 rounded-full bg-[var(--amber-gold)]" />
-                <svg className="absolute inset-0 w-full h-full pointer-events-none stroke-[var(--terminal-border)] opacity-50">
-                  <line x1="25%" y1="50%" x2="50%" y2="33%" />
-                  <line x1="50%" y1="33%" x2="66%" y2="66%" />
-                </svg>
+                <InteractiveKnowledgeGraph />
               </div>
             </div>
           </motion.div>
@@ -115,8 +100,8 @@ export function CapabilitiesSection() {
                 Local Inference
               </h3>
               <p className="font-mono text-[var(--terminal-text-muted)] text-sm mb-8">
-                Privacy-first LLM execution directly in the browser via
-                WebLLM. No data leaves your infrastructure.
+                Privacy-first LLM execution directly in the browser via WebLLM.
+                No data leaves your infrastructure.
               </p>
 
               <div className="flex-1 rounded-xl bg-[var(--terminal-bg)] border border-[var(--terminal-border)] p-4 font-mono text-xs space-y-4 overflow-hidden">
@@ -131,20 +116,13 @@ export function CapabilitiesSection() {
                     'Compiling shaders...',
                     'Inference ready.',
                   ].map((log, i) => (
-                    <div
-                      key={i}
-                      className="flex gap-3 items-center opacity-70"
-                    >
+                    <div key={i} className="flex gap-3 items-center opacity-70">
                       <span className="text-[var(--terminal-text-muted)]">{`00:0${i + 1}`}</span>
-                      <span className="text-[var(--terminal-text)]">
-                        {log}
-                      </span>
+                      <span className="text-[var(--terminal-text)]">{log}</span>
                     </div>
                   ))}
                   <div className="flex gap-2 items-center mt-4">
-                    <span className="text-[var(--phosphor-green)]">
-                      {'>'}
-                    </span>
+                    <span className="text-[var(--phosphor-green)]">{'>'}</span>
                     <span className="animate-pulse bg-[var(--phosphor-green)] w-2 h-4 block" />
                   </div>
                 </div>
