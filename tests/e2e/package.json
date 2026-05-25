@@ -18,15 +18,15 @@
     "test:e2e:teardown": "node tests/setup/global-teardown.js"
   },
   "devDependencies": {
-    "@axe-core/playwright": "^4.11.2",
+    "@axe-core/playwright": "^4.11.3",
     "@faker-js/faker": "^10.4.0",
-    "@playwright/test": "^1.59.1",
+    "@playwright/test": "^1.60.0",
     "axe-playwright": "^2.0.1",
     "chrome-remote-interface": "^0.34.0",
     "csvtojson": "^2.0.10",
     "dotenv": "^17.4.2",
     "exceljs": "^4.4.0",
-    "joi": "^18.1.2",
+    "joi": "^18.2.1",
     "lighthouse": "^12.2.1",
     "lodash": "^4.17.21",
     "moment": "^2.30.1",
