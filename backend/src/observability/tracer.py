@@ -83,9 +83,9 @@ def configure_tracing() -> trace.Tracer:
     trace.set_tracer_provider(trace_provider)
 
     # Configure propagators
-    from opentelemetry import propagators
+    from opentelemetry import propagate
 
-    propagators.set_global_textmap(B3MultiFormat())
+    propagate.set_global_textmap(B3MultiFormat())
 
     # Create and store tracer
     _tracer = trace_provider.get_tracer(__name__)
