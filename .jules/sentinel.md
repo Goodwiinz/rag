@@ -12,3 +12,7 @@
 **Vulnerability:** Exception handlers in `backend/src/api/security/encryption.py` were returning raw exception details (e.g., `str(e)`) to the client inside HTTP 500 error responses (e.g., `raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")`).
 **Learning:** Returning exception details from security-sensitive operations like data decryption and key rotation could expose critical details regarding the cryptographic environment, database state, or execution context. This defeats the purpose of returning a 500 error by leaking internal implementation specifics.
 **Prevention:** Always log detailed exceptions on the server-side using the `logging` module and return generic, non-descriptive error messages (e.g., "Internal server error") for HTTP 500 responses.
+## 2026-05-25 - Prevented Information Disclosure in Health Endpoints
+**Vulnerability:** Health endpoints like `/ready` and `/startup` returned raw exception strings `str(e)` in 503 HTTPExceptions, potentially leaking internal architecture, paths, or connection strings.
+**Learning:** Exception strings from failed health checks can expose sensitive infrastructure details if exposed directly to the client.
+**Prevention:** Catch exceptions, log the raw error internally using `logger.error()`, and return a generic safe message (e.g., 'Internal server error') to the client.

@@ -1,7 +1,9 @@
 """
 Health check API endpoints.
 """
+
 import asyncio
+import logging
 import time
 from datetime import datetime, timedelta
 from typing import Any, Dict, Optional
@@ -14,6 +16,7 @@ from ..core.metrics import record_request_count, record_request_duration
 from .checker import HealthChecker, HealthStatus
 
 router = APIRouter(prefix="/health", tags=["health"])
+logger = logging.getLogger(__name__)
 
 # Global health checker instance
 _health_checker: Optional[HealthChecker] = None
@@ -254,7 +257,10 @@ async def readiness_probe():
         return {"status": "ready", "timestamp": time.time()}
 
     except Exception as e:
-        raise HTTPException(status_code=503, detail=f"Readiness check failed: {str(e)}")
+        logger.error(f"Readiness check failed: {e}")
+        raise HTTPException(
+            status_code=503, detail="Readiness check failed due to an internal error"
+        )
 
 
 @router.get("/liveness")
@@ -292,7 +298,10 @@ async def startup_probe():
             )
 
     except Exception as e:
-        raise HTTPException(status_code=503, detail=f"Startup check failed: {str(e)}")
+        logger.error(f"Startup check failed: {e}")
+        raise HTTPException(
+            status_code=503, detail="Startup check failed due to an internal error"
+        )
 
 
 def get_uptime() -> Dict[str, Any]:
