@@ -56,6 +56,7 @@ const LOGS = [
 export function HeroProcessCard({ className }: { className?: string }) {
   const [stepIndex, setStepIndex] = useState(0);
   const [logIndex, setLogIndex] = useState(0);
+  const [logTime, setLogTime] = useState<string | null>(null);
   
   // 3D Tilt Logic
   const x = useMotionValue(0);
@@ -90,9 +91,19 @@ export function HeroProcessCard({ className }: { className?: string }) {
 
   // Log Cycle — slower on mobile to reduce mount/unmount churn
   useEffect(() => {
-    const interval = setInterval(() => {
+    const tick = () => {
       setLogIndex((prev) => (prev + 1) % LOGS.length);
-    }, 2000);
+      setLogTime(
+        new Date().toLocaleTimeString('en-US', {
+          hour12: false,
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+        })
+      );
+    };
+    tick();
+    const interval = setInterval(tick, 2000);
     return () => clearInterval(interval);
   }, []);
 
@@ -201,7 +212,7 @@ export function HeroProcessCard({ className }: { className?: string }) {
                         exit={{ opacity: 0, y: -10 }}
                         className="font-mono text-[8px] text-[var(--terminal-text-muted)] flex items-center gap-2"
                     >
-                        <span className="text-[var(--terminal-text-dim)] opacity-50">[{new Date().toLocaleTimeString('en-US', {hour12: false, hour: '2-digit', minute:'2-digit', second:'2-digit'})}]</span>
+                        <span className="text-[var(--terminal-text-dim)] opacity-50">[{logTime ?? '--:--:--'}]</span>
                         <span className="truncate">{LOGS[logIndex]}</span>
                     </motion.div>
                     <motion.div 
@@ -210,7 +221,7 @@ export function HeroProcessCard({ className }: { className?: string }) {
                         animate={{ opacity: 0.2, y: -12 }}
                         className="font-mono text-[8px] text-[var(--terminal-text-muted)] flex items-center gap-2 absolute top-0 w-full"
                     >
-                        <span className="text-[var(--terminal-text-dim)] opacity-30">[{new Date().toLocaleTimeString('en-US', {hour12: false, hour: '2-digit', minute:'2-digit', second:'2-digit'})}]</span>
+                        <span className="text-[var(--terminal-text-dim)] opacity-30">[{logTime ?? '--:--:--'}]</span>
                         <span className="truncate">{LOGS[(logIndex - 1 + LOGS.length) % LOGS.length]}</span>
                     </motion.div>
                  </AnimatePresence>
