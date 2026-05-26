@@ -1,6 +1,6 @@
 """Project service for research project CRUD and ownership validation."""
 
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 from uuid import UUID
 
 from fastapi import HTTPException, status
@@ -38,7 +38,7 @@ class ProjectService:
         search: Optional[str] = None,
         skip: int = 0,
         limit: int = 50,
-    ) -> Dict[str, object]:
+    ) -> Dict[str, Any]:
         """List projects owned by the user with filtering."""
         workspace_ids = await self._get_workspace_ids_for_user(user_id)
         if not workspace_ids:

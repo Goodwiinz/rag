@@ -84,8 +84,8 @@ class HybridSearchService:
     async def search_documents(
         self,
         query: str,
-        user_id: str = None,
-        organization_id: str = None,
+        user_id: Optional[str] = None,
+        organization_id: Optional[str] = None,
         limit: int = 10,
         filters: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, Any]]:
@@ -146,9 +146,9 @@ class HybridSearchService:
     def search(
         self,
         search_request: SearchQuery,
-        user_id: str = None,
-        organization_id: str = None,
-        db: Session = None,
+        user_id: Optional[str] = None,
+        organization_id: Optional[str] = None,
+        db: Optional[Session] = None,
     ) -> SearchResponse:
         """
         Perform hybrid search combining multiple search modalities
@@ -226,9 +226,9 @@ class HybridSearchService:
     def search_with_diagnostics(
         self,
         search_request: SearchQuery,
-        user_id: str = None,
-        organization_id: str = None,
-        db: Session = None,
+        user_id: Optional[str] = None,
+        organization_id: Optional[str] = None,
+        db: Optional[Session] = None,
         weights_override: Optional[Dict[str, float]] = None,
     ) -> Tuple[SearchResponse, "RetrievalTrace"]:
         """
@@ -482,9 +482,9 @@ class HybridSearchService:
         self,
         search_request: SearchQuery,
         sources: List[SearchSourceType],
-        user_id: str,
-        organization_id: str,
-        db: Session = None,
+        user_id: Optional[str],
+        organization_id: Optional[str],
+        db: Optional[Session] = None,
     ) -> Dict[SearchSourceType, SearchSourceResult]:
         """
         Execute searches from multiple sources in parallel
@@ -1085,8 +1085,8 @@ class HybridSearchService:
         self,
         fused_results: List[RawSearchResult],
         search_request: SearchQuery,
-        organization_id: str,
-        db: Session = None,
+        organization_id: Optional[str],
+        db: Optional[Session] = None,
     ) -> List[SearchResult]:
         """Apply final filtering and pagination to fused results"""
         selected_document_ids = (
@@ -1223,7 +1223,7 @@ class HybridSearchService:
         return unique_suggestions[:5]
 
     def _fallback_to_fulltext(
-        self, search_request: SearchQuery, user_id: str, organization_id: str
+        self, search_request: SearchQuery, user_id: Optional[str], organization_id: Optional[str]
     ) -> SearchResponse:
         """Fallback to full-text search if hybrid search fails"""
         logger.warning("Hybrid search failed, falling back to full-text search")
