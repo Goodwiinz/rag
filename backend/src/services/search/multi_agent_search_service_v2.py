@@ -12,6 +12,7 @@ import os
 import time
 import uuid
 from collections import defaultdict
+from contextvars import ContextVar
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
@@ -48,6 +49,13 @@ from .hybrid_search_service import hybrid_search_service
 from .search_quality_service import search_quality_service
 
 logger = logging.getLogger(__name__)
+
+_current_search_user_id: ContextVar[Optional[str]] = ContextVar(
+    "multi_agent_search_user_id", default=None
+)
+_current_search_organization_id: ContextVar[Optional[str]] = ContextVar(
+    "multi_agent_search_organization_id", default=None
+)
 
 
 class AgentType(Enum):
@@ -160,8 +168,28 @@ class EnhancedSearchTool(BaseTool):
     ) -> str:
         """Execute the tool with caching"""
         try:
+            user_id = _current_search_user_id.get()
+            organization_id = _current_search_organization_id.get()
+            if not user_id or not organization_id:
+                logger.error(
+                    "Enhanced search tool invoked without request tenant context"
+                )
+                return json.dumps(
+                    {"error": "Search request context unavailable", "results": []}
+                )
+
             # Check cache
-            cache_key = f"{query}_{max_results}_{str(filters or {})}"
+            cache_key = json.dumps(
+                {
+                    "query": query,
+                    "max_results": max_results,
+                    "filters": filters or {},
+                    "user_id": user_id,
+                    "organization_id": organization_id,
+                },
+                sort_keys=True,
+                default=str,
+            )
             if cache_key in self._cache:
                 cached_data = self._cache[cache_key]
                 if time.time() - cached_data["timestamp"] < self._cache_ttl:
@@ -178,8 +206,8 @@ class EnhancedSearchTool(BaseTool):
 
             search_response = hybrid_search_service.search(
                 search_request=search_query,
-                user_id="multi_agent_user",
-                organization_id="default_org",
+                user_id=user_id,
+                organization_id=organization_id,
             )
 
             # Enhanced result processing
@@ -639,9 +667,19 @@ class MultiAgentSearchServiceV2:
             Enhanced MultiAgentSearchResult with comprehensive agent collaboration
         """
         start_time = time.time()
+        user_token = _current_search_user_id.set(str(user_id) if user_id else "")
+        organization_token = _current_search_organization_id.set(
+            str(organization_id) if organization_id else ""
+        )
 
         if not CREWAI_AVAILABLE:
-            return await self._enhanced_fallback_search(query, user_id, organization_id)
+            try:
+                return await self._enhanced_fallback_search(
+                    query, user_id, organization_id
+                )
+            finally:
+                _current_search_user_id.reset(user_token)
+                _current_search_organization_id.reset(organization_token)
 
         try:
             # Analyze query and determine optimal workflow
@@ -718,6 +756,9 @@ class MultiAgentSearchServiceV2:
         except Exception as e:
             logger.error(f"Enhanced multi-agent search orchestration failed: {e}")
             return await self._enhanced_fallback_search(query, user_id, organization_id)
+        finally:
+            _current_search_user_id.reset(user_token)
+            _current_search_organization_id.reset(organization_token)
 
     async def _analyze_query(
         self, query: str, workflow_type: WorkflowType

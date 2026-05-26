@@ -609,7 +609,8 @@ async def general_exception_handler(request: Request, exc: Exception):
     logger.error("Unhandled exception: %s", exc, exc_info=True)
 
     message = "Internal server error"
-    if settings.ENVIRONMENT not in ("production",):
+    environment = (settings.ENVIRONMENT or "").lower()
+    if environment in {"development", "testing", "test", "local"}:
         message = f"{type(exc).__name__}: {exc}"
 
     return JSONResponse(
