@@ -17,9 +17,10 @@ Two stages of retrieval policy live here:
   the Qdrant + reranker chain used when DO KB is disabled or returns
   nothing.
 
-This module reaches back into ``graph.py`` for the two shared helpers
-(``_extract_project_id_from_text``, ``_escape_like``) via lazy imports
-to avoid a cycle.
+This module reaches back into ``graph.py`` for the shared helper
+``_extract_project_id_from_text`` via a lazy import to avoid a cycle.
+Document resolution / project-scope filtering is delegated to
+``src.services.do_kb.resolve.resolve_and_filter_chunks``.
 """
 
 from __future__ import annotations
@@ -200,9 +201,6 @@ async def _try_primary_do_kb_read(
     so cross-project leakage (chunks from sibling projects) is filtered
     via the ``collection_documents`` association table.
     """
-    # Lazy import — graph.py owns the SQL-LIKE escape helper.
-    from src.services.agent.graph import _escape_like
-
     try:
         from src.core.config import settings as _kb_cfg
 
@@ -212,10 +210,7 @@ async def _try_primary_do_kb_read(
         if not org_id:
             return None
 
-        from sqlalchemy import select
-
         from src.core.database import AsyncSessionLocal
-        from src.models.document import Document
         from src.models.organization import Organization
         from src.services.do_kb import get_do_kb_client
 
@@ -230,41 +225,16 @@ async def _try_primary_do_kb_read(
             if not result.chunks:
                 return None
 
-            storage_keys = {c.document_id for c in result.chunks if c.document_id}
-            title_by_key: dict[str, tuple[str, str]] = {}
-            if storage_keys:
-                # DO KB returns ``metadata.item_name`` as the leaf filename
-                # only (e.g. ``<doc_id>.txt``) while ``Document.storage_path``
-                # stores the full canonical key
-                # (``documents/{org}/{doc_id}.{ext}``). Match by suffix so
-                # both legacy and canonical layouts resolve.
-                from sqlalchemy import or_
+            from src.services.do_kb.resolve import resolve_and_filter_chunks
 
-                filters = [Document.storage_path == k for k in storage_keys]
-                filters += [
-                    Document.storage_path.like(f"%/{_escape_like(k)}", escape="\\")
-                    for k in storage_keys
-                ]
-                rows = await session.execute(
-                    select(Document.id, Document.storage_path, Document.title)
-                    .where(Document.organization_id == org_id)
-                    .where(or_(*filters))
-                )
-                for doc_id, storage_path, title in rows:
-                    if storage_path in storage_keys:
-                        leaf = storage_path
-                    else:
-                        leaf = storage_path.rsplit("/", 1)[-1] if storage_path else ""
-                    title_by_key[leaf] = (str(doc_id), title or leaf)
+            title_by_key, chunks_to_emit = await resolve_and_filter_chunks(
+                chunks=result.chunks,
+                org_id=org_id,
+                session=session,
+                project_id=project_id,
+            )
 
-            # Project scoping: drop chunks whose resolved document is not in
-            # the active project. Org-scoped KB returns sibling-project hits
-            # (observed trace 019e168a: "ML in Health Care" query returned
-            # Copilot productivity PDFs). Filter via collection_documents.
-            chunks_to_emit = result.chunks
-            # Safety: project requested but ZERO chunks resolved to known
-            # documents → don't leak unscoped chunks. Force fallback so the
-            # legacy hybrid search runs with its own org-scope guarantees.
+            # Two distinct empty-result paths that trigger Qdrant fallback:
             if project_id and not title_by_key and result.chunks:
                 logger.info(
                     "do_kb_read: %d chunks unresolvable to org documents under "
@@ -273,40 +243,13 @@ async def _try_primary_do_kb_read(
                     project_id,
                 )
                 return None
-            if project_id and title_by_key:
-                from uuid import UUID as _UUID
-
-                from src.models.collection import CollectionDocument
-
-                resolved_doc_ids = {
-                    _UUID(doc_id) for doc_id, _ in title_by_key.values() if doc_id
-                }
-                if resolved_doc_ids:
-                    try:
-                        pid = _UUID(project_id)
-                    except (ValueError, TypeError):
-                        pid = None
-                    if pid is not None:
-                        membership_rows = await session.execute(
-                            select(CollectionDocument.document_id).where(
-                                CollectionDocument.collection_id == pid,
-                                CollectionDocument.document_id.in_(resolved_doc_ids),
-                            )
-                        )
-                        in_project = {str(r[0]) for r in membership_rows}
-                        chunks_to_emit = [
-                            c
-                            for c in result.chunks
-                            if (title_by_key.get(c.document_id or "", (None, None))[0] or "")
-                            in in_project
-                        ]
-                        if not chunks_to_emit:
-                            logger.info(
-                                "do_kb_read: all %d chunks filtered out by project scope %s",
-                                len(result.chunks),
-                                project_id,
-                            )
-                            return None
+            if project_id and title_by_key and not chunks_to_emit:
+                logger.info(
+                    "do_kb_read: all %d chunks filtered out by project scope %s",
+                    len(result.chunks),
+                    project_id,
+                )
+                return None
 
         return [
             _shape_do_kb_context(c, title_by_key) for c in chunks_to_emit

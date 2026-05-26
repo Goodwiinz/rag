@@ -10,6 +10,7 @@ from .client import DOKnowledgeBaseClient, DOKnowledgeBaseError, get_do_kb_clien
 from .ingest import sync_document_to_kb, sync_documents_to_kb
 from .models import Chunk, DataSource, IndexingJob, KnowledgeBase, RetrieveResult
 from .provisioner import ensure_kb_for_org
+from .resolve import resolve_and_filter_chunks
 
 __all__ = [
     "BackfillReport",
@@ -25,6 +26,7 @@ __all__ = [
     "ensure_kb_for_org",
     "get_do_kb_client",
     "iter_organizations_to_backfill",
+    "resolve_and_filter_chunks",
     "sync_document_to_kb",
     "sync_documents_to_kb",
 ]
