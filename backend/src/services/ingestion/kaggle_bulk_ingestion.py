@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Any, Dict, Generator, List, Optional
 
 import kagglehub
-from kagglehub import KaggleDatasetAdapter
+# from kagglehub import KaggleDatasetAdapter
 
 logger = logging.getLogger(__name__)
 
