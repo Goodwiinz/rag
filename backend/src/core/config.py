@@ -108,6 +108,8 @@ class Settings(BaseSettings):
     DO_KB_RETRIEVE_ALPHA: Optional[float] = 0.5
     DO_KB_REQUEST_TIMEOUT_SECONDS: float = 30.0
     DO_KB_INDEXING_TIMEOUT_SECONDS: float = 120.0
+    DO_KB_RERANKING_ENABLED: Optional[bool] = True
+    DO_KB_SEARCH_TYPE: Optional[str] = None
 
     # JWT Configuration
     JWT_SECRET_KEY: str = ""
