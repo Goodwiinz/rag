@@ -27,7 +27,7 @@ def _request(path: str = "/api/test") -> Request:
 @pytest.mark.asyncio
 async def test_validation_exception_handler_stringifies_non_json_ctx_values():
     """Pydantic ctx values can include exceptions that JSONResponse cannot encode."""
-    from src.main import validation_exception_handler
+    from src.api.exception_handlers import validation_exception_handler
 
     exc = RequestValidationError(
         [
@@ -57,7 +57,7 @@ async def test_validation_exception_handler_stringifies_non_json_ctx_values():
 @pytest.mark.asyncio
 async def test_validation_exception_handler_handles_empty_error_list():
     """An empty validation error list should still produce a stable response shape."""
-    from src.main import validation_exception_handler
+    from src.api.exception_handlers import validation_exception_handler
 
     response = await validation_exception_handler(
         _request(), RequestValidationError([])
