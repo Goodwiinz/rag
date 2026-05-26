@@ -7,7 +7,7 @@ filtering via CollectionDocument, and the two distinct empty-result paths
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock
 from uuid import UUID, uuid4
 
 import pytest
@@ -220,3 +220,28 @@ async def test_all_chunks_filtered_returns_empty():
     )
 
     assert len(chunks_to_emit) == 0
+
+
+# -------------------------------------------------------------------------
+# Test 7: Invalid project_id UUID with resolvable docs → empty (security)
+# -------------------------------------------------------------------------
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_invalid_project_uuid_with_resolvable_docs_returns_empty():
+    """When project_id is set but not a valid UUID AND chunks resolve to known
+    documents, the helper must return empty to prevent cross-project leakage."""
+    doc_id = uuid4()
+    chunks = [_make_chunk(document_id="secret.pdf")]
+
+    session = _mock_session_with_docs(
+        doc_rows=[(doc_id, "secret.pdf", "Secret Doc")],
+    )
+
+    title_by_key, chunks_to_emit = await resolve_and_filter_chunks(
+        chunks=chunks,
+        org_id=uuid4(),
+        session=session,
+        project_id="not-a-uuid",
+    )
+
+    assert chunks_to_emit == []

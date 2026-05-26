@@ -206,7 +206,7 @@ class DOKnowledgeBaseClient:
         #   query: str
         #   num_results: int 0-100 (NOT top_k)
         #   alpha: float 0-1 (lexical vs semantic balance)
-        k = top_k or self._settings.DO_KB_DEFAULT_TOP_K
+        k = top_k if top_k is not None else self._settings.DO_KB_DEFAULT_TOP_K
         body: dict[str, Any] = {"query": query, "num_results": max(1, min(k, 100))}
         resolved_alpha = alpha if alpha is not None else self._settings.DO_KB_RETRIEVE_ALPHA
         if resolved_alpha is not None:
@@ -219,7 +219,7 @@ class DOKnowledgeBaseClient:
         if resolved_reranking is not None:
             body["reranking"] = resolved_reranking
 
-        resolved_search_type = search_type or self._settings.DO_KB_SEARCH_TYPE
+        resolved_search_type = search_type if search_type is not None else self._settings.DO_KB_SEARCH_TYPE
         if resolved_search_type is not None:
             body["search_type"] = resolved_search_type
 

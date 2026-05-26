@@ -116,7 +116,12 @@ async def resolve_and_filter_chunks(
             try:
                 pid = UUID(str(project_id))
             except (ValueError, TypeError):
-                pid = None
+                logger.warning(
+                    "do_kb resolve: invalid project_id %r — refusing to "
+                    "serve unscoped chunks",
+                    project_id,
+                )
+                return title_by_key, []
             if pid is not None:
                 membership_rows = await session.execute(
                     select(CollectionDocument.document_id).where(
