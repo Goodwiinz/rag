@@ -1172,73 +1172,20 @@ async def _tool_do_kb_retrieve(
             "error": f"Retrieval failed: {exc}",
         }
 
-    # Resolve storage-key document_ids back to real Document.id + title so the
-    # agent can cite by title and link to the canonical row. DO KB returns
-    # ``item_name`` as the leaf filename, while Document.storage_path stores
-    # the full canonical key — match both by suffix.
-    title_by_key: dict[str, tuple[str, str]] = {}
-    if db is not None and result.chunks:
-        from sqlalchemy import or_, select
-
-        from src.models.document import Document
-
-        storage_keys = {c.document_id for c in result.chunks if c.document_id}
-        if storage_keys:
-            from src.services.agent.graph import _escape_like
-
-            filters = [Document.storage_path == k for k in storage_keys]
-            filters += [
-                Document.storage_path.like(f"%/{_escape_like(k)}", escape="\\")
-                for k in storage_keys
-            ]
-            rows = await db.execute(
-                select(Document.id, Document.storage_path, Document.title)
-                .where(Document.organization_id == current_user.organization_id)
-                .where(or_(*filters))
-            )
-            for doc_id, storage_path, title in rows:
-                if storage_path in storage_keys:
-                    leaf = storage_path
-                else:
-                    leaf = storage_path.rsplit("/", 1)[-1] if storage_path else ""
-                title_by_key[leaf] = (str(doc_id), title or leaf)
-
-    # Project scoping: drop chunks whose resolved document is not in the
-    # active project. DO KB is org-scoped, so cross-project leakage is
-    # filtered here via the collection_documents association.
+    # Resolve storage-key document_ids back to real Document rows and
+    # optionally filter by project membership.
     project_id = args.get("project_id")
+    title_by_key: dict[str, tuple[str, str]] = {}
     chunks_to_emit = result.chunks
-    if project_id and db is not None and title_by_key:
-        from uuid import UUID as _UUID
+    if db is not None and result.chunks:
+        from src.services.do_kb.resolve import resolve_and_filter_chunks
 
-        from src.models.collection import CollectionDocument
-
-        resolved_doc_ids = {
-            _UUID(doc_id) for doc_id, _ in title_by_key.values() if doc_id
-        }
-        if resolved_doc_ids:
-            try:
-                pid = _UUID(str(project_id))
-            except (ValueError, TypeError):
-                pid = None
-            if pid is not None:
-                from sqlalchemy import select as _select
-
-                membership_rows = await db.execute(
-                    _select(CollectionDocument.document_id).where(
-                        CollectionDocument.collection_id == pid,
-                        CollectionDocument.document_id.in_(resolved_doc_ids),
-                    )
-                )
-                in_project = {str(r[0]) for r in membership_rows}
-                chunks_to_emit = [
-                    c
-                    for c in result.chunks
-                    if (
-                        title_by_key.get(c.document_id or "", (None, None))[0] or ""
-                    )
-                    in in_project
-                ]
+        title_by_key, chunks_to_emit = await resolve_and_filter_chunks(
+            chunks=result.chunks,
+            org_id=current_user.organization_id,
+            session=db,
+            project_id=project_id,
+        )
 
     chunks_payload = []
     for c in chunks_to_emit:
