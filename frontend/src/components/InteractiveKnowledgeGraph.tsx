@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { useTheme } from 'next-themes';
 
 interface Node {
@@ -16,8 +16,8 @@ interface Node {
 export function InteractiveKnowledgeGraph() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const mousePosRef = useRef<{ x: number; y: number } | null>(null);
   const { resolvedTheme } = useTheme();
-  const [mousePos, setMousePos] = useState<{ x: number; y: number } | null>(null);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -75,14 +75,14 @@ export function InteractiveKnowledgeGraph() {
     // Mouse events
     const handleMouseMove = (e: MouseEvent) => {
       const rect = canvas.getBoundingClientRect();
-      setMousePos({
+      mousePosRef.current = {
         x: e.clientX - rect.left,
         y: e.clientY - rect.top,
-      });
+      };
     };
 
     const handleMouseLeave = () => {
-      setMousePos(null);
+      mousePosRef.current = null;
     };
 
     canvas.addEventListener('mousemove', handleMouseMove);
@@ -93,7 +93,9 @@ export function InteractiveKnowledgeGraph() {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
       // Draw background grid lines (subtle overlay)
-      ctx.strokeStyle = isDark ? 'rgba(255, 255, 255, 0.015)' : 'rgba(10, 10, 14, 0.025)';
+      ctx.strokeStyle = isDark
+        ? 'rgba(255, 255, 255, 0.015)'
+        : 'rgba(10, 10, 14, 0.025)';
       ctx.lineWidth = 1;
       const gridSize = 30;
       for (let x = 0; x < canvas.width; x += gridSize) {
@@ -132,14 +134,16 @@ export function InteractiveKnowledgeGraph() {
         }
 
         // Connect to mouse if active
+        const mousePos = mousePosRef.current;
         if (mousePos) {
           const dx = nodes[i].x - mousePos.x;
           const dy = nodes[i].y - mousePos.y;
           const dist = Math.sqrt(dx * dx + dy * dy);
           const mouseConnectionDist = 100;
 
-          if (dist < mouseConnectionDist) {
-            const alpha = (1 - dist / mouseConnectionDist) * (isDark ? 0.25 : 0.15);
+          if (dist > 0 && dist < mouseConnectionDist) {
+            const alpha =
+              (1 - dist / mouseConnectionDist) * (isDark ? 0.25 : 0.15);
             ctx.strokeStyle = isDark
               ? `rgba(212, 160, 57, ${alpha})`
               : `rgba(149, 111, 27, ${alpha})`;
@@ -212,8 +216,14 @@ export function InteractiveKnowledgeGraph() {
   }, [resolvedTheme]);
 
   return (
-    <div ref={containerRef} className="w-full h-full min-h-[128px] relative overflow-hidden">
-      <canvas ref={canvasRef} className="absolute inset-0 block cursor-crosshair" />
+    <div
+      ref={containerRef}
+      className="w-full h-full min-h-[128px] relative overflow-hidden"
+    >
+      <canvas
+        ref={canvasRef}
+        className="absolute inset-0 block cursor-crosshair"
+      />
     </div>
   );
 }
