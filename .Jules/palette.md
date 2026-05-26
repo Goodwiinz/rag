@@ -10,3 +10,6 @@
 ## 2024-05-18 - Stylized Button Accessibility
 **Learning:** Custom semantic buttons with unconventional or stylized visible text (e.g., 'TRANSMIT' or 'HALT') fail to provide clear context for screen reader users relying on standard labels.
 **Action:** Always ensure explicitly declared `aria-label`s (like 'Send message' or 'Stop generation') are applied for screen reader compatibility, rather than relying solely on `title` attributes or the visible text.
+## 2026-05-26 - Focus Styles for Inline Buttons
+**Learning:** Custom inline buttons (like '×' inside badges) often lack default focus outlines, making them invisible to keyboard users.
+**Action:** Always add explicit focus-visible utility classes (e.g., focus-visible:ring-2) and type="button" to inline interactive elements to ensure complete keyboard accessibility.

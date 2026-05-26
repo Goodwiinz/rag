@@ -608,13 +608,14 @@ export const SearchInterface: React.FC<SearchInterfaceProps> = ({
                 >
                   {m}
                   <button
+                    type="button"
                     onClick={() =>
                       handleFilterChange(
                         'modalities',
                         filters.modalities?.filter((i) => i !== m)
                       )
                     }
-                    className="ml-1.5 hover:text-destructive"
+                    className="ml-1.5 hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive rounded-sm"
                     aria-label={`Remove ${m} filter`}
                   >
                     ×
@@ -630,8 +631,9 @@ export const SearchInterface: React.FC<SearchInterfaceProps> = ({
                 >
                   .{f}
                   <button
+                    type="button"
                     onClick={() => toggleQuickFilter('file_type', f)}
-                    className="ml-1.5 hover:text-destructive"
+                    className="ml-1.5 hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive rounded-sm"
                     aria-label={`Remove ${f} file type filter`}
                   >
                     ×
@@ -645,8 +647,9 @@ export const SearchInterface: React.FC<SearchInterfaceProps> = ({
               >
                 Last 7 Days
                 <button
+                  type="button"
                   onClick={() => toggleQuickFilter('date', 'week')}
-                  className="ml-1.5 hover:text-destructive"
+                  className="ml-1.5 hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive rounded-sm"
                   aria-label="Remove date range filter"
                 >
                   ×
@@ -660,8 +663,9 @@ export const SearchInterface: React.FC<SearchInterfaceProps> = ({
               >
                 High Confidence
                 <button
+                  type="button"
                   onClick={() => toggleQuickFilter('confidence', 0.8)}
-                  className="ml-1.5 hover:text-destructive"
+                  className="ml-1.5 hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive rounded-sm"
                   aria-label="Remove confidence filter"
                 >
                   ×
