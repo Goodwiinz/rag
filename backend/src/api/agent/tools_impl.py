@@ -1140,9 +1140,9 @@ async def _tool_do_kb_retrieve(
     if not query:
         return {"error": "Query is required", "chunks": [], "total": 0}
 
-    top_k = max(1, min(int(args.get("top_k", 8)), 20))
-
     from src.core.config import settings as _kb_settings
+
+    top_k = max(1, min(int(args.get("top_k", _kb_settings.DO_KB_DEFAULT_TOP_K)), 20))
 
     if not getattr(_kb_settings, "DO_KB_ENABLED", False):
         return {"chunks": [], "total": 0, "source": "do_kb", "reason": "disabled"}
