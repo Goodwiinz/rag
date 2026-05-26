@@ -1320,6 +1320,9 @@ async def _tool_create_project(
                 description=args.get("description") or None,
                 research_goals=args.get("research_goals") or None,
                 tags=list(args.get("tags") or []),
+                deadline=None,
+                color=None,
+                icon=None,
             )
 
             project = await service.create_project(
@@ -1510,7 +1513,7 @@ async def _tool_list_projects(
                 limit=limit,
             )
 
-            projects = result.get("projects", [])
+            projects = list(result.get("projects") or [])
             return {
                 "projects": [
                     {
@@ -2293,11 +2296,11 @@ async def _tool_search_external_database(args: Dict[str, Any]) -> Dict[str, Any]
         connectors_searched = []
         for connector, result in zip(targets, all_results):
             connectors_searched.append(connector.info.name)
-            if isinstance(result, Exception):
+            if isinstance(result, BaseException):
                 logger.warning(
-                    "connector_search_failed",
-                    connector=connector.info.name,
-                    error=str(result),
+                    "connector_search_failed: connector=%s error=%s",
+                    connector.info.name,
+                    str(result),
                 )
                 continue
             for r in result:

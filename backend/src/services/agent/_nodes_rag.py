@@ -265,13 +265,15 @@ async def _legacy_hybrid_search_fallback(
 ) -> List[dict]:
     """Fallback to hybrid search when DO KB is unavailable or returns nothing."""
     try:
-        from src.models.search_schemas import SearchQuery
+        from src.models.search_schemas import SearchQuery, SearchSortOrder, SearchType
         from src.services.search.hybrid_search_service import hybrid_search_service
 
         search_request = SearchQuery(
             query=query,
             limit=5,
-            search_type="hybrid",
+            search_type=SearchType.HYBRID,
+            sort_order=SearchSortOrder.RELEVANCE,
+            filters=None,
         )
         org_id = (
             str(current_user.organization_id)
