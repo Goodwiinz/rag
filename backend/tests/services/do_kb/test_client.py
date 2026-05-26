@@ -252,6 +252,21 @@ async def test_auth_failure_raises():
 
 @pytest.mark.unit
 @pytest.mark.asyncio
+async def test_retrieve_uses_config_default_top_k():
+    cfg = _make_settings(DO_KB_DEFAULT_TOP_K=12)
+    client = DOKnowledgeBaseClient(cfg=cfg)
+    payload = {"results": [], "total_results": 0}
+    with patch("httpx.AsyncClient") as mock_async_client:
+        request_mock = AsyncMock(return_value=_mock_response(200, payload))
+        ctx = mock_async_client.return_value.__aenter__.return_value
+        ctx.request = request_mock
+        await client.retrieve(kb_uuid="kb-123", query="test")
+    sent_body = request_mock.call_args.kwargs.get("json") or request_mock.call_args[1].get("json")
+    assert sent_body["num_results"] == 12
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
 async def test_4xx_non_retryable_raises(monkeypatch):
     cfg = _make_settings()
     client = DOKnowledgeBaseClient(cfg=cfg)

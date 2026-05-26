@@ -221,7 +221,7 @@ async def _try_primary_do_kb_read(
                 return None
 
             client = get_do_kb_client()
-            result = await client.retrieve(kb_uuid=kb_uuid, query=query, top_k=5)
+            result = await client.retrieve(kb_uuid=kb_uuid, query=query)
             if not result.chunks:
                 return None
 
