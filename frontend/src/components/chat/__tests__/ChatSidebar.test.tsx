@@ -1,3 +1,4 @@
+import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { ChatSidebar } from '../ChatSidebar';
 
@@ -37,8 +38,8 @@ describe('ChatSidebar', () => {
   const defaultProps = {
     conversations: mockConversations,
     activeId: null,
-    onSelect: jest.fn(),
-    onNew: jest.fn(),
+    onSelect: vi.fn(),
+    onNew: vi.fn(),
   };
 
   it('renders all conversations', () => {
@@ -53,9 +54,9 @@ describe('ChatSidebar', () => {
     expect(screen.getByText('3')).toBeInTheDocument();
   });
 
-  it('calls onNew when NEW SESSION button is clicked', () => {
+  it('calls onNew when New chat button is clicked', () => {
     render(<ChatSidebar {...defaultProps} />);
-    fireEvent.click(screen.getByText('NEW SESSION'));
+    fireEvent.click(screen.getByText('New chat'));
     expect(defaultProps.onNew).toHaveBeenCalledTimes(1);
   });
 
@@ -67,7 +68,7 @@ describe('ChatSidebar', () => {
 
   it('filters conversations by search query', () => {
     render(<ChatSidebar {...defaultProps} />);
-    const searchInput = screen.getByPlaceholderText('Search Logs...');
+    const searchInput = screen.getByPlaceholderText('Search chats...');
     fireEvent.change(searchInput, { target: { value: 'alpha' } });
 
     expect(screen.getByText('Alpha Chat')).toBeInTheDocument();
@@ -157,5 +158,39 @@ describe('ChatSidebar', () => {
     render(<ChatSidebar {...defaultProps} activeId="conv-1" />);
     // Active conversation should show message count
     expect(screen.getByText('1')).toBeInTheDocument();
+  });
+
+  it('calls onRename when rename hover action clicked', () => {
+    const onRename = vi.fn();
+    render(<ChatSidebar {...defaultProps} onRename={onRename} />);
+    const row = screen.getByText('Alpha Chat').closest('button')!;
+    fireEvent.mouseEnter(row);
+    fireEvent.click(screen.getByLabelText('Rename Alpha Chat'));
+    expect(onRename).toHaveBeenCalledWith('conv-1');
+  });
+
+  it('calls onDelete when delete hover action clicked', () => {
+    const onDelete = vi.fn();
+    render(<ChatSidebar {...defaultProps} onDelete={onDelete} />);
+    const row = screen.getByText('Alpha Chat').closest('button')!;
+    fireEvent.mouseEnter(row);
+    fireEvent.click(screen.getByLabelText('Delete Alpha Chat'));
+    expect(onDelete).toHaveBeenCalledWith('conv-1');
+  });
+
+  it('enters multi-select mode when Select toolbar button clicked', () => {
+    render(<ChatSidebar {...defaultProps} />);
+    fireEvent.click(screen.getByRole('button', { name: /^Select$/i }));
+    expect(screen.getAllByRole('checkbox')).toHaveLength(3);
+  });
+
+  it('calls onBulkDelete with selected ids from multi-select mode', () => {
+    const onBulkDelete = vi.fn();
+    render(<ChatSidebar {...defaultProps} onBulkDelete={onBulkDelete} />);
+    fireEvent.click(screen.getByRole('button', { name: /^Select$/i }));
+    fireEvent.click(screen.getAllByRole('checkbox')[0]);
+    fireEvent.click(screen.getAllByRole('checkbox')[1]);
+    fireEvent.click(screen.getByRole('button', { name: /Delete \(2\)/i }));
+    expect(onBulkDelete).toHaveBeenCalledWith(['conv-1', 'conv-2']);
   });
 });

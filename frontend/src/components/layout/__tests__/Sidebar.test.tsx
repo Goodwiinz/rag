@@ -1,10 +1,11 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { Sidebar } from '../Sidebar';
 import { MemoryRouter } from 'react-router-dom';
 
 // Mock Lucide icons
-jest.mock('lucide-react', () => ({
+vi.mock('lucide-react', () => ({
   Layers: () => <svg data-testid="layers-icon" />,
   Menu: () => <svg data-testid="menu-icon" />,
   Home: () => <svg data-testid="home-icon" />,
@@ -19,7 +20,7 @@ jest.mock('lucide-react', () => ({
 }));
 
 // Mock navigation to avoid importing real icons
-jest.mock('../navigation', () => ({
+vi.mock('../navigation', () => ({
   mainNavigation: [
     { name: 'Dashboard', href: '/dashboard', icon: () => <svg /> },
   ],
@@ -27,10 +28,10 @@ jest.mock('../navigation', () => ({
 }));
 
 describe('Sidebar', () => {
-  const setIsOpen = jest.fn();
+  const setIsOpen = vi.fn();
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   it('renders the toggle button with correct accessibility attributes when expanded', () => {

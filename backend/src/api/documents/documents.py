@@ -2,8 +2,9 @@
 Document management API endpoints
 """
 
+import logging
 import uuid as uuid_module
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import List, Optional
 
 from fastapi import (
@@ -17,6 +18,7 @@ from fastapi import (
 )
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -45,6 +47,12 @@ from src.services.documents.file_service import FileService, get_file_service
 from src.shared.enums import DocumentSortField, SortOrder
 
 router = APIRouter(prefix="/documents", tags=["documents"], redirect_slashes=False)
+logger = logging.getLogger(__name__)
+
+
+def _escape_like(value: str) -> str:
+    """Escape SQL LIKE special characters."""
+    return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
 
 # Request/Response Models
@@ -143,6 +151,25 @@ class BulkDocumentResponse(BaseModel):
     failure_count: int
 
 
+async def _run_duplicate_lookup(
+    db: AsyncSession,
+    query,
+    lookup_name: str,
+):
+    """Run a duplicate lookup query, tolerating schema drift between environments."""
+    try:
+        result = await db.execute(query)
+    except SQLAlchemyError as exc:
+        logger.warning(
+            "Duplicate lookup failed for %s; falling back to legacy hash strategies",
+            lookup_name,
+            exc_info=exc,
+        )
+        return None
+
+    return result.scalar_one_or_none()
+
+
 @router.get(
     "",
     response_model=DocumentListResponse,
@@ -218,8 +245,8 @@ async def list_documents(
     document_type: Optional[DocumentType] = Query(
         None, description="Filter by document type"
     ),
-    processing_status: Optional[ProcessingStatus] = Query(
-        None, description="Filter by processing status"
+    processing_status: Optional[str] = Query(
+        None, description="Filter by processing status (accepts: pending, processing, completed, failed, retrying, queued, indexed)"
     ),
     search: Optional[str] = Query(None, description="Search in title and filename"),
     tags: Optional[str] = Query(None, description="Filter by tags (comma-separated)"),
@@ -256,15 +283,34 @@ async def list_documents(
             conditions.append(Document.document_type == document_type)
 
         if processing_status:
-            conditions.append(Document.processing_status == processing_status)
+            # Reverse-map frontend status names to backend enum values
+            frontend_to_backend = {
+                "queued": ProcessingStatus.PENDING,
+                "indexed": ProcessingStatus.COMPLETED,
+                "processing": ProcessingStatus.PROCESSING,
+                "failed": ProcessingStatus.FAILED,
+                "retrying": ProcessingStatus.RETRYING,
+                # Also accept raw backend values
+                "pending": ProcessingStatus.PENDING,
+                "completed": ProcessingStatus.COMPLETED,
+            }
+            mapped = frontend_to_backend.get(processing_status.lower())
+            if mapped:
+                conditions.append(Document.processing_status == mapped)
+            else:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Invalid processing_status: {processing_status}",
+                )
 
         if search:
-            search_pattern = f"%{search}%"
+            search_pattern = f"%{_escape_like(search)}%"
+            # Use ILIKE for title/filename and TSVECTOR for content search
             conditions.append(
                 or_(
                     Document.title.ilike(search_pattern),
                     Document.filename.ilike(search_pattern),
-                    Document.content_text.ilike(search_pattern),
+                    Document.search_vector.match(search),
                 )
             )
 
@@ -491,6 +537,15 @@ async def delete_document(
 
         await db.commit()
 
+        # Invalidate search cache so stale results don't include deleted document
+        try:
+            from src.services.search.search_service import cache
+
+            await cache.delete_pattern("search:*")
+            await cache.delete_pattern("suggestions:*")
+        except Exception:
+            pass  # Cache invalidation is best-effort
+
         return {
             "message": "Document deleted successfully",
             "document_id": str(document.id),
@@ -643,7 +698,7 @@ async def get_document_status(
         and processing_job.progress_percentage < 100
     ):
         # Simple estimation based on current progress
-        elapsed_time = (datetime.utcnow() - processing_job.started_at).total_seconds()
+        elapsed_time = (datetime.now(timezone.utc) - processing_job.started_at).total_seconds()
         if processing_job.progress_percentage > 0:
             estimated_total_time = elapsed_time / (
                 processing_job.progress_percentage / 100
@@ -687,22 +742,26 @@ async def check_duplicate(
         )
         .limit(1)
     )
-    result = await db.execute(query)
-    existing = result.scalar_one_or_none()
+    existing = await _run_duplicate_lookup(db, query, "checksum_sha256")
 
     if existing is None:
         # Also check metadata-stored hash for older documents
+        from sqlalchemy import cast, String
+
         query = (
             select(Document)
             .where(
-                Document.document_metadata["file_hash"].astext == body.sha256,
+                cast(Document.document_metadata["file_hash"], String) == body.sha256,
                 Document.organization_id == organization.id,
                 Document.is_deleted.isnot(True),
             )
             .limit(1)
         )
-        result = await db.execute(query)
-        existing = result.scalar_one_or_none()
+        existing = await _run_duplicate_lookup(
+            db,
+            query,
+            "document_metadata.file_hash",
+        )
 
     if existing is None:
         return DuplicateCheckResponse(exists=False)
@@ -806,14 +865,13 @@ async def search_documents(
             Document.is_deleted == False,
         ]
 
-        # Apply text search
-        search_pattern = f"%{query}%"
+        # Apply text search — use ILIKE for title/filename and TSVECTOR for content
+        search_pattern = f"%{_escape_like(query)}%"
         conditions.append(
             or_(
                 Document.title.ilike(search_pattern),
                 Document.filename.ilike(search_pattern),
-                Document.content_text.ilike(search_pattern),
-                Document.content_summary.ilike(search_pattern),
+                Document.search_vector.match(query),
             )
         )
 

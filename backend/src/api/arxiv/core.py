@@ -93,13 +93,14 @@ async def get_arxiv_service() -> ArXivIngestionService:
 
 # Endpoints
 @router.post("/search", response_model=List[ArXivPaperResponse])
-async def search_arxiv_papers(request: ArXivSearchRequest):
+async def search_arxiv_papers(
+    request: ArXivSearchRequest,
+):
     """
     Search for papers on arXiv
 
     This endpoint allows searching the arXiv database for papers
-    matching specific criteria. It is intentionally public so the
-    frontend discovery flow can be used before signing in.
+    matching specific criteria.
     """
     try:
         async with ArXivIngestionService() as arxiv_service:
@@ -140,7 +141,7 @@ async def search_arxiv_papers(request: ArXivSearchRequest):
             return response
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/ingest", response_model=Dict[str, Any])
@@ -172,7 +173,7 @@ async def ingest_arxiv_papers(
         }
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/create-dataset", response_model=Dict[str, Any])
@@ -207,7 +208,7 @@ async def create_evaluation_dataset(
         }
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/categories", response_model=Dict[str, Any])
@@ -308,7 +309,7 @@ async def download_paper(
                 raise HTTPException(status_code=404, detail="PDF not found")
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/statistics")
@@ -351,7 +352,7 @@ async def get_arxiv_statistics(
             return stats
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 # Background task functions

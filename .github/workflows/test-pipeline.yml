@@ -1,5 +1,4 @@
 name: Test Pipeline
-
 on:
   push:
     branches:
@@ -24,22 +23,24 @@ on:
       - 'LICENSE'
       - '.gitignore'
   workflow_dispatch:
-
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
-
 env:
   PYTHON_VERSION: "3.11"
   NODE_VERSION: "20"
-  DOCKER_BUILDKIT: "0"
+  DOCKER_BUILDKIT: "1"
   PIP_NO_CACHE_DIR: "1"
   PIP_DISABLE_PIP_VERSION_CHECK: "1"
-
+  # Frontend reaches gotrue (CI's stand-in for the local supabase-cli stack)
+  # via docker DNS from inside the Playwright container's browser. Anon JWT
+  # is signed with the same secret gotrue uses for HS256 verification —
+  # see docker-compose.ci.yml gotrue service for the matching env.
+  NEXT_PUBLIC_SUPABASE_URL: "http://gotrue:9999"
+  NEXT_PUBLIC_SUPABASE_ANON_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlzcyI6InN1cGFiYXNlLWRlbW8iLCJpYXQiOjAsImV4cCI6OTk5OTk5OTk5OX0.ftr3vuorC5IkT1ThfxwJJx3aTqjK8Mz9UOYW_QmILyE"
 defaults:
   run:
     shell: bash
-
 jobs:
   # ==========================================================================
   # Code Quality Checks (Fast - Run First)
@@ -49,25 +50,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-
       - name: Build lint image
         run: docker build -t rag-lint:ci -f backend/docker/Dockerfile.lint .
-
       - name: Run Ruff (linting)
         run: docker run --rm rag-lint:ci ruff check backend/src --output-format=github
-
       - name: Run Black (formatting check)
         run: docker run --rm rag-lint:ci black --check backend/src
-        continue-on-error: true  # Allow failures during gradual adoption
-
+        continue-on-error: true # Allow failures during gradual adoption
       - name: Run isort (import sorting)
         run: docker run --rm rag-lint:ci isort --check-only backend/src
-        continue-on-error: true  # Allow failures during gradual adoption
-
+        continue-on-error: true # Allow failures during gradual adoption
       - name: Run MyPy (type checking)
         run: docker run --rm rag-lint:ci mypy backend/src --ignore-missing-imports
-        continue-on-error: true  # Allow failures during gradual adoption
-
+        continue-on-error: true # Allow failures during gradual adoption
   lint-frontend:
     name: Lint Frontend
     runs-on: ubuntu-latest
@@ -76,24 +71,23 @@ jobs:
         working-directory: frontend
     steps:
       - uses: actions/checkout@v6
-
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
       - name: Set up Node.js
         uses: actions/setup-node@v6
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-          cache-dependency-path: package-lock.json
-
+          cache: 'pnpm'
+          cache-dependency-path: frontend/pnpm-lock.yaml
       - name: Install dependencies
-        run: npm ci
-
+        run: pnpm install --frozen-lockfile
       - name: Run type check
-        run: npm run type-check
-
+        run: pnpm run type-check
       - name: Run linting
-        run: npm run lint
-        continue-on-error: true  # Allow warnings during gradual adoption
-
+        run: pnpm run lint
+        continue-on-error: true # Allow warnings during gradual adoption
   # ==========================================================================
   # Unit Tests (Fast - No External Dependencies)
   # ==========================================================================
@@ -103,12 +97,10 @@ jobs:
     needs: lint-backend
     steps:
       - uses: actions/checkout@v6
-
       - name: Set up Python
         uses: actions/setup-python@v6
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-
       - name: Free runner disk space
         run: |
           df -h
@@ -118,7 +110,6 @@ jobs:
           sudo rm -rf /opt/hostedtoolcache/CodeQL || true
           docker system prune -af || true
           df -h
-
       - name: Cache pip dependencies
         uses: actions/cache@v5
         with:
@@ -127,12 +118,10 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pip-test-
             ${{ runner.os }}-pip-
-
       - name: Install dependencies
         run: |
-          pip install pytest pytest-asyncio pytest-cov pytest-xdist
+          pip install pytest pytest-asyncio pytest-cov pytest-xdist 'respx>=0.22.0,<0.23' hypothesis==6.112.2
           pip install --build-constraint backend/constraints-ci.txt -r backend/requirements.txt
-
       - name: Run unit tests
         run: |
           pytest backend/tests/ \
@@ -140,23 +129,35 @@ jobs:
             -m "unit or not (integration or e2e or slow)" \
             --cov=backend/src \
             --cov-report=xml \
+            --cov-report=json \
             --cov-report=term-missing \
-            --cov-fail-under=8 \
+            --cov-fail-under=20 \
             -n auto \
             -v
-        # Note: Coverage threshold lowered to 8% after excluding integration tests from norecursedirs
-        # to prevent Qdrant connection errors during unit test collection (GOO-151)
+        # Note: Coverage threshold set to 20% (actual measured ~30% on local seed run,
+        # but CI selection differs slightly so we leave a buffer here and let
+        # check_coverage_ratchet.py enforce the per-file floors below).
+        # Per-file floors enforced by check_coverage_ratchet.py step below.
         env:
           ENVIRONMENT: testing
           DATABASE_URL: "sqlite:///:memory:"
-
+          # Dummy Azure OpenAI creds — agent graph constructor refuses to
+          # import without them. Unit tests mock real Azure calls, so any
+          # syntactically-valid placeholder is enough.
+          AZURE_OPENAI_CHAT_ENDPOINT: "https://example.invalid"
+          AZURE_OPENAI_CHAT_API_KEY: "test-key-not-real"
+          AZURE_OPENAI_CHAT_DEPLOYMENT_NAME: "test-deployment"
+          AZURE_OPENAI_CHAT_API_VERSION: "2024-02-01"
+          AZURE_OPENAI_ENDPOINT: "https://example.invalid"
+          AZURE_OPENAI_API_KEY: "test-key-not-real"
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
         with:
           files: coverage.xml
           flags: unit
           name: unit-tests
-
+      - name: Check per-file coverage ratchet
+        run: python backend/scripts/check_coverage_ratchet.py coverage.json
   # ==========================================================================
   # Security Scan
   # ==========================================================================
@@ -166,23 +167,18 @@ jobs:
     needs: lint-backend
     steps:
       - uses: actions/checkout@v6
-
       - name: Set up Python
         uses: actions/setup-python@v6
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-
       - name: Install security tools
         run: pip install bandit safety
-
       - name: Run Bandit (Python security)
         run: bandit -r backend/src -ll -ii -x tests
-        continue-on-error: true  # Allow failures while security issues are addressed
-
+        continue-on-error: true # Allow failures while security issues are addressed
       - name: Run Safety (dependency vulnerabilities)
         run: safety check -r backend/requirements.txt
-        continue-on-error: true  # Allow failures for unmaintained packages
-
+        continue-on-error: true # Allow failures for unmaintained packages
   # ==========================================================================
   # Frontend Tests
   # ==========================================================================
@@ -195,29 +191,30 @@ jobs:
         working-directory: frontend
     steps:
       - uses: actions/checkout@v6
-
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
       - name: Set up Node.js
         uses: actions/setup-node@v6
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-          cache-dependency-path: package-lock.json
-
+          cache: 'pnpm'
+          cache-dependency-path: frontend/pnpm-lock.yaml
       - name: Install dependencies
-        run: npm ci
-
+        run: pnpm install --frozen-lockfile
       - name: Run tests
-        run: npm test -- --coverage --watchAll=false
+        # Vitest is the source of truth — `pnpm test` is `vitest run`.
+        run: pnpm test:coverage
         env:
           CI: true
-
       - name: Upload coverage
+        if: always()
         uses: codecov/codecov-action@v5
         with:
           files: frontend/coverage/lcov.info
           flags: frontend
           name: frontend-tests
-
   # ==========================================================================
   # Integration Tests (Require Services)
   # ==========================================================================
@@ -225,7 +222,7 @@ jobs:
     name: Integration Tests
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    continue-on-error: true  # Don't block workflow if integration tests fail/timeout
+    continue-on-error: true # Don't block workflow if integration tests fail/timeout
     needs: [unit-tests, frontend-tests]
     services:
       postgres:
@@ -237,29 +234,19 @@ jobs:
         ports:
           - 5432/tcp
         options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
+          --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
       redis:
         image: redis:7
         ports:
           - 6379/tcp
         options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
+          --health-cmd "redis-cli ping" --health-interval 10s --health-timeout 5s --health-retries 5
     steps:
       - uses: actions/checkout@v6
-
       - name: Set up Python
         uses: actions/setup-python@v6
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-
       - name: Free runner disk space
         run: |
           df -h
@@ -269,11 +256,9 @@ jobs:
           sudo rm -rf /opt/hostedtoolcache/CodeQL || true
           docker system prune -af || true
           df -h
-
       - name: Install dependencies
         run: |
           pip install --build-constraint backend/constraints-ci.txt -r backend/requirements.txt
-
       - name: Run integration tests
         run: |
           set +e
@@ -297,14 +282,12 @@ jobs:
           ENVIRONMENT: testing
           DATABASE_URL: "postgresql://test:test@localhost:${{ job.services.postgres.ports['5432'] }}/test_db"
           REDIS_URL: "redis://localhost:${{ job.services.redis.ports['6379'] }}/0"
-
       - name: Upload coverage
         uses: codecov/codecov-action@v5
         with:
           files: coverage.xml
           flags: integration
           name: integration-tests
-
   # ==========================================================================
   # Resilience Tests
   # ==========================================================================
@@ -312,16 +295,14 @@ jobs:
     name: Resilience Tests
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    continue-on-error: true  # Non-critical in PR checks; don't block merges
+    continue-on-error: true # Non-critical in PR checks; don't block merges
     needs: unit-tests
     steps:
       - uses: actions/checkout@v6
-
       - name: Set up Python
         uses: actions/setup-python@v6
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-
       - name: Free runner disk space
         run: |
           df -h
@@ -331,12 +312,10 @@ jobs:
           sudo rm -rf /opt/hostedtoolcache/CodeQL || true
           docker system prune -af || true
           df -h
-
       - name: Install dependencies
         run: |
           pip install pytest pytest-asyncio pytest-cov
           pip install --build-constraint backend/constraints-ci.txt -r backend/requirements.txt
-
       - name: Run resilience tests
         run: |
           set +e
@@ -358,21 +337,19 @@ jobs:
         env:
           ENVIRONMENT: testing
           DATABASE_URL: "sqlite:///:memory:"
-
       - name: Upload coverage
         uses: codecov/codecov-action@v5
         with:
           files: coverage.xml
           flags: resilience
           name: resilience-tests
-
   # ==========================================================================
   # API Contract Tests
   # ==========================================================================
   api-contract-tests:
     name: API Contract Tests
     runs-on: ubuntu-latest
-    continue-on-error: true  # Non-critical in PR checks; don't block merges
+    continue-on-error: true # Non-critical in PR checks; don't block merges
     needs: [unit-tests, frontend-tests]
     services:
       postgres:
@@ -384,15 +361,12 @@ jobs:
         ports:
           - 5432/tcp
         options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
-
     steps:
       - uses: actions/checkout@v6
-
       - name: Set up Python
         uses: actions/setup-python@v6
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-
       - name: Free runner disk space
         run: |
           df -h
@@ -402,12 +376,10 @@ jobs:
           sudo rm -rf /opt/hostedtoolcache/CodeQL || true
           docker system prune -af || true
           df -h
-
       - name: Install dependencies
         run: |
           pip install --build-constraint backend/constraints-ci.txt -r backend/requirements.txt
           pip install schemathesis
-
       - name: Run contract tests
         run: |
           pytest backend/tests/api_contract/ \
@@ -416,19 +388,23 @@ jobs:
         env:
           ENVIRONMENT: testing
           DATABASE_URL: "postgresql://test:test@localhost:${{ job.services.postgres.ports['5432'] }}/test_db"
-        continue-on-error: true  # Allow failures during development
-
+        continue-on-error: true # Allow failures during development
   # ==========================================================================
   # E2E Tests (Full System)
   # ==========================================================================
   e2e-tests:
     name: E2E Tests
     runs-on: ubuntu-latest
-    continue-on-error: true  # Non-critical in PR checks; don't block merges
+    # E2E build is infrastructure-flaky on PR runners (PyTorch-sized backend
+    # image; disk/timeout issues). Kept as a push gate on develop/main where
+    # regressions are still caught, but skipped on PR events so the red check
+    # stops being review noise. `continue-on-error: true` is retained as a
+    # second safety net when the job does run.
+    if: github.event_name != 'pull_request'
+    continue-on-error: true # Non-critical in PR checks; don't block merges
     needs: [integration-tests]
     steps:
       - uses: actions/checkout@v6
-
       - name: Free runner disk space
         run: |
           df -h
@@ -447,21 +423,42 @@ jobs:
           sudo rm -f /swapfile || true
           docker system prune -af --volumes || true
           df -h
-
       - name: Build backend image
         run: docker build --build-arg PYTHON_VERSION=3.11 --build-arg TORCH_CPU_ONLY=true -t rag-backend:test -f backend/docker/Dockerfile.prod .
-
       - name: Build frontend image
-        run: docker build -t rag-frontend:test -f frontend/Dockerfile.prod .
-
+        run: >
+          docker build
+          --build-arg NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
+          --build-arg NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+          --build-arg NEXT_PUBLIC_STATSIG_CLIENT_KEY=client-SEfCB81zQnvSAqRxfVi1nJNRmpJtrmOrvDKQPQm4UBx
+          -t rag-frontend:test
+          -f frontend/Dockerfile.prod .
       - name: Start infrastructure services
         run: |
-          docker compose -p rag_system -f docker-compose.ci.yml up -d postgres redis
+          docker compose -p rag_system -f docker-compose.ci.yml up -d postgres redis neo4j qdrant gotrue
 
-          # Wait for infrastructure to be healthy
-          echo "Waiting for infrastructure services..."
-          timeout 60 bash -c 'until docker compose -p rag_system -f docker-compose.ci.yml ps | grep -E "(healthy)" | wc -l | grep -q "2"; do sleep 3; done'
+          # Wait for each service individually so logs show which one is stuck.
+          # docker compose ps --format json is compose-version-agnostic.
+          healthy_count() {
+            docker compose -p rag_system -f docker-compose.ci.yml ps --format json \
+              | grep -c '"healthy"' || true
+          }
 
+          echo "Waiting for infrastructure services (5 expected)..."
+          SECONDS=0
+          while (( $(healthy_count) < 5 )); do
+            if (( SECONDS > 300 )); then
+              echo "::error::Timed out after 300s waiting for healthy services"
+              docker compose -p rag_system -f docker-compose.ci.yml ps
+              exit 124
+            fi
+            if (( SECONDS % 30 == 0 )); then
+              echo "  ${SECONDS}s — $(healthy_count)/5 healthy"
+              docker compose -p rag_system -f docker-compose.ci.yml ps --format "table {{.Name}}\t{{.Status}}" 2>/dev/null || true
+            fi
+            sleep 5
+          done
+          echo "All 5 infrastructure services healthy (${SECONDS}s)"
       - name: Start application services
         run: |
           # Start backend with pre-built image
@@ -471,11 +468,22 @@ jobs:
             -p 8000:8000 \
             -e DATABASE_URL=postgresql://test:test@postgres:5432/test_db \
             -e REDIS_URL=redis://redis:6379/0 \
+            -e NEO4J_URI=bolt://neo4j:7687 \
+            -e NEO4J_USERNAME=neo4j \
+            -e NEO4J_PASSWORD= \
+            -e NEO4J_AUTH_DISABLED=true \
+            -e QDRANT_URL=http://qdrant:6333 \
             -e ENVIRONMENT=testing \
             -e SECRET_KEY=ci-test-secret-key-32-characters! \
             -e JWT_SECRET_KEY=ci-test-jwt-secret-key-32chars! \
+            -e SUPABASE_URL=http://gotrue:9999 \
+            -e SUPABASE_JWT_SECRET=ci-test-supabase-jwt-secret-not-for-prod-use \
+            -e ENCRYPTION_MASTER_KEY=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA= \
             -e CORS_ORIGINS=http://localhost:3000,http://frontend:3000 \
             -e ENABLE_AI_PROCESSING=false \
+            -e SEED_ADMIN_PASSWORD=admin123 \
+            -e SEED_DEMO_PASSWORD=demo123 \
+            -e SEED_LAB_ADMIN_PASSWORD=admin123 \
             rag-backend:test
 
           # Start frontend with pre-built image
@@ -504,7 +512,6 @@ jobs:
             fi
             sleep 3
           done
-
       - name: Verify services are accessible
         run: |
           echo "Checking backend health..."
@@ -512,7 +519,72 @@ jobs:
 
           echo "Checking frontend..."
           curl -f http://localhost:3000 || exit 1
+      - name: Initialize and seed test database
+        # Playwright globalSetup logs in as admin@multimodal-rag.com to populate
+        # storageState. The fresh postgres container has no schema or users, so
+        # without this step every E2E test fails at auth setup with a 10s
+        # waitForURL("**/dashboard") timeout. Creates schema via SQLAlchemy
+        # metadata + seeds admin/demo/lab users with the well-known passwords
+        # the tests expect (matching CLAUDE.md dev creds).
+        #
+        # User.first_name/last_name are EncryptedString columns, so SQLAlchemy
+        # invokes get_field_encryption() during INSERT. The encryption module
+        # uses lazy globals that must be wired up via initialize_encryption()
+        # before any encrypted write — and it needs an active DATA key. This
+        # mirrors backend/tests/integration/conftest.py.
+        run: |
+          docker exec \
+            -e PYTHONPATH=/app \
+            backend-e2e \
+            python -c "
+          from src.core.encryption import EncryptionKeyType, get_key_manager, initialize_encryption
+          initialize_encryption()
+          km = get_key_manager()
+          if km.get_active_key(EncryptionKeyType.DATA) is None:
+              km.generate_key(EncryptionKeyType.DATA)
+          from src.core.database import create_tables, init_database
+          create_tables()
+          init_database()
+          "
+      - name: Mirror seeded users into gotrue
+        # init_database() seeds admin/demo/lab users into the backend's users
+        # table with random UUIDs. Frontend login goes through Supabase
+        # (gotrue here), so each user must also exist in gotrue's auth.users
+        # with the SAME id — the JWT's "sub" claim is what backend's
+        # get_current_user looks up. Email-confirm so signInWithPassword works
+        # without an inbox flow.
+        run: |
+          docker exec \
+            -e PYTHONPATH=/app \
+            -e SERVICE_ROLE_JWT=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoic2VydmljZV9yb2xlIiwiaXNzIjoic3VwYWJhc2UtZGVtbyIsImlhdCI6MCwiZXhwIjo5OTk5OTk5OTk5fQ.h2fkqBtuKwhDivmz5vXwEGxQgcpFlMXhYlVNAH2TL6c \
+            backend-e2e \
+            python -c "
+          import os, httpx
+          from src.core.database import SessionLocal
+          from src.models.user import User
 
+          PASSWORDS = {
+              'admin@multimodal-rag.com': 'admin123',
+              'demo@multimodal-rag.com': 'demo123',
+              'lab-admin@multimodal-rag.com': 'admin123',
+          }
+          headers = {'Authorization': f\"Bearer {os.environ['SERVICE_ROLE_JWT']}\"}
+          with SessionLocal() as db:
+              users = db.query(User).filter(User.email.in_(list(PASSWORDS))).all()
+              assert len(users) == len(PASSWORDS), f'expected {len(PASSWORDS)} seeded users, got {len(users)}'
+              for u in users:
+                  payload = {
+                      'id': str(u.id),
+                      'email': u.email,
+                      'password': PASSWORDS[u.email],
+                      'email_confirm': True,
+                  }
+                  r = httpx.post('http://gotrue:9999/admin/users', headers=headers, json=payload, timeout=10.0)
+                  print(f'gotrue seed {u.email} -> {r.status_code}')
+                  if r.status_code >= 400:
+                      print(r.text)
+                      r.raise_for_status()
+          "
       - name: Run E2E Tests
         env:
           EVENT_NAME: ${{ github.event_name }}
@@ -525,7 +597,6 @@ jobs:
             echo "Running full E2E tests..."
             docker compose -p rag_system -f docker-compose.ci.yml --profile e2e run --rm --no-deps e2e-tests
           fi
-
       - name: Upload E2E test results
         uses: actions/upload-artifact@v7
         if: always()
@@ -535,7 +606,6 @@ jobs:
             tests/e2e/test-results/
             tests/e2e/playwright-report/
           retention-days: 7
-
       - name: Collect logs on failure
         if: failure()
         run: |
@@ -544,21 +614,19 @@ jobs:
           echo ""
           echo "=== Frontend Logs ==="
           docker logs frontend-e2e --tail=100 2>&1 || true
-
       - name: Cleanup
         if: always()
         run: |
           docker stop backend-e2e frontend-e2e 2>/dev/null || true
           docker rm backend-e2e frontend-e2e 2>/dev/null || true
           docker compose -p rag_system -f docker-compose.ci.yml down -v --remove-orphans
-
   # ==========================================================================
   # Performance Tests (Main Branch Only)
   # ==========================================================================
   performance-tests:
     name: Performance Tests
     runs-on: ubuntu-latest
-    continue-on-error: true  # Non-critical in PR checks; don't block merges
+    continue-on-error: true # Non-critical in PR checks; don't block merges
     needs: integration-tests
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     services:
@@ -570,15 +638,12 @@ jobs:
           POSTGRES_DB: test_db
         ports:
           - 5432/tcp
-
     steps:
       - uses: actions/checkout@v6
-
       - name: Set up Python
         uses: actions/setup-python@v6
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-
       - name: Free runner disk space
         run: |
           df -h
@@ -588,12 +653,10 @@ jobs:
           sudo rm -rf /opt/hostedtoolcache/CodeQL || true
           docker system prune -af || true
           df -h
-
       - name: Install dependencies
         run: |
           pip install pytest pytest-asyncio pytest-benchmark locust
           pip install --build-constraint backend/constraints-ci.txt -r backend/requirements.txt
-
       - name: Run performance tests
         run: |
           pytest backend/tests/ \
@@ -605,13 +668,11 @@ jobs:
         env:
           ENVIRONMENT: testing
           DATABASE_URL: "postgresql://test:test@localhost:${{ job.services.postgres.ports['5432'] }}/test_db"
-
       - name: Store benchmark results
         uses: actions/upload-artifact@v7
         with:
           name: benchmark-results
           path: benchmark.json
-
   # ==========================================================================
   # Test Summary
   # ==========================================================================
@@ -698,7 +759,6 @@ jobs:
             echo "**Branch:** \`$GH_REF\`"
             echo "**Commit:** \`$GH_SHA\`"
           } >> "$GITHUB_STEP_SUMMARY"
-
       - name: Fail if critical tests failed
         env:
           UNIT_RESULT: ${{ needs.unit-tests.result }}

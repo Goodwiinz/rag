@@ -8,6 +8,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 // Mock component for testing
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 const CitationPreview = ({ citationIndex, onClick }: { citationIndex: number; onClick?: () => void }) => {
   return (
     <span
@@ -51,7 +52,7 @@ describe('CitationPreview', () => {
   describe('Interaction', () => {
     it('test_shows_popover_on_click', () => {
       // Test that clicking shows source snippet popover
-      const handleClick = jest.fn();
+      const handleClick = vi.fn();
       const element = CitationPreview({ citationIndex: 1, onClick: handleClick });
 
       // Simulate click
@@ -100,7 +101,7 @@ describe('CitationPreview', () => {
     });
 
     it('test_rag_disabled_skips_citation_extraction', () => {
-      const mockExtractCitations = jest.fn();
+      const mockExtractCitations = vi.fn();
       const ragEnabled = false;
 
       // When RAG is disabled, citation extraction should not be called

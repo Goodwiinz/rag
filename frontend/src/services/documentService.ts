@@ -1,14 +1,16 @@
-import { APIResponse } from '@/types/api';
+import { createClient } from '@/lib/supabase/client';
+import { useAuthStore } from '@/stores/authStore';
+import { APIResponse, API_CONFIG } from '@/types/api';
 import {
-    Document,
-    DocumentFilters,
-    DocumentListResponse,
-    UploadProgress
+  Document,
+  DocumentFilters,
+  DocumentListResponse,
+  UploadProgress,
 } from '@/types/document';
-import { apiClient } from './apiClient';
+import { api } from '@/services/api-client';
 
 export class DocumentService {
-  private readonly basePath = 'documents';
+  private readonly basePath = '/documents';
 
   /**
    * Upload a single file
@@ -17,7 +19,7 @@ export class DocumentService {
     file: File,
     onProgress?: (progress: number) => void
   ): Promise<APIResponse<Document>> {
-    return apiClient.upload(`${this.basePath}/upload`, file, onProgress);
+    return api.upload(`${this.basePath}/upload`, file, { onProgress });
   }
 
   /**
@@ -25,12 +27,24 @@ export class DocumentService {
    */
   async uploadFiles(
     files: File[],
-    onProgress?: (fileIndex: number, fileProgress: number, totalProgress: number) => void
+    onProgress?: (
+      fileIndex: number,
+      fileProgress: number,
+      totalProgress: number
+    ) => void
   ): Promise<APIResponse<Document[]>> {
     const formData = new FormData();
     files.forEach((file) => {
       formData.append('files', file);
     });
+
+    // Fetch auth before entering the XHR Promise
+    const supabase = createClient();
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    const token = session?.access_token;
+    const organizationId = useAuthStore.getState().organization?.id;
 
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
@@ -47,7 +61,9 @@ export class DocumentService {
       xhr.addEventListener('load', () => {
         if (xhr.status >= 200 && xhr.status < 300) {
           try {
-            const response = JSON.parse(xhr.responseText) as APIResponse<Document[]>;
+            const response = JSON.parse(xhr.responseText) as APIResponse<
+              Document[]
+            >;
             resolve(response);
           } catch (error) {
             reject(new Error('Invalid response format'));
@@ -61,14 +77,17 @@ export class DocumentService {
         reject(new Error('Network error during upload'));
       });
 
-      xhr.open('POST', `${apiClient.client.defaults.baseURL}${this.basePath}/batch-upload`);
+      xhr.open(
+        'POST',
+        `${API_CONFIG.BASE_URL}${this.basePath}/batch-upload`
+      );
 
       // Add auth headers
-      const token = localStorage.getItem('auth_token');
-      const organizationId = localStorage.getItem('organization_id');
-      if (token && organizationId) {
+      if (token) {
         xhr.setRequestHeader('Authorization', `Bearer ${token}`);
-        xhr.setRequestHeader('X-Organization-ID', organizationId);
+        if (organizationId) {
+          xhr.setRequestHeader('X-Organization-ID', organizationId);
+        }
       }
 
       xhr.send(formData);
@@ -104,14 +123,17 @@ export class DocumentService {
       }
     }
 
-    return apiClient.get(`${this.basePath}`, { params });
+    const queryString = new URLSearchParams(
+      Object.entries(params).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)])
+    ).toString();
+    return api.get(`${this.basePath}${queryString ? `?${queryString}` : ''}`);
   }
 
   /**
    * Get document by ID
    */
   async getDocument(id: string): Promise<APIResponse<Document>> {
-    return apiClient.get(`${this.basePath}/${id}`);
+    return api.get(`${this.basePath}/${id}`);
   }
 
   /**
@@ -119,59 +141,62 @@ export class DocumentService {
    */
   async updateDocument(
     id: string,
-    updates: Partial<Pick<Document, 'title' | 'description' | 'tags' | 'custom_fields'>>
+    updates: Partial<
+      Pick<Document, 'title' | 'description' | 'tags' | 'custom_fields'>
+    >
   ): Promise<APIResponse<Document>> {
-    return apiClient.patch(`${this.basePath}/${id}`, updates);
+    return api.patch(`${this.basePath}/${id}`, updates);
   }
 
   /**
    * Delete document
    */
   async deleteDocument(id: string): Promise<APIResponse<void>> {
-    return apiClient.delete(`${this.basePath}/${id}`);
+    return api.delete(`${this.basePath}/${id}`);
   }
 
   /**
    * Get upload progress
    */
   async getUploadProgress(jobId: string): Promise<APIResponse<UploadProgress>> {
-    return apiClient.get(`${this.basePath}/upload-progress/${jobId}`);
+    return api.get(`${this.basePath}/upload-progress/${jobId}`);
   }
 
   /**
    * Download document
    */
   async downloadDocument(id: string, filename?: string): Promise<void> {
-    return apiClient.download(`${this.basePath}/${id}/download`, filename);
+    return api.download(`${this.basePath}/${id}/download`, filename);
   }
 
   /**
    * Get document preview (text snippet)
    */
-  async getDocumentPreview(id: string): Promise<APIResponse<{ preview: string }>> {
-    return apiClient.get(`${this.basePath}/${id}/preview`);
+  async getDocumentPreview(
+    id: string
+  ): Promise<APIResponse<{ preview: string }>> {
+    return api.get(`${this.basePath}/${id}/preview`);
   }
 
   /**
    * Get document thumbnail
    */
   getDocumentThumbnailUrl(id: string): string {
-    const baseURL = apiClient.client.defaults.baseURL;
-    return `${baseURL}${this.basePath}/${id}/thumbnail`;
+    return `${API_CONFIG.BASE_URL}${this.basePath}/${id}/thumbnail`;
   }
 
   /**
    * Get processing status
    */
   async getProcessingStatus(id: string): Promise<APIResponse<UploadProgress>> {
-    return apiClient.get(`${this.basePath}/${id}/processing-status`);
+    return api.get(`${this.basePath}/${id}/processing-status`);
   }
 
   /**
    * Retry failed processing
    */
   async retryProcessing(id: string): Promise<APIResponse<Document>> {
-    return apiClient.post(`${this.basePath}/${id}/retry-processing`);
+    return api.post(`${this.basePath}/${id}/retry-processing`);
   }
 
   /**
@@ -191,20 +216,25 @@ export class DocumentService {
       params.document_ids = documentIds.join(',');
     }
 
-    return apiClient.get(`${this.basePath}/search`, { params });
+    const qs = new URLSearchParams(
+      Object.entries(params).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)])
+    ).toString();
+    return api.get(`${this.basePath}/search${qs ? `?${qs}` : ''}`);
   }
 
   /**
    * Get document statistics
    */
-  async getDocumentStats(): Promise<APIResponse<{
-    total_documents: number;
-    total_size: number;
-    by_file_type: Record<string, number>;
-    by_status: Record<string, number>;
-    recent_uploads: Document[];
-  }>> {
-    return apiClient.get(`${this.basePath}/stats`);
+  async getDocumentStats(): Promise<
+    APIResponse<{
+      total_documents: number;
+      total_size: number;
+      by_file_type: Record<string, number>;
+      by_status: Record<string, number>;
+      recent_uploads: Document[];
+    }>
+  > {
+    return api.get(`${this.basePath}/stats`);
   }
 }
 

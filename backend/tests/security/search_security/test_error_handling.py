@@ -315,12 +315,8 @@ class TestErrorHandlingSecurity(SecurityTestCase):
     def test_stack_trace_sanitization(self, security_test_client, authentication_headers):
         """Test that stack traces are not exposed in error responses.
 
-        Note: The current search endpoint re-raises the raw exception as an
-        HTTPException(detail=str(e)), so the exception message is reflected in
-        the response body.  This test therefore only checks that *Python-level
-        stack trace* artefacts (Traceback blocks, ``File "..."`` lines, etc.)
-        are absent.  A separate follow-up should sanitise the error handler to
-        return a generic message.
+        Note: Ensure that error messages are generic and do not expose sensitive system
+        details like raw exception messages.
         """
 
         # Mock a service to raise an exception.
@@ -342,10 +338,8 @@ class TestErrorHandlingSecurity(SecurityTestCase):
                 f"Expected 200 (fallback) or 500, got {response.status_code}"
 
             # Verify no Python stack-trace artefacts appear in the body.
-            # We intentionally omit patterns that match the exception message
-            # we injected above (e.g. "database connection") since the current
-            # handler reflects the message.  Real stack-trace leaks show
-            # ``Traceback``, ``File "..."`` markers, etc.
+            # Verify no Python stack-trace artefacts appear in the body,
+            # and verify the specific exception message is NOT leaked.
             stack_trace_patterns = [
                 'traceback',
                 'stack trace',
@@ -354,6 +348,7 @@ class TestErrorHandlingSecurity(SecurityTestCase):
                 'raise ',
                 'at line',
                 'in function',
+                'database connection failed'
             ]
 
             self.assert_no_information_disclosure(response, stack_trace_patterns)

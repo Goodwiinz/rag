@@ -1,8 +1,8 @@
 'use client';
 
 import { CitationPanel } from '@/components/chat/CitationPanel';
-import { TerminalChatBubble } from '@/components/chat/shared/TerminalChatBubble';
-import { TerminalChatComposer } from '@/components/chat/shared/TerminalChatComposer';
+import { ChatBubble } from '@/components/chat/shared/ChatBubble';
+import { SearchComposer } from '@/components/chat/shared/SearchComposer';
 import {
   ChatMessageViewModel,
   mapChatMessageToViewModel,
@@ -200,14 +200,20 @@ export default function SearchPage() {
 
   return (
     <div className="relative flex h-full flex-col overflow-hidden">
-      <div className="min-h-0 flex-1 overflow-y-auto terminal-scrollbar">
+      <div className="min-h-0 flex-1 overflow-y-auto">
         {messages.length === 0 && !isLoading ? (
           <div className="mx-auto flex h-full w-full max-w-4xl flex-col items-center justify-center p-8">
             <div className="mb-8 text-center">
-              <h1 className="mb-2 text-2xl font-mono font-bold tracking-wider text-[var(--terminal-text)]">
-                SEMANTIC_SEARCH
+              <h1
+                className="mb-2 text-2xl font-semibold tracking-tight text-[var(--nous-fg-1)]"
+                style={{ fontFamily: 'var(--nous-font-ui)' }}
+              >
+                Semantic Search
               </h1>
-              <p className="text-xs font-mono text-muted-foreground uppercase tracking-widest">
+              <p
+                className="text-sm text-[var(--nous-fg-3)]"
+                style={{ fontFamily: 'var(--nous-font-body)' }}
+              >
                 Ask questions and get synthesized answers with source citations.
               </p>
             </div>
@@ -220,14 +226,14 @@ export default function SearchPage() {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: idx * 0.05 }}
                   onClick={() => runSearch(suggestion.cmd)}
-                  className="group flex items-center gap-3 rounded-xl border border-[var(--terminal-border)] bg-[var(--terminal-surface)] p-3 text-left transition-all hover:border-[var(--phosphor-green)]/30"
+                  className="group flex items-center gap-3 rounded-xl border border-[var(--nous-border-1)] bg-[var(--nous-bg-2)] p-3 text-left transition-all hover:border-[var(--nous-sol)]/30"
                 >
-                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[var(--terminal-bg)]">
-                    <suggestion.icon className="h-4 w-4 text-[var(--terminal-text-dim)] transition-colors group-hover:text-[var(--phosphor-green)]" />
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[var(--nous-bg-1)]">
+                    <suggestion.icon className="h-4 w-4 text-[var(--nous-fg-3)] transition-colors group-hover:text-[var(--nous-sol)]" />
                   </div>
                   <span
-                    className="truncate text-[11px] uppercase tracking-tight text-[var(--terminal-text-dim)] transition-colors group-hover:text-[var(--terminal-text)]"
-                    style={{ fontFamily: "'JetBrains Mono', monospace" }}
+                    className="truncate text-xs text-[var(--nous-fg-3)] transition-colors group-hover:text-[var(--nous-fg-1)]"
+                    style={{ fontFamily: 'var(--nous-font-ui)' }}
                   >
                     {suggestion.label}
                   </span>
@@ -249,7 +255,7 @@ export default function SearchPage() {
                     delay: Math.min(idx * 0.03, 0.3),
                   }}
                 >
-                  <TerminalChatBubble
+                  <ChatBubble
                     message={message}
                     index={idx}
                     modelName={
@@ -272,7 +278,7 @@ export default function SearchPage() {
                   exit={{ opacity: 0, y: -10, transition: { duration: 0.2 } }}
                   transition={{ duration: 0.3 }}
                 >
-                  <TerminalChatBubble
+                  <ChatBubble
                     message={{
                       role: 'assistant',
                       content: '',
@@ -291,7 +297,7 @@ export default function SearchPage() {
         )}
       </div>
 
-      <TerminalChatComposer
+      <SearchComposer
         value={input}
         onChange={setInput}
         onSubmit={() => runSearch()}

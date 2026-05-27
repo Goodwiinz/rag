@@ -1,29 +1,30 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, fireEvent } from '@/test/test-utils';
 import { ChatPanel } from '../ChatPanel';
 import type { ContextChip, WidgetMessage } from '@/types/chat-widget';
 import { expectNoA11yViolations } from '@/test/a11y';
 
 // Mock sub-components to isolate ChatPanel logic
-jest.mock('../ChatContextBar', () => ({
+vi.mock('../ChatContextBar', () => ({
   ChatContextBar: (props: Record<string, unknown>) => (
     <div data-testid="context-bar" data-props={JSON.stringify(props)} />
   ),
 }));
 
-jest.mock('../ChatMessageList', () => ({
+vi.mock('../ChatMessageList', () => ({
   ChatMessageList: (props: Record<string, unknown>) => (
     <div data-testid="message-list" data-props={JSON.stringify(props)} />
   ),
 }));
 
-jest.mock('../ChatPanelInput', () => ({
+vi.mock('../ChatPanelInput', () => ({
   ChatPanelInput: (props: Record<string, unknown>) => (
     <div data-testid="panel-input" data-props={JSON.stringify(props)} />
   ),
 }));
 
 // Mock lucide-react icons
-jest.mock('lucide-react', () => ({
+vi.mock('lucide-react', () => ({
   X: (props: React.SVGAttributes<SVGElement>) => (
     <svg data-testid="icon-x" {...props} />
   ),
@@ -70,16 +71,16 @@ describe('ChatPanel', () => {
     contextChips: mockChips,
     isStreaming: false,
     inputValue: 'draft text',
-    onInputChange: jest.fn(),
-    onSend: jest.fn(),
-    onToggleChip: jest.fn(),
-    onToggleAllChips: jest.fn(),
-    onClear: jest.fn(),
-    onClose: jest.fn(),
+    onInputChange: vi.fn(),
+    onSend: vi.fn(),
+    onToggleChip: vi.fn(),
+    onToggleAllChips: vi.fn(),
+    onClear: vi.fn(),
+    onClose: vi.fn(),
   };
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   it('renders header with "Quick Chat" title', () => {
@@ -95,14 +96,14 @@ describe('ChatPanel', () => {
   });
 
   it('calls onClose when close button clicked', () => {
-    const onClose = jest.fn();
+    const onClose = vi.fn();
     render(<ChatPanel {...defaultProps} onClose={onClose} />);
     fireEvent.click(screen.getByRole('button', { name: 'Close chat panel' }));
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
   it('calls onClear when clear button clicked', () => {
-    const onClear = jest.fn();
+    const onClear = vi.fn();
     render(<ChatPanel {...defaultProps} onClear={onClear} />);
     fireEvent.click(
       screen.getByRole('button', { name: 'Clear chat messages' })
@@ -172,12 +173,12 @@ describe('ChatPanel a11y', () => {
         contextChips={mockChips}
         isStreaming={false}
         inputValue=""
-        onInputChange={jest.fn()}
-        onSend={jest.fn()}
-        onToggleChip={jest.fn()}
-        onToggleAllChips={jest.fn()}
-        onClear={jest.fn()}
-        onClose={jest.fn()}
+        onInputChange={vi.fn()}
+        onSend={vi.fn()}
+        onToggleChip={vi.fn()}
+        onToggleAllChips={vi.fn()}
+        onClear={vi.fn()}
+        onClose={vi.fn()}
       />
     );
     await expectNoA11yViolations(container);

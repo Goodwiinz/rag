@@ -25,13 +25,14 @@ from src.models import (
     Collection,
     CollectionDocument,
     Conversation,
+    Document,
     Thread,
     User,
     Workspace,
 )
 from src.services.research.bibliography_service import BibliographyService
 from src.services.research.citation_extraction_service import CitationExtractionService
-from src.services.security.user_management import get_current_user
+from src.core.dependencies import get_current_user
 from src.shared.research_schemas import (
     CitationCreate,
     CitationListResponse,
@@ -131,6 +132,21 @@ async def create_citation(
         Created citation
     """
     try:
+        # Verify the referenced document belongs to the user's organization
+        if citation_data.document_id:
+            doc_check = await db.execute(
+                select(Document.id).where(
+                    Document.id == citation_data.document_id,
+                    Document.organization_id == current_user.organization_id,
+                    Document.is_deleted == False,
+                )
+            )
+            if doc_check.scalar_one_or_none() is None:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Document not found or not accessible",
+                )
+
         # Create citation instance
         citation = Citation(
             message_id=citation_data.message_id,
@@ -597,6 +613,7 @@ async def export_bibliography(
             .selectinload(Conversation.workspace),
         )
 
+        document_ids: list = []
         if resolved_citation_ids:
             query = query.where(Citation.id.in_(resolved_citation_ids))
         elif resolved_project_id:
@@ -623,6 +640,19 @@ async def export_bibliography(
             if _citation_is_accessible(citation, current_user)
         ]
 
+        # Fallback: build bibliography from Document metadata when no
+        # Citation records exist (common for freshly ingested papers).
+        if not citations and resolved_project_id:
+            from src.api.agent.tools_impl import _citations_from_documents
+
+            doc_stmt = select(Document).where(
+                Document.id.in_(document_ids),
+                Document.is_deleted == False,
+            )
+            doc_result = await db.execute(doc_stmt)
+            docs = list(doc_result.scalars().all())
+            citations = _citations_from_documents(docs)  # type: ignore[assignment]
+
         if not citations:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="No citations found"
@@ -630,7 +660,7 @@ async def export_bibliography(
 
         # Format bibliography
         bibliography = BibliographyService.format_bibliography(
-            citations=list(citations), format_type=resolved_format
+            citations=list(citations), format_type=resolved_format  # type: ignore[arg-type]
         )
 
         logger.info(

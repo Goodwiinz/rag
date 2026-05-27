@@ -44,10 +44,18 @@ class WebSocketAuthenticator:
                 await self._close_connection(websocket, 4001, "Invalid token format")
                 return None
 
-            # Decode and validate JWT token with signature verification
+            # Decode and validate Supabase JWT
+            if not settings.SUPABASE_JWT_SECRET:
+                logger.error("SUPABASE_JWT_SECRET not configured")
+                await self._close_connection(websocket, 4001, "Server auth not configured")
+                return None
+
             try:
                 payload = jwt.decode(
-                    token, settings.JWT_SECRET_KEY, algorithms=[settings.JWT_ALGORITHM]
+                    token,
+                    settings.SUPABASE_JWT_SECRET,
+                    algorithms=["HS256"],
+                    audience="authenticated",
                 )
             except jwt.ExpiredSignatureError:
                 await self._close_connection(websocket, 4001, "Token expired")
@@ -57,16 +65,11 @@ class WebSocketAuthenticator:
                 await self._close_connection(websocket, 4001, "Invalid token")
                 return None
 
-            # Check token type (must be access token)
-            token_type = payload.get("type")
-            if token_type != "access":
-                await self._close_connection(websocket, 4001, "Invalid token type")
-                return None
-
-            # Extract user information
+            # Extract user information from Supabase JWT claims
             user_id = payload.get("sub")
-            user_role = payload.get("role")
-            org_id = payload.get("org_id")
+            app_metadata = payload.get("app_metadata", {})
+            user_role = payload.get("role") or app_metadata.get("role", "USER")
+            org_id = payload.get("org_id") or app_metadata.get("organization_id")
 
             if not user_id or not user_role:
                 await self._close_connection(websocket, 4001, "Invalid token payload")

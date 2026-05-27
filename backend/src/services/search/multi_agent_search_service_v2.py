@@ -30,7 +30,7 @@ try:
 except ImportError:
     CREWAI_AVAILABLE = False
     BaseTool = object
-    logging.warning(
+    logging.info(
         "CrewAI not available. Multi-agent search will use fallback implementation."
     )
 

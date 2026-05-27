@@ -23,7 +23,7 @@ from src.models.document import Document
 from src.models.extraction_matrix import ExtractionCell, ExtractionMatrix
 from src.models.user import User
 from src.services.research.extraction_matrix_service import ExtractionMatrixService
-from src.services.security.user_management import get_current_user
+from src.core.dependencies import get_current_user
 from src.shared.scispace_schemas import (
     CreateMatrixRequest,
     ExtractionCellResponse,

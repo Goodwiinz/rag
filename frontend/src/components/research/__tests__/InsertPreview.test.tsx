@@ -7,6 +7,7 @@
 // @ts-nocheck
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mockGeneratedContent =
   'Furthermore, recent empirical evidence suggests that these approaches ' +
   'yield statistically significant improvements across multiple benchmarks [1]. ' +
@@ -17,14 +18,14 @@ const defaultProps = {
   citationsUsed: ['[1]', '[2]'],
   sectionType: 'methodology' as const,
   confidence: 0.85,
-  onAccept: jest.fn(),
-  onEditFirst: jest.fn(),
-  onDiscard: jest.fn(),
+  onAccept: vi.fn(),
+  onEditFirst: vi.fn(),
+  onDiscard: vi.fn(),
 };
 
 describe('InsertPreview', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   describe('Content Rendering', () => {
@@ -91,7 +92,7 @@ describe('InsertPreview', () => {
 
   describe('Action Callbacks', () => {
     it('test_accept_callback', () => {
-      const onAccept = jest.fn();
+      const onAccept = vi.fn();
       onAccept(mockGeneratedContent);
 
       expect(onAccept).toHaveBeenCalledWith(mockGeneratedContent);
@@ -99,7 +100,7 @@ describe('InsertPreview', () => {
     });
 
     it('test_edit_first_callback', () => {
-      const onEditFirst = jest.fn();
+      const onEditFirst = vi.fn();
       onEditFirst(mockGeneratedContent);
 
       expect(onEditFirst).toHaveBeenCalledWith(mockGeneratedContent);
@@ -107,7 +108,7 @@ describe('InsertPreview', () => {
     });
 
     it('test_discard_callback', () => {
-      const onDiscard = jest.fn();
+      const onDiscard = vi.fn();
       onDiscard();
 
       expect(onDiscard).toHaveBeenCalledTimes(1);

@@ -15,7 +15,7 @@ CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
 # Configuration
-COMPOSE_FILE="docker-compose.graph-services-corrected.yml"
+COMPOSE_FILE="docker-compose.graph-services.yml"
 PROJECT_NAME="rag-graph"
 HEALTH_CHECK_TIMEOUT=30
 DETAILED_CHECK_TIMEOUT=10

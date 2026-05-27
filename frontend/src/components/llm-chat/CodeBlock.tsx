@@ -1,8 +1,20 @@
 'use client';
 
 import { useState } from 'react';
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import dynamic from 'next/dynamic';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
+
+const SyntaxHighlighter = dynamic(
+  () => import('react-syntax-highlighter/dist/esm/prism').then((mod) => mod.default),
+  {
+    loading: () => (
+      <pre className="p-4 rounded bg-[var(--terminal-bg)] text-xs font-mono overflow-x-auto">
+        <code>Loading...</code>
+      </pre>
+    ),
+    ssr: false,
+  }
+);
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Copy, Check } from 'lucide-react';

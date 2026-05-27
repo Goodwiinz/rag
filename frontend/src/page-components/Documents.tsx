@@ -3,6 +3,7 @@ import { DocumentLibrary } from '@/components/documents/DocumentLibrary';
 import { DocumentPreview } from '@/components/documents/DocumentPreview';
 import { DocumentMetadataEditor } from '@/components/documents/DocumentMetadataEditor';
 import { Document } from '@/types';
+import { api } from '@/services/api-client';
 
 const Documents: React.FC = () => {
   const [previewDocument, setPreviewDocument] = useState<Document | null>(null);
@@ -34,19 +35,15 @@ const Documents: React.FC = () => {
     try {
       // TODO: Implement actual download functionality
       console.log('Downloading document:', doc.id);
-      // For now, just create a dummy download
-      const response = await fetch(`/api/documents/${doc.id}/download`);
-      if (response.ok) {
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = window.document.createElement('a');
-        a.href = url;
-        a.download = doc.filename;
-        window.document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-        window.document.body.removeChild(a);
-      }
+      const blob = await api.request<Blob>(`/api/documents/${doc.id}/download`, { method: 'GET' });
+      const url = window.URL.createObjectURL(blob);
+      const a = window.document.createElement('a');
+      a.href = url;
+      a.download = doc.filename;
+      window.document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      window.document.body.removeChild(a);
     } catch (error) {
       console.error('Failed to download document:', error);
     }
@@ -79,18 +76,7 @@ const Documents: React.FC = () => {
     try {
       // TODO: Implement actual metadata save functionality
       console.log('Saving metadata for document:', documentId, metadata);
-      // For now, just simulate the save operation
-      const response = await fetch(`/api/documents/${documentId}/metadata`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(metadata),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to save metadata');
-      }
+      await api.patch(`/api/documents/${documentId}/metadata`, metadata);
 
       // TODO: Show success toast and refresh documents
       console.log('Metadata saved successfully');

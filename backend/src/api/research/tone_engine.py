@@ -5,7 +5,7 @@ from structlog import get_logger
 
 from src.models.user import User
 from src.services.research.tone_engine_service import ToneEngineService
-from src.services.security.user_management import get_current_user
+from src.core.dependencies import get_current_user
 from src.shared.scispace_schemas import RewriteRequest, RewriteResponse
 
 logger = get_logger()

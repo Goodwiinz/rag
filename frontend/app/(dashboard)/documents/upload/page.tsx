@@ -39,8 +39,7 @@ import {
   DocumentUploadRequest,
   WebSocketProgressUpdate,
 } from '@/services/enhancedDocumentService';
-import { mockDocumentService } from '@/services/mockDocumentService';
-import { apiClient } from '@/services/apiClient';
+import { api } from '@/services/api-client';
 import { useAuthStore } from '@/stores/authStore';
 import { cn } from '@/lib/utils';
 
@@ -55,7 +54,13 @@ interface UploadedFile {
   id: string;
   file: File;
   request: DocumentUploadRequest;
-  status: 'pending' | 'uploading' | 'processing' | 'completed' | 'failed';
+  status:
+    | 'pending'
+    | 'uploading'
+    | 'queued'
+    | 'processing'
+    | 'completed'
+    | 'failed';
   progress: number;
   currentStep: string;
   uploadId?: string;
@@ -72,7 +77,6 @@ export default function DocumentUploadPage() {
   const { toast } = useToast();
   const {
     user,
-    token,
     organization,
     isAuthenticated,
     isLoading: authLoading,
@@ -129,12 +133,7 @@ export default function DocumentUploadPage() {
       const newFiles: UploadedFile[] = [];
 
       for (const file of acceptedFiles) {
-        let validation;
-        try {
-          validation = enhancedDocumentService.validateFile(file);
-        } catch {
-          validation = mockDocumentService.validateFile(file);
-        }
+        const validation = enhancedDocumentService.validateFile(file);
 
         if (!validation.isValid) {
           toast({
@@ -148,7 +147,7 @@ export default function DocumentUploadPage() {
         // Pre-upload duplicate check via content hash
         try {
           const sha256 = await computeSHA256(file);
-          const response: any = await apiClient.post(
+          const response: any = await api.post(
             '/documents/check-duplicate',
             {
               sha256,
@@ -255,40 +254,15 @@ export default function DocumentUploadPage() {
         currentStep: 'Establishing uplink',
       });
 
-      let response, websocket;
-      try {
-        const result = await enhancedDocumentService.uploadDocument(
-          uploadedFile.file,
-          uploadedFile.request,
-          handleProgressUpdate(uploadedFile.id)
-        );
-        response = result.response;
-        websocket = result.websocket;
-      } catch (error: any) {
-        // Re-throw duplicate errors (409) so the user sees them
-        const isDuplicate =
-          error?.response?.status === 409 ||
-          error?.status === 409 ||
-          (typeof error?.message === 'string' &&
-            error.message.includes('already exists'));
-        if (isDuplicate) {
-          const detail =
-            error?.response?.data?.detail ||
-            error?.message ||
-            'Duplicate document';
-          throw new Error(detail);
-        }
-        const result = await mockDocumentService.uploadDocument(
-          uploadedFile.file,
-          uploadedFile.request,
-          handleProgressUpdate(uploadedFile.id)
-        );
-        response = result.response;
-        websocket = result.websocket;
-      }
+      const result = await enhancedDocumentService.uploadDocument(
+        uploadedFile.file,
+        uploadedFile.request,
+        handleProgressUpdate(uploadedFile.id)
+      );
+      const { response, websocket } = result;
 
       updateFileStatus(uploadedFile.id, {
-        status: 'processing',
+        status: 'queued',
         uploadId: response.upload_id,
         jobId: response.job_id,
         qualityScore: response.quality_score,
@@ -311,7 +285,7 @@ export default function DocumentUploadPage() {
 
   const uploadAllFiles = async () => {
     if (authLoading) return;
-    if (!isAuthenticated || !token || !organization) {
+    if (!isAuthenticated || !organization) {
       toast({
         title: 'Auth Required',
         description: 'Authenticate to initialize ingestion.',
@@ -360,6 +334,7 @@ export default function DocumentUploadPage() {
     switch (status) {
       case 'completed':
         return 'var(--phosphor-green)';
+      case 'queued':
       case 'processing':
       case 'uploading':
         return 'var(--cyan)';
@@ -542,7 +517,8 @@ export default function DocumentUploadPage() {
                                     <span
                                       className={cn(
                                         'w-1.5 h-1.5 rounded-full',
-                                        file.status === 'processing'
+                                        file.status === 'processing' ||
+                                          file.status === 'queued'
                                           ? 'animate-pulse'
                                           : ''
                                       )}
@@ -566,6 +542,7 @@ export default function DocumentUploadPage() {
                                 <AlertTriangle className="w-4 h-4 text-[var(--error-red)]" />
                               )}
                               {(file.status === 'uploading' ||
+                                file.status === 'queued' ||
                                 file.status === 'processing') && (
                                 <div className="flex items-center gap-2">
                                   <span className="text-[9px] font-mono text-[var(--cyan)] font-bold">
@@ -588,6 +565,7 @@ export default function DocumentUploadPage() {
 
                           {/* Progress Line */}
                           {(file.status === 'uploading' ||
+                            file.status === 'queued' ||
                             file.status === 'processing') && (
                             <div className="mt-4">
                               <div className="h-0.5 w-full bg-[var(--terminal-border)] rounded-full overflow-hidden">

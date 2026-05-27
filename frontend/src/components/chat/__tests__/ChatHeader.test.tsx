@@ -1,7 +1,7 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 
-// Mock sidebar trigger since it requires SidebarProvider context
-jest.mock('@/components/ui/sidebar', () => ({
+vi.mock('@/components/ui/sidebar', () => ({
   SidebarTrigger: ({ className }: { className?: string }) => (
     <button data-testid="sidebar-trigger" className={className}>
       Toggle
@@ -13,47 +13,55 @@ import { ChatHeader } from '../ChatHeader';
 
 describe('ChatHeader', () => {
   beforeEach(() => {
-    jest.useFakeTimers();
+    vi.useFakeTimers();
   });
 
   afterEach(() => {
-    jest.useRealTimers();
+    vi.useRealTimers();
   });
 
   it('renders breadcrumb with Dashboard / Chat', () => {
-    render(<ChatHeader currentWorkspace={null} />);
+    render(<ChatHeader />);
     expect(screen.getByText('Dashboard /')).toBeInTheDocument();
-    expect(screen.getByText('Chat')).toBeInTheDocument();
+    const chatElements = screen.getAllByText('Chat');
+    expect(chatElements.length).toBeGreaterThanOrEqual(1);
   });
 
-  it('displays workspace name when provided', () => {
-    const workspace = {
-      id: 'ws-1',
-      name: 'My Workspace',
-      description: '',
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    };
-    render(<ChatHeader currentWorkspace={workspace} />);
-    expect(screen.getByText('My Workspace')).toBeInTheDocument();
+  it('does not include a workspace selector (moved to ChatSidebar)', () => {
+    render(<ChatHeader />);
+    expect(screen.queryByLabelText('Select workspace')).not.toBeInTheDocument();
   });
 
-  it('shows fallback text when no workspace', () => {
-    render(<ChatHeader currentWorkspace={null} />);
-    expect(screen.getByText('Fresh Test Workspace')).toBeInTheDocument();
-  });
-
-  it('has aria-labels on icon buttons', () => {
-    render(<ChatHeader currentWorkspace={null} />);
-    expect(screen.getByLabelText('Terminal')).toBeInTheDocument();
-    expect(screen.getByLabelText('Settings')).toBeInTheDocument();
-    expect(screen.getByLabelText('Select workspace')).toBeInTheDocument();
+  it('exposes the command palette affordance', () => {
+    render(<ChatHeader />);
     expect(screen.getByLabelText('Open command palette')).toBeInTheDocument();
   });
 
-  it('displays the clock time', () => {
-    jest.setSystemTime(new Date('2026-03-08T14:30:00'));
-    render(<ChatHeader currentWorkspace={null} />);
-    expect(screen.getByText(/LTC/)).toBeInTheDocument();
+  it('no longer renders a connected-status clock', () => {
+    vi.setSystemTime(new Date('2026-03-08T14:30:00'));
+    render(<ChatHeader />);
+    expect(screen.queryByTitle('Connected')).not.toBeInTheDocument();
+  });
+
+  it('does not render the model picker (moved to the composer)', () => {
+    render(<ChatHeader />);
+    expect(screen.queryByText('GPT-4o')).not.toBeInTheDocument();
+  });
+
+  it('shows copy-all and export only when messages exist', () => {
+    const { rerender } = render(
+      <ChatHeader messages={[]} onCopyAll={() => {}} />
+    );
+    expect(screen.queryByLabelText('Copy all messages')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Export chat')).not.toBeInTheDocument();
+
+    rerender(
+      <ChatHeader
+        messages={[{ role: 'user', content: 'hi', timestamp: Date.now() }]}
+        onCopyAll={() => {}}
+      />
+    );
+    expect(screen.getByLabelText('Copy all messages')).toBeInTheDocument();
+    expect(screen.getByLabelText('Export chat')).toBeInTheDocument();
   });
 });

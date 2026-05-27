@@ -2,6 +2,11 @@
 Main FastAPI application for the multimodal RAG system
 """
 
+from dotenv import load_dotenv
+
+load_dotenv()
+
+import asyncio
 import logging
 import os
 import time
@@ -9,7 +14,8 @@ from contextlib import asynccontextmanager
 from typing import Optional
 
 import redis  # Added this line
-from fastapi import FastAPI, HTTPException, Request, status
+import sentry_sdk
+from fastapi import Depends, FastAPI, HTTPException, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
@@ -19,6 +25,7 @@ from fastapi.responses import JSONResponse
 logger = logging.getLogger(__name__)
 
 from src.api.agent import agent_router
+from src.api.connectors import connectors_router
 from src.api.arxiv import (
     arxiv_bulk_router,
     arxiv_change_router,
@@ -28,7 +35,7 @@ from src.api.arxiv import (
     arxiv_local_router,
     arxiv_router,
 )
-from src.api.auth import auth_router
+from src.api.auth import auth_router, cli_auth_router
 from src.api.auth.api_keys import router as api_keys_router
 from src.api.documents import documents_router, files_router, integrity_router, processing_router, table_extraction_router
 from src.api.evidence.router import router as evidence_router
@@ -53,6 +60,7 @@ from src.api.research import (
     extraction_matrix_router,
     pipeline_router,
     project_chat_router,
+    project_report_router,
     projects_router,
     tone_engine_router,
     writer_router,
@@ -77,7 +85,7 @@ from src.api.search import (
     search_router,
     vectors_router,
 )
-from src.api.diagnostics import diagnostics_router
+from src.api.diagnostics import diagnostics_router, sentry_debug_router
 from src.api.security import compliance_router, encryption_router, rbac_router
 from src.api.threads import (
     stream_router,
@@ -88,11 +96,21 @@ from src.api.threads import (
 )
 from src.core.config import settings
 from src.core.database import Base, engine
+from src.middleware.multi_tenancy import MultiTenancyMiddleware
 from src.middleware.rate_limiting import AnalyticsRateLimitMiddleware
 from src.health.endpoints import router as health_router
 from src.core.security import auth_rate_limiter
 
 # from src.services.documents.file_service import redis_client  # Not exported, not needed here
+
+# Initialize Sentry early so the SDK can patch frameworks before app creation.
+# No-op when SENTRY_DSN is unset.
+try:
+    from src.observability.sentry import init_sentry
+
+    init_sentry()
+except Exception as _sentry_err:  # noqa: BLE001
+    print(f"Warning: Sentry init failed: {_sentry_err}")
 
 # Configure observability (optional)
 try:
@@ -140,9 +158,12 @@ async def lifespan(app: FastAPI):
     # Startup
     logger.info("Starting up Multimodal RAG System...")
 
-    # Create database tables (skip in production — migrations handle schema)
+    # Create database tables only for local Docker Compose development.
+    # Any deployed cluster (dev/staging/production) relies on Alembic migrations —
+    # running create_all there grabs session-mode pooler connections on every worker
+    # boot and can exhaust Supabase's session-mode pool.
     environment = os.environ.get("ENVIRONMENT", "development")
-    if environment not in ("production", "staging"):
+    if environment == "development":
         try:
             Base.metadata.create_all(bind=engine)
             logger.info("Database tables created successfully")
@@ -153,7 +174,21 @@ async def lifespan(app: FastAPI):
                 logger.error(f"Failed to create database tables: {e}")
                 raise
     else:
-        logger.info(f"Skipping create_all in {environment} (managed by migrations)")
+        logger.info(
+            "Skipping create_all in %s (Alembic migrations are authoritative)",
+            environment,
+        )
+
+    # Initialize field-level encryption (requires ENCRYPTION_MASTER_KEY env var).
+    # Non-fatal: if the key is missing the app still boots but encrypted fields
+    # (first_name, last_name) return raw/ciphertext values instead of plaintext.
+    try:
+        from src.core.encryption import initialize_encryption
+
+        initialize_encryption()
+        logger.info("Field-level encryption initialized")
+    except Exception as e:
+        logger.info("Encryption initialization skipped: %s", e)
 
     # Check Redis connection
     if redis_client:
@@ -177,6 +212,35 @@ async def lifespan(app: FastAPI):
         logger.error(f"Failed to initialize WebSocket services: {e}")
         # Continue startup even if WebSocket services fail
 
+    # Validate S3 storage backend if configured
+    from src.core.config import settings as app_settings
+
+    if app_settings.STORAGE_BACKEND == "s3":
+        missing = []
+        if not app_settings.S3_ENDPOINT_URL:
+            missing.append("S3_ENDPOINT_URL")
+        if not app_settings.S3_ACCESS_KEY:
+            missing.append("S3_ACCESS_KEY")
+        if not app_settings.S3_SECRET_KEY:
+            missing.append("S3_SECRET_KEY")
+        if missing:
+            raise RuntimeError(
+                f"STORAGE_BACKEND=s3 but missing required env vars: {', '.join(missing)}"
+            )
+        try:
+            from src.core.s3_client import S3StorageHelper
+
+            helper = S3StorageHelper()
+            if not helper.check_health():
+                logger.warning("S3 storage health check failed — uploads may fail")
+            else:
+                logger.info(
+                    "S3 storage backend verified",
+                    extra={"bucket": app_settings.S3_BUCKET_NAME},
+                )
+        except Exception as e:
+            raise RuntimeError(f"S3 storage backend initialization failed: {e}")
+
     # Configure LangSmith tracing for agent observability
     try:
         from src.services.agent.observability import configure_langsmith
@@ -184,6 +248,33 @@ async def lifespan(app: FastAPI):
         configure_langsmith()
     except Exception as e:
         logger.debug(f"LangSmith configuration skipped: {e}")
+
+    # Initialise LangGraph checkpointer + memory store at startup so the
+    # first request doesn't pay the setup() cost (and so a misconfigured
+    # Postgres connection surfaces immediately in prod/staging).
+    try:
+        from src.services.agent.checkpointer import get_checkpointer
+        from src.services.agent.memory import get_memory_store
+
+        await asyncio.gather(get_checkpointer(), get_memory_store())
+        logger.info("LangGraph checkpointer + memory store warmed at startup")
+    except Exception as e:
+        if environment in ("production", "staging"):
+            logger.error(
+                "LangGraph persistence warm-up failed in %s: %s",
+                environment,
+                e,
+            )
+            raise
+        logger.warning("LangGraph persistence warm-up skipped: %s", e)
+
+    # Pre-populate critical caches in the background (non-blocking)
+    try:
+        from src.core.cache_warmup import warm_critical_caches
+
+        asyncio.create_task(warm_critical_caches())
+    except Exception as e:
+        logger.debug(f"Cache warm-up skipped: {e}")
 
     logger.info("Application startup complete")
 
@@ -199,6 +290,22 @@ async def lifespan(app: FastAPI):
             logger.info("Redis client closed successfully")
         except redis.RedisError as e:
             logger.error(f"Error closing Redis client: {e}")
+
+    # Close LangGraph persistence pools (checkpointer + memory store)
+    try:
+        from src.services.agent._pool_utils import close_shared_langgraph_pool
+        from src.services.agent.checkpointer import close_checkpointer
+        from src.services.agent.memory import close_memory_store
+
+        # Drop singleton references first so no in-flight handle keeps
+        # the pool busy when we close it.
+        await asyncio.gather(
+            close_checkpointer(), close_memory_store(), return_exceptions=True
+        )
+        await close_shared_langgraph_pool()
+        logger.info("LangGraph persistence pools closed")
+    except Exception as e:
+        logger.warning("Error closing LangGraph persistence pools: %s", e)
 
     # Close auth rate limiter
     try:
@@ -217,6 +324,15 @@ async def lifespan(app: FastAPI):
         logger.info("WebSocket services shutdown successfully")
     except Exception as e:
         logger.error(f"Error shutting down WebSocket services: {e}")
+
+    # Shutdown agent job store Redis connection
+    try:
+        from src.services.agent.job_store import close_redis
+
+        await close_redis()
+        logger.info("Agent job store Redis connection closed")
+    except Exception as e:
+        logger.error(f"Error closing agent job store Redis: {e}")
 
 
 # Create FastAPI application
@@ -258,11 +374,33 @@ app.add_middleware(
 # Add rate limiting middleware for analytics endpoints
 app.add_middleware(AnalyticsRateLimitMiddleware, redis_client=redis_client)
 
-# Add trusted host middleware for production
+# Add multi-tenancy middleware — runs before rate limiting so tenant context is
+# available when rate limit decisions are made (registered after = executes first).
+app.add_middleware(MultiTenancyMiddleware)
+
+# Add trusted host middleware for production.
+# Kubelet HTTP probes set Host header to the pod IP, which is not in the
+# allow-list — that produced HTTP 400 on /health and crash-looped pods.
+# Exempt kube probe paths from host validation.
 if not settings.DEBUG:
+    _PROBE_PATHS = {"/health", "/healthz", "/readyz", "/livez", "/metrics"}
+
+    class _ProbeAwareTrustedHostMiddleware(TrustedHostMiddleware):
+        async def __call__(self, scope, receive, send):
+            if scope.get("type") == "http" and scope.get("path") in _PROBE_PATHS:
+                await self.app(scope, receive, send)
+                return
+            await super().__call__(scope, receive, send)
+
     app.add_middleware(
-        TrustedHostMiddleware,
-        allowed_hosts=["localhost", "127.0.0.1", "*.gen-text.app"],
+        _ProbeAwareTrustedHostMiddleware,
+        allowed_hosts=[
+            "localhost",
+            "127.0.0.1",
+            "testserver",
+            "*.gen-text.app",
+            "*.svc.cluster.local",
+        ],
     )
 
 
@@ -300,6 +438,7 @@ async def log_requests(request: Request, call_next):
 
 # Include routers
 app.include_router(auth_router, prefix="/api/v1")
+app.include_router(cli_auth_router, prefix="/api/v1")
 app.include_router(api_keys_router, prefix="/api/v1")
 app.include_router(files_router, prefix="/api/v1")
 app.include_router(documents_router, prefix="/api/v1")
@@ -323,6 +462,7 @@ app.include_router(compliance_router, prefix="/api/v1/security")
 app.include_router(rbac_router, prefix="/api/v1/rbac")
 app.include_router(evaluation_router, prefix="/api/v1")
 app.include_router(diagnostics_router, prefix="/api/v1")  # Retrieval diagnostics endpoints
+app.include_router(sentry_debug_router, prefix="/api/v1")  # Sentry verify endpoint
 app.include_router(websocket_router)  # Legacy WebSocket routes
 app.include_router(websocket_v2_router)  # Enhanced WebSocket v2 routes
 app.include_router(realtime_status_router)  # Real-time document status API
@@ -351,6 +491,7 @@ app.include_router(
 )  # LLM-powered bulk ingestion with embeddings
 app.include_router(chat_router, prefix="/api/v1")  # Chat completion endpoints
 app.include_router(agent_router)  # Agent execution endpoints
+app.include_router(connectors_router)  # External database connectors
 app.include_router(
     workspaces_router
 )  # Thread-centric workspace/conversation/thread/message API
@@ -368,6 +509,7 @@ app.include_router(
 app.include_router(export_router, prefix="/api/v1")  # Thread export endpoints
 app.include_router(citations_router)  # Research Assistant citations endpoints
 app.include_router(projects_router)  # Research Assistant projects endpoints
+app.include_router(project_report_router)  # GET /api/v1/projects/{id}/report.html
 app.include_router(project_chat_router)  # Project-Chat integration endpoints
 app.include_router(drafts_router)  # Research Assistant drafts endpoints
 app.include_router(tone_engine_router)  # Scholarly Tone Engine endpoints
@@ -399,6 +541,12 @@ async def health_check():
     }
 
 
+@app.get("/api/v1/sentry-debug")
+async def sentry_debug():
+    """Deliberately raise an error to verify Sentry is capturing events."""
+    raise RuntimeError("Sentry test from nous-backend")
+
+
 # Root endpoint
 @app.get("/")
 async def root():
@@ -418,14 +566,21 @@ async def root():
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
     """Handle validation errors"""
     logger.error(f"Validation error on {request.url.path}: {exc.errors()}")
+    safe_errors = []
+    for err in exc.errors():
+        safe = {k: v for k, v in err.items() if k != "ctx"}
+        if "ctx" in err and isinstance(err["ctx"], dict):
+            safe["ctx"] = {k: str(v) for k, v in err["ctx"].items()}
+        safe_errors.append(safe)
+    first_msg = safe_errors[0].get("msg", "Validation error") if safe_errors else "Validation error"
     return JSONResponse(
         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
         content={
             "error": {
-                "message": "Validation error",
+                "message": first_msg,
                 "status_code": 422,
                 "type": "validation_error",
-                "details": exc.errors(),
+                "details": safe_errors,
             }
         },
     )
@@ -451,13 +606,17 @@ async def http_exception_handler(request: Request, exc: HTTPException):
 @app.exception_handler(Exception)
 async def general_exception_handler(request: Request, exc: Exception):
     """Handle general exceptions"""
-    logger.error(f"Unhandled exception: {exc}", exc_info=True)
+    logger.error("Unhandled exception: %s", exc, exc_info=True)
+
+    message = "Internal server error"
+    if settings.ENVIRONMENT not in ("production",):
+        message = f"{type(exc).__name__}: {exc}"
 
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         content={
             "error": {
-                "message": "Internal server error" if not settings.DEBUG else str(exc),
+                "message": message,
                 "status_code": 500,
                 "type": "internal_error",
             }
@@ -465,42 +624,22 @@ async def general_exception_handler(request: Request, exc: Exception):
     )
 
 
-# Development server info
+# Development server info — requires admin auth even in DEBUG mode
 if settings.DEBUG:
+    from src.core.dependencies import require_admin
 
-    @app.get("/debug/info")
+    @app.get("/debug/info", dependencies=[Depends(require_admin)])
     async def debug_info():
-        """Debug information endpoint (development only)"""
+        """Debug information endpoint (admin-only, DEBUG mode only)"""
         return {
             "settings": {
-                "database_url": settings.DATABASE_URL,
                 "environment": settings.ENVIRONMENT,
                 "log_level": settings.LOG_LEVEL,
                 "enable_metrics": settings.ENABLE_METRICS,
                 "max_file_size_mb": settings.MAX_FILE_SIZE_MB,
                 "free_tier_storage_gb": settings.FREE_TIER_STORAGE_GB,
             },
-            "environment_variables": {
-                "NEO4J_URI": settings.NEO4J_URI,
-                "QDRANT_URL": settings.QDRANT_URL,
-                "REDIS_URL": settings.REDIS_URL,
-            },
         }
-
-
-# Debug: Inspect middleware stack
-print("Inspecting middleware stack:", flush=True)
-for i, m in enumerate(app.user_middleware):
-    try:
-        print(f"Middleware {i}: {m} (type: {type(m)})", flush=True)
-        # specific check for unpacking
-        try:
-            items = list(m)
-            print(f"  Unpacks to {len(items)} items: {items}", flush=True)
-        except Exception as e:
-            print(f"  Cannot unpack middleware {i}: {e}", flush=True)
-    except Exception as e:
-        print(f"  Error inspecting middleware {i}: {e}", flush=True)
 
 if __name__ == "__main__":
     import uvicorn

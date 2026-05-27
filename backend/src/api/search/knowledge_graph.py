@@ -4,6 +4,7 @@ Knowledge Graph API endpoints
 
 import logging
 from typing import Any, Dict, List, Optional
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import JSONResponse
@@ -13,6 +14,7 @@ from pydantic import BaseModel, Field
 from src.core.circuit_breaker import ServiceUnavailableError as CircuitBreakerError
 from src.core.database import get_db_sync
 from src.core.dependencies import get_current_user
+from src.models.collection import CollectionDocument
 from src.models.document import Document
 from src.models.graph import (
     BatchEntityRequest,
@@ -59,6 +61,31 @@ def _get_org_document_ids(db, organization_id) -> List[str]:
         .filter(Document.organization_id == organization_id)
         .all()
     ]
+
+
+def _get_project_document_ids(db, organization_id, project_id: UUID) -> List[str]:
+    """Get document IDs in a specific project, intersected with org scope."""
+    return [
+        str(doc_id)
+        for (doc_id,) in db.query(CollectionDocument.document_id)
+        .join(Document, Document.id == CollectionDocument.document_id)
+        .filter(
+            CollectionDocument.collection_id == project_id,
+            Document.organization_id == organization_id,
+        )
+        .all()
+    ]
+
+
+def _scope_doc_ids(db, organization_id, project_id: Optional[UUID]) -> List[str]:
+    """Return the set of document IDs that bound a knowledge-graph query.
+
+    Without `project_id`, scopes to the user's organization. With `project_id`,
+    further narrows to documents attached to that project (still org-bound).
+    """
+    if project_id is None:
+        return _get_org_document_ids(db, organization_id)
+    return _get_project_document_ids(db, organization_id, project_id)
 
 
 def _is_neo4j_unavailable_error(error: Exception) -> bool:
@@ -135,7 +162,7 @@ async def create_entity(
         return entity
     except Exception as e:
         logger.error(f"Error creating entity: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/entities/{entity_id}", response_model=EntityResponse)
@@ -195,21 +222,28 @@ async def get_all_entities(
     connected_only: bool = Query(
         default=False, description="Only return entities that have relationships"
     ),
+    project_id: Optional[UUID] = Query(
+        None, description="Scope to documents attached to a project (collection)"
+    ),
     current_user: User = Depends(get_current_user),
     db=Depends(get_db_sync),
 ):
     """Get all entities with pagination and optional filtering"""
     try:
-        org_doc_ids = _get_org_document_ids(db, current_user.organization_id)
+        scope_doc_ids = _scope_doc_ids(db, current_user.organization_id, project_id)
+        if project_id is not None and not scope_doc_ids:
+            return PaginatedEntitiesResponse(
+                entities=[], total=0, limit=limit, offset=offset, has_more=False
+            )
 
         entities = knowledge_graph_service.get_all_entities(
             limit, offset, entity_types,
-            source_document_ids=org_doc_ids,
+            source_document_ids=scope_doc_ids,
             connected_only=connected_only,
         )
         total = knowledge_graph_service.count_entities(
             entity_types,
-            source_document_ids=org_doc_ids,
+            source_document_ids=scope_doc_ids,
             connected_only=connected_only,
         )
         return PaginatedEntitiesResponse(
@@ -223,7 +257,7 @@ async def get_all_entities(
         logger.error(f"Error getting entities: {e}")
         if _is_neo4j_unavailable_error(e):
             raise HTTPException(status_code=503, detail=str(e))
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/entities/search", response_model=List[EntityResponse])
@@ -233,19 +267,24 @@ async def search_entities(
         None, description="Filter by entity types"
     ),
     limit: int = Query(default=50, ge=1, le=200, description="Maximum results"),
+    project_id: Optional[UUID] = Query(
+        None, description="Scope to documents attached to a project (collection)"
+    ),
     current_user: User = Depends(get_current_user),
     db=Depends(get_db_sync),
 ):
     """Search for entities by name or properties"""
     try:
-        org_doc_ids = _get_org_document_ids(db, current_user.organization_id)
+        scope_doc_ids = _scope_doc_ids(db, current_user.organization_id, project_id)
+        if project_id is not None and not scope_doc_ids:
+            return []
         entities = knowledge_graph_service.search_entities(
-            query, entity_types, limit, source_document_ids=org_doc_ids
+            query, entity_types, limit, source_document_ids=scope_doc_ids
         )
         return entities
     except Exception as e:
         logger.error(f"Error searching entities: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get(
@@ -268,7 +307,7 @@ async def get_entity_relationships(
         return relationships
     except Exception as e:
         logger.error(f"Error getting relationships: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/entities/{entity_id}/related", response_model=List[EntityResponse])
@@ -294,7 +333,7 @@ async def get_related_entities(
         return entities
     except Exception as e:
         logger.error(f"Error finding related entities: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/entities/{entity_id}/neighborhood")
@@ -320,7 +359,7 @@ async def get_entity_neighborhood(
         return data
     except Exception as e:
         logger.error(f"Error getting neighborhood: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 # Relationship Management Endpoints
@@ -333,19 +372,24 @@ async def get_all_relationships(
     relationship_types: Optional[List[RelationshipType]] = Query(
         None, description="Filter by relationship types"
     ),
+    project_id: Optional[UUID] = Query(
+        None, description="Scope to documents attached to a project (collection)"
+    ),
     current_user: User = Depends(get_current_user),
     db=Depends(get_db_sync),
 ):
     """Get all relationships with pagination and optional filtering"""
     try:
-        org_doc_ids = _get_org_document_ids(db, current_user.organization_id)
+        scope_doc_ids = _scope_doc_ids(db, current_user.organization_id, project_id)
+        if project_id is not None and not scope_doc_ids:
+            return []
         relationships = knowledge_graph_service.get_all_relationships(
-            limit, offset, relationship_types, source_document_ids=org_doc_ids
+            limit, offset, relationship_types, source_document_ids=scope_doc_ids
         )
         return relationships
     except Exception as e:
         logger.error(f"Error getting relationships: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/relationships", response_model=RelationshipResponse)
@@ -363,7 +407,7 @@ async def create_relationship(
         return relationship
     except Exception as e:
         logger.error(f"Error creating relationship: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/relationships/{relationship_id}", response_model=RelationshipResponse)
@@ -409,7 +453,7 @@ async def delete_relationship(
         return {"message": "Relationship deleted successfully"}
     except Exception as e:
         logger.error(f"Error deleting relationship: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 # Graph Search and Traversal Endpoints
@@ -469,7 +513,7 @@ async def search_graph(
         )
     except Exception as e:
         logger.error(f"Error performing graph search: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/paths/{source_id}/{target_id}", response_model=List[GraphPath])
@@ -493,7 +537,7 @@ async def find_paths(
         return paths
     except Exception as e:
         logger.error(f"Error finding paths: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 # Batch Operations Endpoints
@@ -512,7 +556,7 @@ async def batch_create_entities(
         return result
     except Exception as e:
         logger.error(f"Error in batch processing: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/merge-jobs", status_code=status.HTTP_202_ACCEPTED)
@@ -799,7 +843,7 @@ async def extract_entities_from_document(
         raise
     except Exception as e:
         logger.error(f"Error extracting entities from document: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/documents/{document_id}/entities", response_model=List[EntityResponse])
@@ -825,25 +869,30 @@ async def get_document_entities(
         return document_entities
     except Exception as e:
         logger.error(f"Error getting document entities: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 # Analytics and Statistics Endpoints
 @router.get("/analytics", response_model=GraphAnalytics)
 async def get_graph_analytics(
+    project_id: Optional[UUID] = Query(
+        None, description="Scope to documents attached to a project (collection)"
+    ),
     current_user: User = Depends(get_current_user),
     db=Depends(get_db_sync),
 ):
     """Get comprehensive graph analytics"""
     try:
-        org_doc_ids = _get_org_document_ids(db, current_user.organization_id)
+        scope_doc_ids = _scope_doc_ids(db, current_user.organization_id, project_id)
+        if project_id is not None and not scope_doc_ids:
+            return GraphAnalytics()
         analytics = knowledge_graph_service.get_graph_analytics(
-            source_document_ids=org_doc_ids
+            source_document_ids=scope_doc_ids
         )
         return analytics
     except Exception as e:
         logger.error(f"Error getting graph analytics: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/health", response_model=GraphHealthStatus)
@@ -854,7 +903,7 @@ async def get_graph_health(current_user: User = Depends(get_current_user)):
         return health
     except Exception as e:
         logger.error(f"Error getting graph health: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 # Visualization Endpoints
@@ -973,7 +1022,7 @@ async def get_entity_visualization(
         raise
     except Exception as e:
         logger.error(f"Error generating visualization data: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 # Entity Type and Relationship Management
@@ -1039,7 +1088,7 @@ async def fix_null_entity_types(
             }
     except Exception as e:
         logger.error(f"Error fixing NULL entity types: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 # Schema Management
@@ -1063,4 +1112,4 @@ async def reset_graph_schema(
         return {"message": "Graph schema reset successfully"}
     except Exception as e:
         logger.error(f"Error resetting graph schema: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")

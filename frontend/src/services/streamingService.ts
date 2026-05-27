@@ -1,3 +1,10 @@
+// DEPRECATED: Orphaned v2 streaming client. The active chat page streams via
+// `agentChatService` against `/api/v1/agent/stream` (LangGraph agent). This
+// module is referenced only by the deprecated `useChatStore.streamMessage`
+// action and its tests. Slated for removal in a dedicated cleanup PR — do
+// not introduce new callers. (File-level block comment is intentionally a
+// plain comment so TS doesn't mark every internal symbol `@deprecated`.)
+
 /**
  * Streaming Service
  *
@@ -96,27 +103,24 @@ export function parseSSELine(
  * }
  * ```
  */
+/** @deprecated See file-level note — use `agentChatService.streamMessage`. */
 export async function* streamChatMessage(
   threadId: string,
   content: string,
   options?: StreamChatOptions,
   signal?: AbortSignal
 ): AsyncGenerator<StreamEvent> {
-  // Read auth token from Zustand persisted storage, falling back to legacy keys
+  // Read auth token from Supabase session
   let token: string | null = null;
   try {
-    const authStorage = localStorage.getItem('auth-storage');
-    if (authStorage) {
-      const auth = JSON.parse(authStorage);
-      token = auth.state?.token ?? null;
-    }
+    const { createClient } = await import('@/lib/supabase/client');
+    const supabase = createClient();
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    token = session?.access_token ?? null;
   } catch {
-    // ignore parse errors
-  }
-  if (!token) {
-    token =
-      localStorage.getItem('access_token') ||
-      localStorage.getItem('auth-token');
+    // ignore errors
   }
 
   const headers: Record<string, string> = {

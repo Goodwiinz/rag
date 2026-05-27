@@ -34,10 +34,10 @@ permissions:
 
 jobs:
   # ─────────────────────────────────────────────
-  # Auto-update staging image tags on develop
+  # Auto-update dev image tags on develop
   # ─────────────────────────────────────────────
-  update-staging:
-    name: Update Staging Image Tags
+  update-dev:
+    name: Update Dev Image Tags
     runs-on: ubuntu-latest
     if: |
       (github.event_name == 'workflow_run' &&
@@ -67,17 +67,23 @@ jobs:
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "Image tag: $TAG"
 
-      - name: Update staging values
+      - name: Install yq
+        run: |
+          YQ_VERSION="v4.44.6"
+          curl -sL "https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_linux_amd64" -o /usr/local/bin/yq
+          chmod +x /usr/local/bin/yq
+
+      - name: Update dev values
         env:
           TAG: ${{ steps.tag.outputs.tag }}
         run: |
-          VALUES_FILE="infrastructure/helm/knowledge-graph-analytics/values-staging.yaml"
+          VALUES_FILE="infrastructure/helm/knowledge-graph-analytics/values-dev.yaml"
 
-          # Update backend image tag
-          sed -i "s|^\(\s*tag:\s*\)\".*\"|\1\"$TAG\"|" "$VALUES_FILE"
+          yq -i '.frontend.image.tag = strenv(TAG)' "$VALUES_FILE"
+          yq -i '.backend.image.tag = strenv(TAG)' "$VALUES_FILE"
 
           echo "Updated $VALUES_FILE with tag: $TAG"
-          grep -A1 "repository:" "$VALUES_FILE" | head -8
+          yq '.frontend.image, .backend.image' "$VALUES_FILE"
 
       - name: Commit and push
         env:
@@ -85,6 +91,79 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git add infrastructure/helm/knowledge-graph-analytics/values-dev.yaml
+
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+            exit 0
+          fi
+
+          git commit -m "chore(gitops): update dev images to $TAG"
+          git push origin develop
+
+  # ─────────────────────────────────────────────
+  # Auto-update staging image tags on develop
+  # ─────────────────────────────────────────────
+  update-staging:
+    name: Update Staging Image Tags
+    runs-on: ubuntu-latest
+    needs: [update-dev]
+    if: |
+      always() &&
+      ((github.event_name == 'workflow_run' &&
+        github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.head_branch == 'develop') ||
+       (github.event_name == 'workflow_dispatch' &&
+        github.event.inputs.action == 'update-staging'))
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          ref: develop
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Determine image tag
+        id: tag
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_TAG: ${{ github.event.inputs.image_tag }}
+          COMMIT_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+        run: |
+          if [ "$EVENT_NAME" == "workflow_dispatch" ] && [ -n "$INPUT_TAG" ]; then
+            TAG="$INPUT_TAG"
+          else
+            TAG="${COMMIT_SHA:0:7}"
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "Image tag: $TAG"
+
+      - name: Install yq
+        run: |
+          YQ_VERSION="v4.44.6"
+          curl -sL "https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_linux_amd64" -o /usr/local/bin/yq
+          chmod +x /usr/local/bin/yq
+
+      - name: Update staging values
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          VALUES_FILE="infrastructure/helm/knowledge-graph-analytics/values-staging.yaml"
+
+          yq -i '.frontend.image.tag = strenv(TAG)' "$VALUES_FILE"
+          yq -i '.backend.image.tag = strenv(TAG)' "$VALUES_FILE"
+
+          echo "Updated $VALUES_FILE with tag: $TAG"
+          yq '.frontend.image, .backend.image' "$VALUES_FILE"
+
+      - name: Commit and push
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git pull --rebase --autostash origin develop
 
           git add infrastructure/helm/knowledge-graph-analytics/values-staging.yaml
 
@@ -115,17 +194,23 @@ jobs:
           ref: main
           token: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Install yq
+        run: |
+          YQ_VERSION="v4.44.6"
+          curl -sL "https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_linux_amd64" -o /usr/local/bin/yq
+          chmod +x /usr/local/bin/yq
+
       - name: Update production values
         env:
           TAG: ${{ github.event.inputs.image_tag }}
         run: |
           VALUES_FILE="infrastructure/helm/knowledge-graph-analytics/values-production.yaml"
 
-          # Update image tags for both backend and frontend
-          sed -i "s|^\(\s*tag:\s*\)\".*\"|\1\"$TAG\"|" "$VALUES_FILE"
+          yq -i '.frontend.image.tag = strenv(TAG)' "$VALUES_FILE"
+          yq -i '.backend.image.tag = strenv(TAG)' "$VALUES_FILE"
 
           echo "Updated $VALUES_FILE with tag: $TAG"
-          grep -A1 "repository:" "$VALUES_FILE" | head -8
+          yq '.frontend.image, .backend.image' "$VALUES_FILE"
 
       - name: Commit and push
         env:

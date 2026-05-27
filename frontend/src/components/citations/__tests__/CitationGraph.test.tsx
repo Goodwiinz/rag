@@ -8,6 +8,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 // Mock graph data
+import { describe, expect, it, vi } from 'vitest';
 const mockGraphData = {
   nodes: [
     { id: 'n1', title: 'Paper 1', type: 'uploaded' },
@@ -70,7 +71,7 @@ describe('CitationGraph', () => {
   describe('Interaction', () => {
     it('test_node_click_shows_details', () => {
       // Test that clicking a node displays paper metadata
-      const onNodeClick = jest.fn();
+      const onNodeClick = vi.fn();
       const clickedNode = mockGraphData.nodes[0];
 
       // Simulate click

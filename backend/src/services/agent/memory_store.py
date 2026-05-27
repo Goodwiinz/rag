@@ -58,14 +58,24 @@ def _get_embedding_service():
         return None
 
 
+_QDRANT_CLIENT = None
+
+
 def _get_qdrant_client():
-    """Get a Qdrant client. Returns None if unavailable."""
+    """Get a Qdrant client. Returns None if unavailable.
+
+    Cached at module level to avoid HTTP-client setup on every call.
+    """
+    global _QDRANT_CLIENT
+    if _QDRANT_CLIENT is not None:
+        return _QDRANT_CLIENT
     try:
         from qdrant_client import QdrantClient
         settings = get_settings()
         url = getattr(settings, "QDRANT_URL", None) or "http://localhost:6333"
         api_key = getattr(settings, "QDRANT_API_KEY", None)
         client = QdrantClient(url=url, api_key=api_key, timeout=10)
+        _QDRANT_CLIENT = client
         return client
     except Exception as e:
         logger.warning("Qdrant client unavailable: %s", e)
@@ -73,36 +83,10 @@ def _get_qdrant_client():
 
 
 def _build_insights_llm():
-    """Build a gpt-4o-mini LLM for insight extraction."""
-    settings = get_settings()
-    endpoint = settings.AZURE_OPENAI_CHAT_ENDPOINT or settings.AZURE_OPENAI_ENDPOINT or ""
-    api_key = settings.AZURE_OPENAI_CHAT_API_KEY or settings.AZURE_OPENAI_API_KEY or ""
+    """Build a lightweight LLM for insight extraction."""
+    from src.services.agent.llm_factory import build_lightweight_llm
 
-    if not endpoint or not api_key:
-        raise RuntimeError("Azure/OpenAI config required for insights LLM")
-
-    from src.services.agent.graph import _is_openai_compatible
-
-    if _is_openai_compatible(endpoint):
-        from langchain_openai import ChatOpenAI
-        return ChatOpenAI(
-            model="gpt-4o-mini",
-            api_key=api_key,
-            base_url=endpoint,
-            temperature=0,
-            max_tokens=512,
-        )
-    else:
-        from langchain_openai import AzureChatOpenAI
-        api_version = settings.AZURE_OPENAI_CHAT_API_VERSION or settings.AZURE_OPENAI_API_VERSION
-        return AzureChatOpenAI(
-            azure_deployment="gpt-4o-mini",
-            azure_endpoint=endpoint,
-            api_key=api_key,
-            api_version=api_version,
-            temperature=0,
-            max_tokens=512,
-        )
+    return build_lightweight_llm(max_tokens=512)
 
 
 # ---------------------------------------------------------------------------
@@ -294,7 +278,7 @@ async def extract_insights(
     messages: list[dict],
     config: dict,
 ) -> list[str]:
-    """Extract key insights from conversation messages using gpt-4o-mini.
+    """Extract key insights from conversation messages using a lightweight LLM.
 
     Returns a list of insight strings, or empty list on failure.
     """

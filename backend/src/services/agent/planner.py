@@ -6,15 +6,34 @@ an LLM to produce validated Pydantic models.
 """
 
 import logging
-from typing import Any, Callable, Dict, List
+import re
+from typing import Any, Callable, Dict, List, Union
 
 from langchain_core.messages import HumanMessage
 from langchain_core.runnables import RunnableConfig
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
-from src.core.config import get_settings
+from src.services.agent.llm_factory import build_lightweight_llm
 
 logger = logging.getLogger(__name__)
+
+
+ACTIONABLE_VERBS: frozenset[str] = frozenset(
+    {
+        "add", "ingest", "import", "save", "find", "search",
+        "summarize", "summarise", "grab", "get", "show",
+        "fetch", "download", "extract", "list", "create",
+    }
+)
+_CONVERSATIONAL_STARTS: frozenset[str] = frozenset(
+    {
+        "hi", "hello", "hey", "thanks", "thank", "ok", "okay",
+        "yes", "no", "sure", "what", "who", "when", "where",
+        "why", "is", "are", "can", "could", "would", "will",
+    }
+)
+_LEADING_PUNCTUATION = "?!,:"
+_ARXIV_ID_RE = re.compile(r"\b\d{4}\.\d{4,5}\b")
 
 
 # ---------------------------------------------------------------------------
@@ -33,16 +52,26 @@ class PlanStep(BaseModel):
 
     step: int
     description: str
-    tool: str
-    args_hint: dict
-    depends_on: list[int]
+    # ``tool`` is conceptually required but LLMs occasionally emit a final
+    # "summarize / present results" step with no tool. Default to "" so the
+    # whole plan doesn't fail validation; downstream consumers already treat
+    # the plan as advisory and gracefully ignore empty tool names.
+    tool: str = ""
+    # Accept dict (preferred, structured) or str (LLM descriptive form).
+    # Observed planner traces (019e1554) showed gpt-5 returning args_hint as
+    # a string like "query='X'; max_results=5" which failed strict dict
+    # validation with 5 errors. Accept both; downstream consumers normalize.
+    args_hint: Union[dict, str] = Field(default_factory=dict)
+    depends_on: list[int] = Field(default_factory=list)
 
 
 class AgentPlan(BaseModel):
     """Full execution plan produced by the planner LLM."""
 
     steps: list[PlanStep]
-    reasoning: str
+    # Some models omit the top-level reasoning field even when explicitly
+    # asked for it. Don't fail the whole plan over a missing rationale.
+    reasoning: str = ""
 
 
 # ---------------------------------------------------------------------------
@@ -50,58 +79,14 @@ class AgentPlan(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-def _is_openai_compatible(endpoint: str) -> bool:
-    """Mirror the check used by the existing AzureOpenAIService."""
-    return "/v1" in endpoint or "services.ai.azure.com" in endpoint
+def _build_planner_llm():
+    """Build a lightweight LLM for the planner.
 
-
-def _build_planner_llm(model: str = "gpt-4o-mini"):
-    """Build a LangChain chat model for the planner.
-
-    Same pattern as ``graph.py._build_llm()`` but accepts a configurable
-    model name and uses temperature=0 for deterministic output.
+    2048 tokens covers gpt-5-mini reasoning headroom for the complexity
+    check structured-output call. The main plan generation uses the
+    full-strength LLM via ``graph._build_llm`` (4096 tokens).
     """
-    settings = get_settings()
-
-    endpoint = (
-        settings.AZURE_OPENAI_CHAT_ENDPOINT or settings.AZURE_OPENAI_ENDPOINT or ""
-    )
-    api_key = (
-        settings.AZURE_OPENAI_CHAT_API_KEY or settings.AZURE_OPENAI_API_KEY or ""
-    )
-    api_version = (
-        settings.AZURE_OPENAI_CHAT_API_VERSION or settings.AZURE_OPENAI_API_VERSION
-    )
-    deployment = model
-
-    if not endpoint or not api_key:
-        raise RuntimeError(
-            "Azure/OpenAI chat endpoint and API key must be configured. "
-            "Set AZURE_OPENAI_CHAT_ENDPOINT + AZURE_OPENAI_CHAT_API_KEY "
-            "(or the non-CHAT variants)."
-        )
-
-    if _is_openai_compatible(endpoint):
-        from langchain_openai import ChatOpenAI
-
-        return ChatOpenAI(
-            model=deployment,
-            api_key=api_key,
-            base_url=endpoint,
-            temperature=0,
-            max_tokens=1024,
-        )
-    else:
-        from langchain_openai import AzureChatOpenAI
-
-        return AzureChatOpenAI(
-            azure_deployment=deployment,
-            azure_endpoint=endpoint,
-            api_key=api_key,
-            api_version=api_version,
-            temperature=0,
-            max_tokens=1024,
-        )
+    return build_lightweight_llm(max_tokens=2048)
 
 
 # ---------------------------------------------------------------------------
@@ -114,15 +99,15 @@ async def check_complexity(
 ) -> int:
     """Estimate the number of tool calls needed for a query.
 
-    Uses gpt-4o-mini with structured output for fast, cheap estimation.
+    Uses the lightweight model with structured output for fast, cheap estimation.
     Returns the estimated step_count.
     """
-    llm = _build_planner_llm(model="gpt-4o-mini")
+    llm = _build_planner_llm()
     structured_llm = llm.with_structured_output(ComplexityCheck)
 
     prompt = (
-        "You are an AI planning assistant. Estimate the number of tool calls "
-        "needed to answer the following user query.\n\n"
+        "Estimate the number of tool calls needed to answer the following "
+        "user query.\n\n"
         f"Available tools: {', '.join(tool_names)}\n"
         f"Page context: {page_context}\n\n"
         f"User query: {query}\n\n"
@@ -138,25 +123,31 @@ async def generate_plan(
 ) -> AgentPlan:
     """Generate an execution plan for a complex query.
 
-    Uses gpt-4o (needs reasoning quality) with structured output.
+    Uses the main chat model (needs reasoning quality) with structured output.
     Returns a validated AgentPlan with ordered steps.
     """
-    llm = _build_planner_llm(model="gpt-4o")
-    structured_llm = llm.with_structured_output(AgentPlan)
+    from src.services.agent.graph import _build_llm
+
+    llm = _build_llm()
+    structured_llm = llm.with_structured_output(AgentPlan, method="function_calling")
 
     prompt = (
-        "You are an AI planning assistant. Given the user query and available "
-        "tools, generate a step-by-step execution plan.\n\n"
+        "Given the user query and available tools, generate a step-by-step "
+        "execution plan.\n\n"
         f"Available tools: {', '.join(tool_names)}\n"
         f"Page context: {page_context}\n\n"
         f"User query: {query}\n\n"
         "For each step, specify:\n"
         "- step: sequential step number starting at 1\n"
         "- description: what this step does\n"
-        "- tool: which tool to use (must be one of the available tools)\n"
+        "- tool: which tool to use — MUST be one of the available tools "
+        "listed above; do not invent tool names; do not leave blank. "
+        "If a step is purely summarisation with no tool call, omit it "
+        "from the plan entirely.\n"
         "- args_hint: suggested arguments (can reference prior steps)\n"
         "- depends_on: list of step numbers this step depends on\n\n"
-        "Also provide reasoning explaining the overall approach."
+        "Also provide a top-level ``reasoning`` string explaining the "
+        "overall approach (required)."
     )
 
     result = await structured_llm.ainvoke([HumanMessage(content=prompt)])
@@ -180,8 +171,19 @@ def make_planner_node(
     """
 
     async def planner_node(state: Dict[str, Any], config: RunnableConfig) -> dict:
-        # 1. Skip if plan already exists
+        # Skip if a plan already exists for THIS turn. ``preprocessing_node``
+        # clears stale plans at the start of every new user turn, so any
+        # ``state["plan"]`` we see here was produced by an earlier pass
+        # within the current turn (e.g. a revise loop) and must be reused.
         if state.get("plan"):
+            return {}
+
+        # Plans only matter when there's a project context to organize the
+        # multi-step output into (ingest → add to project → list). In chat
+        # mode the agent runs ad-hoc and the plan is never executed —
+        # generating one wastes 1-2s + a complexity LLM call. Skip.
+        page_context = state.get("page_context") or {}
+        if page_context.get("type") != "project":
             return {}
 
         # Extract the last user message for planning
@@ -198,6 +200,24 @@ def make_planner_node(
         if not query:
             return {}
 
+        # Fast heuristic: skip complexity LLM call for obviously simple queries.
+        # Bumped from 8 → 12 tokens after trace 019e1554 showed a 52s planner
+        # spin on a query the LLM would have handled in one tool call anyway.
+        # Tool-trigger detection runs first so short imperatives like
+        # "Add arxiv 1706.03762 to my library" still reach the planner.
+        words = query.split()
+        first_word = words[0].lower().rstrip(_LEADING_PUNCTUATION) if words else ""
+        needs_tool = (
+            first_word in ACTIONABLE_VERBS
+            or bool(_ARXIV_ID_RE.search(query))
+        )
+
+        if not needs_tool:
+            if len(words) < 12:
+                return {}
+            if first_word in _CONVERSATIONAL_STARTS and len(words) < 18:
+                return {}
+
         page_context = state.get("page_context", {})
 
         # 2. Check complexity
@@ -213,9 +233,19 @@ def make_planner_node(
         # 3. Generate plan
         try:
             plan = await generate_plan(query, tool_names, page_context)
-            return {"plan": [step.model_dump() for step in plan.steps]}
         except Exception:
             logger.warning("Plan generation failed, skipping planner", exc_info=True)
             return {}
+
+        # Defensive guard: an empty plan adds no value but does occupy the
+        # ``plan`` slot, which would skip planning on subsequent turns and
+        # confuse the reflection-prompt rendering. Treat it as no-plan.
+        # ``plan`` may also be ``None`` if the structured-output LLM call
+        # returned an unparseable response without raising.
+        if plan is None or not plan.steps:
+            logger.info("Planner returned no plan; treating as no plan")
+            return {}
+
+        return {"plan": [step.model_dump() for step in plan.steps]}
 
     return planner_node

@@ -11,15 +11,21 @@ import uuid as _uuid
 from typing import Any, Dict, List, Optional
 
 from langgraph.errors import GraphInterrupt
-from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.core.database import AsyncSessionLocal
 from src.models.user import User
 
+from . import jobs as _jobs_mod
 from .jobs import (
+    _clear_stale_pending_confirmation,
     _get_latest_user_content,
     _page_context_to_dict,
+    _persist_assistant_message,
     _persist_thread_messages,
+    _persist_user_message,
+    _resolve_thread,
 )
+from .trace_context import build_trace_payload
 
 logger = logging.getLogger(__name__)
 
@@ -29,12 +35,119 @@ _SSE_HEADERS = {
     "X-Accel-Buffering": "no",
 }
 
+# Only chat-model streams originating from these LangGraph nodes are
+# forwarded as user-visible `token` SSE events. Internal LLM calls
+# (intent classifier inside rag_node, planner's structured-output
+# complexity check, reflection critique, summarisers inside subgraph
+# tool nodes) ALSO trigger on_chat_model_stream — emitting their tokens
+# leaks raw JSON ({"intent":…}, {"step_count":1}) and interleaves
+# parallel summarisations into the response stream. The four allow-listed
+# nodes are the only ones whose chat output the user is meant to see.
+_USER_FACING_LLM_NODES = frozenset(
+    {
+        "llm_node",
+        "research_llm_node",
+        "writing_llm_node",
+        "data_llm_node",
+    }
+)
+
+
+def _is_user_facing_token_event(event: Dict[str, Any]) -> bool:
+    """Return True when this on_chat_model_stream event came from a node
+    whose tokens we want to forward to the client.
+
+    astream_events v2 records the originating LangGraph node on
+    ``event['metadata']['langgraph_node']``. Nested subgraph nodes set
+    this to the subgraph's own node name (e.g. ``research_llm_node``),
+    not the parent's ``research_subgraph`` wrapper — so a flat allow-list
+    on the inner node names is enough.
+    """
+    metadata = event.get("metadata") or {}
+    node = metadata.get("langgraph_node")
+    return node in _USER_FACING_LLM_NODES
+
+
+def _bootstrap_langsmith() -> None:
+    """Enable LangSmith tracing when the API key is configured."""
+    try:
+        from src.services.agent.observability import configure_langsmith
+
+        configure_langsmith()
+    except Exception:
+        logger.warning(
+            "Failed to configure LangSmith tracing; continuing without tracing",
+            exc_info=True,
+        )
+
+
+def _extract_usage_tokens(event: Dict[str, Any]) -> tuple[int, int]:
+    """Pull (input_tokens, output_tokens) out of an `on_chat_model_end` event.
+
+    LangChain attaches usage metadata to the AIMessage in ``data.output`` —
+    either as ``usage_metadata`` (preferred, normalized across providers) or
+    on ``response_metadata.token_usage`` (raw provider payload). We try both,
+    defaulting to (0, 0) when the model didn't report usage.
+    """
+    output = event.get("data", {}).get("output")
+    if output is None:
+        return 0, 0
+
+    usage = getattr(output, "usage_metadata", None)
+    if isinstance(usage, dict):
+        return (
+            int(usage.get("input_tokens", 0) or 0),
+            int(usage.get("output_tokens", 0) or 0),
+        )
+
+    response_meta = getattr(output, "response_metadata", None)
+    if isinstance(response_meta, dict):
+        token_usage = response_meta.get("token_usage") or {}
+        if isinstance(token_usage, dict):
+            return (
+                int(
+                    token_usage.get("prompt_tokens")
+                    or token_usage.get("input_tokens")
+                    or 0
+                ),
+                int(
+                    token_usage.get("completion_tokens")
+                    or token_usage.get("output_tokens")
+                    or 0
+                ),
+            )
+
+    return 0, 0
+
+
+def _encode_tool_result(output: Any) -> str:
+    """Render a tool's return value for the SSE ``tool_end.result`` field.
+
+    For dict/list outputs, emit JSON so the CLI can parse and summarize.
+    For everything else (strings, primitives, exotic objects), fall back
+    to ``str()`` — same as before. Catches serialization failures so an
+    unexpectedly non-JSON-able value (e.g. a tool that returns a
+    ``datetime``) never breaks the stream.
+    """
+    if isinstance(output, (dict, list)):
+        try:
+            return _json.dumps(output, default=str)[:500]
+        except (TypeError, ValueError):
+            pass
+    return str(output)[:500]
+
+
+def _format_sse_event(event_type: str, data: Dict[str, Any]) -> str:
+    """Format a single SSE event frame."""
+    return f"event: {event_type}\ndata: {_json.dumps(data)}\n\n"
+
 
 async def stream_event_generator(
     request_body: Any,  # AgentExecuteRequest
     request: Any,  # FastAPI Request
     current_user: User,
-    db: AsyncSession,
+    *,
+    background_tasks: Any = None,  # fastapi.BackgroundTasks (optional for tests)
 ):
     """SSE event generator for the /stream endpoint.
 
@@ -43,8 +156,9 @@ async def stream_event_generator(
     """
     from langchain_core.messages import HumanMessage
 
-    from src.services.agent.checkpointer import get_checkpointer
+    from src.services.agent.checkpointer import get_checkpointer, reset_checkpointer
     from src.services.agent.graph import compile_agent_graph
+    from src.services.agent.memory import get_memory_store
 
     # Lazy import schemas to avoid circular imports
     from .execute import (
@@ -54,9 +168,35 @@ async def stream_event_generator(
         ToolExecutionResponse,
     )
 
+    stream_thread_id = request_body.thread_id or "unknown"
+    config: Dict[str, Any] = {}  # Initialize before try block for safe access in except handlers
+    db = AsyncSessionLocal()
+    graph = None  # type: ignore[assignment]
+    resolved_thread_id: Optional[str] = None
     try:
+        # Persist the user turn BEFORE the LLM call so a mid-stream client
+        # disconnect (or any failure inside ``astream_events``) still leaves
+        # the user row durable. The assistant row is written after the
+        # stream completes — Task 4 of docs/plans/2026-05-13-agent-persist-perf.md.
+        try:
+            thread_obj, _conversation_id = await _resolve_thread(
+                db, current_user, request_body
+            )
+            if thread_obj is not None:
+                resolved_thread_id = str(thread_obj.id)
+                if request_body.thread_id != resolved_thread_id:
+                    request_body.thread_id = resolved_thread_id
+                await _persist_user_message(db, current_user, request_body)
+        except Exception:
+            logger.warning(
+                "Failed to persist user turn before LLM call",
+                exc_info=True,
+            )
+
+        _bootstrap_langsmith()
         checkpointer = await get_checkpointer()
-        graph = compile_agent_graph(checkpointer=checkpointer)
+        store = await get_memory_store()
+        graph = compile_agent_graph(checkpointer=checkpointer, store=store)
 
         messages = [
             HumanMessage(content=m.content)
@@ -82,21 +222,77 @@ async def stream_event_generator(
             "compaction_count": 0,
             "intent_confidence": 0.0,
             "last_error_info": {},
+            "user_id": str(current_user.id),
+            "model": request_body.model,
         }
 
+        stream_thread_id = request_body.thread_id or str(_uuid.uuid4())
         config = {
             "configurable": {
-                "thread_id": request_body.thread_id or str(_uuid.uuid4()),
+                "thread_id": stream_thread_id,
                 "db": db,
                 "current_user": current_user,
                 "page_context": _page_context_to_dict(request_body.page_context),
             }
         }
 
-        async with asyncio.timeout(300):  # 5 minutes
-            async for event in graph.astream_events(
+        yield _format_sse_event(
+            "trace",
+            build_trace_payload(
+                thread_id=config["configurable"]["thread_id"],
+                cli_session_id="",
+                langsmith_run_id="",
+            ),
+        )
+
+        # Per-turn token accounting. Aggregated across every chat model call
+        # in the graph (planner, intent classifier, llm_node, reflection…)
+        # and emitted as a single `usage` SSE event right before `done`.
+        turn_input_tokens = 0
+        turn_output_tokens = 0
+
+        # Drop any stale HITL interrupt left over from a previous turn the
+        # user abandoned (e.g. /new in the CLI). A fresh HumanMessage cannot
+        # resume an interrupt, so re-firing it would block this turn.
+        await _clear_stale_pending_confirmation(graph, config)
+
+        # If the checkpointer's pgbouncer/Supabase connection was
+        # idle-killed since the singleton was built, the first aget_tuple
+        # inside astream_events raises psycopg.OperationalError("the
+        # connection is closed"). Reset + rebuild + retry once before
+        # failing the whole stream.
+        from psycopg import OperationalError as _PgOpError
+
+        async def _open_event_stream():
+            return graph.astream_events(
                 initial_state, config=config, version="v2"
-            ):
+            ).__aiter__()
+
+        event_stream_iter = await _open_event_stream()
+        first_event_yielded = False
+        async with asyncio.timeout(300):  # 5 minutes
+            while True:
+                try:
+                    event = await event_stream_iter.__anext__()
+                except StopAsyncIteration:
+                    break
+                except _PgOpError as op_err:
+                    if first_event_yielded:
+                        raise
+                    logger.warning(
+                        "stream: checkpointer connection dead (%s); "
+                        "resetting and retrying",
+                        op_err,
+                    )
+                    await reset_checkpointer()
+                    checkpointer = await get_checkpointer()
+                    graph = compile_agent_graph(
+                        checkpointer=checkpointer, store=store
+                    )
+                    await _clear_stale_pending_confirmation(graph, config)
+                    event_stream_iter = await _open_event_stream()
+                    continue
+                first_event_yielded = True
                 if await request.is_disconnected():
                     break
 
@@ -104,16 +300,30 @@ async def stream_event_generator(
                 name = event.get("name", "")
 
                 if kind == "on_chat_model_stream":
+                    if not _is_user_facing_token_event(event):
+                        continue
                     chunk = event.get("data", {}).get("chunk")
                     if chunk and hasattr(chunk, "content") and chunk.content:
                         yield f"event: token\ndata: {_json.dumps({'content': chunk.content})}\n\n"
 
+                elif kind == "on_chat_model_end":
+                    inp, out = _extract_usage_tokens(event)
+                    turn_input_tokens += inp
+                    turn_output_tokens += out
+
                 elif kind == "on_tool_start":
-                    yield f"event: tool_start\ndata: {_json.dumps({'tool': name})}\n\n"
+                    tool_input = event.get("data", {}).get("input", {})
+                    args_preview = str(tool_input)[:500] if tool_input else ""
+                    yield f"event: tool_start\ndata: {_json.dumps({'tool': name, 'args': args_preview})}\n\n"
 
                 elif kind == "on_tool_end":
                     output = event.get("data", {}).get("output", "")
-                    yield f"event: tool_end\ndata: {_json.dumps({'tool': name, 'result': str(output)[:500]})}\n\n"
+                    is_error = (
+                        isinstance(output, dict) and bool(output.get("isError"))
+                    ) or (
+                        getattr(output, "status", None) == "error"
+                    )
+                    yield f"event: tool_end\ndata: {_json.dumps({'tool': name, 'result': _encode_tool_result(output), 'is_error': is_error})}\n\n"
 
                 elif kind == "on_chain_end" and name == "rag_node":
                     output = event.get("data", {}).get("output", {})
@@ -175,33 +385,87 @@ async def stream_event_generator(
                 for te in final_values.get("tool_executions", [])
             ] or None
 
-            await _persist_thread_messages(
-                db, current_user, request_body, assistant_content, tool_executions_out,
-            )
+            # User row was already persisted up-front (before the LLM call).
+            # Defer the assistant-row commit to a FastAPI BackgroundTask so
+            # the SSE `done` event releases the response without waiting on
+            # one more DB roundtrip — Task 5 of
+            # docs/plans/2026-05-13-agent-persist-perf.md. Resolved late
+            # via the jobs module so tests can monkeypatch the safe
+            # wrapper at runtime.
+            if resolved_thread_id is not None:
+                persist_kwargs = dict(
+                    thread_id=resolved_thread_id,
+                    content=assistant_content,
+                    model_name=request_body.model,
+                    tool_executions_out=tool_executions_out,
+                )
+                if background_tasks is not None:
+                    background_tasks.add_task(
+                        _jobs_mod._persist_assistant_message_safe,
+                        **persist_kwargs,
+                    )
+                else:
+                    # No BackgroundTasks plumbing available (e.g. unit
+                    # tests that directly invoke the generator without
+                    # passing one). Run inline through the safe wrapper
+                    # so the failure-metric path is still exercised.
+                    await _jobs_mod._persist_assistant_message_safe(
+                        **persist_kwargs
+                    )
         except Exception as e:
             logger.warning("Failed to persist SSE thread messages", exc_info=e)
+
+        if turn_input_tokens > 0 or turn_output_tokens > 0:
+            yield (
+                "event: usage\n"
+                f"data: {_json.dumps({'input_tokens': turn_input_tokens, 'output_tokens': turn_output_tokens})}\n\n"
+            )
 
         yield f"event: done\ndata: {_json.dumps({'status': 'complete'})}\n\n"
 
     except GraphInterrupt as exc:
-        # Graph hit an interrupt mid-stream (HITL confirmation needed)
+        # Graph hit an interrupt mid-stream (HITL confirmation needed).
+        # Verify the checkpoint was persisted before telling the CLI to confirm.
         interrupts = getattr(exc, "interrupts", [])
         confirmation_details = {}
         if interrupts:
             confirmation_details = getattr(interrupts[0], "value", {})
-        thread_id = config["configurable"]["thread_id"]
-        yield f"event: confirmation\ndata: {_json.dumps({'thread_id': thread_id, 'confirmation': confirmation_details})}\n\n"
+        thread_id = (config.get("configurable") or {}).get("thread_id") or stream_thread_id
+
+        checkpoint_ok = False
+        try:
+            if graph is not None:
+                verify_snapshot = await graph.aget_state(config)
+                checkpoint_ok = bool(
+                    verify_snapshot and verify_snapshot.values
+                    and any(getattr(t, "interrupts", None) for t in (verify_snapshot.tasks or ()))
+                )
+        except Exception:
+            logger.warning("Failed to verify checkpoint after GraphInterrupt for thread %s", thread_id)
+
+        if not checkpoint_ok:
+            logger.error(
+                "GraphInterrupt raised but checkpoint not persisted for thread %s — "
+                "cannot send confirmation event (client would get 'Thread not found' on resume)",
+                thread_id,
+            )
+            yield f"event: error\ndata: {_json.dumps({'error': 'Interrupt state could not be saved. Please retry.'})}\n\n"
+        else:
+            yield f"event: confirmation\ndata: {_json.dumps({'thread_id': thread_id, 'confirmation': confirmation_details})}\n\n"
 
     except Exception as e:
         logger.error("SSE stream error", exc_info=e)
         yield f"event: error\ndata: {_json.dumps({'error': str(e)})}\n\n"
+
+    finally:
+        await db.close()
+        logger.info("SSE stream ended for thread %s", stream_thread_id)
 
 
 async def stream_confirm_event_generator(
     request_body: Any,  # StreamConfirmRequest
     request: Any,  # FastAPI Request
     current_user: User,
-    db: AsyncSession,
 ):
     """SSE event generator for the /stream/confirm endpoint.
 
@@ -209,8 +473,9 @@ async def stream_confirm_event_generator(
     """
     from langgraph.types import Command
 
-    from src.services.agent.checkpointer import get_checkpointer
+    from src.services.agent.checkpointer import get_checkpointer, reset_checkpointer
     from src.services.agent.graph import compile_agent_graph
+    from src.services.agent.memory import get_memory_store
 
     # Lazy import schemas
     from .execute import (
@@ -220,9 +485,12 @@ async def stream_confirm_event_generator(
         ToolExecutionResponse,
     )
 
+    db = AsyncSessionLocal()
     try:
+        _bootstrap_langsmith()
         checkpointer = await get_checkpointer()
-        graph = compile_agent_graph(checkpointer=checkpointer)
+        store = await get_memory_store()
+        graph = compile_agent_graph(checkpointer=checkpointer, store=store)
 
         snapshot_config = {
             "configurable": {
@@ -233,8 +501,40 @@ async def stream_confirm_event_generator(
         }
         current_snapshot = await graph.aget_state(snapshot_config)
 
-        # Verify thread ownership — prevent users from resuming others' graphs
+        # Retry once with a fresh connection if checkpoint not found — the
+        # pooler may have dropped the idle connection during HITL wait time.
         if not current_snapshot or not current_snapshot.values:
+            logger.warning(
+                "Checkpoint not found for thread %s on first attempt, retrying with fresh connection",
+                request_body.thread_id,
+            )
+            await reset_checkpointer()
+            checkpointer = await get_checkpointer()
+            store = await get_memory_store()
+            graph = compile_agent_graph(checkpointer=checkpointer, store=store)
+            snapshot_config = {
+                "configurable": {
+                    "thread_id": request_body.thread_id,
+                    "db": db,
+                    "current_user": current_user,
+                }
+            }
+            current_snapshot = await graph.aget_state(snapshot_config)
+
+        # Verify thread exists
+        if not current_snapshot or not current_snapshot.values:
+            yield f"event: error\ndata: {_json.dumps({'error': 'Thread not found'})}\n\n"
+            return
+
+        # Verify thread ownership — prevent users from resuming others' graphs
+        snapshot_user_id = current_snapshot.values.get("user_id", "")
+        if snapshot_user_id and snapshot_user_id != str(current_user.id):
+            logger.warning(
+                "HITL ownership mismatch: thread %s owned by %s, requested by %s",
+                request_body.thread_id,
+                snapshot_user_id,
+                current_user.id,
+            )
             yield f"event: error\ndata: {_json.dumps({'error': 'Thread not found'})}\n\n"
             return
 
@@ -253,6 +553,20 @@ async def stream_confirm_event_generator(
 
         resume_input = Command(resume={"confirmed": request_body.confirmed})
 
+        yield _format_sse_event(
+            "trace",
+            build_trace_payload(
+                thread_id=request_body.thread_id,
+                cli_session_id="",
+                langsmith_run_id="",
+            ),
+        )
+
+        # Per-turn token accounting for the confirm/resume stream.
+        turn_input_tokens = 0
+        turn_output_tokens = 0
+        tokens_emitted = False
+
         async with asyncio.timeout(300):
             async for event in graph.astream_events(
                 resume_input, config=config, version="v2"
@@ -264,16 +578,31 @@ async def stream_confirm_event_generator(
                 name = event.get("name", "")
 
                 if kind == "on_chat_model_stream":
+                    if not _is_user_facing_token_event(event):
+                        continue
                     chunk = event.get("data", {}).get("chunk")
                     if chunk and hasattr(chunk, "content") and chunk.content:
                         yield f"event: token\ndata: {_json.dumps({'content': chunk.content})}\n\n"
+                        tokens_emitted = True
+
+                elif kind == "on_chat_model_end":
+                    inp, out = _extract_usage_tokens(event)
+                    turn_input_tokens += inp
+                    turn_output_tokens += out
 
                 elif kind == "on_tool_start":
-                    yield f"event: tool_start\ndata: {_json.dumps({'tool': name})}\n\n"
+                    tool_input = event.get("data", {}).get("input", {})
+                    args_preview = str(tool_input)[:500] if tool_input else ""
+                    yield f"event: tool_start\ndata: {_json.dumps({'tool': name, 'args': args_preview})}\n\n"
 
                 elif kind == "on_tool_end":
                     output = event.get("data", {}).get("output", "")
-                    yield f"event: tool_end\ndata: {_json.dumps({'tool': name, 'result': str(output)[:500]})}\n\n"
+                    is_error = (
+                        isinstance(output, dict) and bool(output.get("isError"))
+                    ) or (
+                        getattr(output, "status", None) == "error"
+                    )
+                    yield f"event: tool_end\ndata: {_json.dumps({'tool': name, 'result': _encode_tool_result(output), 'is_error': is_error})}\n\n"
 
                 elif kind == "on_chain_end" and name == "planner_node":
                     output = event.get("data", {}).get("output", {})
@@ -335,6 +664,7 @@ async def stream_confirm_event_generator(
                         final_values.get("page_context", page_context)
                     )
                 ),
+                model=getattr(request_body, "model", "") or "",
                 thread_id=request_body.thread_id,
             )
             await _persist_thread_messages(
@@ -350,8 +680,24 @@ async def stream_confirm_event_generator(
                 exc_info=e,
             )
 
+        if turn_input_tokens > 0 or turn_output_tokens > 0:
+            yield (
+                "event: usage\n"
+                f"data: {_json.dumps({'input_tokens': turn_input_tokens, 'output_tokens': turn_output_tokens})}\n\n"
+            )
+
+        if not tokens_emitted and tool_executions_out:
+            names = ", ".join(
+                getattr(te, "tool_name", str(te)) for te in tool_executions_out
+            )
+            yield f"event: token\ndata: {_json.dumps({'content': f'Done — completed: {names}.'})}\n\n"
+
         yield f"event: done\ndata: {_json.dumps({'status': 'complete', 'tool_executions': [te.model_dump() for te in tool_executions_out] if tool_executions_out else []})}\n\n"
 
     except Exception as e:
         logger.error("SSE stream confirm error", exc_info=e)
         yield f"event: error\ndata: {_json.dumps({'error': str(e)})}\n\n"
+
+    finally:
+        await db.close()
+        logger.info("SSE confirm stream ended for thread %s", request_body.thread_id)

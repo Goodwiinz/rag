@@ -27,14 +27,13 @@ def get_health_checker() -> HealthChecker:
     if _health_checker is None:
         settings = get_settings()
         config = {
-            "database_url": settings.database_url,
-            "redis_url": settings.redis_url,
-            "neo4j_uri": settings.neo4j_uri,
-            "neo4j_user": settings.neo4j_user,
-            "neo4j_password": settings.neo4j_password,
-            "qdrant_url": settings.qdrant_url,
-            "openai_api_key": settings.openai_api_key,
-            "anthropic_api_key": settings.anthropic_api_key,
+            "database_url": settings.DATABASE_URL,
+            "redis_url": settings.REDIS_URL,
+            "neo4j_uri": settings.NEO4J_URI,
+            "neo4j_user": settings.NEO4J_USER,
+            "neo4j_password": settings.NEO4J_PASSWORD,
+            "openai_api_key": settings.OPENAI_API_KEY,
+            "anthropic_api_key": settings.ANTHROPIC_API_KEY,
         }
         _health_checker = HealthChecker(config)
     return _health_checker

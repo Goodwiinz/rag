@@ -1,291 +1,427 @@
 """
-Integration tests for Citations API (T119)
+Integration tests for Citations API.
 
-Tests the full API flow for citations CRUD, extraction, and export.
+Tests the actual API endpoints through the FastAPI test client with
+a real in-memory SQLite database, mocked auth, and mocked external
+services (Semantic Scholar, CrossRef, ArXiv).
 """
 
-import pytest
-from httpx import AsyncClient
-from unittest.mock import patch, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
+import pytest
+import pytest_asyncio
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
-@pytest.fixture
-def auth_headers():
-    """Create authentication headers for API requests."""
-    return {"Authorization": "Bearer test-token-12345"}
-
-
-@pytest.fixture
-def sample_document():
-    """Create a sample document for citation operations."""
-    return {
-        "id": str(uuid4()),
-        "title": "Test ArXiv Paper",
-        "arxiv_id": "2301.07041",
-        "content": "Sample paper content...",
-    }
+from src.models import Citation, Document
+from src.models.document import DocumentType
+from src.shared.research_schemas import CitationCreate
 
 
-class TestCitationsCRUDFlow:
-    """Tests for citation CRUD operations."""
-
-    @pytest.mark.asyncio
-    async def test_citations_crud_flow(self, auth_headers):
-        """Test complete Create, Read, Update, Delete citation flow."""
-        # This test requires a running backend with test database
-        # Marking as integration test that may be skipped in CI without full setup
-
-        # 1. Create citation
-        create_payload = {
-            "title": "Test Citation",
-            "authors": ["John Doe", "Jane Smith"],
-            "year": 2023,
-            "venue": "Test Journal",
-            "doi": "10.1000/test",
-        }
-
-        # Mock the API responses for testing without actual server
-        mock_citation_id = str(uuid4())
-
-        # Verify create would return 201
-        assert create_payload["title"] == "Test Citation"
-
-        # 2. Read citation
-        read_response = {
-            "id": mock_citation_id,
-            **create_payload,
-        }
-        assert read_response["id"] == mock_citation_id
-
-        # 3. Update citation
-        update_payload = {"year": 2024}
-        updated_citation = {**read_response, **update_payload}
-        assert updated_citation["year"] == 2024
-
-        # 4. Delete citation
-        delete_success = True
-        assert delete_success is True
+# ---------------------------------------------------------------------------
+# Fixtures
+# ---------------------------------------------------------------------------
 
 
-class TestCitationExtraction:
-    """Tests for citation extraction from documents."""
-
-    @pytest.mark.asyncio
-    async def test_citations_extract_arxiv_paper(self, auth_headers, sample_document):
-        """Test full extraction flow from ArXiv paper."""
-        document_id = sample_document["id"]
-        arxiv_id = sample_document["arxiv_id"]
-
-        # Mock extraction result
-        extraction_result = {
-            "document_id": document_id,
-            "extracted_citations": [
-                {
-                    "title": "Extracted Paper 1",
-                    "authors": ["Author A"],
-                    "year": 2022,
-                    "arxiv_id": "2201.12345",
-                    "metadata_source": "arxiv",
-                    "confidence": 0.95,
-                },
-                {
-                    "title": "Extracted Paper 2",
-                    "authors": ["Author B", "Author C"],
-                    "year": 2021,
-                    "doi": "10.1000/paper2",
-                    "metadata_source": "crossref",
-                    "confidence": 0.88,
-                },
-            ],
-            "extraction_stats": {
-                "total_references": 10,
-                "successfully_extracted": 8,
-                "needs_review": 2,
-            },
-        }
-
-        assert len(extraction_result["extracted_citations"]) == 2
-        assert extraction_result["extraction_stats"]["successfully_extracted"] == 8
+@pytest_asyncio.fixture
+async def sample_document(test_db: AsyncSession, test_user) -> Document:
+    """Create a sample document with ArXiv metadata for citation tests."""
+    doc = Document(
+        id=uuid4(),
+        title="Attention Is All You Need",
+        filename="attention.pdf",
+        file_path="/data/uploads/attention.pdf",
+        file_size_bytes=1024,
+        mime_type="application/pdf",
+        document_type=DocumentType.PDF,
+        uploaded_by_user_id=test_user.id,
+        organization_id=test_user.organization_id,
+        is_public=True,
+        document_metadata={
+            "arxiv_id": "1706.03762",
+            "doi": "10.5555/3295222.3295349",
+            "title": "Attention Is All You Need",
+        },
+    )
+    test_db.add(doc)
+    await test_db.commit()
+    await test_db.refresh(doc)
+    return doc
 
 
-class TestBibliographyExport:
-    """Tests for bibliography export functionality."""
-
-    @pytest.mark.asyncio
-    async def test_citations_export_bibtex(self, auth_headers):
-        """Test end-to-end BibTeX export flow."""
-        citation_ids = [str(uuid4()), str(uuid4()), str(uuid4())]
-
-        # Mock export request
-        export_request = {
-            "format": "bibtex",
-            "citation_ids": citation_ids,
-        }
-
-        # Expected BibTeX output
-        expected_bibtex = """@article{citation1,
-  title = {Test Paper 1},
-  author = {Author, A.},
-  year = {2023},
-}
-
-@article{citation2,
-  title = {Test Paper 2},
-  author = {Author, B.},
-  year = {2022},
-}
-"""
-
-        # Verify export returns valid BibTeX
-        assert "@article" in expected_bibtex
-        assert "title" in expected_bibtex
-
-    @pytest.mark.asyncio
-    async def test_citations_export_ieee(self, auth_headers):
-        """Test IEEE format export."""
-        export_request = {
-            "format": "ieee",
-            "citation_ids": [str(uuid4())],
-        }
-
-        expected_ieee = "[1] A. Author, B. Author, \"Paper Title,\" Journal, vol. 1, pp. 1-10, 2023."
-
-        assert "[1]" in expected_ieee
-
-    @pytest.mark.asyncio
-    async def test_citations_export_apa(self, auth_headers):
-        """Test APA format export."""
-        export_request = {
-            "format": "apa",
-            "citation_ids": [str(uuid4())],
-        }
-
-        expected_apa = "Author, A., & Author, B. (2023). Paper Title. Journal, 1, 1-10."
-
-        assert "(2023)" in expected_apa
-
-    @pytest.mark.asyncio
-    async def test_citations_export_mla(self, auth_headers):
-        """Test MLA format export."""
-        export_request = {
-            "format": "mla",
-            "citation_ids": [str(uuid4())],
-        }
-
-        expected_mla = "Author, A., and B. Author. \"Paper Title.\" Journal, vol. 1, 2023, pp. 1-10."
-
-        assert "\"Paper Title.\"" in expected_mla or "Paper Title" in expected_mla
-
-
-class TestCitationGraphEndpoint:
-    """Tests for citation graph API endpoint."""
-
-    @pytest.mark.asyncio
-    async def test_citations_graph_endpoint(self, auth_headers, sample_document):
-        """Test getting graph data with positions."""
-        document_id = sample_document["id"]
-
-        # Mock graph response
-        graph_response = {
-            "nodes": [
-                {"id": "n1", "title": "Root Paper", "type": "uploaded", "x": 0, "y": 0},
-                {"id": "n2", "title": "Reference 1", "type": "external", "x": 100, "y": 50},
-                {"id": "n3", "title": "Reference 2", "type": "external", "x": 100, "y": -50},
-            ],
-            "edges": [
-                {"source": "n1", "target": "n2", "weight": 1.0},
-                {"source": "n1", "target": "n3", "weight": 1.0},
-            ],
-            "metadata": {
-                "total_nodes": 3,
-                "total_edges": 2,
-                "depth": 1,
-            },
-        }
-
-        assert len(graph_response["nodes"]) == 3
-        assert len(graph_response["edges"]) == 2
-        assert all("x" in node and "y" in node for node in graph_response["nodes"])
-
-
-class TestCitationRelationships:
-    """Tests for citation relationship endpoints."""
-
-    @pytest.mark.asyncio
-    async def test_list_relationships(self, auth_headers):
-        """Test listing citation relationships."""
-        relationships = [
-            {"source_id": "c1", "target_id": "c2", "relationship_type": "cites"},
-            {"source_id": "c1", "target_id": "c3", "relationship_type": "cites"},
+@pytest_asyncio.fixture
+async def sample_citations(test_db: AsyncSession, sample_document: Document):
+    """Create a few citations linked to the sample document."""
+    citations = []
+    for i, (title, source) in enumerate(
+        [
+            ("BERT: Pre-training of Deep Bidirectional Transformers", "semantic_scholar"),
+            ("GPT-4 Technical Report", "arxiv"),
+            ("Incomplete Paper", "manual"),
         ]
+    ):
+        c = Citation(
+            id=uuid4(),
+            document_id=sample_document.id,
+            document_title=title,
+            authors=["Author A", "Author B"] if i < 2 else None,
+            year=2023 - i if i < 2 else None,
+            venue="NeurIPS" if i == 0 else None,
+            doi=f"10.1000/paper{i}" if i == 0 else None,
+            arxiv_id=f"230{i}.0000{i}" if i == 1 else None,
+            metadata_source=source,
+            needs_review=(i == 2),
+        )
+        test_db.add(c)
+        citations.append(c)
 
-        assert len(relationships) == 2
+    await test_db.commit()
+    for c in citations:
+        await test_db.refresh(c)
+    return citations
+
+
+# ===========================================================================
+# POST /api/v1/citations (create)
+# ===========================================================================
+
+
+class TestCreateCitation:
+    """Tests for the create citation endpoint."""
 
     @pytest.mark.asyncio
-    async def test_create_relationship(self, auth_headers):
-        """Test creating a citation relationship."""
-        create_payload = {
-            "source_citation_id": str(uuid4()),
-            "target_citation_id": str(uuid4()),
-            "relationship_type": "cites",
-            "citation_context": "As shown in previous work...",
-        }
-
-        # Expect 201 Created
-        created = {
-            "id": str(uuid4()),
-            **create_payload,
-        }
-
-        assert created["relationship_type"] == "cites"
-
-
-class TestCitationLookup:
-    """Tests for citation lookup endpoints."""
-
-    @pytest.mark.asyncio
-    async def test_lookup_by_arxiv_id(self, auth_headers):
-        """Test looking up citation by ArXiv ID."""
-        arxiv_id = "2301.07041"
-
-        lookup_result = {
-            "found": True,
-            "citation": {
-                "title": "Paper from ArXiv",
-                "arxiv_id": arxiv_id,
-                "authors": ["Author A"],
-                "year": 2023,
+    async def test_create_citation_returns_201(self, async_client, sample_document):
+        response = await async_client.post(
+            "/api/v1/citations",
+            json={
+                "document_id": str(sample_document.id),
+                "document_title": "New Citation",
+                "authors": ["Alice Smith"],
+                "year": 2024,
+                "metadata_source": "manual",
+                "needs_review": False,
             },
-        }
+        )
 
-        assert lookup_result["found"] is True
-        assert lookup_result["citation"]["arxiv_id"] == arxiv_id
+        assert response.status_code == 201
+        data = response.json()
+        assert data.get("documentTitle") == "New Citation" or data.get("document_title") == "New Citation"
 
     @pytest.mark.asyncio
-    async def test_lookup_by_doi(self, auth_headers):
-        """Test looking up citation by DOI."""
-        doi = "10.1000/test.paper"
-
-        lookup_result = {
-            "found": True,
-            "citation": {
-                "title": "Paper from DOI",
-                "doi": doi,
-                "authors": ["Author B"],
-                "year": 2022,
+    async def test_create_citation_persists_to_db(
+        self, async_client, sample_document, test_db
+    ):
+        await async_client.post(
+            "/api/v1/citations",
+            json={
+                "document_id": str(sample_document.id),
+                "document_title": "Persisted Citation",
+                "metadata_source": "manual",
             },
-        }
+        )
 
-        assert lookup_result["found"] is True
-        assert lookup_result["citation"]["doi"] == doi
+        result = await test_db.execute(
+            select(Citation).where(Citation.document_title == "Persisted Citation")
+        )
+        citation = result.scalar_one_or_none()
+        assert citation is not None
+
+
+# ===========================================================================
+# GET /api/v1/citations (list)
+# ===========================================================================
+
+
+class TestListCitations:
+    """Tests for the list citations endpoint."""
 
     @pytest.mark.asyncio
-    async def test_lookup_not_found(self, auth_headers):
-        """Test lookup when citation doesn't exist."""
-        lookup_result = {
-            "found": False,
-            "citation": None,
-        }
+    async def test_list_returns_200(self, async_client, sample_citations):
+        response = await async_client.get("/api/v1/citations")
 
-        assert lookup_result["found"] is False
+        assert response.status_code == 200
+        data = response.json()
+        assert "citations" in data
+        assert "total" in data
+
+    @pytest.mark.asyncio
+    async def test_filter_by_document_id(
+        self, async_client, sample_citations, sample_document
+    ):
+        response = await async_client.get(
+            "/api/v1/citations",
+            params={"document_id": str(sample_document.id)},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["total"] >= 1
+
+    @pytest.mark.asyncio
+    async def test_filter_by_needs_review(self, async_client, sample_citations):
+        response = await async_client.get(
+            "/api/v1/citations",
+            params={"needs_review": True},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        for citation in data["citations"]:
+            assert citation.get("needsReview", citation.get("needs_review")) is True
+
+
+# ===========================================================================
+# GET /api/v1/citations/{id} (get single)
+# ===========================================================================
+
+
+class TestGetCitation:
+    """Tests for the get single citation endpoint."""
+
+    @pytest.mark.asyncio
+    async def test_get_existing_citation(self, async_client, sample_citations):
+        citation_id = str(sample_citations[0].id)
+        response = await async_client.get(f"/api/v1/citations/{citation_id}")
+
+        assert response.status_code == 200
+
+    @pytest.mark.asyncio
+    async def test_get_nonexistent_citation_returns_404(self, async_client):
+        fake_id = str(uuid4())
+        response = await async_client.get(f"/api/v1/citations/{fake_id}")
+
+        assert response.status_code == 404
+
+
+# ===========================================================================
+# POST /api/v1/citations/extract
+# ===========================================================================
+
+
+class TestExtractCitation:
+    """Tests for the citation extraction endpoint."""
+
+    @pytest.mark.asyncio
+    async def test_extract_requires_at_least_one_identifier(self, async_client):
+        response = await async_client.post(
+            "/api/v1/citations/extract",
+            json={},
+        )
+
+        assert response.status_code == 400
+
+    @pytest.mark.asyncio
+    async def test_extract_with_mocked_service(
+        self, async_client, sample_document
+    ):
+        mock_citation = CitationCreate(
+            document_title="Extracted Paper",
+            authors=["Mocked Author"],
+            year=2024,
+            arxiv_id="2401.00001",
+            metadata_source="arxiv",
+            needs_review=False,
+        )
+
+        with patch(
+            "src.api.research.citations.CitationExtractionService"
+        ) as MockService:
+            instance = MockService.return_value
+            instance.extract_for_document = AsyncMock(
+                return_value=(mock_citation, "arxiv")
+            )
+            instance.extract_hybrid = AsyncMock(
+                return_value=(mock_citation, "arxiv")
+            )
+
+            response = await async_client.post(
+                "/api/v1/citations/extract",
+                json={
+                    "document_id": str(sample_document.id),
+                    "strategy": "arxiv",
+                },
+            )
+
+        assert response.status_code == 201
+
+    @pytest.mark.asyncio
+    async def test_extract_with_title_lookup(self, async_client):
+        mock_citation = CitationCreate(
+            document_title="Title Lookup Paper",
+            metadata_source="semantic_scholar",
+            needs_review=False,
+        )
+
+        with patch(
+            "src.api.research.citations.CitationExtractionService"
+        ) as MockService:
+            instance = MockService.return_value
+            instance.extract_hybrid = AsyncMock(
+                return_value=(mock_citation, "semantic_scholar")
+            )
+
+            response = await async_client.post(
+                "/api/v1/citations/extract",
+                json={"title": "Title Lookup Paper"},
+            )
+
+        assert response.status_code == 201
+
+
+# ===========================================================================
+# POST /api/v1/citations/lookup
+# ===========================================================================
+
+
+class TestLookupCitation:
+    """Tests for the citation lookup endpoint (no persistence)."""
+
+    @pytest.mark.asyncio
+    async def test_lookup_requires_identifier(self, async_client):
+        response = await async_client.post(
+            "/api/v1/citations/lookup",
+            json={},
+        )
+
+        assert response.status_code == 400
+
+    @pytest.mark.asyncio
+    async def test_lookup_returns_citation_without_persistence(
+        self, async_client, test_db
+    ):
+        mock_citation = CitationCreate(
+            document_title="Lookup Only Paper",
+            metadata_source="crossref",
+            needs_review=False,
+        )
+
+        with patch(
+            "src.api.research.citations.CitationExtractionService"
+        ) as MockService:
+            instance = MockService.return_value
+            instance.extract_hybrid = AsyncMock(
+                return_value=(mock_citation, "crossref")
+            )
+
+            response = await async_client.post(
+                "/api/v1/citations/lookup",
+                json={"doi": "10.1000/test"},
+            )
+
+        assert response.status_code == 200
+
+        # Verify NOT persisted
+        result = await test_db.execute(
+            select(Citation).where(
+                Citation.document_title == "Lookup Only Paper"
+            )
+        )
+        assert result.scalar_one_or_none() is None
+
+
+# ===========================================================================
+# POST /api/v1/citations/export
+# ===========================================================================
+
+
+class TestExportBibliography:
+    """Tests for the bibliography export endpoint."""
+
+    @pytest.mark.asyncio
+    async def test_export_requires_ids_or_project(self, async_client):
+        response = await async_client.post(
+            "/api/v1/citations/export",
+            json={"format": "bibtex"},
+        )
+
+        assert response.status_code == 400
+
+    @pytest.mark.asyncio
+    async def test_export_bibtex_by_citation_ids(
+        self, async_client, sample_citations
+    ):
+        ids = [str(c.id) for c in sample_citations[:2]]
+
+        response = await async_client.post(
+            "/api/v1/citations/export",
+            json={"format": "bibtex", "citation_ids": ids},
+        )
+
+        assert response.status_code == 200
+        body = response.text
+        assert "@" in body  # BibTeX marker
+
+    @pytest.mark.asyncio
+    async def test_export_ieee_format(self, async_client, sample_citations):
+        ids = [str(c.id) for c in sample_citations[:1]]
+
+        response = await async_client.post(
+            "/api/v1/citations/export",
+            json={"format": "ieee", "citation_ids": ids},
+        )
+
+        assert response.status_code == 200
+        assert "[1]" in response.text
+
+    @pytest.mark.asyncio
+    async def test_export_apa_format(self, async_client, sample_citations):
+        ids = [str(c.id) for c in sample_citations[:1]]
+
+        response = await async_client.post(
+            "/api/v1/citations/export",
+            json={"format": "apa", "citation_ids": ids},
+        )
+
+        assert response.status_code == 200
+        assert "(2023)" in response.text
+
+    @pytest.mark.asyncio
+    async def test_export_mla_format(self, async_client, sample_citations):
+        ids = [str(c.id) for c in sample_citations[:1]]
+
+        response = await async_client.post(
+            "/api/v1/citations/export",
+            json={"format": "mla", "citation_ids": ids},
+        )
+
+        assert response.status_code == 200
+
+    @pytest.mark.asyncio
+    async def test_export_unsupported_format_returns_400(
+        self, async_client, sample_citations
+    ):
+        ids = [str(c.id) for c in sample_citations[:1]]
+
+        response = await async_client.post(
+            "/api/v1/citations/export",
+            json={"format": "chicago", "citation_ids": ids},
+        )
+
+        assert response.status_code == 400
+
+    @pytest.mark.asyncio
+    async def test_export_nonexistent_citations_returns_404(self, async_client):
+        fake_ids = [str(uuid4()), str(uuid4())]
+
+        response = await async_client.post(
+            "/api/v1/citations/export",
+            json={"format": "bibtex", "citation_ids": fake_ids},
+        )
+
+        assert response.status_code == 404
+
+    @pytest.mark.asyncio
+    async def test_export_bibtex_content_disposition(
+        self, async_client, sample_citations
+    ):
+        ids = [str(c.id) for c in sample_citations[:1]]
+
+        response = await async_client.post(
+            "/api/v1/citations/export",
+            json={"format": "bibtex", "citation_ids": ids},
+        )
+
+        assert response.status_code == 200
+        content_disp = response.headers.get("content-disposition", "")
+        assert "bibliography.bib" in content_disp

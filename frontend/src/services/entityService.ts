@@ -7,7 +7,7 @@
 
 import { Entity, EntityResponse, EntityType, GraphEdge } from '@/types/entity';
 import { EntityDetails, GraphNode } from '@/types/graph-api';
-import { apiClient } from './apiClient';
+import { api } from '@/services/api-client';
 import { APIErrorClass } from '@/types/api';
 
 /**
@@ -111,7 +111,7 @@ export interface ProcessingJobsListResponse {
 }
 
 class EntityService {
-  private baseUrl = 'knowledge-graph';
+  private baseUrl = '/knowledge-graph';
 
   /**
    * Get all entities with pagination (with retry)
@@ -130,9 +130,10 @@ class EntityService {
       if (connectedOnly) {
         params.connected_only = true;
       }
-      const response = await apiClient.get(`${this.baseUrl}/entities`, {
-        params,
-      });
+      const qs = new URLSearchParams(
+        Object.entries(params).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)])
+      ).toString();
+      const response = await api.get(`${this.baseUrl}/entities${qs ? `?${qs}` : ''}`);
       return response as PaginatedEntitiesResponse;
     });
   }
@@ -145,9 +146,7 @@ class EntityService {
     offset: number = 0
   ): Promise<GraphEdge[]> {
     try {
-      const response = await apiClient.get(`${this.baseUrl}/relationships`, {
-        params: { limit, offset },
-      });
+      const response = await api.get(`${this.baseUrl}/relationships?limit=${limit}&offset=${offset}`);
       // Transform backend response to GraphEdge format
       const relationships = (response as any[]) || [];
       return relationships.map((rel) => ({
@@ -171,7 +170,7 @@ class EntityService {
    * Get entity by ID - backend retrieves with all metadata
    */
   async getEntity(entityId: string): Promise<Entity> {
-    const response = await apiClient.get<Entity>(
+    const response = await api.get<Entity>(
       `${this.baseUrl}/entities/${entityId}`
     );
     return response;
@@ -182,7 +181,7 @@ class EntityService {
    */
   async createEntity(entityData: Partial<Entity>): Promise<Entity> {
     return withRetry(async () => {
-      const response = await apiClient.post<Entity>(
+      const response = await api.post<Entity>(
         `${this.baseUrl}/entities`,
         entityData
       );
@@ -197,7 +196,7 @@ class EntityService {
     entityId: string,
     updates: EntityUpdateRequest
   ): Promise<Entity> {
-    const response = await apiClient.put<Entity>(
+    const response = await api.put<Entity>(
       `${this.baseUrl}/entities/${entityId}`,
       updates
     );
@@ -208,7 +207,7 @@ class EntityService {
    * Delete entity - backend handles cascading deletions
    */
   async deleteEntity(entityId: string): Promise<void> {
-    await apiClient.delete(`${this.baseUrl}/entities/${entityId}`);
+    await api.delete(`${this.baseUrl}/entities/${entityId}`);
   }
 
   /**
@@ -219,11 +218,12 @@ class EntityService {
     entityTypes?: string[],
     limit: number = 50
   ): Promise<Entity[]> {
-    const response = await apiClient.get<Entity[]>(
-      `${this.baseUrl}/entities/search`,
-      {
-        params: { query, entity_types: entityTypes, limit },
-      }
+    const qs = new URLSearchParams(
+      Object.entries({ query, entity_types: entityTypes?.join(','), limit: String(limit) })
+        .filter(([, v]) => v !== undefined) as [string, string][]
+    ).toString();
+    const response = await api.get<Entity[]>(
+      `${this.baseUrl}/entities/search${qs ? `?${qs}` : ''}`
     );
     return response;
   }
@@ -236,14 +236,12 @@ class EntityService {
     relationshipType?: string,
     limit: number = 50
   ): Promise<GraphEdge[]> {
-    const response = await apiClient.get<GraphEdge[]>(
-      `${this.baseUrl}/entities/${entityId}/relationships`,
-      {
-        params: {
-          relationship_type: relationshipType,
-          limit,
-        },
-      }
+    const qs = new URLSearchParams(
+      Object.entries({ relationship_type: relationshipType, limit: String(limit) })
+        .filter(([, v]) => v !== undefined && v !== 'undefined') as [string, string][]
+    ).toString();
+    const response = await api.get<GraphEdge[]>(
+      `${this.baseUrl}/entities/${entityId}/relationships${qs ? `?${qs}` : ''}`
     );
     return response;
   }
@@ -262,7 +260,7 @@ class EntityService {
     metadata?: Record<string, any>;
   }): Promise<GraphEdge> {
     return withRetry(async () => {
-      const response = await apiClient.post<GraphEdge>(
+      const response = await api.post<GraphEdge>(
         `${this.baseUrl}/relationships`,
         relationshipData
       );
@@ -274,14 +272,14 @@ class EntityService {
    * Delete relationship
    */
   async deleteRelationship(relationshipId: string): Promise<void> {
-    await apiClient.delete(`${this.baseUrl}/relationships/${relationshipId}`);
+    await api.delete(`${this.baseUrl}/relationships/${relationshipId}`);
   }
 
   /**
    * Get entity details with extended metadata, relationships, and documents
    */
   async getEntityDetails(entityId: string): Promise<EntityDetails> {
-    const response = await apiClient.get<EntityDetails>(
+    const response = await api.get<EntityDetails>(
       `${this.baseUrl}/entities/${entityId}/details`
     );
     return response;
@@ -293,7 +291,7 @@ class EntityService {
       suggested_primary: string;
     }>
   ): Promise<{ job_id: string; status: string }> {
-    return apiClient.post<{ job_id: string; status: string }>(
+    return api.post<{ job_id: string; status: string }>(
       `${this.baseUrl}/merge-jobs`,
       { groups }
     );
@@ -302,14 +300,14 @@ class EntityService {
   async createExtractionJob(
     documentIds: string[]
   ): Promise<{ job_id: string; status: string }> {
-    return apiClient.post<{ job_id: string; status: string }>(
+    return api.post<{ job_id: string; status: string }>(
       `${this.baseUrl}/extraction-jobs`,
       { document_ids: documentIds }
     );
   }
 
   async getProcessingJob(jobId: string): Promise<ProcessingJobStatus> {
-    return apiClient.get<ProcessingJobStatus>(`processing/jobs/${jobId}`);
+    return api.get<ProcessingJobStatus>(`/processing/jobs/${jobId}`);
   }
 
   async listProcessingJobs(params?: {
@@ -318,9 +316,13 @@ class EntityService {
     limit?: number;
     offset?: number;
   }): Promise<ProcessingJobsListResponse> {
-    return apiClient.get<ProcessingJobsListResponse>('processing/jobs', {
-      params,
-    });
+    const searchParams = new URLSearchParams();
+    if (params?.status) searchParams.append('status', params.status);
+    if (params?.job_type) searchParams.append('job_type', params.job_type);
+    if (params?.limit !== undefined) searchParams.append('limit', params.limit.toString());
+    if (params?.offset !== undefined) searchParams.append('offset', params.offset.toString());
+    const qs = searchParams.toString();
+    return api.get<ProcessingJobsListResponse>(`/processing/jobs${qs ? `?${qs}` : ''}`);
   }
 
   /**
@@ -331,11 +333,9 @@ class EntityService {
     limit: number = 10,
     minSimilarity: number = 0.5
   ): Promise<Array<{ entity: GraphNode; similarity: number }>> {
-    const response = await apiClient.get<
+    const response = await api.get<
       Array<{ entity: GraphNode; similarity: number }>
-    >(`${this.baseUrl}/entities/${entityId}/similar`, {
-      params: { limit, min_similarity: minSimilarity },
-    });
+    >(`${this.baseUrl}/entities/${entityId}/similar?limit=${limit}&min_similarity=${minSimilarity}`);
     return response;
   }
 
@@ -343,7 +343,7 @@ class EntityService {
    * Get entity timeline events
    */
   async getEntityTimeline(entityId: string): Promise<EntityTimeline> {
-    const response = await apiClient.get<EntityTimeline>(
+    const response = await api.get<EntityTimeline>(
       `${this.baseUrl}/entities/${entityId}/timeline`
     );
     return response;
@@ -355,7 +355,7 @@ class EntityService {
   async getEntityTypes(): Promise<string[]> {
     try {
       return await withRetry(async () => {
-        const response = await apiClient.get<string[]>(
+        const response = await api.get<string[]>(
           `${this.baseUrl}/entity-types`
         );
         return response;
@@ -383,7 +383,7 @@ class EntityService {
    */
   async getRelationshipTypes(): Promise<string[]> {
     try {
-      const response = await apiClient.get<string[]>(
+      const response = await api.get<string[]>(
         `${this.baseUrl}/relationship-types`
       );
       return response;
@@ -423,11 +423,8 @@ class EntityService {
     maxNodes: number = 50
   ): Promise<any> {
     try {
-      const response = await apiClient.get(
-        `${this.baseUrl}/visualization/${entityId}`,
-        {
-          params: { depth, max_nodes: maxNodes },
-        }
+      const response = await api.get(
+        `${this.baseUrl}/visualization/${entityId}?depth=${depth}&max_nodes=${maxNodes}`
       );
       return response;
     } catch (error) {
@@ -448,7 +445,7 @@ class EntityService {
     max_results?: number;
   }): Promise<any> {
     try {
-      const response = await apiClient.post(`${this.baseUrl}/search`, params);
+      const response = await api.post(`${this.baseUrl}/search`, params);
       return response;
     } catch (error) {
       logEntityServiceError('Error performing graph search', error);
@@ -465,7 +462,7 @@ class EntityService {
     upsert?: boolean;
   }): Promise<any> {
     try {
-      const response = await apiClient.post(`${this.baseUrl}/batch`, params);
+      const response = await api.post(`${this.baseUrl}/batch`, params);
       return response;
     } catch (error) {
       logEntityServiceError('Error in batch create', error);
@@ -483,15 +480,8 @@ class EntityService {
     limit: number = 50
   ): Promise<Entity[]> {
     return withRetry(async () => {
-      const response = await apiClient.get(
-        `${this.baseUrl}/entities/${entityId}/related`,
-        {
-          params: {
-            max_depth: maxDepth,
-            min_strength: minStrength,
-            limit,
-          },
-        }
+      const response = await api.get(
+        `${this.baseUrl}/entities/${entityId}/related?max_depth=${maxDepth}&min_strength=${minStrength}&limit=${limit}`
       );
       return response as Entity[];
     });
@@ -507,15 +497,8 @@ class EntityService {
     limit: number = 50
   ): Promise<{ entities: Entity[]; relationships: any[] }> {
     return withRetry(async () => {
-      const response = await apiClient.get(
-        `${this.baseUrl}/entities/${entityId}/neighborhood`,
-        {
-          params: {
-            max_depth: maxDepth,
-            min_strength: minStrength,
-            limit,
-          },
-        }
+      const response = await api.get(
+        `${this.baseUrl}/entities/${entityId}/neighborhood?max_depth=${maxDepth}&min_strength=${minStrength}&limit=${limit}`
       );
       return response as { entities: Entity[]; relationships: any[] };
     });
@@ -531,11 +514,8 @@ class EntityService {
     minStrength: number = 0.1
   ): Promise<any[]> {
     return withRetry(async () => {
-      const response = await apiClient.get(
-        `${this.baseUrl}/paths/${sourceId}/${targetId}`,
-        {
-          params: { max_depth: maxDepth, min_strength: minStrength },
-        }
+      const response = await api.get(
+        `${this.baseUrl}/paths/${sourceId}/${targetId}?max_depth=${maxDepth}&min_strength=${minStrength}`
       );
       return response as any[];
     });
@@ -553,7 +533,7 @@ class EntityService {
     average_connections: number;
   }> {
     return withRetry(async () => {
-      const response = await apiClient.get(`${this.baseUrl}/analytics`);
+      const response = await api.get(`${this.baseUrl}/analytics`);
       return response as any;
     });
   }

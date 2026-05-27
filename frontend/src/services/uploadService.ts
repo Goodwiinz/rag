@@ -1,5 +1,5 @@
-import { apiClient } from './api';
-import { DocumentUpload, UploadProgress } from '@/types';
+import { api } from '@/services/api-client';
+import { UploadProgress } from '@/types';
 
 export interface UploadResponse {
   job_id: string;
@@ -316,18 +316,15 @@ class UploadService {
       const controller = new AbortController();
       this.uploadControllers.set(item.id, controller);
 
-      // Prepare form data
-      const formData = new FormData();
-      formData.append('file', item.file);
-
-      // Create upload request with progress tracking
-      const response = await this.uploadWithProgress(
+      // Upload using the unified api client (handles auth + progress)
+      const response = await api.upload<UploadResponse>(
         '/files/upload',
-        formData,
-        controller.signal,
-        (progress) => {
-          item.progress = progress;
-          this.notifyProgress();
+        item.file,
+        {
+          onProgress: (progress) => {
+            item.progress = progress;
+            this.notifyProgress();
+          },
         }
       );
 
@@ -356,75 +353,6 @@ class UploadService {
   }
 
   /**
-   * Upload file with progress tracking
-   */
-  private async uploadWithProgress(
-    endpoint: string,
-    formData: FormData,
-    signal: AbortSignal,
-    onProgress: (progress: number) => void
-  ): Promise<UploadResponse> {
-    return new Promise((resolve, reject) => {
-      const xhr = new XMLHttpRequest();
-
-      // Progress tracking
-      xhr.upload.addEventListener('progress', (event) => {
-        if (event.lengthComputable) {
-          const progress = (event.loaded / event.total) * 100;
-          onProgress(Math.round(progress));
-        }
-      });
-
-      // Load completion
-      xhr.addEventListener('load', () => {
-        if (xhr.status >= 200 && xhr.status < 300) {
-          try {
-            const response = JSON.parse(xhr.responseText);
-            resolve(response);
-          } catch (error) {
-            reject(new Error('Invalid response format'));
-          }
-        } else {
-          try {
-            const errorResponse = JSON.parse(xhr.responseText);
-            reject(new Error(errorResponse.error?.message || `Upload failed: ${xhr.statusText}`));
-          } catch {
-            reject(new Error(`Upload failed: ${xhr.statusText}`));
-          }
-        }
-      });
-
-      // Error handling
-      xhr.addEventListener('error', () => {
-        reject(new Error('Network error during upload'));
-      });
-
-      xhr.addEventListener('abort', () => {
-        reject(new Error('Upload cancelled'));
-      });
-
-      // Open and send request
-      xhr.open('POST', `${apiClient['baseURL']}${endpoint}`);
-
-      // Add auth headers
-      const authHeaders = apiClient['token'] && apiClient['organizationId']
-        ? { Authorization: `Bearer ${apiClient['token']}`, 'X-Organization-ID': apiClient['organizationId'] }
-        : {};
-
-      Object.entries(authHeaders).forEach(([key, value]) => {
-        xhr.setRequestHeader(key, value);
-      });
-
-      // Send request with signal
-      signal.addEventListener('abort', () => {
-        xhr.abort();
-      });
-
-      xhr.send(formData);
-    });
-  }
-
-  /**
    * Poll processing status
    */
   private async pollProcessingStatus(item: UploadQueueItem): Promise<void> {
@@ -441,7 +369,7 @@ class UploadService {
           return;
         }
 
-        const status = await apiClient.getJobStatus(item.jobId!);
+        const status = await api.get<UploadProgress>(`/processing/jobs/${item.jobId}`);
 
         item.progress = status.progress;
 

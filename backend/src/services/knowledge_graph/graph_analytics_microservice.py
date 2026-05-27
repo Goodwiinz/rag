@@ -118,13 +118,23 @@ app = FastAPI(
     redoc_url="/redoc",
 )
 
-# Add CORS middleware
+# Add CORS middleware — use centralized config or env var
+try:
+    from src.core.config import settings as _core_settings
+
+    _cors_origins: list = _core_settings.cors_origins_list
+except ImportError:
+    import os as _os
+
+    _raw_origins = _os.getenv("CORS_ORIGINS", "http://localhost:3000")
+    _cors_origins = [o.strip() for o in _raw_origins.split(",") if o.strip()]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_cors_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "Accept"],
 )
 
 
@@ -211,7 +221,7 @@ async def compute_centrality(
         raise
     except Exception as e:
         logger.error(f"Error computing centrality: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @app.post("/analytics/paths", response_model=PathResponse)
@@ -276,7 +286,7 @@ async def find_shortest_paths(
         raise
     except Exception as e:
         logger.error(f"Error finding shortest paths: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @app.post("/analytics/communities", response_model=CommunityResponse)
@@ -337,7 +347,7 @@ async def detect_communities(
         raise
     except Exception as e:
         logger.error(f"Error detecting communities: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 # Background Job Processing
@@ -379,7 +389,7 @@ async def submit_analytics_job(
 
     except Exception as e:
         logger.error(f"Error submitting analytics job: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @app.get("/analytics/jobs/{job_id}", response_model=AnalyticsJobResponse)
@@ -402,7 +412,7 @@ async def get_job_status(
         raise
     except Exception as e:
         logger.error(f"Error getting job status: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @app.get("/analytics/jobs", response_model=List[AnalyticsJobResponse])
@@ -420,7 +430,7 @@ async def list_jobs(
 
     except Exception as e:
         logger.error(f"Error listing jobs: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 # Graph Insights
@@ -488,7 +498,7 @@ async def generate_graph_insights(
         raise
     except Exception as e:
         logger.error(f"Error generating graph insights: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 # Scheduled Analytics
@@ -518,7 +528,7 @@ async def schedule_recurring_analytics(
 
     except Exception as e:
         logger.error(f"Error scheduling analytics: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @app.delete("/analytics/schedule/{schedule_id}")
@@ -544,7 +554,7 @@ async def cancel_scheduled_analytics(
         raise
     except Exception as e:
         logger.error(f"Error cancelling scheduled analytics: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 # Health check endpoint

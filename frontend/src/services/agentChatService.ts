@@ -1,17 +1,21 @@
-import { apiClient } from '@/services/apiClient';
+import { api } from '@/services/api-client';
+import { createClient } from '@/lib/supabase/client';
 
-function getStreamAuthHeaders(): Record<string, string> {
+async function getStreamAuthHeaders(): Promise<Record<string, string>> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
   };
   try {
-    const storageItem = localStorage.getItem('auth-storage');
-    if (storageItem) {
-      const parsed = JSON.parse(storageItem);
-      const token = parsed?.state?.token;
-      const orgId = parsed?.state?.organization?.id;
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-      if (orgId) headers['X-Organization-ID'] = orgId;
+    const supabase = createClient();
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    if (session?.access_token) {
+      headers['Authorization'] = `Bearer ${session.access_token}`;
+    }
+    const orgId = session?.user?.user_metadata?.organization_id;
+    if (orgId) {
+      headers['X-Organization-ID'] = orgId;
     }
   } catch {
     // Fall through without auth headers
@@ -106,7 +110,7 @@ export interface ThreadMessagesResponse {
 
 class AgentChatService {
   async startJob(request: AgentExecuteRequest): Promise<{ job_id: string }> {
-    return apiClient.post<{ job_id: string }>('/agent/execute', request);
+    return api.post<{ job_id: string }>('/agent/execute', request);
   }
 
   async pollJob(jobId: string): Promise<{
@@ -128,14 +132,14 @@ class AgentChatService {
       message?: string;
     };
   }> {
-    return apiClient.get(`/agent/jobs/${encodeURIComponent(jobId)}`);
+    return api.get(`/agent/jobs/${encodeURIComponent(jobId)}`);
   }
 
   async confirmAction(
     jobId: string,
     confirmed: boolean
   ): Promise<{ status: string; job_id: string }> {
-    return apiClient.post(`/agent/confirm/${encodeURIComponent(jobId)}`, {
+    return api.post(`/agent/confirm/${encodeURIComponent(jobId)}`, {
       confirmed,
     });
   }
@@ -145,7 +149,7 @@ class AgentChatService {
     callbacks: {
       onToken?: (content: string) => void;
       onToolStart?: (tool: string, args: Record<string, unknown>) => void;
-      onToolEnd?: (tool: string, result: string) => void;
+      onToolEnd?: (tool: string, result: string, isError: boolean) => void;
       onRagContext?: (contexts: Array<Record<string, unknown>>) => void;
       onPlan?: (
         steps: Array<Record<string, unknown>>,
@@ -156,26 +160,57 @@ class AgentChatService {
         threadId: string,
         confirmation: Record<string, unknown>
       ) => void;
+      onTrace?: (threadId: string) => void;
       onDone?: () => void;
       onError?: (error: string) => void;
-    }
+    },
+    signal?: AbortSignal
   ): Promise<void> {
-    const headers = getStreamAuthHeaders();
+    const headers = await getStreamAuthHeaders();
 
-    const response = await fetch('/api/v1/agent/stream', {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(request),
-    });
+    let response: Response;
+    try {
+      response = await fetch('/api/v1/agent/stream', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(request),
+        signal,
+      });
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') return;
+      throw err;
+    }
 
     if (!response.ok || !response.body) {
-      callbacks.onError?.(`Stream failed: ${response.status}`);
+      // Read the backend's error body so the user sees the real cause,
+      // not just an HTTP number. FastAPI usually returns `{detail: "..."}`.
+      let backendMessage = '';
+      try {
+        const text = await response.text();
+        if (text) {
+          try {
+            const parsed = JSON.parse(text);
+            const raw = parsed?.detail || parsed?.error || parsed?.message || text;
+            backendMessage = typeof raw === 'string' ? raw : (raw?.message || JSON.stringify(raw));
+          } catch {
+            backendMessage = text.slice(0, 500);
+          }
+        }
+      } catch {
+        // Ignore — fall back to status code only.
+      }
+      callbacks.onError?.(
+        backendMessage
+          ? `Stream failed (${response.status}): ${backendMessage}`
+          : `Stream failed: ${response.status}`
+      );
       return;
     }
 
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let buffer = '';
+    let eventType = '';
 
     try {
       while (true) {
@@ -186,8 +221,12 @@ class AgentChatService {
         const lines = buffer.split('\n');
         buffer = lines.pop() || '';
 
-        let eventType = '';
-        for (const line of lines) {
+        for (const rawLine of lines) {
+          const line = rawLine.trim();
+          if (!line) {
+            eventType = '';
+            continue;
+          }
           if (line.startsWith('event: ')) {
             eventType = line.slice(7).trim();
           } else if (line.startsWith('data: ') && eventType) {
@@ -201,13 +240,22 @@ class AgentChatService {
                   callbacks.onToolStart?.(data.tool, data.args);
                   break;
                 case 'tool_end':
-                  callbacks.onToolEnd?.(data.tool, data.result);
+                  callbacks.onToolEnd?.(
+                    data.tool,
+                    data.result,
+                    Boolean(data.is_error)
+                  );
                   break;
                 case 'rag_context':
                   callbacks.onRagContext?.(data.contexts);
                   break;
                 case 'plan':
                   callbacks.onPlan?.(data.steps, data.reasoning);
+                  break;
+                case 'trace':
+                  if (data.thread_id) {
+                    callbacks.onTrace?.(data.thread_id);
+                  }
                   break;
                 case 'reflection':
                   callbacks.onReflection?.(
@@ -223,16 +271,18 @@ class AgentChatService {
                   callbacks.onDone?.();
                   break;
                 case 'error':
-                  callbacks.onError?.(data.error);
+                  callbacks.onError?.(typeof data.error === 'string' ? data.error : String(data.error?.message || JSON.stringify(data.error)));
                   break;
               }
             } catch {
               // Skip malformed JSON
             }
-            eventType = '';
           }
         }
       }
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') return;
+      throw err;
     } finally {
       reader.releaseLock();
     }
@@ -243,31 +293,59 @@ class AgentChatService {
     callbacks: {
       onToken?: (content: string) => void;
       onToolStart?: (tool: string, args: Record<string, unknown>) => void;
-      onToolEnd?: (tool: string, result: string) => void;
+      onToolEnd?: (tool: string, result: string, isError: boolean) => void;
       onConfirmation?: (
         threadId: string,
         confirmation: Record<string, unknown>
       ) => void;
       onDone?: () => void;
       onError?: (error: string) => void;
-    }
+    },
+    signal?: AbortSignal
   ): Promise<void> {
-    const headers = getStreamAuthHeaders();
+    const headers = await getStreamAuthHeaders();
 
-    const response = await fetch('/api/v1/agent/stream/confirm', {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(request),
-    });
+    let response: Response;
+    try {
+      response = await fetch('/api/v1/agent/stream/confirm', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(request),
+        signal,
+      });
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') return;
+      throw err;
+    }
 
     if (!response.ok || !response.body) {
-      callbacks.onError?.(`Stream confirm failed: ${response.status}`);
+      let backendMessage = '';
+      try {
+        const text = await response.text();
+        if (text) {
+          try {
+            const parsed = JSON.parse(text);
+            const raw = parsed?.detail || parsed?.error || parsed?.message || text;
+            backendMessage = typeof raw === 'string' ? raw : (raw?.message || JSON.stringify(raw));
+          } catch {
+            backendMessage = text.slice(0, 500);
+          }
+        }
+      } catch {
+        // Ignore — fall back to status code only.
+      }
+      callbacks.onError?.(
+        backendMessage
+          ? `Stream confirm failed (${response.status}): ${backendMessage}`
+          : `Stream confirm failed: ${response.status}`
+      );
       return;
     }
 
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let buffer = '';
+    let eventType = '';
 
     try {
       while (true) {
@@ -278,8 +356,12 @@ class AgentChatService {
         const lines = buffer.split('\n');
         buffer = lines.pop() || '';
 
-        let eventType = '';
-        for (const line of lines) {
+        for (const rawLine of lines) {
+          const line = rawLine.trim();
+          if (!line) {
+            eventType = '';
+            continue;
+          }
           if (line.startsWith('event: ')) {
             eventType = line.slice(7).trim();
           } else if (line.startsWith('data: ') && eventType) {
@@ -293,7 +375,13 @@ class AgentChatService {
                   callbacks.onToolStart?.(data.tool, data.args);
                   break;
                 case 'tool_end':
-                  callbacks.onToolEnd?.(data.tool, data.result);
+                  callbacks.onToolEnd?.(
+                    data.tool,
+                    data.result,
+                    Boolean(data.is_error)
+                  );
+                  break;
+                case 'trace':
                   break;
                 case 'confirmation':
                   callbacks.onConfirmation?.(data.thread_id, data.confirmation);
@@ -302,27 +390,80 @@ class AgentChatService {
                   callbacks.onDone?.();
                   break;
                 case 'error':
-                  callbacks.onError?.(data.error);
+                  callbacks.onError?.(typeof data.error === 'string' ? data.error : String(data.error?.message || JSON.stringify(data.error)));
                   break;
               }
             } catch {
               // Skip malformed JSON
             }
-            eventType = '';
           }
         }
       }
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') return;
+      throw err;
     } finally {
       reader.releaseLock();
     }
   }
 
+  async startDurableRun(
+    request: AgentExecuteRequest
+  ): Promise<{ runId: string }> {
+    const res = await fetch('/api/trigger/agent/execute', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(request),
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`Failed to start durable run: ${text}`);
+    }
+    return res.json();
+  }
+
+  async getDurableRunStatus(runId: string): Promise<{
+    runId: string;
+    status: string;
+    metadata: Record<string, unknown>;
+    output: Record<string, unknown> | null;
+    error: string | null;
+  }> {
+    const res = await fetch(
+      `/api/trigger/agent/runs/${encodeURIComponent(runId)}`
+    );
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`Failed to get run status: ${text}`);
+    }
+    return res.json();
+  }
+
+  async completeDurableConfirmation(
+    runId: string,
+    tokenId: string,
+    confirmed: boolean
+  ): Promise<void> {
+    const res = await fetch(
+      `/api/trigger/agent/runs/${encodeURIComponent(runId)}/confirm`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tokenId, confirmed }),
+      }
+    );
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`Failed to confirm: ${text}`);
+    }
+  }
+
   async listThreads(): Promise<ThreadListResponse> {
-    return apiClient.get<ThreadListResponse>('/agent/threads');
+    return api.get<ThreadListResponse>('/agent/threads');
   }
 
   async getThreadMessages(threadId: string): Promise<ThreadMessagesResponse> {
-    return apiClient.get<ThreadMessagesResponse>(
+    return api.get<ThreadMessagesResponse>(
       `/agent/threads/${encodeURIComponent(threadId)}/messages`
     );
   }

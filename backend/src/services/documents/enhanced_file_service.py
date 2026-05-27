@@ -98,8 +98,11 @@ class EnhancedFileService:
         self.db = db
         self.upload_dir = Path(settings.UPLOAD_DIR)
         self.upload_dir.mkdir(parents=True, exist_ok=True)
-        self._storage_enabled = settings.SUPABASE_STORAGE_ENABLED
+        self._storage_backend = settings.STORAGE_BACKEND
+        if settings.SUPABASE_STORAGE_ENABLED and self._storage_backend == "local":
+            self._storage_backend = "supabase"
         self._storage_helper = None
+        self._s3_helper = None
 
         # Security scan configuration
         # Use standard ClamAV socket locations, configurable via settings
@@ -170,11 +173,20 @@ class EnhancedFileService:
     @property
     def storage_helper(self):
         """Lazy-load StorageHelper only when Supabase Storage is enabled."""
-        if self._storage_helper is None and self._storage_enabled:
+        if self._storage_helper is None and self._storage_backend == "supabase":
             from src.core.supabase_client import StorageHelper
 
             self._storage_helper = StorageHelper()
         return self._storage_helper
+
+    @property
+    def s3_helper(self):
+        """Lazy-load S3StorageHelper only when S3 backend is active."""
+        if self._s3_helper is None and self._storage_backend == "s3":
+            from src.core.s3_client import S3StorageHelper
+
+            self._s3_helper = S3StorageHelper()
+        return self._s3_helper
 
     async def validate_and_scan_file(
         self, file: UploadFile, user: User, organization: Organization
@@ -960,7 +972,71 @@ class EnhancedFileService:
             original_ext = Path(file.filename).suffix
             mime_type = basic["detected_mime_type"]
 
-            if self._storage_enabled:
+            if self._storage_backend == "s3":
+                # --- S3/DO Spaces path ---
+                import uuid as _uuid
+
+                doc_id = str(_uuid.uuid4())
+                bucket_prefix = self.TYPE_TO_BUCKET.get(basic["document_type"], "documents")
+                s3_key = (
+                    f"{bucket_prefix}/{organization.id}/{doc_id}/"
+                    f"{int(time.time())}_{_uuid.uuid4().hex[:8]}{original_ext}"
+                )
+
+                file_content = await file.read()
+                file.file.seek(0)
+                file_hash = hashlib.sha256(file_content).hexdigest()
+
+                # Check for duplicate by content hash
+                existing = (
+                    self.db.query(Document)
+                    .filter(
+                        Document.checksum_sha256 == file_hash,
+                        Document.is_deleted.isnot(True),
+                    )
+                    .first()
+                )
+                if existing is None:
+                    from sqlalchemy import cast, String
+                    existing = (
+                        self.db.query(Document)
+                        .filter(
+                            cast(Document.document_metadata["file_hash"], String) == file_hash,
+                            Document.is_deleted.isnot(True),
+                        )
+                        .first()
+                    )
+                if existing is not None:
+                    raise HTTPException(
+                        status_code=409,
+                        detail=(
+                            f"A document with identical content already exists: "
+                            f"'{existing.title or existing.filename}' "
+                            f"(id: {existing.id})"
+                        ),
+                    )
+
+                self.s3_helper.upload_file(s3_key, file_content, mime_type)
+
+                document = Document(
+                    id=doc_id,
+                    title=title,
+                    filename=file.filename,
+                    file_path=f"s3://{settings.S3_BUCKET_NAME}/{s3_key}",
+                    file_size_bytes=basic["file_size"],
+                    mime_type=mime_type,
+                    document_type=basic["document_type"],
+                    processing_status=ProcessingStatus.PENDING,
+                    is_public=is_public,
+                    tags=tags,
+                    organization_id=organization.id,
+                    uploaded_by_user_id=user.id,
+                    storage_path=s3_key,
+                    storage_backend="s3",
+                    checksum_sha256=file_hash,
+                )
+
+            elif self._storage_backend == "supabase":
                 # --- Supabase Storage path ---
                 import uuid as _uuid
 
@@ -985,12 +1061,11 @@ class EnhancedFileService:
                     .first()
                 )
                 if existing is None:
-                    # Also check metadata-stored hash for older documents
                     from sqlalchemy import cast, String
                     existing = (
                         self.db.query(Document)
                         .filter(
-                            Document.document_metadata["file_hash"].astext == file_hash,
+                            cast(Document.document_metadata["file_hash"], String) == file_hash,
                             Document.is_deleted.isnot(True),
                         )
                         .first()
@@ -1026,6 +1101,7 @@ class EnhancedFileService:
                     storage_backend="supabase",
                     checksum_sha256=file_hash,
                 )
+
             else:
                 # --- Local filesystem path (unchanged) ---
                 file_path = self.generate_file_path(
@@ -1147,15 +1223,10 @@ class EnhancedFileService:
     async def rescan_file_security(self, document: Document) -> Dict[str, Any]:
         """Rescan document for security threats"""
         try:
-            # Read file content — download from Storage if needed
-            if document.storage_backend == "supabase" and document.storage_path:
-                from src.core.supabase_client import parse_storage_key
+            # Read file content — download from remote storage if needed
+            from src.services.documents.storage_utils import download_document_bytes
 
-                bucket, key = parse_storage_key(document.storage_path)
-                content = self.storage_helper.download_file(bucket, key)
-            else:
-                with open(document.file_path, "rb") as f:
-                    content = f.read()
+            content = download_document_bytes(document)
 
             class TempUploadFile:
                 def __init__(self, filename: str, content: bytes):

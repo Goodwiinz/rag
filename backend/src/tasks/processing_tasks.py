@@ -9,25 +9,11 @@ import sys
 from datetime import datetime, timedelta
 from typing import Any, Dict
 
-from celery import Task
-
-# Add src directory to Python path
-sys.path.append(os.path.join(os.path.dirname(__file__), "..", ".."))
-
-from celery import Celery, current_app
-
-# Create Celery app
-celery_app = Celery(
-    "multimodal_rag",
-    broker="redis://redis:6379/0",
-    backend="redis://redis:6379/0",
-    include=["src.tasks.processing_tasks"],
-)
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
+from celery import Task, current_app
 
 from src.core.config import settings
-from src.core.database import get_db
+from src.core.database import SessionLocal, get_db
+from src.tasks.celery_app import celery_app
 from src.models.document import Document, ProcessingStatus
 from src.models.entity import Entity
 from src.models.graph import (
@@ -47,10 +33,6 @@ from src.services.processing.processing_service import ProcessingPipeline
 from src.services.search.fulltext_search_service import fulltext_search_service
 
 logger = logging.getLogger(__name__)
-
-# Database session for tasks
-engine = create_engine(settings.DATABASE_URL)
-SessionLocal = sessionmaker(bind=engine)
 
 
 class ProcessingTask(Task):
@@ -152,15 +134,10 @@ def process_document_ingestion(self, job_id: str):
         job.update_progress("Extracting text content", 20)
         db.commit()
 
-        # Run async function in event loop
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        try:
-            text_extraction_result = loop.run_until_complete(
-                processing_service.process_text_extraction(document)
-            )
-        finally:
-            loop.close()
+        # Run async function in a managed event loop
+        text_extraction_result = asyncio.run(
+            processing_service.process_text_extraction(document)
+        )
 
         if text_extraction_result["text_content"]:
             document.content_text = text_extraction_result["text_content"]
@@ -193,6 +170,34 @@ def process_document_ingestion(self, job_id: str):
             for entity in entities:
                 db.add(entity)
             db.commit()
+
+            # Index entities into Neo4j knowledge graph
+            job.update_progress("Indexing knowledge graph", 60)
+            db.commit()
+
+            try:
+                from src.services.knowledge_graph.knowledge_graph_service import (
+                    knowledge_graph_service,
+                )
+
+                kg_indexed = 0
+                for entity in entities:
+                    entity_id = knowledge_graph_service.create_entity_node(
+                        entity_text=entity.name,
+                        entity_type=entity.entity_type.value if hasattr(entity.entity_type, 'value') else str(entity.entity_type),
+                        document_id=str(document.id),
+                        confidence=entity.confidence_score or 0.8,
+                    )
+                    if entity_id:
+                        kg_indexed += 1
+                logger.info(
+                    f"Indexed {kg_indexed}/{len(entities)} entities into Neo4j for document {document.id}"
+                )
+            except Exception as e:
+                logger.warning(
+                    f"Neo4j indexing failed for document {document.id}: {e}. "
+                    "Entities are still available in PostgreSQL."
+                )
 
         # Step 3: Embedding Generation
         job.update_progress("Generating embeddings", 75)

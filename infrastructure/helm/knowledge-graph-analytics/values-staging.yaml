@@ -8,29 +8,24 @@ global:
   imagePullSecrets:
     - name: do-registry
   environment: "staging"
-
 commonLabels:
   app.kubernetes.io/name: knowledge-graph-analytics
   app.kubernetes.io/part-of: nous-platform
   environment: staging
-
 # ──────────────────────────────────────────────
 # Frontend
 # ──────────────────────────────────────────────
 frontend:
   enabled: true
   replicaCount: 1
-
   image:
     repository: registry.digitalocean.com/ragsystemregistry/frontend
-    tag: "latest"
+    tag: "e3e7827"
     pullPolicy: Always
-
   service:
     type: ClusterIP
     port: 80
     targetPort: 3000
-
   ingress:
     enabled: true
     className: "nginx"
@@ -46,7 +41,6 @@ frontend:
       - secretName: rag-staging-app-tls
         hosts:
           - staging-app.gen-text.app
-
   resources:
     limits:
       cpu: 500m
@@ -54,16 +48,13 @@ frontend:
     requests:
       cpu: 100m
       memory: 256Mi
-
   autoscaling:
     enabled: false
-
   env:
     - name: NODE_ENV
       value: "production"
     - name: NEXT_PUBLIC_ENVIRONMENT
       value: "staging"
-
   healthCheck:
     enabled: true
     path: /
@@ -71,24 +62,20 @@ frontend:
     periodSeconds: 10
     timeoutSeconds: 5
     failureThreshold: 3
-
 # ──────────────────────────────────────────────
 # Backend
 # ──────────────────────────────────────────────
 backend:
   enabled: true
   replicaCount: 1
-
   image:
     repository: registry.digitalocean.com/ragsystemregistry/backend
-    tag: "latest"
+    tag: "e3e7827"
     pullPolicy: Always
-
   service:
     type: ClusterIP
     port: 80
     targetPort: 8000
-
   ingress:
     enabled: true
     className: "nginx"
@@ -110,7 +97,6 @@ backend:
       - secretName: rag-staging-api-tls
         hosts:
           - staging-api.gen-text.app
-
   resources:
     limits:
       cpu: "1"
@@ -118,16 +104,27 @@ backend:
     requests:
       cpu: 250m
       memory: 512Mi
-
   autoscaling:
     enabled: false
-
   envFrom:
     - secretRef:
         name: database-credentials
     - secretRef:
         name: app-secrets
-
+    - secretRef:
+        name: supabase-credentials
+    - secretRef:
+        name: spaces-credentials
+    # Optional: LangSmith tracing (LANGSMITH_API_KEY, LANGSMITH_PROJECT, ...).
+    # Marked optional so the pod still starts if the secret is absent.
+    - secretRef:
+        name: langsmith-credentials
+        optional: true
+    # DigitalOcean Knowledge Base credentials. Optional so pod boots before
+    # /do-kb folder is populated in Infisical.
+    - secretRef:
+        name: do-kb-credentials
+        optional: true
   env:
     - name: ENVIRONMENT
       value: "staging"
@@ -141,7 +138,64 @@ backend:
       value: "300"
     - name: CORS_ORIGINS
       value: "https://staging-app.gen-text.app"
-
+    # Database pool sizing: tuned for Supabase session-mode pooler limits.
+    - name: DB_ASYNC_POOL_SIZE
+      value: "3"
+    - name: DB_ASYNC_MAX_OVERFLOW
+      value: "2"
+    - name: DB_SYNC_POOL_SIZE
+      value: "1"
+    - name: DB_SYNC_MAX_OVERFLOW
+      value: "1"
+    # Sentry: SENTRY_DSN comes from the `app-secrets` external secret via envFrom.
+    - name: SENTRY_ENVIRONMENT
+      value: "staging"
+    - name: SENTRY_TRACES_SAMPLE_RATE
+      value: "0.5"
+    - name: SENTRY_PROFILES_SAMPLE_RATE
+      value: "0.0"
+    # S3-Compatible Object Storage (DigitalOcean Spaces)
+    - name: STORAGE_BACKEND
+      value: "s3"
+    - name: S3_ENDPOINT_URL
+      value: "https://nyc3.digitaloceanspaces.com"
+    - name: S3_BUCKET_NAME
+      value: "rag-system-storage"
+    - name: S3_REGION
+      value: "nyc3"
+    - name: S3_CDN_ENDPOINT
+      value: "https://rag-system-storage.nyc3.cdn.digitaloceanspaces.com"
+    - name: S3_ACCESS_KEY
+      valueFrom:
+        secretKeyRef:
+          name: spaces-credentials
+          key: S3_ACCESS_KEY
+    - name: S3_SECRET_KEY
+      valueFrom:
+        secretKeyRef:
+          name: spaces-credentials
+          key: S3_SECRET_KEY
+    # Azure OpenAI (Chat / Agent)
+    - name: AZURE_OPENAI_CHAT_ENDPOINT
+      valueFrom:
+        secretKeyRef:
+          name: azure-openai-credentials
+          key: AZURE_OPENAI_CHAT_ENDPOINT
+    - name: AZURE_OPENAI_CHAT_API_KEY
+      valueFrom:
+        secretKeyRef:
+          name: azure-openai-credentials
+          key: AZURE_OPENAI_CHAT_API_KEY
+    - name: AZURE_OPENAI_CHAT_DEPLOYMENT_NAME
+      valueFrom:
+        secretKeyRef:
+          name: azure-openai-credentials
+          key: AZURE_OPENAI_CHAT_DEPLOYMENT_NAME
+    - name: AZURE_OPENAI_CHAT_API_VERSION
+      valueFrom:
+        secretKeyRef:
+          name: azure-openai-credentials
+          key: AZURE_OPENAI_CHAT_API_VERSION
   healthCheck:
     enabled: true
     path: /health
@@ -158,46 +212,35 @@ backend:
     readinessPeriodSeconds: 10
     readinessTimeoutSeconds: 3
     readinessFailureThreshold: 2
-
   initContainers:
     waitForPostgres: true
     waitForRedis: false
     waitForNeo4j: false
     waitForQdrant: false
-
+    runMigrations: true
 # ──────────────────────────────────────────────
 # All databases are external (DO Managed)
 # ──────────────────────────────────────────────
 postgresql:
   enabled: false
-
 redis:
   enabled: false
-
 neo4j:
   enabled: false
-
 qdrant:
   enabled: false
-
 celeryWorker:
   enabled: false
-
 celeryBeat:
   enabled: false
-
 prometheus:
   enabled: false
-
 grafana:
   enabled: false
-
 nginx-ingress-controller:
   enabled: false
-
 monitoring:
   enabled: false
-
 # ──────────────────────────────────────────────
 # Security
 # ──────────────────────────────────────────────
@@ -206,16 +249,12 @@ securityContext:
   runAsUser: 1001
   runAsGroup: 1001
   fsGroup: 1001
-
 podSecurityPolicy:
   enabled: false
-
 networkPolicy:
   enabled: false
-
 podDisruptionBudget:
   enabled: false
-
 serviceAccount:
   create: true
   annotations: {}

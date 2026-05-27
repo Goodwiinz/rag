@@ -11,6 +11,7 @@
  * - bulkDeleteThreads: Bulk delete selected threads
  */
 
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderHook, act, waitFor } from '@testing-library/react';
 import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
@@ -18,12 +19,12 @@ import { enableMapSet } from 'immer';
 
 // Mock workspace service
 const mockWorkspaceService = {
-  bulkResolveThreads: jest.fn(),
-  bulkArchiveThreads: jest.fn(),
-  bulkDeleteThreads: jest.fn(),
+  bulkResolveThreads: vi.fn(),
+  bulkArchiveThreads: vi.fn(),
+  bulkDeleteThreads: vi.fn(),
 };
 
-jest.mock('@/services/workspaceService', () => ({
+vi.mock('@/services/workspaceService', () => ({
   workspaceService: mockWorkspaceService,
 }));
 
@@ -203,7 +204,7 @@ describe('Chat Store Bulk Operations', () => {
   beforeEach(() => {
     enableMapSet();
     store = createTestStore();
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   describe('toggleSelectMode', () => {

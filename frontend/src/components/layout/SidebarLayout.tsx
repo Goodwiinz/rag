@@ -107,7 +107,7 @@ export function SidebarLayout({
           <div className="flex-1 flex flex-col min-w-0 min-h-0">
             {/* Top Header Bar */}
             {showHeader && (
-              <header className="flex h-14 shrink-0 items-center gap-3 border-b border-border bg-background/95 backdrop-blur px-4">
+              <header className="flex h-12 sm:h-14 shrink-0 items-center gap-3 border-b border-border bg-background/95 backdrop-blur px-3 sm:px-4">
                 <SidebarTrigger className="h-7 w-7 text-muted-foreground hover:text-primary hover:bg-muted border border-border transition-all duration-200 rounded-md" />
                 <Separator orientation="vertical" className="h-4 bg-border" />
 

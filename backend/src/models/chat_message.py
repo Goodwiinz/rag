@@ -59,6 +59,14 @@ class ChatMessage(BaseModel):
     # Tool/Function call tracking
     tool_name = Column(String(100), nullable=True)  # If this is a tool message
     tool_call_id = Column(String(255), nullable=True)  # Tool call identifier
+    client_message_id = Column(
+        GUID(),
+        nullable=True,
+        doc=(
+            "Client-supplied idempotency key for user turns. Combined with thread_id "
+            "in a partial unique index to dedupe retries without a SELECT."
+        ),
+    )
     tool_executions = Column(JSONB, nullable=True)  # Agent tool execution details
 
     # Feedback

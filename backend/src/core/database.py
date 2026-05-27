@@ -9,6 +9,7 @@ import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime
 
+from fastapi import Request
 from sqlalchemy import create_engine, event, text
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import SQLAlchemyError
@@ -23,6 +24,33 @@ from src.models.user import User, UserRole
 
 logger = logging.getLogger(__name__)
 
+
+def _env_int(name: str, default: int) -> int:
+    """Read an integer env var, falling back to ``default`` on any parse error.
+
+    Previously these values used raw ``int(os.getenv(name, str(default)))``
+    which raises ``ValueError`` at module import time if the env is set to
+    an empty string, ``"true"``, or any other non-numeric value — crashing
+    FastAPI startup with a cryptic traceback before loggers are initialized.
+    This helper degrades gracefully: it logs the bad value once and keeps
+    the service bootable on the hard-coded default.
+    """
+
+    raw = os.getenv(name)
+    if raw is None or raw == "":
+        return default
+    try:
+        return int(raw)
+    except (ValueError, TypeError):
+        logger.error(
+            "Invalid integer env %s=%r; falling back to default %d",
+            name,
+            raw,
+            default,
+        )
+        return default
+
+
 # Database URL resolution: prefer SUPABASE_DB_URL if set
 _supabase_db_url = os.getenv("SUPABASE_DB_URL", "")
 DATABASE_URL = _supabase_db_url or os.getenv(
@@ -30,11 +58,11 @@ DATABASE_URL = _supabase_db_url or os.getenv(
     "postgresql://postgres:postgres@localhost:5432/multimodal_rag_dev",
 )
 
-# Async variant
+# Async variant — asyncpg uses ssl= instead of sslmode=
 if "asyncpg" not in DATABASE_URL:
     ASYNC_DATABASE_URL = DATABASE_URL.replace(
         "postgresql://", "postgresql+asyncpg://"
-    )
+    ).replace("?sslmode=require", "?ssl=require").replace("&sslmode=require", "&ssl=require")
 else:
     ASYNC_DATABASE_URL = DATABASE_URL
 
@@ -57,14 +85,18 @@ if _is_sqlite:
         echo=os.getenv("ENVIRONMENT") == "development",
     )
 else:
-    # PostgreSQL configuration for production/development
+    # PostgreSQL configuration for production/development.
+    # The sync engine is used only by a small number of sync-ORM call sites and
+    # background tasks; hot-path requests use async_engine (asyncpg) below.
+    # Keep the slot count tiny so we don't saturate Supabase's session-mode pooler
+    # when many workers/replicas start simultaneously.
     engine = create_engine(
         DATABASE_URL,
         pool_pre_ping=True,
-        pool_recycle=3600,  # Recycle connections after 1 hour (reduced connection churn)
-        pool_size=10,  # Base pool size
-        max_overflow=20,  # Allow up to 30 total connections
-        pool_timeout=30,  # Wait 30s for available connection
+        pool_recycle=1800,
+        pool_size=_env_int("DB_SYNC_POOL_SIZE", 1),
+        max_overflow=_env_int("DB_SYNC_MAX_OVERFLOW", 1),
+        pool_timeout=30,
         echo=os.getenv("ENVIRONMENT") == "development",
     )
 
@@ -83,16 +115,26 @@ else:
     # Note: pool_pre_ping is disabled for async engine as it can cause
     # MissingGreenlet errors with asyncpg when ping runs outside greenlet context.
     # Instead, we rely on pool_recycle to handle stale connections.
+    #
+    # Pool sizing: Supabase's session-mode pooler caps each client at pool_size
+    # slots (Nano defaults to 15, Small to 25). Defaults below target the Small
+    # tier (15 + 5 = 20 max) and remain env-overridable. Tune downward when
+    # running on Nano or alongside celery workers.
+    #
+    # Statement cache: Supabase session-mode supports prepared statements, so
+    # asyncpg's statement cache is enabled. Disable (size=0) only when routing
+    # through PgBouncer in transaction mode.
+    _stmt_cache = _env_int("DB_ASYNC_STMT_CACHE_SIZE", 100)
     async_engine = create_async_engine(
         ASYNC_DATABASE_URL,
-        pool_size=10,
-        max_overflow=20,
-        pool_timeout=30,
-        pool_recycle=300,
+        pool_size=_env_int("DB_ASYNC_POOL_SIZE", 15),
+        max_overflow=_env_int("DB_ASYNC_MAX_OVERFLOW", 5),
+        pool_timeout=_env_int("DB_ASYNC_POOL_TIMEOUT", 30),
+        pool_recycle=_env_int("DB_ASYNC_POOL_RECYCLE", 1500),
         pool_pre_ping=False,  # Disabled - causes greenlet issues with asyncpg
         connect_args={
-            "prepared_statement_cache_size": 0,
-            "statement_cache_size": 0,
+            "prepared_statement_cache_size": _stmt_cache,
+            "statement_cache_size": _stmt_cache,
         },
         echo=os.getenv("ENVIRONMENT") == "development",
     )
@@ -115,8 +157,12 @@ def get_db_sync() -> Session:
         db.close()
 
 
-async def get_db() -> AsyncSession:
-    """Get database session (asynchronous)"""
+async def get_db(request: Request) -> AsyncSession:
+    """Get database session (asynchronous). Reuses middleware session if available."""
+    existing = getattr(request.state, "db", None)
+    if existing is not None:
+        yield existing
+        return
     async with AsyncSessionLocal() as session:
         yield session
 

@@ -200,7 +200,7 @@ async def create_evaluation_job(
         raise
     except Exception as e:
         logger.error(f"Error creating evaluation job: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/jobs/batch", response_model=Dict[str, Any])
@@ -255,7 +255,7 @@ async def create_batch_evaluation_job(
         raise
     except Exception as e:
         logger.error(f"Error creating batch evaluation job: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/real-time", response_model=Dict[str, Any])
@@ -287,7 +287,7 @@ async def evaluate_real_time(
 
     except Exception as e:
         logger.error(f"Error starting real-time evaluation: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/jobs/{job_id}", response_model=Dict[str, Any])
@@ -321,7 +321,7 @@ async def get_evaluation_job(
         raise
     except Exception as e:
         logger.error(f"Error getting evaluation job: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/jobs", response_model=List[Dict[str, Any]])
@@ -378,7 +378,7 @@ async def list_evaluation_jobs(
 
     except Exception as e:
         logger.error(f"Error listing evaluation jobs: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/jobs/{job_id}/metrics", response_model=List[Dict[str, Any]])
@@ -439,7 +439,7 @@ async def get_evaluation_metrics(
         raise
     except Exception as e:
         logger.error(f"Error getting evaluation metrics: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 # Comparison endpoints
@@ -507,7 +507,7 @@ async def create_evaluation_comparison(
         raise
     except Exception as e:
         logger.error(f"Error creating evaluation comparison: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/comparisons", response_model=List[Dict[str, Any]])
@@ -550,7 +550,7 @@ async def list_evaluation_comparisons(
 
     except Exception as e:
         logger.error(f"Error listing evaluation comparisons: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 # Report endpoints
@@ -601,7 +601,7 @@ async def generate_evaluation_report(
         raise
     except Exception as e:
         logger.error(f"Error generating evaluation report: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/reports", response_model=List[Dict[str, Any]])
@@ -640,7 +640,7 @@ async def list_evaluation_reports(
 
     except Exception as e:
         logger.error(f"Error listing evaluation reports: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/reports/{report_id}", response_model=Dict[str, Any])
@@ -683,7 +683,7 @@ async def get_evaluation_report(
         raise
     except Exception as e:
         logger.error(f"Error getting evaluation report: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 # Metrics and analytics endpoints
@@ -763,7 +763,7 @@ async def get_metrics_summary(
 
     except Exception as e:
         logger.error(f"Error getting metrics summary: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.delete("/jobs/{job_id}")
@@ -798,7 +798,7 @@ async def delete_evaluation_job(
         raise
     except Exception as e:
         logger.error(f"Error deleting evaluation job: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/health")

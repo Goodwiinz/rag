@@ -97,7 +97,7 @@ async def create_paper_subgraph(
         raise
     except Exception as e:
         logger.error(f"Failed to create subgraph: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/author-network")
@@ -133,7 +133,7 @@ async def get_author_collaboration_network(
         raise
     except Exception as e:
         logger.error(f"Failed to build collaboration network: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/analyze-trends")
@@ -171,7 +171,7 @@ async def analyze_research_trends(
         raise
     except Exception as e:
         logger.error(f"Failed to analyze trends: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/bulk-ingest")
@@ -233,7 +233,7 @@ async def bulk_ingest_with_kg(
 
     except Exception as e:
         logger.error(f"Failed to bulk ingest: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/entity/{entity_name}")
@@ -273,7 +273,7 @@ async def get_entity_details(
         raise
     except Exception as e:
         logger.error(f"Failed to get entity details: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/path/{source}/{target}")
@@ -325,7 +325,7 @@ async def find_entity_path(
         raise
     except Exception as e:
         logger.error(f"Failed to find path: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/stats")
@@ -364,4 +364,4 @@ async def get_knowledge_graph_stats(
         raise
     except Exception as e:
         logger.error(f"Failed to get stats: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")

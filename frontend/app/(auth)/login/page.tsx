@@ -2,11 +2,12 @@
 
 import { useAuth } from '@/hooks/useAuth';
 import { cn } from '@/lib/utils';
+import { downloadStoredNousCliAuth } from '@/services/nousCliAuth';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Lock, Mail, Terminal } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import React, { useEffect, useState } from 'react';
 
 const Activity = dynamic(
@@ -48,6 +49,7 @@ const Zap = dynamic(() => import('lucide-react').then((mod) => mod.Zap), {
 interface LoginFormData {
   email: string;
   password: string;
+  downloadCliAuth: boolean;
 }
 
 const SYSTEM_LOGS = [
@@ -61,14 +63,56 @@ const SYSTEM_LOGS = [
   'Scanning for unauthorized nodes...',
 ];
 
-export default function LoginPage(): React.JSX.Element | null {
+function resolvePostLoginPath(rawNextPath: string | null): string {
+  if (!rawNextPath || !rawNextPath.startsWith('/')) {
+    return '/dashboard';
+  }
+
+  if (rawNextPath.startsWith('//')) {
+    return '/dashboard';
+  }
+
+  return rawNextPath;
+}
+
+function describeAuthCallbackError(
+  code: string | null,
+  description: string | null
+): string {
+  if (!code) return '';
+  if (description) return description;
+  switch (code) {
+    case 'auth_callback_failed':
+      return 'Authentication callback failed. Please try signing in again.';
+    case 'access_denied':
+      return 'The confirmation link was rejected. It may have expired or already been used.';
+    case 'otp_expired':
+    case 'expired_link':
+      return 'This confirmation link has expired. Request a new one from registration.';
+    case 'exchange_failed':
+      return 'We could not establish a session from the confirmation link.';
+    case 'missing_code':
+      return 'The confirmation link is missing its verification code.';
+    default:
+      return 'Authentication failed.';
+  }
+}
+
+function LoginPageContent(): React.JSX.Element | null {
   const { login, isAuthenticated, isLoading } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const nextPath = resolvePostLoginPath(searchParams.get('next'));
+  const callbackError = describeAuthCallbackError(
+    searchParams.get('error'),
+    searchParams.get('error_description')
+  );
   const [formData, setFormData] = useState<LoginFormData>({
     email: '',
     password: '',
+    downloadCliAuth: false,
   });
-  const [error, setError] = useState<string>('');
+  const [error, setError] = useState<string>(callbackError);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -85,9 +129,9 @@ export default function LoginPage(): React.JSX.Element | null {
 
   useEffect(() => {
     if (isAuthenticated && !isLoading) {
-      router.push('/dashboard');
+      router.push(nextPath);
     }
-  }, [isAuthenticated, isLoading, router]);
+  }, [isAuthenticated, isLoading, nextPath, router]);
 
   const handleSubmit = async (e: React.FormEvent): Promise<void> => {
     e.preventDefault();
@@ -96,7 +140,14 @@ export default function LoginPage(): React.JSX.Element | null {
 
     try {
       await login(formData.email, formData.password);
-      router.push('/dashboard');
+      if (formData.downloadCliAuth) {
+        try {
+          downloadStoredNousCliAuth();
+        } catch (downloadError) {
+          console.error('Failed to export NOUS CLI auth:', downloadError);
+        }
+      }
+      router.push(nextPath);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Authentication failed');
     } finally {
@@ -107,7 +158,8 @@ export default function LoginPage(): React.JSX.Element | null {
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>): void => {
     setFormData((prev) => ({
       ...prev,
-      [e.target.name]: e.target.value,
+      [e.target.name]:
+        e.target.type === 'checkbox' ? e.target.checked : e.target.value,
     }));
   };
 
@@ -133,11 +185,8 @@ export default function LoginPage(): React.JSX.Element | null {
             </div>
             <div>
               <h1 className="text-4xl font-mono font-bold text-[var(--terminal-text)] tracking-tighter">
-                RAG SYSTEM
+                NOUS
               </h1>
-              <p className="text-[10px] font-mono font-bold text-[var(--phosphor-green)]/70 uppercase tracking-[0.3em]">
-                Terminal Observatory V2.4
-              </p>
             </div>
           </div>
           <h2 className="text-6xl font-mono font-bold text-[var(--terminal-text)] leading-[0.9] mb-8 tracking-tight">
@@ -229,16 +278,10 @@ export default function LoginPage(): React.JSX.Element | null {
             <div>
               <h1
                 className="text-4xl font-mono font-bold text-[var(--terminal-text)] tracking-tighter glitch-text"
-                data-text="RAG SYSTEM"
+                data-text="NOUS"
               >
-                RAG SYSTEM
+                NOUS
               </h1>
-              <div className="flex items-center gap-2 mt-1">
-                <div className="w-2 h-2 rounded-full bg-[var(--phosphor-green)] animate-pulse" />
-                <p className="text-[10px] font-mono font-bold text-[var(--phosphor-green)]/70 uppercase tracking-[0.3em]">
-                  Terminal Observatory V2.4
-                </p>
-              </div>
             </div>
           </div>
 
@@ -459,6 +502,28 @@ export default function LoginPage(): React.JSX.Element | null {
                   </div>
                 </div>
 
+                <div className="flex items-center justify-between rounded-lg border border-[var(--terminal-border)] bg-[var(--terminal-bg)]/60 px-3.5 py-3">
+                  <label
+                    htmlFor="downloadCliAuth"
+                    className="flex items-center gap-3 cursor-pointer"
+                  >
+                    <input
+                      id="downloadCliAuth"
+                      name="downloadCliAuth"
+                      type="checkbox"
+                      checked={formData.downloadCliAuth}
+                      onChange={handleChange}
+                      className="h-4 w-4 rounded border border-[var(--terminal-border)] bg-[var(--terminal-bg)] text-[var(--phosphor-green)] focus:ring-[var(--phosphor-green)]/30"
+                    />
+                    <span className="text-[10px] font-mono text-[var(--terminal-text-dim)] uppercase tracking-[0.18em]">
+                      Download NOUS CLI auth after sign in
+                    </span>
+                  </label>
+                  <span className="text-[8px] font-mono text-[var(--terminal-text-muted)] uppercase tracking-[0.2em]">
+                    Optional
+                  </span>
+                </div>
+
                 {/* Submit Button */}
                 <div className="pt-2">
                   <button
@@ -510,5 +575,13 @@ export default function LoginPage(): React.JSX.Element | null {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage(): React.JSX.Element {
+  return (
+    <React.Suspense fallback={null}>
+      <LoginPageContent />
+    </React.Suspense>
   );
 }

@@ -20,6 +20,7 @@ x-llm-config: &llm_config
 
 x-secrets: &secrets
   SECRET_KEY: ${SECRET_KEY}
+  JWT_SECRET_KEY: ${JWT_SECRET_KEY}
   DB_PASSWORD: ${DB_PASSWORD}
   REDIS_PASSWORD: ${REDIS_PASSWORD}
   NEO4J_PASSWORD: ${NEO4J_PASSWORD}
@@ -86,7 +87,7 @@ services:
       QDRANT_API_KEY: ${QDRANT_API_KEY}
       LOG_FORMAT: json
       METRICS_ENABLED: true
-      CORS_ORIGINS: "*"
+      CORS_ORIGINS: ${CORS_ORIGINS:-https://app.example.com}
       API_RATE_LIMIT: 1000/hour
       MAX_UPLOAD_SIZE: 100MB
     volumes:
@@ -465,7 +466,6 @@ services:
     image: traefik:v2.9.1
     container_name: rag-traefik-prod
     command:
-      - "--api.insecure=true"
       - "--api.dashboard=true"
       - "--providers.docker=true"
       - "--providers.docker.exposedbydefault=false"
@@ -482,10 +482,11 @@ services:
       - "--accesslog=true"
       - "--accesslog.filepath=/var/log/traefik/access.log"
       - "--accesslog.format=json"
+      - "--ping=true"
+      - "--ping.entrypoint=web"
     ports:
       - "80:80"
       - "443:443"
-      - "8080:8080" # Traefik Dashboard
     volumes:
       - ./traefik/traefik.yml:/etc/traefik/traefik.yml
       - ./traefik/acme.json:/letsencrypt/acme.json
@@ -496,7 +497,7 @@ services:
       - frontend-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/ping"]
+      test: ["CMD", "traefik", "healthcheck", "--ping"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -505,6 +506,8 @@ services:
       - "traefik.http.routers.traefik.rule=Host(`traefik.ragdomain.com`)"
       - "traefik.http.routers.traefik.entrypoints=websecure"
       - "traefik.http.routers.traefik.service=api@internal"
+      - "traefik.http.routers.traefik.middlewares=traefik-auth"
+      - "traefik.http.middlewares.traefik-auth.basicauth.users=${TRAEFIK_DASHBOARD_USERS}"
 
 volumes:
   postgres_data:

@@ -5,6 +5,7 @@
  * Provides a simplified interface for chat persistence operations.
  */
 
+import toast from 'react-hot-toast';
 import { useChatStore } from '@/store/chat-store';
 import { useAuthStore } from '@/stores/authStore';
 import {
@@ -243,10 +244,32 @@ function mapThreadToUIConversation(
   };
 }
 
-export function useChatPersistence(): UseChatPersistenceReturn {
-  const { isAuthenticated, token } = useAuthStore();
+// Module-level initialization guard. `useChatPersistence` is consumed by
+// multiple sibling components simultaneously (the chat layout plus several
+// context-rail panels), so a per-instance ref would let each consumer kick
+// off its own parallel init. We gate on a shared promise instead so the
+// first caller does the work and the rest await the same outcome.
+//
+// Invariants:
+// - `_initCompleted` is set only after the shared promise resolves.
+// - `_initInFlight` is assigned synchronously (no await between the null
+//   check and the assignment) so two concurrent callers can never both enter
+//   the "create promise" branch.
+// - On failure, `_initInFlight` is cleared so a *future* fresh mount can
+//   retry — but the current awaiters all observe the same rejection first.
+let _initInFlight: Promise<void> | null = null;
+let _initCompleted = false;
 
-  // Prevent multiple initialization attempts
+function resetChatPersistenceInitGuard() {
+  _initInFlight = null;
+  _initCompleted = false;
+}
+
+export function useChatPersistence(): UseChatPersistenceReturn {
+  const { isAuthenticated } = useAuthStore();
+
+  // Per-instance ref is still useful for noting whether *this* consumer has
+  // already awaited the shared init (avoids re-subscribing in StrictMode).
   const initializationRef = useRef<{ started: boolean; completed: boolean }>({
     started: false,
     completed: false,
@@ -330,33 +353,40 @@ export function useChatPersistence(): UseChatPersistenceReturn {
 
   // Initialize workspace and conversation
   const initialize = useCallback(async () => {
-    // Guard against multiple initializations
-    if (initializationRef.current.started) {
-      debugLog('[useChatPersistence] Initialization already started, skipping');
-      return;
-    }
-
-    if (!isAuthenticated || !token) {
+    if (!isAuthenticated) {
       debugLog(
         '[useChatPersistence] Not authenticated, skipping initialization'
       );
       return;
     }
 
-    initializationRef.current.started = true;
+    // Fast path: another consumer already finished init.
+    if (_initCompleted) {
+      initializationRef.current = { started: true, completed: true };
+      return;
+    }
 
-    try {
-      debugLog('[useChatPersistence] Starting initialization...');
-      await initializeDefaultWorkspace();
+    // First consumer through creates the shared promise. The assignment must
+    // happen synchronously (no `await` between the null-check and the
+    // assignment) so subsequent concurrent callers observe the same promise.
+    if (!_initInFlight) {
+      initializationRef.current.started = true;
 
-      const state = useChatStore.getState();
-      debugLog(
-        '[useChatPersistence] After initializeDefaultWorkspace, workspaceId:',
-        state.currentWorkspaceId
-      );
+      _initInFlight = (async () => {
+        debugLog('[useChatPersistence] Starting initialization...');
+        await initializeDefaultWorkspace();
 
-      // Load conversations for the current workspace
-      if (state.currentWorkspaceId) {
+        const state = useChatStore.getState();
+        debugLog(
+          '[useChatPersistence] After initializeDefaultWorkspace, workspaceId:',
+          state.currentWorkspaceId
+        );
+
+        if (!state.currentWorkspaceId) {
+          debugLog('[useChatPersistence] No workspaceId after initialization');
+          return;
+        }
+
         await loadConversations(state.currentWorkspaceId);
 
         const updatedState = useChatStore.getState();
@@ -367,7 +397,6 @@ export function useChatPersistence(): UseChatPersistenceReturn {
           workspaceConversations.length
         );
 
-        // Select first conversation if available
         let conversationId = updatedState.currentConversationId;
         debugLog(
           '[useChatPersistence] Current conversationId:',
@@ -382,7 +411,6 @@ export function useChatPersistence(): UseChatPersistenceReturn {
           );
           setCurrentConversation(conversationId);
         } else if (workspaceConversations.length === 0) {
-          // Create default conversation
           debugLog(
             '[useChatPersistence] No conversations, creating new one...'
           );
@@ -390,50 +418,84 @@ export function useChatPersistence(): UseChatPersistenceReturn {
             workspace_id: state.currentWorkspaceId,
             title: 'New Chat',
           });
-          if (newConv) {
-            conversationId = newConv.id;
-            setCurrentConversation(newConv.id);
+          if (!newConv) {
+            // Surface this as a real failure instead of silently locking in
+            // `_initCompleted = false` with no retry path for other waiters.
+            throw new Error('Failed to create default conversation');
           }
+          conversationId = newConv.id;
+          setCurrentConversation(newConv.id);
         }
 
-        // Load threads for the selected conversation
-        if (conversationId) {
-          debugLog(
-            '[useChatPersistence] Loading threads for conversation:',
-            conversationId
-          );
-          await loadThreads(conversationId);
-
-          // Select the first thread to load its messages (including citations)
-          const threadsState = useChatStore.getState();
-          const conversationThreads =
-            threadsState.threads[conversationId] || [];
-          if (conversationThreads.length > 0 && !threadsState.currentThreadId) {
-            const firstThread = conversationThreads[0];
-            debugLog(
-              '[useChatPersistence] Selecting first thread:',
-              firstThread.id
-            );
-            setCurrentThread(firstThread.id); // This triggers loadMessages
-          }
-        } else {
+        if (!conversationId) {
           debugLog(
             '[useChatPersistence] No conversationId to load threads for'
           );
+          return;
         }
-      } else {
-        debugLog('[useChatPersistence] No workspaceId after initialization');
-      }
 
-      initializationRef.current.completed = true;
-      debugLog('[useChatPersistence] Initialization complete');
-    } catch (error) {
-      console.error('[useChatPersistence] Initialization failed:', error);
-      initializationRef.current.started = false; // Allow retry on error
+        debugLog(
+          '[useChatPersistence] Loading threads for conversation:',
+          conversationId
+        );
+        await loadThreads(conversationId);
+
+        const threadsState = useChatStore.getState();
+        const conversationThreads =
+          threadsState.threads[conversationId] || [];
+        if (conversationThreads.length > 0 && !threadsState.currentThreadId) {
+          const firstThread = conversationThreads[0];
+          debugLog(
+            '[useChatPersistence] Selecting first thread:',
+            firstThread.id
+          );
+          setCurrentThread(firstThread.id); // This triggers loadMessages
+        }
+      })();
+
+      // Attach terminal handlers once. All awaiting consumers observe the
+      // same resolution; on failure we clear `_initInFlight` so a fresh mount
+      // can retry, but only after the failure has propagated to every
+      // current awaiter.
+      _initInFlight
+        .then(() => {
+          _initCompleted = true;
+          debugLog('[useChatPersistence] Initialization complete');
+        })
+        .catch((error) => {
+          console.error('[useChatPersistence] Initialization failed:', error);
+          const message =
+            error instanceof Error
+              ? error.message
+              : 'Failed to initialize workspace';
+          toast.error(message);
+        })
+        .finally(() => {
+          if (!_initCompleted) {
+            _initInFlight = null;
+          }
+        });
+    }
+
+    // Every consumer (including the one that just created the promise) awaits
+    // the same outcome so `initializationRef.current.completed` reflects real
+    // state. Errors are already surfaced by the owning `.catch` above, so
+    // swallow here to avoid double-reporting.
+    initializationRef.current.started = true;
+    try {
+      await _initInFlight;
+      if (_initCompleted) {
+        initializationRef.current.completed = true;
+      } else {
+        // Init resolved without completing (e.g., no workspaceId) or was
+        // aborted; allow a later explicit retry.
+        initializationRef.current.started = false;
+      }
+    } catch {
+      initializationRef.current.started = false;
     }
   }, [
     isAuthenticated,
-    token,
     initializeDefaultWorkspace,
     loadConversations,
     loadThreads,
@@ -593,10 +655,13 @@ export function useChatPersistence(): UseChatPersistenceReturn {
     [updateThread]
   );
 
-  // Reset initialization ref when user logs out
+  // Reset initialization state when user logs out. Both the per-instance ref
+  // AND the module-level shared guards must clear so a subsequent login
+  // re-runs initialization instead of short-circuiting on a stale completion.
   useEffect(() => {
     if (!isAuthenticated) {
       initializationRef.current = { started: false, completed: false };
+      resetChatPersistenceInitGuard();
     }
   }, [isAuthenticated]);
 

@@ -2,6 +2,7 @@
 Processing pipeline API endpoints
 """
 
+import logging
 from datetime import datetime, timedelta
 from typing import List, Optional
 from uuid import UUID
@@ -9,6 +10,8 @@ from uuid import UUID
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
+
+logger = logging.getLogger(__name__)
 
 from src.core.database import get_db_sync
 from src.core.dependencies import (
@@ -154,7 +157,8 @@ async def list_processing_jobs(
 ):
     """List processing jobs for the organization"""
     query = db.query(ProcessingJob).filter(
-        ProcessingJob.organization_id == organization.id
+        ProcessingJob.organization_id == organization.id,
+        ProcessingJob.is_deleted == False,  # noqa: E712 — SQLAlchemy column comparison
     )
 
     if status_filter:
@@ -187,8 +191,21 @@ async def list_processing_jobs(
         .all()
     )
 
+    serialized: List[ProcessingJobResponse] = []
+    for job in jobs:
+        try:
+            serialized.append(ProcessingJobResponse(**job.to_dict()))
+        except Exception:
+            # One bad row (stale enum value, NULL in a non-nullable column,
+            # JSON column with a non-serializable payload) must not 500 the
+            # whole list. Log job.id so we can pinpoint it after deploy.
+            logger.exception(
+                "processing_jobs.serialize_failed",
+                extra={"job_id": str(getattr(job, "id", None))},
+            )
+
     return {
-        "jobs": [ProcessingJobResponse(**job.to_dict()) for job in jobs],
+        "jobs": serialized,
         "total": total,
         "limit": limit,
         "offset": offset,

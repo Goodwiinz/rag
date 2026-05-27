@@ -1,12 +1,20 @@
 """
-Security utilities for authentication and authorization
+Security utilities for authentication and authorization.
+
+The backend accepts two JWT shapes:
+
+1. Supabase-issued JWTs (HS256 via shared secret or ES256 via JWKS) — used
+   by the frontend via Supabase SSR with cookie-based sessions.
+2. Long-lived CLI tokens (HS256 signed with ``JWT_SECRET_KEY``) — issued at
+   ``/cli-auth/approve`` time so the device-flow CLI doesn't have to
+   re-authenticate every Supabase access-token refresh (~1h). CLI tokens
+   carry ``scope=cli`` so they can be revoked / rate-limited separately.
 """
 
 import logging
-import os
 import secrets
-from datetime import datetime, timedelta
-from typing import Any, Dict, Optional, Union
+from datetime import datetime, timedelta, timezone
+from typing import Any, Dict, Optional
 
 import bcrypt  # Changed from passlib
 import httpx
@@ -14,6 +22,8 @@ from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwk, jwt
 from pydantic import BaseModel
+from starlette.datastructures import Address
+from starlette.requests import HTTPConnection
 
 from src.core.config import settings
 
@@ -34,22 +44,43 @@ class TokenData(BaseModel):
     organization_id: Optional[str] = None
     role: Optional[str] = None
     exp: Optional[datetime] = None
-    remember_me: bool = False  # Indicates if session should persist for 30 days
 
 
-class Token(BaseModel):
-    """Token response model"""
+def _extract_forwarded_ip(headers: Any) -> Optional[str]:
+    """Return the trusted client IP from X-Forwarded-For when present."""
+    if headers is None:
+        return None
 
-    access_token: str
-    token_type: str
-    expires_in: int
-    user: Dict[str, Any]
+    forwarded_for = headers.get("X-Forwarded-For")
+    if not forwarded_for:
+        return None
+
+    ips = [ip.strip() for ip in forwarded_for.split(",") if ip.strip()]
+    return ips[-1] if ips else None
 
 
-class TokenRefresh(BaseModel):
-    """Token refresh request model"""
+def _install_proxy_aware_client_patch() -> None:
+    """Make request.client.host reflect trusted X-Forwarded-For values."""
+    if getattr(HTTPConnection, "_proxy_aware_client_installed", False):
+        return
 
-    refresh_token: str
+    original_client = HTTPConnection.client
+    if not isinstance(original_client, property) or original_client.fget is None:
+        return
+
+    def _proxy_aware_client(self):
+        forwarded_ip = _extract_forwarded_ip(getattr(self, "headers", None))
+        if forwarded_ip:
+            base_client = original_client.fget(self)
+            port = getattr(base_client, "port", 0) if base_client else 0
+            return Address(forwarded_ip, port)
+        return original_client.fget(self)
+
+    HTTPConnection.client = property(_proxy_aware_client)
+    HTTPConnection._proxy_aware_client_installed = True
+
+
+_install_proxy_aware_client_patch()
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
@@ -89,79 +120,11 @@ def get_client_ip(request: Request) -> str:
     in the list (assuming trusted proxy appends client IP).
     Falls back to request.client.host if not behind a proxy.
     """
-    forwarded_for = request.headers.get("X-Forwarded-For")
-    if forwarded_for:
-        # Get the last IP address in the chain
-        # Format: client, proxy1, proxy2
-        # If we trust the proxy to append the real client IP, we take the last one?
-        # WAIT. Standard practice:
-        # If we are behind a trusted proxy (e.g. Nginx, ALB), it adds the connecting client IP to the END of the list.
-        # But if the client sends X-Forwarded-For: spoofed_ip, and we are behind 1 proxy:
-        # Header becomes: spoofed_ip, real_client_ip.
-        # So the LAST IP is the real client IP (as seen by our proxy).
-        # This is safe against spoofing if we trust our proxy to append.
-
-        # Split by comma and strip whitespace
-        ips = [ip.strip() for ip in forwarded_for.split(",")]
-        return ips[-1]
+    forwarded_ip = _extract_forwarded_ip(request.headers)
+    if forwarded_ip:
+        return forwarded_ip
 
     return request.client.host if request.client else "unknown"
-
-
-def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
-    """Create JWT access token"""
-    to_encode = data.copy()
-
-    if expires_delta:
-        expire = datetime.utcnow() + expires_delta
-    else:
-        expire = datetime.utcnow() + timedelta(
-            minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES
-        )
-
-    to_encode.update(
-        {"exp": expire, "type": "access"}  # Add token type for verification
-    )
-    encoded_jwt = jwt.encode(
-        to_encode, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM
-    )
-    return encoded_jwt
-
-
-def create_refresh_token(
-    data: dict, expires_delta: Optional[timedelta] = None, remember_me: bool = False
-) -> str:
-    """Create JWT refresh token
-
-    Args:
-        data: Token payload data
-        expires_delta: Custom expiration time
-        remember_me: If True, use extended 30-day expiration for persistent sessions
-    """
-    to_encode = data.copy()
-
-    if expires_delta:
-        expire = datetime.utcnow() + expires_delta
-    elif remember_me:
-        # Extended session for "Remember Me" - 30 days
-        expire = datetime.utcnow() + timedelta(
-            days=settings.REMEMBER_ME_REFRESH_TOKEN_DAYS
-        )
-    else:
-        # Default refresh token lifetime
-        expire = datetime.utcnow() + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
-
-    to_encode.update(
-        {
-            "exp": expire,
-            "type": "refresh",
-            "remember_me": remember_me,  # Track if this is an extended session
-        }
-    )
-    encoded_jwt = jwt.encode(
-        to_encode, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM
-    )
-    return encoded_jwt
 
 
 def _get_supabase_jwks() -> Optional[Dict]:
@@ -199,9 +162,98 @@ def _extract_supabase_token_data(payload: dict) -> Optional[TokenData]:
     return None
 
 
+_CLI_TOKEN_SCOPE = "cli"
+_CLI_TOKEN_ISSUER = "nous-backend"
+
+
+def create_cli_token(
+    user_id: str,
+    email: str,
+    organization_id: str,
+    role: str = "USER",
+) -> tuple[str, datetime]:
+    """Mint a long-lived CLI access token.
+
+    Returns ``(token, expires_at)`` where ``expires_at`` is the absolute UTC
+    expiry. ``CLI_TOKEN_EXPIRE_DAYS`` (default 30) governs the lifetime —
+    long enough that the CLI feels permanent without being non-expiring.
+
+    Payload mirrors the Supabase JWT shape so ``_extract_supabase_token_data``
+    can decode it unchanged. The ``scope=cli`` claim is the only marker
+    distinguishing CLI tokens from a (real) Supabase token; combined with the
+    HS256 signature using ``JWT_SECRET_KEY`` (not ``SUPABASE_JWT_SECRET``)
+    this prevents cross-confusion.
+
+    Raises ``RuntimeError`` if ``JWT_SECRET_KEY`` is unset — refusing to mint
+    rather than silently issuing tokens with a default-empty signing key.
+    """
+    if not settings.JWT_SECRET_KEY:
+        raise RuntimeError(
+            "JWT_SECRET_KEY must be configured to mint CLI tokens"
+        )
+
+    now = datetime.now(timezone.utc)
+    expires_at = now + timedelta(days=settings.CLI_TOKEN_EXPIRE_DAYS)
+
+    payload = {
+        "sub": user_id,
+        "email": email,
+        "app_metadata": {
+            "organization_id": organization_id,
+            "role": role,
+        },
+        "scope": _CLI_TOKEN_SCOPE,
+        "iss": _CLI_TOKEN_ISSUER,
+        "iat": int(now.timestamp()),
+        "exp": int(expires_at.timestamp()),
+    }
+    token = jwt.encode(
+        payload, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM
+    )
+    return token, expires_at
+
+
+def _extract_cli_token_data(payload: dict) -> Optional[TokenData]:
+    """Extract TokenData from a decoded CLI JWT payload."""
+    user_id = payload.get("sub")
+    if not user_id:
+        return None
+    app_metadata = payload.get("app_metadata", {}) or {}
+    exp = payload.get("exp")
+    return TokenData(
+        user_id=user_id,
+        email=payload.get("email"),
+        organization_id=app_metadata.get("organization_id"),
+        role=app_metadata.get("role", "USER"),
+        exp=datetime.utcfromtimestamp(exp) if exp else None,
+    )
+
+
 def verify_token(token: str) -> Optional[TokenData]:
-    """Verify JWT token — supports both Supabase (HS256/ES256) and custom JWTs."""
-    # Try Supabase JWT first — HS256 with shared secret
+    """Verify a Supabase JWT (HS256 / ES256) or a long-lived CLI token (HS256).
+
+    Tries each path in turn; the first match wins. Returns ``None`` when no
+    path validates (caller should map to 401).
+    """
+    # Try CLI token first — cheap (no JWKS fetch) and lets us short-circuit
+    # before falling through to the more expensive Supabase paths.
+    if settings.JWT_SECRET_KEY:
+        try:
+            payload = jwt.decode(
+                token,
+                settings.JWT_SECRET_KEY,
+                algorithms=[settings.JWT_ALGORITHM],
+                issuer=_CLI_TOKEN_ISSUER,
+                options={"verify_aud": False},
+            )
+            if payload.get("scope") == _CLI_TOKEN_SCOPE:
+                result = _extract_cli_token_data(payload)
+                if result:
+                    return result
+        except JWTError:
+            pass  # Fall through to Supabase paths
+
+    # Try Supabase JWT — HS256 with shared secret
     if settings.SUPABASE_JWT_SECRET:
         try:
             payload = jwt.decode(
@@ -218,7 +270,6 @@ def verify_token(token: str) -> Optional[TokenData]:
 
     # Try Supabase JWT — ES256 via JWKS
     try:
-        # Peek at the token header to check algorithm
         header = jwt.get_unverified_header(token)
         if header.get("alg") == "ES256":
             jwks_data = _get_supabase_jwks()
@@ -236,78 +287,12 @@ def verify_token(token: str) -> Optional[TokenData]:
                         result = _extract_supabase_token_data(payload)
                         if result:
                             return result
-    except JWTError:
-        pass  # Fall through to custom JWT
+    except JWTError as e:
+        logger.debug(f"JWT validation failed (expected for expired tokens): {e}")
     except Exception as e:
-        logger.debug(f"JWKS verification failed: {e}")
+        logger.error(f"ES256 verification failed: {type(e).__name__}: {e}")
 
-    # Fallback: custom JWT (existing logic)
-    try:
-        payload = jwt.decode(
-            token, settings.JWT_SECRET_KEY, algorithms=[settings.JWT_ALGORITHM]
-        )
-        user_id: str = payload.get("sub")
-        email: str = payload.get("email")
-        organization_id: str = payload.get("organization_id")
-        role: str = payload.get("role")
-        exp: int = payload.get("exp")
-
-        if user_id is None:
-            return None
-
-        return TokenData(
-            user_id=user_id,
-            email=email,
-            organization_id=organization_id,
-            role=role,
-            exp=datetime.utcfromtimestamp(exp) if exp else None,
-        )
-    except JWTError:
-        return None
-
-
-def extract_refresh_token_user_id(token: str) -> Optional[str]:
-    """Extract user_id from refresh token without verifying expiration.
-
-    Signature is still verified. Used for rate-limiting identification
-    before full token validation.
-    """
-    try:
-        payload = jwt.decode(
-            token,
-            settings.JWT_SECRET_KEY,
-            algorithms=[settings.JWT_ALGORITHM],
-            options={"verify_exp": False},
-        )
-        if payload.get("type") != "refresh":
-            return None
-        return payload.get("sub")
-    except JWTError:
-        return None
-
-
-def verify_refresh_token(token: str) -> Optional[TokenData]:
-    """Verify and decode refresh token"""
-    try:
-        payload = jwt.decode(
-            token, settings.JWT_SECRET_KEY, algorithms=[settings.JWT_ALGORITHM]
-        )
-
-        # Check if it's a refresh token
-        if payload.get("type") != "refresh":
-            return None
-
-        user_id: str = payload.get("sub")
-        if user_id is None:
-            return None
-
-        # Preserve the remember_me flag from the original refresh token
-        remember_me: bool = payload.get("remember_me", False)
-
-        return TokenData(user_id=user_id, remember_me=remember_me)
-
-    except JWTError:
-        return None
+    return None
 
 
 def get_current_user_token(

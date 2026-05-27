@@ -1,12 +1,13 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import React from 'react';
 import { render, screen, fireEvent } from '../../__tests__/testUtils';
 import SearchInterface from '../SearchInterface';
 
 describe('SearchInterface', () => {
-  const mockOnSearch = jest.fn();
-  const mockOnGetSuggestions = jest.fn();
-  const mockOnGetHistory = jest.fn().mockResolvedValue([]);
-  const mockOnSaveSearch = jest.fn();
+  const mockOnSearch = vi.fn();
+  const mockOnGetSuggestions = vi.fn();
+  const mockOnGetHistory = vi.fn();
+  const mockOnSaveSearch = vi.fn();
 
   const defaultProps = {
     onSearch: mockOnSearch,
@@ -16,7 +17,10 @@ describe('SearchInterface', () => {
   };
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
+    // restoreMocks: true wipes module-scope `.mockResolvedValue` setups
+    // between tests; component calls `onGetHistory().then(...)` on mount.
+    mockOnGetHistory.mockResolvedValue([]);
   });
 
   it('renders correctly', () => {
@@ -31,9 +35,7 @@ describe('SearchInterface', () => {
     const input = screen.getByPlaceholderText('Search your documents...');
 
     // Initially clear button should not be visible
-    expect(
-      screen.queryByLabelText('Clear search')
-    ).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Clear search')).not.toBeInTheDocument();
 
     // Type text
     fireEvent.change(input, { target: { value: 'test query' } });
@@ -52,9 +54,7 @@ describe('SearchInterface', () => {
     expect(input).toHaveFocus();
 
     // Clear button should be gone
-    expect(
-      screen.queryByLabelText('Clear search')
-    ).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Clear search')).not.toBeInTheDocument();
   });
 
   it('has accessible labels for buttons and inputs', () => {

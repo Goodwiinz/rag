@@ -16,7 +16,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Progress } from '@/components/ui/progress';
 import toast from 'react-hot-toast';
-import { apiClient } from '@/services/apiClient';
+import { api } from '@/services/api-client';
 import { entityService } from '@/services/entityService';
 import { APIErrorClass } from '@/types/api';
 
@@ -103,9 +103,7 @@ export const DocumentEntityExtractor: React.FC = () => {
   const fetchDocuments = async () => {
     try {
       setLoadingDocs(true);
-      const data = await apiClient.get<{ documents?: Document[] }>('/documents/', {
-        params: { page_size: 100 },
-      });
+      const data = await api.get<{ documents?: Document[] }>('/documents/?page_size=100');
       setDocuments(data.documents || []);
     } catch (error) {
       console.warn('Document fetch failed:', error);

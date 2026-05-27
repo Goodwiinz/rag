@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# NOUS CLI launcher.
+#
+# Defaults NOUS_API_URL to the shared dev backend so a fresh checkout
+# "just works" with `./nous login` and `./nous`. Override by exporting
+# NOUS_API_URL before invocation (e.g. NOUS_API_URL=http://localhost:8000/api/v1
+# ./nous) or by setting it in your shell rc.
+set -euo pipefail
+export NOUS_API_URL="${NOUS_API_URL:-https://dev-api.gen-text.app/api/v1}"
+exec pnpm --prefix frontend cli "$@"

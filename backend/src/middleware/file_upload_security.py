@@ -230,8 +230,8 @@ class FileUploadSecurityService:
             self.geoip_reader = maxminddb.open_database(
                 "/usr/share/GeoIP/GeoLite2-Country.mmdb"
             )
-        except:
-            logger.warning("GeoIP database not available")
+        except Exception:
+            logger.warning("GeoIP database not available", exc_info=True)
 
         # Patterns for sensitive data detection
         self.sensitive_patterns = {
@@ -501,8 +501,8 @@ class FileUploadSecurityService:
                 # Clean up temporary file
                 try:
                     os.unlink(temp_file_path)
-                except:
-                    pass
+                except Exception:
+                    logger.warning("Failed to clean up temporary file", exc_info=True)
 
         except Exception as e:
             logger.error(f"Virus scanning failed: {e}")
@@ -632,7 +632,7 @@ class FileUploadSecurityService:
                                         )
                                         break
 
-                    except Exception:
+                    except:
                         pass  # EXIF reading failed
 
                     # Check for animated images (DoS risk)
@@ -779,8 +779,8 @@ class FileUploadSecurityService:
                 finally:
                     try:
                         os.unlink(temp_file_path)
-                    except:
-                        pass
+                    except Exception:
+                        logger.warning("Failed to clean up temporary file", exc_info=True)
 
             elif mime_type == "application/pdf":
                 # PDF metadata extraction would go here

@@ -25,13 +25,22 @@ class TestToolLoopCounter:
         """llm_node return should NOT include tool_loop_count."""
         from langchain_core.messages import AIMessage, HumanMessage
 
-        with patch("src.services.agent.graph._build_llm") as mock_build:
+        # After T1.1 split, llm_node may route through build_synthesis_llm
+        # for synthesis turns (last msg is ToolMessage OR intent="general").
+        # Patch both factories so tests work regardless of which branch fires.
+        with patch("src.services.agent.graph._build_llm") as mock_build, patch(
+            "src.services.agent.llm_factory.build_synthesis_llm"
+        ) as mock_synth, patch(
+            "src.services.agent.llm_factory.build_lightweight_llm"
+        ) as mock_light:
             mock_llm = MagicMock()
             mock_response = AIMessage(content="Hello")
             mock_llm.bind_tools.return_value.ainvoke = AsyncMock(
                 return_value=mock_response
             )
             mock_build.return_value = mock_llm
+            mock_synth.return_value = mock_llm
+            mock_light.return_value = mock_llm
 
             from src.services.agent.graph import llm_node
 
@@ -145,13 +154,22 @@ class TestMessageSanitizationIndex:
             "user_memories": [],
         }
 
-        with patch("src.services.agent.graph._build_llm") as mock_build:
+        # After T1.1 split, llm_node may route through build_synthesis_llm
+        # for synthesis turns (last msg is ToolMessage OR intent="general").
+        # Patch both factories so tests work regardless of which branch fires.
+        with patch("src.services.agent.graph._build_llm") as mock_build, patch(
+            "src.services.agent.llm_factory.build_synthesis_llm"
+        ) as mock_synth, patch(
+            "src.services.agent.llm_factory.build_lightweight_llm"
+        ) as mock_light:
             mock_llm = MagicMock()
             mock_response = AIMessage(content="Done")
             mock_llm.bind_tools.return_value.ainvoke = AsyncMock(
                 return_value=mock_response
             )
             mock_build.return_value = mock_llm
+            mock_synth.return_value = mock_llm
+            mock_light.return_value = mock_llm
 
             from src.services.agent.graph import llm_node
 
@@ -180,7 +198,6 @@ class TestSubgraphErrorCountCheck:
 
     def test_research_should_continue_stops_on_high_errors(self):
         from langchain_core.messages import AIMessage
-        from langgraph.graph import END
 
         from src.services.agent.subgraphs.research_agent import (
             research_should_continue,
@@ -198,11 +215,10 @@ class TestSubgraphErrorCountCheck:
             "tool_loop_count": 1,
             "error_count": 3,
         }
-        assert research_should_continue(state) == END
+        assert research_should_continue(state) == "research_reflection_gate"
 
     def test_writing_should_continue_stops_on_high_errors(self):
         from langchain_core.messages import AIMessage
-        from langgraph.graph import END
 
         from src.services.agent.subgraphs.writing_agent import (
             writing_should_continue,
@@ -220,11 +236,10 @@ class TestSubgraphErrorCountCheck:
             "tool_loop_count": 1,
             "error_count": 3,
         }
-        assert writing_should_continue(state) == END
+        assert writing_should_continue(state) == "writing_reflection_gate"
 
     def test_data_should_continue_stops_on_high_errors(self):
         from langchain_core.messages import AIMessage
-        from langgraph.graph import END
 
         from src.services.agent.subgraphs.data_agent import data_should_continue
 
@@ -240,7 +255,7 @@ class TestSubgraphErrorCountCheck:
             "tool_loop_count": 1,
             "error_count": 3,
         }
-        assert data_should_continue(state) == END
+        assert data_should_continue(state) == "data_reflection_gate"
 
     def test_research_should_continue_proceeds_when_errors_low(self):
         from langchain_core.messages import AIMessage
@@ -263,6 +278,56 @@ class TestSubgraphErrorCountCheck:
         }
         assert research_should_continue(state) == "research_tool_node"
 
+    def test_writing_should_continue_routes_destructive_to_interrupt(self):
+        """create_project_note / create_draft must hit the writing
+        interrupt gate before the tool runs — otherwise the destructive
+        write happens silently when intent routes us into the writing
+        subgraph (the top-level interrupt_node only fires for the main
+        graph)."""
+        from langchain_core.messages import AIMessage
+
+        from src.services.agent.subgraphs.writing_agent import (
+            writing_should_continue,
+        )
+
+        for tool_name in ("create_project_note", "create_draft"):
+            state = {
+                "messages": [
+                    AIMessage(
+                        content="",
+                        tool_calls=[
+                            {"id": "tc1", "name": tool_name, "args": {}}
+                        ],
+                    )
+                ],
+                "tool_loop_count": 1,
+                "error_count": 0,
+            }
+            assert (
+                writing_should_continue(state) == "writing_interrupt_node"
+            ), f"{tool_name} must be gated by writing_interrupt_node"
+
+    def test_writing_should_continue_skips_interrupt_for_read_tools(self):
+        from langchain_core.messages import AIMessage
+
+        from src.services.agent.subgraphs.writing_agent import (
+            writing_should_continue,
+        )
+
+        state = {
+            "messages": [
+                AIMessage(
+                    content="",
+                    tool_calls=[
+                        {"id": "tc1", "name": "summarize_document", "args": {}}
+                    ],
+                )
+            ],
+            "tool_loop_count": 1,
+            "error_count": 0,
+        }
+        assert writing_should_continue(state) == "writing_tool_node"
+
 
 class TestSubgraphLlmNodeNoLoopIncrement:
     """2.1 — Subgraph LLM nodes should NOT increment tool_loop_count."""
@@ -270,13 +335,22 @@ class TestSubgraphLlmNodeNoLoopIncrement:
     async def test_research_llm_node_no_loop_increment(self):
         from langchain_core.messages import AIMessage, HumanMessage
 
-        with patch("src.services.agent.graph._build_llm") as mock_build:
+        # After T1.1 split, llm_node may route through build_synthesis_llm
+        # for synthesis turns (last msg is ToolMessage OR intent="general").
+        # Patch both factories so tests work regardless of which branch fires.
+        with patch("src.services.agent.graph._build_llm") as mock_build, patch(
+            "src.services.agent.llm_factory.build_synthesis_llm"
+        ) as mock_synth, patch(
+            "src.services.agent.llm_factory.build_lightweight_llm"
+        ) as mock_light:
             mock_llm = MagicMock()
             mock_response = AIMessage(content="Research result")
             mock_llm.bind_tools.return_value.ainvoke = AsyncMock(
                 return_value=mock_response
             )
             mock_build.return_value = mock_llm
+            mock_synth.return_value = mock_llm
+            mock_light.return_value = mock_llm
 
             from src.services.agent.subgraphs.research_agent import (
                 research_llm_node,
@@ -292,13 +366,22 @@ class TestSubgraphLlmNodeNoLoopIncrement:
     async def test_writing_llm_node_no_loop_increment(self):
         from langchain_core.messages import AIMessage, HumanMessage
 
-        with patch("src.services.agent.graph._build_llm") as mock_build:
+        # After T1.1 split, llm_node may route through build_synthesis_llm
+        # for synthesis turns (last msg is ToolMessage OR intent="general").
+        # Patch both factories so tests work regardless of which branch fires.
+        with patch("src.services.agent.graph._build_llm") as mock_build, patch(
+            "src.services.agent.llm_factory.build_synthesis_llm"
+        ) as mock_synth, patch(
+            "src.services.agent.llm_factory.build_lightweight_llm"
+        ) as mock_light:
             mock_llm = MagicMock()
             mock_response = AIMessage(content="Writing result")
             mock_llm.bind_tools.return_value.ainvoke = AsyncMock(
                 return_value=mock_response
             )
             mock_build.return_value = mock_llm
+            mock_synth.return_value = mock_llm
+            mock_light.return_value = mock_llm
 
             from src.services.agent.subgraphs.writing_agent import (
                 writing_llm_node,
@@ -314,13 +397,22 @@ class TestSubgraphLlmNodeNoLoopIncrement:
     async def test_data_llm_node_no_loop_increment(self):
         from langchain_core.messages import AIMessage, HumanMessage
 
-        with patch("src.services.agent.graph._build_llm") as mock_build:
+        # After T1.1 split, llm_node may route through build_synthesis_llm
+        # for synthesis turns (last msg is ToolMessage OR intent="general").
+        # Patch both factories so tests work regardless of which branch fires.
+        with patch("src.services.agent.graph._build_llm") as mock_build, patch(
+            "src.services.agent.llm_factory.build_synthesis_llm"
+        ) as mock_synth, patch(
+            "src.services.agent.llm_factory.build_lightweight_llm"
+        ) as mock_light:
             mock_llm = MagicMock()
             mock_response = AIMessage(content="Data result")
             mock_llm.bind_tools.return_value.ainvoke = AsyncMock(
                 return_value=mock_response
             )
             mock_build.return_value = mock_llm
+            mock_synth.return_value = mock_llm
+            mock_light.return_value = mock_llm
 
             from src.services.agent.subgraphs.data_agent import data_llm_node
 
@@ -432,7 +524,7 @@ class TestGatherExceptionToolMessages:
             raise RuntimeError("Connection failed")
 
         with patch(
-            "src.services.agent.graph._execute_single_tool",
+            "src.services.agent._nodes_tools._execute_single_tool",
             side_effect=mock_execute,
         ):
             result = await tool_node(state, config)
@@ -445,7 +537,8 @@ class TestGatherExceptionToolMessages:
         content = json.loads(error_msg.content)
         assert "error" in content
         assert "Connection failed" in content["error"]
-        # Error count should have incremented
+        # Mixed-success batch: counter does NOT reset (only a fully-clean batch
+        # resets it so a "1 success + N failures" loop cannot suppress MAX_ERRORS).
         assert result["error_count"] == 1
 
 
@@ -537,7 +630,7 @@ class TestJobOwnership:
         request_data = {
             "messages": [{"role": "user", "content": "hello"}],
             "page_context": {"type": "unknown"},
-            "model": "gpt-4o",
+            "model": "model-router",
             "use_rag": True,
             "max_context_docs": 5,
         }
@@ -743,7 +836,7 @@ class TestShouldContinue:
             "last_error": "timeout",
             "tool_loop_count": 0,
         }
-        assert should_continue(state) == "memory_save_node"
+        assert should_continue(state) == "reflection_gate"
 
     def test_routes_to_tool_node_for_non_destructive(self):
         from langchain_core.messages import AIMessage
@@ -787,7 +880,8 @@ class TestShouldContinue:
         }
         assert should_continue(state) == "interrupt_node"
 
-    def test_stops_at_max_tool_loops(self):
+    def test_routes_to_force_synthesis_at_max_tool_loops(self):
+        """At ceiling with unanswered tool_calls → force_synthesis_node."""
         from langchain_core.messages import AIMessage
 
         from src.services.agent.graph import MAX_TOOL_LOOPS, should_continue
@@ -804,4 +898,38 @@ class TestShouldContinue:
             "error_count": 0,
             "tool_loop_count": MAX_TOOL_LOOPS,
         }
-        assert should_continue(state) == "memory_save_node"
+        assert should_continue(state) == "force_synthesis_node"
+
+    def test_no_loop_back_into_force_synthesis(self):
+        """After force_synthesis fired, defective tool_calls route to reflection."""
+        from langchain_core.messages import AIMessage
+
+        from src.services.agent.graph import MAX_TOOL_LOOPS, should_continue
+
+        state = {
+            "messages": [
+                AIMessage(
+                    content="",
+                    tool_calls=[
+                        {"id": "tc1", "name": "search_arxiv", "args": {}}
+                    ],
+                )
+            ],
+            "error_count": 0,
+            "tool_loop_count": MAX_TOOL_LOOPS + 1,
+            "_force_synthesis_fired": True,
+        }
+        assert should_continue(state) == "reflection_gate"
+
+    def test_no_tool_calls_routes_to_reflection(self):
+        """Plain AIMessage with no tool_calls always exits via reflection."""
+        from langchain_core.messages import AIMessage
+
+        from src.services.agent.graph import should_continue
+
+        state = {
+            "messages": [AIMessage(content="final answer")],
+            "error_count": 0,
+            "tool_loop_count": 0,
+        }
+        assert should_continue(state) == "reflection_gate"

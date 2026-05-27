@@ -2,8 +2,20 @@
 
 import React, { useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import dynamic from 'next/dynamic';
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
+
+const SyntaxHighlighter = dynamic(
+  () => import('react-syntax-highlighter/dist/esm/prism').then((mod) => mod.default),
+  {
+    loading: () => (
+      <pre className="p-4 rounded-lg bg-[var(--nous-bg-1)] text-xs font-mono overflow-x-auto">
+        <code>Loading...</code>
+      </pre>
+    ),
+    ssr: false,
+  }
+);
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -118,13 +130,13 @@ export function MessageBubble({
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0 }}
       className={cn(
-        'group relative flex gap-3 mb-6',
+        'group relative flex gap-2 sm:gap-3 mb-4 sm:mb-6 px-1 sm:px-0',
         isUser && 'flex-row-reverse',
         className
       )}
     >
-      {/* Avatar */}
-      <Avatar className="w-8 h-8 shrink-0">
+      {/* Avatar — smaller on mobile */}
+      <Avatar className="w-7 h-7 sm:w-8 sm:h-8 shrink-0">
         <AvatarFallback
           className={cn(
             'text-xs font-medium transition-colors',
@@ -192,8 +204,8 @@ export function MessageBubble({
           className={cn(
             'relative rounded-2xl px-4 py-3 shadow-sm transition-all hover:shadow-md',
             isUser
-              ? 'bg-gradient-to-br from-primary to-primary/80 text-primary-foreground ml-auto max-w-[80%] shadow-[0_0_15px_hsl(var(--primary)/0.15)]'
-              : 'bg-[var(--terminal-surface)] border border-[var(--terminal-border)] max-w-[90%] hover:border-[var(--phosphor-green)]/30'
+              ? 'bg-gradient-to-br from-primary to-primary/80 text-primary-foreground ml-auto max-w-[92%] sm:max-w-[80%] shadow-[0_0_15px_hsl(var(--primary)/0.15)]'
+              : 'bg-[var(--nous-bg-2)] border border-[var(--nous-border-1)] max-w-[95%] sm:max-w-[90%] hover:border-[var(--nous-sol)]/30'
           )}
         >
           {isTyping ? (
@@ -315,13 +327,13 @@ export function MessageBubble({
           )}
         </div>
 
-        {/* Action Buttons */}
+        {/* Action Buttons — visible on touch, hover-reveal on desktop */}
         {!isTyping && (
           <div
             className={cn(
               'flex items-center gap-1 transition-all',
               isUser ? 'justify-end' : 'justify-start',
-              'opacity-0 group-hover:opacity-100'
+              'opacity-0 group-hover:opacity-100 touch-show'
             )}
           >
             <Button

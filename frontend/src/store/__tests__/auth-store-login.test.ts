@@ -1,59 +1,50 @@
-import { apiClient } from '@/services/apiClient';
-import { useAuthStore } from '@/stores/authStore';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+describe('useAuthStore signIn configuration handling', () => {
+  const originalSupabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const originalSupabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-jest.mock('@/lib/supabase', () => ({
-  supabase: {
-    auth: {
-      signInWithPassword: jest.fn().mockResolvedValue({
-        data: null,
-        error: { message: 'Invalid login credentials' },
-      }),
-      signUp: jest.fn(),
-      signOut: jest.fn(),
-      refreshSession: jest.fn(),
-      onAuthStateChange: jest.fn(() => ({
-        data: { subscription: { unsubscribe: jest.fn() } },
-      })),
-    },
-  },
-}));
-
-jest.mock('@/services/apiClient', () => ({
-  apiClient: {
-    post: jest.fn(),
-  },
-}));
-
-const mockApiClient = apiClient as jest.Mocked<typeof apiClient>;
-
-describe('useAuthStore login error handling', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
-    localStorage.clear();
-    useAuthStore.getState().stopProactiveRefresh();
-    useAuthStore.setState({
-      user: null,
-      organization: null,
-      token: null,
-      refreshTokenValue: null,
-      isAuthenticated: false,
-      isLoading: false,
-      error: null,
-      rememberMe: false,
-      tokenExpiresAt: null,
-      refreshExpiresAt: null,
-    });
+    vi.resetModules();
+    delete process.env.NEXT_PUBLIC_SUPABASE_URL;
+    delete process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   });
 
-  it('rejects the login promise when API authentication fails', async () => {
-    mockApiClient.post.mockRejectedValue(new Error('Invalid credentials'));
+  afterEach(() => {
+    vi.resetModules();
+
+    if (originalSupabaseUrl === undefined) {
+      delete process.env.NEXT_PUBLIC_SUPABASE_URL;
+    } else {
+      process.env.NEXT_PUBLIC_SUPABASE_URL = originalSupabaseUrl;
+    }
+
+    if (originalSupabaseAnonKey === undefined) {
+      delete process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    } else {
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = originalSupabaseAnonKey;
+    }
+  });
+
+  it('does not throw while importing the auth store when browser Supabase config is missing', async () => {
+    vi.resetModules();
+    await expect(
+      vi.importActual<typeof import('@/stores/authStore')>('@/stores/authStore')
+    ).resolves.toBeDefined();
+  });
+
+  it('rejects signIn with a build-time config error when browser Supabase config is missing', async () => {
+    vi.resetModules();
+    const { useAuthStore } =
+      await vi.importActual<typeof import('@/stores/authStore')>(
+        '@/stores/authStore'
+      );
 
     await expect(
-      useAuthStore.getState().login('admin@test.com', 'wrong-password')
-    ).rejects.toThrow('Invalid credentials');
+      useAuthStore.getState().signIn('admin@test.com', 'wrong-password')
+    ).rejects.toThrow(/build time/i);
 
     const state = useAuthStore.getState();
     expect(state.isAuthenticated).toBe(false);
-    expect(state.error).toBe('Invalid credentials');
+    expect(state.error).toMatch(/build time/i);
   });
 });

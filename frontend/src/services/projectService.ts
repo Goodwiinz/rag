@@ -3,7 +3,8 @@
  * API client for Research Assistant project endpoints
  */
 
-import { apiClient } from './apiClient';
+import { api } from '@/services/api-client';
+import { API_CONFIG } from '@/types/api';
 
 // Types
 export interface Project {
@@ -130,18 +131,29 @@ export const projectService = {
   // =========================================================================
 
   /**
-   * List all projects for current user
+   * List all projects for current user.
+   *
+   * `options.signal` can be an AbortSignal; when it fires, axios cancels the
+   * in-flight request (used by the page effect to drop stale responses when
+   * the workspace changes mid-fetch).
    */
-  async listProjects(params?: {
-    skip?: number;
-    limit?: number;
-    search?: string;
-    project_status?: 'active' | 'paused' | 'completed' | 'archived';
-    project_type?: 'research' | 'literature_review' | 'thesis' | 'paper';
-    tag?: string;
-  }): Promise<ProjectListResponse> {
-    return apiClient.get<ProjectListResponse>('/projects', {
-      params,
+  async listProjects(
+    params?: {
+      workspace_id?: string;
+      skip?: number;
+      limit?: number;
+      search?: string;
+      project_status?: 'active' | 'paused' | 'completed' | 'archived';
+      project_type?: 'research' | 'literature_review' | 'thesis' | 'paper';
+      tag?: string;
+    },
+    options?: { signal?: AbortSignal }
+  ): Promise<ProjectListResponse> {
+    const qs = params ? new URLSearchParams(
+      Object.entries(params).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)])
+    ).toString() : '';
+    return api.get<ProjectListResponse>(`/projects${qs ? `?${qs}` : ''}`, {
+      signal: options?.signal,
     });
   },
 
@@ -149,28 +161,28 @@ export const projectService = {
    * Create a new project
    */
   async createProject(data: ProjectCreate): Promise<Project> {
-    return apiClient.post<Project>('/projects', data);
+    return api.post<Project>('/projects', data);
   },
 
   /**
    * Get a single project by ID
    */
   async getProject(projectId: string): Promise<Project> {
-    return apiClient.get<Project>(`/projects/${projectId}`);
+    return api.get<Project>(`/projects/${projectId}`);
   },
 
   /**
    * Update a project
    */
   async updateProject(projectId: string, data: ProjectUpdate): Promise<Project> {
-    return apiClient.patch<Project>(`/projects/${projectId}`, data);
+    return api.patch<Project>(`/projects/${projectId}`, data);
   },
 
   /**
    * Delete a project
    */
   async deleteProject(projectId: string): Promise<void> {
-    await apiClient.delete(`/projects/${projectId}`);
+    await api.delete(`/projects/${projectId}`);
   },
 
   // =========================================================================
@@ -187,9 +199,11 @@ export const projectService = {
       limit?: number;
     }
   ): Promise<ProjectDocumentListResponse> {
-    return apiClient.get<ProjectDocumentListResponse>(
-      `/projects/${projectId}/documents`,
-      { params }
+    const qs = params ? new URLSearchParams(
+      Object.entries(params).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)])
+    ).toString() : '';
+    return api.get<ProjectDocumentListResponse>(
+      `/projects/${projectId}/documents${qs ? `?${qs}` : ''}`
     );
   },
 
@@ -200,10 +214,8 @@ export const projectService = {
     projectId: string,
     documentId: string
   ): Promise<ProjectDocument> {
-    return apiClient.post<ProjectDocument>(
-      `/projects/${projectId}/documents`,
-      null,
-      { params: { document_id: documentId } }
+    return api.post<ProjectDocument>(
+      `/projects/${projectId}/documents?document_id=${documentId}`
     );
   },
 
@@ -214,7 +226,7 @@ export const projectService = {
     projectId: string,
     documentId: string
   ): Promise<void> {
-    await apiClient.delete(`/projects/${projectId}/documents/${documentId}`);
+    await api.delete(`/projects/${projectId}/documents/${documentId}`);
   },
 
   // =========================================================================
@@ -232,9 +244,11 @@ export const projectService = {
       pinned_only?: boolean;
     }
   ): Promise<ProjectNoteListResponse> {
-    return apiClient.get<ProjectNoteListResponse>(
-      `/projects/${projectId}/notes`,
-      { params }
+    const qs = params ? new URLSearchParams(
+      Object.entries(params).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)])
+    ).toString() : '';
+    return api.get<ProjectNoteListResponse>(
+      `/projects/${projectId}/notes${qs ? `?${qs}` : ''}`
     );
   },
 
@@ -242,7 +256,7 @@ export const projectService = {
    * Create a note in a project
    */
   async createNote(projectId: string, data: ProjectNoteCreate): Promise<ProjectNote> {
-    return apiClient.post<ProjectNote>(
+    return api.post<ProjectNote>(
       `/projects/${projectId}/notes`,
       data
     );
@@ -252,7 +266,7 @@ export const projectService = {
    * Get a single note
    */
   async getNote(projectId: string, noteId: string): Promise<ProjectNote> {
-    return apiClient.get<ProjectNote>(
+    return api.get<ProjectNote>(
       `/projects/${projectId}/notes/${noteId}`
     );
   },
@@ -265,7 +279,7 @@ export const projectService = {
     noteId: string,
     data: ProjectNoteUpdate
   ): Promise<ProjectNote> {
-    return apiClient.patch<ProjectNote>(
+    return api.patch<ProjectNote>(
       `/projects/${projectId}/notes/${noteId}`,
       data
     );
@@ -275,14 +289,14 @@ export const projectService = {
    * Delete a note
    */
   async deleteNote(projectId: string, noteId: string): Promise<void> {
-    await apiClient.delete(`/projects/${projectId}/notes/${noteId}`);
+    await api.delete(`/projects/${projectId}/notes/${noteId}`);
   },
 
   /**
    * Toggle note pinned status
    */
   async toggleNotePin(projectId: string, noteId: string): Promise<ProjectNote> {
-    return apiClient.post<ProjectNote>(
+    return api.post<ProjectNote>(
       `/projects/${projectId}/notes/${noteId}/pin`
     );
   },
@@ -298,9 +312,8 @@ export const projectService = {
     projectId: string,
     format: 'bibtex' | 'ieee' | 'apa' | 'mla' = 'bibtex'
   ): Promise<ProjectBibliography> {
-    return apiClient.get<ProjectBibliography>(
-      `/projects/${projectId}/bibliography`,
-      { params: { format } }
+    return api.get<ProjectBibliography>(
+      `/projects/${projectId}/bibliography?format=${format}`
     );
   },
 
@@ -359,7 +372,7 @@ export const projectService = {
       params.append('include_abstract', options.includeAbstract.toString());
     }
 
-    return apiClient.post<DraftGenerationResponse>(
+    return api.post<DraftGenerationResponse>(
       `/projects/${projectId}/drafts?${params.toString()}`
     );
   },
@@ -381,9 +394,11 @@ export const projectService = {
       limit: options?.limit,
     };
 
-    return apiClient.get<DraftListResponse>(
-      `/projects/${projectId}/drafts`,
-      { params }
+    const qs = new URLSearchParams(
+      Object.entries(params).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)])
+    ).toString();
+    return api.get<DraftListResponse>(
+      `/projects/${projectId}/drafts${qs ? `?${qs}` : ''}`
     );
   },
 
@@ -391,7 +406,7 @@ export const projectService = {
    * Get the current draft
    */
   async getCurrentDraft(projectId: string): Promise<Draft> {
-    return apiClient.get<Draft>(
+    return api.get<Draft>(
       `/projects/${projectId}/drafts/current`
     );
   },
@@ -400,7 +415,7 @@ export const projectService = {
    * Get a specific draft
    */
   async getDraft(projectId: string, draftId: string): Promise<Draft> {
-    return apiClient.get<Draft>(
+    return api.get<Draft>(
       `/projects/${projectId}/drafts/${draftId}`
     );
   },
@@ -409,14 +424,14 @@ export const projectService = {
    * Delete a draft
    */
   async deleteDraft(projectId: string, draftId: string): Promise<void> {
-    await apiClient.delete(`/projects/${projectId}/drafts/${draftId}`);
+    await api.delete(`/projects/${projectId}/drafts/${draftId}`);
   },
 
   /**
    * Get draft citations
    */
   async getDraftCitations(projectId: string, draftId: string): Promise<DraftCitationsResponse> {
-    return apiClient.get<DraftCitationsResponse>(
+    return api.get<DraftCitationsResponse>(
       `/projects/${projectId}/drafts/${draftId}/citations`
     );
   },
@@ -429,9 +444,8 @@ export const projectService = {
     versionA: number,
     versionB: number
   ): Promise<DraftComparison> {
-    return apiClient.get<DraftComparison>(
-      `/projects/${projectId}/drafts/compare`,
-      { params: { version_a: versionA, version_b: versionB } }
+    return api.get<DraftComparison>(
+      `/projects/${projectId}/drafts/compare?version_a=${versionA}&version_b=${versionB}`
     );
   },
 
@@ -464,36 +478,15 @@ export const projectService = {
     includeBibliography: boolean = true,
     bibliographyFormat: 'bibtex' | 'biblatex' = 'bibtex'
   ): Promise<void> {
-    const response = await apiClient.client.post(
-      `/projects/${projectId}/drafts/${draftId}/export`,
-      null,
-      {
-        params: {
-          format,
-          include_bibliography: includeBibliography,
-          bib_format: bibliographyFormat,
-        },
-        responseType: 'blob',
-      }
+    const qs = new URLSearchParams({
+      format,
+      include_bibliography: String(includeBibliography),
+      bib_format: bibliographyFormat,
+    }).toString();
+    await api.download(
+      `/projects/${projectId}/drafts/${draftId}/export?${qs}`,
+      format === 'latex' ? 'draft.zip' : 'draft.md'
     );
-
-    const disposition = response.headers['content-disposition'] as string | undefined;
-    const filenameMatch = disposition?.match(/filename=\"?([^\";]+)\"?/i);
-    const fallbackName = format === 'latex' ? 'draft.zip' : 'draft.md';
-    const filename = filenameMatch?.[1] || fallbackName;
-    const contentType =
-      (response.headers['content-type'] as string | undefined) ||
-      (format === 'latex' ? 'application/zip' : 'text/markdown');
-
-    const blob = new Blob([response.data], { type: contentType });
-    const url = window.URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = filename;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    window.URL.revokeObjectURL(url);
   },
 
   /**
@@ -501,9 +494,11 @@ export const projectService = {
    */
   async getGenerationStatus(projectId: string, taskId?: string): Promise<GenerationStatus> {
     const params = taskId ? { task_id: taskId } : undefined;
-    return apiClient.get<GenerationStatus>(
-      `/projects/${projectId}/drafts/status`,
-      { params }
+    const qs = params ? new URLSearchParams(
+      Object.entries(params).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)])
+    ).toString() : '';
+    return api.get<GenerationStatus>(
+      `/projects/${projectId}/drafts/status${qs ? `?${qs}` : ''}`
     );
   },
 
@@ -512,7 +507,10 @@ export const projectService = {
    */
   async cancelGeneration(projectId: string, taskId?: string): Promise<void> {
     const params = taskId ? { task_id: taskId } : undefined;
-    await apiClient.post(`/projects/${projectId}/drafts/cancel`, null, { params });
+    const cancelQs = params ? new URLSearchParams(
+      Object.entries(params).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)])
+    ).toString() : '';
+    await api.post(`/projects/${projectId}/drafts/cancel${cancelQs ? `?${cancelQs}` : ''}`);
   },
 };
 

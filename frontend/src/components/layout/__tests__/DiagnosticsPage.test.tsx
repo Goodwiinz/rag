@@ -1,9 +1,17 @@
-import '@testing-library/jest-dom';
+import { describe, expect, it, vi } from 'vitest';
+import type { Mocked } from 'vitest';
+import '@testing-library/jest-dom/vitest';
 import { render, screen } from '@testing-library/react';
 
 import DiagnosticsPage from '../../../../app/(dashboard)/diagnostics/page';
 
-jest.mock('@/components/diagnostics/RetrievalDiagnosticsDashboard', () => ({
+vi.mock('@/stores/authStore', () => ({
+  useAuthStore: () => ({
+    user: { role: 'admin' },
+  }),
+}));
+
+vi.mock('@/components/diagnostics/RetrievalDiagnosticsDashboard', () => ({
   RetrievalDiagnosticsDashboard: () => <div>Mocked Diagnostics Dashboard</div>,
 }));
 
@@ -12,6 +20,8 @@ describe('Diagnostics page route', () => {
     render(<DiagnosticsPage />);
 
     expect(screen.getByTestId('diagnostics-page')).toBeInTheDocument();
-    expect(screen.getByText('Mocked Diagnostics Dashboard')).toBeInTheDocument();
+    expect(
+      screen.getByText('Mocked Diagnostics Dashboard')
+    ).toBeInTheDocument();
   });
 });

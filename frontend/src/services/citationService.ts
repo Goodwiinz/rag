@@ -3,7 +3,7 @@
  * API client for Research Assistant citation endpoints
  */
 
-import { apiClient } from './apiClient';
+import { api } from '@/services/api-client';
 import type {
   CitationCreate,
   CitationResponse,
@@ -34,14 +34,14 @@ export const citationService = {
     if (data.metadataSource) apiData.metadata_source = data.metadataSource;
     if (data.needsReview !== undefined) apiData.needs_review = data.needsReview;
 
-    return apiClient.post<CitationResponse>('/citations', apiData);
+    return api.post<CitationResponse>('/citations', apiData);
   },
 
   /**
    * Get a single citation by ID
    */
   async getCitation(citationId: string): Promise<CitationResponse> {
-    return apiClient.get<CitationResponse>(`/citations/${citationId}`);
+    return api.get<CitationResponse>(`/citations/${citationId}`);
   },
 
   /**
@@ -66,9 +66,10 @@ export const citationService = {
     if (params?.skip !== undefined) apiParams.skip = params.skip;
     if (params?.limit !== undefined) apiParams.limit = params.limit;
 
-    return apiClient.get<CitationListResponse>('/citations', {
-      params: apiParams,
-    });
+    const queryString = new URLSearchParams(
+      Object.entries(apiParams).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)])
+    ).toString();
+    return api.get<CitationListResponse>(`/citations${queryString ? `?${queryString}` : ''}`);
   },
 
   /**
@@ -104,7 +105,7 @@ export const citationService = {
     documentId?: string,
     strategy: string = 'auto'
   ): Promise<CitationResponse> {
-    return apiClient.post<CitationResponse>('/citations/extract', {
+    return api.post<CitationResponse>('/citations/extract', {
       document_id: documentId,
       strategy,
     });
@@ -125,9 +126,8 @@ export const citationService = {
     if (params.doi) queryParams.doi = params.doi;
     if (params.title) queryParams.title = params.title;
 
-    return apiClient.post<CitationResponse>('/citations/lookup', null, {
-      params: queryParams,
-    });
+    const qs = new URLSearchParams(queryParams).toString();
+    return api.post<CitationResponse>(`/citations/lookup${qs ? `?${qs}` : ''}`);
   },
 
   /**
@@ -142,15 +142,12 @@ export const citationService = {
     citationIds?: string[],
     projectId?: string
   ): Promise<string> {
-    return apiClient.post<string>(
+    return api.post<string>(
       '/citations/export',
       {
         format,
         citation_ids: citationIds,
         project_id: projectId,
-      },
-      {
-        responseType: 'text',
       }
     );
   },
@@ -203,14 +200,15 @@ export const citationService = {
     depth?: number;
     includeExternal?: boolean;
   }): Promise<GraphData> {
-    return apiClient.get<GraphData>('/citations/graph', {
-      params: {
+    const qs = new URLSearchParams(
+      Object.entries({
         project_id: params?.projectId,
         document_id: params?.documentId,
-        depth: params?.depth || 2,
-        include_external: params?.includeExternal ?? true,
-      },
-    });
+        depth: String(params?.depth || 2),
+        include_external: String(params?.includeExternal ?? true),
+      }).filter((entry): entry is [string, string] => entry[1] !== undefined && entry[1] !== 'undefined')
+    ).toString();
+    return api.get<GraphData>(`/citations/graph${qs ? `?${qs}` : ''}`);
   },
 
   /**
@@ -218,7 +216,7 @@ export const citationService = {
    * @param citationId - Citation ID to get details for
    */
   async getGraphNodeDetails(citationId: string): Promise<GraphNodeDetails> {
-    return apiClient.get<GraphNodeDetails>(
+    return api.get<GraphNodeDetails>(
       `/citations/graph/node/${citationId}`
     );
   },
@@ -233,15 +231,15 @@ export const citationService = {
     targetId?: string;
     relationshipType?: string;
   }): Promise<RelationshipsResponse> {
-    return apiClient.get<RelationshipsResponse>(
-      '/citations/relationships',
-      {
-        params: {
-          source_id: params?.sourceId,
-          target_id: params?.targetId,
-          relationship_type: params?.relationshipType,
-        },
-      }
+    const qs = new URLSearchParams(
+      Object.entries({
+        source_id: params?.sourceId,
+        target_id: params?.targetId,
+        relationship_type: params?.relationshipType,
+      }).filter(([, v]) => v !== undefined) as [string, string][]
+    ).toString();
+    return api.get<RelationshipsResponse>(
+      `/citations/relationships${qs ? `?${qs}` : ''}`
     );
   },
 
@@ -260,18 +258,17 @@ export const citationService = {
     citationContext?: string;
     confidence?: number;
   }): Promise<RelationshipResponse> {
-    return apiClient.post<RelationshipResponse>(
-      '/citations/relationships',
-      null,
-      {
-        params: {
-          source_citation_id: params.sourceCitationId,
-          target_citation_id: params.targetCitationId,
-          relationship_type: params.relationshipType || 'CITES',
-          citation_context: params.citationContext,
-          confidence: params.confidence || 1.0,
-        },
-      }
+    const qs = new URLSearchParams(
+      Object.entries({
+        source_citation_id: params.sourceCitationId,
+        target_citation_id: params.targetCitationId,
+        relationship_type: params.relationshipType || 'CITES',
+        citation_context: params.citationContext,
+        confidence: String(params.confidence || 1.0),
+      }).filter(([, v]) => v !== undefined) as [string, string][]
+    ).toString();
+    return api.post<RelationshipResponse>(
+      `/citations/relationships${qs ? `?${qs}` : ''}`
     );
   },
 };

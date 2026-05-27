@@ -1,4 +1,4 @@
-import axios, { AxiosInstance, AxiosResponse } from 'axios';
+import { api } from '@/services/api-client';
 import {
   AnalyticsMetric,
   TimeSeriesData,
@@ -8,10 +8,7 @@ import {
   Report,
   AlertRule,
 } from '@/stores/analytics';
-
-// API Configuration
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-const ANALYTICS_API_PREFIX = '/analytics';
+import type { GraphNode, GraphEdge } from '@/types/graph-api';
 
 // API Response Types
 interface ApiResponse<T> {
@@ -33,140 +30,91 @@ interface ApiError {
   details?: any;
 }
 
-// Request Configuration
-interface RequestConfig {
-  params?: Record<string, any>;
-  headers?: Record<string, string>;
-  timeout?: number;
+const ANALYTICS_API_PREFIX = '/analytics';
+
+/**
+ * Helper to make a request and extract the inner `.data` from the
+ * `{ success, data, message }` envelope the analytics backend returns.
+ */
+async function analyticsGet<T>(endpoint: string, queryParams?: Record<string, unknown>): Promise<T> {
+  let url = `${ANALYTICS_API_PREFIX}${endpoint}`;
+  if (queryParams) {
+    const params = new URLSearchParams();
+    Object.entries(queryParams).forEach(([key, value]) => {
+      if (value !== undefined && value !== null) {
+        if (typeof value === 'object') {
+          params.append(key, JSON.stringify(value));
+        } else {
+          params.append(key, String(value));
+        }
+      }
+    });
+    const qs = params.toString();
+    if (qs) url += `?${qs}`;
+  }
+  const response = await api.get<ApiResponse<T>>(url);
+  if (!response.success) {
+    throw new Error(response.message || 'API request failed');
+  }
+  return response.data;
 }
 
-// Create Axios Instance
-const createApiClient = (): AxiosInstance => {
-  const client = axios.create({
-    baseURL: `${API_BASE_URL}${ANALYTICS_API_PREFIX}`,
-    timeout: 30000,
-    headers: {
-      'Content-Type': 'application/json',
-    },
-  });
-
-  // Request Interceptor
-  client.interceptors.request.use(
-    (config) => {
-      // Add authentication token if available
-      const token = localStorage.getItem('authToken');
-      if (token) {
-        config.headers.Authorization = `Bearer ${token}`;
+async function analyticsPost<T>(endpoint: string, data?: unknown, queryParams?: Record<string, unknown>): Promise<T> {
+  let url = `${ANALYTICS_API_PREFIX}${endpoint}`;
+  if (queryParams) {
+    const params = new URLSearchParams();
+    Object.entries(queryParams).forEach(([key, value]) => {
+      if (value !== undefined && value !== null) {
+        if (typeof value === 'object') {
+          params.append(key, JSON.stringify(value));
+        } else {
+          params.append(key, String(value));
+        }
       }
-
-      // Add request timestamp
-      config.metadata = { startTime: new Date() };
-
-      return config;
-    },
-    (error) => {
-      return Promise.reject(error);
-    }
-  );
-
-  // Response Interceptor
-  client.interceptors.response.use(
-    (response: AxiosResponse) => {
-      // Log response time for monitoring
-      const endTime = new Date();
-      const duration = endTime.getTime() - response.config.metadata?.startTime?.getTime();
-
-      console.log(`API Response: ${response.config.method?.toUpperCase()} ${response.config.url} - ${duration}ms`);
-
-      return response;
-    },
-    (error) => {
-      // Handle common error scenarios
-      if (error.response?.status === 401) {
-        // Unauthorized - redirect to login
-        window.location.href = '/login';
-      } else if (error.response?.status === 429) {
-        // Rate limited
-        console.warn('API rate limit exceeded');
-      }
-
-      return Promise.reject(error);
-    }
-  );
-
-  return client;
-};
-
-const apiClient = createApiClient();
-
-// Base API Class
-abstract class BaseApiService {
-  protected client: AxiosInstance;
-
-  constructor() {
-    this.client = apiClient;
+    });
+    const qs = params.toString();
+    if (qs) url += `?${qs}`;
   }
-
-  protected async request<T>(
-    method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH',
-    endpoint: string,
-    data?: any,
-    config?: RequestConfig
-  ): Promise<T> {
-    try {
-      const response = await this.client.request<ApiResponse<T>>({
-        method,
-        url: endpoint,
-        data,
-        params: config?.params,
-        headers: config?.headers,
-        timeout: config?.timeout,
-      });
-
-      if (!response.data.success) {
-        throw new Error(response.data.message || 'API request failed');
-      }
-
-      return response.data.data;
-    } catch (error: any) {
-      if (error.response?.data) {
-        const apiError: ApiError = error.response.data;
-        throw new Error(apiError.error || apiError.message || 'API request failed');
-      }
-      throw error;
-    }
+  const response = await api.post<ApiResponse<T>>(url, data);
+  if (!response.success) {
+    throw new Error(response.message || 'API request failed');
   }
+  return response.data;
+}
 
-  protected get<T>(endpoint: string, config?: RequestConfig): Promise<T> {
-    return this.request<T>('GET', endpoint, undefined, config);
+async function analyticsPatch<T>(endpoint: string, data?: unknown): Promise<T> {
+  const response = await api.patch<ApiResponse<T>>(`${ANALYTICS_API_PREFIX}${endpoint}`, data);
+  if (!response.success) {
+    throw new Error(response.message || 'API request failed');
   }
+  return response.data;
+}
 
-  protected post<T>(endpoint: string, data?: any, config?: RequestConfig): Promise<T> {
-    return this.request<T>('POST', endpoint, data, config);
+async function analyticsPut<T>(endpoint: string, data?: unknown): Promise<T> {
+  const response = await api.put<ApiResponse<T>>(`${ANALYTICS_API_PREFIX}${endpoint}`, data);
+  if (!response.success) {
+    throw new Error(response.message || 'API request failed');
   }
+  return response.data;
+}
 
-  protected put<T>(endpoint: string, data?: any, config?: RequestConfig): Promise<T> {
-    return this.request<T>('PUT', endpoint, data, config);
+async function analyticsDelete<T>(endpoint: string): Promise<T> {
+  const response = await api.delete<ApiResponse<T>>(`${ANALYTICS_API_PREFIX}${endpoint}`);
+  if (!response.success) {
+    throw new Error(response.message || 'API request failed');
   }
-
-  protected patch<T>(endpoint: string, data?: any, config?: RequestConfig): Promise<T> {
-    return this.request<T>('PATCH', endpoint, data, config);
-  }
-
-  protected delete<T>(endpoint: string, config?: RequestConfig): Promise<T> {
-    return this.request<T>('DELETE', endpoint, undefined, config);
-  }
+  return response.data;
 }
 
 // Metrics API Service
-export class MetricsApiService extends BaseApiService {
+export class MetricsApiService {
   async getMetrics(timeRange?: { start: string; end: string }): Promise<AnalyticsMetric[]> {
     const params = timeRange ? { timeRange } : {};
-    return this.get<AnalyticsMetric[]>('/metrics', { params });
+    return analyticsGet<AnalyticsMetric[]>('/metrics', params);
   }
 
   async getMetric(metricId: string): Promise<AnalyticsMetric> {
-    return this.get<AnalyticsMetric>(`/metrics/${metricId}`);
+    return analyticsGet<AnalyticsMetric>(`/metrics/${metricId}`);
   }
 
   async getTimeSeriesData(
@@ -178,19 +126,19 @@ export class MetricsApiService extends BaseApiService {
       ...(timeRange && { timeRange }),
       ...(granularity && { granularity }),
     };
-    return this.get<TimeSeriesData[]>(`/metrics/${metricId}/timeseries`, { params });
+    return analyticsGet<TimeSeriesData[]>(`/metrics/${metricId}/timeseries`, params);
   }
 
   async createMetric(metric: Omit<AnalyticsMetric, 'id'>): Promise<AnalyticsMetric> {
-    return this.post<AnalyticsMetric>('/metrics', metric);
+    return analyticsPost<AnalyticsMetric>('/metrics', metric);
   }
 
   async updateMetric(metricId: string, updates: Partial<AnalyticsMetric>): Promise<AnalyticsMetric> {
-    return this.patch<AnalyticsMetric>(`/metrics/${metricId}`, updates);
+    return analyticsPatch<AnalyticsMetric>(`/metrics/${metricId}`, updates);
   }
 
   async deleteMetric(metricId: string): Promise<void> {
-    return this.delete<void>(`/metrics/${metricId}`);
+    return analyticsDelete<void>(`/metrics/${metricId}`);
   }
 
   async getAggregatedMetrics(
@@ -203,12 +151,12 @@ export class MetricsApiService extends BaseApiService {
       aggregation,
       ...(timeRange && { timeRange }),
     };
-    return this.get<AnalyticsMetric>('/metrics/aggregate', { params });
+    return analyticsGet<AnalyticsMetric>('/metrics/aggregate', params);
   }
 }
 
 // Graph API Service
-export class GraphApiService extends BaseApiService {
+export class GraphApiService {
   async getGraphData(filters?: {
     nodeTypes?: string[];
     edgeTypes?: string[];
@@ -217,25 +165,25 @@ export class GraphApiService extends BaseApiService {
     limit?: number;
   }): Promise<GraphData> {
     const params = filters || {};
-    return this.get<GraphData>('/graph', { params });
+    return analyticsGet<GraphData>('/graph', params);
   }
 
   async getNode(nodeId: string): Promise<GraphNode> {
-    return this.get<GraphNode>(`/graph/nodes/${nodeId}`);
+    return analyticsGet<GraphNode>(`/graph/nodes/${nodeId}`);
   }
 
   async getEdge(edgeId: string): Promise<GraphEdge> {
-    return this.get<GraphEdge>(`/graph/edges/${edgeId}`);
+    return analyticsGet<GraphEdge>(`/graph/edges/${edgeId}`);
   }
 
   async searchNodes(query: string, limit?: number): Promise<GraphNode[]> {
     const params = { query, limit };
-    return this.get<GraphNode[]>('/graph/nodes/search', { params });
+    return analyticsGet<GraphNode[]>('/graph/nodes/search', params);
   }
 
   async getNodeNeighbors(nodeId: string, depth?: number): Promise<GraphData> {
     const params = { depth };
-    return this.get<GraphData>(`/graph/nodes/${nodeId}/neighbors`, { params });
+    return analyticsGet<GraphData>(`/graph/nodes/${nodeId}/neighbors`, params);
   }
 
   async getGraphStatistics(): Promise<{
@@ -246,7 +194,7 @@ export class GraphApiService extends BaseApiService {
     density: number;
     averageDegree: number;
   }> {
-    return this.get<any>('/graph/statistics');
+    return analyticsGet<any>('/graph/statistics');
   }
 
   async getGraphLayout(layout: 'force' | 'hierarchical' | 'circular'): Promise<{
@@ -254,102 +202,102 @@ export class GraphApiService extends BaseApiService {
     edges: Array<{ id: string; source: string; target: string }>;
   }> {
     const params = { layout };
-    return this.get<any>('/graph/layout', { params });
+    return analyticsGet<any>('/graph/layout', params);
   }
 
   async detectCommunities(algorithm?: 'louvain' | 'label-propagation' | 'walktrap'): Promise<Record<string, string[]>> {
     const params = { algorithm };
-    return this.get<Record<string, string[]>>('/graph/communities', { params });
+    return analyticsGet<Record<string, string[]>>('/graph/communities', params);
   }
 
   async calculateCentrality(
     type: 'degree' | 'betweenness' | 'closeness' | 'eigenvector' | 'pagerank'
   ): Promise<Record<string, number>> {
     const params = { type };
-    return this.get<Record<string, number>>('/graph/centrality', { params });
+    return analyticsGet<Record<string, number>>('/graph/centrality', params);
   }
 
   async findShortestPath(sourceId: string, targetId: string): Promise<string[]> {
     const params = { source: sourceId, target: targetId };
-    return this.get<string[]>('/graph/shortest-path', { params });
+    return analyticsGet<string[]>('/graph/shortest-path', params);
   }
 }
 
 // Dashboard API Service
-export class DashboardApiService extends BaseApiService {
+export class DashboardApiService {
   async getDashboards(): Promise<Dashboard[]> {
-    return this.get<Dashboard[]>('/dashboards');
+    return analyticsGet<Dashboard[]>('/dashboards');
   }
 
   async getDashboard(dashboardId: string): Promise<Dashboard> {
-    return this.get<Dashboard>(`/dashboards/${dashboardId}`);
+    return analyticsGet<Dashboard>(`/dashboards/${dashboardId}`);
   }
 
   async createDashboard(dashboard: Omit<Dashboard, 'id' | 'createdAt' | 'updatedAt'>): Promise<Dashboard> {
-    return this.post<Dashboard>('/dashboards', dashboard);
+    return analyticsPost<Dashboard>('/dashboards', dashboard);
   }
 
   async updateDashboard(dashboardId: string, updates: Partial<Dashboard>): Promise<Dashboard> {
-    return this.patch<Dashboard>(`/dashboards/${dashboardId}`, updates);
+    return analyticsPatch<Dashboard>(`/dashboards/${dashboardId}`, updates);
   }
 
   async deleteDashboard(dashboardId: string): Promise<void> {
-    return this.delete<void>(`/dashboards/${dashboardId}`);
+    return analyticsDelete<void>(`/dashboards/${dashboardId}`);
   }
 
   async duplicateDashboard(dashboardId: string, name: string): Promise<Dashboard> {
-    return this.post<Dashboard>(`/dashboards/${dashboardId}/duplicate`, { name });
+    return analyticsPost<Dashboard>(`/dashboards/${dashboardId}/duplicate`, { name });
   }
 
   async addWidget(dashboardId: string, widget: Omit<Widget, 'id' | 'lastUpdated' | 'isRefreshing'>): Promise<Widget> {
-    return this.post<Widget>(`/dashboards/${dashboardId}/widgets`, widget);
+    return analyticsPost<Widget>(`/dashboards/${dashboardId}/widgets`, widget);
   }
 
   async updateWidget(widgetId: string, updates: Partial<Widget>): Promise<Widget> {
-    return this.patch<Widget>(`/widgets/${widgetId}`, updates);
+    return analyticsPatch<Widget>(`/widgets/${widgetId}`, updates);
   }
 
   async deleteWidget(widgetId: string): Promise<void> {
-    return this.delete<void>(`/widgets/${widgetId}`);
+    return analyticsDelete<void>(`/widgets/${widgetId}`);
   }
 
   async refreshWidget(widgetId: string): Promise<Widget> {
-    return this.post<Widget>(`/widgets/${widgetId}/refresh`);
+    return analyticsPost<Widget>(`/widgets/${widgetId}/refresh`);
   }
 
   async getWidgetData(widgetId: string): Promise<any> {
-    return this.get<any>(`/widgets/${widgetId}/data`);
+    return analyticsGet<any>(`/widgets/${widgetId}/data`);
   }
 }
 
 // Report API Service
-export class ReportApiService extends BaseApiService {
+export class ReportApiService {
   async getReports(): Promise<Report[]> {
-    return this.get<Report[]>('/reports');
+    return analyticsGet<Report[]>('/reports');
   }
 
   async getReport(reportId: string): Promise<Report> {
-    return this.get<Report>(`/reports/${reportId}`);
+    return analyticsGet<Report>(`/reports/${reportId}`);
   }
 
   async createReport(report: Omit<Report, 'id'>): Promise<Report> {
-    return this.post<Report>('/reports', report);
+    return analyticsPost<Report>('/reports', report);
   }
 
   async updateReport(reportId: string, updates: Partial<Report>): Promise<Report> {
-    return this.patch<Report>(`/reports/${reportId}`, updates);
+    return analyticsPatch<Report>(`/reports/${reportId}`, updates);
   }
 
   async deleteReport(reportId: string): Promise<void> {
-    return this.delete<void>(`/reports/${reportId}`);
+    return analyticsDelete<void>(`/reports/${reportId}`);
   }
 
   async generateReport(reportId: string, format?: 'pdf' | 'csv' | 'json'): Promise<{
     downloadUrl: string;
     expiresAt: string;
   }> {
-    const params = { format };
-    return this.post<any>(`/reports/${reportId}/generate`, undefined, { params });
+    const params = format ? { format } : {};
+    return analyticsPost<any>(`/reports/${reportId}/generate`, undefined, params);
   }
 
   async getReportTemplates(): Promise<Array<{
@@ -358,7 +306,7 @@ export class ReportApiService extends BaseApiService {
     description: string;
     config: any;
   }>> {
-    return this.get<any[]>('/reports/templates');
+    return analyticsGet<any[]>('/reports/templates');
   }
 
   async scheduleReport(reportId: string, schedule: {
@@ -366,7 +314,7 @@ export class ReportApiService extends BaseApiService {
     time: string;
     enabled: boolean;
   }): Promise<void> {
-    return this.post<void>(`/reports/${reportId}/schedule`, schedule);
+    return analyticsPost<void>(`/reports/${reportId}/schedule`, schedule);
   }
 
   async getReportHistory(reportId: string): Promise<Array<{
@@ -376,30 +324,30 @@ export class ReportApiService extends BaseApiService {
     status: 'completed' | 'failed' | 'pending';
     downloadUrl?: string;
   }>> {
-    return this.get<any[]>(`/reports/${reportId}/history`);
+    return analyticsGet<any[]>(`/reports/${reportId}/history`);
   }
 }
 
 // Alert API Service
-export class AlertApiService extends BaseApiService {
+export class AlertApiService {
   async getAlertRules(): Promise<AlertRule[]> {
-    return this.get<AlertRule[]>('/alerts/rules');
+    return analyticsGet<AlertRule[]>('/alerts/rules');
   }
 
   async createAlertRule(rule: Omit<AlertRule, 'id'>): Promise<AlertRule> {
-    return this.post<AlertRule>('/alerts/rules', rule);
+    return analyticsPost<AlertRule>('/alerts/rules', rule);
   }
 
   async updateAlertRule(ruleId: string, updates: Partial<AlertRule>): Promise<AlertRule> {
-    return this.patch<AlertRule>(`/alerts/rules/${ruleId}`, updates);
+    return analyticsPatch<AlertRule>(`/alerts/rules/${ruleId}`, updates);
   }
 
   async deleteAlertRule(ruleId: string): Promise<void> {
-    return this.delete<void>(`/alerts/rules/${ruleId}`);
+    return analyticsDelete<void>(`/alerts/rules/${ruleId}`);
   }
 
   async toggleAlertRule(ruleId: string): Promise<AlertRule> {
-    return this.patch<AlertRule>(`/alerts/rules/${ruleId}/toggle`);
+    return analyticsPatch<AlertRule>(`/alerts/rules/${ruleId}/toggle`);
   }
 
   async testAlertRule(ruleId: string): Promise<{
@@ -407,25 +355,25 @@ export class AlertApiService extends BaseApiService {
     value: number;
     threshold: number;
   }> {
-    return this.post<any>(`/alerts/rules/${ruleId}/test`);
+    return analyticsPost<any>(`/alerts/rules/${ruleId}/test`);
   }
 
   async getActiveAlerts(limit?: number): Promise<any[]> {
-    const params = { limit };
-    return this.get<any[]>('/alerts', { params });
+    const params = limit !== undefined ? { limit } : {};
+    return analyticsGet<any[]>('/alerts', params);
   }
 
   async acknowledgeAlert(alertId: string): Promise<void> {
-    return this.post<void>(`/alerts/${alertId}/acknowledge`);
+    return analyticsPost<void>(`/alerts/${alertId}/acknowledge`);
   }
 
   async resolveAlert(alertId: string): Promise<void> {
-    return this.post<void>(`/alerts/${alertId}/resolve`);
+    return analyticsPost<void>(`/alerts/${alertId}/resolve`);
   }
 }
 
 // Export API Service
-export class ExportApiService extends BaseApiService {
+export class ExportApiService {
   async exportData(
     type: 'metrics' | 'graph' | 'reports' | 'dashboards',
     format: 'json' | 'csv' | 'xlsx' | 'pdf',
@@ -436,7 +384,7 @@ export class ExportApiService extends BaseApiService {
     expiresAt: string;
   }> {
     const params = { type, format, ...filters };
-    return this.post<any>('/export', undefined, { params });
+    return analyticsPost<any>('/export', undefined, params);
   }
 
   async getExportStatus(exportId: string): Promise<{
@@ -445,14 +393,13 @@ export class ExportApiService extends BaseApiService {
     downloadUrl?: string;
     error?: string;
   }> {
-    return this.get<any>(`/export/${exportId}/status`);
+    return analyticsGet<any>(`/export/${exportId}/status`);
   }
 
   async downloadExport(exportId: string): Promise<Blob> {
-    const response = await this.client.get(`/export/${exportId}/download`, {
-      responseType: 'blob',
+    return api.request(`${ANALYTICS_API_PREFIX}/export/${exportId}/download`, {
+      method: 'GET',
     });
-    return response.data;
   }
 }
 
@@ -463,9 +410,6 @@ export const dashboardApi = new DashboardApiService();
 export const reportApi = new ReportApiService();
 export const alertApi = new AlertApiService();
 export const exportApi = new ExportApiService();
-
-// Export base class for custom implementations
-export { BaseApiService };
 
 // Utility functions
 export const createApiError = (message: string, code?: string, details?: any): ApiError => ({

@@ -17,6 +17,35 @@ import pytest
 pytestmark = [pytest.mark.asyncio, pytest.mark.unit]
 
 
+@pytest.fixture(autouse=True)
+def _clear_qdrant_cache():
+    """Reset the module-level Qdrant client cache and fix stubbed qdrant_client.
+
+    test_sandbox.py replaces qdrant_client in sys.modules with a bare ModuleType
+    stub at collection time.  save_memory() does a deferred
+    ``from qdrant_client.models import PointStruct`` which fails against the
+    stub.  Re-import the real package here so that deferred import succeeds.
+    """
+    import importlib, sys
+    from src.services.agent import memory_store
+
+    memory_store._QDRANT_CLIENT = None
+
+    _saved = {}
+    for key in list(sys.modules):
+        if key == "qdrant_client" or key.startswith("qdrant_client."):
+            mod = sys.modules[key]
+            if not getattr(mod, "__file__", None):
+                _saved[key] = sys.modules.pop(key)
+
+    if _saved:
+        importlib.import_module("qdrant_client")
+
+    yield
+
+    memory_store._QDRANT_CLIENT = None
+
+
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------

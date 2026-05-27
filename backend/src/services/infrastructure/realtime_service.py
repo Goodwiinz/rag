@@ -469,6 +469,17 @@ class EventProcessor:
             await self.connection_manager.broadcast(message)
 
 
+# Store background task references to prevent garbage collection
+_background_tasks: set[asyncio.Task] = set()
+
+
+def _fire_and_forget(coro):
+    task = asyncio.create_task(coro)
+    _background_tasks.add(task)
+    task.add_done_callback(_background_tasks.discard)
+    return task
+
+
 # Initialize services
 connection_manager = ConnectionManager()
 notification_service = NotificationService(connection_manager)
@@ -489,9 +500,9 @@ async def startup_event():
     )  # Would check actual Redis connection
 
     # Start background tasks
-    asyncio.create_task(event_processor.start_listening())
-    asyncio.create_task(heartbeat_monitor())
-    asyncio.create_task(cleanup_stale_connections())
+    _fire_and_forget(event_processor.start_listening())
+    _fire_and_forget(heartbeat_monitor())
+    _fire_and_forget(cleanup_stale_connections())
 
 
 @app.websocket("/ws")

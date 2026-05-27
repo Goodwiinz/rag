@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Loader2, Plus, X } from 'lucide-react';
 import type { ProjectCreate } from '@/services/projectService';
+import { getApiErrorMessage } from '@/utils/apiErrorMessage';
 
 type CreateProjectPayload = Omit<ProjectCreate, 'workspace_id'>;
 
@@ -25,6 +26,7 @@ export function CreateProjectModal({
   const [tagInput, setTagInput] = useState('');
   const [tags, setTags] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
@@ -46,6 +48,7 @@ export function CreateProjectModal({
     setDeadline('');
     setTagInput('');
     setTags([]);
+    setSubmitError(null);
   };
 
   const handleClose = () => {
@@ -67,6 +70,9 @@ export function CreateProjectModal({
       });
       reset();
       onClose();
+    } catch (err) {
+      const message = getApiErrorMessage(err, 'Failed to create project');
+      setSubmitError(message);
     } finally {
       setSubmitting(false);
     }
@@ -95,7 +101,10 @@ export function CreateProjectModal({
             <input
               type="text"
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(e) => {
+                setName(e.target.value);
+                setSubmitError(null);
+              }}
               placeholder="e.g., ML Healthcare"
               className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#333] rounded text-sm font-mono text-gray-300 placeholder-gray-600 focus:outline-none focus:border-sol"
               autoFocus
@@ -191,6 +200,10 @@ export function CreateProjectModal({
             )}
           </div>
         </div>
+
+        {submitError && (
+          <p className="mt-4 text-sm font-mono text-red-400">{submitError}</p>
+        )}
 
         <div className="flex justify-end gap-3 mt-6">
           <button

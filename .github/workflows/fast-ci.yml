@@ -25,14 +25,14 @@ jobs:
       NPM_CONFIG_CACHE: ${{ github.workspace }}/.npm-cache
       PIP_CACHE_DIR: ${{ github.workspace }}/.pip-cache
     steps:
-      - uses: actions/checkout@v6
-      
+      - uses: actions/checkout@v6.0.2
+
       - name: Setup Python
         run: |
           python3 --version
           pip3 install ruff black isort --quiet --user
           export PATH="$HOME/.local/bin:$PATH"
-      
+
       - name: Backend Lint
         working-directory: backend
         continue-on-error: true
@@ -40,7 +40,7 @@ jobs:
           export PATH="$HOME/.local/bin:$PATH"
           echo "Running ruff..."
           ruff check src/ --output-format=concise 2>/dev/null || echo "Ruff found issues"
-          
+
       - name: Frontend Lint
         working-directory: frontend
         continue-on-error: true
@@ -56,14 +56,14 @@ jobs:
       NPM_CONFIG_CACHE: ${{ github.workspace }}/.npm-cache
       PIP_CACHE_DIR: ${{ github.workspace }}/.pip-cache
     steps:
-      - uses: actions/checkout@v6
-      
+      - uses: actions/checkout@v6.0.2
+
       - name: Install Dependencies
         working-directory: backend
         run: |
           pip3 install -r requirements.txt --quiet --user 2>/dev/null || true
           pip3 install pytest pytest-cov --quiet --user
-          
+
       - name: Run Tests
         working-directory: backend
         continue-on-error: true
@@ -79,8 +79,8 @@ jobs:
       NPM_CONFIG_CACHE: ${{ github.workspace }}/.npm-cache
       PIP_CACHE_DIR: ${{ github.workspace }}/.pip-cache
     steps:
-      - uses: actions/checkout@v6
-      
+      - uses: actions/checkout@v6.0.2
+
       - name: Install & Test
         working-directory: frontend
         continue-on-error: true
@@ -89,10 +89,44 @@ jobs:
           npm run type-check 2>/dev/null || echo "Type check done"
           npm test -- --passWithNoTests 2>/dev/null || echo "Tests done"
 
+  test-frontend-vitest:
+    name: Frontend Tests (Vitest)
+    runs-on: ${{ github.event.inputs.runner || vars.FAST_CI_RUNNER || 'ubuntu-latest' }}
+    steps:
+      - uses: actions/checkout@v6.0.2
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 9
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Install
+        working-directory: frontend
+        run: pnpm install --frozen-lockfile
+
+      - name: Run Vitest
+        working-directory: frontend
+        run: pnpm test
+
+      - name: Upload JUnit
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: vitest-junit
+          path: frontend/coverage/junit-vitest.xml
+          if-no-files-found: ignore
+
   summary:
     name: CI Summary
     runs-on: ${{ github.event.inputs.runner || vars.FAST_CI_RUNNER || 'ubuntu-latest' }}
-    needs: [lint, test-backend, test-frontend]
+    needs: [lint, test-backend, test-frontend, test-frontend-vitest]
     if: always()
     env:
       RUNNER_LABEL: ${{ github.event.inputs.runner || vars.FAST_CI_RUNNER || 'ubuntu-latest' }}

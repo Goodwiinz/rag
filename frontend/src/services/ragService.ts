@@ -15,7 +15,7 @@
  * - Conversation history trimming for small models
  */
 
-import { apiClient } from './apiClient';
+import { api } from '@/services/api-client';
 import { citationService } from './citationService';
 import type { CitationCreate } from '@/types/research';
 
@@ -279,7 +279,7 @@ export async function retrieveRAGContext(
   try {
     console.log('[RAG] Calling /search/hybrid with query:', query);
 
-    const response = await apiClient.post<{
+    const response = await api.post<{
       query: string;
       search_id: string;
       total_results: number;

@@ -1,15 +1,16 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, fireEvent } from '@/test/test-utils';
 import { ProjectChatWidget } from '../ProjectChatWidget';
 
 // Mock ChatPanel sub-component
-jest.mock('../ChatPanel', () => ({
+vi.mock('../ChatPanel', () => ({
   ChatPanel: (props: Record<string, unknown>) => (
     <div data-testid="chat-panel" data-props={JSON.stringify(props)} />
   ),
 }));
 
 // Mock lucide-react icons
-jest.mock('lucide-react', () => ({
+vi.mock('lucide-react', () => ({
   MessageSquare: (props: React.SVGAttributes<SVGElement>) => (
     <svg data-testid="icon-message-square" {...props} />
   ),
@@ -27,18 +28,18 @@ const mockWidget = {
   hasUnread: false,
   threadId: null,
   conversationId: null,
-  open: jest.fn(),
-  close: jest.fn(),
-  toggle: jest.fn(),
-  toggleChip: jest.fn(),
-  toggleAllChips: jest.fn(),
-  setInputValue: jest.fn(),
-  sendMessage: jest.fn().mockResolvedValue(undefined),
-  clearMessages: jest.fn(),
+  open: vi.fn(),
+  close: vi.fn(),
+  toggle: vi.fn(),
+  toggleChip: vi.fn(),
+  toggleAllChips: vi.fn(),
+  setInputValue: vi.fn(),
+  sendMessage: vi.fn().mockResolvedValue(undefined),
+  clearMessages: vi.fn(),
 };
 
-jest.mock('@/hooks/useProjectChatWidget', () => ({
-  useProjectChatWidget: jest.fn(() => mockWidget),
+vi.mock('@/hooks/useProjectChatWidget', () => ({
+  useProjectChatWidget: vi.fn(() => mockWidget),
 }));
 
 describe('ProjectChatWidget', () => {
@@ -48,7 +49,7 @@ describe('ProjectChatWidget', () => {
   };
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     // Reset mockWidget to defaults
     mockWidget.isOpen = false;
     mockWidget.hasUnread = false;

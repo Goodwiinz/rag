@@ -25,7 +25,7 @@ class Settings(BaseSettings):
     APP_NAME: str = "Multimodal Enterprise RAG System"
     VERSION: str = "1.0.0"
     ENVIRONMENT: str = "development"
-    DEBUG: bool = True
+    DEBUG: bool = False
     SECRET_KEY: str = ""
 
     # CORS Configuration (comma-separated string from env, parsed to list)
@@ -88,9 +88,26 @@ class Settings(BaseSettings):
     NEO4J_USER: str = "neo4j"
     NEO4J_PASSWORD: str = ""
 
-    # Qdrant Configuration
-    QDRANT_URL: str = "http://localhost:6333"
+    # Qdrant — DEPRECATED. Retained as optional settings so legacy services
+    # in src/services/search/* still import; no runtime cluster expected.
+    QDRANT_URL: Optional[str] = None
     QDRANT_API_KEY: Optional[str] = None
+
+    # DigitalOcean Knowledge Base (GenAI Platform / GradientAI)
+    # Public Preview — API may churn. One KB per organization.
+    DO_KB_ENABLED: bool = False
+    DO_KB_SHADOW_READ: bool = False  # Phase 4a: dual-read for eval, no user impact
+    DO_KB_PRIMARY_READ: bool = False  # Phase 4b: DO KB serves reads, Qdrant fallback
+    DO_API_TOKEN: Optional[str] = None
+    DO_KB_REGION: Optional[str] = None  # e.g. "tor1", "nyc3"
+    DO_KB_PROJECT_ID: Optional[str] = None
+    DO_KB_EMBEDDING_MODEL_UUID: Optional[str] = None
+    DO_KB_API_HOST: str = "https://api.digitalocean.com"
+    DO_KB_RETRIEVE_HOST: str = "https://kbaas.do-ai.run"
+    DO_KB_DEFAULT_TOP_K: int = 8
+    DO_KB_RETRIEVE_ALPHA: Optional[float] = 0.5
+    DO_KB_REQUEST_TIMEOUT_SECONDS: float = 30.0
+    DO_KB_INDEXING_TIMEOUT_SECONDS: float = 120.0
 
     # JWT Configuration
     JWT_SECRET_KEY: str = ""
@@ -99,12 +116,32 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7  # Default refresh token lifetime
     REMEMBER_ME_REFRESH_TOKEN_DAYS: int = 30  # Extended session for "Remember Me"
+    CLI_TOKEN_EXPIRE_DAYS: int = 30  # Long-lived CLI device tokens
+
+    @model_validator(mode="after")
+    def _enforce_debug_off_in_prod(self):
+        """Never allow DEBUG=True in production or staging."""
+        if self.ENVIRONMENT in ("production", "staging"):
+            self.DEBUG = False
+        return self
 
     @model_validator(mode="after")
     def _override_database_url_from_supabase(self):
         """Override DATABASE_URL when SUPABASE_DB_URL is set."""
         if self.SUPABASE_DB_URL:
             self.DATABASE_URL = self.SUPABASE_DB_URL
+        # Validate final DATABASE_URL (allow sqlite in testing)
+        allowed_prefixes = ("postgresql://", "postgresql+asyncpg://")
+        if self.ENVIRONMENT == "testing":
+            allowed_prefixes = ("postgresql://", "postgresql+asyncpg://", "sqlite://")
+        if not self.DATABASE_URL.startswith(allowed_prefixes):
+            raise ValueError(
+                "DATABASE_URL must start with postgresql:// or postgresql+asyncpg://"
+            )
+        if self.ENVIRONMENT in ("production", "staging") and "localhost" in self.DATABASE_URL:
+            raise ValueError(
+                "DATABASE_URL must not point to localhost in production/staging"
+            )
         return self
 
     @field_validator("SECRET_KEY", mode="before")
@@ -137,15 +174,12 @@ class Settings(BaseSettings):
     @classmethod
     def validate_jwt_secret_key(cls, v, info):
         """Validate JWT_SECRET_KEY - require in production, generate for dev."""
-        # Allow the docker-compose default for development persistence
-        if v == "dev-jwt-persistent-secret-key-32chars!":
-            return v
-
         weak_patterns = [
             "change-in-production",
             "your-secret",
             "changeme",
             "jwt-secret",
+            "dev-jwt-persistent",
         ]
         is_weak = not v or any(
             pattern in (v or "").lower() for pattern in weak_patterns
@@ -155,10 +189,10 @@ class Settings(BaseSettings):
             env = os.getenv("ENVIRONMENT", "development")
             if env in ("production", "staging"):
                 raise ValueError(
-                    "JWT_SECRET_KEY must be set to a strong value in production/staging"
+                    "JWT_SECRET_KEY must be set to a strong value in production/staging. "
+                    "Generate one with: python -c 'import secrets; print(secrets.token_urlsafe(48))'"
                 )
-            # In development without explicit config, use docker-compose default
-            return "dev-jwt-persistent-secret-key-32chars!"
+            return _generate_dev_secret()
         if len(v) < 32:
             raise ValueError("JWT_SECRET_KEY must be at least 32 characters")
         return v
@@ -181,7 +215,19 @@ class Settings(BaseSettings):
     MAX_FILE_SIZE_MB: int = 10
     FREE_TIER_STORAGE_GB: int = 10
 
-    # Supabase Storage
+    # Storage Backend: "local", "s3", or "supabase"
+    STORAGE_BACKEND: str = "local"
+
+    # S3-Compatible Object Storage (DigitalOcean Spaces)
+    S3_ENDPOINT_URL: Optional[str] = None  # https://nyc3.digitaloceanspaces.com
+    S3_ACCESS_KEY: Optional[str] = None
+    S3_SECRET_KEY: Optional[str] = None
+    S3_BUCKET_NAME: str = "rag-system-storage"
+    S3_REGION: str = "nyc3"
+    S3_CDN_ENDPOINT: Optional[str] = None  # https://rag-system-storage.nyc3.cdn.digitaloceanspaces.com
+    S3_STORAGE_TEMP_DIR: str = "/tmp/rag_s3_storage"
+
+    # Supabase Storage (legacy)
     SUPABASE_STORAGE_ENABLED: bool = False
     SUPABASE_STORAGE_TEMP_DIR: str = "/tmp/rag_storage"
 
@@ -220,11 +266,65 @@ class Settings(BaseSettings):
     AZURE_OPENAI_CHAT_API_KEY: Optional[str] = None
     AZURE_OPENAI_EMBEDDING_API_KEY: Optional[str] = None
 
+    # Lightweight model for auxiliary agent tasks (classifier, compactor, etc.)
+    AZURE_OPENAI_LIGHTWEIGHT_DEPLOYMENT: Optional[str] = None
+
+    # Optional separate deployment for post-tool prose synthesis. Falls back
+    # to AZURE_OPENAI_LIGHTWEIGHT_DEPLOYMENT when unset. Use a slightly
+    # stronger model here (e.g. gpt-5-mini) while keeping classifier/planner
+    # on nano. Cheap tier for routing, mid tier for final-answer quality.
+    AZURE_OPENAI_SYNTHESIS_DEPLOYMENT: Optional[str] = None
+
+    # gpt-5 reasoning_effort knobs. Lower = faster.
+    # Accepted values: "minimal" | "low" | "medium" | "high"
+    # Defaults tuned for fast responses; raise to "medium" for tougher tasks.
+    AGENT_MAIN_REASONING_EFFORT: str = "low"
+    AGENT_LIGHTWEIGHT_REASONING_EFFORT: str = "minimal"
+
+    # Bound Azure LLM call wall-clock to prevent model-router hangs. LangSmith
+    # has observed traces with end_time=null blocking root for 70s+. Default
+    # 60s for main agent LLM (synthesis can be long), 30s for lightweight
+    # auxiliary calls (classifier/planner/reflection — should be fast).
+    AGENT_LLM_REQUEST_TIMEOUT: float = 60.0
+    AGENT_LIGHTWEIGHT_REQUEST_TIMEOUT: float = 30.0
+    AGENT_LLM_MAX_RETRIES: int = 2
+
+    # When True, post-tool synthesis turns (final-answer LLM call right after
+    # a ToolMessage) use the lightweight deployment instead of the main one.
+    # Cuts ~5-15s/turn on read-heavy queries like arxiv search results.
+    AGENT_LIGHTWEIGHT_SYNTHESIS: bool = True
+
+    # Run the insight-extraction pass every N user turns inside memory_save_node.
+    # 0 disables. Default 5: cheap enough to not bloat token spend, frequent
+    # enough to keep recall surface useful within a session.
+    AGENT_INSIGHT_EVERY_N_TURNS: int = 5
+
+    # When False, the agent LLM emits at most one tool_call per turn. gpt-5
+    # fires runaway parallel batches by default (trace 019e18f0: 5-6 parallel
+    # search_arxiv per round, 13+ total over 4 rounds, 95s wall). Flip to
+    # True only when comparing two documents in parallel is the explicit
+    # user intent.
+    AGENT_PARALLEL_TOOL_CALLS: bool = False
+
+    # Per-turn append-only iteration ledger (K-Dense rowan-autosearch
+    # pattern). When AGENT_LEDGER_DIR is set, every memory_save_node turn
+    # writes runs/<thread_id>/iterations/<turn_n>.json with a full audit
+    # record (intent, plan, tool_executions, retrieved_contexts summary,
+    # ai_response, reflection_result, tokens, timing). Empty disables.
+    AGENT_LEDGER_DIR: Optional[str] = None
+
     # Azure AI Cohere Reranking Configuration
     COHERE_RERANK_ENDPOINT: Optional[str] = None
     COHERE_RERANK_API_KEY: Optional[str] = None
     COHERE_RERANK_MODEL: str = "Cohere-rerank-v4.0-pro"
     COHERE_RERANK_TOP_N: int = 10
+
+    # Cohere Embedding Configuration
+    COHERE_EMBED_ENDPOINT: Optional[str] = None  # https://api.cohere.com/v2/embed
+    COHERE_EMBED_API_KEY: Optional[str] = None  # Falls back to COHERE_RERANK_API_KEY
+    COHERE_EMBED_MODEL: str = "embed-v-4-0"  # Azure AI deployment name
+    COHERE_EMBED_DIMENSIONS: int = 1024
+    COHERE_EMBED_BATCH_SIZE: int = 96
 
     # Processing Configuration
     MAX_CONCURRENT_JOBS: int = 5
@@ -238,7 +338,7 @@ class Settings(BaseSettings):
 
     # Embedding Provider Configuration
     EMBEDDING_PROVIDER: str = (
-        "sentence_transformers"  # sentence_transformers, azure_openai, auto
+        "sentence_transformers"  # cohere, sentence_transformers, azure_openai, auto
     )
 
     # LLM Response Cache Configuration
@@ -293,6 +393,8 @@ class Settings(BaseSettings):
     @field_validator("QDRANT_URL")
     @classmethod
     def validate_qdrant_url(cls, v):
+        if v is None or v == "":
+            return v
         if not v.startswith(("http://", "https://")):
             raise ValueError("Qdrant URL must start with http:// or https://")
         return v
@@ -356,6 +458,31 @@ class Settings(BaseSettings):
         if v <= 0 or v > 10000:  # Max 10TB
             raise ValueError("FREE_TIER_STORAGE_GB must be between 1 and 10000")
         return v
+
+    @model_validator(mode="after")
+    def _validate_do_kb_required_fields(self):
+        """When DO_KB_ENABLED, require token + region + project + embedding model."""
+        if not self.DO_KB_ENABLED:
+            return self
+        missing = [
+            name
+            for name, value in (
+                ("DO_API_TOKEN", self.DO_API_TOKEN),
+                ("DO_KB_REGION", self.DO_KB_REGION),
+                ("DO_KB_PROJECT_ID", self.DO_KB_PROJECT_ID),
+                ("DO_KB_EMBEDDING_MODEL_UUID", self.DO_KB_EMBEDDING_MODEL_UUID),
+            )
+            if not value
+        ]
+        if missing:
+            raise ValueError(
+                f"DO_KB_ENABLED=True but missing required vars: {', '.join(missing)}"
+            )
+        if self.DO_KB_PRIMARY_READ and not self.DO_KB_ENABLED:
+            raise ValueError("DO_KB_PRIMARY_READ requires DO_KB_ENABLED=True")
+        if self.DO_KB_SHADOW_READ and not self.DO_KB_ENABLED:
+            raise ValueError("DO_KB_SHADOW_READ requires DO_KB_ENABLED=True")
+        return self
 
     class Config:
         env_file = "../.env"
