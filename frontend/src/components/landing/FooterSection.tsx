@@ -28,7 +28,7 @@ export function FooterSection() {
             {[
               { label: 'Documents', val: '1.2M+' },
               { label: 'Entities', val: '54M+' },
-              { label: 'Avg Latency', val: '12ms' },
+              { label: 'Latency', val: '12ms' },
               { label: 'Uptime', val: '99.99%' },
             ].map((stat, i) => (
               <div
@@ -64,7 +64,7 @@ export function FooterSection() {
               <div className="flex items-center gap-2 mb-4">
                 <Terminal className="w-5 h-5 text-[var(--phosphor-green)]" />
                 <span className="font-mono font-bold text-[var(--terminal-text)]">
-                  RAG_OS
+                  NOUS
                 </span>
               </div>
               <p className="font-mono text-xs text-[var(--terminal-text-muted)] leading-relaxed">
@@ -114,7 +114,7 @@ export function FooterSection() {
 
           <div className="pt-8 border-t border-[var(--terminal-border)] flex flex-col md:flex-row justify-between items-center gap-4">
             <div className="font-mono text-[10px] text-[var(--terminal-text-muted)]">
-              &copy; 2024 RAG_OS SYSTEMS INC. ALL RIGHTS RESERVED.
+              &copy; 2026 NOUS &middot; ALL RIGHTS RESERVED
             </div>
             <div className="flex items-center gap-6">
               {[Globe, Activity, Command].map((Icon, i) => (

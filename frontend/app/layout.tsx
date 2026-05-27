@@ -22,8 +22,8 @@ const outfit = Outfit({
 const sourceSerif4 = Source_Serif_4({
   subsets: ['latin'],
   variable: '--font-serif',
-  weight: ['300', '400', '600'],
   style: ['normal', 'italic'],
+  axes: ['opsz'],
 });
 
 export const metadata: Metadata = {
@@ -44,7 +44,10 @@ export default function RootLayout({
       className={`${inter.variable} ${jetbrainsMono.variable} ${outfit.variable} ${sourceSerif4.variable}`}
     >
       <head>
-        <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+        <meta
+          name="viewport"
+          content="width=device-width, initial-scale=1, viewport-fit=cover"
+        />
       </head>
       <body
         className={`${inter.className} antialiased bg-background text-foreground`}

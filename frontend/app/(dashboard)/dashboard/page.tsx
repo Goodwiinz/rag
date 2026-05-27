@@ -82,6 +82,9 @@ export default function DashboardPage() {
   const [services, setServices] = useState<
     Array<{ name: string; status: string; latency: string; load: number }>
   >([]);
+  const [servicesState, setServicesState] = useState<
+    'loading' | 'loaded' | 'error'
+  >('loading');
   const [recentActivity, setRecentActivity] = useState<
     Array<{ type: string; text: string; time: string }>
   >([]);
@@ -181,7 +184,7 @@ export default function DashboardPage() {
       })
       .catch(() => {});
 
-    // Fetch service status via performance metrics (falls back to mock internally)
+    // Fetch service status via performance metrics
     analyticsService
       .getPerformanceMetrics()
       .then((data) => {
@@ -196,8 +199,11 @@ export default function DashboardPage() {
         if (mappedServices.length > 0) {
           setServices(mappedServices);
         }
+        setServicesState('loaded');
       })
-      .catch(() => {});
+      .catch(() => {
+        setServicesState('error');
+      });
 
     // TODO: wire to /activity or /events endpoint when available
     // Recent activity has no backend endpoint yet — use empty or keep defaults
@@ -312,6 +318,7 @@ export default function DashboardPage() {
           animate={{ opacity: 1, y: 0 }}
           className="rounded-xl overflow-hidden border border-[var(--terminal-border)] bg-[var(--terminal-surface)] shadow-xl"
         >
+          <div className="h-0.5 bg-gradient-to-r from-[var(--phosphor-green)] via-[var(--phosphor-green)]/40 to-transparent" />
           <div className="p-6">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div className="flex items-center gap-4">
@@ -402,30 +409,26 @@ export default function DashboardPage() {
           {[
             {
               label: 'Active Documents',
-              value: stats.documents ?? '12,543',
+              value: stats.documents,
               icon: FileText,
-              change: '+12.5%',
               color: COLORS.phosphorGreen,
             },
             {
               label: 'Daily Queries',
-              value: stats.searches ?? '8,921',
+              value: stats.searches,
               icon: Search,
-              change: '+5.2%',
               color: COLORS.phosphorGreen,
             },
             {
-              label: 'Entity Extraction',
-              value: '94.2%',
+              label: 'Active Conversations',
+              value: stats.chats,
               icon: MessageSquare,
-              change: '+1.8%',
               color: COLORS.amber,
             },
             {
-              label: 'System Latency',
-              value: '42ms',
+              label: 'Processing Queue',
+              value: stats.processing,
               icon: Zap,
-              change: '0',
               color: COLORS.phosphorGreen,
             },
           ].map((stat, idx) => (
@@ -450,18 +453,6 @@ export default function DashboardPage() {
                     style={{ color: stat.color }}
                   />
                 </div>
-                <span
-                  className={cn(
-                    'text-[10px] font-mono px-1.5 py-0.5 rounded-full border',
-                    stat.change === '0'
-                      ? 'hidden'
-                      : stat.change.startsWith('+')
-                        ? 'text-[var(--phosphor-green)] border-[var(--phosphor-green)]/20 bg-[var(--phosphor-green)]/5'
-                        : 'text-[var(--terminal-text-dim)] border-[var(--terminal-border)] bg-white/5'
-                  )}
-                >
-                  {stat.change}
-                </span>
               </div>
               <div className="text-2xl font-mono font-bold text-[var(--terminal-text)]">
                 {stat.value}
@@ -494,20 +485,33 @@ export default function DashboardPage() {
                 {displayServices.map((service) => (
                   <div
                     key={service.name}
-                    className="p-4 rounded-xl border border-[var(--terminal-border)] bg-[var(--terminal-bg)]/20 hover:border-[var(--phosphor-green)]/20 transition-all group"
+                    className="p-4 rounded-xl border border-[var(--terminal-border)] bg-[var(--terminal-bg)]/20 hover:border-[var(--phosphor-green)]/20 hover:shadow-[0_0_20px_rgba(212,160,57,0.06)] transition-all group"
                   >
                     <div className="flex items-center justify-between mb-3">
                       <span className="text-[11px] font-mono text-[var(--terminal-text-muted)] group-hover:text-[var(--terminal-text)] transition-colors">
                         {service.name}
                       </span>
-                      <div className="w-1.5 h-1.5 rounded-full bg-[var(--phosphor-green)] shadow-[0_0_8px_var(--phosphor-green)]" />
+                      {servicesState === 'loading' ? (
+                        <span className="relative flex h-2 w-2">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[var(--amber-gold)] opacity-75" />
+                          <span className="relative inline-flex rounded-full h-2 w-2 bg-[var(--amber-gold)]" />
+                        </span>
+                      ) : servicesState === 'error' ? (
+                        <div className="w-1.5 h-1.5 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.6)]" />
+                      ) : (
+                        <div className="w-1.5 h-1.5 rounded-full bg-[var(--phosphor-green)] shadow-[0_0_8px_var(--phosphor-green)]" />
+                      )}
                     </div>
                     <div className="flex items-baseline gap-2 mb-3">
                       <span className="text-lg font-mono text-[var(--terminal-text)]">
-                        {service.latency}
+                        {servicesState === 'loading' ? '...' : service.latency}
                       </span>
-                      <span className="text-[9px] font-mono text-[var(--phosphor-green)] font-bold tracking-tighter">
-                        DELAY
+                      <span className="text-[9px] font-mono text-[var(--terminal-text-dim)] font-bold tracking-tighter">
+                        {servicesState === 'loading'
+                          ? 'connecting'
+                          : servicesState === 'error'
+                            ? 'unreachable'
+                            : 'DELAY'}
                       </span>
                     </div>
                     {/* Load bar */}
@@ -654,17 +658,17 @@ export default function DashboardPage() {
             <div className="p-6 space-y-4">
               {[
                 {
-                  text: 'Knowledge graph expanded with 23 new entities',
+                  text: 'Knowledge graph insights will appear here as entities are extracted',
                   icon: Network,
                   color: COLORS.phosphorGreen,
                 },
                 {
-                  text: 'Semantic search accuracy improved to 94.2%',
+                  text: 'Search quality metrics available after first 100 queries',
                   icon: TrendingUp,
                   color: COLORS.phosphorGreen,
                 },
                 {
-                  text: 'Processing queue optimized, 45% faster',
+                  text: 'Pipeline optimization stats populate with document processing',
                   icon: Gauge,
                   color: COLORS.amber,
                 },

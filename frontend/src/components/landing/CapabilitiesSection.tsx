@@ -142,11 +142,11 @@ export function CapabilitiesSection() {
               <Zap className="w-6 h-6 text-[var(--amber-gold)]" />
             </div>
             <h3 className="text-xl font-mono font-bold text-[var(--terminal-text)] mb-2">
-              Vector Search
+              Sub-Second Retrieval
             </h3>
             <p className="font-mono text-[var(--terminal-text-muted)] text-xs">
-              HNSW index optimization for millisecond-latency retrieval across
-              millions of vectors.
+              Hybrid vector + BM25 search across millions of documents with 12ms
+              median latency.
             </p>
           </motion.div>
 
