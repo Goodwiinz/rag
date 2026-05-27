@@ -26,13 +26,6 @@ const nextConfig = {
     ignoreBuildErrors: process.env.NODE_ENV !== 'production',
   },
 
-  // Next.js build lint integration still passes legacy CLI options that do not
-  // work with the flat ESLint config used by this app. Keep linting in the
-  // dedicated npm script instead.
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
-
   // Experimental features for better performance
   experimental: {
     // Optimize CSS
@@ -69,7 +62,12 @@ const nextConfig = {
         hostname: 'localhost',
       },
       ...(process.env.NEXT_PUBLIC_APP_URL
-        ? [{ protocol: 'https', hostname: new URL(process.env.NEXT_PUBLIC_APP_URL).hostname }]
+        ? [
+            {
+              protocol: 'https',
+              hostname: new URL(process.env.NEXT_PUBLIC_APP_URL).hostname,
+            },
+          ]
         : []),
     ],
     formats: ['image/webp', 'image/avif'],
@@ -239,9 +237,10 @@ module.exports = withSentryConfig(nextConfig, {
   // Route Sentry events through /monitoring to bypass adblockers.
   tunnelRoute: '/monitoring',
 
-  // Strip Sentry SDK logger statements to shrink the client bundle.
-  disableLogger: true,
-
-  // Vercel-specific cron monitoring — off (we deploy to DOKS).
-  automaticVercelMonitors: false,
+  webpack: {
+    treeshake: {
+      removeDebugLogging: true,
+    },
+    automaticVercelMonitors: false,
+  },
 });
