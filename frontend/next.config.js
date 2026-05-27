@@ -1,6 +1,12 @@
 const path = require('path');
 const { withSentryConfig } = require('@sentry/nextjs');
 
+const sentryOrg = process.env.SENTRY_ORG;
+const sentryProject = process.env.SENTRY_PROJECT;
+const shouldUploadSentrySourceMaps = Boolean(
+  process.env.SENTRY_AUTH_TOKEN && sentryOrg && sentryProject
+);
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   // Enable React strict mode
@@ -212,11 +218,20 @@ const nextConfig = {
 };
 
 module.exports = withSentryConfig(nextConfig, {
-  org: process.env.SENTRY_ORG || 'goodwiinz-uk',
-  project: process.env.SENTRY_PROJECT || 'nous-frontend',
+  org: sentryOrg,
+  project: sentryProject,
+  authToken: process.env.SENTRY_AUTH_TOKEN,
 
   // Quiet local builds; CI surfaces logs.
   silent: !process.env.CI,
+
+  // Only upload source maps when Sentry release settings are explicitly set.
+  sourcemaps: {
+    disable: !shouldUploadSentrySourceMaps,
+  },
+  errorHandler: (error) => {
+    console.warn('Sentry source map upload skipped:', error.message);
+  },
 
   // Upload a larger set of source maps so client errors symbolicate cleanly.
   widenClientFileUpload: true,
