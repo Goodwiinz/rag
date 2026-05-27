@@ -3,7 +3,8 @@
 import { cn } from '@/lib/utils';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ChevronDown, Cpu } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 
 export interface Model {
   id: string;
@@ -79,23 +80,120 @@ export function ModelSelector({
   isLoading,
 }: ModelSelectorProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0 });
   const selectedModel = models.find((m) => m.id === selectedModelId);
 
+  useEffect(() => {
+    if (isOpen && triggerRef.current) {
+      const rect = triggerRef.current.getBoundingClientRect();
+      setDropdownPos({
+        top: rect.top - 8,
+        left: rect.left,
+      });
+    }
+  }, [isOpen]);
+
+  const dropdown = isOpen
+    ? createPortal(
+        <AnimatePresence>
+          <motion.div
+            key="model-selector-backdrop"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[9998]"
+            onClick={() => setIsOpen(false)}
+          />
+          <motion.div
+            key="model-selector-dropdown"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 8 }}
+            className="fixed w-80 rounded-xl border border-[var(--nous-border-1)] bg-[var(--nous-bg-2)] shadow-xl z-[9999]"
+            style={{
+              top: dropdownPos.top,
+              left: dropdownPos.left,
+              transform: 'translateY(-100%)',
+            }}
+          >
+            <div className="p-2 max-h-80 overflow-y-auto terminal-scrollbar">
+              {models.map((model) => (
+                <button
+                  key={model.id || model.name}
+                  onClick={() => {
+                    onModelChange(model.id);
+                    setIsOpen(false);
+                  }}
+                  className={cn(
+                    'w-full flex items-start gap-3 px-3 py-2.5 rounded-lg text-left transition-colors',
+                    model.id === selectedModelId
+                      ? 'bg-[var(--nous-sol)]/10 border border-[var(--nous-sol)]/30'
+                      : 'hover:bg-[var(--nous-sol)]/5'
+                  )}
+                >
+                  <Cpu
+                    className={cn(
+                      'w-4 h-4 mt-0.5',
+                      model.id === selectedModelId
+                        ? 'text-[var(--nous-sol)]'
+                        : 'text-[var(--nous-fg-3)]'
+                    )}
+                  />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={cn(
+                          'text-xs font-medium font-nous-mono',
+                          model.id === selectedModelId
+                            ? 'text-[var(--nous-sol)]'
+                            : 'text-[var(--nous-fg-1)]'
+                        )}
+                      >
+                        {model.name}
+                      </span>
+                      {model.isCloud && (
+                        <span className="px-1.5 py-0.5 rounded bg-[var(--nous-sol)]/20 text-[var(--nous-sol)] text-[8px] uppercase">
+                          Cloud
+                        </span>
+                      )}
+                      {model.isFeatured && (
+                        <span className="px-1.5 py-0.5 rounded bg-[var(--nous-sol)]/20 text-[var(--nous-sol)] text-[8px] uppercase">
+                          Featured
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[10px] text-[var(--nous-fg-3)] mt-0.5 font-nous-mono">
+                      {model.description}
+                    </p>
+                    <div className="flex items-center gap-3 mt-1 text-[10px] text-[var(--nous-fg-3)] font-nous-mono">
+                      <span>PARAMS: {model.parameters}</span>
+                      <span>RAM: {model.ram}</span>
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </motion.div>
+        </AnimatePresence>,
+        document.body
+      )
+    : null;
+
   return (
-    <div className="relative">
+    <div>
       <button
+        ref={triggerRef}
         onClick={() => !isLoading && setIsOpen(!isOpen)}
         disabled={isLoading}
         className={cn(
-          'flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-all duration-200 whitespace-nowrap',
+          'flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-all duration-200 whitespace-nowrap font-nous-mono',
           'bg-[var(--nous-bg-2)] border-[var(--nous-border-1)]',
           'hover:border-[var(--nous-sol)]/30',
           'active:scale-[0.98]',
-          isOpen &&
-            'border-[var(--nous-sol)]/50 bg-[var(--nous-sol)]/5',
+          isOpen && 'border-[var(--nous-sol)]/50 bg-[var(--nous-sol)]/5',
           isLoading && 'opacity-50 cursor-not-allowed'
         )}
-        style={{ fontFamily: 'var(--nous-font-mono)' }}
       >
         <Cpu
           className={cn(
@@ -118,91 +216,7 @@ export function ModelSelector({
           )}
         />
       </button>
-
-      <AnimatePresence>
-        {isOpen && (
-          <>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 z-40"
-              onClick={() => setIsOpen(false)}
-            />
-            <motion.div
-              initial={{ opacity: 0, y: -8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              className="absolute bottom-full left-0 mb-2 w-80 rounded-xl border border-[var(--nous-border-1)] bg-[var(--nous-bg-2)] shadow-xl z-50"
-            >
-              <div className="p-2 max-h-80 overflow-y-auto terminal-scrollbar">
-                {models.map((model) => (
-                  <button
-                    key={model.id}
-                    onClick={() => {
-                      onModelChange(model.id);
-                      setIsOpen(false);
-                    }}
-                    className={cn(
-                      'w-full flex items-start gap-3 px-3 py-2.5 rounded-lg text-left transition-colors',
-                      model.id === selectedModelId
-                        ? 'bg-[var(--nous-sol)]/10 border border-[var(--nous-sol)]/30'
-                        : 'hover:bg-[var(--nous-sol)]/5'
-                    )}
-                  >
-                    <Cpu
-                      className={cn(
-                        'w-4 h-4 mt-0.5',
-                        model.id === selectedModelId
-                          ? 'text-[var(--nous-sol)]'
-                          : 'text-[var(--nous-fg-3)]'
-                      )}
-                    />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span
-                          className={cn(
-                            'text-xs font-medium',
-                            model.id === selectedModelId
-                              ? 'text-[var(--nous-sol)]'
-                              : 'text-[var(--nous-fg-1)]'
-                          )}
-                          style={{ fontFamily: 'var(--nous-font-mono)' }}
-                        >
-                          {model.name}
-                        </span>
-                        {model.isCloud && (
-                          <span className="px-1.5 py-0.5 rounded bg-[var(--nous-sol)]/20 text-[var(--nous-sol)] text-[8px] uppercase">
-                            Cloud
-                          </span>
-                        )}
-                        {model.isFeatured && (
-                          <span className="px-1.5 py-0.5 rounded bg-[var(--nous-sol)]/20 text-[var(--nous-sol)] text-[8px] uppercase">
-                            Featured
-                          </span>
-                        )}
-                      </div>
-                      <p
-                        className="text-[10px] text-[var(--nous-fg-3)] mt-0.5"
-                        style={{ fontFamily: 'var(--nous-font-mono)' }}
-                      >
-                        {model.description}
-                      </p>
-                      <div
-                        className="flex items-center gap-3 mt-1 text-[10px] text-[var(--nous-fg-3)]"
-                        style={{ fontFamily: 'var(--nous-font-mono)' }}
-                      >
-                        <span>PARAMS: {model.parameters}</span>
-                        <span>RAM: {model.ram}</span>
-                      </div>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
+      {dropdown}
     </div>
   );
 }
