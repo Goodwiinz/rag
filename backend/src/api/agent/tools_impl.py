@@ -359,13 +359,18 @@ AGENT_TOOLS = [
         "type": "function",
         "function": {
             "name": "extract_entities",
-            "description": "Extract named entities (people, organizations, concepts, etc.) from a document.",
+            "description": "Extract named entities from a document using LLM analysis. Finds people, organizations, concepts, methods, models, datasets, and more.",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "document_id": {
                         "type": "string",
                         "description": "The UUID of the document to extract entities from",
+                    },
+                    "entity_types": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Optional filter. Allowed types: PERSON, ORGANIZATION, CONCEPT, METHOD, MODEL, DATASET, TECHNOLOGY, METRIC, LOCATION, RESEARCH. Omit for all types.",
                     },
                 },
                 "required": ["document_id"],
@@ -1766,16 +1771,18 @@ async def _tool_compare_documents(
 
 async def _tool_extract_entities(
     args: Dict[str, Any],
-    db: Optional[AsyncSession],
+    db: Any,
     current_user: Optional[User],
 ) -> Dict[str, Any]:
-    """Extract named entities from a document."""
+    """Extract named entities from a document using LLM."""
     if not db or not current_user:
         return {"error": "Authentication required"}
 
     document_id = args.get("document_id", "")
     if not document_id:
         return {"error": "document_id is required"}
+
+    entity_types = args.get("entity_types")
 
     try:
         doc = await _resolve_document_id(document_id, db, current_user)
@@ -1792,32 +1799,37 @@ async def _tool_extract_entities(
         if not text or text.startswith("Error"):
             return {"error": "Could not extract text from document"}
 
-        # Truncate for entity extraction
-        text_for_extraction = text[:10000]
-
-        from src.services.documents.enhanced_document_processing_service import (
-            EntityExtractor,
+        from src.services.processing.llm_entity_extraction import (
+            LLMEntityExtractionService,
         )
 
-        extractor = EntityExtractor()
-        result = await extractor.extract_entities(text_for_extraction, str(doc.id))
+        service = LLMEntityExtractionService()
+        result = await service.extract_entities(text, entity_types=entity_types)
 
-        if result.success and result.data:
-            entities = result.data.get("entities", [])
+        if result.entities:
             return {
                 "entities": [
                     {
-                        "text": e.get("text", ""),
-                        "type": e.get("label", "UNKNOWN"),
-                        "confidence": e.get("confidence", 0.0),
+                        "name": e.name,
+                        "type": e.type,
+                        "description": e.description,
+                        "confidence": e.confidence,
+                        "aliases": e.aliases,
                     }
-                    for e in entities[:50]
+                    for e in result.entities[:50]
                 ],
-                "total": len(entities),
+                "total": len(result.entities),
+                "chunks_processed": result.chunks_processed,
                 "document_id": document_id,
                 "title": doc.title or "Untitled",
             }
-        return {"entities": [], "total": 0, "document_id": document_id}
+
+        return {
+            "entities": [],
+            "total": 0,
+            "document_id": document_id,
+            "error": result.error,
+        }
     except Exception as e:
         logger.error("extract_entities tool failed", exc_info=e)
         return {"error": f"Entity extraction failed: {str(e)}"}

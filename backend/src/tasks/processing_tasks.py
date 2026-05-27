@@ -26,9 +26,8 @@ from src.models.graph import (
 )
 from src.models.processing import JobStatus, ProcessingJob
 from src.services.knowledge_graph.knowledge_graph_service import knowledge_graph_service
-from src.services.processing.entity_extraction_service import (
-    EntityExtractionService,
-    EntityType as ProcessingEntityType,
+from src.services.processing.llm_entity_extraction import (
+    LLMEntityExtractionService,
 )
 from src.services.processing.processing_service import ProcessingPipeline
 from src.services.search.fulltext_search_service import fulltext_search_service
@@ -63,23 +62,23 @@ class ProcessingTask(Task):
                 db.close()
 
 
-def _map_processing_entity_type_to_graph(
-    entity_type: ProcessingEntityType,
-) -> GraphEntityType:
+def _map_llm_entity_type_to_graph(llm_type: str) -> GraphEntityType:
+    """Map LLM extraction type string to graph EntityType."""
     mapping = {
-        "person": GraphEntityType.PERSON,
-        "organization": GraphEntityType.ORGANIZATION,
-        "location": GraphEntityType.LOCATION,
-        "product": GraphEntityType.PRODUCT,
-        "concept": GraphEntityType.CONCEPT,
-        "date": GraphEntityType.DATE,
-        "number": GraphEntityType.OTHER,
-        "email": GraphEntityType.EMAIL,
-        "phone": GraphEntityType.PHONE,
-        "url": GraphEntityType.URL,
-        "custom": GraphEntityType.OTHER,
+        "PERSON": GraphEntityType.PERSON,
+        "ORGANIZATION": GraphEntityType.ORGANIZATION,
+        "LOCATION": GraphEntityType.LOCATION,
+        "CONCEPT": GraphEntityType.CONCEPT,
+        "TECHNOLOGY": GraphEntityType.TECHNOLOGY,
+        "RESEARCH": GraphEntityType.RESEARCH,
+        "MODEL": GraphEntityType.PRODUCT,
+        "DATASET": GraphEntityType.PRODUCT,
+        "METHOD": GraphEntityType.CONCEPT,
+        "METRIC": GraphEntityType.OTHER,
+        "TOPIC": GraphEntityType.TOPIC,
+        "EVENT": GraphEntityType.EVENT,
     }
-    return mapping.get(entity_type.value, GraphEntityType.OTHER)
+    return mapping.get(llm_type.strip().upper(), GraphEntityType.OTHER)
 
 
 def _safe_relationship_type(raw_type: str) -> GraphRelationshipType:
@@ -370,14 +369,32 @@ def extract_entities(self, job_id: str):
         db.commit()
 
         # Extract entities
-        processing_service = ProcessingPipeline(db)
-        entities = processing_service.process_entity_extraction(
-            document, document.content_text
+        import asyncio as _asyncio
+        service = LLMEntityExtractionService()
+        extraction_result = _asyncio.get_event_loop().run_until_complete(
+            service.extract_entities(document.content_text)
         )
 
         # Save entities
+        from src.models.entity import Entity, ExtractionMethod
+        from src.services.processing.llm_entity_extraction import map_to_entity_type
+        from datetime import datetime
+
         saved_entities = []
-        for entity in entities:
+        for ent in extraction_result.entities:
+            entity = Entity(
+                entity_type=map_to_entity_type(ent.type),
+                name=ent.name,
+                canonical_name=ent.canonical_name,
+                aliases=ent.aliases,
+                description=ent.description,
+                confidence=ent.confidence,
+                extraction_method=ExtractionMethod.OPENAI,
+                extracted_at=datetime.utcnow(),
+                extraction_model="gpt-5-nano",
+                document_id=document.id,
+                organization_id=document.organization_id,
+            )
             db.add(entity)
             saved_entities.append(entity)
         db.commit()
@@ -386,7 +403,7 @@ def extract_entities(self, job_id: str):
         job.complete_job(
             result={
                 "entities_extracted": len(saved_entities),
-                "entity_types": list(set(e.entity_type.value for e in saved_entities)),
+                "entity_types": list(set(ent.type for ent in extraction_result.entities)),
             }
         )
         db.commit()
@@ -540,7 +557,7 @@ def kg_extract_entities_job(self, job_id: str):
         job.start_job(worker_id=self.request.id, celery_task_id=self.request.id)
         db.commit()
 
-        extractor = EntityExtractionService()
+        import asyncio as _asyncio
         document_ids = []
         if job.parameters:
             if job.parameters.get("document_ids"):
@@ -574,9 +591,12 @@ def kg_extract_entities_job(self, job_id: str):
             )
             db.commit()
 
-            extracted_entities, extracted_relationships = extractor.extract_entities_and_relationships_from_text(
-                document, content
+            service = LLMEntityExtractionService()
+            extraction_result = _asyncio.get_event_loop().run_until_complete(
+                service.extract_entities(content, timeout_seconds=300.0)
             )
+            extracted_entities = extraction_result.entities
+            extracted_relationships = []
             entities_found_total += len(extracted_entities)
             relationships_found_total += len(extracted_relationships)
 
@@ -585,14 +605,15 @@ def kg_extract_entities_job(self, job_id: str):
                 create_requests.append(
                     CreateEntityRequest(
                         name=ent.name,
-                        entity_type=_map_processing_entity_type_to_graph(ent.entity_type),
-                        confidence_score=min(1.0, max(0.0, ent.confidence or 0.8)),
-                        extraction_method=GraphExtractionMethod.MANUAL,
+                        entity_type=_map_llm_entity_type_to_graph(ent.type),
+                        confidence_score=min(1.0, max(0.0, ent.confidence)),
+                        extraction_method=GraphExtractionMethod.LLM_EXTRACTION,
                         position=None,
                         context=ent.description,
                         metadata={
                             "source": "background_extraction_job",
                             "document_id": str(document.id),
+                            "aliases": ent.aliases,
                         },
                         source_document_id=str(document.id),
                     )
@@ -626,8 +647,8 @@ def kg_extract_entities_job(self, job_id: str):
                 if not source_entity or not target_entity:
                     continue
 
-                source_graph_type = _map_processing_entity_type_to_graph(source_entity.entity_type)
-                target_graph_type = _map_processing_entity_type_to_graph(target_entity.entity_type)
+                source_graph_type = _map_llm_entity_type_to_graph(source_entity.entity_type)
+                target_graph_type = _map_llm_entity_type_to_graph(target_entity.entity_type)
 
                 source_key = (source_graph_type.value, (source_entity.name or "").strip().lower())
                 target_key = (target_graph_type.value, (target_entity.name or "").strip().lower())

@@ -1,6 +1,5 @@
-"""
-Entity extraction service for NER and relationship mapping
-"""
+"""DEPRECATED: This module is replaced by llm_entity_extraction.py.
+Kept temporarily for reference. Remove after confirming no callers."""
 
 import logging
 import re
