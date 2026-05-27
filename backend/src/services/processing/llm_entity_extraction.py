@@ -15,6 +15,10 @@ from dataclasses import dataclass, field
 from typing import Any, Optional
 
 import tiktoken
+from langchain_core.messages import HumanMessage, SystemMessage
+
+from src.core.circuit_breaker import circuit_breakers
+from src.services.agent.llm_factory import build_lightweight_llm
 
 logger = logging.getLogger(__name__)
 
@@ -199,3 +203,115 @@ def parse_llm_response(raw: str) -> list[ExtractedEntity]:
         )
 
     return entities
+
+
+_MAX_CONCURRENT_CHUNKS = 3
+_AGENT_TIMEOUT_SECONDS = 90.0
+_BACKGROUND_TIMEOUT_SECONDS = 300.0
+
+
+@dataclass
+class ExtractionResult:
+    """Result of entity extraction over a full document."""
+
+    entities: list[ExtractedEntity]
+    chunks_processed: int
+    chunks_failed: int
+    processing_time_ms: float
+    error: str | None = None
+
+
+class LLMEntityExtractionService:
+    """Extracts entities from text using Azure OpenAI (gpt-5-nano)."""
+
+    def __init__(self) -> None:
+        self._llm = build_lightweight_llm(max_tokens=2048)
+        self._breaker = circuit_breakers["llm_entity_extraction"]
+
+    async def _extract_chunk(
+        self,
+        chunk: str,
+        system_prompt: str,
+        semaphore: asyncio.Semaphore,
+    ) -> list[ExtractedEntity]:
+        """Extract entities from a single text chunk."""
+        async with semaphore:
+            if not self._breaker.can_execute():
+                raise RuntimeError("Circuit breaker open")
+
+            try:
+                messages = [
+                    SystemMessage(content=system_prompt),
+                    HumanMessage(
+                        content=EXTRACTION_USER_TEMPLATE.format(text=chunk)
+                    ),
+                ]
+                response = await self._llm.ainvoke(messages)
+                self._breaker.record_success()
+                return parse_llm_response(response.content)
+            except Exception:
+                self._breaker.record_failure()
+                raise
+
+    async def extract_entities(
+        self,
+        text: str,
+        entity_types: list[str] | None = None,
+        timeout_seconds: float = _AGENT_TIMEOUT_SECONDS,
+        max_tokens_per_chunk: int = 4000,
+    ) -> ExtractionResult:
+        """Extract entities from full document text."""
+        start = time.monotonic()
+
+        chunks = chunk_text(text, max_tokens=max_tokens_per_chunk, overlap_tokens=200)
+        if not chunks:
+            return ExtractionResult(
+                entities=[], chunks_processed=0, chunks_failed=0,
+                processing_time_ms=0.0,
+            )
+
+        system_prompt = _build_system_prompt(entity_types)
+        semaphore = asyncio.Semaphore(_MAX_CONCURRENT_CHUNKS)
+
+        all_entities: list[ExtractedEntity] = []
+        chunks_failed = 0
+
+        batch_size = 10
+        for batch_start in range(0, len(chunks), batch_size):
+            elapsed = time.monotonic() - start
+            if elapsed >= timeout_seconds:
+                logger.warning(
+                    "Entity extraction timeout after %d/%d chunks",
+                    batch_start, len(chunks),
+                )
+                break
+
+            batch = chunks[batch_start : batch_start + batch_size]
+            tasks = [
+                self._extract_chunk(chunk, system_prompt, semaphore)
+                for chunk in batch
+            ]
+
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+
+            for result in results:
+                if isinstance(result, Exception):
+                    chunks_failed += 1
+                    logger.warning("Chunk extraction failed: %s", result)
+                else:
+                    all_entities.extend(result)
+
+        merged = merge_entities(all_entities)
+        elapsed_ms = (time.monotonic() - start) * 1000
+
+        error = None
+        if chunks_failed == len(chunks):
+            error = "All chunks failed during entity extraction"
+
+        return ExtractionResult(
+            entities=merged,
+            chunks_processed=len(chunks) - chunks_failed,
+            chunks_failed=chunks_failed,
+            processing_time_ms=elapsed_ms,
+            error=error,
+        )
