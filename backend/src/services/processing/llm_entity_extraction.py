@@ -205,6 +205,27 @@ def parse_llm_response(raw: str) -> list[ExtractedEntity]:
     return entities
 
 
+from src.models.entity import EntityType
+
+_LLM_TYPE_TO_ENTITY_TYPE: dict[str, EntityType] = {
+    "PERSON": EntityType.PERSON,
+    "ORGANIZATION": EntityType.ORGANIZATION,
+    "LOCATION": EntityType.LOCATION,
+    "CONCEPT": EntityType.CONCEPT,
+    "TECHNOLOGY": EntityType.TECHNOLOGY,
+    "RESEARCH": EntityType.RESEARCH,
+    "MODEL": EntityType.PRODUCT,
+    "DATASET": EntityType.PRODUCT,
+    "METHOD": EntityType.CONCEPT,
+    "METRIC": EntityType.NUMBER,
+}
+
+
+def map_to_entity_type(llm_type: str) -> EntityType:
+    """Map LLM extraction type string to EntityType enum."""
+    return _LLM_TYPE_TO_ENTITY_TYPE.get(llm_type.strip().upper(), EntityType.CUSTOM)
+
+
 _MAX_CONCURRENT_CHUNKS = 3
 _AGENT_TIMEOUT_SECONDS = 90.0
 _BACKGROUND_TIMEOUT_SECONDS = 300.0
