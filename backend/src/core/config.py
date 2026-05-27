@@ -30,6 +30,10 @@ class Settings(BaseSettings):
 
     # CORS Configuration (comma-separated string from env, parsed to list)
     CORS_ORIGINS: str = "http://localhost:3000,http://127.0.0.1:3000"
+    # Optional regex pattern (e.g. ^https://nous-platform-[a-z0-9-]+\.vercel\.app$).
+    # Sourced from Infisical /app per env so the project slug stays out of the
+    # chart. Empty disables.
+    CORS_ORIGIN_REGEX: str = ""
     CORS_ALLOWED_HEADERS: str = (
         "Authorization,"
         "Content-Type,"

@@ -13,55 +13,8 @@ commonLabels:
   app.kubernetes.io/part-of: nous-platform
   environment: staging
 # ──────────────────────────────────────────────
-# Frontend
-# ──────────────────────────────────────────────
-frontend:
-  enabled: true
-  replicaCount: 1
-  image:
-    repository: registry.digitalocean.com/ragsystemregistry/frontend
-    tag: "9d92628"
-    pullPolicy: Always
-  service:
-    type: ClusterIP
-    port: 80
-    targetPort: 3000
-  ingress:
-    enabled: true
-    className: "nginx"
-    annotations:
-      nginx.ingress.kubernetes.io/ssl-redirect: "true"
-      cert-manager.io/cluster-issuer: "letsencrypt-prod"
-    hosts:
-      - host: staging-app.gen-text.app
-        paths:
-          - path: /
-            pathType: Prefix
-    tls:
-      - secretName: rag-staging-app-tls
-        hosts:
-          - staging-app.gen-text.app
-  resources:
-    limits:
-      cpu: 500m
-      memory: 512Mi
-    requests:
-      cpu: 100m
-      memory: 256Mi
-  autoscaling:
-    enabled: false
-  env:
-    - name: NODE_ENV
-      value: "production"
-    - name: NEXT_PUBLIC_ENVIRONMENT
-      value: "staging"
-  healthCheck:
-    enabled: true
-    path: /
-    initialDelaySeconds: 15
-    periodSeconds: 10
-    timeoutSeconds: 5
-    failureThreshold: 3
+# Frontend deployed via Vercel — no in-cluster manifests.
+# Host: staging-app.gen-text.app (DNS points at Vercel).
 # ──────────────────────────────────────────────
 # Backend
 # ──────────────────────────────────────────────
@@ -138,6 +91,9 @@ backend:
       value: "300"
     - name: CORS_ORIGINS
       value: "https://staging-app.gen-text.app"
+    # CORS_ORIGIN_REGEX: defined in Infisical `/app` (env=staging) → synced
+    # into `app-secrets` Secret, exposed via envFrom above. Set the regex
+    # there to the project-specific Vercel slug. Empty disables.
     # Database pool sizing: tuned for Supabase session-mode pooler limits.
     - name: DB_ASYNC_POOL_SIZE
       value: "3"

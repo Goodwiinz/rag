@@ -116,11 +116,8 @@ jobs:
             --namespace rag-staging \
             --create-namespace \
             --set global.environment=staging \
-            --set frontend.image.repository=${{ env.REGISTRY }}/frontend \
-            --set frontend.image.tag=$IMAGE_TAG \
             --set backend.image.repository=${{ env.REGISTRY }}/backend \
             --set backend.image.tag=$IMAGE_TAG \
-            --set frontend.replicaCount=1 \
             --set backend.replicaCount=1 \
             --wait \
             --timeout 10m
@@ -128,7 +125,6 @@ jobs:
       - name: Verify deployment
         run: |
           kubectl rollout status deployment/rag-staging-backend -n rag-staging --timeout=5m
-          kubectl rollout status deployment/rag-staging-frontend -n rag-staging --timeout=5m
 
       - name: Run smoke tests
         run: |
@@ -193,11 +189,8 @@ jobs:
             --namespace rag-production \
             --create-namespace \
             --set global.environment=production \
-            --set frontend.image.repository=${{ env.REGISTRY }}/frontend \
-            --set frontend.image.tag=$IMAGE_TAG \
             --set backend.image.repository=${{ env.REGISTRY }}/backend \
             --set backend.image.tag=$IMAGE_TAG \
-            --set frontend.replicaCount=3 \
             --set backend.replicaCount=3 \
             --set backend.autoscaling.enabled=true \
             --set backend.autoscaling.minReplicas=3 \
@@ -208,7 +201,6 @@ jobs:
       - name: Verify deployment
         run: |
           kubectl rollout status deployment/rag-production-backend -n rag-production --timeout=10m
-          kubectl rollout status deployment/rag-production-frontend -n rag-production --timeout=10m
 
       - name: Run production health checks
         run: |
@@ -261,7 +253,6 @@ jobs:
           helm rollback rag-production -n rag-production
 
           kubectl rollout status deployment/rag-production-backend -n rag-production --timeout=5m
-          kubectl rollout status deployment/rag-production-frontend -n rag-production --timeout=5m
 
           echo "Rollback complete!"
 
