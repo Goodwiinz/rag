@@ -254,3 +254,52 @@ class TestLLMEntityExtractionService:
         result = await svc.extract_entities("Some text.")
         assert result.entities == []
         assert result.error is not None
+
+
+class TestIntegrationSmoke:
+    """End-to-end smoke test simulating agent tool call."""
+
+    @pytest.mark.asyncio
+    async def test_academic_paper_extraction(self):
+        """Simulate extraction from a realistic academic abstract."""
+        abstract = (
+            "We introduce LoopMDM, a Looped Masked Diffusion Model for discrete "
+            "sequence generation. Our method extends MDLM (Masked Diffusion Language "
+            "Model) with iterative refinement loops. We evaluate on GSM8K and "
+            "HumanEval benchmarks, achieving state-of-the-art results. The work was "
+            "conducted at UC Berkeley by J. Park and collaborators."
+        )
+
+        with patch(
+            "src.services.processing.llm_entity_extraction.build_lightweight_llm"
+        ) as mock_build:
+            mock_llm = AsyncMock()
+            mock_llm.ainvoke.return_value = _mock_llm_response([
+                {"name": "LoopMDM", "type": "MODEL", "confidence": 0.95,
+                 "description": "Looped Masked Diffusion Model", "aliases": ["Loop MDM"]},
+                {"name": "MDLM", "type": "MODEL", "confidence": 0.9,
+                 "description": "Masked Diffusion Language Model"},
+                {"name": "GSM8K", "type": "DATASET", "confidence": 0.9},
+                {"name": "HumanEval", "type": "DATASET", "confidence": 0.9},
+                {"name": "UC Berkeley", "type": "ORGANIZATION", "confidence": 0.95},
+                {"name": "J. Park", "type": "PERSON", "confidence": 0.85},
+                {"name": "iterative refinement", "type": "METHOD", "confidence": 0.8},
+                {"name": "masked diffusion", "type": "CONCEPT", "confidence": 0.9},
+            ])
+            mock_build.return_value = mock_llm
+
+            service = LLMEntityExtractionService()
+            service._llm = mock_llm
+            service._breaker.reset()
+            result = await service.extract_entities(abstract)
+
+            assert result.error is None
+            assert len(result.entities) == 8
+
+            types_found = {e.type for e in result.entities}
+            assert "MODEL" in types_found
+            assert "DATASET" in types_found
+            assert "ORGANIZATION" in types_found
+            assert "PERSON" in types_found
+            assert "METHOD" in types_found
+            assert "CONCEPT" in types_found
