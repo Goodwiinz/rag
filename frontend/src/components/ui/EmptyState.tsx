@@ -70,15 +70,14 @@ export function EmptyState({
           className="mt-5"
         >
           {action.href ? (
-            <Link href={action.href}>
-              <Button
-                variant={action.variant || 'outline'}
-                size="sm"
-                className="font-mono text-xs tracking-wider"
-              >
-                {action.label}
-              </Button>
-            </Link>
+            <Button
+              asChild
+              variant={action.variant || 'outline'}
+              size="sm"
+              className="font-mono text-xs tracking-wider"
+            >
+              <Link href={action.href}>{action.label}</Link>
+            </Button>
           ) : (
             <Button
               variant={action.variant || 'outline'}

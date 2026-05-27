@@ -183,7 +183,7 @@ Created comprehensive indexing strategy for optimal query performance:
 #### 1. Apply Schema Migration
 ```bash
 cd backend
-alembic upgrade head
+alembic upgrade heads
 ```
 
 #### 2. Run Data Migration

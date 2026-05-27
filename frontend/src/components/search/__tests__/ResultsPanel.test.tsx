@@ -1,3 +1,4 @@
+import { describe, expect, it, vi } from 'vitest';
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '../../__tests__/testUtils';
 import ResultsPanel from '../ResultsPanel';
@@ -42,48 +43,46 @@ describe('ResultsPanel Accessibility', () => {
 
   const defaultProps = {
     result: mockResult as any,
-    onSourceClick: jest.fn(),
-    onDocumentPreview: jest.fn(),
-    onShare: jest.fn(),
-    onExport: jest.fn(),
-    onFeedback: jest.fn(),
+    onSourceClick: vi.fn(),
+    onDocumentPreview: vi.fn(),
+    onShare: vi.fn(),
+    onExport: vi.fn(),
+    onFeedback: vi.fn(),
   };
 
   it('has accessible labels for main action buttons', () => {
     render(<ResultsPanel {...defaultProps} />);
 
-    // Check main action buttons have aria-label equal to their title
-    const copyButtons = screen.getAllByTitle('Copy');
-    const mainCopyButton = copyButtons[0];
-    expect(mainCopyButton).toHaveAttribute('aria-label', 'Copy');
+    // Check main action buttons
+    const mainCopyButton = screen.getAllByRole('button', { name: 'Copy' })[0];
+    expect(mainCopyButton).toBeInTheDocument();
 
-    const shareButton = screen.getByTitle('Share');
-    expect(shareButton).toHaveAttribute('aria-label', 'Share');
+    const shareButton = screen.getByRole('button', { name: 'Share' });
+    expect(shareButton).toBeInTheDocument();
 
-    const exportButton = screen.getByTitle('Export');
-    expect(exportButton).toHaveAttribute('aria-label', 'Export');
+    const exportButton = screen.getByRole('button', { name: 'Export' });
+    expect(exportButton).toBeInTheDocument();
 
-    const rateButton = screen.getByTitle('Rate');
-    expect(rateButton).toHaveAttribute('aria-label', 'Rate');
+    const rateButton = screen.getByRole('button', { name: 'Rate' });
+    expect(rateButton).toBeInTheDocument();
   });
 
   it('has accessible labels for source card actions', () => {
     render(<ResultsPanel {...defaultProps} />);
 
     // Check source card buttons
-    const previewButtons = screen.getAllByTitle('Preview');
-    expect(previewButtons[0]).toHaveAttribute('aria-label', 'Preview document');
+    const previewButtons = screen.getAllByRole('button', { name: 'Preview document' });
+    expect(previewButtons.length).toBeGreaterThan(0);
 
-    const copyButtons = screen.getAllByTitle('Copy');
-    const sourceCopyButton = copyButtons[1];
-    expect(sourceCopyButton).toHaveAttribute('aria-label', 'Copy source snippet');
+    const sourceCopyButtons = screen.getAllByRole('button', { name: 'Copy source snippet' });
+    expect(sourceCopyButtons.length).toBeGreaterThan(0);
   });
 
   it('has accessible feedback dialog form', async () => {
     render(<ResultsPanel {...defaultProps} />);
 
     // Open dialog
-    const rateButton = screen.getByTitle('Rate');
+    const rateButton = screen.getByRole('button', { name: 'Rate' });
     fireEvent.click(rateButton);
 
     // Check label association

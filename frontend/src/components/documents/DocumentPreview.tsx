@@ -20,7 +20,7 @@ import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ProcessingStatus } from './ProcessingStatus';
-import { apiClient } from '@/services/api';
+import { api } from '@/services/api-client';
 
 interface DocumentPreviewProps {
   document: Document | null;

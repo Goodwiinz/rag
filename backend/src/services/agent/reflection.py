@@ -1,21 +1,35 @@
 """Reflection gate for agent response quality evaluation.
 
-Uses a lightweight LLM (gpt-4o-mini) to evaluate whether the agent's
-response adequately addresses the user's request before proceeding
-to memory save / END.  When quality is insufficient, the gate routes
+Uses a lightweight LLM to evaluate whether the agent's response
+adequately addresses the user's request before proceeding to
+memory save / END.  When quality is insufficient, the gate routes
 back to the LLM node for another attempt (max 2 rounds).
 """
 
+import asyncio
 import logging
+import re
 from typing import Any, Callable, Literal, Optional
 
 from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.runnables import RunnableConfig
 from pydantic import BaseModel
 
-from src.core.config import get_settings
+from src.services.agent.llm_factory import build_lightweight_llm
 
 logger = logging.getLogger(__name__)
+
+# Hard wall-clock cap for a single reflection LLM call. Prevents a hung
+# Azure endpoint from blocking the whole agent turn.
+_REFLECTION_LLM_TIMEOUT_SECONDS = 45.0  # bumped from 20s after 4096-token
+# budget let gpt-5-mini reasoning model spend ~20s on hard prompts; trace
+# 019e1874 hit CancelledError at exactly the old ceiling.
+
+# Cache the reflection LLM at module scope. The settings/endpoint are
+# resolved at import time once and reused across every reflection call,
+# saving a ~50ms client-build round-trip per turn.
+_REFLECTION_LLM = None
+_REFLECTION_LLM_LOCK = asyncio.Lock()
 
 
 # ---------------------------------------------------------------------------
@@ -37,54 +51,18 @@ class ReflectionResult(BaseModel):
 
 
 def _build_reflection_llm():
-    """Build a lightweight LLM (gpt-4o-mini) for reflection evaluation.
-
-    Follows the same Azure/OpenAI endpoint resolution as ``_build_llm``
-    in ``graph.py`` but forces model=gpt-4o-mini and temperature=0.
-    """
-    settings = get_settings()
-
-    endpoint = (
-        settings.AZURE_OPENAI_CHAT_ENDPOINT or settings.AZURE_OPENAI_ENDPOINT or ""
+    """Return a cached lightweight LLM for reflection evaluation."""
+    global _REFLECTION_LLM
+    if _REFLECTION_LLM is not None:
+        return _REFLECTION_LLM
+    # 4096 tokens: gpt-5-mini reasoning tokens count against
+    # max_completion_tokens. 512 cap caused LengthFinishReasonError in trace
+    # 019e1555 (research_reflection_gate). See classifier.py for context.
+    _REFLECTION_LLM = build_lightweight_llm(
+        max_tokens=4096,
+        request_timeout=_REFLECTION_LLM_TIMEOUT_SECONDS,
     )
-    api_key = (
-        settings.AZURE_OPENAI_CHAT_API_KEY or settings.AZURE_OPENAI_API_KEY or ""
-    )
-    api_version = (
-        settings.AZURE_OPENAI_CHAT_API_VERSION or settings.AZURE_OPENAI_API_VERSION
-    )
-
-    if not endpoint or not api_key:
-        raise RuntimeError(
-            "Azure/OpenAI endpoint and API key must be configured for reflection LLM. "
-            "Set AZURE_OPENAI_CHAT_ENDPOINT + AZURE_OPENAI_CHAT_API_KEY "
-            "(or the non-CHAT variants)."
-        )
-
-    def _is_openai_compatible(ep: str) -> bool:
-        return "/v1" in ep or "services.ai.azure.com" in ep
-
-    if _is_openai_compatible(endpoint):
-        from langchain_openai import ChatOpenAI
-
-        return ChatOpenAI(
-            model="gpt-4o-mini",
-            api_key=api_key,
-            base_url=endpoint,
-            temperature=0,
-            max_tokens=512,
-        )
-    else:
-        from langchain_openai import AzureChatOpenAI
-
-        return AzureChatOpenAI(
-            azure_deployment="gpt-4o-mini",
-            azure_endpoint=endpoint,
-            api_key=api_key,
-            api_version=api_version,
-            temperature=0,
-            max_tokens=512,
-        )
+    return _REFLECTION_LLM
 
 
 # ---------------------------------------------------------------------------
@@ -141,6 +119,243 @@ _REFLECTION_SYSTEM_PROMPT = (
 )
 
 
+# Minimum content length for reflection to be worthwhile. Responses shorter
+# than this with no tool calls are too trivial to benefit from critique.
+_REFLECTION_MIN_CONTENT_CHARS = 200
+
+
+def _is_transient_failure(te: Any) -> bool:
+    """A tool_execution that failed due to an upstream/transient cause —
+    rate limit, network timeout, 5xx — that regenerating the response
+    cannot fix. Match the shape produced by ``_execute_single_tool`` +
+    ``error_recovery.classify_error_from_payload``.
+    """
+    if not isinstance(te, dict):
+        return False
+    if te.get("status") != "failed":
+        return False
+    result = te.get("result")
+    if not isinstance(result, dict):
+        return False
+    return result.get("error_type") == "transient"
+
+
+# Ingest result statuses that indicate the tool ran but produced no usable
+# documents (or only some of the requested ones). Mirror the constants in
+# ``src/api/agent/tools_impl.py`` so the reflection gate can detect when an
+# AIMessage claims success despite the tool reporting zero/partial ingest.
+_INGEST_FAILURE_STATUSES = {"ingestion_failed", "ingestion_partial"}
+
+# Success verbs the agent commonly uses to claim ingest worked. Matched
+# case-insensitively against the AIMessage text. ``\b`` boundaries keep
+# substrings like "saddled" from triggering "added".
+_INGEST_SUCCESS_CLAIM_RE = re.compile(
+    r"\b(added|imported|ingested|attached|saved|loaded)\b",
+    re.IGNORECASE,
+)
+
+# Phrases that show the assistant disclosed the failure. If any of these
+# appear we do NOT flag the response as a lie — the user is informed.
+_INGEST_FAILURE_DISCLOSURE_RE = re.compile(
+    r"\b(failed|could not|couldn'?t|0 papers?|zero papers?|none|unable|"
+    r"did not|didn'?t|no papers?|error)\b",
+    re.IGNORECASE,
+)
+
+
+def _ingest_zero_count(te: Any) -> bool:
+    """Detect an ``ingest_arxiv_papers`` execution that ingested nothing.
+
+    The tool node marks the execution ``completed`` whenever the Python
+    call returned without raising — even when the tool's own ``status``
+    field is ``ingestion_failed``. We have to look one level deeper at
+    ``result.status`` / ``result.ingested_count`` to spot the lie.
+    """
+    if not isinstance(te, dict):
+        return False
+    if te.get("tool_name") != "ingest_arxiv_papers":
+        return False
+    result = te.get("result")
+    if not isinstance(result, dict):
+        return False
+    if result.get("status") in _INGEST_FAILURE_STATUSES:
+        return True
+    # Defensive: legacy result shape with no ``status`` but a count.
+    try:
+        return int(result.get("ingested_count", 0)) == 0
+    except (TypeError, ValueError):
+        return False
+
+
+def _detect_ingest_success_lie(state: dict) -> Optional[str]:
+    """Return an issue string when the AI claims ingest success but the
+    tool reported failure/partial, else None.
+
+    Deterministic guard for the failure mode in trace 019e1a1d, where
+    ``ingest_arxiv_papers`` returned ``ingested_count: 0`` and the agent
+    still told the user "Done — I added one paper". The LLM reflector
+    missed it (passed=true) because the AI text looks plausible.
+    """
+    tool_executions = state.get("tool_executions", []) or []
+    failing = [te for te in tool_executions if _ingest_zero_count(te)]
+    if not failing:
+        return None
+
+    last_ai = _last_ai_message(state)
+    if last_ai is None:
+        return None
+    content = last_ai.content
+    if isinstance(content, list):
+        text = " ".join(
+            b.get("text", "") if isinstance(b, dict) else str(b) for b in content
+        )
+    elif isinstance(content, str):
+        text = content
+    else:
+        return None
+
+    if not _INGEST_SUCCESS_CLAIM_RE.search(text):
+        return None
+    if _INGEST_FAILURE_DISCLOSURE_RE.search(text):
+        return None
+
+    paper_ids: list[str] = []
+    for te in failing:
+        result = te.get("result") or {}
+        for pid in result.get("paper_ids", []) or []:
+            if pid not in paper_ids:
+                paper_ids.append(str(pid))
+    return (
+        "Assistant claims ingest succeeded but "
+        f"ingest_arxiv_papers returned 0 documents (paper_ids="
+        f"{paper_ids or 'unknown'}). Tell the user the ingest failed "
+        "and propose a concrete next step (retry, different IDs, or "
+        "wait for very recent papers to be indexed)."
+    )
+
+
+def _is_completed_or_transient(te: Any) -> bool:
+    """Status counts toward the transient-acknowledged skip: completed
+    successes, transient failures, or deduped (already-counted) entries.
+    A non-transient failure (e.g. validation error, auth denied) should
+    NOT skip — those are agent-fixable and worth critiquing.
+    """
+    if not isinstance(te, dict):
+        return False
+    status = te.get("status")
+    if status in ("completed", "deduped"):
+        return True
+    return _is_transient_failure(te)
+
+
+def _last_ai_message(state: dict) -> AIMessage | None:
+    """Return the most recent AIMessage in state, or None."""
+    for msg in reversed(state.get("messages", [])):
+        if isinstance(msg, AIMessage):
+            return msg
+    return None
+
+
+def _should_skip_reflection(state: dict) -> tuple[bool, str]:
+    """Decide whether to skip the reflection LLM call.
+
+    Skip conditions (cheap, deterministic checks that avoid a ~944 token
+    critique LLM call when the response is too trivial to benefit from
+    one):
+
+    1. Latest AIMessage content is shorter than
+       ``_REFLECTION_MIN_CONTENT_CHARS`` AND has no tool_calls.
+    2. ``state["tool_executions"]`` is empty AND the latest AIMessage has
+       no tool_calls (no tools ran -> nothing tool-grounded to critique).
+
+    Args:
+        state: The current agent state dict.
+
+    Returns:
+        ``(skip, reason)`` — ``skip`` is True when the reflection LLM
+        call should be bypassed; ``reason`` is a short human-readable
+        string suitable for logging and test assertions.
+    """
+    last_ai = _last_ai_message(state)
+    if last_ai is None:
+        # Defer to existing missing-message handling in the node.
+        return (False, "no-ai-message")
+
+    tool_calls = getattr(last_ai, "tool_calls", None) or []
+    has_tool_calls = bool(tool_calls)
+
+    content = last_ai.content or ""
+    content_len = len(content) if isinstance(content, str) else 0
+
+    if not has_tool_calls and content_len < _REFLECTION_MIN_CONTENT_CHARS:
+        return (
+            True,
+            f"short-output ({content_len} < {_REFLECTION_MIN_CONTENT_CHARS} chars, no tool_calls)",
+        )
+
+    tool_executions = state.get("tool_executions", []) or []
+    if not has_tool_calls and not tool_executions:
+        return (True, "no-tools (tool_executions empty, no tool_calls)")
+
+    # Fast-path: substantive final response with all tools succeeded —
+    # skip the critique LLM (saves ~5-20s/turn). The cheap deterministic
+    # checks above already gate the truly-trivial cases.
+    #
+    # Exclude ingest tools that returned status=ingestion_failed/partial:
+    # the outer ToolNode marks them ``completed`` (no exception raised),
+    # so happy-path would skip and the LLM reflector never sees the
+    # mismatch between "Done — I added one paper" and ``ingested_count=0``.
+    if (
+        not has_tool_calls
+        and content_len >= _REFLECTION_MIN_CONTENT_CHARS
+        and tool_executions
+        and all(
+            (te.get("status") if isinstance(te, dict) else getattr(te, "status", None))
+            == "completed"
+            for te in tool_executions
+        )
+        and not any(_ingest_zero_count(te) for te in tool_executions)
+    ):
+        return (
+            True,
+            f"happy-path ({content_len} chars, {len(tool_executions)} tools all completed)",
+        )
+
+    # Fast-path: tools ran but the only failures were transient/external
+    # (rate limits, timeouts, network errors). The agent cannot recover by
+    # regenerating its response — the failure is upstream. Critiquing as
+    # "did not execute tools" wastes ~3k tokens per turn and can trigger a
+    # useless revise loop.
+    #
+    # Trace (revision e8d8b1ad, "grab me more paper about ML in Health Care"):
+    # arXiv 429 → tool_executions=[{status:"failed", result:{error_type:
+    # "transient"}}] → reflection ran 2× and flagged "did not execute any
+    # tools" both times. Wrong: tool ran, external API failed.
+    if (
+        not has_tool_calls
+        and content_len >= _REFLECTION_MIN_CONTENT_CHARS
+        and tool_executions
+    ):
+        # Single pass: classify every entry once. Avoids the 3× iteration
+        # the predicate-pair version did (all + any + sum on the same list).
+        transient_count = 0
+        ok_to_skip = True
+        for te in tool_executions:
+            if _is_transient_failure(te):
+                transient_count += 1
+            elif not _is_completed_or_transient(te):
+                ok_to_skip = False
+                break
+        if ok_to_skip and transient_count:
+            return (
+                True,
+                f"transient-failure-acknowledged ({content_len} chars, "
+                f"{transient_count} transient failures)",
+            )
+
+    return (False, "")
+
+
 async def reflect_on_response(
     last_ai_message: AIMessage,
     original_user_message: str,
@@ -166,14 +381,38 @@ async def reflect_on_response(
 
     plan_text = ""
     if plan:
-        plan_items = "\n".join(
-            f"  {i + 1}. {step.get('step', step)}" for i, step in enumerate(plan)
-        )
-        plan_text = f"\n\nAdvisory plan the agent was following:\n{plan_items}"
+        plan_lines: list[str] = []
+        for i, step in enumerate(plan):
+            if isinstance(step, dict):
+                summary = step.get("description") or step.get("step") or str(step)
+            else:
+                # Plan items can occasionally be raw strings (e.g. when an
+                # external producer skips the dict envelope). Fall back to
+                # ``str(step)`` instead of crashing with ``AttributeError``.
+                summary = str(step)
+            plan_lines.append(f"  {i + 1}. {summary}")
+        plan_text = "\n\nAdvisory plan the agent was following:\n" + "\n".join(plan_lines)
+
+    raw_content = last_ai_message.content
+    if isinstance(raw_content, list):
+        # Multimodal content (list of content blocks). Render only the text
+        # parts so the reflection prompt stays human-readable.
+        text_parts: list[str] = []
+        for block in raw_content:
+            if isinstance(block, str):
+                text_parts.append(block)
+            elif isinstance(block, dict):
+                if block.get("type") == "text" and isinstance(block.get("text"), str):
+                    text_parts.append(block["text"])
+        rendered_content = "\n".join(text_parts) or "(no text content)"
+    elif isinstance(raw_content, str) and raw_content:
+        rendered_content = raw_content
+    else:
+        rendered_content = "(no content)"
 
     user_prompt = (
         f"## User's original request\n{original_user_message}\n\n"
-        f"## Assistant's response\n{last_ai_message.content or '(no content)'}"
+        f"## Assistant's response\n{rendered_content}"
         f"{plan_text}"
     )
 
@@ -213,6 +452,9 @@ def make_reflection_gate(
         Skips reflection when:
         - The intent is not in the filter set.
         - The reflection count has reached the maximum (2).
+        - The latest AIMessage is too trivial to critique (see
+          ``_should_skip_reflection``): short content with no tool_calls,
+          or no tools were executed and no pending tool_calls.
         """
         intent = state.get("intent", "general")
         current_count = state.get("reflection_count", 0)
@@ -225,7 +467,39 @@ def make_reflection_gate(
         if current_count >= 2:
             return {"reflection_count": current_count}
 
-        # Find last AI message and original user message
+        # Deterministic guard: AI claims ingest worked but the tool
+        # actually returned 0 documents (status=ingestion_failed/partial).
+        # Hard-fail without an LLM call — the issue is unambiguous from
+        # tool result + AI text, and the LLM reflector has been observed
+        # to miss it (trace 019e1a1d, passed=true after the lie).
+        ingest_issue = _detect_ingest_success_lie(state)
+        if ingest_issue is not None:
+            logger.warning(
+                "Reflection deterministic fail: ingest success-claim mismatch"
+            )
+            return {
+                "reflection_count": current_count + 1,
+                "_reflection_result": ReflectionResult(
+                    passed=False, issues=[ingest_issue], severity="major"
+                ),
+            }
+
+        # Cheap pre-LLM gate: skip critique for trivial / tool-less turns.
+        skip, reason = _should_skip_reflection(state)
+        if skip:
+            logger.debug("Reflection skipped: %s", reason)
+            return {
+                "reflection_count": current_count,
+                "_reflection_result": ReflectionResult(
+                    passed=True, issues=[], severity="none"
+                ),
+            }
+
+        # Find last AI message and most recent user message (the request
+        # being addressed in this turn). The reverse scan intentionally
+        # picks the latest HumanMessage so multi-turn conversations
+        # critique the response against the current turn's question, not
+        # the very first one.
         last_ai_message: AIMessage | None = None
         original_user_message: str = ""
 
@@ -244,15 +518,38 @@ def make_reflection_gate(
         plan = state.get("plan")
 
         try:
-            result = await reflect_on_response(
-                last_ai_message=last_ai_message,
-                original_user_message=original_user_message,
-                plan=plan,
-                intent=intent,
+            result = await asyncio.wait_for(
+                reflect_on_response(
+                    last_ai_message=last_ai_message,
+                    original_user_message=original_user_message,
+                    plan=plan,
+                    intent=intent,
+                ),
+                timeout=_REFLECTION_LLM_TIMEOUT_SECONDS,
             )
+        except asyncio.TimeoutError:
+            logger.warning(
+                "Reflection LLM timed out after %.1fs; proceeding without revision",
+                _REFLECTION_LLM_TIMEOUT_SECONDS,
+            )
+            # Don't burn a retry budget slot for an infrastructure failure.
+            return {
+                "reflection_count": current_count,
+                "_reflection_result": ReflectionResult(
+                    passed=True, issues=[], severity="none"
+                ),
+            }
         except Exception as e:
             logger.warning("Reflection failed, proceeding anyway: %s", e)
-            return {"reflection_count": current_count + 1}
+            # Don't burn a retry budget slot — let the agent recover on the
+            # next turn with full budget, and clear any stale result so the
+            # router defaults to ``proceed``.
+            return {
+                "reflection_count": current_count,
+                "_reflection_result": ReflectionResult(
+                    passed=True, issues=[], severity="none"
+                ),
+            }
 
         return {
             "reflection_count": current_count + 1,

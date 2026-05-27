@@ -42,6 +42,17 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Store background task references to prevent garbage collection
+_background_tasks: set[asyncio.Task] = set()
+
+
+def _fire_and_forget(coro):
+    task = asyncio.create_task(coro)
+    _background_tasks.add(task)
+    task.add_done_callback(_background_tasks.discard)
+    return task
+
+
 # Global components
 connection_manager: Optional[RedisBackedConnectionManager] = None
 redis_manager = None
@@ -454,7 +465,7 @@ def setup_document_processing_listeners():
             logger.error(f"Error handling document processing event: {e}")
 
     # Subscribe to document processing events
-    asyncio.create_task(
+    _fire_and_forget(
         redis_manager.subscribe(
             "document_processing_events", handle_document_processing_event
         )

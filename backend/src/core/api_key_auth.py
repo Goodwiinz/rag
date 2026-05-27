@@ -92,16 +92,20 @@ class APIKeyResponse(BaseModel):
     expires_at: Optional[datetime]
     organization_id: Optional[str] = None
 
+def hash_api_key(raw_key: str) -> str:
+    """Hash the API key for secure storage and comparison"""
+    return hashlib.sha256(raw_key.encode()).hexdigest()
+
 def generate_api_key() -> tuple[str, str]:
     """Generate API key and return (raw_key, hash)"""
     raw_key = f"rag_{''.join(secrets.choice('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789') for _ in range(32))}"
-    key_hash = hashlib.sha256(raw_key.encode()).hexdigest()
+    key_hash = hash_api_key(raw_key)
     return raw_key, key_hash
 
 def verify_api_key(raw_key: str, key_hash: str) -> bool:
     """Verify API key against hash using constant-time comparison"""
     return secrets.compare_digest(
-        hashlib.sha256(raw_key.encode()).hexdigest(), key_hash
+        hash_api_key(raw_key), key_hash
     )
 
 # Rate limiter for API key endpoints
@@ -236,25 +240,24 @@ async def get_api_key_data(
             logger.warning(f"Invalid API key format from {request.client.host}")
             raise credentials_exception
         
-        # Extract prefix to narrow down candidates
-        # API keys are format: rag_<32 chars>
+        # Extract prefix and hash the provided key
         # key_prefix stores the first 8 chars of the raw key (rag_ + 4 chars)
         key_prefix = raw_key[:8]
+        target_hash = hash_api_key(raw_key)
         
-        # Find potential API keys by prefix
-        # This avoids looking up by hash directly in DB (timing attack mitigation)
+        # Query the database directly for the exact hash, also using the prefix to be safe
         stmt = select(APIKey).where(
             APIKey.key_prefix == key_prefix,
+            APIKey.key_hash == target_hash,
             APIKey.is_active == True
         )
         result = await db.execute(stmt)
-        candidate_keys = result.scalars().all()
+        key_record = result.scalars().first()
 
         api_key_record = None
-        for key in candidate_keys:
-             if verify_api_key(raw_key, key.key_hash):
-                 api_key_record = key
-                 break
+        # Retain constant-time comparison to satisfy timing attack mitigation
+        if key_record and verify_api_key(raw_key, key_record.key_hash):
+             api_key_record = key_record
         
         if not api_key_record:
             logger.warning(f"API key not found or invalid from {request.client.host}")

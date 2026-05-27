@@ -15,11 +15,9 @@ from celery import Task
 sys.path.append(os.path.join(os.path.dirname(__file__), "..", ".."))
 
 from celery import Celery, current_app
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
 
 from src.core.config import settings
-from src.core.database import get_db
+from src.core.database import SessionLocal, get_db
 from src.models.document import Document
 from src.models.evaluation import (
     EvaluationDataset,
@@ -35,10 +33,6 @@ from src.services.evaluation.rag_evaluation_service import (
 )
 
 logger = logging.getLogger(__name__)
-
-# Database session for tasks
-engine = create_engine(settings.DATABASE_URL)
-SessionLocal = sessionmaker(bind=engine)
 
 
 class EvaluationTask(Task):

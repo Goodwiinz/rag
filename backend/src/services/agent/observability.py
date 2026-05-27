@@ -19,17 +19,55 @@ logger = logging.getLogger(__name__)
 
 
 def configure_langsmith():
-    """Configure LangSmith tracing if API key is available.
+    """Configure LangSmith tracing if an API key is available.
 
-    Set LANGCHAIN_TRACING_V2=true and LANGCHAIN_API_KEY for automatic tracing.
+    Accepts either the modern ``LANGSMITH_*`` names (preferred by the current
+    ``langsmith`` SDK) or the legacy ``LANGCHAIN_*`` names. Whichever is
+    provided, this propagates to both so libraries on either convention pick
+    it up.
     """
-    api_key = os.environ.get("LANGCHAIN_API_KEY", "")
-    if api_key:
-        os.environ.setdefault("LANGCHAIN_TRACING_V2", "true")
-        os.environ.setdefault("LANGCHAIN_PROJECT", "rag-agent")
-        logger.info("LangSmith tracing enabled (project: rag-agent)")
-    else:
-        logger.debug("LangSmith tracing disabled (no LANGCHAIN_API_KEY)")
+    api_key = os.environ.get("LANGSMITH_API_KEY") or os.environ.get(
+        "LANGCHAIN_API_KEY"
+    )
+    if not api_key:
+        logger.debug(
+            "LangSmith tracing disabled "
+            "(no LANGSMITH_API_KEY / LANGCHAIN_API_KEY)"
+        )
+        return
+
+    os.environ.setdefault("LANGSMITH_API_KEY", api_key)
+    os.environ.setdefault("LANGCHAIN_API_KEY", api_key)
+
+    project = (
+        os.environ.get("LANGSMITH_PROJECT")
+        or os.environ.get("LANGCHAIN_PROJECT")
+        or "rag-agent"
+    )
+    os.environ.setdefault("LANGSMITH_PROJECT", project)
+    os.environ.setdefault("LANGCHAIN_PROJECT", project)
+
+    # Both SDK generations read their own flag; set both to "true" by default.
+    os.environ.setdefault("LANGCHAIN_TRACING_V2", "true")
+    os.environ.setdefault("LANGSMITH_TRACING", "true")
+
+    endpoint = os.environ.get("LANGSMITH_ENDPOINT") or os.environ.get(
+        "LANGCHAIN_ENDPOINT"
+    )
+    if endpoint:
+        os.environ.setdefault("LANGSMITH_ENDPOINT", endpoint)
+        os.environ.setdefault("LANGCHAIN_ENDPOINT", endpoint)
+
+    logger.info("LangSmith tracing enabled (project: %s)", project)
+
+
+def get_langsmith_base_url() -> str:
+    """Return the configured LangSmith endpoint or the public default."""
+    return (
+        os.environ.get("LANGSMITH_ENDPOINT")
+        or os.environ.get("LANGCHAIN_ENDPOINT")
+        or "https://smith.langchain.com"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -37,31 +75,109 @@ def configure_langsmith():
 # ---------------------------------------------------------------------------
 
 try:
-    from prometheus_client import Counter, Histogram
+    from prometheus_client import REGISTRY, Counter, Histogram
 
-    AGENT_EXECUTION_DURATION = Histogram(
+    def _get_or_create_counter(name: str, doc: str, labels: list[str]) -> Counter:
+        """Return an existing Counter (if already registered) or create one.
+
+        Module re-imports during dev hot-reload would otherwise raise
+        ``ValueError: Duplicated timeseries`` from the global registry and
+        crash the process on restart.
+        """
+        existing = getattr(REGISTRY, "_names_to_collectors", {}).get(name)
+        if existing is not None:
+            return existing  # type: ignore[return-value]
+        return Counter(name, doc, labels)
+
+    def _get_or_create_histogram(
+        name: str, doc: str, labels: list[str], buckets: list[float]
+    ) -> Histogram:
+        existing = getattr(REGISTRY, "_names_to_collectors", {}).get(name)
+        if existing is not None:
+            return existing  # type: ignore[return-value]
+        return Histogram(name, doc, labels, buckets=buckets)
+
+    AGENT_EXECUTION_DURATION = _get_or_create_histogram(
         "agent_execution_duration_seconds",
         "Duration of agent graph execution",
         ["intent", "status"],
-        buckets=[0.5, 1, 2, 5, 10, 30, 60, 120],
+        [0.5, 1, 2, 5, 10, 30, 60, 120],
     )
 
-    AGENT_TOOL_CALLS = Counter(
+    AGENT_NODE_DURATION = _get_or_create_histogram(
+        "agent_node_duration_seconds",
+        "Duration of an individual agent node execution",
+        ["node", "status"],
+        [0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10, 30],
+    )
+
+    AGENT_TOOL_CALLS = _get_or_create_counter(
         "agent_tool_calls_total",
         "Total number of tool calls made by the agent",
         ["tool_name", "status"],
     )
 
-    AGENT_TOKEN_USAGE = Counter(
+    AGENT_TOKEN_USAGE = _get_or_create_counter(
         "agent_token_usage_total",
         "Total token usage by the agent",
         ["model", "type"],
     )
 
-    AGENT_ERRORS = Counter(
+    AGENT_ERRORS = _get_or_create_counter(
         "agent_error_total",
         "Total number of agent errors",
-        ["error_type"],
+        # ``node`` records WHERE the error occurred; ``error_type`` records
+        # WHAT class of failure it was (kept separate so dashboards don't
+        # conflate location with cause).
+        ["node", "error_type"],
+    )
+
+    # Distribution across classifier paths. Lets dashboards alert when LLM
+    # path drops (e.g. Azure 404s) and keyword fallback share rises.
+    AGENT_CLASSIFIER_SOURCE = _get_or_create_counter(
+        "agent_classifier_source_total",
+        "Intent classifier path (llm/keyword/shortcut/fallback) per intent",
+        ["source", "intent"],
+    )
+
+    # Tool-level error counter with structured category from
+    # error_recovery.classify_error (transient/permanent/auth/validation/
+    # not_found/...). Lets us separate "search_arxiv timeout spike" from
+    # "create_project auth failure" on the same dashboard.
+    AGENT_TOOL_ERRORS = _get_or_create_counter(
+        "agent_tool_errors_total",
+        "Tool execution errors by tool + category",
+        ["tool", "category"],
+    )
+
+    # Memory recall hit rate — emits 0 (miss) or 1 (hit, >=1 memory returned)
+    # per recall call. Use rate() in Prometheus / Grafana to derive hit-rate %.
+    AGENT_MEMORY_RECALL = _get_or_create_counter(
+        "agent_memory_recall_total",
+        "Memory recall outcomes per call",
+        ["outcome"],  # "hit" | "miss"
+    )
+
+    # Background assistant-row persistence failures — Task 5 of
+    # docs/plans/2026-05-13-agent-persist-perf.md. Bumped by the safe
+    # wrapper around _persist_assistant_message when the deferred commit
+    # raises. Lets dashboards alert when assistant rows are silently lost
+    # off the request hot path.
+    agent_assistant_persist_failures_total = _get_or_create_counter(
+        "agent_assistant_persist_failures_total",
+        "Number of background assistant-row persistence failures",
+        [],
+    )
+
+    # Quality histogram: max similarity score returned per recall call.
+    # Trace evidence showed score=null for every recalled item — once the
+    # store has a semantic index wired this histogram surfaces whether
+    # recalls actually returned ranked, useful memories.
+    AGENT_MEMORY_SCORE = _get_or_create_histogram(
+        "agent_memory_relevance_score",
+        "Max relevance score returned by memory recall",
+        [],
+        [0.0, 0.1, 0.25, 0.5, 0.75, 0.9, 1.0],
     )
 
     _METRICS_AVAILABLE = True
@@ -76,7 +192,11 @@ except ImportError:
 
 
 def track_node_execution(node_name: str):
-    """Decorator to track node execution time and errors."""
+    """Decorator to track node execution time and errors.
+
+    Records both the success and the error paths into Prometheus so node
+    latency dashboards have data even when no error is raised.
+    """
     def decorator(func: Callable):
         @wraps(func)
         async def wrapper(*args, **kwargs):
@@ -87,6 +207,10 @@ def track_node_execution(node_name: str):
                 logger.debug(
                     "Node %s completed in %.2fs", node_name, duration
                 )
+                if _METRICS_AVAILABLE:
+                    AGENT_NODE_DURATION.labels(
+                        node=node_name, status="success"
+                    ).observe(duration)
                 return result
             except Exception as e:
                 duration = time.monotonic() - t0
@@ -97,7 +221,12 @@ def track_node_execution(node_name: str):
                     e,
                 )
                 if _METRICS_AVAILABLE:
-                    AGENT_ERRORS.labels(error_type=node_name).inc()
+                    AGENT_NODE_DURATION.labels(
+                        node=node_name, status="error"
+                    ).observe(duration)
+                    AGENT_ERRORS.labels(
+                        node=node_name, error_type=type(e).__name__
+                    ).inc()
                 raise
         return wrapper
     return decorator
@@ -126,10 +255,49 @@ def record_token_usage(model: str, prompt_tokens: int, completion_tokens: int):
         )
 
 
-def record_error(error_type: str):
-    """Record an agent error."""
+def record_error(error_type: str, node: str = "unknown"):
+    """Record an agent error.
+
+    ``node`` records WHERE the error happened (which graph node) so
+    dashboards can pivot by location independently of the error class
+    captured in ``error_type``.
+    """
     if _METRICS_AVAILABLE:
-        AGENT_ERRORS.labels(error_type=error_type).inc()
+        AGENT_ERRORS.labels(node=node, error_type=error_type).inc()
+
+
+def record_classifier_source(source: str, intent: str) -> None:
+    """Record which classifier path produced the intent.
+
+    Source values: llm, keyword, shortcut, fallback.
+    """
+    if _METRICS_AVAILABLE:
+        AGENT_CLASSIFIER_SOURCE.labels(source=source, intent=intent).inc()
+
+
+def record_tool_error(tool: str, category: str) -> None:
+    """Record a tool failure with classified category."""
+    if _METRICS_AVAILABLE:
+        AGENT_TOOL_ERRORS.labels(tool=tool, category=category).inc()
+
+
+def record_memory_recall(hit: bool, max_score: float | None = None) -> None:
+    """Record memory recall outcome + optional max similarity score.
+
+    ``hit`` increments the counter under outcome="hit" or "miss".
+    ``max_score`` (when not None) feeds the relevance histogram so
+    dashboards can distinguish "we returned 5 memories with score=0.1"
+    from "we returned 5 strong matches".
+    """
+    if not _METRICS_AVAILABLE:
+        return
+    AGENT_MEMORY_RECALL.labels(outcome="hit" if hit else "miss").inc()
+    if max_score is not None:
+        AGENT_MEMORY_SCORE.observe(max_score)
+
+
+# Backwards-compat alias — earlier code paths referenced the old name.
+record_memory_retrieval = record_memory_recall
 
 
 @asynccontextmanager

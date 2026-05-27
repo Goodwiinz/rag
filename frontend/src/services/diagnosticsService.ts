@@ -3,7 +3,7 @@
  * Communicates with backend /api/v1/diagnostics/* endpoints.
  */
 
-import axios, { AxiosInstance } from 'axios';
+import { api } from '@/services/api-client';
 
 // --- Types ---
 
@@ -125,77 +125,31 @@ export interface WeightExperimentResult {
   total_time_ms: number;
 }
 
-// --- Client setup ---
+// --- Service ---
 
 const API_PREFIX = '/api/v1';
-
-const getAuthContext = (): {
-  token: string | null;
-  organizationId: string | null;
-} => {
-  if (typeof window === 'undefined') {
-    return { token: null, organizationId: null };
-  }
-  try {
-    const authStorage = localStorage.getItem('auth-storage');
-    if (authStorage) {
-      const auth = JSON.parse(authStorage);
-      return {
-        token: auth.state?.token || null,
-        organizationId:
-          auth.state?.organization?.id ||
-          auth.state?.user?.organization_id ||
-          null,
-      };
-    }
-  } catch {
-    // Fall through
-  }
-  return { token: null, organizationId: null };
-};
-
-const diagClient: AxiosInstance = axios.create({
-  baseURL: '',
-  timeout: 30000,
-  headers: { 'Content-Type': 'application/json' },
-});
-
-diagClient.interceptors.request.use((config) => {
-  if (typeof window === 'undefined') return config;
-  const { token, organizationId } = getAuthContext();
-  if (token) config.headers.Authorization = `Bearer ${token}`;
-  if (organizationId) config.headers['X-Organization-ID'] = organizationId;
-  return config;
-});
-
-// --- Service ---
 
 export const diagnosticsService = {
   async getTrace(
     traceId: string
   ): Promise<{ trace: RetrievalTrace; bottleneck_report: BottleneckReport }> {
-    const response = await diagClient.get(
-      `${API_PREFIX}/diagnostics/traces/${traceId}`
-    );
-    return response.data;
+    return api.get(`${API_PREFIX}/diagnostics/traces/${traceId}`);
   },
 
   async getRecentTraces(
     limit = 50,
     offset = 0
   ): Promise<{ traces: TraceSummary[]; count: number }> {
-    const response = await diagClient.get(`${API_PREFIX}/diagnostics/traces`, {
-      params: { limit, offset },
-    });
-    return response.data;
+    const params = new URLSearchParams();
+    params.append('limit', limit.toString());
+    params.append('offset', offset.toString());
+    return api.get(`${API_PREFIX}/diagnostics/traces?${params.toString()}`);
   },
 
   async getAggregateStats(hours = 24): Promise<AggregateStats> {
-    const response = await diagClient.get(
-      `${API_PREFIX}/diagnostics/aggregate`,
-      { params: { hours } }
+    return api.get(
+      `${API_PREFIX}/diagnostics/aggregate?hours=${hours}`
     );
-    return response.data;
   },
 
   async experimentWeights(
@@ -203,14 +157,10 @@ export const diagnosticsService = {
     configurations: WeightConfig[],
     maxDocs = 5
   ): Promise<{ query: string; results: WeightExperimentResult[] }> {
-    const response = await diagClient.post(
-      `${API_PREFIX}/diagnostics/weight-experiment`,
-      {
-        query,
-        max_docs: maxDocs,
-        configurations,
-      }
-    );
-    return response.data;
+    return api.post(`${API_PREFIX}/diagnostics/weight-experiment`, {
+      query,
+      max_docs: maxDocs,
+      configurations,
+    });
   },
 };

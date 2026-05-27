@@ -1,10 +1,10 @@
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { cn } from "@/lib/utils";
-import { AlertCircle, CheckCircle2 } from "lucide-react";
-import * as React from "react";
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { cn } from '@/lib/utils';
+import { AlertCircle, CheckCircle2 } from 'lucide-react';
+import * as React from 'react';
 
-export interface FormFieldProps extends React.ComponentProps<"input"> {
+export interface FormFieldProps extends React.ComponentProps<'input'> {
   label: string;
   error?: string;
   hint?: string;
@@ -38,7 +38,11 @@ export const FormField = React.forwardRef<HTMLInputElement, FormFieldProps>(
     const hintId = `${fieldId}-hint`;
 
     const displayError = error || (touched ? internalError : undefined);
-    const isValid = touched && !displayError && props.value;
+    const isValid =
+      touched &&
+      !displayError &&
+      props.value !== undefined &&
+      props.value !== '';
 
     const handleBlur = (e: React.FocusEvent<HTMLInputElement>) => {
       setTouched(true);
@@ -59,7 +63,7 @@ export const FormField = React.forwardRef<HTMLInputElement, FormFieldProps>(
       <div className="space-y-2">
         <Label
           htmlFor={fieldId}
-          className={cn(displayError && "text-destructive")}
+          className={cn(displayError && 'text-destructive')}
         >
           {label}
           {required && <span className="text-destructive ml-1">*</span>}
@@ -70,14 +74,12 @@ export const FormField = React.forwardRef<HTMLInputElement, FormFieldProps>(
             ref={ref}
             id={fieldId}
             aria-invalid={!!displayError}
-            aria-describedby={cn(
-              displayError && errorId,
-              hint && hintId
-            )}
+            aria-describedby={cn(displayError && errorId, hint && hintId)}
             className={cn(
-              "pr-10",
-              displayError && "border-destructive focus-visible:ring-destructive",
-              isValid && "border-green-500 focus-visible:ring-green-500",
+              'pr-10',
+              displayError &&
+                'border-destructive focus-visible:ring-destructive',
+              isValid && 'border-green-500 focus-visible:ring-green-500',
               className
             )}
             onBlur={handleBlur}
@@ -120,4 +122,4 @@ export const FormField = React.forwardRef<HTMLInputElement, FormFieldProps>(
   }
 );
 
-FormField.displayName = "FormField";
+FormField.displayName = 'FormField';

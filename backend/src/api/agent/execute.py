@@ -18,8 +18,9 @@ from uuid import UUID
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from langgraph.errors import GraphInterrupt  # noqa: F401  re-export for backward compat
-from pydantic import BaseModel, Field
-from sqlalchemy import select, desc, func
+from pydantic import BaseModel, Field, field_validator
+from sqlalchemy import cast, select, desc, func
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -40,9 +41,12 @@ from .tools_impl import (  # noqa: F401
     _tool_search_arxiv,
     _tool_ingest_arxiv,
     _tool_search_documents,
+    _tool_do_kb_retrieve,
     _tool_add_document_to_project,
+    _tool_create_project,
     _tool_create_project_note,
     _tool_list_project_documents,
+    _tool_list_projects,
     _tool_summarize_document,
     _tool_compare_documents,
     _tool_extract_entities,
@@ -53,6 +57,8 @@ from .tools_impl import (  # noqa: F401
     _tool_create_draft,
     _tool_export_bibliography,
     _tool_execute_code,
+    _tool_search_external_database,
+    _tool_list_external_databases,
 )
 
 from .tool_helpers import (  # noqa: F401
@@ -64,6 +70,7 @@ from .tool_helpers import (  # noqa: F401
 
 from .jobs import (  # noqa: F401
     _jobs,
+    _jobs_lock,
     _cleanup_jobs,
     _set_job,
     _get_job,
@@ -93,6 +100,20 @@ router = APIRouter(prefix="/api/v1/agent", tags=["agent"])
 class AgentMessage(BaseModel):
     role: Literal["user", "assistant"] = Field(..., description="Message role: user or assistant")
     content: str = Field(..., max_length=32000, description="Message content")
+    client_message_id: Optional[UUID] = Field(
+        default=None,
+        description=(
+            "Client-supplied idempotency key. Only honored for role='user'; "
+            "ignored otherwise. Used to dedupe retries without a server-side SELECT."
+        ),
+    )
+
+    @field_validator("client_message_id")
+    @classmethod
+    def _only_for_user(cls, v: Optional[UUID], info) -> Optional[UUID]:
+        if v is not None and info.data.get("role") != "user":
+            raise ValueError("client_message_id only valid on user messages")
+        return v
 
 
 class PageContextRequest(BaseModel):
@@ -103,13 +124,32 @@ class PageContextRequest(BaseModel):
     metadata: Optional[Dict[str, Any]] = None
 
 
+SUPPORTED_MODELS: frozenset[str] = frozenset({"", "model-router", "gpt-5-mini"})
+
+
 class AgentExecuteRequest(BaseModel):
     messages: List[AgentMessage] = Field(..., max_length=50, description="Conversation messages")
     page_context: PageContextRequest = Field(default_factory=PageContextRequest)
-    model: Literal["gpt-4o", "gpt-4o-mini"] = Field(default="gpt-4o")
+    model: str = Field(
+        default="",
+        description=(
+            "Azure deployment name to route the chat to. Empty string uses the "
+            "server-configured deployment. See SUPPORTED_MODELS for the allow-list."
+        ),
+    )
     use_rag: bool = Field(default=True)
     max_context_docs: int = Field(default=5, ge=1, le=10)
     thread_id: Optional[str] = None
+
+    @field_validator("model")
+    @classmethod
+    def _validate_model(cls, value: str) -> str:
+        if value not in SUPPORTED_MODELS:
+            supported = ", ".join(sorted(name for name in SUPPORTED_MODELS if name))
+            raise ValueError(
+                f"Unsupported model {value!r}. Supported deployments: {supported}."
+            )
+        return value
 
 
 class RetrievedContextResponse(BaseModel):
@@ -177,6 +217,7 @@ You have access to the following tools:
 - **search_arxiv**: Search arXiv for academic papers. Use when the user asks to find research papers or scientific articles.
 - **ingest_arxiv_papers**: Ingest arXiv papers into the RAG system. Use when the user wants to add/import specific arXiv papers by ID.
 - **search_documents**: Search the user's indexed documents by title or content. Use when the user wants to find documents they have already uploaded.
+- **create_project**: Create a new research project (folder). Use when the user asks to create, start, or set up a new project, folder, or research workspace.
 - **add_document_to_project**: Add an existing document to a research project. Use when the user wants to organize a document into a project.
 - **create_project_note**: Create a markdown note in a research project. Use when the user wants to write or save notes, observations, or summaries.
 - **list_project_documents**: List all documents in a research project. Use when the user wants to see what documents are in a project.
@@ -236,15 +277,20 @@ async def execute_agent(
     _set_job(job_id, {"status": "running", "tool_executions": [], "user_id": str(current_user.id), "request": request.model_dump()})
 
     background_tasks.add_task(
-        _run_agent_graph, job_id, request, current_user, db,
+        _run_agent_graph, job_id, request, current_user,
     )
     return JobStartResponse(job_id=job_id)
 
 
 @router.get("/jobs/{job_id}", response_model=JobStatusResponse)
 async def get_job_status(job_id: str, current_user: User = Depends(get_current_user)):
-    """Poll for agent job status."""
+    """Poll for agent job status — checks L1 cache then Redis."""
+    # Try L1 first (fast path)
     job = _get_job(job_id)
+    # Fall back to Redis L2 (survives restarts)
+    if not job:
+        from src.services.agent.job_store import get_job as _get_job_async_local
+        job = await _get_job_async_local(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
     if job.get("user_id") and job["user_id"] != str(current_user.id):
@@ -261,19 +307,21 @@ async def confirm_agent_action(
     db: AsyncSession = Depends(get_db),
 ):
     """Confirm or deny a pending agent action (human-in-the-loop)."""
-    job = _get_job(job_id)
-    if not job:
-        raise HTTPException(status_code=404, detail="Job not found")
-    if job.get("user_id") and job["user_id"] != str(current_user.id):
-        raise HTTPException(status_code=404, detail="Job not found")
-    if job.get("status") != "awaiting_confirmation":
-        raise HTTPException(status_code=400, detail="Job is not awaiting confirmation")
+    # Atomic check-and-update to prevent TOCTOU race
+    with _jobs_lock:
+        job = _jobs.get(job_id)
+        if not job:
+            raise HTTPException(status_code=404, detail="Job not found")
+        if job.get("user_id") and job["user_id"] != str(current_user.id):
+            raise HTTPException(status_code=404, detail="Job not found")
+        if job.get("status") != "awaiting_confirmation":
+            raise HTTPException(status_code=400, detail="Job is not awaiting confirmation")
+        job["status"] = "running"
 
     # Resume the graph with the user's decision
     background_tasks.add_task(
-        _resume_agent_graph, job_id, request.confirmed, current_user, db,
+        _resume_agent_graph, job_id, request.confirmed, current_user,
     )
-    _set_job(job_id, {**job, "status": "running"})
     return {"status": "running", "job_id": job_id}
 
 
@@ -281,17 +329,20 @@ async def confirm_agent_action(
 async def stream_agent(
     request_body: AgentExecuteRequest,
     request: Request,
+    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
 ):
     """Stream agent responses via Server-Sent Events.
 
     SSE event types: token, tool_start, tool_end, rag_context, done, error
     """
     return StreamingResponse(
-        stream_event_generator(request_body, request, current_user, db),
+        stream_event_generator(
+            request_body, request, current_user, background_tasks=background_tasks
+        ),
         media_type="text/event-stream",
         headers=_SSE_HEADERS,
+        background=background_tasks,
     )
 
 
@@ -300,11 +351,10 @@ async def stream_confirm_agent(
     request_body: StreamConfirmRequest,
     request: Request,
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
 ):
     """Resume a graph interrupted by HITL via SSE streaming."""
     return StreamingResponse(
-        stream_confirm_event_generator(request_body, request, current_user, db),
+        stream_confirm_event_generator(request_body, request, current_user),
         media_type="text/event-stream",
         headers=_SSE_HEADERS,
     )
@@ -396,7 +446,7 @@ async def list_agent_threads(
         .where(
             Workspace.owner_id == current_user.id,
             Thread.is_deleted == False,
-            Thread.rag_document_scope == AGENT_THREAD_MARKER,
+            Thread.rag_document_scope == cast(AGENT_THREAD_MARKER, JSONB),
         )
         .order_by(desc(Thread.updated_at))
         .limit(50)
@@ -412,7 +462,7 @@ async def list_agent_threads(
         .where(
             Workspace.owner_id == current_user.id,
             Thread.is_deleted == False,
-            Thread.rag_document_scope == AGENT_THREAD_MARKER,
+            Thread.rag_document_scope == cast(AGENT_THREAD_MARKER, JSONB),
         )
     )
     total_result = await db.execute(count_stmt)

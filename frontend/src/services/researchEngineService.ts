@@ -1,4 +1,4 @@
-import { apiClient } from '@/services/apiClient';
+import { api } from '@/services/api-client';
 
 const BASE = '/api/v1/research-engine';
 
@@ -29,44 +29,44 @@ export interface BlueprintCreate {
 }
 
 // Functions
-export const listProjects = () => apiClient.get(`${BASE}/projects`);
+export const listProjects = () => api.get(`${BASE}/projects`);
 
 export const createProject = (data: ProjectCreate) =>
-  apiClient.post(`${BASE}/projects`, data);
+  api.post(`${BASE}/projects`, data);
 
 export const getProject = (id: string) =>
-  apiClient.get(`${BASE}/projects/${id}`);
+  api.get(`${BASE}/projects/${id}`);
 
 export const listTemplates = () =>
-  apiClient.get(`${BASE}/blueprints/templates`);
+  api.get(`${BASE}/blueprints/templates`);
 
 export const createBlueprint = (projectId: string, data: BlueprintCreate) =>
-  apiClient.post(`${BASE}/blueprints/projects/${projectId}`, data);
+  api.post(`${BASE}/blueprints/projects/${projectId}`, data);
 
 export const getBlueprint = (id: string) =>
-  apiClient.get(`${BASE}/blueprints/${id}`);
+  api.get(`${BASE}/blueprints/${id}`);
 
 export const startRun = (
   blueprintId: string,
   parametersOverride: Record<string, unknown>
 ) =>
-  apiClient.post(`${BASE}/blueprints/${blueprintId}/runs`, {
+  api.post(`${BASE}/blueprints/${blueprintId}/runs`, {
     parameters_override: parametersOverride,
   });
 
-export const getRun = (runId: string) => apiClient.get(`${BASE}/runs/${runId}`);
+export const getRun = (runId: string) => api.get(`${BASE}/runs/${runId}`);
 
 export const pauseRun = (runId: string) =>
-  apiClient.post(`${BASE}/runs/${runId}/pause`);
+  api.post(`${BASE}/runs/${runId}/pause`);
 
 export const resumeRun = (runId: string) =>
-  apiClient.post(`${BASE}/runs/${runId}/resume`);
+  api.post(`${BASE}/runs/${runId}/resume`);
 
 export const getRunManifest = (runId: string) =>
-  apiClient.get(`${BASE}/runs/${runId}/manifest`);
+  api.get(`${BASE}/runs/${runId}/manifest`);
 
 export const listSteps = (runId: string) =>
-  apiClient.get(`${BASE}/runs/${runId}/steps`);
+  api.get(`${BASE}/runs/${runId}/steps`);
 
 export const getStep = (stepId: string) =>
-  apiClient.get(`${BASE}/steps/${stepId}`);
+  api.get(`${BASE}/steps/${stepId}`);

@@ -2,7 +2,7 @@ import { cn } from '@/lib/utils';
 import { Brain, Loader2, Lock, LogIn, Zap } from 'lucide-react';
 import React from 'react';
 
-import { ToggleSwitch } from '../arxivControls';
+import { ToggleSwitch } from '../ArxivControls';
 import { ExtractionResult } from '../arxivTypes';
 
 interface ExtractTabProps {

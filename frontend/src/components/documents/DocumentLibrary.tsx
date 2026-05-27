@@ -17,10 +17,23 @@ import { DocumentCard } from './DocumentCard';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
 import { Document } from '@/types';
+import toast from 'react-hot-toast';
 
 // Helper function to format file sizes
 const formatFileSize = (bytes: number): string => {
@@ -72,39 +85,53 @@ export const DocumentLibrary: React.FC<DocumentLibraryProps> = ({
   const [selectedFileType, setSelectedFileType] = useState<string>('all');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-  const [documentToDelete, setDocumentToDelete] = useState<Document | null>(null);
+  const [documentToDelete, setDocumentToDelete] = useState<Document | null>(
+    null
+  );
   const [showBatchDeleteDialog, setShowBatchDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteProgress, setDeleteProgress] = useState(0);
   const [showBulkActionsMenu, setShowBulkActionsMenu] = useState(false);
   const [retryingDocument, setRetryingDocument] = useState<string | null>(null);
 
-  const handleSearch = useCallback((query: string) => {
-    setSearchQuery(query);
-    updateFilters({ search_term: query || undefined });
-  }, [updateFilters]);
+  const handleSearch = useCallback(
+    (query: string) => {
+      setSearchQuery(query);
+      updateFilters({ search_term: query || undefined });
+    },
+    [updateFilters]
+  );
 
-  const handleFileTypeFilter = useCallback((fileType: string) => {
-    setSelectedFileType(fileType);
-    if (fileType === 'all') {
-      updateFilters({ file_types: undefined });
-    } else {
-      updateFilters({ file_types: [fileType as Document['file_type']] });
-    }
-  }, [updateFilters]);
+  const handleFileTypeFilter = useCallback(
+    (fileType: string) => {
+      setSelectedFileType(fileType);
+      if (fileType === 'all') {
+        updateFilters({ file_types: undefined });
+      } else {
+        updateFilters({ file_types: [fileType as Document['file_type']] });
+      }
+    },
+    [updateFilters]
+  );
 
-  const handleStatusFilter = useCallback((status: string) => {
-    setSelectedStatus(status);
-    if (status === 'all') {
-      updateFilters({ status: undefined });
-    } else {
-      updateFilters({ status: [status as Document['processing_status']] });
-    }
-  }, [updateFilters]);
+  const handleStatusFilter = useCallback(
+    (status: string) => {
+      setSelectedStatus(status);
+      if (status === 'all') {
+        updateFilters({ status: undefined });
+      } else {
+        updateFilters({ status: [status as Document['processing_status']] });
+      }
+    },
+    [updateFilters]
+  );
 
-  const handleDocumentSelect = useCallback((documentId: string) => {
-    selectDocument(documentId);
-  }, [selectDocument]);
+  const handleDocumentSelect = useCallback(
+    (documentId: string) => {
+      selectDocument(documentId);
+    },
+    [selectDocument]
+  );
 
   const handleSelectAll = useCallback(() => {
     if (isAllSelected) {
@@ -114,9 +141,12 @@ export const DocumentLibrary: React.FC<DocumentLibraryProps> = ({
     }
   }, [isAllSelected, selectAllDocuments, clearSelection]);
 
-  const handleDocumentPreview = useCallback((document: Document) => {
-    onDocumentPreview?.(document);
-  }, [onDocumentPreview]);
+  const handleDocumentPreview = useCallback(
+    (document: Document) => {
+      onDocumentPreview?.(document);
+    },
+    [onDocumentPreview]
+  );
 
   const handleDocumentDelete = useCallback((document: Document) => {
     setDocumentToDelete(document);
@@ -127,14 +157,16 @@ export const DocumentLibrary: React.FC<DocumentLibraryProps> = ({
     if (!documentToDelete) return;
 
     setIsDeleting(true);
+    const title = documentToDelete.title;
     try {
       await deleteDocument(documentToDelete.id);
       setShowDeleteDialog(false);
       setDocumentToDelete(null);
-      // TODO: Show success toast
+      toast.success(`Deleted "${title}"`);
     } catch (error) {
       console.error('Failed to delete document:', error);
-      // TODO: Show error toast with specific error message
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      toast.error(`Failed to delete "${title}": ${message}`);
     } finally {
       setIsDeleting(false);
     }
@@ -163,10 +195,13 @@ export const DocumentLibrary: React.FC<DocumentLibraryProps> = ({
 
       clearSelection();
       setShowBatchDeleteDialog(false);
-      // TODO: Show success toast
+      toast.success(
+        `Deleted ${totalItems} ${totalItems === 1 ? 'document' : 'documents'}`
+      );
     } catch (error) {
       console.error('Failed to delete selected documents:', error);
-      // TODO: Show error toast
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      toast.error(`Failed to delete documents: ${message}`);
     } finally {
       setIsDeleting(false);
       setDeleteProgress(0);
@@ -179,16 +214,26 @@ export const DocumentLibrary: React.FC<DocumentLibraryProps> = ({
     // This could generate a ZIP file or CSV export
   }, [selectedDocuments]);
 
-  const handleTagSelected = useCallback(async (tag: string) => {
-    // TODO: Implement bulk tagging functionality
-    console.log('Tagging selected documents with:', tag, Array.from(selectedDocuments));
-    // This would add the specified tag to all selected documents
-  }, [selectedDocuments]);
+  const handleTagSelected = useCallback(
+    async (tag: string) => {
+      // TODO: Implement bulk tagging functionality
+      console.log(
+        'Tagging selected documents with:',
+        tag,
+        Array.from(selectedDocuments)
+      );
+      // This would add the specified tag to all selected documents
+    },
+    [selectedDocuments]
+  );
 
   // Close bulk actions menu when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (bulkActionsMenuRef.current && !bulkActionsMenuRef.current.contains(event.target as Node)) {
+      if (
+        bulkActionsMenuRef.current &&
+        !bulkActionsMenuRef.current.contains(event.target as Node)
+      ) {
         setShowBulkActionsMenu(false);
       }
     };
@@ -199,31 +244,41 @@ export const DocumentLibrary: React.FC<DocumentLibraryProps> = ({
     };
   }, []);
 
-  const handlePageChange = useCallback((page: number) => {
-    updatePage(page);
-  }, [updatePage]);
+  const handlePageChange = useCallback(
+    (page: number) => {
+      updatePage(page);
+    },
+    [updatePage]
+  );
 
-  const handlePageSizeChange = useCallback((pageSize: string) => {
-    updatePageSize(parseInt(pageSize, 10));
-  }, [updatePageSize]);
+  const handlePageSizeChange = useCallback(
+    (pageSize: string) => {
+      updatePageSize(parseInt(pageSize, 10));
+    },
+    [updatePageSize]
+  );
 
   const handleRefresh = useCallback(() => {
     refreshDocuments();
   }, [refreshDocuments]);
 
-  const handleDocumentRetry = useCallback(async (documentId: string) => {
-    setRetryingDocument(documentId);
-    try {
-      await retryDocument(documentId);
-      // TODO: Show success toast
-      console.log('Document retry initiated successfully');
-    } catch (error) {
-      console.error('Failed to retry document:', error);
-      // TODO: Show error toast
-    } finally {
-      setRetryingDocument(null);
-    }
-  }, [retryDocument]);
+  const handleDocumentRetry = useCallback(
+    async (documentId: string) => {
+      setRetryingDocument(documentId);
+      try {
+        await retryDocument(documentId);
+        toast.success('Document retry initiated');
+      } catch (error) {
+        console.error('Failed to retry document:', error);
+        const message =
+          error instanceof Error ? error.message : 'Unknown error';
+        toast.error(`Failed to retry document: ${message}`);
+      } finally {
+        setRetryingDocument(null);
+      }
+    },
+    [retryDocument]
+  );
 
   // File type options
   const fileTypeOptions = [
@@ -254,13 +309,14 @@ export const DocumentLibrary: React.FC<DocumentLibraryProps> = ({
   ];
 
   return (
-    <div className={cn("w-full space-y-6", className)}>
+    <div className={cn('w-full space-y-6', className)}>
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Documents</h1>
           <p className="text-sm text-muted-foreground">
-            {pagination.total} {pagination.total === 1 ? 'document' : 'documents'}
+            {pagination.total}{' '}
+            {pagination.total === 1 ? 'document' : 'documents'}
           </p>
         </div>
         <Button
@@ -282,7 +338,9 @@ export const DocumentLibrary: React.FC<DocumentLibraryProps> = ({
             type="text"
             placeholder="Search documents..."
             value={searchQuery}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleSearch(e.target.value)}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+              handleSearch(e.target.value)
+            }
             className="pl-10"
           />
         </div>
@@ -321,11 +379,7 @@ export const DocumentLibrary: React.FC<DocumentLibraryProps> = ({
         <div className="flex items-center justify-between p-4 bg-accent/50 border rounded-lg">
           <div className="flex items-center space-x-2">
             <Badge variant="secondary">{selectedCount} selected</Badge>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={clearSelection}
-            >
+            <Button variant="ghost" size="sm" onClick={clearSelection}>
               Clear selection
             </Button>
           </div>
@@ -361,7 +415,10 @@ export const DocumentLibrary: React.FC<DocumentLibraryProps> = ({
                       }}
                       className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
                     >
-                      <FolderArrowDownIcon className="h-4 w-4 mr-2" aria-hidden="true" />
+                      <FolderArrowDownIcon
+                        className="h-4 w-4 mr-2"
+                        aria-hidden="true"
+                      />
                       Export
                     </button>
                     <button
@@ -438,13 +495,15 @@ export const DocumentLibrary: React.FC<DocumentLibraryProps> = ({
             <p className="text-muted-foreground">
               {!isAuthenticated
                 ? 'You need to log in to view and upload documents'
-                : searchQuery || selectedFileType !== 'all' || selectedStatus !== 'all'
-                ? 'Try adjusting your filters or search terms'
-                : 'Upload your first document to get started'}
+                : searchQuery ||
+                    selectedFileType !== 'all' ||
+                    selectedStatus !== 'all'
+                  ? 'Try adjusting your filters or search terms'
+                  : 'Upload your first document to get started'}
             </p>
             {!isAuthenticated && (
               <Button
-                onClick={() => window.location.href = '/login'}
+                onClick={() => (window.location.href = '/login')}
                 className="mt-4"
               >
                 Go to Login
@@ -464,7 +523,7 @@ export const DocumentLibrary: React.FC<DocumentLibraryProps> = ({
                   onSelect={handleDocumentSelect}
                   onPreview={handleDocumentPreview}
                   onDelete={(documentId: string) => {
-                    const document = documents.find(d => d.id === documentId);
+                    const document = documents.find((d) => d.id === documentId);
                     if (document) {
                       handleDocumentDelete(document);
                     }
@@ -477,14 +536,19 @@ export const DocumentLibrary: React.FC<DocumentLibraryProps> = ({
             {/* Pagination */}
             <div className="flex items-center justify-between">
               <div className="text-sm text-muted-foreground">
-                Showing {((pagination.page - 1) * pagination.pageSize) + 1} to{' '}
-                {Math.min(pagination.page * pagination.pageSize, pagination.total)} of{' '}
-                {pagination.total} documents
+                Showing {(pagination.page - 1) * pagination.pageSize + 1} to{' '}
+                {Math.min(
+                  pagination.page * pagination.pageSize,
+                  pagination.total
+                )}{' '}
+                of {pagination.total} documents
               </div>
 
               <div className="flex items-center space-x-4">
                 <div className="flex items-center space-x-2">
-                  <span className="text-sm text-muted-foreground">Items per page:</span>
+                  <span className="text-sm text-muted-foreground">
+                    Items per page:
+                  </span>
                   <Select
                     value={pagination.pageSize.toString()}
                     onValueChange={handlePageSizeChange}
@@ -494,7 +558,10 @@ export const DocumentLibrary: React.FC<DocumentLibraryProps> = ({
                     </SelectTrigger>
                     <SelectContent>
                       {pageSizeOptions.map((option) => (
-                        <SelectItem key={option.value} value={option.value.toString()}>
+                        <SelectItem
+                          key={option.value}
+                          value={option.value.toString()}
+                        >
                           {option.label}
                         </SelectItem>
                       ))}
@@ -542,16 +609,20 @@ export const DocumentLibrary: React.FC<DocumentLibraryProps> = ({
               <div className="flex items-center space-x-3 p-3 bg-red-50 rounded-lg">
                 <TrashIcon className="h-8 w-8 text-red-600" />
                 <div>
-                  <p className="font-medium text-red-900">Delete "{documentToDelete.title}"?</p>
+                  <p className="font-medium text-red-900">
+                    Delete "{documentToDelete.title}"?
+                  </p>
                   <p className="text-sm text-red-700">
-                    {documentToDelete.filename} • {formatFileSize(documentToDelete.file_size)}
+                    {documentToDelete.filename} •{' '}
+                    {formatFileSize(documentToDelete.file_size)}
                   </p>
                 </div>
               </div>
 
               <div className="space-y-2">
                 <p className="text-sm text-gray-600">
-                  This action <strong>cannot be undone</strong>. The document will be permanently deleted from:
+                  This action <strong>cannot be undone</strong>. The document
+                  will be permanently deleted from:
                 </p>
                 <ul className="text-sm text-gray-600 space-y-1 ml-4">
                   <li>• Document library</li>
@@ -593,7 +664,10 @@ export const DocumentLibrary: React.FC<DocumentLibraryProps> = ({
       </Dialog>
 
       {/* Batch Delete Confirmation Dialog */}
-      <Dialog open={showBatchDeleteDialog} onOpenChange={setShowBatchDeleteDialog}>
+      <Dialog
+        open={showBatchDeleteDialog}
+        onOpenChange={setShowBatchDeleteDialog}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Delete Multiple Documents</DialogTitle>
@@ -602,8 +676,12 @@ export const DocumentLibrary: React.FC<DocumentLibraryProps> = ({
             <div className="flex items-center space-x-3 p-3 bg-red-50 rounded-lg">
               <TrashIcon className="h-8 w-8 text-red-600" />
               <div>
-                <p className="font-medium text-red-900">Delete {selectedCount} documents?</p>
-                <p className="text-sm text-red-700">This action cannot be undone</p>
+                <p className="font-medium text-red-900">
+                  Delete {selectedCount} documents?
+                </p>
+                <p className="text-sm text-red-700">
+                  This action cannot be undone
+                </p>
               </div>
             </div>
 
@@ -620,7 +698,8 @@ export const DocumentLibrary: React.FC<DocumentLibraryProps> = ({
                   />
                 </div>
                 <p className="text-xs text-gray-500">
-                  {Math.round((deleteProgress / 100) * selectedCount)} of {selectedCount} documents deleted
+                  {Math.round((deleteProgress / 100) * selectedCount)} of{' '}
+                  {selectedCount} documents deleted
                 </p>
               </div>
             )}

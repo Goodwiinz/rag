@@ -209,7 +209,7 @@ class DatabaseInstrumentation:
 
                 increment_counter(
                     "database_queries_total",
-                    {
+                    attributes={
                         "operation": context.execution_options.get(
                             "operation", "query"
                         ),
@@ -225,29 +225,36 @@ class DatabaseInstrumentation:
                 )
 
         @event.listens_for(engine, "handle_error")
-        def handle_error(context, exception):
+        def handle_error(exception_context):
             """Handle database errors"""
-            if hasattr(context, "_query_start_time"):
+            exception = exception_context.original_exception
+            context = exception_context.execution_context
+            duration = None
+            if context is not None and hasattr(context, "_query_start_time"):
                 duration = time.time() - context._query_start_time
 
-                # Record error metrics
-                increment_counter(
-                    "database_queries_total",
-                    {
-                        "operation": context.execution_options.get(
-                            "operation", "query"
-                        ),
-                        "success": "false",
-                        "error_type": type(exception).__name__,
-                    },
-                )
+            operation = "query"
+            if context is not None:
+                try:
+                    operation = context.execution_options.get("operation", "query")
+                except AttributeError:
+                    pass
 
-                logger.error(
-                    f"Database query error",
-                    error=str(exception),
-                    error_type=type(exception).__name__,
-                    duration=duration,
-                )
+            increment_counter(
+                "database_queries_total",
+                attributes={
+                    "operation": operation,
+                    "success": "false",
+                    "error_type": type(exception).__name__,
+                },
+            )
+
+            logger.error(
+                "Database query error",
+                error=str(exception),
+                error_type=type(exception).__name__,
+                duration=duration,
+            )
 
 
 class RedisInstrumentation:
@@ -285,7 +292,8 @@ class RedisInstrumentation:
                     )
 
                     increment_counter(
-                        "redis_commands_total", {"command": command, "success": "true"}
+                        "redis_commands_total",
+                        attributes={"command": command, "success": "true"},
                     )
 
                     return result
@@ -296,7 +304,7 @@ class RedisInstrumentation:
                     # Record error metrics
                     increment_counter(
                         "redis_commands_total",
-                        {
+                        attributes={
                             "command": command,
                             "success": "false",
                             "error_type": type(e).__name__,
@@ -355,7 +363,7 @@ class HTTPClientInstrumentation:
 
                     increment_counter(
                         "http_client_requests_total",
-                        {
+                        attributes={
                             "method": method.upper(),
                             "status_code": str(response.status_code),
                             "target_host": parsed_url.host,
@@ -370,7 +378,7 @@ class HTTPClientInstrumentation:
                     # Record error metrics
                     increment_counter(
                         "http_client_requests_total",
-                        {
+                        attributes={
                             "method": method.upper(),
                             "success": "false",
                             "error_type": type(e).__name__,

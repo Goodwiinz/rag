@@ -1,4 +1,5 @@
-import '@testing-library/jest-dom';
+import { describe, expect, it, vi } from 'vitest';
+import '@testing-library/jest-dom/vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
 import SettingsPage from '../../../../app/(dashboard)/settings/page';
 
@@ -8,14 +9,14 @@ const mockedAuth = {
   },
 };
 
-jest.mock('@/hooks/useAuth', () => ({
+vi.mock('@/hooks/useAuth', () => ({
   useAuth: () => mockedAuth,
 }));
 
-jest.mock('next/navigation', () => ({
+vi.mock('next/navigation', () => ({
   useRouter: () => ({
-    back: jest.fn(),
-    push: jest.fn(),
+    back: vi.fn(),
+    push: vi.fn(),
   }),
 }));
 

@@ -4,8 +4,10 @@
  * Tests API client calls with mocked responses
  */
 
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { Mocked } from 'vitest';
 import { projectChatService } from '../projectChatService';
-import { apiClient } from '../apiClient';
+import { api } from '../api-client';
 import type {
   StartChatFromProjectRequest,
   StartChatFromProjectResponse,
@@ -16,15 +18,15 @@ import type {
 } from '@/types/project-chat';
 
 // Mock the API client
-jest.mock('../apiClient', () => ({
-  apiClient: {
-    get: jest.fn(),
-    post: jest.fn(),
-    delete: jest.fn(),
+vi.mock('../api-client', () => ({
+  api: {
+    get: vi.fn(),
+    post: vi.fn(),
+    delete: vi.fn(),
   },
 }));
 
-const mockApiClient = apiClient as jest.Mocked<typeof apiClient>;
+const mockApi = api as Mocked<typeof api>;
 
 // ============================================================================
 // Test Data Factories
@@ -59,7 +61,7 @@ const createMockStartResponse = (overrides: Partial<StartChatFromProjectResponse
 
 describe('projectChatService', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   // ==========================================================================
@@ -75,11 +77,11 @@ describe('projectChatService', () => {
 
     it('should call POST with correct endpoint and payload', async () => {
       const mockResponse = createMockStartResponse();
-      mockApiClient.post.mockResolvedValue(mockResponse);
+      mockApi.post.mockResolvedValue(mockResponse);
 
       await projectChatService.startChatFromProject(projectId, request);
 
-      expect(mockApiClient.post).toHaveBeenCalledWith(
+      expect(mockApi.post).toHaveBeenCalledWith(
         `/projects/${projectId}/chat/start`,
         request
       );
@@ -87,7 +89,7 @@ describe('projectChatService', () => {
 
     it('should return start chat response on success', async () => {
       const mockResponse = createMockStartResponse();
-      mockApiClient.post.mockResolvedValue(mockResponse);
+      mockApi.post.mockResolvedValue(mockResponse);
 
       const result = await projectChatService.startChatFromProject(projectId, request);
 
@@ -104,7 +106,7 @@ describe('projectChatService', () => {
       const mockResponse = createMockStartResponse({
         conversation_id: 'conv-existing-123',
       });
-      mockApiClient.post.mockResolvedValue(mockResponse);
+      mockApi.post.mockResolvedValue(mockResponse);
 
       const result = await projectChatService.startChatFromProject(projectId, requestWithConv);
 
@@ -113,7 +115,7 @@ describe('projectChatService', () => {
 
     it('should propagate API errors', async () => {
       const error = new Error('Network error');
-      mockApiClient.post.mockRejectedValue(error);
+      mockApi.post.mockRejectedValue(error);
 
       await expect(
         projectChatService.startChatFromProject(projectId, request)
@@ -134,11 +136,11 @@ describe('projectChatService', () => {
 
     it('should call POST with correct endpoint and payload', async () => {
       const mockResponse = createMockProjectThread();
-      mockApiClient.post.mockResolvedValue(mockResponse);
+      mockApi.post.mockResolvedValue(mockResponse);
 
       await projectChatService.linkThreadToProject(projectId, request);
 
-      expect(mockApiClient.post).toHaveBeenCalledWith(
+      expect(mockApi.post).toHaveBeenCalledWith(
         `/projects/${projectId}/chat/link`,
         request
       );
@@ -146,7 +148,7 @@ describe('projectChatService', () => {
 
     it('should return project thread on success', async () => {
       const mockResponse = createMockProjectThread();
-      mockApiClient.post.mockResolvedValue(mockResponse);
+      mockApi.post.mockResolvedValue(mockResponse);
 
       const result = await projectChatService.linkThreadToProject(projectId, request);
 
@@ -159,7 +161,7 @@ describe('projectChatService', () => {
         thread_id: 'thread-to-link',
       };
       const mockResponse = createMockProjectThread({ context_note: undefined });
-      mockApiClient.post.mockResolvedValue(mockResponse);
+      mockApi.post.mockResolvedValue(mockResponse);
 
       const result = await projectChatService.linkThreadToProject(projectId, requestWithoutNote);
 
@@ -168,7 +170,7 @@ describe('projectChatService', () => {
 
     it('should propagate conflict errors (duplicate link)', async () => {
       const error = { status: 409, message: 'Thread already linked' };
-      mockApiClient.post.mockRejectedValue(error);
+      mockApi.post.mockRejectedValue(error);
 
       await expect(
         projectChatService.linkThreadToProject(projectId, request)
@@ -188,11 +190,11 @@ describe('projectChatService', () => {
         threads: [createMockProjectThread()],
         total: 1,
       };
-      mockApiClient.get.mockResolvedValue(mockResponse);
+      mockApi.get.mockResolvedValue(mockResponse);
 
       await projectChatService.listProjectThreads(projectId);
 
-      expect(mockApiClient.get).toHaveBeenCalledWith(
+      expect(mockApi.get).toHaveBeenCalledWith(
         `/projects/${projectId}/chat/threads`
       );
     });
@@ -205,7 +207,7 @@ describe('projectChatService', () => {
         ],
         total: 2,
       };
-      mockApiClient.get.mockResolvedValue(mockResponse);
+      mockApi.get.mockResolvedValue(mockResponse);
 
       const result = await projectChatService.listProjectThreads(projectId);
 
@@ -218,7 +220,7 @@ describe('projectChatService', () => {
         threads: [],
         total: 0,
       };
-      mockApiClient.get.mockResolvedValue(mockResponse);
+      mockApi.get.mockResolvedValue(mockResponse);
 
       const result = await projectChatService.listProjectThreads(projectId);
 
@@ -228,7 +230,7 @@ describe('projectChatService', () => {
 
     it('should propagate 404 errors', async () => {
       const error = { status: 404, message: 'Project not found' };
-      mockApiClient.get.mockRejectedValue(error);
+      mockApi.get.mockRejectedValue(error);
 
       await expect(
         projectChatService.listProjectThreads(projectId)
@@ -245,17 +247,17 @@ describe('projectChatService', () => {
     const threadId = 'thread-456';
 
     it('should call DELETE with correct endpoint', async () => {
-      mockApiClient.delete.mockResolvedValue(undefined);
+      mockApi.delete.mockResolvedValue(undefined);
 
       await projectChatService.unlinkThreadFromProject(projectId, threadId);
 
-      expect(mockApiClient.delete).toHaveBeenCalledWith(
+      expect(mockApi.delete).toHaveBeenCalledWith(
         `/projects/${projectId}/chat/threads/${threadId}`
       );
     });
 
     it('should return void on success', async () => {
-      mockApiClient.delete.mockResolvedValue(undefined);
+      mockApi.delete.mockResolvedValue(undefined);
 
       const result = await projectChatService.unlinkThreadFromProject(projectId, threadId);
 
@@ -264,7 +266,7 @@ describe('projectChatService', () => {
 
     it('should propagate 404 errors (link not found)', async () => {
       const error = { status: 404, message: 'Thread link not found' };
-      mockApiClient.delete.mockRejectedValue(error);
+      mockApi.delete.mockRejectedValue(error);
 
       await expect(
         projectChatService.unlinkThreadFromProject(projectId, threadId)
@@ -292,11 +294,11 @@ describe('projectChatService', () => {
         content: '# Thread content',
         created_at: new Date().toISOString(),
       };
-      mockApiClient.post.mockResolvedValue(mockResponse);
+      mockApi.post.mockResolvedValue(mockResponse);
 
       await projectChatService.saveThreadToNote(projectId, request);
 
-      expect(mockApiClient.post).toHaveBeenCalledWith(
+      expect(mockApi.post).toHaveBeenCalledWith(
         `/projects/${projectId}/chat/save-to-note`,
         request
       );
@@ -311,7 +313,7 @@ describe('projectChatService', () => {
         tags: ['chat-thread'],
         created_at: new Date().toISOString(),
       };
-      mockApiClient.post.mockResolvedValue(mockResponse);
+      mockApi.post.mockResolvedValue(mockResponse);
 
       const result = await projectChatService.saveThreadToNote(projectId, request);
 
@@ -329,11 +331,11 @@ describe('projectChatService', () => {
         title: 'Note without citations',
         content: '# Simple content',
       };
-      mockApiClient.post.mockResolvedValue(mockResponse);
+      mockApi.post.mockResolvedValue(mockResponse);
 
       await projectChatService.saveThreadToNote(projectId, requestNoCitations);
 
-      expect(mockApiClient.post).toHaveBeenCalledWith(
+      expect(mockApi.post).toHaveBeenCalledWith(
         `/projects/${projectId}/chat/save-to-note`,
         requestNoCitations
       );
@@ -341,7 +343,7 @@ describe('projectChatService', () => {
 
     it('should propagate errors', async () => {
       const error = new Error('Failed to save note');
-      mockApiClient.post.mockRejectedValue(error);
+      mockApi.post.mockRejectedValue(error);
 
       await expect(
         projectChatService.saveThreadToNote(projectId, request)
@@ -356,11 +358,11 @@ describe('projectChatService', () => {
   describe('edge cases', () => {
     it('should handle special characters in project ID', async () => {
       const specialProjectId = 'proj-123-abc';
-      mockApiClient.get.mockResolvedValue({ threads: [], total: 0 });
+      mockApi.get.mockResolvedValue({ threads: [], total: 0 });
 
       await projectChatService.listProjectThreads(specialProjectId);
 
-      expect(mockApiClient.get).toHaveBeenCalledWith(
+      expect(mockApi.get).toHaveBeenCalledWith(
         `/projects/${specialProjectId}/chat/threads`
       );
     });
@@ -373,7 +375,7 @@ describe('projectChatService', () => {
         threads: [mockThread],
         total: 1,
       };
-      mockApiClient.get.mockResolvedValue(mockResponse);
+      mockApi.get.mockResolvedValue(mockResponse);
 
       const result = await projectChatService.listProjectThreads('proj-123');
 
@@ -384,7 +386,7 @@ describe('projectChatService', () => {
       const mockResponse = createMockStartResponse({
         document_scope: [],
       });
-      mockApiClient.post.mockResolvedValue(mockResponse);
+      mockApi.post.mockResolvedValue(mockResponse);
 
       const result = await projectChatService.startChatFromProject(
         'proj-123',

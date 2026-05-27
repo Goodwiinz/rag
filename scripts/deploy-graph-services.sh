@@ -31,7 +31,7 @@ warning() {
 }
 
 # Configuration
-COMPOSE_FILE="docker-compose.graph-services-corrected.yml"
+COMPOSE_FILE="docker-compose.graph-services.yml"
 ENV_FILE=".env"
 PROJECT_NAME="rag-graph"
 

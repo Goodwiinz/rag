@@ -10,6 +10,7 @@ This module provides REST API endpoints for:
 """
 
 from datetime import datetime
+import logging
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
@@ -26,6 +27,8 @@ from src.core.encryption import EncryptionError, EncryptionKeyType
 from src.models.organization import Organization
 from src.models.user import User
 from src.services.security.encryption_service import EncryptionService
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/encryption", tags=["encryption"])
 security = HTTPBearer()
@@ -171,7 +174,7 @@ class EncryptionValidationResponse(BaseModel):
 
 
 @router.post("/profiles/user", response_model=Dict[str, Any])
-# @require_permission(["encryption:manage"])
+@require_permission(["encryption:manage"])
 async def encrypt_user_profile(
     request: UserProfileEncryptionRequest,
     current_user: User = Depends(is_active_user),
@@ -187,13 +190,18 @@ async def encrypt_user_profile(
         encryption_service = EncryptionService(db)
 
         # Check if user has permission to encrypt the target user's profile
-        if request.user_id != current_user.id and current_user.role.value not in [
-            "admin",
-            "content_manager",
-        ]:
+        if request.user_id != current_user.id and current_user.role.value != "admin":
             raise HTTPException(
                 status_code=403, detail="Not authorized to encrypt this user's profile"
             )
+
+        # Verify target user belongs to same organization
+        if request.user_id != current_user.id:
+            target_user = db.query(User).filter(User.id == request.user_id).first()
+            if not target_user or str(target_user.organization_id) != str(
+                current_user.organization_id
+            ):
+                raise HTTPException(status_code=404, detail="User not found")
 
         # Encrypt the profile
         encrypted_profile = encryption_service.encrypt_user_profile(
@@ -210,13 +218,15 @@ async def encrypt_user_profile(
         }
 
     except EncryptionError as e:
-        raise HTTPException(status_code=500, detail=f"Encryption failed: {str(e)}")
+        logger.error(f"Encryption failed: {e}")
+        raise HTTPException(status_code=500, detail="Encryption failed")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+        logger.error(f"Internal server error: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/profiles/organization", response_model=Dict[str, Any])
-# @require_permission(["encryption:manage", "organization:manage"])
+@require_permission(["encryption:manage", "organization:manage"])
 async def encrypt_organization_profile(
     request: OrganizationProfileEncryptionRequest,
     current_user: User = Depends(is_active_user),
@@ -256,13 +266,15 @@ async def encrypt_organization_profile(
         }
 
     except EncryptionError as e:
-        raise HTTPException(status_code=500, detail=f"Encryption failed: {str(e)}")
+        logger.error(f"Encryption failed: {e}")
+        raise HTTPException(status_code=500, detail="Encryption failed")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+        logger.error(f"Internal server error: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/decrypt", response_model=Dict[str, Any])
-# @require_permission(["encryption:decrypt"])
+@require_permission(["encryption:decrypt"])
 async def decrypt_data(
     request: DecryptionRequest,
     current_user: User = Depends(is_active_user),
@@ -282,11 +294,21 @@ async def decrypt_data(
             # Check if user can access this profile
             if (
                 request.resource_id != current_user.id
-                and current_user.role.value not in ["admin", "content_manager"]
+                and current_user.role.value != "admin"
             ):
                 raise HTTPException(
                     status_code=403, detail="Not authorized to decrypt this user's data"
                 )
+
+            # Verify target user belongs to same organization
+            if request.resource_id != current_user.id:
+                target_user = (
+                    db.query(User).filter(User.id == request.resource_id).first()
+                )
+                if not target_user or str(target_user.organization_id) != str(
+                    current_user.organization_id
+                ):
+                    raise HTTPException(status_code=404, detail="User not found")
 
             decrypted_data = encryption_service.decrypt_user_profile(
                 user_id=request.resource_id,
@@ -326,13 +348,15 @@ async def decrypt_data(
         }
 
     except EncryptionError as e:
-        raise HTTPException(status_code=500, detail=f"Decryption failed: {str(e)}")
+        logger.error(f"Decryption failed: {e}")
+        raise HTTPException(status_code=500, detail="Decryption failed")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+        logger.error(f"Internal server error: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/keys/rotate", response_model=KeyRotationResponse)
-# @require_permission(["encryption:key_rotate"])
+@require_permission(["encryption:key_rotate"])
 async def rotate_encryption_key(
     request: KeyRotationRequest,
     background_tasks: BackgroundTasks,
@@ -366,13 +390,15 @@ async def rotate_encryption_key(
         return KeyRotationResponse(**rotation_results)
 
     except EncryptionError as e:
-        raise HTTPException(status_code=500, detail=f"Key rotation failed: {str(e)}")
+        logger.error(f"Key rotation failed: {e}")
+        raise HTTPException(status_code=500, detail="Key rotation failed")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+        logger.error(f"Internal server error: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/status", response_model=EncryptionStatusResponse)
-# @require_permission(["encryption:view"])
+@require_permission(["encryption:view"])
 async def get_encryption_status(
     organization_id: Optional[UUID] = Query(
         None, description="Organization scope (admin only)"
@@ -405,11 +431,12 @@ async def get_encryption_status(
         return EncryptionStatusResponse(**status)
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+        logger.error(f"Internal server error: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/validate", response_model=EncryptionValidationResponse)
-# @require_permission(["encryption:validate"])
+@require_permission(["encryption:validate"])
 async def validate_encryption_integrity(
     sample_size: int = Query(10, ge=1, le=100, description="Number of records to test"),
     current_user: User = Depends(is_active_user),
@@ -438,11 +465,12 @@ async def validate_encryption_integrity(
         return EncryptionValidationResponse(**validation_results)
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+        logger.error(f"Internal server error: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/audit/logs", response_model=List[Dict[str, Any]])
-# @require_permission(["encryption:audit"])
+@require_permission(["encryption:audit"])
 async def get_encryption_audit_logs(
     limit: int = Query(50, ge=1, le=500, description="Number of logs to return"),
     offset: int = Query(0, ge=0, description="Offset for pagination"),
@@ -506,11 +534,12 @@ async def get_encryption_audit_logs(
         ]
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+        logger.error(f"Internal server error: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/config/sensitive-fields", response_model=List[str])
-# @require_permission(["encryption:view"])
+@require_permission(["encryption:view"])
 async def get_sensitive_fields_config(current_user: User = Depends(is_active_user)):
     """
     Get list of configured sensitive field patterns
@@ -528,4 +557,5 @@ async def get_sensitive_fields_config(current_user: User = Depends(is_active_use
         return middleware.sensitive_fields + middleware.sensitive_patterns
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+        logger.error(f"Internal server error: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")

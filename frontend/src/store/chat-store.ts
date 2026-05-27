@@ -1,5 +1,5 @@
 /**
- * Chat Store - Zustand store for Terminal Observatory thread-centric chat system
+ * Chat Store - Zustand store for NOUS thread-centric chat system
  * Manages workspace, conversation, thread, and message state with persistence
  */
 
@@ -152,6 +152,7 @@ interface ChatState {
   shortcutsDialogOpen: boolean;
   copiedMessageId: string | null;
   sidebarCollapsed: boolean;
+  selectedModel: string;
 
   // Bulk selection state
   selectedThreadIds: Set<string>;
@@ -221,9 +222,11 @@ interface ChatActions {
     data: ChatMessageUpdate
   ) => Promise<ChatMessage | null>;
   deleteMessage: (id: string) => Promise<boolean>;
+  clearThread: (threadId: string) => void;
 
   // UI actions
   setShortcutsDialogOpen: (open: boolean) => void;
+  setSelectedModel: (model: string) => void;
   setCopiedMessageId: (id: string | null) => void;
   setSidebarCollapsed: (collapsed: boolean) => void;
 
@@ -249,6 +252,10 @@ type ChatStore = ChatState & ChatActions;
 
 // Maximum retry attempts for reinitialization to prevent infinite loops
 const MAX_REINIT_RETRIES = 3;
+
+// Maximum number of thread message caches to retain in memory.
+// When exceeded, the oldest threads (by key insertion order) are evicted.
+const MAX_CACHED_THREADS = 50;
 
 // Helper type for the recovery handler
 type RecoveryResult =
@@ -368,6 +375,7 @@ const initialState: ChatState = {
   shortcutsDialogOpen: false,
   copiedMessageId: null,
   sidebarCollapsed: false,
+  selectedModel: '',
   selectedThreadIds: new Set<string>(),
   isSelectMode: false,
   // Streaming state
@@ -980,6 +988,23 @@ export const useChatStore = create<ChatStore>()(
             for (const msg of response.messages) {
               state.messageToThread[msg.id] = threadId;
             }
+
+            // Evict oldest cached threads when exceeding the cap (FIFO by key insertion order)
+            const threadKeys = Object.keys(state.messages);
+            if (threadKeys.length > MAX_CACHED_THREADS) {
+              const toEvict = threadKeys.slice(
+                0,
+                threadKeys.length - MAX_CACHED_THREADS
+              );
+              for (const key of toEvict) {
+                // Clean up reverse index entries for evicted messages
+                for (const msg of state.messages[key] || []) {
+                  delete state.messageToThread[msg.id];
+                }
+                delete state.messages[key];
+              }
+            }
+
             state.isLoadingMessages = false;
           });
         } catch (error) {
@@ -1105,6 +1130,16 @@ export const useChatStore = create<ChatStore>()(
         }
       },
 
+      clearThread: (threadId) => {
+        set((state) => {
+          // Clean up reverse index entries for evicted messages
+          for (const msg of state.messages[threadId] || []) {
+            delete state.messageToThread[msg.id];
+          }
+          delete state.messages[threadId];
+        });
+      },
+
       // ========================================================================
       // UI Actions
       // ========================================================================
@@ -1127,10 +1162,24 @@ export const useChatStore = create<ChatStore>()(
         });
       },
 
+      setSelectedModel: (model) => {
+        set((state) => {
+          state.selectedModel = model;
+        });
+      },
+
       // ========================================================================
       // Streaming Actions
       // ========================================================================
 
+      /**
+       * @deprecated Orphaned v2 streaming path. The active chat page uses
+       * `agentChatService.streamMessage` directly against `/api/v1/agent/stream`
+       * (see `app/(dashboard)/chat/page.tsx`). This action is kept only so the
+       * store interface and its existing unit tests stay intact; it has no UI
+       * callers. Remove together with `services/streamingService.ts` in a
+       * dedicated cleanup PR. Do not extend.
+       */
       streamMessage: async (content, threadId, useRag = true) => {
         const state = get();
         const targetThreadId = threadId || state.currentThreadId;

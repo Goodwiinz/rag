@@ -22,6 +22,8 @@ import {
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import React, { useEffect, useState } from 'react';
+import PendingEmailConfirmation from '@/components/auth/PendingEmailConfirmation';
+import { useAuthStore } from '@/stores/authStore';
 
 interface RegisterFormData {
   email: string;
@@ -92,12 +94,10 @@ export default function RegisterPage() {
         organization_name: formData.organization_name || undefined,
       };
 
-      await register(registerData);
-      // If we got a session (no email confirmation), redirect
-      if (!pendingEmailConfirmation) {
+      const result = await register(registerData);
+      if (!result.requiresEmailConfirmation) {
         router.push('/');
       }
-      // Otherwise pendingEmailConfirmation is true — UI will show confirmation screen
     } catch (err) {
       setError(
         err instanceof Error ? err.message : 'Account provisioning failed'
@@ -135,40 +135,27 @@ export default function RegisterPage() {
 
   const strength = passwordStrength();
 
+  const handleResetConfirmation = () => {
+    useAuthStore.setState({ pendingEmailConfirmation: false });
+    setFormData({
+      email: '',
+      password: '',
+      confirmPassword: '',
+      first_name: '',
+      last_name: '',
+      organization_name: '',
+    });
+  };
+
   if (!mounted) return null;
 
   // Email confirmation screen
   if (pendingEmailConfirmation) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[var(--terminal-bg)]">
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="max-w-md w-full mx-6"
-        >
-          <div className="rounded-2xl border border-[var(--terminal-border)] bg-[var(--terminal-surface)] p-10 text-center">
-            <div className="flex items-center justify-center w-16 h-16 rounded-full bg-[var(--phosphor-green)]/10 border border-[var(--phosphor-green)]/30 mx-auto mb-6">
-              <Mail className="w-8 h-8 text-[var(--phosphor-green)]" />
-            </div>
-            <h2 className="text-xl font-mono font-bold text-[var(--terminal-text)] uppercase tracking-[0.15em] mb-3">
-              Verify Your Identity
-            </h2>
-            <p className="text-sm font-mono text-[var(--terminal-text-muted)] mb-8 leading-relaxed">
-              We sent a verification link to{' '}
-              <span className="text-[var(--phosphor-green)]">
-                {formData.email}
-              </span>
-              . Check your inbox and click the link to activate your account.
-            </p>
-            <Link
-              href="/login"
-              className="inline-block text-[10px] font-mono text-[var(--terminal-text-dim)] uppercase tracking-widest hover:text-[var(--phosphor-green)] transition-colors"
-            >
-              Return to Access Terminal
-            </Link>
-          </div>
-        </motion.div>
-      </div>
+      <PendingEmailConfirmation
+        email={formData.email}
+        onReset={handleResetConfirmation}
+      />
     );
   }
 
@@ -372,7 +359,6 @@ export default function RegisterPage() {
                     id="organization_name"
                     name="organization_name"
                     type="text"
-                    required
                     value={formData.organization_name}
                     onChange={handleChange}
                     className="w-full pl-11 pr-4 py-2.5 rounded-xl bg-[var(--terminal-bg)] border border-[var(--terminal-border)] font-mono text-sm text-[var(--terminal-text)] placeholder:text-[var(--terminal-text-muted)]/30 focus:border-[var(--phosphor-green)]/50 focus:ring-0 outline-none transition-all"

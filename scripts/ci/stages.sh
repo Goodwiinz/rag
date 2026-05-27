@@ -261,6 +261,8 @@ stage_e2e_tests() {
     echo ""
     echo "Building frontend image..."
     docker build \
+        --build-arg NEXT_PUBLIC_SUPABASE_URL="${NEXT_PUBLIC_SUPABASE_URL:-http://localhost:54321}" \
+        --build-arg NEXT_PUBLIC_SUPABASE_ANON_KEY="${NEXT_PUBLIC_SUPABASE_ANON_KEY:-ci-test-anon-key}" \
         -t rag-frontend:test \
         -f frontend/Dockerfile.prod . || return 1
 

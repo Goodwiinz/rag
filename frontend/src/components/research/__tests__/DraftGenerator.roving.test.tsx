@@ -1,10 +1,11 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
-import '@testing-library/jest-dom';
+import '@testing-library/jest-dom/vitest';
 import { DraftGenerator } from '../DraftGenerator';
 
 describe('DraftGenerator Keyboard Navigation', () => {
-  const mockOnGenerate = jest.fn();
+  const mockOnGenerate = vi.fn();
 
   beforeEach(() => {
     mockOnGenerate.mockClear();

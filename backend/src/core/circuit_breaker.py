@@ -225,13 +225,19 @@ circuit_breakers: dict[str, ServiceCircuitBreaker] = {
     "neo4j": ServiceCircuitBreaker(
         "neo4j", failure_threshold=5, recovery_timeout=30.0, half_open_max_calls=3
     ),
-    "qdrant": ServiceCircuitBreaker(
-        "qdrant", failure_threshold=5, recovery_timeout=30.0, half_open_max_calls=3
+    "do_kb": ServiceCircuitBreaker(
+        "do_kb", failure_threshold=5, recovery_timeout=30.0, half_open_max_calls=3
     ),
     "cohere": ServiceCircuitBreaker(
         "cohere",
         failure_threshold=3,  # Lower threshold for external API
         recovery_timeout=60.0,  # Longer recovery for external API
+        half_open_max_calls=2,
+    ),
+    "cohere_embed": ServiceCircuitBreaker(
+        "cohere_embed",
+        failure_threshold=3,
+        recovery_timeout=60.0,
         half_open_max_calls=2,
     ),
     "llm_entity_extraction": ServiceCircuitBreaker(

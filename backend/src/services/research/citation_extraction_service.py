@@ -303,7 +303,14 @@ class CitationExtractionService:
     5. Manual entry - fallback
     """
 
-    VALID_STRATEGIES = {"auto", "arxiv", "semantic_scholar", "crossref", "pdf", "manual"}
+    VALID_STRATEGIES = {
+        "auto",
+        "arxiv",
+        "semantic_scholar",
+        "crossref",
+        "pdf",
+        "manual",
+    }
 
     def __init__(self, db: AsyncSession):
         """Initialize extraction service.
@@ -440,7 +447,9 @@ class CitationExtractionService:
         arxiv_id, doi, title = await self._resolve_document_identifiers(document_id)
 
         if not arxiv_id and not doi and not title:
-            logger.warning("document_metadata_missing_for_extraction", document_id=str(document_id))
+            logger.warning(
+                "document_metadata_missing_for_extraction", document_id=str(document_id)
+            )
             return None, "none"
 
         citation, source = await self.extract_hybrid(
@@ -477,7 +486,9 @@ class CitationExtractionService:
                 )
 
                 if not results:
-                    logger.warning("arxiv_paper_not_found", arxiv_id=normalized_arxiv_id)
+                    logger.warning(
+                        "arxiv_paper_not_found", arxiv_id=normalized_arxiv_id
+                    )
                     return None
 
                 paper = results[0]
@@ -671,14 +682,23 @@ class CitationExtractionService:
                 logger.debug("pdf_extraction_no_document", document_id=str(document_id))
                 return None
 
-            pdf_doc = fitz.open(document.file_path)
-            try:
-                pdf_metadata = pdf_doc.metadata or {}
-                first_page_text = ""
-                if len(pdf_doc) > 0:
-                    first_page_text = pdf_doc[0].get_text()
-            finally:
-                pdf_doc.close()
+            def _extract_pdf_data(file_path: str) -> Tuple[Dict[str, Any], str]:
+                doc = fitz.open(file_path)
+                try:
+                    metadata = doc.metadata or {}
+                    text = ""
+                    for page_num in range(min(5, len(doc))):
+                        text += doc[page_num].get_text()
+                    return metadata, text
+                finally:
+                    doc.close()
+
+            # Run the synchronous PDF parsing in a thread pool to avoid blocking the event loop
+            import asyncio
+
+            pdf_metadata, first_page_text = await asyncio.to_thread(
+                _extract_pdf_data, document.file_path
+            )
 
             # Title: prefer PDF metadata, fall back to document DB title
             title = (pdf_metadata.get("title") or "").strip()
@@ -821,7 +841,9 @@ class CitationExtractionService:
                 if result:
                     source = "arxiv"
 
-            if not result and (normalized_arxiv_id or normalized_doi or normalized_title):
+            if not result and (
+                normalized_arxiv_id or normalized_doi or normalized_title
+            ):
                 result = await self.extract_from_semantic_scholar(
                     arxiv_id=normalized_arxiv_id,
                     doi=normalized_doi,

@@ -5,16 +5,97 @@ Each tool delegates to the existing implementation in
 ``page_context`` from the LangGraph ``RunnableConfig.configurable`` dict.
 """
 
+import asyncio
+import functools
+import inspect
 import logging
+import re
 from typing import Any, Dict, List, Optional, Tuple
 
 from langchain_core.runnables import RunnableConfig
-from langchain_core.tools import tool
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models.user import User
 
 logger = logging.getLogger(__name__)
+
+try:
+    from langchain_core.tools import tool
+except Exception:  # pragma: no cover - exercised in tests via module stubs
+
+    class _FallbackTool:
+        """Small StructuredTool-like wrapper for test environments."""
+
+        def __init__(self, fn):
+            functools.update_wrapper(self, fn)
+            self.func = fn
+            self.coroutine = fn
+            self.name = fn.__name__
+            self.description = (fn.__doc__ or "").strip()
+            self._is_coroutine = inspect.iscoroutinefunction(fn)
+
+        def __call__(self, *args, **kwargs):
+            # Async functions must be awaited — calling them synchronously
+            # would otherwise return a coroutine object (unawaited).
+            return self.func(*args, **kwargs)
+
+        async def ainvoke(self, *args, **kwargs):
+            if self._is_coroutine:
+                return await self.func(*args, **kwargs)
+            return self.func(*args, **kwargs)
+
+    def tool(func=None, **_kwargs):
+        def decorator(fn):
+            return _FallbackTool(fn)
+
+        if func is None:
+            return decorator
+        return decorator(func)
+
+
+# ---------------------------------------------------------------------------
+# Input bounds and validation
+# ---------------------------------------------------------------------------
+
+# Conservative caps for numeric LLM-controlled tool arguments. Without these,
+# an LLM hallucination of ``max_depth=999`` or ``limit=10000`` can DoS the
+# Neo4j / Qdrant / external connectors by triggering an unbounded fan-out.
+_MAX_RESULTS_CAP = 50
+_MAX_RESULTS_EXTERNAL_CAP = 100
+_MAX_GRAPH_DEPTH = 5
+_MAX_GRAPH_LIMIT = 100
+_MAX_INGEST_BATCH = 10
+_MAX_COMPARE_DOCUMENTS = 10
+_MAX_PROJECT_LIMIT = 100
+
+# External database connector / domain identifiers must be alphanumeric +
+# underscore + dash; rejecting anything else stops path-traversal-style
+# inputs from bleeding into the dynamic dispatch in the implementation.
+_CONNECTOR_NAME_RE = re.compile(r"^[a-zA-Z0-9_\-]{1,64}$")
+
+
+def _clamp_int(value: int, *, lo: int, hi: int) -> int:
+    """Clamp ``value`` into the inclusive range ``[lo, hi]``."""
+    if value < lo:
+        return lo
+    if value > hi:
+        return hi
+    return value
+
+
+def _validate_connector_name(value: Optional[str]) -> Optional[str]:
+    """Return ``value`` if it matches the allowlist regex, else ``None``.
+
+    Treating an invalid value as "unspecified" matches the original
+    behaviour for missing connectors (fan-out across all) without ever
+    forwarding adversarial input downstream.
+    """
+    if not value:
+        return None
+    if not _CONNECTOR_NAME_RE.match(value):
+        logger.warning("Rejecting invalid external-database identifier: %r", value)
+        return None
+    return value
 
 
 # ---------------------------------------------------------------------------
@@ -38,12 +119,38 @@ def _resolve_project_id(
     explicit_project_id: Optional[str],
     page_context: dict,
 ) -> Optional[str]:
-    """Return *explicit_project_id* if given, else fall back to page context."""
-    if explicit_project_id:
-        return explicit_project_id
+    """Return a valid project UUID, preferring explicit input.
+
+    Discards an explicit value that isn't a UUID (LLMs occasionally
+    hallucinate IDs like ``"proj_12345"``); in that case we fall back to
+    the active project from ``page_context`` so the user's intent of
+    "add this to the project I'm viewing" still wins.
+    """
+    from src.services.agent._uuid import UUID_STRICT_RE
+
+    if explicit_project_id and UUID_STRICT_RE.match(explicit_project_id.strip()):
+        return explicit_project_id.strip()
     if page_context.get("type") == "project" and page_context.get("project_id"):
         return page_context["project_id"]
     return None
+
+
+def _missing_project_error(tool_name: str) -> Dict[str, Any]:
+    """Standard error payload when no project_id can be resolved.
+
+    Returning a structured error keeps the LLM aware that it must either
+    supply a project_id explicitly or call list_projects to discover one,
+    instead of forwarding ``""`` downstream where it surfaces as an
+    opaque ``invalid UUID`` error.
+    """
+    return {
+        "error": (
+            f"{tool_name} requires a project_id but none was provided and "
+            "no project page is active. Call list_projects to choose one, "
+            "or include project_id explicitly."
+        ),
+        "error_type": "user_fixable",
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -66,7 +173,10 @@ async def search_arxiv(
     config = config or {}
     from src.api.agent.execute import _tool_search_arxiv
 
-    args: Dict[str, Any] = {"query": query, "max_results": max_results}
+    args: Dict[str, Any] = {
+        "query": query,
+        "max_results": _clamp_int(max_results, lo=1, hi=_MAX_RESULTS_CAP),
+    }
     if categories:
         args["categories"] = categories
     return await _tool_search_arxiv(args)
@@ -75,20 +185,30 @@ async def search_arxiv(
 @tool
 async def ingest_arxiv_papers(
     paper_ids: List[str],
+    project_id: Optional[str] = None,
     config: RunnableConfig | None = None,
 ) -> Dict[str, Any]:
     """Ingest arXiv papers into the RAG system for indexing and search.
 
-    Use when the user wants to add, import, download, or ingest specific arXiv
-    papers. Requires paper IDs (e.g., '2401.12345').
+    Use when the user wants to add, import, download, or ingest arXiv papers
+    (IDs like '2401.12345'). Omit ``project_id`` when the user is viewing a
+    project page — the tool auto-attaches. Pass an explicit UUID only to
+    target a different project.
     """
     config = config or {}
     from src.api.agent.execute import _tool_ingest_arxiv
 
-    db, current_user, _page_ctx = _get_context(config)
+    db, current_user, page_ctx = _get_context(config)
     user_id = str(current_user.id) if current_user else ""
+    # Cap batch size — ingestion is heavy and a hallucinated 100-paper
+    # batch will saturate the worker pool and trip downstream timeouts.
+    capped_ids = list(paper_ids or [])[:_MAX_INGEST_BATCH]
+    resolved_project_id = _resolve_project_id(project_id, page_ctx)
     return await _tool_ingest_arxiv(
-        {"paper_ids": paper_ids}, user_id, db, current_user
+        {"paper_ids": capped_ids, "project_id": resolved_project_id},
+        user_id,
+        db,
+        current_user,
     )
 
 
@@ -104,8 +224,36 @@ async def search_documents(
 
     db, current_user, _page_ctx = _get_context(config)
     return await _tool_search_documents(
-        {"query": query, "max_results": max_results}, db, current_user
+        {
+            "query": query,
+            "max_results": _clamp_int(max_results, lo=1, hi=_MAX_RESULTS_CAP),
+        },
+        db,
+        current_user,
     )
+
+
+@tool
+async def do_kb_retrieve(
+    query: str,
+    top_k: int = 8,
+    config: RunnableConfig | None = None,
+) -> Dict[str, Any]:
+    """Semantic retrieval over the organization's DigitalOcean Knowledge Base."""
+    config = config or {}
+    from src.api.agent.execute import _tool_do_kb_retrieve
+
+    db, current_user, page_ctx = _get_context(config)
+    # Forward active project_id so the retrieval result is scoped to the
+    # current project and does not leak sibling-project documents.
+    project_id = _resolve_project_id(None, page_ctx)
+    args: Dict[str, Any] = {
+        "query": query,
+        "top_k": _clamp_int(top_k, lo=1, hi=20),
+    }
+    if project_id:
+        args["project_id"] = project_id
+    return await _tool_do_kb_retrieve(args, db, current_user)
 
 
 @tool
@@ -124,11 +272,42 @@ async def add_document_to_project(
 
     db, current_user, page_ctx = _get_context(config)
     resolved_pid = _resolve_project_id(project_id, page_ctx)
+    if not resolved_pid:
+        return _missing_project_error("add_document_to_project")
     return await _tool_add_document_to_project(
-        {"document_id": document_id, "project_id": resolved_pid or ""},
+        {"document_id": document_id, "project_id": resolved_pid},
         db,
         current_user,
     )
+
+
+@tool
+async def create_project(
+    name: str,
+    description: Optional[str] = None,
+    research_goals: Optional[str] = None,
+    tags: Optional[List[str]] = None,
+    workspace_id: Optional[str] = None,
+    config: RunnableConfig | None = None,
+) -> Dict[str, Any]:
+    """Create a new research project (folder) for organizing papers, documents, and notes.
+
+    If *workspace_id* is omitted, the user's first workspace is used.
+    """
+    config = config or {}
+    from src.api.agent.execute import _tool_create_project
+
+    db, current_user, _ = _get_context(config)
+    args: Dict[str, Any] = {"name": name}
+    if description:
+        args["description"] = description
+    if research_goals:
+        args["research_goals"] = research_goals
+    if tags:
+        args["tags"] = tags
+    if workspace_id:
+        args["workspace_id"] = workspace_id
+    return await _tool_create_project(args, db, current_user)
 
 
 @tool
@@ -149,10 +328,12 @@ async def create_project_note(
 
     db, current_user, page_ctx = _get_context(config)
     resolved_pid = _resolve_project_id(project_id, page_ctx)
+    if not resolved_pid:
+        return _missing_project_error("create_project_note")
     args: Dict[str, Any] = {
         "title": title,
         "content": content,
-        "project_id": resolved_pid or "",
+        "project_id": resolved_pid,
     }
     if tags:
         args["tags"] = tags
@@ -160,22 +341,64 @@ async def create_project_note(
 
 
 @tool
-async def list_project_documents(
-    project_id: Optional[str] = None,
+async def list_projects(
+    status: Optional[str] = None,
+    tag: Optional[str] = None,
+    search: Optional[str] = None,
+    limit: int = 20,
     config: RunnableConfig | None = None,
 ) -> Dict[str, Any]:
-    """List all documents in a research project.
+    """List the user's research projects.
 
-    If *project_id* is omitted and the user is on a project page, the
-    project is inferred from the page context.
+    Use when the user asks "what projects do I have", "list my projects",
+    or wants to discover existing projects before choosing one. Prefer this
+    over asking the user to provide a project_id.
+    """
+    config = config or {}
+    from src.api.agent.execute import _tool_list_projects
+
+    db, current_user, _page_ctx = _get_context(config)
+    args: Dict[str, Any] = {
+        "limit": _clamp_int(limit, lo=1, hi=_MAX_PROJECT_LIMIT),
+    }
+    if status:
+        args["status"] = status
+    if tag:
+        args["tag"] = tag
+    if search:
+        args["search"] = search
+    return await _tool_list_projects(args, db, current_user)
+
+
+@tool
+async def list_project_documents(
+    project_id: Optional[str] = None,
+    limit: int = 100,
+    offset: int = 0,
+    config: RunnableConfig | None = None,
+) -> Dict[str, Any]:
+    """List documents in a research project, ordered newest first.
+
+    Args:
+        project_id: Project UUID. If omitted and the user is on a project
+            page, the project is inferred from the page context.
+        limit: Maximum number of documents to return (default 100, max 500).
+        offset: Number of documents to skip for pagination (default 0).
+
+    The response includes ``total``, ``returned``, ``limit``, ``offset``, and
+    ``has_more`` so subsequent calls can paginate when needed.
     """
     config = config or {}
     from src.api.agent.execute import _tool_list_project_documents
 
     db, current_user, page_ctx = _get_context(config)
     resolved_pid = _resolve_project_id(project_id, page_ctx)
+    if not resolved_pid:
+        return _missing_project_error("list_project_documents")
     return await _tool_list_project_documents(
-        {"project_id": resolved_pid or ""}, db, current_user
+        {"project_id": resolved_pid, "limit": limit, "offset": offset},
+        db,
+        current_user,
     )
 
 
@@ -212,8 +435,9 @@ async def compare_documents(
     from src.api.agent.execute import _tool_compare_documents
 
     db, current_user, _page_ctx = _get_context(config)
+    capped_ids = list(document_ids or [])[:_MAX_COMPARE_DOCUMENTS]
     return await _tool_compare_documents(
-        {"document_ids": document_ids, "type": type}, db, current_user
+        {"document_ids": capped_ids, "type": type}, db, current_user
     )
 
 
@@ -231,9 +455,7 @@ async def extract_entities(
     from src.api.agent.execute import _tool_extract_entities
 
     db, current_user, _page_ctx = _get_context(config)
-    return await _tool_extract_entities(
-        {"document_id": document_id}, db, current_user
-    )
+    return await _tool_extract_entities({"document_id": document_id}, db, current_user)
 
 
 @tool
@@ -274,7 +496,11 @@ async def explore_entity_neighborhood(
     from src.api.agent.execute import _tool_explore_entity_neighborhood
 
     return await _tool_explore_entity_neighborhood(
-        {"entity_id": entity_id, "max_depth": max_depth, "limit": limit}
+        {
+            "entity_id": entity_id,
+            "max_depth": _clamp_int(max_depth, lo=1, hi=_MAX_GRAPH_DEPTH),
+            "limit": _clamp_int(limit, lo=1, hi=_MAX_GRAPH_LIMIT),
+        }
     )
 
 
@@ -295,7 +521,11 @@ async def find_entity_paths(
     from src.api.agent.execute import _tool_find_entity_paths
 
     return await _tool_find_entity_paths(
-        {"source_entity_id": source_entity_id, "target_entity_id": target_entity_id, "max_depth": max_depth}
+        {
+            "source_entity_id": source_entity_id,
+            "target_entity_id": target_entity_id,
+            "max_depth": _clamp_int(max_depth, lo=1, hi=_MAX_GRAPH_DEPTH),
+        }
     )
 
 
@@ -332,8 +562,10 @@ async def create_draft(
 
     db, current_user, page_ctx = _get_context(config)
     resolved_pid = _resolve_project_id(project_id, page_ctx)
+    if not resolved_pid:
+        return _missing_project_error("create_draft")
     return await _tool_create_draft(
-        {"project_id": resolved_pid or "", "themes": themes, "style": style},
+        {"project_id": resolved_pid, "themes": themes, "style": style},
         db,
         current_user,
     )
@@ -403,6 +635,105 @@ async def execute_code(
 
 
 # ---------------------------------------------------------------------------
+# External database connectors
+# ---------------------------------------------------------------------------
+
+
+@tool
+async def search_external_database(
+    query: str,
+    connector: Optional[str] = None,
+    domain: Optional[str] = None,
+    max_results: int = 10,
+    filters: Optional[Dict[str, Any]] = None,
+    config: RunnableConfig | None = None,
+) -> Dict[str, Any]:
+    """Search external databases (PubMed, UniProt, ChEMBL, PubChem, FRED, SEC EDGAR, etc.).
+
+    Provides a single entry point to 250+ external scientific and financial
+    data sources. Supply ``connector`` to target one (e.g. ``"pubmed"``),
+    ``domain`` to fan out across a category (``biomedical``, ``chemistry``,
+    ``finance``, ``clinical``, ``genomics``, ``economic``, ``literature``),
+    or omit both to search every available connector concurrently.
+
+    Use when the user asks for proteins, compounds, mutations, clinical trials,
+    economic time series, SEC filings, or any other domain-specific data not
+    available in the local document store.
+    """
+    config = config or {}
+    from src.api.agent.execute import _tool_search_external_database
+
+    args: Dict[str, Any] = {
+        "query": query,
+        "max_results": _clamp_int(max_results, lo=1, hi=_MAX_RESULTS_EXTERNAL_CAP),
+    }
+    safe_connector = _validate_connector_name(connector)
+    if safe_connector:
+        args["connector"] = safe_connector
+    safe_domain = _validate_connector_name(domain)
+    if safe_domain:
+        args["domain"] = safe_domain
+    # Filters are an opaque mapping; only pass through scalar values to
+    # keep the dispatch surface small and prevent nested-payload abuse.
+    if filters and isinstance(filters, dict):
+        scalar_filters = {
+            k: v
+            for k, v in filters.items()
+            if isinstance(k, str) and isinstance(v, (str, int, float, bool))
+        }
+        if scalar_filters:
+            args["filters"] = scalar_filters
+    return await _tool_search_external_database(args)
+
+
+@tool
+async def list_external_databases(
+    domain: Optional[str] = None,
+    config: RunnableConfig | None = None,
+) -> Dict[str, Any]:
+    """List the external database connectors available to the agent.
+
+    Use when the user asks "what databases can you search", or before invoking
+    ``search_external_database`` to discover the right connector name. Pass
+    ``domain`` to filter by category.
+    """
+    config = config or {}
+    from src.api.agent.execute import _tool_list_external_databases
+
+    args: Dict[str, Any] = {}
+    safe_domain = _validate_connector_name(domain)
+    if safe_domain:
+        args["domain"] = safe_domain
+    return await _tool_list_external_databases(args)
+
+
+# ---------------------------------------------------------------------------
+# Memory management
+# ---------------------------------------------------------------------------
+
+
+@tool
+async def forget_memory(
+    query: str,
+    config: RunnableConfig | None = None,
+) -> Dict[str, Any]:
+    """Forget previously-saved memories that match *query*.
+
+    Use when the user explicitly asks you to forget, delete, or wipe a
+    memory ("forget what I said about X", "stop remembering Y"). Returns
+    a summary of which memories were deleted.
+    """
+    config = config or {}
+    from src.api.agent.tools_impl import _tool_forget_memory
+
+    _db, current_user, page_ctx = _get_context(config)
+    user_id = str(current_user.id) if current_user else ""
+    return await _tool_forget_memory(
+        query=query, user_id=user_id, page_context=page_ctx
+    )
+
+
+# ---------------------------------------------------------------------------
 # Exported list
 # ---------------------------------------------------------------------------
 
@@ -410,6 +741,8 @@ ALL_TOOLS = [
     search_arxiv,
     ingest_arxiv_papers,
     search_documents,
+    create_project,
+    list_projects,
     add_document_to_project,
     create_project_note,
     list_project_documents,
@@ -417,7 +750,13 @@ ALL_TOOLS = [
     compare_documents,
     extract_entities,
     search_knowledge_graph,
+    explore_entity_neighborhood,
+    find_entity_paths,
+    get_graph_stats,
     create_draft,
     export_bibliography,
     execute_code,
+    search_external_database,
+    list_external_databases,
+    forget_memory,
 ]

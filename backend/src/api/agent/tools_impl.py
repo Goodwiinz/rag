@@ -5,13 +5,20 @@ Each function performs a specific action (search, ingest, summarize, etc.)
 and returns a dict result.
 """
 
+import asyncio
 import logging
 import re
+from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 from uuid import UUID
 
-from sqlalchemy import desc, select
+# Matches the trailing ``vN`` revision suffix arXiv appends to paper IDs
+# (e.g. ``2605.10877v1``). Used to compare requested vs. ingested IDs
+# without false negatives across version bumps.
+_ARXIV_VERSION_RE = re.compile(r"v\d+$")
+
+from sqlalchemy import desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models.citation import Citation
@@ -28,6 +35,38 @@ from .tool_helpers import (
 
 logger = logging.getLogger(__name__)
 
+# Status values returned by ``_tool_ingest_arxiv``. Strings (not StrEnum)
+# because they're serialised to the LLM in tool output JSON; keeping them
+# as named constants prevents typo-drift across the docstring + branches.
+INGEST_STATUS_COMPLETE = "ingestion_complete"
+INGEST_STATUS_PARTIAL = "ingestion_partial"
+INGEST_STATUS_FAILED = "ingestion_failed"
+# Papers landed in the corpus but the project-attach step failed. The LLM
+# should NOT treat this as ordinary success; `link_error` carries the cause.
+INGEST_STATUS_COMPLETE_LINK_FAILED = "ingestion_complete_link_failed"
+
+
+def _escape_like(value: str) -> str:
+    """Escape special LIKE pattern characters for safe ilike() queries."""
+    return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
+# Cache the LLM client used by summarize/compare tools at module scope so
+# we don't pay the ~50ms client-build cost on every invocation. Mirrors the
+# `_REFLECTION_LLM` pattern in src/services/agent/reflection.py.
+_TOOL_LLM = None
+
+
+def _get_tool_llm():
+    """Return a cached LangChain chat model for use in tool implementations."""
+    global _TOOL_LLM
+    if _TOOL_LLM is not None:
+        return _TOOL_LLM
+    from src.services.agent.graph import _build_llm
+
+    _TOOL_LLM = _build_llm()
+    return _TOOL_LLM
+
 
 # ---------------------------------------------------------------------------
 # AGENT_TOOLS definition (tool schemas for OpenAI function calling)
@@ -38,7 +77,7 @@ AGENT_TOOLS = [
         "type": "function",
         "function": {
             "name": "search_arxiv",
-            "description": "Search arXiv for academic papers. Use when the user asks to find, search, or look up research papers, academic publications, or scientific articles.",
+            "description": "Search arXiv for academic papers. Use when the user asks to find, search, or look up research papers, academic publications, or scientific articles. Defaults sort to submittedDate (most recent first) and last-12-months window — pass recency_days=0 to disable.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -48,13 +87,18 @@ AGENT_TOOLS = [
                     },
                     "max_results": {
                         "type": "integer",
-                        "description": "Maximum number of results (1-20)",
+                        "description": "Maximum number of results (1-5)",
                         "default": 5,
                     },
                     "categories": {
                         "type": "array",
                         "items": {"type": "string"},
                         "description": "ArXiv categories to filter (e.g., ['cs.AI', 'cs.LG']). Optional.",
+                    },
+                    "recency_days": {
+                        "type": "integer",
+                        "description": "Only return papers submitted within the last N days. Default 365. Pass 0 to disable the date filter and search all-time.",
+                        "default": 365,
                     },
                 },
                 "required": ["query"],
@@ -104,6 +148,32 @@ AGENT_TOOLS = [
     {
         "type": "function",
         "function": {
+            "name": "do_kb_retrieve",
+            "description": (
+                "Semantic retrieval over the organization's DigitalOcean Knowledge Base. "
+                "Returns text chunks ranked by semantic similarity to the query. "
+                "Use for content-level questions across ingested documents."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "Natural-language query for semantic retrieval.",
+                    },
+                    "top_k": {
+                        "type": "integer",
+                        "description": "Number of chunks to return (1-20).",
+                        "default": 8,
+                    },
+                },
+                "required": ["query"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "add_document_to_project",
             "description": "Add an ALREADY-INGESTED document to a research project. The document must exist in the system first — use ingest_arxiv_papers to ingest papers before calling this. Will fail if the document UUID does not exist.",
             "parameters": {
@@ -119,6 +189,47 @@ AGENT_TOOLS = [
                     },
                 },
                 "required": ["document_id"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "create_project",
+            "description": (
+                "Create a new research project (folder) for organizing papers, "
+                "documents, and notes. Use when the user asks to create, start, "
+                "or set up a new project or research folder."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "Project name (1-255 chars)",
+                    },
+                    "description": {
+                        "type": "string",
+                        "description": "Optional project description",
+                    },
+                    "research_goals": {
+                        "type": "string",
+                        "description": "Optional statement of the project's objectives and goals",
+                    },
+                    "tags": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Optional categorization tags",
+                    },
+                    "workspace_id": {
+                        "type": "string",
+                        "description": (
+                            "Optional workspace UUID. If omitted, the user's "
+                            "first workspace is used."
+                        ),
+                    },
+                },
+                "required": ["name"],
             },
         },
     },
@@ -149,6 +260,41 @@ AGENT_TOOLS = [
                     },
                 },
                 "required": ["title", "content"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "list_projects",
+            "description": (
+                "List the user's research projects. Use when the user asks "
+                "'what projects do I have', 'list my projects', or otherwise "
+                "wants to discover existing projects before choosing one. "
+                "Prefer this over asking the user to provide a project_id."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "status": {
+                        "type": "string",
+                        "description": "Optional filter by research status (e.g., 'active', 'archived')",
+                    },
+                    "tag": {
+                        "type": "string",
+                        "description": "Optional tag to filter by",
+                    },
+                    "search": {
+                        "type": "string",
+                        "description": "Optional substring match against project name",
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Maximum number of projects to return (1-50, default 20)",
+                        "default": 20,
+                    },
+                },
+                "required": [],
             },
         },
     },
@@ -367,6 +513,75 @@ AGENT_TOOLS = [
             },
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "search_external_database",
+            "description": (
+                "Search external scientific and financial databases (PubMed, "
+                "UniProt, ChEMBL, PubChem, ClinicalTrials.gov, SEC EDGAR, FRED, "
+                "Alpha Vantage, ZINC, COSMIC, and 70+ BioServices databases). "
+                "Use when the user needs data from domain-specific databases "
+                "beyond arXiv. Specify a connector name to target one database, "
+                "or a domain to search all databases in that category."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "Search query",
+                    },
+                    "connector": {
+                        "type": "string",
+                        "description": (
+                            "Specific connector name (e.g., 'pubmed', 'uniprot', "
+                            "'chembl', 'clinical_trials', 'sec_edgar', 'fred'). "
+                            "Optional — if omitted, searches all available connectors "
+                            "in the given domain."
+                        ),
+                    },
+                    "domain": {
+                        "type": "string",
+                        "description": (
+                            "Domain filter: 'biomedical', 'chemistry', 'genomics', "
+                            "'finance', 'economic', 'clinical', 'literature'. "
+                            "Optional — if omitted, searches all."
+                        ),
+                    },
+                    "max_results": {
+                        "type": "integer",
+                        "description": "Maximum results per connector (1-20)",
+                        "default": 5,
+                    },
+                },
+                "required": ["query"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "list_external_databases",
+            "description": (
+                "List all available external database connectors. Use when the "
+                "user asks what databases are available, or to discover data "
+                "sources for a specific domain."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "domain": {
+                        "type": "string",
+                        "description": (
+                            "Filter by domain: 'biomedical', 'chemistry', "
+                            "'genomics', 'finance', 'economic', 'clinical'"
+                        ),
+                    },
+                },
+            },
+        },
+    },
 ]
 
 
@@ -389,10 +604,16 @@ async def execute_tool(
         return await _tool_ingest_arxiv(args, user_id, db, current_user)
     if tool_name == "search_documents":
         return await _tool_search_documents(args, db, current_user)
+    if tool_name == "do_kb_retrieve":
+        return await _tool_do_kb_retrieve(args, db, current_user)
     if tool_name == "add_document_to_project":
         return await _tool_add_document_to_project(args, db, current_user)
+    if tool_name == "create_project":
+        return await _tool_create_project(args, db, current_user)
     if tool_name == "create_project_note":
         return await _tool_create_project_note(args, db, current_user)
+    if tool_name == "list_projects":
+        return await _tool_list_projects(args, db, current_user)
     if tool_name == "list_project_documents":
         return await _tool_list_project_documents(args, db, current_user)
     if tool_name == "summarize_document":
@@ -415,6 +636,10 @@ async def execute_tool(
         return await _tool_export_bibliography(args, db, current_user)
     if tool_name == "execute_code":
         return await _tool_execute_code(args, thread_id="", current_user=current_user)
+    if tool_name == "search_external_database":
+        return await _tool_search_external_database(args)
+    if tool_name == "list_external_databases":
+        return await _tool_list_external_databases(args)
     return {"error": f"Unknown tool: {tool_name}"}
 
 
@@ -423,13 +648,97 @@ async def execute_tool(
 # ---------------------------------------------------------------------------
 
 
+# In-process TTL cache for ``_tool_search_arxiv``. Trace 019e1a5a showed
+# the planner firing 4 near-identical arXiv searches in <2 min, tripping
+# the upstream 429 limiter. Keying on the normalized query lets repeated
+# tool calls within ``_ARXIV_SEARCH_CACHE_TTL`` seconds reuse the prior
+# result instead of hammering arxiv.org.
+_ARXIV_SEARCH_CACHE: Dict[tuple, tuple[float, Dict[str, Any]]] = {}
+_ARXIV_SEARCH_CACHE_TTL = 600.0  # 10 minutes
+_ARXIV_SEARCH_CACHE_MAX = 64
+
+
+def _arxiv_cache_key(
+    query: str,
+    max_results: int,
+    categories: Optional[List[str]],
+    recency_days: int,
+) -> tuple:
+    cats = tuple(sorted(categories)) if categories else ()
+    return (query.strip(), int(max_results), cats, int(recency_days))
+
+
+def _arxiv_cache_get(key: tuple) -> Optional[Dict[str, Any]]:
+    import time
+
+    hit = _ARXIV_SEARCH_CACHE.get(key)
+    if not hit:
+        return None
+    ts, value = hit
+    if time.monotonic() - ts > _ARXIV_SEARCH_CACHE_TTL:
+        _ARXIV_SEARCH_CACHE.pop(key, None)
+        return None
+    return value
+
+
+def _arxiv_cache_set(key: tuple, value: Dict[str, Any]) -> None:
+    import time
+
+    if len(_ARXIV_SEARCH_CACHE) >= _ARXIV_SEARCH_CACHE_MAX:
+        # Drop oldest. Small N so linear scan is fine.
+        oldest = min(_ARXIV_SEARCH_CACHE.items(), key=lambda kv: kv[1][0])[0]
+        _ARXIV_SEARCH_CACHE.pop(oldest, None)
+    _ARXIV_SEARCH_CACHE[key] = (time.monotonic(), value)
+
+
+def _is_valid_uuid(value: Any) -> bool:
+    """Return True if ``value`` parses as a UUID string."""
+    if not isinstance(value, str):
+        return False
+    try:
+        UUID(value)
+        return True
+    except (ValueError, AttributeError, TypeError):
+        return False
+
+
 async def _tool_search_arxiv(args: Dict[str, Any]) -> Dict[str, Any]:
     """Search arXiv for papers."""
+    from datetime import datetime, timedelta, timezone
+
     from src.services.arxiv.arxiv_service import ArXivIngestionService
 
     query = args.get("query", "")
-    max_results = min(args.get("max_results", 5), 20)
+    # Hard cap at 5 papers + 250-char abstracts. Trace showed 10×500-char
+    # results = 8087 chars feeding into the synthesis LLM call and triggering
+    # 1536 reasoning tokens (~46s). Smaller payload = faster synthesis.
+    max_results = min(args.get("max_results", 5), 5)
     categories = args.get("categories")
+
+    # Recency window: default to last 12 months so "find recent X" actually
+    # returns recent results. Trace 019e191a showed default search returning
+    # papers from 2018-2024 (relevance-sorted) when user asked for "recent".
+    # Pass recency_days=0 to disable the filter.
+    recency_days_raw = args.get("recency_days", 365)
+    try:
+        recency_days = int(recency_days_raw)
+    except (TypeError, ValueError):
+        recency_days = 365
+    # Clamp to ≥0; negative values silently disable the filter under the
+    # > 0 check, but the contract is "0 disables, positive caps lookback".
+    recency_days = max(0, recency_days)
+    if recency_days > 0:
+        cutoff = datetime.now(timezone.utc) - timedelta(days=recency_days)
+        cutoff_str = cutoff.strftime("%Y%m%d%H%M")
+        # arxiv API supports the `submittedDate:[FROM TO]` filter inside
+        # the search_query parameter. Compose it AND the user's query.
+        date_filter = f"submittedDate:[{cutoff_str} TO 999912312359]"
+        query = f"({query}) AND {date_filter}" if query else date_filter
+
+    cache_key = _arxiv_cache_key(query, max_results, categories, recency_days)
+    cached = _arxiv_cache_get(cache_key)
+    if cached is not None:
+        return {**cached, "cached": True}
 
     try:
         async with ArXivIngestionService() as service:
@@ -437,23 +746,39 @@ async def _tool_search_arxiv(args: Dict[str, Any]) -> Dict[str, Any]:
                 query=query,
                 max_results=max_results,
                 categories=categories,
-                sort_by="relevance",
+                # Sort by submission date so the "most recent" claim matches
+                # what comes back, not relevance order across 30 years.
+                sort_by="submittedDate",
                 sort_order="descending",
             )
             results = []
             for p in papers[:max_results]:
-                results.append({
-                    "id": p.get("id", ""),
-                    "title": p.get("title", ""),
-                    "authors": p.get("authors", [])[:5],
-                    "abstract": (p.get("abstract", "") or "")[:500],
-                    "published": str(p.get("published", "")),
-                    "categories": p.get("categories", []),
-                    "pdf_url": p.get("pdf_url", ""),
-                })
-            return {"papers": results, "total": len(results), "query": query}
+                results.append(
+                    {
+                        "id": p.get("id", ""),
+                        "title": p.get("title", ""),
+                        "authors": p.get("authors", [])[:3],
+                        "abstract": (p.get("abstract", "") or "")[:250],
+                        "published": str(p.get("published", "")),
+                        "categories": p.get("categories", []),
+                        "pdf_url": p.get("pdf_url", ""),
+                    }
+                )
+            payload = {"papers": results, "total": len(results), "query": query}
+            _arxiv_cache_set(cache_key, payload)
+            return payload
     except Exception as e:
         logger.error("ArXiv search tool failed", exc_info=e)
+        # On 429 or other failure, fall back to a stale cache hit (any TTL)
+        # so the LLM can proceed with prior results instead of looping.
+        stale = _ARXIV_SEARCH_CACHE.get(cache_key)
+        if stale is not None:
+            return {
+                **stale[1],
+                "cached": True,
+                "stale": True,
+                "warning": f"ArXiv unavailable ({e}); returned cached results.",
+            }
         return {"error": f"ArXiv search failed: {str(e)}", "query": query}
 
 
@@ -468,41 +793,104 @@ async def _tool_ingest_arxiv(
     from src.services.arxiv.arxiv_service import ArXivIngestionService
 
     paper_ids = args.get("paper_ids", [])
+    project_id = args.get("project_id")
     if not paper_ids:
         return {"error": "No paper IDs provided"}
     if len(paper_ids) > 10:
         return {"error": "Maximum 10 papers per ingest request"}
 
+    # Reject placeholder/hallucinated project_ids early so we don't ingest
+    # papers we can't link. Trace 019e1a1c showed the planner passing
+    # project_id="proj_12345" (non-UUID) and the tool happily continuing.
+    if project_id is not None and not _is_valid_uuid(project_id):
+        return {
+            "error": (
+                f"Invalid project_id {project_id!r}; expected a UUID. "
+                "Call list_projects to find the correct ID, or omit "
+                "project_id to ingest without project attachment."
+            ),
+            "error_type": "invalid_project_id",
+            "paper_ids": paper_ids,
+        }
+
+    # Per-paper failure tracking. Keys are requested arXiv IDs; value is the
+    # reason a paper didn't end up as an ingested Document. Empty on full
+    # success.
+    failed_papers: Dict[str, str] = {}
+
     try:
         async with ArXivIngestionService() as service:
-            # Fetch paper metadata for each ID, then ingest
-            papers_to_ingest = []
-            for pid in paper_ids:
-                # Search by ID to get full paper dict
-                results = await service.search_papers(
-                    query=f"id:{pid}",
-                    max_results=1,
-                )
+            # Fetch paper metadata in parallel; cap concurrency to be polite
+            # to the arXiv API (no batched id_list endpoint available).
+            metadata_semaphore = asyncio.Semaphore(5)
+
+            async def _fetch_one(pid: str) -> Dict[str, Any]:
+                async with metadata_semaphore:
+                    try:
+                        results = await service.search_papers(
+                            query=f"id:{pid}",
+                            max_results=1,
+                        )
+                    except Exception as exc:
+                        logger.warning(
+                            "arXiv metadata fetch failed for %s: %s", pid, exc
+                        )
+                        failed_papers[pid] = f"metadata fetch failed: {exc}"
+                        results = None
                 if results:
-                    papers_to_ingest.append(results[0])
-                else:
-                    # Build minimal paper dict from ID
-                    papers_to_ingest.append({
-                        "id": pid,
-                        "title": f"arXiv:{pid}",
-                        "authors": [],
-                        "abstract": "",
-                        "published": "",
-                        "updated": "",
-                        "categories": [],
-                        "links": {"pdf": f"https://arxiv.org/pdf/{pid}"},
-                    })
+                    return results[0]
+                # Fallback: minimal paper dict so ingest can still proceed.
+                # Record the miss so the caller knows which IDs lacked
+                # real arXiv metadata (likely invalid or very new).
+                failed_papers.setdefault(
+                    pid,
+                    "arXiv returned no metadata (invalid ID or paper not yet "
+                    "indexed)",
+                )
+                return {
+                    "id": pid,
+                    "title": f"arXiv:{pid}",
+                    "authors": [],
+                    "abstract": "",
+                    "published": "",
+                    "updated": "",
+                    "categories": [],
+                    "links": {"pdf": f"https://arxiv.org/pdf/{pid}"},
+                }
+
+            papers_to_ingest = list(
+                await asyncio.gather(*[_fetch_one(pid) for pid in paper_ids])
+            )
 
             ingested = await service.ingest_papers(
                 papers=papers_to_ingest,
                 download_pdfs=True,
                 extract_content=True,
             )
+
+            # Detect which requested paper_ids the service dropped during
+            # download/extract so we can surface per-paper failure reasons
+            # instead of a generic zero-count message.
+            # arXiv returns versioned IDs (``2605.10877v1``) while callers
+            # typically pass unversioned IDs — strip ``vN`` before comparing
+            # so successfully ingested papers aren't flagged as failures.
+            def _strip_version(aid: str) -> str:
+                return _ARXIV_VERSION_RE.sub("", aid)
+
+            ingested_arxiv_ids: set[str] = set()
+            for doc in ingested or []:
+                meta = getattr(doc, "document_metadata", None) or {}
+                aid = meta.get("arxiv_id") if isinstance(meta, dict) else None
+                if aid:
+                    ingested_arxiv_ids.add(_strip_version(str(aid)))
+            for pid in paper_ids:
+                if (
+                    _strip_version(pid) not in ingested_arxiv_ids
+                    and pid not in failed_papers
+                ):
+                    failed_papers[pid] = (
+                        "PDF download or content extraction failed"
+                    )
 
             document_ids = []
             if ingested and current_user:
@@ -511,6 +899,7 @@ async def _tool_ingest_arxiv(
                 from src.core.database import AsyncSessionLocal
 
                 try:
+                    persisted_documents: List[Document] = []
                     async with AsyncSessionLocal() as fresh_db:
                         async with fresh_db.begin():
                             for doc in ingested:
@@ -518,15 +907,22 @@ async def _tool_ingest_arxiv(
                                     title=getattr(doc, "title", "Untitled"),
                                     filename=getattr(doc, "filename", ""),
                                     file_path=getattr(
-                                        doc, "file_path",
+                                        doc,
+                                        "file_path",
                                         getattr(doc, "filename", ""),
                                     ),
                                     file_size_bytes=getattr(doc, "file_size_bytes", 0),
-                                    mime_type=getattr(doc, "mime_type", "application/pdf"),
+                                    mime_type=getattr(
+                                        doc, "mime_type", "application/pdf"
+                                    ),
                                     document_type=DocumentType.PDF,
                                     content_text=getattr(doc, "content_text", None),
-                                    content_summary=getattr(doc, "content_summary", None),
-                                    document_metadata=_sanitize_metadata(getattr(doc, "document_metadata", {})),
+                                    content_summary=getattr(
+                                        doc, "content_summary", None
+                                    ),
+                                    document_metadata=_sanitize_metadata(
+                                        getattr(doc, "document_metadata", {})
+                                    ),
                                     processing_status=ProcessingStatus.COMPLETED,
                                     uploaded_by_user_id=current_user.id,
                                     organization_id=current_user.organization_id,
@@ -535,12 +931,38 @@ async def _tool_ingest_arxiv(
                                 fresh_db.add(document)
                                 await fresh_db.flush()
                                 document_ids.append(str(document.id))
+                                persisted_documents.append(document)
                             # begin() auto-commits on exit
-                    logger.info("Ingested %d documents to DB: %s", len(document_ids), document_ids)
+                    logger.info(
+                        "Ingested %d documents to DB: %s",
+                        len(document_ids),
+                        document_ids,
+                    )
+
+                    # Phase 2 dual-write: mirror into DO KB. Failure-isolated.
+                    from src.core.config import settings as _kb_settings
+
+                    if getattr(_kb_settings, "DO_KB_ENABLED", False) and persisted_documents:
+                        try:
+                            from src.services.do_kb import sync_documents_to_kb
+
+                            async with AsyncSessionLocal() as kb_db:
+                                merged = [
+                                    await kb_db.merge(d) for d in persisted_documents
+                                ]
+                                await sync_documents_to_kb(kb_db, merged)
+                        except Exception as kb_err:  # noqa: BLE001
+                            logger.warning(
+                                "do_kb dual-write skipped for arxiv ingest: %s", kb_err
+                            )
                 except Exception as db_err:
-                    logger.error("Failed to persist ingested documents to DB", exc_info=db_err)
+                    logger.error(
+                        "Failed to persist ingested documents to DB", exc_info=db_err
+                    )
                     document_ids = []
-                    return {"error": f"Papers downloaded but DB persist failed: {str(db_err)}"}
+                    return {
+                        "error": f"Papers downloaded but DB persist failed: {str(db_err)}"
+                    }
             elif ingested:
                 # Fallback: no current_user, return paper_ids only
                 for doc in ingested:
@@ -548,12 +970,102 @@ async def _tool_ingest_arxiv(
                     if doc_id:
                         document_ids.append(str(doc_id))
 
+            # Auto-attach to active project if one is in context.
+            linked_project_id: Optional[str] = None
+            linked_project_name: Optional[str] = None
+            link_error: Optional[str] = None
+            if project_id and document_ids and current_user:
+                from src.api.agent.tool_helpers import _link_documents_to_project
+                from src.core.database import AsyncSessionLocal as _LinkSession
+
+                try:
+                    async with _LinkSession() as link_db:
+                        project = await _verify_project_ownership(
+                            project_id, link_db, current_user
+                        )
+                        if not project:
+                            link_error = (
+                                f"Project '{project_id}' not found or access denied; "
+                                "documents ingested but NOT attached."
+                            )
+                        else:
+                            result = await _link_documents_to_project(
+                                link_db, project, document_ids
+                            )
+                            await link_db.commit()
+                            linked_project_id = str(project.id)
+                            linked_project_name = project.name
+                            logger.info(
+                                "Linked %d (skipped %d already-linked) ingested "
+                                "docs to project %s (%s)",
+                                result["linked"],
+                                result["already_linked"],
+                                linked_project_id,
+                                linked_project_name,
+                            )
+                except Exception as link_err:
+                    logger.error(
+                        "Failed to link ingested docs to project %s", project_id,
+                        exc_info=link_err,
+                    )
+                    link_error = f"Project link failed: {link_err}"
+
+            ingested_count = len(document_ids)
+            requested_count = len(paper_ids)
+
+            # Classify outcome so the LLM doesn't read "ingestion_complete"
+            # as success when zero papers actually landed.
+            if ingested_count == 0:
+                status = INGEST_STATUS_FAILED
+                message = (
+                    f"Ingested 0 of {requested_count} paper(s). The arXiv IDs "
+                    "may be invalid, very new (not yet on arxiv.org), or the "
+                    "download/extract step failed. Try again with different "
+                    "IDs or wait a few hours for very recent papers."
+                )
+            elif ingested_count < requested_count:
+                status = INGEST_STATUS_PARTIAL
+                message = (
+                    f"Ingested {ingested_count} of {requested_count} paper(s). "
+                    f"{requested_count - ingested_count} failed — likely "
+                    "invalid IDs or download errors."
+                )
+            else:
+                status = INGEST_STATUS_COMPLETE
+                message = f"Ingested {ingested_count} paper(s) into the RAG system."
+
+            if linked_project_name:
+                message += f" Attached to project '{linked_project_name}'."
+
+            # Promote link failure to a distinct status so the LLM doesn't
+            # confuse "ingested fine but never attached" with full success.
+            if link_error and status == INGEST_STATUS_COMPLETE:
+                status = INGEST_STATUS_COMPLETE_LINK_FAILED
+
+            failed_papers_list = [
+                {"paper_id": pid, "reason": reason}
+                for pid, reason in failed_papers.items()
+            ]
+            if failed_papers_list and ingested_count == 0:
+                # Append per-paper failure detail so the LLM/user can see
+                # exactly which IDs failed and why.
+                reasons = ", ".join(
+                    f"{fp['paper_id']} ({fp['reason']})"
+                    for fp in failed_papers_list
+                )
+                message += f" Details: {reasons}."
+
             return {
-                "status": "ingestion_complete",
+                "status": status,
                 "paper_ids": paper_ids,
                 "document_ids": document_ids,
-                "ingested_count": len(document_ids),
-                "message": f"Ingested {len(document_ids)} paper(s) into the RAG system.",
+                "ingested_count": ingested_count,
+                "requested_count": requested_count,
+                "failed_papers": failed_papers_list,
+                "project_id": linked_project_id,
+                "project_name": linked_project_name,
+                "link_error": link_error,
+                "message": message,
             }
     except Exception as e:
         logger.error("ArXiv ingest tool failed", exc_info=e)
@@ -576,8 +1088,7 @@ async def _tool_search_documents(
         return {"error": "Query is required"}
 
     try:
-        escaped = re.sub(r"([%_\\])", r"\\\1", query)
-        pattern = f"%{escaped}%"
+        pattern = f"%{_escape_like(query)}%"
         stmt = (
             select(Document)
             .where(
@@ -597,7 +1108,9 @@ async def _tool_search_documents(
                     "id": str(d.id),
                     "title": d.title,
                     "type": d.document_type.value if d.document_type else None,
-                    "status": d.processing_status.value if d.processing_status else None,
+                    "status": (
+                        d.processing_status.value if d.processing_status else None
+                    ),
                     "created_at": d.created_at.isoformat() if d.created_at else None,
                 }
                 for d in docs
@@ -608,6 +1121,143 @@ async def _tool_search_documents(
     except Exception as e:
         logger.error("search_documents tool failed", exc_info=e)
         return {"error": f"Document search failed: {str(e)}"}
+
+
+async def _tool_do_kb_retrieve(
+    args: Dict[str, Any],
+    db: Optional[AsyncSession],
+    current_user: Optional[User],
+) -> Dict[str, Any]:
+    """Semantic retrieval over the org's DigitalOcean Knowledge Base.
+
+    Returns an empty chunks list when the org has no provisioned KB or
+    when DO_KB_ENABLED is false — caller falls back to other tools.
+    """
+    if not current_user:
+        return {"error": "Authentication required", "chunks": [], "total": 0}
+
+    query = (args.get("query") or "").strip()
+    if not query:
+        return {"error": "Query is required", "chunks": [], "total": 0}
+
+    top_k = max(1, min(int(args.get("top_k", 8)), 20))
+
+    from src.core.config import settings as _kb_settings
+
+    if not getattr(_kb_settings, "DO_KB_ENABLED", False):
+        return {"chunks": [], "total": 0, "source": "do_kb", "reason": "disabled"}
+
+    # Read kb_uuid from the org. Lazy import to keep cold-start light.
+    kb_uuid: Optional[str] = None
+    if db is not None:
+        from src.models.organization import Organization
+
+        org = await db.get(Organization, current_user.organization_id)
+        kb_uuid = getattr(org, "do_kb_uuid", None) if org else None
+
+    if not kb_uuid:
+        return {"chunks": [], "total": 0, "source": "do_kb", "reason": "not_provisioned"}
+
+    try:
+        from src.services.do_kb import get_do_kb_client
+
+        client = get_do_kb_client()
+        result = await client.retrieve(kb_uuid=kb_uuid, query=query, top_k=top_k)
+    except Exception as exc:
+        logger.warning("do_kb_retrieve failed: %s", exc)
+        return {
+            "chunks": [],
+            "total": 0,
+            "source": "do_kb",
+            "error": f"Retrieval failed: {exc}",
+        }
+
+    # Resolve storage-key document_ids back to real Document.id + title so the
+    # agent can cite by title and link to the canonical row. DO KB returns
+    # ``item_name`` as the leaf filename, while Document.storage_path stores
+    # the full canonical key — match both by suffix.
+    title_by_key: dict[str, tuple[str, str]] = {}
+    if db is not None and result.chunks:
+        from sqlalchemy import or_, select
+
+        from src.models.document import Document
+
+        storage_keys = {c.document_id for c in result.chunks if c.document_id}
+        if storage_keys:
+            from src.services.agent.graph import _escape_like
+
+            filters = [Document.storage_path == k for k in storage_keys]
+            filters += [
+                Document.storage_path.like(f"%/{_escape_like(k)}", escape="\\")
+                for k in storage_keys
+            ]
+            rows = await db.execute(
+                select(Document.id, Document.storage_path, Document.title)
+                .where(Document.organization_id == current_user.organization_id)
+                .where(or_(*filters))
+            )
+            for doc_id, storage_path, title in rows:
+                if storage_path in storage_keys:
+                    leaf = storage_path
+                else:
+                    leaf = storage_path.rsplit("/", 1)[-1] if storage_path else ""
+                title_by_key[leaf] = (str(doc_id), title or leaf)
+
+    # Project scoping: drop chunks whose resolved document is not in the
+    # active project. DO KB is org-scoped, so cross-project leakage is
+    # filtered here via the collection_documents association.
+    project_id = args.get("project_id")
+    chunks_to_emit = result.chunks
+    if project_id and db is not None and title_by_key:
+        from uuid import UUID as _UUID
+
+        from src.models.collection import CollectionDocument
+
+        resolved_doc_ids = {
+            _UUID(doc_id) for doc_id, _ in title_by_key.values() if doc_id
+        }
+        if resolved_doc_ids:
+            try:
+                pid = _UUID(str(project_id))
+            except (ValueError, TypeError):
+                pid = None
+            if pid is not None:
+                from sqlalchemy import select as _select
+
+                membership_rows = await db.execute(
+                    _select(CollectionDocument.document_id).where(
+                        CollectionDocument.collection_id == pid,
+                        CollectionDocument.document_id.in_(resolved_doc_ids),
+                    )
+                )
+                in_project = {str(r[0]) for r in membership_rows}
+                chunks_to_emit = [
+                    c
+                    for c in result.chunks
+                    if (
+                        title_by_key.get(c.document_id or "", (None, None))[0] or ""
+                    )
+                    in in_project
+                ]
+
+    chunks_payload = []
+    for c in chunks_to_emit:
+        resolved_id, title = title_by_key.get(c.document_id or "", (None, None))
+        chunks_payload.append(
+            {
+                "text": c.text,
+                "score": c.score,
+                "document_id": resolved_id or c.document_id,
+                "title": title or (c.metadata or {}).get("title") or c.document_id,
+                "metadata": c.metadata,
+            }
+        )
+    return {
+        "chunks": chunks_payload,
+        "total": len(chunks_payload) if project_id else result.total,
+        "source": "do_kb",
+        "query": query,
+    }
 
 
 async def _tool_add_document_to_project(
@@ -645,28 +1295,24 @@ async def _tool_add_document_to_project(
             doc_uuid = doc.id
 
             # Verify project ownership (resolves UUID or name)
-            project = await _verify_project_ownership(project_id, fresh_db, current_user)
+            project = await _verify_project_ownership(
+                project_id, fresh_db, current_user
+            )
             if not project:
                 return {"error": "Project not found or access denied"}
 
-            # Check if already linked
-            existing_stmt = select(CollectionDocument).where(
-                CollectionDocument.collection_id == project.id,
-                CollectionDocument.document_id == doc_uuid,
+            from src.api.agent.tool_helpers import _link_documents_to_project
+
+            result = await _link_documents_to_project(
+                fresh_db, project, [str(doc_uuid)]
             )
-            existing_result = await fresh_db.execute(existing_stmt)
-            if existing_result.scalar_one_or_none():
+            await fresh_db.commit()
+
+            if result["linked"] == 0 and result["already_linked"] >= 1:
                 return {
                     "status": "already_linked",
                     "message": f"Document '{doc.title}' is already in project '{project.name}'.",
                 }
-
-            link = CollectionDocument(
-                collection_id=project.id,
-                document_id=doc_uuid,
-            )
-            fresh_db.add(link)
-            await fresh_db.commit()
 
             return {
                 "status": "success",
@@ -677,6 +1323,73 @@ async def _tool_add_document_to_project(
     except Exception as e:
         logger.error("add_document_to_project tool failed", exc_info=e)
         return {"error": f"Failed to add document to project: {str(e)}"}
+
+
+async def _tool_create_project(
+    args: Dict[str, Any],
+    db: Optional[AsyncSession],
+    current_user: Optional[User],
+) -> Dict[str, Any]:
+    """Create a new research project.
+
+    If ``workspace_id`` is omitted, the user's first workspace is used.
+    """
+    if not current_user:
+        return {"error": "Authentication required"}
+
+    name = (args.get("name") or "").strip()
+    if not name:
+        return {"error": "name is required"}
+
+    from src.core.database import AsyncSessionLocal
+    from src.services.research.project_service import ProjectService
+    from src.shared.research_schemas import ProjectCreate
+
+    try:
+        async with AsyncSessionLocal() as fresh_db:
+            service = ProjectService(fresh_db)
+
+            workspace_id_raw = args.get("workspace_id")
+            if workspace_id_raw:
+                try:
+                    workspace_id = UUID(str(workspace_id_raw))
+                except ValueError:
+                    return {"error": "workspace_id must be a valid UUID"}
+            else:
+                workspace_ids = await service._get_workspace_ids_for_user(
+                    current_user.id
+                )
+                if not workspace_ids:
+                    return {
+                        "error": (
+                            "No workspace found for user. Create a workspace first."
+                        )
+                    }
+                workspace_id = workspace_ids[0]
+
+            payload = ProjectCreate(
+                workspace_id=workspace_id,
+                name=name,
+                description=args.get("description") or None,
+                research_goals=args.get("research_goals") or None,
+                tags=list(args.get("tags") or []),
+            )
+
+            project = await service.create_project(
+                user_id=current_user.id,
+                project_data=payload,
+            )
+
+            return {
+                "status": "success",
+                "project_id": str(project.id),
+                "name": project.name,
+                "workspace_id": str(project.workspace_id),
+                "message": f"Created project '{project.name}'.",
+            }
+    except Exception as e:
+        logger.error("create_project tool failed", exc_info=e)
+        return {"error": f"Failed to create project: {str(e)}"}
 
 
 async def _tool_create_project_note(
@@ -705,7 +1418,9 @@ async def _tool_create_project_note(
     try:
         async with AsyncSessionLocal() as fresh_db:
             # Verify project ownership (resolves UUID or name)
-            project = await _verify_project_ownership(project_id, fresh_db, current_user)
+            project = await _verify_project_ownership(
+                project_id, fresh_db, current_user
+            )
             if not project:
                 return {"error": "Project not found or access denied"}
 
@@ -744,20 +1459,43 @@ async def _tool_list_project_documents(
     if not project_id:
         return {"error": "project_id is required"}
 
+    raw_limit = args.get("limit", 100)
+    try:
+        limit = max(1, min(int(raw_limit), 500))
+    except (TypeError, ValueError):
+        limit = 100
+    raw_offset = args.get("offset", 0)
+    try:
+        offset = max(0, int(raw_offset))
+    except (TypeError, ValueError):
+        offset = 0
+
     try:
         # Verify project ownership (resolves UUID or name)
         project = await _verify_project_ownership(project_id, db, current_user)
         if not project:
             return {"error": "Project not found or access denied"}
 
+        base_where = (
+            CollectionDocument.collection_id == project.id,
+            Document.is_deleted == False,
+        )
+
+        count_stmt = (
+            select(func.count())
+            .select_from(Document)
+            .join(CollectionDocument, CollectionDocument.document_id == Document.id)
+            .where(*base_where)
+        )
+        total = (await db.execute(count_stmt)).scalar_one()
+
         stmt = (
             select(Document)
             .join(CollectionDocument, CollectionDocument.document_id == Document.id)
-            .where(
-                CollectionDocument.collection_id == project.id,
-                Document.is_deleted == False,
-            )
+            .where(*base_where)
             .order_by(desc(Document.created_at))
+            .offset(offset)
+            .limit(limit)
         )
         result = await db.execute(stmt)
         docs = result.scalars().all()
@@ -769,15 +1507,85 @@ async def _tool_list_project_documents(
                     "id": str(d.id),
                     "title": d.title,
                     "type": d.document_type.value if d.document_type else None,
-                    "status": d.processing_status.value if d.processing_status else None,
+                    "status": (
+                        d.processing_status.value if d.processing_status else None
+                    ),
                 }
                 for d in docs
             ],
-            "total": len(docs),
+            "total": int(total),
+            "returned": len(docs),
+            "limit": limit,
+            "offset": offset,
+            "has_more": offset + len(docs) < int(total),
         }
     except Exception as e:
         logger.error("list_project_documents tool failed", exc_info=e)
         return {"error": f"Failed to list project documents: {str(e)}"}
+
+
+async def _tool_list_projects(
+    args: Dict[str, Any],
+    db: Optional[AsyncSession],
+    current_user: Optional[User],
+) -> Dict[str, Any]:
+    """List research projects owned by the current user.
+
+    Thin wrapper around :meth:`ProjectService.list_projects` that returns a
+    compact payload suitable for LLM context. Uses a fresh DB session to
+    avoid conflicts with the shared graph session.
+    """
+    if not current_user:
+        return {"error": "Authentication required"}
+
+    raw_limit = args.get("limit", 20)
+    try:
+        limit = max(1, min(int(raw_limit), 50))
+    except (TypeError, ValueError):
+        limit = 20
+
+    status = (args.get("status") or "").strip() or None
+    tag = (args.get("tag") or "").strip() or None
+    search = (args.get("search") or "").strip() or None
+
+    from src.core.database import AsyncSessionLocal
+    from src.services.research.project_service import ProjectService
+
+    try:
+        async with AsyncSessionLocal() as fresh_db:
+            service = ProjectService(fresh_db)
+            result = await service.list_projects(
+                user_id=current_user.id,
+                project_status=status,
+                tag=tag,
+                search=search,
+                skip=0,
+                limit=limit,
+            )
+
+            projects = result.get("projects", [])
+            return {
+                "projects": [
+                    {
+                        "id": str(p.id),
+                        "name": p.name,
+                        "description": getattr(p, "description", None),
+                        "status": getattr(p, "research_status", None),
+                        "tags": list(getattr(p, "tags", []) or []),
+                        "updated_at": (
+                            p.updated_at.isoformat()
+                            if getattr(p, "updated_at", None)
+                            else None
+                        ),
+                    }
+                    for p in projects
+                ],
+                "total": result.get("total", len(projects)),
+                "returned": len(projects),
+            }
+    except Exception as e:
+        logger.error("list_projects tool failed", exc_info=e)
+        return {"error": f"Failed to list projects: {str(e)}"}
 
 
 async def _tool_summarize_document(
@@ -796,6 +1604,21 @@ async def _tool_summarize_document(
     try:
         doc = await _resolve_document_id(document_id, db, current_user)
         if not doc:
+            # Helpful hint when the input looks like an arXiv ID but the
+            # paper hasn't been ingested into the workspace yet.
+            import re as _re
+
+            if _re.match(r"^\d{4}\.\d{4,5}(v\d+)?$", (document_id or "").strip()):
+                return {
+                    "error": (
+                        f"Document with arXiv ID '{document_id}' is not in your "
+                        "library. Use ingest_arxiv_papers([\""
+                        f"{document_id}\"]) first, then retry summarize_document "
+                        "with the returned internal document_id."
+                    ),
+                    "error_type": "recoverable",
+                    "suggestion": "ingest_arxiv_papers",
+                }
             return {"error": "Document not found or access denied"}
 
         # Use existing content_text if available, else extract
@@ -815,15 +1638,17 @@ async def _tool_summarize_document(
 
         # Use LLM to summarize
         try:
-            from src.services.agent.graph import _build_llm
-
-            llm = _build_llm()
             from langchain_core.messages import HumanMessage, SystemMessage
 
-            response = await llm.ainvoke([
-                SystemMessage(content="You are a research assistant. Provide a concise summary of the following document in 3-5 paragraphs. Focus on key findings, methodology, and conclusions."),
-                HumanMessage(content=text_for_summary),
-            ])
+            llm = _get_tool_llm()
+            response = await llm.ainvoke(
+                [
+                    SystemMessage(
+                        content="You are a research assistant. Provide a concise summary of the following document in 3-5 paragraphs. Focus on key findings, methodology, and conclusions."
+                    ),
+                    HumanMessage(content=text_for_summary),
+                ]
+            )
             summary = response.content
         except Exception:
             # Fallback: first 500 words
@@ -861,10 +1686,43 @@ async def _tool_compare_documents(
         from src.services.documents.file_service import FileService
 
         file_service = FileService(db)
-        doc_texts = []
 
+        # Resolve all UUID-shaped IDs in a single batched query; only fall
+        # back to per-id title lookups for non-UUID inputs. AsyncSession is
+        # not safe for concurrent statements, so we keep title fallbacks
+        # serial.
+        uuid_inputs: list[tuple[str, UUID]] = []
+        title_inputs: list[str] = []
         for did in document_ids:
-            doc = await _resolve_document_id(did, db, current_user)
+            try:
+                uuid_inputs.append((did, UUID(did)))
+            except (ValueError, AttributeError, TypeError):
+                title_inputs.append(did)
+
+        docs_by_uuid: Dict[UUID, Document] = {}
+        if uuid_inputs:
+            uuid_stmt = select(Document).where(
+                Document.id.in_([u for _, u in uuid_inputs]),
+                Document.organization_id == current_user.organization_id,
+                Document.is_deleted == False,
+            )
+            for doc in (await db.execute(uuid_stmt)).scalars().all():
+                docs_by_uuid[doc.id] = doc
+
+        resolved: Dict[str, Document] = {}
+        for raw_id, parsed in uuid_inputs:
+            doc = docs_by_uuid.get(parsed)
+            if doc is not None:
+                resolved[raw_id] = doc
+
+        for raw_id in title_inputs:
+            doc = await _resolve_document_id(raw_id, db, current_user)
+            if doc is not None:
+                resolved[raw_id] = doc
+
+        doc_texts = []
+        for did in document_ids:
+            doc = resolved.get(did)
             if not doc:
                 return {"error": f"Document not found: {did}"}
 
@@ -872,26 +1730,30 @@ async def _tool_compare_documents(
             if not text:
                 text = file_service.extract_text_content(doc)
 
-            doc_texts.append({
-                "id": str(doc.id),
-                "title": doc.title or "Untitled",
-                "text": text[:4000],
-            })
+            doc_texts.append(
+                {
+                    "id": str(doc.id),
+                    "title": doc.title or "Untitled",
+                    "text": text[:4000],
+                }
+            )
 
         # Use LLM to compare
         try:
-            from src.services.agent.graph import _build_llm
-
-            llm = _build_llm()
             from langchain_core.messages import HumanMessage, SystemMessage
 
+            llm = _get_tool_llm()
             docs_content = "\n\n---\n\n".join(
                 f"Document: {d['title']}\n{d['text']}" for d in doc_texts
             )
-            response = await llm.ainvoke([
-                SystemMessage(content=f"You are a research assistant. Compare the following documents ({comparison_type} comparison). Identify similarities, differences, and key themes across them. Be structured and concise."),
-                HumanMessage(content=docs_content),
-            ])
+            response = await llm.ainvoke(
+                [
+                    SystemMessage(
+                        content=f"You are a research assistant. Compare the following documents ({comparison_type} comparison). Identify similarities, differences, and key themes across them. Be structured and concise."
+                    ),
+                    HumanMessage(content=docs_content),
+                ]
+            )
             comparison = response.content
         except Exception:
             comparison = "Comparison could not be generated. Documents were retrieved successfully."
@@ -983,10 +1845,10 @@ async def _tool_search_knowledge_graph(args: Dict[str, Any]) -> Dict[str, Any]:
         return {"error": "query is required"}
 
     try:
-        from src.services.knowledge_graph.knowledge_graph_service import KnowledgeGraphService
         from src.models.graph import EntityType
-
-        kg_service = KnowledgeGraphService()
+        from src.services.knowledge_graph.knowledge_graph_service import (
+            knowledge_graph_service,
+        )
 
         type_filters = None
         if entity_types:
@@ -997,10 +1859,17 @@ async def _tool_search_knowledge_graph(args: Dict[str, Any]) -> Dict[str, Any]:
                 except ValueError:
                     pass
 
-        entities = kg_service.search_entities(
-            query=query,
-            entity_types=type_filters,
-            limit=limit,
+        loop = asyncio.get_running_loop()
+        entities = await asyncio.wait_for(
+            loop.run_in_executor(
+                None,
+                lambda: knowledge_graph_service.search_entities(
+                    query=query,
+                    entity_types=type_filters,
+                    limit=limit,
+                ),
+            ),
+            timeout=15.0,
         )
 
         return {
@@ -1031,12 +1900,21 @@ async def _tool_explore_entity_neighborhood(args: Dict[str, Any]) -> Dict[str, A
         return {"error": "entity_id is required"}
 
     try:
-        from src.services.knowledge_graph.knowledge_graph_service import knowledge_graph_service
+        from src.services.knowledge_graph.knowledge_graph_service import (
+            knowledge_graph_service,
+        )
 
-        neighborhood = knowledge_graph_service.get_neighborhood(
-            entity_id=entity_id,
-            max_depth=max_depth,
-            limit=limit,
+        loop = asyncio.get_running_loop()
+        neighborhood = await asyncio.wait_for(
+            loop.run_in_executor(
+                None,
+                lambda: knowledge_graph_service.get_neighborhood(
+                    entity_id=entity_id,
+                    max_depth=max_depth,
+                    limit=limit,
+                ),
+            ),
+            timeout=15.0,
         )
 
         entities = neighborhood.get("entities", [])
@@ -1057,7 +1935,11 @@ async def _tool_explore_entity_neighborhood(args: Dict[str, Any]) -> Dict[str, A
                 {
                     "source": r.source_entity_id,
                     "target": r.target_entity_id,
-                    "type": r.relationship_type.value if r.relationship_type else "RELATED_TO",
+                    "type": (
+                        r.relationship_type.value
+                        if r.relationship_type
+                        else "RELATED_TO"
+                    ),
                     "strength": r.strength,
                 }
                 for r in relationships
@@ -1080,12 +1962,21 @@ async def _tool_find_entity_paths(args: Dict[str, Any]) -> Dict[str, Any]:
         return {"error": "source_entity_id and target_entity_id are required"}
 
     try:
-        from src.services.knowledge_graph.knowledge_graph_service import knowledge_graph_service
+        from src.services.knowledge_graph.knowledge_graph_service import (
+            knowledge_graph_service,
+        )
 
-        paths = knowledge_graph_service.find_paths(
-            source_id=source_id,
-            target_id=target_id,
-            max_depth=max_depth,
+        loop = asyncio.get_running_loop()
+        paths = await asyncio.wait_for(
+            loop.run_in_executor(
+                None,
+                lambda: knowledge_graph_service.find_paths(
+                    source_id=source_id,
+                    target_id=target_id,
+                    max_depth=max_depth,
+                ),
+            ),
+            timeout=15.0,
         )
 
         return {
@@ -1098,14 +1989,22 @@ async def _tool_find_entity_paths(args: Dict[str, Any]) -> Dict[str, Any]:
                     "strength": p.total_strength,
                     "confidence": p.confidence_score,
                     "entities": [
-                        {"id": e.id, "name": e.name, "type": e.entity_type.value if e.entity_type else "UNKNOWN"}
+                        {
+                            "id": e.id,
+                            "name": e.name,
+                            "type": e.entity_type.value if e.entity_type else "UNKNOWN",
+                        }
                         for e in p.entities
                     ],
                     "relationships": [
                         {
                             "source": r.source_entity_id,
                             "target": r.target_entity_id,
-                            "type": r.relationship_type.value if r.relationship_type else "RELATED_TO",
+                            "type": (
+                                r.relationship_type.value
+                                if r.relationship_type
+                                else "RELATED_TO"
+                            ),
                         }
                         for r in p.relationships
                     ],
@@ -1121,9 +2020,15 @@ async def _tool_find_entity_paths(args: Dict[str, Any]) -> Dict[str, Any]:
 async def _tool_get_graph_stats(args: Dict[str, Any]) -> Dict[str, Any]:
     """Get knowledge graph statistics."""
     try:
-        from src.services.knowledge_graph.knowledge_graph_service import knowledge_graph_service
+        from src.services.knowledge_graph.knowledge_graph_service import (
+            knowledge_graph_service,
+        )
 
-        analytics = knowledge_graph_service.get_graph_analytics()
+        loop = asyncio.get_running_loop()
+        analytics = await asyncio.wait_for(
+            loop.run_in_executor(None, knowledge_graph_service.get_graph_analytics),
+            timeout=15.0,
+        )
 
         return {
             "total_entities": analytics.total_entities,
@@ -1162,7 +2067,9 @@ async def _tool_create_draft(
             return {"error": "Project not found or access denied"}
 
         from src.core.database import AsyncSessionLocal
-        from src.services.research.draft_generation_service import DraftGenerationService
+        from src.services.research.draft_generation_service import (
+            DraftGenerationService,
+        )
 
         # Use a fresh independent session for draft generation — the agent's
         # session may be rolled back before the async background task completes.
@@ -1187,6 +2094,53 @@ async def _tool_create_draft(
         return {"error": f"Draft creation failed: {str(e)}"}
 
 
+@dataclass
+class _CitationProxy:
+    """Lightweight stand-in for Citation ORM objects.
+
+    BibliographyService reads these attributes via duck typing — no DB row
+    required.  Built from Document.document_metadata when no Citation records
+    exist for a document.
+    """
+
+    document_title: str = ""
+    authors: List[str] = field(default_factory=list)
+    year: Optional[int] = None
+    venue: Optional[str] = None
+    doi: Optional[str] = None
+    arxiv_id: Optional[str] = None
+    abstract: Optional[str] = None
+
+
+def _citations_from_documents(documents: list) -> List[_CitationProxy]:
+    """Build CitationProxy objects from Document.document_metadata."""
+    proxies: List[_CitationProxy] = []
+    for doc in documents:
+        meta = doc.document_metadata or {}
+        year = None
+        pub_date = meta.get("publication_date")
+        if pub_date:
+            try:
+                if isinstance(pub_date, str):
+                    year = int(pub_date[:4])
+                elif hasattr(pub_date, "year"):
+                    year = pub_date.year
+            except (ValueError, TypeError):
+                pass
+        proxies.append(
+            _CitationProxy(
+                document_title=meta.get("title") or doc.title or "",
+                authors=meta.get("authors") or [],
+                year=year,
+                venue=meta.get("journal_reference"),
+                doi=meta.get("doi"),
+                arxiv_id=meta.get("arxiv_id"),
+                abstract=meta.get("description"),
+            )
+        )
+    return proxies
+
+
 async def _tool_export_bibliography(
     args: Dict[str, Any],
     db: Optional[AsyncSession],
@@ -1202,36 +2156,67 @@ async def _tool_export_bibliography(
     if not document_ids:
         return {"error": "At least one document_id is required"}
     if bib_format not in ("bibtex", "apa", "ieee", "mla"):
-        return {"error": f"Unsupported format: {bib_format}. Use bibtex, apa, ieee, or mla."}
+        return {
+            "error": f"Unsupported format: {bib_format}. Use bibtex, apa, ieee, or mla."
+        }
+
+    # Parse and dedupe UUIDs in one pass; ignore malformed inputs
+    valid_uuids: list[UUID] = []
+    for did in document_ids:
+        try:
+            valid_uuids.append(UUID(did))
+        except (ValueError, AttributeError, TypeError):
+            continue
+    if not valid_uuids:
+        return {
+            "bibliography": "",
+            "format": bib_format,
+            "count": 0,
+            "message": "No valid document IDs supplied.",
+        }
 
     try:
-        # Fetch citations for the given documents
-        citations = []
-        for did in document_ids:
-            try:
-                doc_uuid = UUID(did)
-            except (ValueError, AttributeError):
-                continue
-
-            stmt = (
-                select(Citation)
-                .where(Citation.document_id == doc_uuid)
-            )
-            result = await db.execute(stmt)
-            doc_citations = result.scalars().all()
-            citations.extend(doc_citations)
-
-        if not citations:
+        # Batch ownership check: only documents in the user's organization
+        owned_stmt = select(Document).where(
+            Document.id.in_(valid_uuids),
+            Document.organization_id == current_user.organization_id,
+            Document.is_deleted == False,
+        )
+        owned_result = await db.execute(owned_stmt)
+        owned_docs = list(owned_result.scalars().all())
+        if not owned_docs:
             return {
                 "bibliography": "",
                 "format": bib_format,
                 "count": 0,
-                "message": "No citations found for the given documents.",
+                "message": "No accessible documents found for the given IDs.",
             }
+
+        owned_ids = [d.id for d in owned_docs]
+
+        # Batch citation fetch for accessible documents
+        citation_stmt = select(Citation).where(Citation.document_id.in_(owned_ids))
+        citation_result = await db.execute(citation_stmt)
+        citations = list(citation_result.scalars().all())
+
+        # Fallback: build bibliography from Document metadata when no
+        # Citation records exist (common for freshly ingested papers).
+        if not citations:
+            proxies = _citations_from_documents(owned_docs)
+            if not proxies:
+                return {
+                    "bibliography": "",
+                    "format": bib_format,
+                    "count": 0,
+                    "message": "No citations found for the given documents.",
+                }
+            citations = proxies
 
         from src.services.research.bibliography_service import BibliographyService
 
-        bibliography = BibliographyService.format_bibliography(citations, bib_format)
+        bibliography = BibliographyService.format_bibliography(
+            citations, bib_format  # type: ignore[arg-type]
+        )
 
         return {
             "bibliography": bibliography,
@@ -1270,9 +2255,7 @@ async def _tool_execute_code(
     manager = get_sandbox_manager()
 
     if not manager.is_available:
-        return {
-            "error": "Code execution is not available. E2B_API_KEY not configured."
-        }
+        return {"error": "Code execution is not available. E2B_API_KEY not configured."}
 
     # Install extra packages if requested
     if packages:
@@ -1302,3 +2285,162 @@ async def _tool_execute_code(
         response["outputs"] = result.results
 
     return response
+
+
+# ---------------------------------------------------------------------------
+# External database connector tools
+# ---------------------------------------------------------------------------
+
+
+async def _tool_search_external_database(args: Dict[str, Any]) -> Dict[str, Any]:
+    """Search external databases via the connector registry."""
+    import asyncio
+
+    from src.services.connectors import connector_registry
+    from src.services.connectors.base import ConnectorDomain
+
+    query = args.get("query", "")
+    if not query:
+        return {"error": "query is required"}
+
+    connector_name = args.get("connector")
+    domain_name = args.get("domain")
+    max_results = min(args.get("max_results", 5), 20)
+
+    try:
+        if connector_name:
+            connector = connector_registry.get(connector_name)
+            if connector is None:
+                available = [c.info.name for c in connector_registry.list_all()]
+                return {
+                    "error": f"Unknown connector: {connector_name}",
+                    "available_connectors": available,
+                }
+            if not connector.is_available():
+                return {
+                    "error": (
+                        f"Connector '{connector_name}' requires API key "
+                        f"({connector.info.api_key_env_var})"
+                    )
+                }
+            targets = [connector]
+        elif domain_name:
+            try:
+                domain = ConnectorDomain(domain_name)
+            except ValueError:
+                return {
+                    "error": f"Invalid domain: {domain_name}",
+                    "valid_domains": [d.value for d in ConnectorDomain],
+                }
+            targets = connector_registry.search_by_domain(domain)
+        else:
+            targets = connector_registry.list_available()
+
+        if not targets:
+            return {"error": "No available connectors found for the given criteria"}
+
+        tasks = [c.search(query, max_results=max_results) for c in targets]
+        all_results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        results = []
+        connectors_searched = []
+        for connector, result in zip(targets, all_results):
+            connectors_searched.append(connector.info.name)
+            if isinstance(result, Exception):
+                logger.warning(
+                    "connector_search_failed",
+                    connector=connector.info.name,
+                    error=str(result),
+                )
+                continue
+            for r in result:
+                results.append(
+                    {
+                        "id": r.id,
+                        "title": r.title,
+                        "source": r.source,
+                        "url": r.url,
+                        "content": r.content[:300],
+                        "authors": r.authors[:5],
+                        "published_date": r.published_date,
+                        "document_type": r.document_type,
+                    }
+                )
+
+        return {
+            "query": query,
+            "total_results": len(results),
+            "results": results,
+            "connectors_searched": connectors_searched,
+        }
+    except Exception as exc:
+        logger.exception("external_db_search_failed")
+        return {"error": f"Search failed: {str(exc)}"}
+
+
+async def _tool_list_external_databases(args: Dict[str, Any]) -> Dict[str, Any]:
+    """List available external database connectors."""
+    from src.services.connectors import connector_registry
+    from src.services.connectors.base import ConnectorDomain
+
+    domain_name = args.get("domain")
+
+    if domain_name:
+        try:
+            domain = ConnectorDomain(domain_name)
+        except ValueError:
+            return {
+                "error": f"Invalid domain: {domain_name}",
+                "valid_domains": [d.value for d in ConnectorDomain],
+            }
+        connectors = connector_registry.search_by_domain(domain)
+    else:
+        connectors = connector_registry.list_all()
+
+    return {
+        "total": len(connectors),
+        "available": sum(1 for c in connectors if c.is_available()),
+        "connectors": [
+            {
+                "name": c.info.name,
+                "display_name": c.info.display_name,
+                "description": c.info.description,
+                "domains": [d.value for d in c.info.domains],
+                "capabilities": [cap.value for cap in c.info.capabilities],
+                "requires_api_key": c.info.requires_api_key,
+                "available": c.is_available(),
+            }
+            for c in connectors
+        ],
+    }
+
+
+async def _tool_forget_memory(
+    *,
+    query: str,
+    user_id: str,
+    page_context: dict | None = None,
+) -> dict:
+    """Handler for the forget_memory agent tool."""
+    if not user_id:
+        return {"error": "forget_memory: missing user_id from config"}
+    if not query or not query.strip():
+        return {"error": "forget_memory: empty query"}
+
+    from src.services.agent.memory import (
+        delete_memory_by_query,
+        get_memory_store,
+    )
+
+    store = await get_memory_store()
+    if store is None:
+        return {"error": "forget_memory: memory store unavailable"}
+
+    result = await delete_memory_by_query(
+        store, user_id=user_id, query=query, limit=5
+    )
+    return {
+        "status": "completed",
+        "deleted": result["deleted"],
+        "matches": result["matches"],
+    }

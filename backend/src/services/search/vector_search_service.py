@@ -2,7 +2,6 @@
 Combined vector search service - integrates embedding generation and vector database operations
 """
 
-import asyncio
 import logging
 import time
 from datetime import datetime
@@ -34,22 +33,21 @@ class VectorSearchService:
         self.embedding_service = embedding_service
         self.vector_service = vector_service
 
-    def index_document(
+    async def index_document(
         self,
         document_id: str,
         text: str,
         organization_id: str,
         content_type: str = "text",
         source_type: str = "document",
-        chunk_size: int = 1000,  # Increased from 500 for better context
-        overlap: int = 300,  # Increased from 200 for 30% overlap
+        chunk_size: int = 1000,
+        overlap: int = 300,
         metadata: Optional[Dict[str, Any]] = None,
     ) -> VectorOperationResult:
         """Index a document by generating embeddings and storing in vector database"""
         start_time = time.time()
 
         try:
-            # Prepare metadata
             base_metadata = {
                 "content_type": content_type,
                 "source_type": source_type,
@@ -59,15 +57,12 @@ class VectorSearchService:
             if metadata:
                 base_metadata.update(metadata)
 
-            # Generate document embeddings with chunking
-            document_embeddings = asyncio.run(
-                self.embedding_service.generate_document_embeddings(
-                    document_id=document_id,
-                    text=text,
-                    metadata=base_metadata,
-                    chunk_size=chunk_size,
-                    overlap=overlap,
-                )
+            document_embeddings = await self.embedding_service.generate_document_embeddings(
+                document_id=document_id,
+                text=text,
+                metadata=base_metadata,
+                chunk_size=chunk_size,
+                overlap=overlap,
             )
 
             if not document_embeddings:
@@ -136,7 +131,7 @@ class VectorSearchService:
                 processing_time=processing_time,
             )
 
-    def index_entity(
+    async def index_entity(
         self,
         entity_id: str,
         entity_text: str,
@@ -150,10 +145,9 @@ class VectorSearchService:
         start_time = time.time()
 
         try:
-            # Generate embedding for entity text
             embedding_request = EmbeddingRequest(text=entity_text)
-            embedding_response = asyncio.run(
-                self.embedding_service.generate_embedding(embedding_request)
+            embedding_response = await self.embedding_service.generate_embedding(
+                embedding_request
             )
 
             if not embedding_response.embedding:
@@ -212,20 +206,25 @@ class VectorSearchService:
                 processing_time=processing_time,
             )
 
-    def search_documents(
+    async def search_documents(
         self,
         query: str,
         organization_id: str,
         limit: int = 10,
-        score_threshold: float = 0.2,  # Lowered to 0.2 for more results
+        score_threshold: float = 0.2,
         filters: Optional[Dict[str, Any]] = None,
     ) -> VectorSearchResponse:
         """Search for similar documents"""
         try:
-            # Generate embedding synchronously via Azure OpenAI client (avoids asyncio.run issues in thread pool)
+            from src.services.embedding.cohere_embed_service import cohere_embed_service
             from src.services.infrastructure.azure_openai_service import azure_openai_service
 
-            if azure_openai_service.is_embedding_available():
+            if cohere_embed_service.is_enabled:
+                embedding_response = await self.embedding_service.generate_embedding_cohere(
+                    query, input_type="search_query"
+                )
+                query_embedding = embedding_response.embedding
+            elif azure_openai_service.is_embedding_available():
                 deployment = azure_openai_service.get_embedding_deployment()
                 response = azure_openai_service.embedding_client.embeddings.create(
                     input=[query],
@@ -233,10 +232,9 @@ class VectorSearchService:
                 )
                 query_embedding = response.data[0].embedding
             else:
-                # Fallback to async path
-                embedding_request = EmbeddingRequest(text=query, provider="azure_openai")
-                embedding_response = asyncio.run(
-                    self.embedding_service.generate_embedding(embedding_request)
+                embedding_request = EmbeddingRequest(text=query)
+                embedding_response = await self.embedding_service.generate_embedding(
+                    embedding_request
                 )
                 query_embedding = embedding_response.embedding
 
@@ -276,7 +274,7 @@ class VectorSearchService:
                 collection=VectorCollectionType.DOCUMENT_CHUNKS,
             )
 
-    def search_documents_hybrid(
+    async def search_documents_hybrid(
         self,
         query: str,
         organization_id: str,
@@ -306,7 +304,7 @@ class VectorSearchService:
 
         try:
             # First, get dense search results (fetch more for re-ranking)
-            dense_results = self.search_documents(
+            dense_results = await self.search_documents(
                 query=query,
                 organization_id=organization_id,
                 limit=limit * 2,
@@ -379,7 +377,7 @@ class VectorSearchService:
         except Exception as e:
             logger.error(f"Error in hybrid search: {e}")
             # Fallback to dense-only search
-            return self.search_documents(
+            return await self.search_documents(
                 query=query,
                 organization_id=organization_id,
                 limit=limit,
@@ -387,20 +385,19 @@ class VectorSearchService:
                 filters=filters,
             )
 
-    def search_entities(
+    async def search_entities(
         self,
         query: str,
         organization_id: str,
         entity_type: Optional[str] = None,
         limit: int = 10,
-        score_threshold: float = 0.2,  # Lowered to 0.2 for more results
+        score_threshold: float = 0.2,
     ) -> VectorSearchResponse:
         """Search for similar entities"""
         try:
-            # Generate embedding for query
             embedding_request = EmbeddingRequest(text=query)
-            embedding_response = asyncio.run(
-                self.embedding_service.generate_embedding(embedding_request)
+            embedding_response = await self.embedding_service.generate_embedding(
+                embedding_request
             )
 
             if not embedding_response.embedding:
@@ -524,7 +521,7 @@ class VectorSearchService:
             or "arxiv" in filename
         )
 
-    def reindex_all_content(
+    async def reindex_all_content(
         self,
         organization_id: str,
         batch_size: int = 100,
@@ -590,7 +587,7 @@ class VectorSearchService:
                 )
                 continue
 
-            index_result = self.index_document(
+            index_result = await self.index_document(
                 document_id=document_id,
                 text=content_text,
                 organization_id=organization_id,
@@ -630,7 +627,7 @@ class VectorSearchService:
         result["success"] = result["failed"] == 0
         return result
 
-    def update_document_index(
+    async def update_document_index(
         self,
         document_id: str,
         text: str,
@@ -639,11 +636,9 @@ class VectorSearchService:
     ) -> VectorOperationResult:
         """Update document index by deleting old vectors and re-indexing"""
         try:
-            # Delete existing vectors (simplified approach)
             delete_result = self.delete_document_vectors(document_id)
 
-            # Re-index document
-            index_result = self.index_document(
+            index_result = await self.index_document(
                 document_id=document_id,
                 text=text,
                 organization_id=organization_id,

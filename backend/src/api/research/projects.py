@@ -20,9 +20,15 @@ from structlog import get_logger
 
 from src.core.database import get_db
 from src.models import Collection, CollectionDocument, Document, ProjectNote, User
+from src.models.processing import (
+    JobPriority,
+    JobStatus,
+    JobType,
+    ProcessingJob,
+)
 from src.services.research.bibliography_service import BibliographyService
 from src.services.research.project_service import ProjectService
-from src.services.security.user_management import get_current_user
+from src.core.dependencies import get_current_user
 from src.shared.research_schemas import (
     NoteCreate,
     NoteListResponse,
@@ -469,6 +475,56 @@ async def add_document_to_project(
                     task_count=len(extraction_task_ids),
                 )
 
+        # Auto-populate the knowledge graph: queue an entity-extraction job so
+        # the project's knowledge tree reflects this document.
+        kg_job_id: Optional[str] = None
+        if document.content_text:
+            try:
+                kg_job = ProcessingJob(
+                    job_type=JobType.ENTITY_EXTRACTION,
+                    status=JobStatus.PENDING,
+                    priority=JobPriority.NORMAL,
+                    organization_id=document.organization_id,
+                    created_by_user_id=current_user.id,
+                    parameters={
+                        "operation": "document_entity_extraction",
+                        "document_ids": [str(document_id)],
+                        "project_id": str(project_id),
+                    },
+                    total_steps=1,
+                    queue_name="entity_processing",
+                )
+                db.add(kg_job)
+                await db.commit()
+                await db.refresh(kg_job)
+
+                from src.tasks.processing_tasks import kg_extract_entities_job
+
+                task = kg_extract_entities_job.apply_async(
+                    args=[str(kg_job.id)],
+                    queue="entity_processing",
+                )
+                kg_job.celery_task_id = task.id
+                kg_job.status = JobStatus.QUEUED
+                await db.commit()
+                kg_job_id = str(kg_job.id)
+
+                logger.info(
+                    "kg_extraction_queued_on_doc_add",
+                    project_id=str(project_id),
+                    document_id=str(document_id),
+                    job_id=kg_job_id,
+                )
+            except Exception as kg_error:
+                # Don't fail the doc-add if KG queueing fails — log and move on.
+                await db.rollback()
+                logger.error(
+                    "kg_extraction_queue_failed",
+                    project_id=str(project_id),
+                    document_id=str(document_id),
+                    error=str(kg_error),
+                )
+
         return {
             "id": str(collection_doc.id),
             "project_id": str(project_id),
@@ -487,6 +543,7 @@ async def add_document_to_project(
                 else None,
             },
             "extraction_task_ids": extraction_task_ids,
+            "kg_job_id": kg_job_id,
         }
 
     except HTTPException:
@@ -911,6 +968,19 @@ async def get_project_bibliography(
         citation_result = await db.execute(citation_query)
         citations = citation_result.scalars().all()
 
+        # Fallback: build bibliography from Document metadata when no
+        # Citation records exist (common for freshly ingested papers).
+        if not citations:
+            from src.api.agent.tools_impl import _citations_from_documents
+
+            doc_stmt = select(Document).where(
+                Document.id.in_(document_ids),
+                Document.is_deleted == False,
+            )
+            doc_result2 = await db.execute(doc_stmt)
+            docs = list(doc_result2.scalars().all())
+            citations = _citations_from_documents(docs)  # type: ignore[assignment]
+
         if not citations:
             return {
                 "project_id": str(project_id),
@@ -924,7 +994,7 @@ async def get_project_bibliography(
 
         # Format bibliography
         bibliography = BibliographyService.format_bibliography(
-            citations=list(citations),
+            citations=list(citations),  # type: ignore[arg-type]
             format_type=format,
         )
 
@@ -981,7 +1051,6 @@ async def _get_project_with_auth(
 
     query = (
         select(Collection)
-        .options(selectinload(Collection.documents))
         .join(Workspace, Collection.workspace_id == Workspace.id)
         .where(
             and_(
@@ -1044,7 +1113,7 @@ def _to_project_response(project: Collection) -> ProjectResponse:
     # Accessing `project.documents` when it wasn't eagerly loaded can raise:
     # "greenlet_spawn has not been called; can't call await_only() here."
     documents = project.__dict__.get("documents")
-    document_count = len(documents) if documents else 0
+    document_count = len(documents) if documents is not None else 0
 
     return ProjectResponse(
         id=project.id,

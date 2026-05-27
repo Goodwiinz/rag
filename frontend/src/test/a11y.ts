@@ -6,10 +6,15 @@
  * that import this module don't crash during collection.
  */
 
+import { expect } from 'vitest';
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 let axe: any;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 let toHaveNoViolations: any;
 
 try {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const jestAxe = require('jest-axe');
   axe = jestAxe.axe;
   toHaveNoViolations = jestAxe.toHaveNoViolations;

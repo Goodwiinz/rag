@@ -5,7 +5,7 @@
  * Backend API: /api/v1/projects/{id}/chat/*
  */
 
-import { apiClient } from './apiClient';
+import { api } from '@/services/api-client';
 import type {
   StartChatFromProjectRequest,
   StartChatFromProjectResponse,
@@ -37,7 +37,7 @@ export const projectChatService = {
     projectId: string,
     request: StartChatFromProjectRequest
   ): Promise<StartChatFromProjectResponse> {
-    return apiClient.post<StartChatFromProjectResponse>(
+    return api.post<StartChatFromProjectResponse>(
       `${BASE_PATH}/${projectId}/chat/start`,
       request
     );
@@ -55,7 +55,7 @@ export const projectChatService = {
     projectId: string,
     request: LinkThreadRequest
   ): Promise<ProjectThread> {
-    return apiClient.post<ProjectThread>(
+    return api.post<ProjectThread>(
       `${BASE_PATH}/${projectId}/chat/link`,
       request
     );
@@ -69,7 +69,7 @@ export const projectChatService = {
    * @returns List of linked threads with metadata
    */
   async listProjectThreads(projectId: string): Promise<ProjectThreadListResponse> {
-    return apiClient.get<ProjectThreadListResponse>(
+    return api.get<ProjectThreadListResponse>(
       `${BASE_PATH}/${projectId}/chat/threads`
     );
   },
@@ -82,7 +82,7 @@ export const projectChatService = {
    * @param threadId - Thread UUID to unlink
    */
   async unlinkThreadFromProject(projectId: string, threadId: string): Promise<void> {
-    await apiClient.delete(`${BASE_PATH}/${projectId}/chat/threads/${threadId}`);
+    await api.delete(`${BASE_PATH}/${projectId}/chat/threads/${threadId}`);
   },
 
   /**
@@ -97,7 +97,7 @@ export const projectChatService = {
     projectId: string,
     request: SaveThreadToNoteRequest
   ): Promise<NoteResponse> {
-    return apiClient.post<NoteResponse>(
+    return api.post<NoteResponse>(
       `${BASE_PATH}/${projectId}/chat/save-to-note`,
       request
     );

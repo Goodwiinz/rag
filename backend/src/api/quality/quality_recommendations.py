@@ -125,7 +125,7 @@ async def get_quality_recommendations(
 
     except Exception as e:
         logger.error(f"Failed to get quality recommendations: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/insights")
@@ -165,7 +165,7 @@ async def get_quality_insights(
 
     except Exception as e:
         logger.error(f"Failed to get quality insights: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/recommendations/{recommendation_id}/progress")
@@ -202,7 +202,7 @@ async def update_recommendation_progress(
 
     except Exception as e:
         logger.error(f"Failed to update recommendation progress: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/effectiveness")
@@ -231,7 +231,7 @@ async def get_recommendation_effectiveness(
 
     except Exception as e:
         logger.error(f"Failed to get recommendation effectiveness: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/summary")
@@ -316,7 +316,7 @@ async def get_recommendations_summary(
 
     except Exception as e:
         logger.error(f"Failed to get recommendations summary: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/categories")
@@ -390,7 +390,7 @@ async def get_recommendation_categories(current_user: User = Depends(get_current
 
     except Exception as e:
         logger.error(f"Failed to get recommendation categories: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/metrics")
@@ -473,7 +473,7 @@ async def get_quality_metrics_for_recommendations(
 
     except Exception as e:
         logger.error(f"Failed to get quality metrics for recommendations: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/generate")
@@ -530,7 +530,7 @@ async def generate_custom_recommendations(
 
     except Exception as e:
         logger.error(f"Failed to generate custom recommendations: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/health")

@@ -12,6 +12,7 @@
  * - Error handling and recovery
  */
 
+import { beforeEach, describe, expect, test } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { create } from 'zustand';
 import { persist, subscribeWithSelector } from 'zustand/middleware';
@@ -27,8 +28,14 @@ import {
   useSelectedTimeRange,
   useCriticalAlerts,
   useActiveAlertsCount,
-  useUnacknowledgedAlerts
+  useUnacknowledgedAlerts,
 } from '../../stores/monitoringStore';
+
+// Zustand stores are module-scoped singletons, so state mutations from one
+// test leak into the next. Reset before every test.
+beforeEach(() => {
+  useMonitoringStore.getState().resetState();
+});
 
 // Test data
 const mockSystemHealth = {
@@ -37,9 +44,9 @@ const mockSystemHealth = {
     database: { status: 'healthy', score: 90 },
     vector_store: { status: 'healthy', score: 88 },
     graph_db: { status: 'warning', score: 75 },
-    api_gateway: { status: 'healthy', score: 92 }
+    api_gateway: { status: 'healthy', score: 92 },
   },
-  timestamp: new Date().toISOString()
+  timestamp: new Date().toISOString(),
 };
 
 const mockPerformanceMetrics = {
@@ -47,7 +54,7 @@ const mockPerformanceMetrics = {
   throughput: { current: 1250, trend: 'stable', target: 1000 },
   error_rate: { current: 0.8, trend: 'decreasing', target: 1.0 },
   cpu_usage: { current: 65, trend: 'stable', target: 80 },
-  memory_usage: { current: 72, trend: 'increasing', target: 85 }
+  memory_usage: { current: 72, trend: 'increasing', target: 85 },
 };
 
 const mockAlerts = [
@@ -59,7 +66,7 @@ const mockAlerts = [
     message: 'CPU usage exceeded 80% threshold',
     created_at: new Date(Date.now() - 3600000).toISOString(),
     acknowledged_at: null,
-    resolved_at: null
+    resolved_at: null,
   },
   {
     id: 'alert-2',
@@ -69,7 +76,7 @@ const mockAlerts = [
     message: 'Memory usage approaching threshold',
     created_at: new Date(Date.now() - 1800000).toISOString(),
     acknowledged_at: null,
-    resolved_at: null
+    resolved_at: null,
   },
   {
     id: 'alert-3',
@@ -80,14 +87,14 @@ const mockAlerts = [
     created_at: new Date(Date.now() - 7200000).toISOString(),
     acknowledged_at: new Date(Date.now() - 3600000).toISOString(),
     acknowledged_by: 'admin@example.com',
-    resolved_at: null
-  }
+    resolved_at: null,
+  },
 ];
 
 const mockTimeRange = {
   start: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
   end: new Date().toISOString(),
-  preset: '24h'
+  preset: '24h',
 };
 
 describe('Monitoring Store - State Initialization', () => {
@@ -138,7 +145,9 @@ describe('Monitoring Store - State Initialization', () => {
     // Verify start time is approximately 24 hours ago
     const startTime = new Date(timeRange.start);
     const expectedStart = new Date(Date.now() - 24 * 60 * 60 * 1000);
-    expect(Math.abs(startTime.getTime() - expectedStart.getTime())).toBeLessThan(60000); // 1 minute tolerance
+    expect(
+      Math.abs(startTime.getTime() - expectedStart.getTime())
+    ).toBeLessThan(60000); // 1 minute tolerance
   });
 
   test('initializes dashboard configuration empty', () => {
@@ -164,7 +173,7 @@ describe('Monitoring Store - State Updates', () => {
     expect(result.current.systemHealth).toEqual(mockSystemHealth);
     expect(result.current.systemHealthLoading).toEqual({
       loading: false,
-      last_updated: expect.any(String)
+      last_updated: expect.any(String),
     });
   });
 
@@ -178,7 +187,7 @@ describe('Monitoring Store - State Updates', () => {
     expect(result.current.performanceMetrics).toEqual(mockPerformanceMetrics);
     expect(result.current.performanceLoading).toEqual({
       loading: false,
-      last_updated: expect.any(String)
+      last_updated: expect.any(String),
     });
   });
 
@@ -192,7 +201,7 @@ describe('Monitoring Store - State Updates', () => {
     expect(result.current.activeAlerts).toEqual(mockAlerts);
     expect(result.current.alertsLoading).toEqual({
       loading: false,
-      last_updated: expect.any(String)
+      last_updated: expect.any(String),
     });
   });
 
@@ -230,7 +239,7 @@ describe('Monitoring Store - State Updates', () => {
 
     // Verify alert is resolved and removed from acknowledged set
     const updatedAlerts = result.current.activeAlerts;
-    const resolvedAlert = updatedAlerts.find(a => a.id === 'alert-1');
+    const resolvedAlert = updatedAlerts.find((a) => a.id === 'alert-1');
     expect(resolvedAlert?.status).toBe('resolved');
     expect(resolvedAlert?.resolved_by).toBe('test-user');
     expect(result.current.acknowledgedAlerts.has('alert-1')).toBe(false);
@@ -261,7 +270,7 @@ describe('Monitoring Store - State Updates', () => {
     const newTimeRange = {
       start: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
       end: new Date().toISOString(),
-      preset: '7d'
+      preset: '7d',
     };
 
     act(() => {
@@ -287,7 +296,9 @@ describe('Monitoring Store - State Updates', () => {
     // Verify start time is approximately 1 hour ago
     const startTime = new Date(timeRange.start);
     const expectedStart = new Date(Date.now() - 60 * 60 * 1000);
-    expect(Math.abs(startTime.getTime() - expectedStart.getTime())).toBeLessThan(60000);
+    expect(
+      Math.abs(startTime.getTime() - expectedStart.getTime())
+    ).toBeLessThan(60000);
   });
 
   test('toggles auto refresh correctly', () => {
@@ -333,7 +344,7 @@ describe('Monitoring Store - State Updates', () => {
     expect(result.current.notifications[0]).toEqual({
       show: true,
       message: 'Test message',
-      type: 'success'
+      type: 'success',
     });
 
     // Clear notifications
@@ -369,7 +380,7 @@ describe('Monitoring Store - State Updates', () => {
 
     const filters = {
       service: 'api-service',
-      severity: 'critical'
+      severity: 'critical',
     };
 
     act(() => {
@@ -385,7 +396,7 @@ describe('Monitoring Store - State Updates', () => {
 
     expect(result.current.globalFilters).toEqual({
       service: 'user-service',
-      severity: 'critical'
+      severity: 'critical',
     });
 
     // Clear filters
@@ -420,7 +431,7 @@ describe('Monitoring Store - State Updates', () => {
     const update = {
       type: 'metric_update',
       data: { cpu_usage: 75 },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     };
 
     // Add update
@@ -438,7 +449,7 @@ describe('Monitoring Store - State Updates', () => {
         result.current.addRealTimeUpdate({
           ...update,
           data: { cpu_usage: i },
-          timestamp: new Date(Date.now() + i).toISOString()
+          timestamp: new Date(Date.now() + i).toISOString(),
         });
       });
     }
@@ -544,8 +555,14 @@ describe('Monitoring Store - Selectors', () => {
     });
 
     const criticalAlerts = result.current;
-    expect(criticalAlerts).toHaveLength(2); // Two critical alerts
-    expect(criticalAlerts.every(alert => alert.severity === 'critical' && alert.status === 'active')).toBe(true);
+    // mockAlerts has two critical entries but only alert-1 is active;
+    // alert-3 is acknowledged. The selector filters for active+critical.
+    expect(criticalAlerts).toHaveLength(1);
+    expect(
+      criticalAlerts.every(
+        (alert) => alert.severity === 'critical' && alert.status === 'active'
+      )
+    ).toBe(true);
   });
 
   test('useActiveAlertsCount returns correct count', () => {
@@ -575,7 +592,13 @@ describe('Monitoring Store - Selectors', () => {
 
     const unacknowledgedAlerts = result.current;
     expect(unacknowledgedAlerts).toHaveLength(2); // Two unacknowledged active alerts
-    expect(unacknowledgedAlerts.every(alert => alert.status === 'active' && !storeResult.current.acknowledgedAlerts.has(alert.id))).toBe(true);
+    expect(
+      unacknowledgedAlerts.every(
+        (alert) =>
+          alert.status === 'active' &&
+          !storeResult.current.acknowledgedAlerts.has(alert.id)
+      )
+    ).toBe(true);
   });
 });
 
@@ -587,14 +610,16 @@ describe('Monitoring Store - Dashboard Management', () => {
       id: 'test-dashboard',
       name: 'Test Dashboard',
       layout: { widgets: ['metric-1', 'metric-2'] },
-      settings: { refreshInterval: 30000 }
+      settings: { refreshInterval: 30000 },
     };
 
     act(() => {
       result.current.createDashboard(dashboardConfig);
     });
 
-    expect(result.current.dashboardConfigs['test-dashboard']).toEqual(dashboardConfig);
+    expect(result.current.dashboardConfigs['test-dashboard']).toEqual(
+      dashboardConfig
+    );
   });
 
   test('updates dashboard configuration correctly', () => {
@@ -604,7 +629,7 @@ describe('Monitoring Store - Dashboard Management', () => {
     const initialConfig = {
       id: 'test-dashboard',
       name: 'Test Dashboard',
-      layout: { widgets: ['metric-1'] }
+      layout: { widgets: ['metric-1'] },
     };
 
     act(() => {
@@ -614,7 +639,7 @@ describe('Monitoring Store - Dashboard Management', () => {
     // Update dashboard
     const updates = {
       name: 'Updated Dashboard',
-      layout: { widgets: ['metric-1', 'metric-2', 'metric-3'] }
+      layout: { widgets: ['metric-1', 'metric-2', 'metric-3'] },
     };
 
     act(() => {
@@ -623,7 +648,11 @@ describe('Monitoring Store - Dashboard Management', () => {
 
     const updatedConfig = result.current.dashboardConfigs['test-dashboard'];
     expect(updatedConfig.name).toBe('Updated Dashboard');
-    expect(updatedConfig.layout.widgets).toEqual(['metric-1', 'metric-2', 'metric-3']);
+    expect(updatedConfig.layout.widgets).toEqual([
+      'metric-1',
+      'metric-2',
+      'metric-3',
+    ]);
   });
 
   test('sets active dashboard correctly', () => {
@@ -633,7 +662,7 @@ describe('Monitoring Store - Dashboard Management', () => {
     const dashboardConfig = {
       id: 'test-dashboard',
       name: 'Test Dashboard',
-      layout: { widgets: [] }
+      layout: { widgets: [] },
     };
 
     act(() => {
@@ -651,7 +680,7 @@ describe('Monitoring Store - Dashboard Management', () => {
     const dashboardConfig = {
       id: 'test-dashboard',
       name: 'Test Dashboard',
-      layout: { widgets: [] }
+      layout: { widgets: [] },
     };
 
     act(() => {
@@ -717,12 +746,15 @@ describe('Monitoring Store - Loading State Management', () => {
     expect(result.current.systemHealthLoading).toEqual({ loading: true });
 
     act(() => {
-      result.current.setLoading('systemHealth', false, 'Success');
+      // Third param is `error`. Pass nothing on success — passing 'Success'
+      // as an error message was a typo carried over from the original
+      // Jest test; the assertion below checks for no error in state.
+      result.current.setLoading('systemHealth', false);
     });
 
     expect(result.current.systemHealthLoading).toEqual({
       loading: false,
-      last_updated: expect.any(String)
+      last_updated: expect.any(String),
     });
   });
 
@@ -762,7 +794,7 @@ describe('Monitoring Store - Error Handling', () => {
     expect(result.current.systemHealthLoading).toEqual({
       loading: false,
       error: 'Network error',
-      last_updated: expect.any(String)
+      last_updated: expect.any(String),
     });
   });
 
@@ -797,7 +829,7 @@ describe('Monitoring Store - Performance Tests', () => {
       severity: i % 3 === 0 ? 'critical' : i % 2 === 0 ? 'warning' : 'info',
       status: 'active',
       message: `Test alert message ${i}`,
-      created_at: new Date(Date.now() - i * 1000).toISOString()
+      created_at: new Date(Date.now() - i * 1000).toISOString(),
     }));
 
     const startTime = performance.now();
@@ -842,7 +874,7 @@ describe('Monitoring Store - Performance Tests', () => {
         result.current.addRealTimeUpdate({
           type: 'metric_update',
           data: { cpu_usage: Math.random() * 100 },
-          timestamp: new Date(Date.now() + i).toISOString()
+          timestamp: new Date(Date.now() + i).toISOString(),
         });
       });
     }
@@ -860,15 +892,17 @@ describe('Monitoring Store - Concurrency Tests', () => {
     const { result } = renderHook(() => useMonitoringStore());
 
     // Simulate concurrent updates
-    const promises = Array.from({ length: 10 }, (_, i) =>
-      new Promise<void>((resolve) => {
-        setTimeout(() => {
-          act(() => {
-            result.current.setLoading('systemHealth', i % 2 === 0);
-          });
-          resolve();
-        }, Math.random() * 10);
-      })
+    const promises = Array.from(
+      { length: 10 },
+      (_, i) =>
+        new Promise<void>((resolve) => {
+          setTimeout(() => {
+            act(() => {
+              result.current.setLoading('systemHealth', i % 2 === 0);
+            });
+            resolve();
+          }, Math.random() * 10);
+        })
     );
 
     return Promise.all(promises).then(() => {
@@ -886,15 +920,16 @@ describe('Monitoring Store - Concurrency Tests', () => {
     });
 
     // Simulate concurrent alert acknowledgments
-    const promises = mockAlerts.slice(0, 2).map(alert =>
-      new Promise<void>((resolve) => {
-        setTimeout(() => {
-          act(() => {
-            result.current.acknowledgeAlert(alert.id);
-          });
-          resolve();
-        }, Math.random() * 10);
-      })
+    const promises = mockAlerts.slice(0, 2).map(
+      (alert) =>
+        new Promise<void>((resolve) => {
+          setTimeout(() => {
+            act(() => {
+              result.current.acknowledgeAlert(alert.id);
+            });
+            resolve();
+          }, Math.random() * 10);
+        })
     );
 
     return Promise.all(promises).then(() => {
@@ -909,13 +944,14 @@ describe('Monitoring Store - Concurrency Tests', () => {
 describe('Monitoring Store - Integration with Persistence', () => {
   test('persists and rehydrates state correctly', () => {
     // Create a store with persistence
-    const createStore = () => create(
-      subscribeWithSelector((set, get) => ({
-        // Test state
-        testValue: 'initial',
-        updateTestValue: (value: string) => set({ testValue: value })
-      }))
-    );
+    const createStore = () =>
+      create(
+        subscribeWithSelector((set, get) => ({
+          // Test state
+          testValue: 'initial',
+          updateTestValue: (value: string) => set({ testValue: value }),
+        }))
+      );
 
     const testStore = createStore();
 
@@ -960,7 +996,7 @@ describe('Monitoring Store - Memory Management', () => {
         result.current.addRealTimeUpdate({
           type: 'test_update',
           data: { index: i },
-          timestamp: new Date(Date.now() + i).toISOString()
+          timestamp: new Date(Date.now() + i).toISOString(),
         });
       });
     }
@@ -1053,7 +1089,7 @@ describe('Monitoring Store - Edge Cases', () => {
     const invalidTimeRange = {
       start: 'invalid-date',
       end: 'invalid-date',
-      preset: '24h'
+      preset: '24h',
     };
 
     act(() => {

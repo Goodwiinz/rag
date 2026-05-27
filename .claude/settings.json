@@ -1,35 +1,4 @@
 {
-  "enabledPlugins": {
-    "obsidian-memory@goodwiins-plugins": false
-  },
-  "agents": {
-    "review-orchestrator": {
-      "enabled": true
-    },
-    "issue-creator": {
-      "enabled": true
-    },
-    "coderabbit-auto-fixer": {
-      "enabled": true
-    }
-  },
-  "memory": {
-    "enabled": true,
-    "path": ".serena/memories"
-  },
-  "hooks": {
-    "PostToolUse": [
-      {
-        "matcher": "Write|Edit",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/format-on-save.sh"
-          }
-        ]
-      }
-    ]
-  },
   "permissions": {
     "allow": [
       "Bash(npm run lint:*)",
@@ -56,5 +25,37 @@
       "Bash(which:*)",
       "Bash(jq:*)"
     ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/format-on-save.sh"
+          }
+        ]
+      }
+    ]
+  },
+  "enabledPlugins": {
+    "obsidian-memory@goodwiins-plugins": false,
+    "langsmith-tracing@langsmith-claude-code-plugins": true
+  },
+  "agents": {
+    "review-orchestrator": {
+      "enabled": true
+    },
+    "issue-creator": {
+      "enabled": true
+    },
+    "coderabbit-auto-fixer": {
+      "enabled": true
+    }
+  },
+  "memory": {
+    "enabled": true,
+    "path": ".serena/memories"
   }
 }

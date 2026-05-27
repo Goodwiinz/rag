@@ -1,7 +1,9 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { Mock } from 'vitest';
 import { render, waitFor } from '@testing-library/react';
 import { DocumentEntityExtractor } from '@/components/entities/DocumentEntityExtractor';
 import toast from 'react-hot-toast';
-import { apiClient } from '@/services/apiClient';
+import { api } from '@/services/api-client';
 
 class MockResizeObserver {
   observe() {}
@@ -12,28 +14,33 @@ class MockResizeObserver {
 (global as typeof global & { ResizeObserver?: typeof MockResizeObserver }).ResizeObserver =
   MockResizeObserver;
 
-jest.mock('react-hot-toast', () => ({
+vi.mock('react-hot-toast', () => ({
   __esModule: true,
   default: {
-    success: jest.fn(),
-    error: jest.fn(),
+    success: vi.fn(),
+    error: vi.fn(),
   },
 }));
 
-jest.mock('@/services/apiClient', () => ({
-  apiClient: {
-    get: jest.fn(),
+vi.mock('@/services/api-client', () => ({
+  api: {
+    get: vi.fn(),
+    post: vi.fn(),
+    put: vi.fn(),
+    patch: vi.fn(),
+    delete: vi.fn(),
+    upload: vi.fn(),
   },
 }));
 
 describe('DocumentEntityExtractor', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   it('handles documents fetch failure without logging console.error', async () => {
-    const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
-    (apiClient.get as jest.Mock).mockRejectedValue(new Error('Request failed'));
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    (api.get as Mock).mockRejectedValue(new Error('Request failed'));
 
     render(<DocumentEntityExtractor />);
 

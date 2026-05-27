@@ -15,7 +15,7 @@ from structlog import get_logger
 from src.core.database import get_db
 from src.models import User
 from src.services.research.pipeline_service import PipelineService
-from src.services.security.user_management import get_current_user
+from src.core.dependencies import get_current_user
 
 logger = get_logger()
 router = APIRouter(

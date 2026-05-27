@@ -34,8 +34,9 @@ TOOL_ERROR_HINTS: dict[tuple[str, str], tuple[ErrorCategory, str]] = {
     ),
 }
 
-# Exception types that are always transient
-_TRANSIENT_EXCEPTIONS = (asyncio.TimeoutError, asyncio.CancelledError, ConnectionError, OSError)
+# Exception types that are always transient (CancelledError is intentionally excluded —
+# it means the caller aborted the request and must propagate immediately, not be retried)
+_TRANSIENT_EXCEPTIONS = (asyncio.TimeoutError, ConnectionError, OSError)
 _USER_FIXABLE_EXCEPTIONS = (PermissionError,)
 
 
@@ -84,22 +85,66 @@ def classify_error(tool_name: str, exc: Exception) -> ToolError:
 
 
 def classify_error_from_payload(tool_name: str, payload: dict) -> ToolError:
-    """Classify an error from a returned payload dict."""
+    """Classify an error from a returned payload dict.
+
+    Keyword check ordering matters: more-specific categories must run
+    before more-general ones. Otherwise:
+    - "permission timeout" gets caught by ``timeout`` and misclassified
+      as transient (the underlying cause is access, not flakiness).
+    - "invalid api key" / "invalid credentials" get caught by
+      ``invalid`` and misclassified as recoverable input errors.
+    """
     error_msg = payload.get("error", "")
     msg_lower = error_msg.lower()
 
-    # Check hints by keyword
+    # 1. Per-tool hints (most specific).
     for (tn, keyword), (cat, suggestion) in TOOL_ERROR_HINTS.items():
         if tn == tool_name and keyword in msg_lower:
             return ToolError(category=cat, message=error_msg, suggestion=suggestion)
 
-    # Generic payload classification
+    # 2. Credential-style "invalid" errors are NOT recoverable by the LLM
+    # — the user has to fix them. Match these BEFORE the generic
+    # "invalid" fallthrough below.
+    if any(
+        kw in msg_lower
+        for kw in (
+            "invalid api key",
+            "invalid credentials",
+            "invalid token",
+            "invalid signature",
+            "expired token",
+        )
+    ):
+        return ToolError(
+            category="user_fixable",
+            message=error_msg,
+            suggestion="Authentication failed — check API credentials.",
+        )
+
+    # 3. Permission / authorization errors take precedence over transient
+    # ones so phrases like "permission timeout" are not swallowed by the
+    # transient-keyword check.
+    if any(kw in msg_lower for kw in ("permission", "unauthorized", "forbidden")):
+        return ToolError(
+            category="user_fixable",
+            message=error_msg,
+            suggestion="You may need different permissions.",
+        )
+
+    # 4. Transient infrastructure errors.
     if any(kw in msg_lower for kw in ("timeout", "timed out", "connection")):
         return ToolError(category="transient", message=error_msg)
-    if any(kw in msg_lower for kw in ("not found", "does not exist", "no results", "invalid")):
-        return ToolError(category="recoverable", message=error_msg, suggestion="Check the input and try again.")
-    if any(kw in msg_lower for kw in ("permission", "unauthorized", "forbidden")):
-        return ToolError(category="user_fixable", message=error_msg, suggestion="You may need different permissions.")
+
+    # 5. Recoverable input-shape errors (LLM can usually retry differently).
+    if any(
+        kw in msg_lower
+        for kw in ("not found", "does not exist", "no results", "invalid")
+    ):
+        return ToolError(
+            category="recoverable",
+            message=error_msg,
+            suggestion="Check the input and try again.",
+        )
 
     return ToolError(category="fatal", message=error_msg)
 
@@ -109,15 +154,38 @@ async def retry_transient(
     max_attempts: int = 3,
     base_delay: float = 1.0,
 ) -> Any:
-    """Retry a coroutine on transient errors with exponential backoff."""
+    """Retry a coroutine on transient errors with exponential backoff.
+
+    Raises ``ValueError`` for non-positive ``max_attempts`` rather than
+    falling through the empty range and re-raising ``None`` (which would
+    surface as a confusing ``TypeError: exceptions must derive from
+    BaseException``).
+    """
+    if max_attempts < 1:
+        raise ValueError(
+            f"retry_transient requires max_attempts >= 1, got {max_attempts}"
+        )
+
     last_exc: Exception | None = None
     for attempt in range(max_attempts):
         try:
             return await fn()
+        except asyncio.CancelledError:
+            raise
         except _TRANSIENT_EXCEPTIONS as e:
             last_exc = e
             if attempt < max_attempts - 1:
                 delay = base_delay * (2 ** attempt)
-                logger.info("Transient error (attempt %d/%d), retrying in %.1fs: %s", attempt + 1, max_attempts, delay, e)
+                logger.info(
+                    "Transient error (attempt %d/%d), retrying in %.1fs: %s",
+                    attempt + 1,
+                    max_attempts,
+                    delay,
+                    e,
+                )
                 await asyncio.sleep(delay)
-    raise last_exc  # type: ignore[misc]
+    # ``last_exc`` is non-None here because the only way to exit the loop
+    # without ``return`` is by hitting a transient exception that
+    # populated it.
+    assert last_exc is not None
+    raise last_exc

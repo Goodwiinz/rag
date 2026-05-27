@@ -5,13 +5,16 @@ Tools: create_draft, create_project_note, export_bibliography,
        summarize_document, compare_documents
 """
 
+import asyncio
 import logging
 
 from langchain_core.messages import AIMessage, SystemMessage
 from langchain_core.runnables import RunnableConfig
 from langgraph.graph import END, StateGraph
+from langgraph.types import interrupt
 
 from src.services.agent.compactor import make_compactor_node
+from src.services.agent.graph import _sanitize_messages
 from src.services.agent.planner import make_planner_node
 from src.services.agent.reflection import make_reflection_gate
 from src.services.agent.state import AgentState
@@ -20,6 +23,7 @@ from src.services.agent.tools import (
     create_draft,
     create_project_note,
     export_bibliography,
+    ingest_arxiv_papers,
     summarize_document,
 )
 
@@ -31,32 +35,106 @@ WRITING_TOOLS = [
     export_bibliography,
     summarize_document,
     compare_documents,
+    # ingest_arxiv_papers is exposed here ONLY as a recovery path for
+    # summarize_document / compare_documents when they return
+    # error_type="recoverable" with suggestion="ingest_arxiv_papers"
+    # (see _build_writing_system_prompt). Without it the LLM hits a
+    # dead end on "Summarize arxiv 2201.00978" because the source paper
+    # isn't ingested yet. Destructive — gated through the HITL interrupt.
+    ingest_arxiv_papers,
 ]
 
 WRITING_TOOL_NAMES_LIST = [t.name for t in WRITING_TOOLS]
 
-WRITING_SYSTEM_PROMPT = (
-    "You are a specialized Writing Agent focused on creating content, "
-    "summarizing documents, and managing bibliographies.\n\n"
-    "Your tools:\n"
-    "- summarize_document: Create summaries of documents\n"
-    "- compare_documents: Compare multiple documents\n"
-    "- create_draft: Generate literature review drafts\n"
-    "- create_project_note: Write notes in projects\n"
-    "- export_bibliography: Export citations in various formats\n\n"
-    "Write clearly and academically. Cite sources when available."
-)
+# Destructive tools written by the writing subgraph. The main graph's
+# DESTRUCTIVE_TOOLS gate only fires from the top-level interrupt_node and
+# is bypassed once intent routes us into a subgraph, so the subgraph has
+# to enforce HITL itself for any tool that mutates user data.
+WRITING_DESTRUCTIVE_TOOLS = {
+    "create_project_note",
+    "create_draft",
+    "ingest_arxiv_papers",
+}
+
+def _build_writing_system_prompt() -> str:
+    """Construct the writing subgraph system prompt with shared rules embedded.
+
+    Driver protocol sourced from ``AGENTS_writing.md`` — see
+    ``agents_md_loader``. Inline fallback for missing-file safety.
+
+    Imported lazily to avoid circular imports with graph.py.
+    """
+    from src.services.agent.graph import SHARED_AGENT_RULES
+    from src.services.agent.subgraphs.agents_md_loader import load_agents_md
+
+    driver_protocol = load_agents_md("writing")
+    if driver_protocol:
+        return f"{driver_protocol}\n\n{SHARED_AGENT_RULES}"
+
+    return (
+        "You are a specialized Writing Agent focused on creating content, "
+        "summarizing documents, and managing bibliographies.\n\n"
+        f"{SHARED_AGENT_RULES}\n\n"
+        "Write clearly and academically. Cite sources when available."
+    )
 
 
 async def writing_llm_node(state: AgentState, config: RunnableConfig) -> dict:
     """Writing-specialized LLM node."""
-    from src.services.agent.graph import _build_llm
+    from langchain_core.messages import ToolMessage
 
-    messages = [SystemMessage(content=WRITING_SYSTEM_PROMPT)] + list(state["messages"])
+    from src.core.config import get_settings
+    from src.services.agent.graph import AGENT_LLM_TIMEOUT_SECONDS, _build_llm
 
-    llm = _build_llm()
+    sanitized = _sanitize_messages(list(state["messages"]))
+    messages = [SystemMessage(content=_build_writing_system_prompt())] + sanitized
+
+    # Post-tool synthesis turn → use the synthesis deployment. Mirrors
+    # research_llm_node + main llm_node. Trace 019e191a showed gpt-5
+    # spending 70s on prose synthesis after a tool result.
+    settings = get_settings()
+    use_synthesis = bool(
+        settings.AGENT_LIGHTWEIGHT_SYNTHESIS
+        and sanitized
+        and isinstance(sanitized[-1], ToolMessage)
+    )
+    if use_synthesis:
+        from src.services.agent.llm_factory import build_synthesis_llm
+
+        llm = build_synthesis_llm(max_tokens=4096)
+        logger.debug("writing_llm_node: using synthesis model after ToolMessage")
+    else:
+        llm = _build_llm()
     llm_with_tools = llm.bind_tools(WRITING_TOOLS)
-    response = await llm_with_tools.ainvoke(messages, config=config)
+    from src.services.agent.graph import _merge_run_config
+
+    invoke_config = _merge_run_config(
+        config,
+        run_name="writing_llm_node",
+        tags=["intent:writing", "subgraph:writing"],
+    )
+    try:
+        response = await asyncio.wait_for(
+            llm_with_tools.ainvoke(messages, config=invoke_config),
+            timeout=AGENT_LLM_TIMEOUT_SECONDS,
+        )
+    except asyncio.TimeoutError:
+        logger.warning(
+            "writing_llm_node: LLM exceeded %ds; emitting fallback",
+            AGENT_LLM_TIMEOUT_SECONDS,
+        )
+        return {
+            "messages": [
+                AIMessage(
+                    content=(
+                        "The writing model took too long to respond. Please "
+                        "try again with a shorter or more specific request."
+                    ),
+                ),
+            ],
+            "last_error": "writing_llm_timeout",
+            "error_count": state.get("error_count", 0) + 1,
+        }
 
     return {
         "messages": [response],
@@ -73,6 +151,51 @@ def writing_should_continue(state: AgentState) -> str:
         and last.tool_calls
         and state.get("tool_loop_count", 0) < 8
     ):
+        if any(tc["name"] in WRITING_DESTRUCTIVE_TOOLS for tc in last.tool_calls):
+            return "writing_interrupt_node"
+        return "writing_tool_node"
+    return "writing_reflection_gate"
+
+
+async def writing_interrupt_node(state: AgentState, config: RunnableConfig) -> dict:
+    """Pause for user confirmation before executing destructive writing tools."""
+    last = state["messages"][-1] if state.get("messages") else None
+    if not isinstance(last, AIMessage) or not getattr(last, "tool_calls", None):
+        # Defensive guard — see ``research_interrupt_node`` for rationale.
+        return {"pending_confirmation": {}, "user_confirmed": False}
+    destructive_calls = [
+        tc for tc in last.tool_calls if tc["name"] in WRITING_DESTRUCTIVE_TOOLS
+    ]
+    tool_names = [tc["name"] for tc in destructive_calls]
+
+    confirmation_details = {
+        "pending_tools": tool_names,
+        "tools": [
+            {"name": tc["name"], "args": tc["args"]} for tc in destructive_calls
+        ],
+        "message": f"Confirm: {', '.join(tool_names)}?",
+    }
+    user_response = interrupt(confirmation_details)
+
+    if user_response and user_response.get("confirmed"):
+        return {"pending_confirmation": {}, "user_confirmed": True}
+
+    return {
+        "messages": [
+            AIMessage(
+                content=(
+                    "Action cancelled by user. Let me know if you'd like to "
+                    "proceed differently."
+                ),
+            ),
+        ],
+        "pending_confirmation": {},
+        "user_confirmed": False,
+    }
+
+
+def writing_after_interrupt(state: AgentState) -> str:
+    if state.get("user_confirmed", False):
         return "writing_tool_node"
     return "writing_reflection_gate"
 
@@ -94,6 +217,7 @@ def build_writing_subgraph() -> StateGraph:
 
     Flow:
       writing_planner_node -> writing_llm_node -> writing_should_continue ->
+        | writing_interrupt_node -> writing_after_interrupt -> writing_tool_node
         | writing_tool_node -> writing_compactor_node -> writing_llm_node (loop)
         | writing_reflection_gate -> END (or revise -> writing_llm_node)
     """
@@ -115,6 +239,7 @@ def build_writing_subgraph() -> StateGraph:
     graph.add_node("writing_planner_node", planner)
     graph.add_node("writing_llm_node", writing_llm_node)
     graph.add_node("writing_tool_node", filtered_tool)
+    graph.add_node("writing_interrupt_node", writing_interrupt_node)
     graph.add_node("writing_compactor_node", compactor)
     graph.add_node("writing_reflection_gate", reflection_node)
 
@@ -125,6 +250,16 @@ def build_writing_subgraph() -> StateGraph:
     graph.add_conditional_edges(
         "writing_llm_node",
         writing_should_continue,
+        {
+            "writing_tool_node": "writing_tool_node",
+            "writing_interrupt_node": "writing_interrupt_node",
+            "writing_reflection_gate": "writing_reflection_gate",
+        },
+    )
+
+    graph.add_conditional_edges(
+        "writing_interrupt_node",
+        writing_after_interrupt,
         {
             "writing_tool_node": "writing_tool_node",
             "writing_reflection_gate": "writing_reflection_gate",

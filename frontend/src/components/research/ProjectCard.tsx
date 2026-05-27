@@ -1,12 +1,21 @@
 'use client';
 
 import {
+  Archive,
+  ArchiveRestore,
   Calendar,
   FileText,
   FolderKanban,
   MoreHorizontal,
   Trash2,
 } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import type { Project } from '@/services/projectService';
 
 export interface ProjectCardProps {
@@ -14,6 +23,7 @@ export interface ProjectCardProps {
   onOpen: (projectId: string) => void;
   onDelete?: (projectId: string) => void;
   onArchive?: (projectId: string) => void;
+  onRestore?: (projectId: string) => void;
   compact?: boolean;
 }
 
@@ -30,9 +40,11 @@ export function ProjectCard({
   onOpen,
   onDelete,
   onArchive,
+  onRestore,
   compact = false,
 }: ProjectCardProps) {
   const status = project.research_status || 'active';
+  const isArchived = status === 'archived';
   const statusClass = statusStyles[status] || statusStyles.active;
   const createdLabel = project.updated_at
     ? new Date(project.updated_at).toLocaleDateString()
@@ -60,29 +72,52 @@ export function ProjectCard({
           </div>
         </div>
 
-        {(onDelete || onArchive) && (
+        {(onDelete || onArchive || onRestore) && (
           <div
-            className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1"
+            className="opacity-0 group-hover:opacity-100 transition-opacity"
             onClick={(e) => e.stopPropagation()}
           >
-            {onArchive && (
-              <button
-                onClick={() => onArchive(project.id)}
-                className="p-1 text-muted-foreground hover:text-[var(--amber-gold)] transition-colors"
-                title="Archive project"
-              >
-                <MoreHorizontal className="h-4 w-4" />
-              </button>
-            )}
-            {onDelete && (
-              <button
-                onClick={() => onDelete(project.id)}
-                className="p-1 text-gray-500 hover:text-red-400 transition-colors"
-                title="Delete project"
-              >
-                <Trash2 className="h-4 w-4" />
-              </button>
-            )}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  className="p-1 text-muted-foreground hover:text-foreground transition-colors"
+                  aria-label="Project actions"
+                >
+                  <MoreHorizontal className="h-4 w-4" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {isArchived && onRestore ? (
+                  <DropdownMenuItem
+                    onClick={() => onRestore(project.id)}
+                    className="gap-2"
+                  >
+                    <ArchiveRestore className="h-3.5 w-3.5" />
+                    Restore
+                  </DropdownMenuItem>
+                ) : onArchive ? (
+                  <DropdownMenuItem
+                    onClick={() => onArchive(project.id)}
+                    className="gap-2"
+                  >
+                    <Archive className="h-3.5 w-3.5" />
+                    Archive
+                  </DropdownMenuItem>
+                ) : null}
+                {onDelete && (onArchive || onRestore) && (
+                  <DropdownMenuSeparator />
+                )}
+                {onDelete && (
+                  <DropdownMenuItem
+                    onClick={() => onDelete(project.id)}
+                    className="gap-2 text-red-400 focus:text-red-400"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    Delete
+                  </DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         )}
       </div>

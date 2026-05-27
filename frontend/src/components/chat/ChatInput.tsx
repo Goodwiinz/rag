@@ -1,11 +1,10 @@
 'use client';
 
 import { cn } from '@/lib/utils';
+import { AVAILABLE_MODELS, ModelSelector } from './ModelSelector';
 import { RAGToggle } from './RAGToggle';
-import { ModelSelector } from './ModelSelector';
-import type { ExtendedModel } from './ModelSelector';
 import { motion } from 'framer-motion';
-import { ArrowUp, Mic, Paperclip, Square } from 'lucide-react';
+import { ArrowUp, Bot, Mic, Paperclip, Square } from 'lucide-react';
 import React, { useEffect, useRef, useState } from 'react';
 import {
   Tooltip,
@@ -20,14 +19,37 @@ interface ChatInputProps {
   onSubmit: () => void;
   onStop: () => void;
   isLoading: boolean;
-  isModelLoading: boolean;
-  selectedModel?: string;
-  models: ExtendedModel[];
-  onModelChange: (id: string) => void;
   enableRAG: boolean;
   onRAGToggle: (enabled: boolean) => void;
   isRAGLoading?: boolean;
   inputRef?: React.RefObject<HTMLTextAreaElement>;
+  onAttach?: (files: FileList) => void;
+  selectedModelId?: string;
+  onModelChange?: (id: string) => void;
+}
+
+type SpeechRecognitionEventLike = {
+  results: ArrayLike<ArrayLike<{ transcript: string }>>;
+};
+type SpeechRecognitionInstance = {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  onresult: ((event: SpeechRecognitionEventLike) => void) | null;
+  onend: (() => void) | null;
+  onerror: (() => void) | null;
+  start: () => void;
+  stop: () => void;
+};
+type SpeechRecognitionCtor = new () => SpeechRecognitionInstance;
+
+function getSpeechRecognition(): SpeechRecognitionCtor | null {
+  if (typeof window === 'undefined') return null;
+  const w = window as unknown as {
+    SpeechRecognition?: SpeechRecognitionCtor;
+    webkitSpeechRecognition?: SpeechRecognitionCtor;
+  };
+  return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null;
 }
 
 export function ChatInput({
@@ -36,18 +58,63 @@ export function ChatInput({
   onSubmit,
   onStop,
   isLoading,
-  isModelLoading,
-  selectedModel,
-  models,
-  onModelChange,
   enableRAG,
   onRAGToggle,
   isRAGLoading,
   inputRef,
+  onAttach,
+  selectedModelId,
+  onModelChange,
 }: ChatInputProps) {
   const internalRef = useRef<HTMLTextAreaElement>(null);
   const textareaRef = inputRef ?? internalRef;
   const [isFocused, setIsFocused] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+  const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
+  // Defer the Web Speech API feature check to after mount. Running it during
+  // render produces an SSR/client mismatch (server: window is undefined →
+  // false; client: browser supports it → true). Start `false`, flip after
+  // hydration so the first server and client renders match.
+  const [voiceSupported, setVoiceSupported] = useState(false);
+  useEffect(() => {
+    setVoiceSupported(getSpeechRecognition() !== null);
+  }, []);
+
+  const toggleVoice = (): void => {
+    const Ctor = getSpeechRecognition();
+    if (!Ctor) return;
+    if (isListening) {
+      recognitionRef.current?.stop();
+      return;
+    }
+    const recognition = new Ctor();
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    recognition.lang = 'en-US';
+    recognition.onresult = (event) => {
+      const transcript = event.results[0]?.[0]?.transcript ?? '';
+      if (transcript) {
+        onChange(value ? `${value} ${transcript}` : transcript);
+      }
+    };
+    recognition.onend = () => {
+      setIsListening(false);
+      recognitionRef.current = null;
+    };
+    recognition.onerror = () => {
+      setIsListening(false);
+      recognitionRef.current = null;
+    };
+    recognitionRef.current = recognition;
+    recognition.start();
+    setIsListening(true);
+  };
+
+  useEffect(() => {
+    return () => {
+      recognitionRef.current?.stop();
+    };
+  }, []);
 
   useEffect(() => {
     if (textareaRef.current) {
@@ -60,71 +127,80 @@ export function ChatInput({
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      if (!isLoading && !isModelLoading && value.trim() && selectedModel) {
+      if (!isLoading && value.trim()) {
         onSubmit();
       }
     }
   };
 
-  const isDisabled = !selectedModel || isModelLoading;
+  const isDisabled = isLoading;
   const charCount = value.length;
   const maxChars = 4000;
   const isNearLimit = charCount > maxChars * 0.8;
 
   return (
-    <div className="z-40 bg-[var(--terminal-bg)] pt-2 pb-4 px-4 border-t border-[var(--terminal-border)]">
+    <div className="z-40 pt-2 pb-[80px] md:pb-4 px-2 sm:px-4">
       <div className="max-w-4xl mx-auto">
         <motion.div
           className={cn(
-            'relative rounded-lg overflow-visible transition-all duration-300',
-            'bg-[var(--terminal-surface)] border border-[var(--terminal-border)]',
-            isFocused &&
-              'border-[var(--phosphor-green)]/30 ring-1 ring-[var(--phosphor-green)]/10 shadow-[0_0_15px_-5px_rgba(212,160,57,0.1)]'
+            'nous-glass nous-composer-glow relative rounded-2xl overflow-visible',
+            isFocused && 'nous-composer-glow'
           )}
+          animate={isFocused ? { y: -2 } : { y: 0 }}
+          transition={{ type: 'spring', stiffness: 400, damping: 30 }}
         >
-          {/* Top Bar: Model Selector, RAG Toggle & Status */}
-          <div className="flex items-center justify-between px-4 py-1.5 bg-[var(--terminal-elevated)]/50 border-b border-[var(--terminal-border)] rounded-t-xl">
-            <div className="flex items-center gap-3">
-              <ModelSelector
-                models={models}
-                selectedModelId={selectedModel}
-                onModelChange={onModelChange}
-                isLoading={isModelLoading}
+          {/* Toolbar row */}
+          <div className="flex items-center justify-between px-3 sm:px-4 py-2 border-b border-[var(--nous-border-1)] gap-2 overflow-x-auto">
+            <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[var(--nous-sol)]/10 border border-[var(--nous-sol)]/20 shrink-0">
+                <Bot className="w-3.5 h-3.5 text-[var(--nous-sol)]" />
+                <span
+                  className="text-[var(--nous-fg-1)] text-[11px] font-medium hidden sm:inline"
+                  style={{ fontFamily: 'var(--nous-font-ui)' }}
+                >
+                  NOUS
+                </span>
+              </div>
+              <RAGToggle
+                enabled={enableRAG}
+                onToggle={onRAGToggle}
+                isLoading={isRAGLoading}
+                disabled={isLoading}
               />
-              {/* RAG Toggle - Show for all models */}
-              {selectedModel && (
-                <RAGToggle
-                  enabled={enableRAG}
-                  onToggle={onRAGToggle}
-                  isLoading={isRAGLoading}
-                  disabled={isLoading}
-                />
+              {onModelChange && (
+                <div className="hidden sm:block">
+                  <ModelSelector
+                    models={AVAILABLE_MODELS}
+                    selectedModelId={selectedModelId}
+                    onModelChange={onModelChange}
+                  />
+                </div>
               )}
             </div>
-            <div className="flex items-center gap-3">
-              {/* RAG loading indicator */}
+            <div className="flex items-center gap-2 shrink-0">
               {isRAGLoading && (
                 <span
-                  className="text-[9px] text-[var(--phosphor-green)] animate-pulse"
-                  style={{ fontFamily: "'JetBrains Mono', monospace" }}
+                  className="text-[9px] text-[var(--nous-sol)] animate-pulse hidden sm:inline"
+                  style={{ fontFamily: 'var(--nous-font-mono)' }}
                 >
-                  RETRIEVING...
+                  RETRIEVING
                 </span>
               )}
               <span
                 className={cn(
-                  'text-[9px] transition-colors',
+                  'text-[9px] transition-colors whitespace-nowrap',
                   isNearLimit
-                    ? 'text-[var(--amber-gold)]'
-                    : 'text-[var(--terminal-text-dim)]'
+                    ? 'text-[var(--nous-corona)]'
+                    : 'text-[var(--nous-fg-3)]'
                 )}
-                style={{ fontFamily: "'JetBrains Mono', monospace" }}
+                style={{ fontFamily: 'var(--nous-font-mono)' }}
               >
                 {charCount}/{maxChars}
               </span>
             </div>
           </div>
 
+          {/* Textarea */}
           <div className="p-3 sm:p-4">
             <textarea
               ref={textareaRef}
@@ -133,41 +209,85 @@ export function ChatInput({
               onKeyDown={handleKeyDown}
               onFocus={() => setIsFocused(true)}
               onBlur={() => setIsFocused(false)}
-              placeholder="Inject query into neural stream..."
+              placeholder="Message NOUS…"
               rows={1}
-              className="w-full bg-transparent text-[var(--terminal-text)] text-sm resize-none outline-none placeholder:text-[var(--terminal-text-dim)]/50 selection:bg-[var(--phosphor-green)]/20 selection:text-[var(--phosphor-green)]"
+              className="w-full bg-transparent text-[var(--nous-fg-1)] text-base resize-none outline-none placeholder:text-[var(--nous-fg-3)]/60 selection:bg-[var(--nous-sol)]/20"
               style={{
-                fontFamily: "'JetBrains Mono', monospace",
+                fontFamily: 'var(--nous-font-body)',
+                lineHeight: '1.6',
                 minHeight: '44px',
                 maxHeight: '200px',
               }}
               disabled={isDisabled}
             />
 
-            <div className="flex items-center justify-between mt-2">
-              <div className="flex items-center gap-1">
+            {/* Action row */}
+            <div className="flex items-center justify-between mt-2 pt-1">
+              <div className="flex items-center gap-0.5">
                 <TooltipProvider>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <button
-                        className="p-2 rounded-lg hover:bg-[var(--terminal-elevated)] text-[var(--terminal-text-dim)] hover:text-[var(--terminal-text)] transition-colors group"
+                      <label
+                        className="p-2.5 sm:p-2 rounded-xl hover:bg-[var(--nous-sol)]/8 text-[var(--nous-fg-3)] hover:text-[var(--nous-fg-1)] transition-colors group cursor-pointer inline-flex"
                         aria-label="Attach artifact"
                       >
-                        <Paperclip className="w-4 h-4 group-hover:text-[var(--phosphor-green)] transition-colors" />
-                      </button>
+                        <Paperclip className="w-5 h-5 sm:w-[18px] sm:h-[18px] group-hover:text-[var(--nous-sol)] transition-colors" />
+                        <input
+                          type="file"
+                          multiple
+                          className="hidden"
+                          onChange={(e) => {
+                            const files = e.target.files;
+                            if (files && files.length > 0 && onAttach) {
+                              onAttach(files);
+                            }
+                            e.target.value = '';
+                          }}
+                        />
+                      </label>
                     </TooltipTrigger>
                     <TooltipContent>Attach artifact</TooltipContent>
                   </Tooltip>
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <button
-                        className="p-2 rounded-lg hover:bg-[var(--terminal-elevated)] text-[var(--terminal-text-dim)] hover:text-[var(--terminal-text)] transition-colors group"
-                        aria-label="Voice input"
+                        type="button"
+                        onClick={toggleVoice}
+                        disabled={!voiceSupported}
+                        aria-pressed={isListening}
+                        className={cn(
+                          'p-2.5 sm:p-2 rounded-xl transition-colors group',
+                          voiceSupported
+                            ? 'hover:bg-[var(--nous-sol)]/8 text-[var(--nous-fg-3)] hover:text-[var(--nous-fg-1)]'
+                            : 'text-[var(--nous-fg-3)]/40 cursor-not-allowed',
+                          isListening &&
+                            'bg-[var(--nous-sol)]/10 text-[var(--nous-sol)]'
+                        )}
+                        aria-label={
+                          !voiceSupported
+                            ? 'Voice input not supported'
+                            : isListening
+                              ? 'Stop voice input'
+                              : 'Voice input'
+                        }
                       >
-                        <Mic className="w-4 h-4 group-hover:text-[var(--phosphor-green)] transition-colors" />
+                        <Mic
+                          className={cn(
+                            'w-5 h-5 sm:w-[18px] sm:h-[18px] transition-colors',
+                            isListening
+                              ? 'text-[var(--nous-sol)] animate-pulse'
+                              : 'group-hover:text-[var(--nous-sol)]'
+                          )}
+                        />
                       </button>
                     </TooltipTrigger>
-                    <TooltipContent>Voice input</TooltipContent>
+                    <TooltipContent>
+                      {!voiceSupported
+                        ? 'Voice input not supported'
+                        : isListening
+                          ? 'Stop voice input'
+                          : 'Voice input'}
+                    </TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
               </div>
@@ -175,43 +295,25 @@ export function ChatInput({
               {isLoading ? (
                 <button
                   onClick={onStop}
-                  className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[var(--error-red)]/10 border border-[var(--error-red)]/50 text-[var(--error-red)] text-[10px] font-bold hover:bg-[var(--error-red)]/20 transition-all shadow-[0_0_10px_rgba(239,68,68,0.05)]"
-                  style={{ fontFamily: "'JetBrains Mono', monospace" }}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-[var(--nous-mars)]/10 border border-[var(--nous-mars)]/40 text-[var(--nous-mars)] text-[11px] font-semibold hover:bg-[var(--nous-mars)]/20 transition-all h-10 sm:h-9"
+                  style={{ fontFamily: 'var(--nous-font-ui)' }}
                 >
                   <Square className="w-3 h-3" />
-                  HALT
+                  Stop
                 </button>
               ) : (
                 <button
                   onClick={onSubmit}
                   disabled={!value.trim() || isDisabled}
                   title="Send message (Enter)"
-                  className={cn(
-                    'flex items-center gap-2 px-6 py-2 rounded text-[10px] font-bold tracking-widest transition-all duration-300',
-                    value.trim() && !isDisabled
-                      ? 'bg-[var(--phosphor-green)] text-[#0A0A0A] hover:bg-[var(--phosphor-green)]/90 hover:shadow-[0_0_15px_rgba(212,160,57,0.3)] active:scale-95'
-                      : 'bg-transparent text-[var(--terminal-text-dim)] border border-[var(--terminal-border)] cursor-not-allowed'
-                  )}
-                  style={{ fontFamily: "'JetBrains Mono', monospace" }}
+                  className="nous-send-pill flex items-center justify-center gap-1.5 h-10 w-10 sm:h-9 sm:w-auto sm:px-5 text-[12px]"
                 >
-                  TRANSMIT
-                  <ArrowUp className="w-3.5 h-3.5" />
+                  <ArrowUp className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
+                  <span className="hidden sm:inline">Send</span>
                 </button>
               )}
             </div>
           </div>
-        </motion.div>
-
-        {/* Keyboard Hint */}
-        <motion.div
-          initial={{ opacity: 0.5 }}
-          animate={{ opacity: isFocused ? 0.3 : 0.5 }}
-          className="flex items-center justify-center gap-4 mt-2 text-[9px] text-[var(--terminal-text-dim)] uppercase tracking-tighter"
-          style={{ fontFamily: "'JetBrains Mono', monospace" }}
-        >
-          <span>[Enter] Send</span>
-          <span>[Shift+Enter] Line Break</span>
-          <span className="hidden sm:inline">[/] Commands</span>
         </motion.div>
       </div>
     </div>

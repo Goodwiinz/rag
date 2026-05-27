@@ -105,7 +105,7 @@ async def list_local_papers(
 
     except Exception as e:
         logger.error(f"Failed to list local papers: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/extract-local-features")
@@ -552,7 +552,7 @@ async def get_local_papers_stats(current_user: dict = Depends(get_current_user))
 
     except Exception as e:
         logger.error(f"Failed to get local papers stats: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/process-batch")
@@ -607,7 +607,7 @@ async def process_batch_local_papers(
 
     except Exception as e:
         logger.error(f"Batch processing failed: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 # Helper functions

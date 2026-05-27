@@ -25,7 +25,8 @@ from fastapi import (
 )
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, validator
-from sqlalchemy.orm import Session
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.database import get_db
 from src.core.dependencies import get_current_organization, get_current_user
@@ -196,9 +197,8 @@ class UploadManager:
                             **self.upload_progress[upload_id],
                         }
                     )
-                except:
-                    # Connection might be closed
-                    pass
+                except Exception:
+                    logger.warning("WebSocket send failed", exc_info=True)
 
     async def send_completion(self, upload_id: str, result: Dict[str, Any]):
         """Send completion notification"""
@@ -211,8 +211,8 @@ class UploadManager:
                         "result": result,
                     }
                 )
-            except:
-                pass
+            except Exception:
+                logger.warning("WebSocket send failed", exc_info=True)
 
 
 # Global upload manager
@@ -234,7 +234,7 @@ async def upload_single_document(
     background_tasks: BackgroundTasks = BackgroundTasks(),
     current_user: User = Depends(get_current_user),
     organization: Organization = Depends(get_current_organization),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     file_service: EnhancedFileService = Depends(get_enhanced_file_service),
     processing_service: MultimodalProcessingService = Depends(
         get_multimodal_processing_service
@@ -324,8 +324,8 @@ async def upload_single_document(
         )
 
         db.add(processing_job)
-        db.commit()
-        db.refresh(processing_job)
+        await db.commit()
+        await db.refresh(processing_job)
 
         await upload_manager.update_progress(upload_id, 75.0, "Queuing for processing")
 
@@ -348,6 +348,15 @@ async def upload_single_document(
             quality_score = quick_quality.get("overall_score")
 
         await upload_manager.update_progress(upload_id, 100.0, "Upload completed")
+
+        # Invalidate search cache so new document appears in results
+        try:
+            from src.services.search.search_service import cache
+
+            await cache.delete_pattern("search:*")
+            await cache.delete_pattern("suggestions:*")
+        except Exception:
+            pass  # Cache invalidation is best-effort
 
         # Send completion notification
         await upload_manager.send_completion(
@@ -396,7 +405,7 @@ async def upload_batch_documents(
     background_tasks: BackgroundTasks = BackgroundTasks(),
     current_user: User = Depends(get_current_user),
     organization: Organization = Depends(get_current_organization),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     file_service: EnhancedFileService = Depends(get_enhanced_file_service),
     processing_service: MultimodalProcessingService = Depends(
         get_multimodal_processing_service
@@ -435,6 +444,39 @@ async def get_upload_progress(
 @router.websocket("/progress/{upload_id}/ws")
 async def websocket_upload_progress(websocket: WebSocket, upload_id: str):
     """WebSocket endpoint for real-time upload progress updates"""
+    # Authenticate via Sec-WebSocket-Protocol header
+    protocols = websocket.headers.get("sec-websocket-protocol", "")
+    token = None
+    for protocol in protocols.split(","):
+        protocol = protocol.strip()
+        if protocol.startswith("access_token."):
+            token = protocol.replace("access_token.", "", 1)
+
+    try:
+        if not token:
+            await websocket.close(
+                code=status.WS_1008_POLICY_VIOLATION,
+                reason="Missing authentication token",
+            )
+            return
+
+        from src.core.security import verify_token
+
+        token_data = verify_token(token)
+        if not token_data or not token_data.user_id:
+            await websocket.close(
+                code=status.WS_1008_POLICY_VIOLATION,
+                reason="Invalid or expired token",
+            )
+            return
+    except Exception as e:
+        logger.error(f"WebSocket upload progress auth error: {e}")
+        await websocket.close(
+            code=status.WS_1011_INTERNAL_ERROR,
+            reason="Authentication error",
+        )
+        return
+
     await upload_manager.connect(websocket, upload_id)
 
     try:
@@ -450,19 +492,18 @@ async def get_document_quality(
     document_id: str,
     current_user: User = Depends(get_current_user),
     organization: Organization = Depends(get_current_organization),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     quality_service: DocumentQualityService = Depends(get_document_quality_service),
 ):
     """Get comprehensive quality assessment for a document"""
-    document = (
-        db.query(Document)
-        .filter(
+    result = await db.execute(
+        select(Document).where(
             Document.id == document_id,
             Document.organization_id == organization.id,
             Document.is_deleted == False,
         )
-        .first()
     )
+    document = result.scalars().first()
 
     if not document:
         raise HTTPException(
@@ -505,19 +546,18 @@ async def rescan_document_security(
     document_id: str,
     current_user: User = Depends(get_current_user),
     organization: Organization = Depends(get_current_organization),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     file_service: EnhancedFileService = Depends(get_enhanced_file_service),
 ):
     """Rescan document for security threats"""
-    document = (
-        db.query(Document)
-        .filter(
+    result = await db.execute(
+        select(Document).where(
             Document.id == document_id,
             Document.organization_id == organization.id,
             Document.is_deleted == False,
         )
-        .first()
     )
+    document = result.scalars().first()
 
     if not document:
         raise HTTPException(

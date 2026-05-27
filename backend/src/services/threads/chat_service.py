@@ -298,9 +298,14 @@ class ChatService:
         count_result = await self.db.execute(count_stmt)
         total = count_result.scalar() or 0
 
-        # Fetch conversations
+        # Fetch conversations.
+        # Eager-load threads: ConversationResponse.thread_count reads the
+        # @property `c.thread_count` which calls `len(self.threads)`. Without
+        # selectinload, that access triggers an implicit lazy IO on the async
+        # session and raises MissingGreenlet, 500ing the whole list.
         stmt = (
             select(Conversation)
+            .options(selectinload(Conversation.threads))
             .where(*base_conditions)
             .order_by(desc(Conversation.is_pinned), desc(Conversation.last_activity_at))
             .offset(offset)
@@ -418,7 +423,7 @@ class ChatService:
                     selectinload(Thread.messages)
                     .selectinload(ChatMessage.citations)
                     .selectinload(Citation.document),
-                    selectinload(Thread.messages).selectinload(ChatMessage.attachments),
+                    selectinload(Thread.messages).selectinload(ChatMessage.attachments).selectinload(MessageAttachment.document),
                 ]
             )
 
@@ -947,7 +952,7 @@ class ChatService:
             select(ChatMessage)
             .options(
                 selectinload(ChatMessage.citations).selectinload(Citation.document),
-                selectinload(ChatMessage.attachments),
+                selectinload(ChatMessage.attachments).selectinload(MessageAttachment.document),
                 selectinload(ChatMessage.thread)
                 .selectinload(Thread.conversation)
                 .selectinload(Conversation.workspace)
@@ -976,8 +981,14 @@ class ChatService:
         limit: int = 100,
         offset: int = 0,
         before_id: Optional[UUID] = None,
+        since: Optional[datetime] = None,
     ) -> Tuple[List[ChatMessage], int]:
-        """List messages in a thread"""
+        """List messages in a thread.
+
+        ``since`` (optional) filters to messages with ``created_at > since``
+        (strict). Used by clients (CLI, web) to delta-fetch only rows newer
+        than their last-seen timestamp.
+        """
         # Verify thread access
         thread = await self.get_thread(thread_id, user_id)
         if not thread:
@@ -996,6 +1007,9 @@ class ChatService:
             if before_msg:
                 base_conditions.append(ChatMessage.created_at < before_msg.created_at)
 
+        if since is not None:
+            base_conditions.append(ChatMessage.created_at > since)
+
         # Count total
         count_stmt = select(func.count(ChatMessage.id)).where(*base_conditions)
         count_result = await self.db.execute(count_stmt)
@@ -1006,7 +1020,7 @@ class ChatService:
             select(ChatMessage)
             .options(
                 selectinload(ChatMessage.citations).selectinload(Citation.document),
-                selectinload(ChatMessage.attachments),
+                selectinload(ChatMessage.attachments).selectinload(MessageAttachment.document),
             )
             .where(*base_conditions)
             .order_by(ChatMessage.created_at.asc())

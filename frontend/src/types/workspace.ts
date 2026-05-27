@@ -1,5 +1,5 @@
 /**
- * TypeScript types for Terminal Observatory thread-centric chat system
+ * TypeScript types for NOUS thread-centric chat system
  * Based on backend/src/schemas/chat.py
  */
 

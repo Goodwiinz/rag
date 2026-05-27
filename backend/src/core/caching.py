@@ -6,11 +6,13 @@ cache invalidation patterns, and monitoring.
 """
 
 import asyncio
+import gzip
 import hashlib
 import hmac
 import json
 import logging
 import pickle
+import random
 from dataclasses import dataclass
 from datetime import timedelta
 from functools import wraps
@@ -18,18 +20,33 @@ from typing import Any, Callable, Optional, TypeVar, Union
 
 logger = logging.getLogger(__name__)
 
+# Prometheus metrics — optional dependency
+try:
+    from prometheus_client import Counter, Gauge
+
+    cache_hits_total = Counter("cache_hits_total", "Cache hits", ["namespace"])
+    cache_misses_total = Counter("cache_misses_total", "Cache misses", ["namespace"])
+    cache_errors_total = Counter("cache_errors_total", "Cache errors", ["namespace"])
+    cache_hit_rate = Gauge("cache_hit_rate", "Cache hit rate 0-1", ["namespace"])
+    _PROM_AVAILABLE = True
+except Exception:
+    _PROM_AVAILABLE = False
+
 # Import settings for HMAC key
 try:
     from src.core.config import settings
 
-    HMAC_SECRET = (
-        settings.SECRET_KEY.encode()
-        if hasattr(settings, "SECRET_KEY")
-        else b"default-insecure-key-change-in-production"
-    )
-except ImportError:
-    logger.warning("Could not import settings, using default HMAC key (INSECURE)")
-    HMAC_SECRET = b"default-insecure-key-change-in-production"
+    if not settings.SECRET_KEY:
+        raise RuntimeError(
+            "SECRET_KEY is empty — cannot initialise HMAC cache signing. "
+            "Set SECRET_KEY in environment or check config.py validator."
+        )
+    HMAC_SECRET: bytes = settings.SECRET_KEY.encode()
+except ImportError as exc:
+    raise RuntimeError(
+        "Cannot import settings to derive HMAC key. "
+        "Ensure src.core.config is importable."
+    ) from exc
 
 T = TypeVar("T")
 
@@ -47,6 +64,8 @@ class CacheConfig:
     default_ttl: int = 300  # 5 minutes
     key_prefix: str = "rag"
     serialize_method: str = "json"  # "json" or "pickle"
+    compress: bool = True
+    compress_threshold_bytes: int = 1024
 
 
 # Global config
@@ -185,17 +204,21 @@ def _secure_pickle_loads(data: bytes) -> Any:
 
 
 def serialize_value(value: Any) -> bytes:
-    """Serialize value for cache storage."""
+    """Serialize value for cache storage, with optional gzip compression."""
     if cache_config.serialize_method == "json":
         try:
-            return json.dumps(value, default=str).encode()
+            data = json.dumps(value, default=str).encode()
         except (TypeError, ValueError):
             # Fall back to HMAC-signed pickle for complex objects
             logger.debug("JSON serialization failed, falling back to secure pickle")
-            return _secure_pickle_dumps(value)
+            data = _secure_pickle_dumps(value)
     else:
         # Use HMAC-signed pickle
-        return _secure_pickle_dumps(value)
+        data = _secure_pickle_dumps(value)
+
+    if cache_config.compress and len(data) > cache_config.compress_threshold_bytes:
+        return b"gz:" + gzip.compress(data, compresslevel=6)
+    return data
 
 
 def deserialize_value(data: bytes) -> Any:
@@ -205,6 +228,9 @@ def deserialize_value(data: bytes) -> Any:
     Raises:
         ValueError: If pickle data signature is invalid
     """
+    if data[:3] == b"gz:":
+        data = gzip.decompress(data[3:])
+
     if cache_config.serialize_method == "json":
         try:
             return json.loads(data.decode())
@@ -222,6 +248,27 @@ def deserialize_value(data: bytes) -> Any:
     else:
         # Use HMAC-signed pickle
         return _secure_pickle_loads(data)
+
+
+# =============================================================================
+# TTL Jitter & Distributed Lock Helpers
+# =============================================================================
+
+
+def _jittered_ttl(ttl: int, jitter_pct: float = 0.15) -> int:
+    """Return TTL ± up to jitter_pct to prevent synchronised expiry waves."""
+    jitter = int(ttl * jitter_pct)
+    return ttl + random.randint(-jitter, jitter)
+
+
+async def _acquire_lock(client, lock_key: str, ttl: int = 30) -> bool:
+    """Acquire a Redis NX lock. Returns True if the lock was obtained."""
+    return bool(await client.set(lock_key, "1", nx=True, ex=ttl))
+
+
+async def _release_lock(client, lock_key: str) -> None:
+    """Release a Redis NX lock."""
+    await client.delete(lock_key)
 
 
 # =============================================================================
@@ -282,14 +329,21 @@ class RedisCache:
             data = await self._redis.get(key)
             if data is None:
                 stats.misses += 1
+                if _PROM_AVAILABLE:
+                    cache_misses_total.labels(namespace=namespace).inc()
                 return None
 
             stats.hits += 1
+            if _PROM_AVAILABLE:
+                cache_hits_total.labels(namespace=namespace).inc()
+                cache_hit_rate.labels(namespace=namespace).set(stats.hit_rate)
             return deserialize_value(data)
 
         except Exception as e:
             logger.error(f"Cache get error for {key}: {e}")
             stats.errors += 1
+            if _PROM_AVAILABLE:
+                cache_errors_total.labels(namespace=namespace).inc()
             return None
 
     async def set(
@@ -312,7 +366,7 @@ class RedisCache:
             True if successful, False otherwise
         """
         stats = get_cache_stats(namespace)
-        effective_ttl = ttl or cache_config.default_ttl
+        effective_ttl = _jittered_ttl(ttl or cache_config.default_ttl)
 
         try:
             if self._redis is None:
@@ -499,14 +553,36 @@ def cached(
                 logger.debug(f"Cache hit for {func.__name__}")
                 return cached_value
 
-            # Execute function and cache result
+            # Cache miss — use distributed lock to prevent thundering herd
             logger.debug(f"Cache miss for {func.__name__}")
-            result = await func(*args, **kwargs)
+            lock_key = f"{cache_key}:lock"
+            _redis = cache._redis
+            lock_acquired = False
 
-            # Cache the result
-            await cache.set(cache_key, result, ttl, namespace)
+            if _redis is not None:
+                lock_acquired = await _acquire_lock(_redis, lock_key)
+                if not lock_acquired:
+                    # Another coroutine holds the lock — poll up to 500 ms
+                    for _ in range(10):
+                        await asyncio.sleep(0.05)
+                        cached_value = await cache.get(cache_key, namespace)
+                        if cached_value is not None:
+                            return cached_value
+                    # Timed out waiting; fall through and compute without lock
 
-            return result
+            try:
+                # Double-check: another pod may have populated the key while we polled
+                if lock_acquired:
+                    cached_value = await cache.get(cache_key, namespace)
+                    if cached_value is not None:
+                        return cached_value
+
+                result = await func(*args, **kwargs)
+                await cache.set(cache_key, result, ttl, namespace)
+                return result
+            finally:
+                if lock_acquired and _redis is not None:
+                    await _release_lock(_redis, lock_key)
 
         @wraps(func)
         def sync_wrapper(*args, **kwargs) -> T:

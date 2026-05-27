@@ -379,7 +379,7 @@ class TestResumePersistence:
                 "request": {
                     "messages": [{"role": "user", "content": "ingest paper"}],
                     "page_context": {"type": "unknown"},
-                    "model": "gpt-4o",
+                    "model": "model-router",
                     "use_rag": True,
                     "max_context_docs": 5,
                 },
@@ -390,6 +390,10 @@ class TestResumePersistence:
             "messages": [AIMessage(content="Done, paper ingested.")],
             "tool_executions": [],
         }
+
+        @asynccontextmanager
+        async def _mock_async_session():
+            yield db
 
         with (
             patch(
@@ -404,12 +408,17 @@ class TestResumePersistence:
                 new_callable=AsyncMock,
                 return_value=("thread-1", "conv-1"),
             ) as mock_persist,
+            patch(
+                "src.api.agent.jobs.AsyncSessionLocal",
+                return_value=_mock_async_session(),
+            ),
         ):
             mock_graph = MagicMock()
             mock_graph.ainvoke = AsyncMock(return_value=mock_final_state)
+            mock_graph.aget_state = AsyncMock(return_value=None)
             mock_compile.return_value = mock_graph
 
-            await _resume_agent_graph(job_id, True, user, db)
+            await _resume_agent_graph(job_id, True, user)
 
         # _persist_thread_messages should have been called
         mock_persist.assert_called_once()
@@ -440,7 +449,7 @@ class TestResumePersistence:
                 "request": {
                     "messages": [{"role": "user", "content": "confirm ingest"}],
                     "page_context": {"type": "project", "project_id": "proj-1"},
-                    "model": "gpt-4o",
+                    "model": "model-router",
                     "use_rag": True,
                     "max_context_docs": 5,
                     "thread_id": thread_id,
@@ -452,6 +461,10 @@ class TestResumePersistence:
             "messages": [AIMessage(content="Confirmed.")],
             "tool_executions": [],
         }
+
+        @asynccontextmanager
+        async def _mock_async_session():
+            yield db
 
         with (
             patch(
@@ -466,12 +479,17 @@ class TestResumePersistence:
                 new_callable=AsyncMock,
                 return_value=("thread-1", "conv-1"),
             ),
+            patch(
+                "src.api.agent.jobs.AsyncSessionLocal",
+                return_value=_mock_async_session(),
+            ),
         ):
             mock_graph = MagicMock()
             mock_graph.ainvoke = AsyncMock(return_value=mock_final_state)
+            mock_graph.aget_state = AsyncMock(return_value=None)
             mock_compile.return_value = mock_graph
 
-            await _resume_agent_graph(job_id, True, user, db)
+            await _resume_agent_graph(job_id, True, user)
 
         config = mock_graph.ainvoke.call_args.kwargs["config"]
         assert config["configurable"]["thread_id"] == thread_id
@@ -495,7 +513,7 @@ class TestResumePersistence:
                 "request": {
                     "messages": [{"role": "user", "content": "save this result"}],
                     "page_context": {"type": "unknown"},
-                    "model": "gpt-4o",
+                    "model": "model-router",
                     "use_rag": True,
                     "max_context_docs": 5,
                 },
@@ -506,6 +524,10 @@ class TestResumePersistence:
             "messages": [AIMessage(content="Saved.")],
             "tool_executions": [],
         }
+
+        @asynccontextmanager
+        async def _mock_async_session():
+            yield db
 
         with (
             patch(
@@ -520,12 +542,17 @@ class TestResumePersistence:
                 new_callable=AsyncMock,
                 return_value=("thread-99", "conv-77"),
             ),
+            patch(
+                "src.api.agent.jobs.AsyncSessionLocal",
+                return_value=_mock_async_session(),
+            ),
         ):
             mock_graph = MagicMock()
             mock_graph.ainvoke = AsyncMock(return_value=mock_final_state)
+            mock_graph.aget_state = AsyncMock(return_value=None)
             mock_compile.return_value = mock_graph
 
-            await _resume_agent_graph(job_id, True, user, db)
+            await _resume_agent_graph(job_id, True, user)
 
         job = _get_job(job_id)
         assert job["status"] == "completed"
@@ -542,7 +569,13 @@ class TestSSEStreamPersistence:
     """Test that the SSE /stream endpoint persists messages after completion."""
 
     async def test_stream_endpoint_persists_messages(self):
-        """event_generator should call _persist_thread_messages after streaming."""
+        """event_generator should persist user up-front and assistant post-stream.
+
+        Task 4 of docs/plans/2026-05-13-agent-persist-perf.md split the old
+        single ``_persist_thread_messages`` call into two phases: the user row
+        is written before the LLM call, the assistant row after the stream
+        finishes. This structural test pins the new contract.
+        """
         from langchain_core.messages import AIMessage
 
         # We'll test the event_generator logic by verifying the persistence
@@ -553,7 +586,9 @@ class TestSSEStreamPersistence:
         from src.api.agent.streaming import stream_event_generator
 
         source = inspect.getsource(stream_event_generator)
-        assert "_persist_thread_messages" in source
+        assert "_resolve_thread" in source
+        assert "_persist_user_message" in source
+        assert "_persist_assistant_message" in source
         assert "aget_state" in source
 
     async def test_stream_has_timeout(self):
@@ -578,7 +613,7 @@ class TestSSEStreamPersistence:
                 "label": "Notes",
                 "metadata": {"active_tab": "notes", "source": "sidebar"},
             },
-            "model": "gpt-4o",
+            "model": "model-router",
             "use_rag": True,
             "max_context_docs": 5,
         }

@@ -24,7 +24,7 @@ from src.api.research.chat import (
     build_context_prompt,
 )
 from src.core.api_key_auth import APIKeyData, APIKeyUsageLog, get_api_key_data
-from src.core.database import get_db, get_db_sync
+from src.core.database import get_db
 from src.core.dependencies import get_current_user
 from src.models.search_schemas import (
     DeterministicTrace,
@@ -169,7 +169,7 @@ async def search_documents(
     search_request: SearchQuery,
     background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
-    db=Depends(get_db_sync),
+    db=Depends(get_db),
 ):
     """
     Perform search on documents with multiple search modalities
@@ -242,7 +242,7 @@ async def search_documents(
 
     except Exception as e:
         logger.error(f"Error performing search: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/hybrid", response_model=SearchResponse)
@@ -250,7 +250,7 @@ async def hybrid_search(
     search_request: SearchQuery,
     background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
-    db=Depends(get_db_sync),
+    db=Depends(get_db),
 ):
     """
     Perform hybrid search combining vector, full-text, and knowledge graph search
@@ -323,7 +323,7 @@ async def hybrid_search(
 
     except Exception as e:
         logger.error(f"Error performing hybrid search: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/suggestions")
@@ -333,7 +333,7 @@ async def get_search_suggestions(
     ),
     limit: int = Query(default=5, ge=1, le=20, description="Number of suggestions"),
     current_user: User = Depends(get_current_user),
-    db=Depends(get_db_sync),
+    db=Depends(get_db),
 ):
     """
     Get search suggestions for auto-completion
@@ -356,7 +356,7 @@ async def get_search_suggestions(
 
     except Exception as e:
         logger.error(f"Error getting search suggestions: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/history")
@@ -422,12 +422,12 @@ async def get_search_analytics(
 
     except Exception as e:
         logger.error(f"Error getting search analytics: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/indexes/rebuild")
 async def rebuild_search_indexes(
-    current_user: User = Depends(get_current_user), db=Depends(get_db_sync)
+    current_user: User = Depends(get_current_user), db=Depends(get_db)
 ):
     """
     Rebuild full-text search indexes (admin only)
@@ -473,12 +473,12 @@ async def rebuild_search_indexes(
 
     except Exception as e:
         logger.error(f"Error rebuilding search indexes: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/indexes", response_model=List[SearchIndex])
 async def get_search_indexes(
-    current_user: User = Depends(get_current_user), db=Depends(get_db_sync)
+    current_user: User = Depends(get_current_user), db=Depends(get_db)
 ):
     """
     Get information about search indexes
@@ -519,14 +519,14 @@ async def get_search_indexes(
 
     except Exception as e:
         logger.error(f"Error getting search indexes: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/documents/{document_id}/reindex")
 async def reindex_document(
     document_id: str,
     current_user: User = Depends(get_current_user),
-    db=Depends(get_db_sync),
+    db=Depends(get_db),
 ):
     """
     Rebuild search vector for a specific document
@@ -561,7 +561,7 @@ async def reindex_document(
         raise
     except Exception as e:
         logger.error(f"Error reindexing document {document_id}: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/popular")
@@ -581,7 +581,7 @@ async def get_popular_searches(
 
     except Exception as e:
         logger.error(f"Error getting popular searches: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/similar")
@@ -635,12 +635,12 @@ async def submit_search_feedback(
 
     except Exception as e:
         logger.error(f"Error submitting search feedback: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/health")
 async def search_health_check(
-    current_user: User = Depends(get_current_user), db=Depends(get_db_sync)
+    current_user: User = Depends(get_current_user), db=Depends(get_db)
 ):
     """
     Health check for all search functionality including hybrid search
@@ -877,7 +877,7 @@ async def authenticated_hybrid_search(
             {"error": str(e), "query_length": len(search_request.query)},
         )
 
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/authenticated/health")

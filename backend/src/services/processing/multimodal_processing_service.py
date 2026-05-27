@@ -485,7 +485,8 @@ class MultimodalProcessingService:
                         sum(confidences) / len(confidences) if confidences else 0
                     )
                     results["confidence_score"] = avg_confidence
-                except:
+                except Exception:
+                    logger.warning("OCR confidence extraction failed", exc_info=True)
                     results["confidence_score"] = 0
 
                 results["extracted_text"] = text
@@ -567,8 +568,8 @@ class MultimodalProcessingService:
                     if audio_file is not None:
                         results["duration"] = audio_file.info.length
                         results["bitrate"] = audio_file.info.bitrate
-                except:
-                    pass
+                except Exception:
+                    logger.warning("Audio fallback analysis failed", exc_info=True)
 
             results["format"] = Path(file_path).suffix[1:].upper()
             results["file_size"] = os.path.getsize(file_path)
@@ -1085,27 +1086,24 @@ class MultimodalProcessingService:
 
             start_time = time.time()
 
-            # Generate embeddings
-            embedding_id = await self.embedding_service.generate_and_store_embedding(
-                text=text_content,
-                document_id=document.id,
-                organization_id=document.organization_id,
-            )
+            # Phase 5: DO KB owns retrieval. Push the document directly.
+            ds_uuid: Optional[str] = None
+            if getattr(settings, "DO_KB_ENABLED", False):
+                try:
+                    from src.services.do_kb import sync_document_to_kb
 
-            if embedding_id:
+                    ds_uuid = await sync_document_to_kb(self.db, document)
+                except Exception as kb_err:  # noqa: BLE001
+                    logger.warning("do_kb sync failed: %s", kb_err)
+
+            if ds_uuid:
                 results.update(
                     {
                         "embedding_generated": True,
-                        "embedding_id": embedding_id,
-                        "vector_dimension": getattr(
-                            settings, "EMBEDDING_DIMENSION", 384
-                        ),
+                        "do_kb_data_source_uuid": ds_uuid,
                         "processing_time": time.time() - start_time,
                     }
                 )
-
-                # Update document
-                document.embedding_id = embedding_id
                 document.is_embedded = True
                 self.db.commit()
 

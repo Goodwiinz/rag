@@ -72,6 +72,15 @@ logger = logging.getLogger(__name__)
 class DocumentUploadService:
     """Service for handling document uploads and processing"""
 
+    _background_tasks: set[asyncio.Task] = set()
+
+    @staticmethod
+    def _fire_and_forget(coro):
+        task = asyncio.create_task(coro)
+        DocumentUploadService._background_tasks.add(task)
+        task.add_done_callback(DocumentUploadService._background_tasks.discard)
+        return task
+
     def __init__(self, db: Session):
         self.db = db
         self.minio_client = self._init_minio_client()
@@ -307,7 +316,7 @@ class DocumentUploadService:
             self.db.commit()
 
             # Start processing (in background)
-            asyncio.create_task(self._process_jobs(jobs))
+            self._fire_and_forget(self._process_jobs(jobs))
 
             logger.info(f"Processing pipeline started for document: {document.id}")
 

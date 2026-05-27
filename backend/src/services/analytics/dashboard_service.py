@@ -281,21 +281,32 @@ class DashboardService:
                     .limit(limit)
                 )
 
-                result = await db.execute(query)
-                dashboards = result.scalars().all()
-
-                # Get widget counts for each dashboard
-                dashboard_responses = []
-                for dashboard in dashboards:
-                    widget_count_query = select(func.count(DashboardWidget.id)).where(
-                        and_(
-                            DashboardWidget.dashboard_id == dashboard.id,
-                            DashboardWidget.is_active == True,
-                        )
+                # Subquery for widget counts (single query instead of N+1)
+                widget_count_subq = (
+                    select(
+                        DashboardWidget.dashboard_id,
+                        func.count(DashboardWidget.id).label("widget_count"),
                     )
-                    widget_count_result = await db.execute(widget_count_query)
-                    widget_count = widget_count_result.scalar()
+                    .where(DashboardWidget.is_active == True)
+                    .group_by(DashboardWidget.dashboard_id)
+                    .subquery()
+                )
 
+                # Join widget counts into the main query
+                query = query.add_columns(
+                    func.coalesce(widget_count_subq.c.widget_count, 0).label(
+                        "widget_count"
+                    )
+                ).outerjoin(
+                    widget_count_subq,
+                    Dashboard.id == widget_count_subq.c.dashboard_id,
+                )
+
+                result = await db.execute(query)
+                rows = result.all()
+
+                dashboard_responses = []
+                for dashboard, widget_count in rows:
                     dashboard_response = DashboardResponse(
                         id=dashboard.id,
                         name=dashboard.name,

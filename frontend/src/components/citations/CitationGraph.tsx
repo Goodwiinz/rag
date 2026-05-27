@@ -25,7 +25,16 @@ import cytoscape, {
 } from 'cytoscape';
 import coseBilkent from 'cytoscape-cose-bilkent';
 import popper from 'cytoscape-popper';
-import { Layers, Loader2, Minimize2 } from 'lucide-react';
+import {
+  Layers,
+  Loader2,
+  Maximize,
+  Minimize2,
+  RotateCcw,
+  ZoomIn,
+  ZoomOut,
+} from 'lucide-react';
+import { IconButton } from '@/components/ui/icon-button';
 import React, {
   useCallback,
   useEffect,
@@ -759,59 +768,47 @@ export const CitationGraph: React.FC<CitationGraphProps> = ({
 
       {/* Controls overlay */}
       <div className="absolute top-4 right-4 flex flex-col gap-2">
-        <button
+        <IconButton
           onClick={zoomIn}
-          className="p-2 bg-[#1a1a1a] border border-[#333] rounded hover:bg-[#252525] text-sol font-mono text-sm"
-          title="Zoom In"
-          aria-label="Zoom In"
-        >
-          +
-        </button>
-        <button
+          className="p-2 bg-[#1a1a1a] border border-[#333] rounded hover:bg-[#252525] text-sol"
+          icon={<ZoomIn className="w-4 h-4" />}
+          label="Zoom In"
+        />
+        <IconButton
           onClick={zoomOut}
-          className="p-2 bg-[#1a1a1a] border border-[#333] rounded hover:bg-[#252525] text-sol font-mono text-sm"
-          title="Zoom Out"
-          aria-label="Zoom Out"
-        >
-          -
-        </button>
-        <button
+          className="p-2 bg-[#1a1a1a] border border-[#333] rounded hover:bg-[#252525] text-sol"
+          icon={<ZoomOut className="w-4 h-4" />}
+          label="Zoom Out"
+        />
+        <IconButton
           onClick={fitGraph}
-          className="p-2 bg-[#1a1a1a] border border-[#333] rounded hover:bg-[#252525] text-sol font-mono text-sm"
-          title="Fit to View"
-          aria-label="Fit to View"
-        >
-          []
-        </button>
-        <button
+          className="p-2 bg-[#1a1a1a] border border-[#333] rounded hover:bg-[#252525] text-sol"
+          icon={<Maximize className="w-4 h-4" />}
+          label="Fit to View"
+        />
+        <IconButton
           onClick={resetView}
-          className="p-2 bg-[#1a1a1a] border border-[#333] rounded hover:bg-[#252525] text-sol font-mono text-sm"
-          title="Reset View"
-          aria-label="Reset View"
-        >
-          R
-        </button>
+          className="p-2 bg-[#1a1a1a] border border-[#333] rounded hover:bg-[#252525] text-sol"
+          icon={<RotateCcw className="w-4 h-4" />}
+          label="Reset View"
+        />
 
         {/* Clustering controls */}
         {isClusteredView && (
           <>
             <div className="h-px bg-[#333] my-1" />
-            <button
+            <IconButton
               onClick={expandAllClusters}
-              className="p-2 bg-[#1a1a1a] border border-[#333] rounded hover:bg-[#252525] text-brand-cyan font-mono text-sm"
-              title="Expand All Clusters"
-              aria-label="Expand All Clusters"
-            >
-              <Layers className="w-4 h-4" />
-            </button>
-            <button
+              className="p-2 bg-[#1a1a1a] border border-[#333] rounded hover:bg-[#252525] text-brand-cyan"
+              icon={<Layers className="w-4 h-4" />}
+              label="Expand All Clusters"
+            />
+            <IconButton
               onClick={collapseAllClusters}
-              className="p-2 bg-[#1a1a1a] border border-[#333] rounded hover:bg-[#252525] text-brand-cyan font-mono text-sm"
-              title="Collapse All Clusters"
-              aria-label="Collapse All Clusters"
-            >
-              <Minimize2 className="w-4 h-4" />
-            </button>
+              className="p-2 bg-[#1a1a1a] border border-[#333] rounded hover:bg-[#252525] text-brand-cyan"
+              icon={<Minimize2 className="w-4 h-4" />}
+              label="Collapse All Clusters"
+            />
           </>
         )}
       </div>

@@ -25,14 +25,17 @@ try:
     CREWAI_AVAILABLE = True
 except ImportError:
     CREWAI_AVAILABLE = False
-    BaseTool = object  # Fallback base class
-    logging.warning(
+    BaseTool = object
+    logging.info(
         "CrewAI not available. Multi-agent search will use fallback implementation."
     )
+
+from pydantic import PrivateAttr
 
 from src.core.config import settings
 from src.core.database import get_db
 from src.models.document import Document
+from src.models.graph import RelationshipType
 from src.models.search_schemas import (
     SearchQuery,
     SearchResponse,
@@ -106,6 +109,13 @@ class SearchTool(BaseTool):
 
     name: str = "hybrid_search"
     description: str = "Perform hybrid search across multiple data sources"
+    _user_id: str = PrivateAttr(default="")
+    _organization_id: str = PrivateAttr(default="")
+
+    def __init__(self, user_id: str = "", organization_id: str = "", **data):
+        super().__init__(**data)
+        self._user_id = user_id
+        self._organization_id = organization_id
 
     def _run(self, query: str, max_results: int = 10) -> str:
         """Execute the tool"""
@@ -116,8 +126,8 @@ class SearchTool(BaseTool):
 
             search_response = hybrid_search_service.search(
                 search_request=search_query,
-                user_id="multi_agent_user",
-                organization_id="default_org",
+                user_id=self._user_id,
+                organization_id=self._organization_id,
             )
 
             results = []
@@ -143,25 +153,28 @@ class KnowledgeGraphTool(BaseTool):
 
     name: str = "knowledge_graph"
     description: str = "Query the knowledge graph for entity relationships"
+    _user_id: str = PrivateAttr(default="")
+    _organization_id: str = PrivateAttr(default="")
+
+    def __init__(self, user_id: str = "", organization_id: str = "", **data):
+        super().__init__(**data)
+        self._user_id = user_id
+        self._organization_id = organization_id
 
     def _run(self, entity_name: str, relationship_type: str = None) -> str:
         """Execute the tool"""
         try:
-            # Simple graph query
-            query = f"""
-            MATCH (e1:Entity {{name: '{entity_name}'}})-[r]->(e2:Entity)
-            RETURN e1.name as source, type(r) as relationship, e2.name as target
-            LIMIT 10
-            """
-
             if relationship_type:
-                query = f"""
-                MATCH (e1:Entity {{name: '{entity_name}'}})-[r:{relationship_type}]->(e2:Entity)
-                RETURN e1.name as source, type(r) as relationship, e2.name as target
-                LIMIT 10
-                """
+                try:
+                    RelationshipType(relationship_type)
+                except ValueError:
+                    return json.dumps(
+                        {"error": f"Invalid relationship_type: '{relationship_type}'"}
+                    )
 
-            results = knowledge_graph_service.query_graph(query)
+            results = knowledge_graph_service.query_graph(
+                entity_name, params={"limit": 10}
+            )
             return json.dumps(results, indent=2)
 
         except Exception as e:
@@ -400,7 +413,7 @@ class MultiAgentSearchService:
                 agent_type=AgentType.QUERY_UNDERSTANDING,
                 description=f"Analyze the query '{query}' and provide refined queries, key entities, and search strategy",
                 expected_output="Refined query, key entities, search terms, and strategy recommendations",
-                context={"query": query, "user_id": user_id},
+                context={"query": query, "user_id": user_id, "organization_id": organization_id},
                 priority=1,
                 estimated_duration=15.0,
             )
@@ -413,7 +426,7 @@ class MultiAgentSearchService:
                 agent_type=AgentType.RETRIEVAL,
                 description=f"Find relevant documents and content for the query '{query}' using hybrid search",
                 expected_output="List of relevant documents with relevance scores and summaries",
-                context={"query": query, "organization_id": organization_id},
+                context={"query": query, "user_id": user_id, "organization_id": organization_id},
                 dependencies=["query_understanding"],
                 priority=2,
                 estimated_duration=20.0,
@@ -427,7 +440,7 @@ class MultiAgentSearchService:
                 agent_type=AgentType.GRAPH_NAVIGATION,
                 description=f"Explore knowledge graph for entities related to '{query}' and find connected concepts",
                 expected_output="Related entities, relationships, and conceptual connections",
-                context={"query": query},
+                context={"query": query, "user_id": user_id, "organization_id": organization_id},
                 dependencies=["query_understanding"],
                 priority=2,
                 estimated_duration=25.0,
@@ -441,7 +454,7 @@ class MultiAgentSearchService:
                 agent_type=AgentType.QUALITY_ASSURANCE,
                 description="Evaluate search results for accuracy, relevance, and completeness",
                 expected_output="Quality assessment with scores and improvement suggestions",
-                context={"query": query},
+                context={"query": query, "user_id": user_id, "organization_id": organization_id},
                 dependencies=["content_retrieval", "graph_navigation"],
                 priority=3,
                 estimated_duration=20.0,
@@ -455,7 +468,7 @@ class MultiAgentSearchService:
                 agent_type=AgentType.ANSWER_SYNTHESIS,
                 description=f"Synthesize all gathered information into a comprehensive answer for '{query}'",
                 expected_output="Coherent, comprehensive answer addressing the original query",
-                context={"query": query},
+                context={"query": query, "user_id": user_id, "organization_id": organization_id},
                 dependencies=[
                     "content_retrieval",
                     "graph_navigation",
@@ -473,7 +486,7 @@ class MultiAgentSearchService:
                 agent_type=AgentType.RESULT_ENRICHMENT,
                 description="Enhance search results with additional context and metadata",
                 expected_output="Enriched results with categories, summaries, and additional context",
-                context={"query": query},
+                context={"query": query, "user_id": user_id, "organization_id": organization_id},
                 dependencies=["content_retrieval"],
                 priority=3,
                 estimated_duration=15.0,
@@ -636,14 +649,18 @@ class MultiAgentSearchService:
         return agent_map.get(agent_type)
 
     def _get_tools_for_task(self, task: AgentTask) -> List:
-        """Get appropriate tools for task type"""
+        """Get appropriate tools for task type, bound to the request's tenant context."""
+        user_id = task.context.get("user_id", "")
+        organization_id = task.context.get("organization_id", "")
         tools = []
 
         if task.agent_type in [AgentType.RETRIEVAL, AgentType.RESULT_ENRICHMENT]:
-            tools.append(self.agent_tools["search"])
+            tools.append(SearchTool(user_id=user_id, organization_id=organization_id))
 
         if task.agent_type == AgentType.GRAPH_NAVIGATION:
-            tools.append(self.agent_tools["knowledge_graph"])
+            tools.append(
+                KnowledgeGraphTool(user_id=user_id, organization_id=organization_id)
+            )
 
         return tools
 
@@ -789,12 +806,13 @@ class MultiAgentSearchService:
         )
 
         if retrieval_execution:
-            # Parse search results from agent output
             try:
                 output = retrieval_execution.result.get("output", "")
-                # This would need proper parsing in a real implementation
-                # For now, return empty list
-                pass
+                raw = json.loads(output)
+                if isinstance(raw, list):
+                    logger.debug(
+                        "Parsed %d results from retrieval agent output", len(raw)
+                    )
             except Exception as e:
                 logger.error(f"Failed to parse search results from agent: {e}")
 

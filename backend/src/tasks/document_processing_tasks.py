@@ -7,14 +7,11 @@ import logging
 from datetime import datetime
 from typing import Any, Dict, Optional
 
-from celery import Celery
 from celery.exceptions import Retry
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy import text
 
-from src.api.document_upload import upload_manager
 from src.core.config import settings
-from src.core.database import get_db
+from src.core.database import SessionLocal, get_db
 from src.models.document import Document, ProcessingStatus
 from src.models.processing import JobStatus, ProcessingJob
 from src.services.documents.document_quality_service import DocumentQualityService
@@ -22,62 +19,9 @@ from src.services.documents.enhanced_file_service import EnhancedFileService
 from src.services.processing.multimodal_processing_service import (
     MultimodalProcessingService,
 )
+from src.tasks.celery_app import celery_app
 
 logger = logging.getLogger(__name__)
-
-# Initialize Celery
-celery_app = Celery(
-    "document_processing",
-    broker=settings.REDIS_URL,
-    backend=settings.REDIS_URL,
-    include=["src.tasks.document_processing_tasks"],
-)
-
-# Celery configuration
-celery_app.conf.update(
-    task_serializer="json",
-    accept_content=["json"],
-    result_serializer="json",
-    timezone="UTC",
-    enable_utc=True,
-    task_track_started=True,
-    task_acks_late=True,
-    worker_prefetch_multiplier=1,
-    task_default_queue="document_processing",
-    task_queues={
-        "document_processing": {
-            "exchange": "document_processing",
-            "routing_key": "document_processing",
-        },
-        "high_priority": {
-            "exchange": "high_priority",
-            "routing_key": "high_priority",
-        },
-        "low_priority": {
-            "exchange": "low_priority",
-            "routing_key": "low_priority",
-        },
-    },
-    task_routes={
-        "src.tasks.document_processing_tasks.process_document_upload": {
-            "queue": "document_processing",
-        },
-        "src.tasks.document_processing_tasks.process_high_priority_document": {
-            "queue": "high_priority",
-        },
-        "src.tasks.document_processing_tasks.process_low_priority_document": {
-            "queue": "low_priority",
-        },
-    },
-    task_default_retry_delay=60,  # 1 minute
-    task_max_retries=3,
-    task_soft_time_limit=300,  # 5 minutes
-    task_time_limit=600,  # 10 minutes
-)
-
-# Database setup for background tasks
-engine = create_engine(settings.DATABASE_URL)
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
 def get_db_session():
@@ -94,6 +38,9 @@ def process_document_upload(self, job_id: str, upload_id: Optional[str] = None):
     """
     Process document upload with enhanced pipeline
     """
+    # Lazy import to avoid circular dependency
+    from src.api.documents.document_upload import upload_manager
+
     db = SessionLocal()
     task_id = self.request.id
 
@@ -382,25 +329,21 @@ def batch_process_documents(
             job.queue_job()
         db.commit()
 
-        # Process jobs with concurrency control
-        semaphore = asyncio.Semaphore(max_concurrent)
+        # Dispatch jobs sequentially (.delay() is synchronous Celery API)
+        results: list = []
+        for i, job_id in enumerate(job_ids):
+            if delay_between_jobs > 0 and i > 0:
+                import time
 
-        async def process_single_job(job_id: str):
-            async with semaphore:
-                # Add delay between jobs if configured
-                if delay_between_jobs > 0:
-                    await asyncio.sleep(delay_between_jobs)
-
-                # Call the individual processing task
-                try:
-                    result = process_document_upload.delay(job_id)
-                    return {"job_id": job_id, "task_id": result.id, "status": "queued"}
-                except Exception as e:
-                    logger.error(f"Failed to queue job {job_id}: {str(e)}")
-                    return {"job_id": job_id, "status": "error", "error": str(e)}
-
-        # Execute batch processing
-        results = asyncio.run(process_single_job(job_id) for job_id in job_ids)
+                time.sleep(delay_between_jobs)
+            try:
+                celery_result = process_document_upload.delay(job_id)
+                results.append(
+                    {"job_id": job_id, "task_id": celery_result.id, "status": "queued"}
+                )
+            except Exception as e:
+                logger.error("Failed to queue job %s: %s", job_id, e)
+                results.append({"job_id": job_id, "status": "error", "error": str(e)})
 
         return {
             "status": "batch_queued",
@@ -665,8 +608,9 @@ def health_check():
     try:
         db = SessionLocal()
 
-        # Check database connectivity
-        db.execute("SELECT 1")
+        # Check database connectivity. Wrap in text() so SQLAlchemy 2.x accepts
+        # the literal SQL — passing a raw string here used to fail every minute.
+        db.execute(text("SELECT 1"))
 
         # Check Redis connectivity
         celery_app.backend.result_backend.ping()

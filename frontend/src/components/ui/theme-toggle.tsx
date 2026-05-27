@@ -1,9 +1,17 @@
-import { IconButton } from "@/components/ui/icon-button";
-import { Moon, Sun } from "lucide-react";
-import { useTheme } from "next-themes";
+'use client';
+
+import { IconButton } from '@/components/ui/icon-button';
+import { Moon, Sun } from 'lucide-react';
+import { useTheme } from 'next-themes';
+import { useEffect, useState } from 'react';
 
 export function ThemeToggle() {
+  const [mounted, setMounted] = useState(false);
   const { theme, setTheme } = useTheme();
+
+  useEffect(() => setMounted(true), []);
+
+  if (!mounted) return null;
 
   return (
     <IconButton
@@ -14,7 +22,7 @@ export function ThemeToggle() {
         </>
       }
       label="Toggle theme"
-      onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+      onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
       className="w-9 h-9"
     />
   );

@@ -4,7 +4,7 @@
  * API client for full-text search across threads and messages
  */
 
-import { apiClient } from './apiClient';
+import { api } from '@/services/api-client';
 import type {
   ThreadSearchRequest,
   ThreadSearchResponse,
@@ -23,7 +23,7 @@ const SEARCH_BASE_URL = '/api/v2/search';
 export async function searchThreads(
   request: ThreadSearchRequest
 ): Promise<ThreadSearchResponse> {
-  const response = await apiClient.post<ThreadSearchResponse>(
+  const response = await api.post<ThreadSearchResponse>(
     `${SEARCH_BASE_URL}/threads`,
     request
   );
@@ -62,7 +62,7 @@ export async function searchThreadsGet(params: {
   if (params.limit !== undefined) searchParams.append('limit', params.limit.toString());
   if (params.offset !== undefined) searchParams.append('offset', params.offset.toString());
   
-  const response = await apiClient.get<ThreadSearchResponse>(
+  const response = await api.get<ThreadSearchResponse>(
     `${SEARCH_BASE_URL}/threads?${searchParams.toString()}`
   );
   return response;
@@ -74,7 +74,7 @@ export async function searchThreadsGet(params: {
 export async function searchMessages(
   request: MessageSearchRequest
 ): Promise<MessageSearchResponse> {
-  const response = await apiClient.post<MessageSearchResponse>(
+  const response = await api.post<MessageSearchResponse>(
     `${SEARCH_BASE_URL}/messages`,
     request
   );
@@ -117,7 +117,7 @@ export async function searchMessagesGet(params: {
   if (params.limit !== undefined) searchParams.append('limit', params.limit.toString());
   if (params.offset !== undefined) searchParams.append('offset', params.offset.toString());
   
-  const response = await apiClient.get<MessageSearchResponse>(
+  const response = await api.get<MessageSearchResponse>(
     `${SEARCH_BASE_URL}/messages?${searchParams.toString()}`
   );
   return response;
@@ -139,7 +139,7 @@ export async function combinedSearch(params: {
   if (params.conversation_id) searchParams.append('conversation_id', params.conversation_id);
   if (params.limit !== undefined) searchParams.append('limit', params.limit.toString());
   
-  const response = await apiClient.get<CombinedSearchResponse>(
+  const response = await api.get<CombinedSearchResponse>(
     `${SEARCH_BASE_URL}/combined?${searchParams.toString()}`
   );
   return response;
@@ -159,7 +159,7 @@ export async function getSearchSuggestions(params: {
   if (params.workspace_id) searchParams.append('workspace_id', params.workspace_id);
   if (params.limit !== undefined) searchParams.append('limit', params.limit.toString());
   
-  const response = await apiClient.get<SearchSuggestionsResponse>(
+  const response = await api.get<SearchSuggestionsResponse>(
     `${SEARCH_BASE_URL}/suggestions?${searchParams.toString()}`
   );
   return response;
@@ -169,7 +169,7 @@ export async function getSearchSuggestions(params: {
  * Check search system health
  */
 export async function checkSearchHealth(): Promise<SearchHealthResponse> {
-  const response = await apiClient.get<SearchHealthResponse>(
+  const response = await api.get<SearchHealthResponse>(
     `${SEARCH_BASE_URL}/health`
   );
   return response;

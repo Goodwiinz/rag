@@ -6,6 +6,9 @@ import { create } from 'zustand';
 import { citationService } from '@/services/citationService';
 import type { CitationResponse } from '@/types/research';
 
+// Maximum number of citations to retain in memory
+const MAX_CITATIONS = 500;
+
 interface CitationState {
   // State
   citations: CitationResponse[];
@@ -33,15 +36,27 @@ export const useCitationStore = create<CitationState>((set, get) => ({
 
     try {
       const citations = await citationService.getCitationsForMessage(messageId);
-      
-      set((state) => ({
-        citations: [...state.citations, ...citations],
-        citationsByMessage: {
-          ...state.citationsByMessage,
-          [messageId]: citations,
-        },
-        loading: false,
-      }));
+
+      set((state) => {
+        // Dedup: only add citations not already present by id
+        const existingIds = new Set(state.citations.map((c) => c.id));
+        const newCitations = citations.filter((c) => !existingIds.has(c.id));
+        let merged = [...state.citations, ...newCitations];
+
+        // Trim oldest entries when exceeding the cap
+        if (merged.length > MAX_CITATIONS) {
+          merged = merged.slice(merged.length - MAX_CITATIONS);
+        }
+
+        return {
+          citations: merged,
+          citationsByMessage: {
+            ...state.citationsByMessage,
+            [messageId]: citations,
+          },
+          loading: false,
+        };
+      });
     } catch (error: any) {
       console.error('[CitationStore] Failed to fetch citations:', error);
       set({
@@ -56,21 +71,29 @@ export const useCitationStore = create<CitationState>((set, get) => ({
     set((state) => {
       const messageId = citation.messageId;
 
-      // Add to global citations array if not already present
-      const existingCitations = state.citations.some(c => c.id === citation.id)
-        ? state.citations
-        : [...state.citations, citation];
+      // Dedup: skip if already present by id
+      if (state.citations.some((c) => c.id === citation.id)) {
+        return {};
+      }
+
+      // Add to global citations array and enforce cap
+      let updatedCitations = [...state.citations, citation];
+      if (updatedCitations.length > MAX_CITATIONS) {
+        updatedCitations = updatedCitations.slice(
+          updatedCitations.length - MAX_CITATIONS
+        );
+      }
 
       // If no messageId, just update citations without modifying citationsByMessage
       if (!messageId) {
-        return { citations: existingCitations };
+        return { citations: updatedCitations };
       }
 
       // Add to message-specific citations
       const messageCitations = [...(state.citationsByMessage[messageId] || []), citation];
 
       return {
-        citations: existingCitations,
+        citations: updatedCitations,
         citationsByMessage: {
           ...state.citationsByMessage,
           [messageId]: messageCitations,

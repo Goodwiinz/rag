@@ -2,8 +2,20 @@
 
 import React, { useMemo, Fragment } from 'react';
 import ReactMarkdown from 'react-markdown';
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import dynamic from 'next/dynamic';
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
+
+const SyntaxHighlighter = dynamic(
+  () => import('react-syntax-highlighter/dist/esm/prism').then((mod) => mod.default),
+  {
+    loading: () => (
+      <pre className="p-4 rounded-lg bg-[var(--nous-bg-1)] text-xs font-mono overflow-x-auto">
+        <code>Loading...</code>
+      </pre>
+    ),
+    ssr: false,
+  }
+);
 import { cn } from '@/lib/utils';
 import { CitationLink } from './CitationLink';
 import {
@@ -91,7 +103,7 @@ export function CitationRenderer({
                       {String(children).replace(/\n$/, '')}
                     </SyntaxHighlighter>
                   ) : (
-                    <code className="rounded bg-[var(--terminal-elevated)] px-1.5 py-0.5 text-[11px] font-mono text-[var(--phosphor-green)]">
+                    <code className="rounded bg-[var(--nous-bg-2)] px-1.5 py-0.5 text-[11px] font-mono text-[var(--nous-sol)]">
                       {children}
                     </code>
                   );
@@ -107,7 +119,7 @@ export function CitationRenderer({
                     href={href}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-[var(--phosphor-green)] hover:text-[var(--amber-gold)] underline"
+                    className="text-[var(--nous-sol)] hover:text-[var(--nous-helios)] underline"
                   >
                     {children}
                   </a>

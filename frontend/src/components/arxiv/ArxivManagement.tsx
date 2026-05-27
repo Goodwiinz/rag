@@ -1,7 +1,7 @@
 'use client';
 
 import { cn } from '@/lib/utils';
-import { apiClient } from '@/services/apiClient';
+import { api } from '@/services/api-client';
 import { useAuthStore } from '@/stores/authStore';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
@@ -19,7 +19,7 @@ import {
 import Link from 'next/link';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 
-import { ProgressBar } from './arxivControls';
+import { ProgressBar } from './ArxivControls';
 import {
   CORE_AI_CATEGORIES,
   ExtractionResult,
@@ -124,7 +124,7 @@ export default function ArxivManagement() {
     }
 
     try {
-      const result = await apiClient.get<StatsResult>('/arxiv/tracking/stats');
+      const result = await api.get<StatsResult>('/arxiv/tracking/stats');
       setStats(result);
 
       if (showFeedback) {
@@ -192,13 +192,14 @@ export default function ArxivManagement() {
 
     try {
       setProgress(30);
-      const result = await apiClient.postWithLongTimeout<TrackResult>(
+      const result = await api.post<TrackResult>(
         '/arxiv/tracking/track-categories',
         {
           categories: selectedCategories,
           days_back: daysBack,
           update_database: updateDatabase,
-        }
+        },
+        { timeout: 300000 }
       );
 
       setProgress(75);
@@ -239,7 +240,7 @@ export default function ArxivManagement() {
 
     try {
       setProgress(40);
-      const results = await apiClient.postWithLongTimeout<ArXivPaper[]>(
+      const results = await api.post<ArXivPaper[]>(
         '/arxiv/search',
         {
           query: searchQuery.trim(),
@@ -248,7 +249,8 @@ export default function ArxivManagement() {
             useCategoryFilterForSearch && selectedCategories.length > 0
               ? selectedCategories
               : null,
-        }
+        },
+        { timeout: 300000 }
       );
 
       setProgress(100);
@@ -293,14 +295,15 @@ export default function ArxivManagement() {
 
     try {
       setProgress(45);
-      const result = await apiClient.postWithLongTimeout<IngestionResult>(
+      const result = await api.post<IngestionResult>(
         '/arxiv/ingest',
         {
           paper_ids: selectedPaperIds,
           download_pdfs: downloadPdfs,
           extract_content: extractContentOnIngest,
           batch_size: Math.min(20, Math.max(1, selectedPaperIds.length)),
-        }
+        },
+        { timeout: 300000 }
       );
 
       setProgress(100);
@@ -348,7 +351,7 @@ export default function ArxivManagement() {
 
     try {
       setProgress(35);
-      const result = await apiClient.postWithLongTimeout<ExtractionResult>(
+      const result = await api.post<ExtractionResult>(
         '/arxiv/extraction/extract-features',
         {
           paper_ids: parsedExtractIds,
@@ -358,7 +361,8 @@ export default function ArxivManagement() {
           extract_keyphrases: extractKeyphrases,
           extract_summaries: extractSummaries,
           update_knowledge_graph: updateKG,
-        }
+        },
+        { timeout: 300000 }
       );
 
       setProgress(100);

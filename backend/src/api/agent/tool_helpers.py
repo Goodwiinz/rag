@@ -7,13 +7,14 @@ other utilities referenced across multiple _tool_* functions.
 import logging
 import re
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Iterable, Optional
 from uuid import UUID
 
 from sqlalchemy import desc, select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models.collection import Collection
+from src.models.collection import Collection, CollectionDocument
 from src.models.document import Document
 from src.models.user import User
 from src.models.workspace import Workspace
@@ -41,14 +42,26 @@ def _sanitize_metadata(metadata: Any) -> dict:
     return sanitized
 
 
+_ARXIV_ID_RE = re.compile(r"^(\d{4}\.\d{4,5})(v\d+)?$")
+
+
 async def _resolve_document_id(
     document_id: str,
     db: AsyncSession,
     current_user: User,
 ) -> Optional[Document]:
-    """Resolve a document_id string (UUID or title) to a Document.
+    """Resolve a document_id string (UUID, arXiv ID, or title) to a Document.
 
-    Accepts either a UUID string or a document title. Returns None if not found.
+    Resolution order:
+      1. UUID parse → match Document.id
+      2. arXiv ID pattern (e.g. ``2303.15563`` or ``2303.15563v1``) →
+         match Document.filename containing the bare ID OR
+         document_metadata->>'arxiv_id' equals the bare ID.
+      3. Title ILIKE fallback.
+
+    Returns None if not found. Trace 019e1569 showed the agent passing the
+    raw arXiv ID where the tool expected an internal UUID — without this
+    branch the user got "Document not found or access denied".
     """
     # Try as UUID first
     try:
@@ -64,6 +77,35 @@ async def _resolve_document_id(
             return doc
     except (ValueError, AttributeError):
         pass
+
+    # Try arXiv ID pattern (strip version suffix for the lookup)
+    arxiv_match = _ARXIV_ID_RE.match(document_id.strip()) if document_id else None
+    if arxiv_match:
+        bare_id = arxiv_match.group(1)
+        try:
+            stmt = (
+                select(Document)
+                .where(
+                    Document.organization_id == current_user.organization_id,
+                    Document.is_deleted == False,
+                    (
+                        Document.filename.ilike(f"%{bare_id}%")
+                        | (
+                            Document.document_metadata["arxiv_id"].astext == bare_id
+                        )
+                    ),
+                )
+                .order_by(desc(Document.created_at))
+                .limit(1)
+            )
+            result = await db.execute(stmt)
+            doc = result.scalar_one_or_none()
+            if doc:
+                return doc
+        except Exception:
+            logger.debug(
+                "arxiv_id resolution failed for %r", bare_id, exc_info=True
+            )
 
     # Try by title (case-insensitive)
     if document_id:
@@ -147,3 +189,51 @@ async def _verify_project_ownership(
     )
     result = await db.execute(stmt)
     return result.scalar_one_or_none()
+
+
+async def _link_documents_to_project(
+    db: AsyncSession,
+    project: Collection,
+    document_ids: Iterable[str],
+) -> Dict[str, Any]:
+    """Idempotently link documents to a project.
+
+    Uses ``INSERT ... ON CONFLICT DO NOTHING`` against the
+    ``(collection_id, document_id)`` unique constraint so concurrent
+    ingests of the same paper don't race the existence check, and so we
+    avoid an N+1 ``SELECT`` per document.
+
+    Returns ``{"linked": int, "already_linked": int}`` — caller decides
+    how to surface the result.
+    """
+    ids = [str(d) for d in document_ids if d]
+    if not ids:
+        return {"linked": 0, "already_linked": 0}
+
+    existing_stmt = select(CollectionDocument.document_id).where(
+        CollectionDocument.collection_id == project.id,
+        CollectionDocument.document_id.in_(ids),
+    )
+    existing = {
+        str(row[0]) for row in (await db.execute(existing_stmt)).all()
+    }
+
+    new_rows = [
+        {"collection_id": project.id, "document_id": doc_id}
+        for doc_id in ids
+        if doc_id not in existing
+    ]
+
+    if new_rows:
+        await db.execute(
+            pg_insert(CollectionDocument)
+            .values(new_rows)
+            .on_conflict_do_nothing(
+                index_elements=["collection_id", "document_id"]
+            )
+        )
+
+    return {
+        "linked": len(new_rows),
+        "already_linked": len(existing),
+    }

@@ -33,6 +33,11 @@ class Organization(BaseModel):
 
     __tablename__ = "organizations"
 
+    def __init__(self, **kwargs):
+        """Accept legacy fixture-only kwargs without changing the mapped schema."""
+        kwargs.pop("domain", None)
+        super().__init__(**kwargs)
+
     # Basic information
     name = Column(String(255), unique=True, index=True, nullable=False)
 
@@ -43,6 +48,10 @@ class Organization(BaseModel):
 
     # Organization status
     is_active = Column(Boolean, default=True, nullable=False)
+
+    # DigitalOcean Knowledge Base (one KB per org, lazy-provisioned on first ingest)
+    do_kb_uuid = Column(String(64), nullable=True, index=True)
+    do_kb_provisioned_at = Column(DateTime(timezone=True), nullable=True)
 
     # Relationships
     users = relationship("User", back_populates="organization")

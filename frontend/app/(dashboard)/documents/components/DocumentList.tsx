@@ -1,4 +1,4 @@
-import { motion } from 'framer-motion';
+import { FixedSizeList as List } from 'react-window';
 import {
   FileText,
   CheckSquare,
@@ -40,6 +40,8 @@ interface DocumentListProps {
   onDelete: (id: string, e: React.MouseEvent) => void;
   onRetry: (id: string, e: React.MouseEvent) => void;
 }
+
+const ROW_HEIGHT = 72;
 
 export function DocumentList({
   documents,
@@ -180,140 +182,152 @@ export function DocumentList({
             </Link>
           </div>
         ) : (
-          documents.map((doc, index) => {
-            const fileType = getFileTypeIcon(doc.file_type);
-            const status = getStatusConfig(doc.processing_status);
-            const StatusIcon = status.icon;
-            const isSelected = selectedDocuments.has(doc.id);
+          (() => {
+            const Row = ({ index, style }: { index: number; style: React.CSSProperties }) => {
+              const doc = documents[index];
+              const fileType = getFileTypeIcon(doc.file_type);
+              const status = getStatusConfig(doc.processing_status);
+              const StatusIcon = status.icon;
+              const isSelected = selectedDocuments.has(doc.id);
 
-            return (
-              <motion.div
-                key={doc.id}
-                initial={{ opacity: 0, x: -10 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: index * 0.03 }}
-                onClick={() => onSelect(doc.id)}
-                className={cn(
-                  'group relative rounded-xl border bg-[var(--terminal-surface)] px-4 py-3 transition-all cursor-pointer mb-2 grid grid-cols-[20px_40px_1fr_128px_112px_96px] items-center gap-4',
-                  isSelected
-                    ? 'border-[var(--phosphor-green)] bg-[var(--phosphor-green)]/5'
-                    : 'border-[var(--terminal-border)] hover:border-[var(--terminal-border-glow)] hover:shadow-lg hover:shadow-[var(--terminal-border-glow)]/10'
-                )}
-              >
-                {/* Checkbox */}
-                <div
-                  className="w-5 flex-shrink-0"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <button
+              return (
+                <div style={style}>
+                  <div
                     onClick={() => onSelect(doc.id)}
                     className={cn(
-                      'transition-colors',
+                      'group relative rounded-xl border bg-[var(--terminal-surface)] px-4 py-3 transition-all cursor-pointer mb-2 grid grid-cols-[20px_40px_1fr_128px_112px_96px] items-center gap-4',
                       isSelected
-                        ? 'text-[var(--phosphor-green)]'
-                        : 'text-[var(--terminal-text-muted)] hover:text-[var(--terminal-text)]'
+                        ? 'border-[var(--phosphor-green)] bg-[var(--phosphor-green)]/5'
+                        : 'border-[var(--terminal-border)] hover:border-[var(--terminal-border-glow)] hover:shadow-lg hover:shadow-[var(--terminal-border-glow)]/10'
                     )}
                   >
-                    {isSelected ? (
-                      <CheckSquare className="w-4 h-4" />
-                    ) : (
-                      <Square className="w-4 h-4" />
-                    )}
-                  </button>
-                </div>
-
-                {/* Icon */}
-                <div className="w-10 h-10 rounded-lg bg-[var(--terminal-bg)] border border-[var(--terminal-border)] flex items-center justify-center flex-shrink-0 text-[var(--terminal-text-dim)] group-hover:text-[var(--phosphor-green)] transition-colors">
-                  {fileType.icon}
-                </div>
-
-                {/* Main Info */}
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-mono text-sm font-bold text-[var(--terminal-text)] truncate group-hover:text-[var(--phosphor-green)] transition-colors">
-                      {doc.title || doc.filename}
-                    </h3>
-                    {doc.metadata?.entities_count && (
-                      <span className="hidden sm:flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-[var(--amber-gold)]/10 border border-[var(--amber-gold)]/20 text-[9px] font-mono text-[var(--amber-gold)]">
-                        <Sparkles className="w-2.5 h-2.5" />
-                        {doc.metadata.entities_count}
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2 mt-1 text-[10px] font-mono text-[var(--terminal-text-dim)]">
-                    <span className="uppercase tracking-tighter">
-                      {doc.file_type || 'Unknown'}
-                    </span>
-                    <span className="w-1 h-1 rounded-full bg-[var(--terminal-border)]" />
-                    <span>{formatFileSize(doc.file_size)}</span>
-                  </div>
-                </div>
-
-                {/* Date (Desktop) */}
-                <div className="hidden md:block w-32 text-[10px] font-mono text-[var(--terminal-text-dim)]">
-                  {formatDate(doc.upload_timestamp)}
-                </div>
-
-                {/* Status */}
-                <div className="w-28 flex-shrink-0">
-                  <div
-                    className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md border border-transparent font-mono text-[9px] font-bold"
-                    style={{
-                      color: status.color,
-                      backgroundColor: `${status.color}10`,
-                    }}
-                  >
-                    <StatusIcon
-                      className={cn(
-                        'w-3 h-3',
-                        doc.processing_status === 'processing' && 'animate-spin'
-                      )}
-                    />
-                    {status.label}
-                  </div>
-                </div>
-
-                {/* Actions */}
-                <div
-                  className="w-24 flex items-center justify-end gap-1 opacity-60 group-hover:opacity-100 transition-opacity"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  {status.canRetry && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={(e) => onRetry(doc.id, e)}
-                      className="h-8 w-8 hover:bg-[var(--terminal-elevated)] text-[var(--terminal-text-dim)] hover:text-[var(--cyan)]"
-                      title="Retry Processing"
+                    {/* Checkbox */}
+                    <div
+                      className="w-5 flex-shrink-0"
+                      onClick={(e) => e.stopPropagation()}
                     >
-                      <RotateCcw className="w-3.5 h-3.5" />
-                    </Button>
-                  )}
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 hover:bg-[var(--terminal-elevated)] text-[var(--terminal-text-dim)] hover:text-[var(--phosphor-green)]"
-                    title="View Details"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      router.push(`/documents/${doc.id}`);
-                    }}
-                  >
-                    <Eye className="w-3.5 h-3.5" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={(e) => onDelete(doc.id, e)}
-                    className="h-8 w-8 hover:bg-red-500/10 text-[var(--terminal-text-dim)] hover:text-red-400"
-                    title="Delete"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </Button>
+                      <button
+                        onClick={() => onSelect(doc.id)}
+                        className={cn(
+                          'transition-colors',
+                          isSelected
+                            ? 'text-[var(--phosphor-green)]'
+                            : 'text-[var(--terminal-text-muted)] hover:text-[var(--terminal-text)]'
+                        )}
+                      >
+                        {isSelected ? (
+                          <CheckSquare className="w-4 h-4" />
+                        ) : (
+                          <Square className="w-4 h-4" />
+                        )}
+                      </button>
+                    </div>
+
+                    {/* Icon */}
+                    <div className="w-10 h-10 rounded-lg bg-[var(--terminal-bg)] border border-[var(--terminal-border)] flex items-center justify-center flex-shrink-0 text-[var(--terminal-text-dim)] group-hover:text-[var(--phosphor-green)] transition-colors">
+                      {fileType.icon}
+                    </div>
+
+                    {/* Main Info */}
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-mono text-sm font-bold text-[var(--terminal-text)] truncate group-hover:text-[var(--phosphor-green)] transition-colors">
+                          {doc.title || doc.filename}
+                        </h3>
+                        {doc.metadata?.entities_count && (
+                          <span className="hidden sm:flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-[var(--amber-gold)]/10 border border-[var(--amber-gold)]/20 text-[9px] font-mono text-[var(--amber-gold)]">
+                            <Sparkles className="w-2.5 h-2.5" />
+                            {doc.metadata.entities_count}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 mt-1 text-[10px] font-mono text-[var(--terminal-text-dim)]">
+                        <span className="uppercase tracking-tighter">
+                          {doc.file_type || 'Unknown'}
+                        </span>
+                        <span className="w-1 h-1 rounded-full bg-[var(--terminal-border)]" />
+                        <span>{formatFileSize(doc.file_size)}</span>
+                      </div>
+                    </div>
+
+                    {/* Date (Desktop) */}
+                    <div className="hidden md:block w-32 text-[10px] font-mono text-[var(--terminal-text-dim)]">
+                      {formatDate(doc.upload_timestamp)}
+                    </div>
+
+                    {/* Status */}
+                    <div className="w-28 flex-shrink-0">
+                      <div
+                        className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md border border-transparent font-mono text-[9px] font-bold"
+                        style={{
+                          color: status.color,
+                          backgroundColor: `${status.color}10`,
+                        }}
+                      >
+                        <StatusIcon
+                          className={cn(
+                            'w-3 h-3',
+                            doc.processing_status === 'processing' && 'animate-spin'
+                          )}
+                        />
+                        {status.label}
+                      </div>
+                    </div>
+
+                    {/* Actions */}
+                    <div
+                      className="w-24 flex items-center justify-end gap-1 opacity-60 group-hover:opacity-100 transition-opacity"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {status.canRetry && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={(e) => onRetry(doc.id, e)}
+                          className="h-8 w-8 hover:bg-[var(--terminal-elevated)] text-[var(--terminal-text-dim)] hover:text-[var(--cyan)]"
+                          title="Retry Processing"
+                        >
+                          <RotateCcw className="w-3.5 h-3.5" />
+                        </Button>
+                      )}
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 hover:bg-[var(--terminal-elevated)] text-[var(--terminal-text-dim)] hover:text-[var(--phosphor-green)]"
+                        title="View Details"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          router.push(`/documents/${doc.id}`);
+                        }}
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={(e) => onDelete(doc.id, e)}
+                        className="h-8 w-8 hover:bg-red-500/10 text-[var(--terminal-text-dim)] hover:text-red-400"
+                        title="Delete"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </Button>
+                    </div>
+                  </div>
                 </div>
-              </motion.div>
+              );
+            };
+
+            return (
+              <List
+                height={Math.min(documents.length * ROW_HEIGHT, 600)}
+                itemCount={documents.length}
+                itemSize={ROW_HEIGHT}
+                width="100%"
+              >
+                {Row}
+              </List>
             );
-          })
+          })()
         )}
       </div>
     </div>

@@ -154,6 +154,7 @@ temp/
 # Testing
 .coverage
 .pytest_cache/
+.hypothesis/
 htmlcov/
 
 # Jupyter Notebook
@@ -271,3 +272,18 @@ supabase/.temp/
 # Backend data artifacts (state files, logs)
 backend/data/*.json
 backend/data/*.log
+graphify-out/
+backend/graphify-out/
+
+# Claude Code ephemeral worktrees
+.claude/worktrees/
+
+# Runtime artifact directories (generated outputs, downloaded data)
+outputs/
+visualizations/
+path/
+data/arxiv/
+data/archives/
+
+# Trigger.dev
+.trigger

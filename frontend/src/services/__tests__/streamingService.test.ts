@@ -4,6 +4,7 @@
  * Tests SSE line parsing logic. streamChatMessage is tested via integration tests.
  */
 
+import { describe, expect, it } from 'vitest';
 import { parseSSELine } from '../streamingService';
 import type { StreamEvent, StreamEventType } from '../streamingService';
 

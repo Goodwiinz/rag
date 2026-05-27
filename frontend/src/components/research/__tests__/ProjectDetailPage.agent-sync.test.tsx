@@ -1,3 +1,5 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { Mock } from 'vitest';
 import React from 'react';
 import { act, fireEvent, render, screen, waitFor } from '@/test/test-utils';
 import { useAgentChatStore } from '@/store/agentChatStore';
@@ -5,93 +7,109 @@ import ProjectDetailPage from '../../../../app/(dashboard)/projects/[id]/page';
 import { useProjectStore } from '@/store/projectStore';
 import { projectService } from '@/services/projectService';
 
-const mockPush = jest.fn();
+const mockPush = vi.fn();
 
-jest.mock('next/navigation', () => ({
+vi.mock('next/navigation', () => ({
   useParams: () => ({ id: 'proj-1' }),
   useRouter: () => ({ push: mockPush }),
 }));
 
-jest.mock('@/stores/authStore', () => ({
+vi.mock('@/stores/authStore', () => ({
   useAuthStore: () => ({ isAuthenticated: true }),
 }));
 
-jest.mock('@/store/projectStore', () => ({
-  useProjectStore: jest.fn(),
+vi.mock('@/store/projectStore', () => ({
+  useProjectStore: vi.fn(),
 }));
 
-jest.mock('@/services/projectService', () => ({
+vi.mock('@/services/projectService', () => ({
   projectService: {
-    listDrafts: jest.fn(),
-    getDraft: jest.fn(),
-    compareDrafts: jest.fn(),
-    cancelGeneration: jest.fn(),
-    generateDraft: jest.fn(),
-    getGenerationStatus: jest.fn(),
-    downloadDraftExport: jest.fn(),
+    listDrafts: vi.fn(),
+    getDraft: vi.fn(),
+    compareDrafts: vi.fn(),
+    cancelGeneration: vi.fn(),
+    generateDraft: vi.fn(),
+    getGenerationStatus: vi.fn(),
+    downloadDraftExport: vi.fn(),
   },
 }));
 
-jest.mock('@/components/research/ProjectHeader', () => ({
+vi.mock('@/components/research/ProjectHeader', () => ({
   ProjectHeader: ({ project }: { project: { name: string } }) => (
     <div>{project.name}</div>
   ),
 }));
-jest.mock('@/components/research/DocumentList', () => ({
+vi.mock('@/components/research/DocumentList', () => ({
   DocumentList: () => <div>Documents Content</div>,
 }));
-jest.mock('@/components/research/DraftGenerator', () => ({
+vi.mock('@/components/research/DraftGenerator', () => ({
   DraftGenerator: () => <div>Draft Generator</div>,
 }));
-jest.mock('@/components/research/DraftViewer', () => ({
+vi.mock('@/components/research/DraftViewer', () => ({
   DraftViewer: ({ draft }: { draft: { title: string } }) => (
     <div>{draft.title}</div>
   ),
 }));
-jest.mock('@/components/research/DraftGenerationProgress', () => ({
+vi.mock('@/components/research/DraftGenerationProgress', () => ({
   DraftGenerationProgress: () => <div>Draft Progress</div>,
 }));
-jest.mock('@/components/research/DraftComparison', () => ({
+vi.mock('@/components/research/DraftComparison', () => ({
   DraftComparison: () => <div>Draft Comparison</div>,
 }));
-jest.mock('@/components/research/DraftExportModal', () => ({
+vi.mock('@/components/research/DraftExportModal', () => ({
   DraftExportModal: () => null,
 }));
-jest.mock('@/components/research/ProjectChatTab', () => ({
+vi.mock('@/components/research/ProjectChatTab', () => ({
   ProjectChatTab: () => <div>Project Chat</div>,
 }));
-jest.mock('@/components/research/ExtractionMatrix', () => ({
+vi.mock('@/components/research/ExtractionMatrix', () => ({
   ExtractionMatrix: () => <div>Matrix</div>,
 }));
-jest.mock('@/components/research/ResearchPipeline', () => ({
+vi.mock('@/components/research/ResearchPipeline', () => ({
   ResearchPipeline: () => <div>Pipeline</div>,
 }));
-jest.mock('@/components/research/NoteEditor', () => ({
+vi.mock('@/components/research/NoteEditor', () => ({
   NoteEditor: () => null,
 }));
-jest.mock('@/components/research/NoteList', () => ({
+vi.mock('@/components/research/NoteList', () => ({
   NoteList: () => <div>Notes</div>,
 }));
+vi.mock('@/components/upload', () => ({
+  DocumentUploadWizard: () => null,
+}));
 
-const mockUseProjectStore = useProjectStore as unknown as jest.Mock;
-const mockProjectService = jest.mocked(projectService);
+const mockUseProjectStore = useProjectStore as unknown as Mock;
+const mockProjectService = vi.mocked(projectService);
 
-const mockFetchProject = jest.fn().mockResolvedValue(undefined);
-const mockFetchProjectDocuments = jest.fn().mockResolvedValue(undefined);
-const mockFetchProjectNotes = jest.fn().mockResolvedValue(undefined);
-const mockFetchBibliography = jest.fn().mockResolvedValue(undefined);
-const mockDownloadBibliography = jest.fn().mockResolvedValue(undefined);
-const mockRemoveDocument = jest.fn().mockResolvedValue(undefined);
-const mockCreateNote = jest.fn().mockResolvedValue(undefined);
-const mockUpdateNote = jest.fn().mockResolvedValue(undefined);
-const mockDeleteNote = jest.fn().mockResolvedValue(undefined);
-const mockToggleNotePin = jest.fn().mockResolvedValue(undefined);
-const mockClearError = jest.fn();
+const mockFetchProject = vi.fn().mockResolvedValue(undefined);
+const mockFetchProjectDocuments = vi.fn().mockResolvedValue(undefined);
+const mockFetchProjectNotes = vi.fn().mockResolvedValue(undefined);
+const mockFetchBibliography = vi.fn().mockResolvedValue(undefined);
+const mockDownloadBibliography = vi.fn().mockResolvedValue(undefined);
+const mockRemoveDocument = vi.fn().mockResolvedValue(undefined);
+const mockCreateNote = vi.fn().mockResolvedValue(undefined);
+const mockUpdateNote = vi.fn().mockResolvedValue(undefined);
+const mockDeleteNote = vi.fn().mockResolvedValue(undefined);
+const mockToggleNotePin = vi.fn().mockResolvedValue(undefined);
+const mockClearError = vi.fn();
 
 describe('ProjectDetailPage agent sync', () => {
   beforeEach(() => {
     useAgentChatStore.getState().reset();
-    jest.clearAllMocks();
+    vi.clearAllMocks();
+    // Vitest config has `restoreMocks: true`, which resets `.mockResolvedValue`
+    // set on bare `vi.fn()` between tests. Re-arm the resolutions here so the
+    // page component's `fetchProject(...).then(...)` chain doesn't see undefined.
+    mockFetchProject.mockResolvedValue(undefined);
+    mockFetchProjectDocuments.mockResolvedValue(undefined);
+    mockFetchProjectNotes.mockResolvedValue(undefined);
+    mockFetchBibliography.mockResolvedValue(undefined);
+    mockDownloadBibliography.mockResolvedValue(undefined);
+    mockRemoveDocument.mockResolvedValue(undefined);
+    mockCreateNote.mockResolvedValue(undefined);
+    mockUpdateNote.mockResolvedValue(undefined);
+    mockDeleteNote.mockResolvedValue(undefined);
+    mockToggleNotePin.mockResolvedValue(undefined);
 
     mockUseProjectStore.mockReturnValue({
       currentProject: {
@@ -105,6 +123,7 @@ describe('ProjectDetailPage agent sync', () => {
       projectNotes: [],
       bibliography: null,
       loading: false,
+      mutating: false,
       documentsLoading: false,
       notesLoading: false,
       error: null,

@@ -1,4 +1,6 @@
+import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { ProjectList } from '@/components/research/ProjectList';
 import type { Project } from '@/services/projectService';
 
@@ -31,13 +33,13 @@ const mockProjects: Project[] = [
 
 describe('ProjectList', () => {
   it('renders projects and opens selected project', () => {
-    const onOpenProject = jest.fn();
+    const onOpenProject = vi.fn();
 
     render(
       <ProjectList
         projects={mockProjects}
         viewMode="grid"
-        onViewModeChange={jest.fn()}
+        onViewModeChange={vi.fn()}
         onOpenProject={onOpenProject}
       />
     );
@@ -50,14 +52,14 @@ describe('ProjectList', () => {
   });
 
   it('changes view mode when toggle is clicked', () => {
-    const onViewModeChange = jest.fn();
+    const onViewModeChange = vi.fn();
 
     render(
       <ProjectList
         projects={mockProjects}
         viewMode="grid"
         onViewModeChange={onViewModeChange}
-        onOpenProject={jest.fn()}
+        onOpenProject={vi.fn()}
       />
     );
 
@@ -65,25 +67,34 @@ describe('ProjectList', () => {
     expect(onViewModeChange).toHaveBeenCalledWith('list');
   });
 
-  it('triggers archive and delete actions', () => {
-    const onArchiveProject = jest.fn();
-    const onDeleteProject = jest.fn();
+  it('triggers archive and delete actions', async () => {
+    const user = userEvent.setup();
+    const onArchiveProject = vi.fn();
+    const onDeleteProject = vi.fn();
 
     render(
       <ProjectList
         projects={mockProjects}
         viewMode="grid"
-        onViewModeChange={jest.fn()}
-        onOpenProject={jest.fn()}
+        onViewModeChange={vi.fn()}
+        onOpenProject={vi.fn()}
         onArchiveProject={onArchiveProject}
         onDeleteProject={onDeleteProject}
       />
     );
 
-    fireEvent.click(screen.getAllByTitle('Archive project')[0]);
-    fireEvent.click(screen.getAllByTitle('Delete project')[0]);
-
+    // Open the dropdown for the first project card and click Archive
+    await user.click(
+      screen.getAllByRole('button', { name: /project actions/i })[0]
+    );
+    await user.click(screen.getByText('Archive'));
     expect(onArchiveProject).toHaveBeenCalledWith('p1');
+
+    // Open the dropdown again and click Delete
+    await user.click(
+      screen.getAllByRole('button', { name: /project actions/i })[0]
+    );
+    await user.click(screen.getByText('Delete'));
     expect(onDeleteProject).toHaveBeenCalledWith('p1');
   });
 });

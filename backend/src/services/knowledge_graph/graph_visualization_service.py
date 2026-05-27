@@ -103,13 +103,23 @@ app = FastAPI(
     redoc_url="/redoc",
 )
 
-# Add CORS middleware
+# Add CORS middleware — use centralized config or env var
+try:
+    from src.core.config import settings as _core_settings
+
+    _cors_origins: list = _core_settings.cors_origins_list
+except ImportError:
+    import os as _os
+
+    _raw_origins = _os.getenv("CORS_ORIGINS", "http://localhost:3000")
+    _cors_origins = [o.strip() for o in _raw_origins.split(",") if o.strip()]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_cors_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "Accept"],
 )
 
 
@@ -197,7 +207,7 @@ async def prepare_graph_visualization(
 
     except Exception as e:
         logger.error(f"Error preparing graph visualization: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @app.get(
@@ -288,7 +298,7 @@ async def get_entity_neighborhood(
         raise
     except Exception as e:
         logger.error(f"Error getting entity neighborhood: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @app.post("/visualization/progressive-load", response_model=GraphVisualizationResponse)
@@ -367,7 +377,7 @@ async def progressive_graph_load(
 
     except Exception as e:
         logger.error(f"Error in progressive graph load: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @app.post(
@@ -424,7 +434,7 @@ async def interactive_filter(
         raise
     except Exception as e:
         logger.error(f"Error applying interactive filters: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 # Layout Computation Endpoints
@@ -456,7 +466,7 @@ async def compute_layout_only(
 
     except Exception as e:
         logger.error(f"Error computing layout: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @app.get("/layout/algorithms")

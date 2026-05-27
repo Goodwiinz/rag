@@ -19,7 +19,6 @@ from typing import Any, Callable, Dict, Optional
 
 try:
     from opentelemetry import baggage, context, trace
-    from opentelemetry.exporter.jaeger.thrift import JaegerExporter
     from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
     from opentelemetry.propagators.b3 import B3MultiFormat
     from opentelemetry.sdk.resources import (
@@ -49,7 +48,7 @@ _tracer = None
 
 
 def configure_tracing() -> trace.Tracer:
-    """Configure OpenTelemetry tracing with Jaeger and OTLP exporters"""
+    """Configure OpenTelemetry tracing with the OTLP gRPC exporter."""
     global _tracer
 
     # Set up trace provider with resource attributes
@@ -66,23 +65,12 @@ def configure_tracing() -> trace.Tracer:
     # Create tracer provider
     trace_provider = TracerProvider(resource=resource)
 
-    # Configure Jaeger exporter
-    jaeger_exporter = JaegerExporter(**config.get_jaeger_config())
-
-    # Configure OTLP exporter
+    # Configure OTLP exporter (Jaeger 1.35+ accepts OTLP directly via port 4317)
     otlp_exporter = OTLPSpanExporter(
         endpoint=config.otel_exporter_otlp_endpoint,
         insecure=True,
     )
 
-    # Add exporters with batch processing
-    trace_provider.add_span_processor(
-        BatchSpanProcessor(
-            jaeger_exporter,
-            max_export_batch_size=config.otel_max_export_batch_size,
-            export_timeout_millis=config.otel_batch_timeout,
-        )
-    )
     trace_provider.add_span_processor(
         BatchSpanProcessor(
             otlp_exporter,
@@ -95,9 +83,9 @@ def configure_tracing() -> trace.Tracer:
     trace.set_tracer_provider(trace_provider)
 
     # Configure propagators
-    from opentelemetry import propagators
+    from opentelemetry import propagate
 
-    propagators.set_global_textmap(B3MultiFormat())
+    propagate.set_global_textmap(B3MultiFormat())
 
     # Create and store tracer
     _tracer = trace_provider.get_tracer(__name__)
