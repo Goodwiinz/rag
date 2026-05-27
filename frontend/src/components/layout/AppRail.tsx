@@ -5,12 +5,15 @@ import { cn } from '@/lib/utils';
 import type { LucideIcon } from 'lucide-react';
 import {
   BarChart3,
+  BookOpen,
   FileText,
+  FlaskConical,
   LayoutGrid,
   MessageSquare,
   Network,
   Search,
   Settings,
+  Workflow,
 } from 'lucide-react';
 import Link from 'next/link';
 import { BellPopover } from '@/components/notifications/BellPopover';
@@ -102,7 +105,7 @@ export function AppRail() {
       {/* Divider */}
       <div className="w-[22px] h-px bg-[var(--nous-border-1)] dark:bg-[var(--nous-shade)] my-1.5" />
 
-      {/* Navigation */}
+      {/* Navigation — hub */}
       <RailButton
         icon={LayoutGrid}
         tip="Overview"
@@ -127,12 +130,38 @@ export function AppRail() {
         href="/search"
         active={isActive('/search')}
       />
+
+      {/* Divider — knowledge */}
+      <div className="w-[22px] h-px bg-[var(--nous-border-1)] dark:bg-[var(--nous-shade)] my-1.5" />
+
+      <RailButton
+        icon={BookOpen}
+        tip="ArXiv Papers"
+        href="/arxiv"
+        active={isActive('/arxiv')}
+      />
       <RailButton
         icon={Network}
         tip="Knowledge graph"
         href="/entities"
         active={isActive('/entities')}
       />
+      <RailButton
+        icon={FlaskConical}
+        tip="Research"
+        href="/research"
+        active={isActive('/research')}
+      />
+      <RailButton
+        icon={Workflow}
+        tip="Research Engine"
+        href="/research-engine"
+        active={isActive('/research-engine')}
+      />
+
+      {/* Divider — system */}
+      <div className="w-[22px] h-px bg-[var(--nous-border-1)] dark:bg-[var(--nous-shade)] my-1.5" />
+
       <RailButton
         icon={BarChart3}
         tip="Analytics"
