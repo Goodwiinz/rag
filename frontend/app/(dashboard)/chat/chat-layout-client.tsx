@@ -4,6 +4,7 @@ import { ContextRail } from '@/components/context-rail';
 import { useChatPersistence } from '@/hooks';
 import { cn } from '@/lib/utils';
 import { useChatStore } from '@/store/chat-store';
+import { useAuthStore } from '@/stores/authStore';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   Activity,
@@ -16,7 +17,14 @@ import {
   Share2,
 } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 
 // ============================================
 // TYPES
@@ -307,13 +315,23 @@ function CommandPalette({
 function ChatLayoutContent({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const projectId = searchParams.get('projectId') ?? undefined;
-  const { currentThreadId } = useChatPersistence();
-  const currentWorkspaceId = useChatStore((s) => s.currentWorkspaceId);
-  const workspaces = useChatStore((s) => s.workspaces);
-  const workspaceName =
-    workspaces.find((w) => w.id === currentWorkspaceId)?.name ?? null;
+  const { currentThreadId, currentWorkspaceId } = useChatPersistence();
+  const storeWorkspaces = useChatStore((s) => s.workspaces);
+  const workspaceName = isAuthenticated
+    ? (storeWorkspaces.find((w) => w.id === currentWorkspaceId)?.name ?? null)
+    : null;
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
+
+  const handleProjectBound = useCallback(
+    (boundProjectId: string) => {
+      const params = new URLSearchParams(searchParams.toString());
+      params.set('projectId', boundProjectId);
+      router.replace(`/chat?${params.toString()}`);
+    },
+    [router, searchParams]
+  );
 
   // Global keyboard shortcut for command palette
   useEffect(() => {
@@ -336,26 +354,33 @@ function ChatLayoutContent({ children }: { children: React.ReactNode }) {
         <main className="flex-1 flex flex-col overflow-hidden">{children}</main>
 
         {/* Right-rail: stacked Agent Activity, Related Results, Citations */}
-        <ContextRail
-          threadId={currentThreadId ?? null}
-          workspaceName={workspaceName}
-          ragEnabled={true}
-          projectId={projectId}
-          onSelect={(node) => {
-            // Per design + Task 1 verification: note/draft detail routes don't
-            // exist yet, so navigate to the project page as a stable fallback.
-            // Document previews (kind: 'document' | 'external') are still a
-            // follow-up wiring through the chat page's CitationPanel state.
-            if ((node.kind === 'note' || node.kind === 'draft') && projectId) {
-              router.push(`/projects/${projectId}`);
-              return;
-            }
-            // TODO(follow-up): open CitationPanel with a synthetic citation
-            // for kind === 'document' | 'external'.
-            console.log('[ContextRail] preview', node);
-          }}
-          className="hidden lg:flex shrink-0 w-[320px] border-l border-[var(--nous-border-1)]"
-        />
+        {isAuthenticated && (
+          <ContextRail
+            threadId={currentThreadId ?? null}
+            workspaceName={workspaceName}
+            workspaceId={currentWorkspaceId ?? undefined}
+            ragEnabled={true}
+            projectId={projectId}
+            onProjectBound={handleProjectBound}
+            onSelect={(node) => {
+              // Per design + Task 1 verification: note/draft detail routes don't
+              // exist yet, so navigate to the project page as a stable fallback.
+              // Document previews (kind: 'document' | 'external') are still a
+              // follow-up wiring through the chat page's CitationPanel state.
+              if (
+                (node.kind === 'note' || node.kind === 'draft') &&
+                projectId
+              ) {
+                router.push(`/projects/${projectId}`);
+                return;
+              }
+              // TODO(follow-up): open CitationPanel with a synthetic citation
+              // for kind === 'document' | 'external'.
+              console.log('[ContextRail] preview', node);
+            }}
+            className="hidden lg:flex shrink-0 w-[320px] border-l border-[var(--nous-border-1)]"
+          />
+        )}
       </div>
 
       {/* Command Palette */}
