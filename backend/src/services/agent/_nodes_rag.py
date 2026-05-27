@@ -231,11 +231,8 @@ def _shape_do_kb_context(chunk, title_by_key: dict[str, tuple[str, str]]) -> dic
     storage_key = chunk.document_id
     resolved_id, title = title_by_key.get(storage_key, (None, None))
     return {
-        "document_id": resolved_id or storage_key,
-        "title": title
-        or (chunk.metadata or {}).get("title")
-        or storage_key
-        or "Untitled",
+        "document_id": resolved_id,
+        "title": title or (chunk.metadata or {}).get("title") or storage_key or "Untitled",
         "content": chunk.text[:3000],
         "score": float(chunk.score),
     }
