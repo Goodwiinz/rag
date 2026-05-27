@@ -2,7 +2,11 @@
 
 import pytest
 
-from src.services.processing.llm_entity_extraction import chunk_text
+from src.services.processing.llm_entity_extraction import (
+    ExtractedEntity,
+    chunk_text,
+    merge_entities,
+)
 
 
 class TestChunkText:
@@ -42,3 +46,62 @@ class TestChunkText:
     def test_whitespace_only_returns_empty(self):
         chunks = chunk_text("   \n\n  ", max_tokens=4000, overlap_tokens=200)
         assert chunks == []
+
+
+class TestMergeEntities:
+    def test_deduplicates_by_canonical_name(self):
+        """Same canonical name from different chunks merges into one."""
+        e1 = ExtractedEntity(
+            name="LoopMDM", type="MODEL", canonical_name="loopmdm", confidence=0.9
+        )
+        e2 = ExtractedEntity(
+            name="Loop MDM",
+            type="MODEL",
+            canonical_name="loopmdm",
+            confidence=0.95,
+        )
+        result = merge_entities([e1, e2])
+        assert len(result) == 1
+        assert result[0].confidence == 0.95  # highest wins
+
+    def test_combines_aliases(self):
+        """Aliases from duplicate entities are merged."""
+        e1 = ExtractedEntity(
+            name="GPT-4",
+            type="MODEL",
+            canonical_name="gpt-4",
+            aliases=["GPT4"],
+        )
+        e2 = ExtractedEntity(
+            name="GPT-4",
+            type="MODEL",
+            canonical_name="gpt-4",
+            aliases=["gpt-4o"],
+        )
+        result = merge_entities([e1, e2])
+        assert len(result) == 1
+        assert set(result[0].aliases) >= {"GPT4", "gpt-4o"}
+
+    def test_first_nonempty_description_wins(self):
+        e1 = ExtractedEntity(
+            name="BERT", type="MODEL", canonical_name="bert", description=""
+        )
+        e2 = ExtractedEntity(
+            name="BERT",
+            type="MODEL",
+            canonical_name="bert",
+            description="Bidirectional encoder",
+        )
+        result = merge_entities([e1, e2])
+        assert result[0].description == "Bidirectional encoder"
+
+    def test_different_entities_not_merged(self):
+        e1 = ExtractedEntity(name="BERT", type="MODEL", canonical_name="bert")
+        e2 = ExtractedEntity(
+            name="Berkeley", type="ORGANIZATION", canonical_name="berkeley"
+        )
+        result = merge_entities([e1, e2])
+        assert len(result) == 2
+
+    def test_empty_input(self):
+        assert merge_entities([]) == []
