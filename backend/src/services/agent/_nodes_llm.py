@@ -58,6 +58,7 @@ RESEARCH_TOOLS_NAMES = {
     "execute_code",
 }
 WRITING_TOOLS_NAMES = {
+    "search_documents",
     "create_draft",
     "create_project_note",
     "export_bibliography",

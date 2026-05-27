@@ -1,8 +1,8 @@
 """Writing Agent sub-graph.
 
 Specialized for content creation, summarization, and bibliography tasks.
-Tools: create_draft, create_project_note, export_bibliography,
-       summarize_document, compare_documents
+Tools: search_documents, create_draft, create_project_note,
+       export_bibliography, summarize_document, compare_documents
 """
 
 import asyncio
@@ -24,12 +24,14 @@ from src.services.agent.tools import (
     create_project_note,
     export_bibliography,
     ingest_arxiv_papers,
+    search_documents,
     summarize_document,
 )
 
 logger = logging.getLogger(__name__)
 
 WRITING_TOOLS = [
+    search_documents,
     create_draft,
     create_project_note,
     export_bibliography,
@@ -75,6 +77,9 @@ def _build_writing_system_prompt() -> str:
         "You are a specialized Writing Agent focused on creating content, "
         "summarizing documents, and managing bibliographies.\n\n"
         f"{SHARED_AGENT_RULES}\n\n"
+        "Use search_documents to resolve paper titles to document_id UUIDs "
+        "before calling summarize/compare/draft tools. "
+        "Never ask the user for a document_id.\n\n"
         "Write clearly and academically. Cite sources when available."
     )
 
@@ -87,7 +92,17 @@ async def writing_llm_node(state: AgentState, config: RunnableConfig) -> dict:
     from src.services.agent.graph import AGENT_LLM_TIMEOUT_SECONDS, _build_llm
 
     sanitized = _sanitize_messages(list(state["messages"]))
-    messages = [SystemMessage(content=_build_writing_system_prompt())] + sanitized
+    system_text = _build_writing_system_prompt()
+
+    retrieved = state.get("retrieved_contexts", [])
+    if retrieved:
+        context_text = "\n\n".join(
+            f"[Doc {i + 1}] {ctx['title']} (id: {ctx.get('document_id', 'unknown')}):\n{ctx['content'][:500]}"
+            for i, ctx in enumerate(retrieved)
+        )
+        system_text += f"\n\nRetrieved context:\n{context_text}"
+
+    messages = [SystemMessage(content=system_text)] + sanitized
 
     # Post-tool synthesis turn → use the synthesis deployment. Mirrors
     # research_llm_node + main llm_node. Trace 019e191a showed gpt-5

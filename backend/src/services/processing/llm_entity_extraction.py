@@ -316,7 +316,7 @@ class LLMEntityExtractionService:
             results = await asyncio.gather(*tasks, return_exceptions=True)
 
             for result in results:
-                if isinstance(result, Exception):
+                if isinstance(result, BaseException):
                     chunks_failed += 1
                     logger.warning("Chunk extraction failed: %s", result)
                 else:
