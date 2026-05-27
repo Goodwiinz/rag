@@ -40,18 +40,6 @@ const nextConfig = {
     ],
   },
 
-  // Tree-shaking for utility libraries
-  modularizeImports: {
-    'lodash-es': {
-      transform: 'lodash-es/{{member}}',
-      preventFullImport: true,
-    },
-    'date-fns': {
-      transform: 'date-fns/{{member}}',
-      preventFullImport: true,
-    },
-  },
-
   // Image optimization
   // WARNING: Add your production domains here. External images from unlisted
   // domains will not be optimized by Next.js and may break in production.

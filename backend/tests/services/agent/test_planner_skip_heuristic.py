@@ -90,11 +90,10 @@ async def test_long_substantive_query_invokes_complexity_check():
 @pytest.mark.asyncio
 async def test_skip_bypassed_for_actionable_verb_start():
     """Short imperatives starting with an actionable verb still reach the
-    complexity check. Regression for trace where 'Add arxiv X to my library'
-    short-circuited and called zero tools."""
+    complexity check when they are not a simple single-paper add flow."""
     node = make_planner_node(tool_names=["ingest_arxiv_papers"])
 
-    query = "Add arxiv 1706.03762 to my library"  # 6 words
+    query = "Add recent transformer papers to my library"  # 6 words, no arxiv id
     assert len(query.split()) < 12
 
     with patch(
@@ -123,6 +122,34 @@ async def test_skip_bypassed_for_arxiv_id():
         result = await node(_state(query), config={})
 
     cc.assert_awaited_once()
+    assert result == {}
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_skip_planner_entirely_for_simple_add_to_project():
+    """Trace 019e6a08/019e69f4: add-to-project imperatives skip the planner
+    entirely (no complexity or plan LLM calls) so the turn stays inside the
+    ~30s HTTP budget."""
+    node = make_planner_node(
+        tool_names=["ingest_arxiv_papers", "list_projects", "add_document_to_project"]
+    )
+
+    query = "Add arXiv 2401.12345 to project My Project"
+    with (
+        patch(
+            "src.services.agent.planner.check_complexity",
+            new=AsyncMock(side_effect=AssertionError("complexity should be skipped")),
+        ) as cc,
+        patch(
+            "src.services.agent.planner.generate_plan",
+            new=AsyncMock(side_effect=AssertionError("plan should be skipped")),
+        ) as gp,
+    ):
+        result = await node(_state(query), config={})
+
+    cc.assert_not_awaited()
+    gp.assert_not_awaited()
     assert result == {}
 
 

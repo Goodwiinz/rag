@@ -5,6 +5,7 @@ query requires three or more tool calls. Uses structured output from
 an LLM to produce validated Pydantic models.
 """
 
+import asyncio
 import logging
 import re
 from typing import Any, Callable, Dict, List, Union
@@ -34,6 +35,34 @@ _CONVERSATIONAL_STARTS: frozenset[str] = frozenset(
 )
 _LEADING_PUNCTUATION = "?!,:"
 _ARXIV_ID_RE = re.compile(r"\b\d{4}\.\d{4,5}\b")
+# Trace 019e69f4: complexity LLM returned >=3 for "Add arXiv X to project Y",
+# triggering a 25s generate_plan call on the full model-router deployment.
+# The research LLM handles this in 1-2 tool rounds without a formal plan.
+_SIMPLE_ADD_TARGET_RE = re.compile(
+    r"\b(project|library|collection)\b", re.IGNORECASE
+)
+
+# Wall-clock cap for planner LLM calls. Keeps the node inside the ~30s HTTP
+# budget when complexity + plan generation run back-to-back (trace 019e69f4).
+PLANNER_LLM_TIMEOUT_SECONDS = 20
+
+
+def _is_simple_add_flow(query: str) -> bool:
+    """Return True for single-target ingest/add imperatives.
+
+    Example: "Add arXiv 2401.12345 to project My Project"
+    """
+    words = query.split()
+    if not words:
+        return False
+    first_word = words[0].lower().rstrip(_LEADING_PUNCTUATION)
+    if first_word not in {"add", "ingest", "import", "save"}:
+        return False
+    if not _ARXIV_ID_RE.search(query):
+        return False
+    if not _SIMPLE_ADD_TARGET_RE.search(query):
+        return False
+    return len(words) <= 15
 
 
 # ---------------------------------------------------------------------------
@@ -79,14 +108,9 @@ class AgentPlan(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-def _build_planner_llm():
-    """Build a lightweight LLM for the planner.
-
-    2048 tokens covers gpt-5-mini reasoning headroom for the complexity
-    check structured-output call. The main plan generation uses the
-    full-strength LLM via ``graph._build_llm`` (4096 tokens).
-    """
-    return build_lightweight_llm(max_tokens=2048)
+def _build_planner_llm(max_tokens: int = 2048):
+    """Build a lightweight LLM for planner structured-output calls."""
+    return build_lightweight_llm(max_tokens=max_tokens)
 
 
 # ---------------------------------------------------------------------------
@@ -123,12 +147,12 @@ async def generate_plan(
 ) -> AgentPlan:
     """Generate an execution plan for a complex query.
 
-    Uses the main chat model (needs reasoning quality) with structured output.
+    Uses the lightweight deployment with structured output. Trace 019e69f4
+    showed the full model-router call stalling ~25s on a simple add-to-project
+    query; gpt-5-mini handles plan JSON fine and stays inside the HTTP budget.
     Returns a validated AgentPlan with ordered steps.
     """
-    from src.services.agent.graph import _build_llm
-
-    llm = _build_llm()
+    llm = _build_planner_llm(max_tokens=4096)
     structured_llm = llm.with_structured_output(AgentPlan, method="function_calling")
 
     prompt = (
@@ -220,9 +244,51 @@ def make_planner_node(
 
         page_context = state.get("page_context", {})
 
+        # Trace 019e6a08: complexity check alone took ~17s on dev; adding
+        # generate_plan pushed the turn past the ~30s HTTP cancel budget.
+        # Simple ingest-and-add imperatives need neither complexity nor plan.
+        if _is_simple_add_flow(query):
+            logger.info("Skipping planner entirely for simple add flow")
+            # region agent log
+            try:
+                import json as _json
+                import time as _time
+
+                with open(
+                    "/Users/goodwiinz/development/RAG_system/.cursor/debug-682ae9.log",
+                    "a",
+                    encoding="utf-8",
+                ) as _fh:
+                    _fh.write(
+                        _json.dumps(
+                            {
+                                "sessionId": "682ae9",
+                                "hypothesisId": "H6",
+                                "location": "planner.py:planner_node",
+                                "message": "skipping planner entirely for simple add flow",
+                                "data": {"query_preview": query[:120]},
+                                "timestamp": int(_time.time() * 1000),
+                            }
+                        )
+                        + "\n"
+                    )
+            except Exception:
+                pass
+            # endregion
+            return {}
+
         # 2. Check complexity
         try:
-            step_count = await check_complexity(query, tool_names, page_context)
+            step_count = await asyncio.wait_for(
+                check_complexity(query, tool_names, page_context),
+                timeout=PLANNER_LLM_TIMEOUT_SECONDS,
+            )
+        except asyncio.TimeoutError:
+            logger.warning(
+                "Complexity check exceeded %ds; skipping planner",
+                PLANNER_LLM_TIMEOUT_SECONDS,
+            )
+            return {}
         except Exception:
             logger.warning("Complexity check failed, skipping planner", exc_info=True)
             return {}
@@ -232,7 +298,16 @@ def make_planner_node(
 
         # 3. Generate plan
         try:
-            plan = await generate_plan(query, tool_names, page_context)
+            plan = await asyncio.wait_for(
+                generate_plan(query, tool_names, page_context),
+                timeout=PLANNER_LLM_TIMEOUT_SECONDS,
+            )
+        except asyncio.TimeoutError:
+            logger.warning(
+                "Plan generation exceeded %ds; skipping planner",
+                PLANNER_LLM_TIMEOUT_SECONDS,
+            )
+            return {}
         except Exception:
             logger.warning("Plan generation failed, skipping planner", exc_info=True)
             return {}

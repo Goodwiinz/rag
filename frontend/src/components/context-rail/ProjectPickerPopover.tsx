@@ -69,17 +69,13 @@ export function ProjectPickerPopover({
   const handleSelect = async (projectId: string, projectName: string) => {
     setBinding(true);
     try {
-      const result = await linkThreadToProject(projectId, {
+      await linkThreadToProject(projectId, {
         thread_id: threadId,
       });
-      if (result) {
-        onProjectBound(projectId, projectName);
-        setOpen(false);
-      }
-    } catch {
-      // 409 Conflict = thread already linked to this project — treat as success
       onProjectBound(projectId, projectName);
       setOpen(false);
+    } catch {
+      // Network error — still close to avoid stuck state
     } finally {
       setBinding(false);
     }

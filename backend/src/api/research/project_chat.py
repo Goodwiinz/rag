@@ -119,6 +119,21 @@ async def _get_thread_with_auth(
     return thread
 
 
+async def _get_project_document_scope(
+    project_id: UUID,
+    db: AsyncSession,
+) -> List[str]:
+    """Return non-deleted document IDs linked to a project."""
+    doc_query = select(CollectionDocument.document_id).where(
+        and_(
+            CollectionDocument.collection_id == project_id,
+            CollectionDocument.is_deleted == False,
+        )
+    )
+    doc_result = await db.execute(doc_query)
+    return [str(row[0]) for row in doc_result.all()]
+
+
 # =========================================================================
 # Start Chat from Project
 # =========================================================================
@@ -152,11 +167,7 @@ async def start_chat_from_project(
         project = await _get_project_with_auth(project_id, current_user, db)
 
         # Get project's documents for RAG scope
-        doc_query = select(CollectionDocument.document_id).where(
-            CollectionDocument.collection_id == project_id
-        )
-        doc_result = await db.execute(doc_query)
-        document_ids = [str(row[0]) for row in doc_result.all()]
+        document_ids = await _get_project_document_scope(project_id, db)
 
         if not document_ids:
             logger.warning(
@@ -189,10 +200,16 @@ async def start_chat_from_project(
                 )
             )
             conv_result = await db.execute(conv_query)
-            if not conv_result.scalar_one_or_none():
+            conversation = conv_result.scalar_one_or_none()
+            if not conversation:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail="Conversation not found or access denied",
+                )
+            if conversation.workspace_id != project.workspace_id:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Conversation and project must be in the same workspace",
                 )
 
         # Create thread with project context
@@ -312,6 +329,10 @@ async def link_thread_to_project(
             )
 
         # Create link
+        document_ids = await _get_project_document_scope(project_id, db)
+        thread.source_project_id = project_id
+        thread.rag_document_scope = {"document_ids": document_ids}
+
         project_thread = ProjectThread(
             project_id=project_id,
             thread_id=request.thread_id,
@@ -468,7 +489,32 @@ async def unlink_thread_from_project(
                 detail="Thread link not found",
             )
 
+        thread = await _get_thread_with_auth(thread_id, current_user, db)
         await db.delete(project_thread)
+
+        if getattr(thread, "source_project_id", None) == project_id:
+            remaining_query = (
+                select(ProjectThread)
+                .where(
+                    and_(
+                        ProjectThread.thread_id == thread_id,
+                        ProjectThread.project_id != project_id,
+                    )
+                )
+                .order_by(ProjectThread.linked_at.desc())
+            )
+            remaining_result = await db.execute(remaining_query)
+            remaining_link = remaining_result.scalars().first()
+            if remaining_link:
+                document_ids = await _get_project_document_scope(
+                    remaining_link.project_id, db
+                )
+                thread.source_project_id = remaining_link.project_id
+                thread.rag_document_scope = {"document_ids": document_ids}
+            else:
+                thread.source_project_id = None
+                thread.rag_document_scope = None
+
         await db.commit()
 
         logger.info(

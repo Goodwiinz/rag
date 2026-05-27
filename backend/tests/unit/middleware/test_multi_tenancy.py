@@ -86,6 +86,56 @@ async def test_dispatch_skipped_paths_do_not_set_db():
 
 
 @pytest.mark.asyncio
+async def test_agent_stream_path_sets_tenant_context():
+    """Agent routes need tenant context for downstream services."""
+    from starlette.testclient import TestClient
+
+    mock_db = AsyncMock()
+    mock_db.is_active = True
+
+    with patch(
+        "src.middleware.multi_tenancy.AsyncSessionLocal",
+        return_value=AsyncMock(
+            __aenter__=AsyncMock(return_value=mock_db),
+            __aexit__=AsyncMock(return_value=False),
+        ),
+    ), patch(
+        "src.middleware.multi_tenancy.MultiTenancyMiddleware._extract_tenant_info",
+        new_callable=AsyncMock,
+        return_value={
+            "organization_id": "org-123",
+            "user_id": "user-456",
+            "role": "user",
+        },
+    ), patch(
+        "src.middleware.multi_tenancy.MultiTenancyMiddleware._validate_tenant_access",
+        new_callable=AsyncMock,
+        return_value=True,
+    ):
+        from fastapi import FastAPI
+        from src.middleware.multi_tenancy import (
+            MultiTenancyMiddleware,
+            get_current_tenant_id,
+        )
+
+        app = FastAPI()
+        app.add_middleware(MultiTenancyMiddleware)
+
+        @app.get("/api/v1/agent/stream/probe")
+        async def probe_endpoint():
+            return {"tenant_id": get_current_tenant_id()}
+
+        client = TestClient(app)
+        response = client.get(
+            "/api/v1/agent/stream/probe",
+            headers={"Authorization": "Bearer fake-token"},
+        )
+
+    assert response.status_code == 200
+    assert response.json() == {"tenant_id": "org-123"}
+
+
+@pytest.mark.asyncio
 async def test_fast_path_skips_db_when_org_id_in_token():
     """When token_data already has organization_id, skip the DB lookup."""
     from src.middleware.multi_tenancy import MultiTenancyMiddleware
