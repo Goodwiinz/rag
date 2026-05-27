@@ -1,11 +1,14 @@
 """Tests for LLM entity extraction service."""
 
+import json
+
 import pytest
 
 from src.services.processing.llm_entity_extraction import (
     ExtractedEntity,
     chunk_text,
     merge_entities,
+    parse_llm_response,
 )
 
 
@@ -105,3 +108,47 @@ class TestMergeEntities:
 
     def test_empty_input(self):
         assert merge_entities([]) == []
+
+
+class TestParseLLMResponse:
+    def test_valid_json(self):
+        raw = json.dumps({
+            "entities": [
+                {
+                    "name": "LoopMDM",
+                    "type": "MODEL",
+                    "canonical_name": "loopmdm",
+                    "description": "Looped Masked Diffusion Model",
+                    "confidence": 0.95,
+                    "aliases": ["Loop MDM"],
+                }
+            ]
+        })
+        entities = parse_llm_response(raw)
+        assert len(entities) == 1
+        assert entities[0].name == "LoopMDM"
+        assert entities[0].type == "MODEL"
+        assert entities[0].confidence == 0.95
+
+    def test_malformed_json_returns_empty(self):
+        entities = parse_llm_response("not json {{{")
+        assert entities == []
+
+    def test_json_wrapped_in_markdown_code_block(self):
+        raw = '```json\n{"entities": [{"name": "BERT", "type": "MODEL"}]}\n```'
+        entities = parse_llm_response(raw)
+        assert len(entities) == 1
+        assert entities[0].name == "BERT"
+
+    def test_missing_fields_use_defaults(self):
+        raw = json.dumps({"entities": [{"name": "GPT-4", "type": "MODEL"}]})
+        entities = parse_llm_response(raw)
+        assert len(entities) == 1
+        assert entities[0].confidence == 0.8
+        assert entities[0].aliases == []
+        assert entities[0].canonical_name == "gpt-4"
+
+    def test_empty_entities_array(self):
+        raw = json.dumps({"entities": []})
+        entities = parse_llm_response(raw)
+        assert entities == []

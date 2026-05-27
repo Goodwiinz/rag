@@ -130,3 +130,72 @@ def merge_entities(entities: list[ExtractedEntity]) -> list[ExtractedEntity]:
         )
 
     return merged
+
+
+ENTITY_TYPES = [
+    "PERSON", "ORGANIZATION", "CONCEPT", "METHOD", "MODEL",
+    "DATASET", "TECHNOLOGY", "METRIC", "LOCATION", "RESEARCH",
+]
+
+EXTRACTION_SYSTEM_PROMPT = """\
+Extract named entities from the following text. Return a JSON object with an "entities" array.
+
+For each entity include:
+- "name": exact name as it appears in the text
+- "type": one of {entity_types}
+- "canonical_name": lowercase normalized form (e.g. "gpt-4" for "GPT-4")
+- "description": one-sentence description of what this entity is (from context)
+- "confidence": 0.0-1.0 how confident you are this is a real entity
+- "aliases": array of alternate names/abbreviations seen in the text
+
+Focus on entities that carry domain meaning. Skip generic words, stopwords, and formatting artifacts.
+Return ONLY the JSON object, no other text."""
+
+EXTRACTION_USER_TEMPLATE = "Extract entities from this text:\n\n{text}"
+
+
+def _build_system_prompt(entity_types: list[str] | None = None) -> str:
+    types = entity_types or ENTITY_TYPES
+    return EXTRACTION_SYSTEM_PROMPT.format(entity_types=", ".join(types))
+
+
+def parse_llm_response(raw: str) -> list[ExtractedEntity]:
+    """Parse LLM JSON response into ExtractedEntity list. Returns empty on failure."""
+    text = raw.strip()
+
+    # Strip markdown code fences
+    if text.startswith("```"):
+        lines = text.split("\n")
+        lines = [l for l in lines if not l.strip().startswith("```")]
+        text = "\n".join(lines).strip()
+
+    try:
+        data = json.loads(text)
+    except json.JSONDecodeError:
+        logger.warning("Failed to parse LLM entity response as JSON")
+        return []
+
+    if not isinstance(data, dict) or "entities" not in data:
+        logger.warning("LLM response missing 'entities' key")
+        return []
+
+    entities: list[ExtractedEntity] = []
+    for raw_ent in data["entities"]:
+        if not isinstance(raw_ent, dict):
+            continue
+        name = raw_ent.get("name", "").strip()
+        ent_type = raw_ent.get("type", "").strip().upper()
+        if not name or not ent_type:
+            continue
+        entities.append(
+            ExtractedEntity(
+                name=name,
+                type=ent_type,
+                canonical_name=raw_ent.get("canonical_name", ""),
+                description=raw_ent.get("description", ""),
+                confidence=float(raw_ent.get("confidence", 0.8)),
+                aliases=raw_ent.get("aliases", []),
+            )
+        )
+
+    return entities
