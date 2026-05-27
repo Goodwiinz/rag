@@ -5,10 +5,12 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from src.models.entity import EntityType
 from src.services.processing.llm_entity_extraction import (
     ExtractedEntity,
     LLMEntityExtractionService,
     chunk_text,
+    map_to_entity_type,
     merge_entities,
     parse_llm_response,
 )
@@ -154,6 +156,28 @@ class TestParseLLMResponse:
         raw = json.dumps({"entities": []})
         entities = parse_llm_response(raw)
         assert entities == []
+
+
+class TestEntityTypeMapping:
+    def test_direct_mappings(self):
+        assert map_to_entity_type("PERSON") == EntityType.PERSON
+        assert map_to_entity_type("ORGANIZATION") == EntityType.ORGANIZATION
+        assert map_to_entity_type("CONCEPT") == EntityType.CONCEPT
+        assert map_to_entity_type("TECHNOLOGY") == EntityType.TECHNOLOGY
+        assert map_to_entity_type("RESEARCH") == EntityType.RESEARCH
+
+    def test_alias_mappings(self):
+        assert map_to_entity_type("MODEL") == EntityType.PRODUCT
+        assert map_to_entity_type("DATASET") == EntityType.PRODUCT
+        assert map_to_entity_type("METRIC") == EntityType.NUMBER
+        assert map_to_entity_type("METHOD") == EntityType.CONCEPT
+
+    def test_unknown_type_returns_custom(self):
+        assert map_to_entity_type("UNKNOWN_THING") == EntityType.CUSTOM
+
+    def test_case_insensitive(self):
+        assert map_to_entity_type("person") == EntityType.PERSON
+        assert map_to_entity_type("Model") == EntityType.PRODUCT
 
 
 def _mock_llm_response(entities: list[dict]) -> MagicMock:
