@@ -40,6 +40,7 @@ import {
   Settings,
   Sparkles,
   Upload,
+  Workflow,
 } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -54,15 +55,13 @@ const mainNavItems = [
   { title: 'Search', url: '/search', icon: Search },
 ];
 
-const documentsNavItems = [
-  { title: 'All Documents', url: '/documents', icon: Files },
+const knowledgeNavItems = [
+  { title: 'Documents', url: '/documents', icon: Files },
   { title: 'Upload', url: '/documents/upload', icon: Upload },
-  { title: 'Entities', url: '/entities', icon: Network },
-];
-
-const researchNavItems = [
   { title: 'ArXiv Papers', url: '/arxiv', icon: BookOpen },
+  { title: 'Entities', url: '/entities', icon: Network },
   { title: 'Research', url: '/research', icon: FolderKanban },
+  { title: 'Research Engine', url: '/research-engine', icon: Workflow },
 ];
 
 const systemNavItems = [
@@ -239,24 +238,12 @@ export function AppSidebar() {
             </SidebarGroupContent>
           </SidebarGroup>
 
-          {/* Documents Navigation */}
+          {/* Knowledge Navigation */}
           <SidebarGroup className="py-0 mt-4 group-data-[collapsible=icon]:mt-2 group-data-[collapsible=icon]:px-1">
-            <SectionLabel>DOCUMENTS</SectionLabel>
+            <SectionLabel>KNOWLEDGE</SectionLabel>
             <SidebarGroupContent>
               <SidebarMenu className="space-y-0.5 group-data-[collapsible=icon]:space-y-1">
-                {documentsNavItems.map((item) => (
-                  <NavItem key={item.title} item={item} />
-                ))}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-
-          {/* Research Navigation */}
-          <SidebarGroup className="py-0 mt-4 group-data-[collapsible=icon]:mt-2 group-data-[collapsible=icon]:px-1">
-            <SectionLabel>RESEARCH</SectionLabel>
-            <SidebarGroupContent>
-              <SidebarMenu className="space-y-0.5 group-data-[collapsible=icon]:space-y-1">
-                {researchNavItems.map((item) => (
+                {knowledgeNavItems.map((item) => (
                   <NavItem key={item.title} item={item} />
                 ))}
               </SidebarMenu>
