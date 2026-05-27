@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "Multimodal Enterprise RAG System - Monorepo Root",
   "private": true,
+  "packageManager": "pnpm@10.33.0",
   "workspaces": [
     "frontend",
     "tests/e2e"
