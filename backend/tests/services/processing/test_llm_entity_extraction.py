@@ -1,11 +1,13 @@
 """Tests for LLM entity extraction service."""
 
 import json
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from src.services.processing.llm_entity_extraction import (
     ExtractedEntity,
+    LLMEntityExtractionService,
     chunk_text,
     merge_entities,
     parse_llm_response,
@@ -152,3 +154,79 @@ class TestParseLLMResponse:
         raw = json.dumps({"entities": []})
         entities = parse_llm_response(raw)
         assert entities == []
+
+
+def _mock_llm_response(entities: list[dict]) -> MagicMock:
+    """Build a mock LLM response with .content containing JSON."""
+    mock = MagicMock()
+    mock.content = json.dumps({"entities": entities})
+    return mock
+
+
+class TestLLMEntityExtractionService:
+    @pytest.fixture
+    def service(self):
+        with patch(
+            "src.services.processing.llm_entity_extraction.build_lightweight_llm"
+        ) as mock_build:
+            mock_llm = AsyncMock()
+            mock_build.return_value = mock_llm
+            svc = LLMEntityExtractionService()
+            svc._llm = mock_llm
+            svc._breaker.reset()
+            yield svc, mock_llm
+
+    @pytest.mark.asyncio
+    async def test_extract_entities_full_pipeline(self, service):
+        svc, mock_llm = service
+        mock_llm.ainvoke.return_value = _mock_llm_response([
+            {"name": "LoopMDM", "type": "MODEL", "confidence": 0.95},
+            {"name": "Berkeley", "type": "ORGANIZATION", "confidence": 0.9},
+        ])
+
+        result = await svc.extract_entities("Short document about LoopMDM at Berkeley.")
+        assert len(result.entities) == 2
+        assert result.entities[0].name == "LoopMDM"
+        assert result.error is None
+
+    @pytest.mark.asyncio
+    async def test_partial_results_on_chunk_failure(self, service):
+        svc, mock_llm = service
+        good_response = _mock_llm_response([
+            {"name": "BERT", "type": "MODEL", "confidence": 0.9}
+        ])
+        mock_llm.ainvoke.side_effect = [
+            good_response,
+            Exception("API timeout"),
+            good_response,
+        ]
+
+        text = "\n\n".join([f"Paragraph {i}. " * 200 for i in range(30)])
+        result = await svc.extract_entities(text, max_tokens_per_chunk=300)
+        assert len(result.entities) >= 1
+        assert result.error is None  # partial success is not an error
+
+    @pytest.mark.asyncio
+    async def test_entity_types_filter(self, service):
+        svc, mock_llm = service
+        mock_llm.ainvoke.return_value = _mock_llm_response([
+            {"name": "BERT", "type": "MODEL", "confidence": 0.9}
+        ])
+        result = await svc.extract_entities(
+            "BERT is a model.",
+            entity_types=["MODEL", "METHOD"],
+        )
+        call_args = mock_llm.ainvoke.call_args
+        messages = call_args[0][0]
+        system_msg = messages[0].content
+        assert "MODEL" in system_msg
+        assert "METHOD" in system_msg
+        assert "PERSON" not in system_msg
+
+    @pytest.mark.asyncio
+    async def test_all_chunks_fail_returns_empty(self, service):
+        svc, mock_llm = service
+        mock_llm.ainvoke.side_effect = Exception("All calls fail")
+        result = await svc.extract_entities("Some text.")
+        assert result.entities == []
+        assert result.error is not None
