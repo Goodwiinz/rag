@@ -530,6 +530,7 @@ async def _run_agent_graph(
             # assistant row continues to be written after the graph
             # finishes — Task 4 of docs/plans/2026-05-13-agent-persist-perf.md.
             resolved_thread_id: Optional[str] = None
+            thread_obj = None
             try:
                 thread_obj, _conversation_id = await _resolve_thread(
                     db, current_user, request
