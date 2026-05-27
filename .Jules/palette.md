@@ -9,4 +9,6 @@
 **Action:** When creating custom tab navigations, always implement the standard WAI-ARIA tab pattern rather than relying on generic button elements.
 ## 2024-05-18 - Stylized Button Accessibility
 **Learning:** Custom semantic buttons with unconventional or stylized visible text (e.g., 'TRANSMIT' or 'HALT') fail to provide clear context for screen reader users relying on standard labels.
-**Action:** Always ensure explicitly declared `aria-label`s (like 'Send message' or 'Stop generation') are applied for screen reader compatibility, rather than relying solely on `title` attributes or the visible text.
+## 2026-05-27 - Inline Filter Button Accessibility
+**Learning:** Interactive inline filter buttons and removable chips built with raw `<button>` elements often lack visual focus indicators and `type="button"`, which degrades keyboard navigation and can cause accidental form submissions.
+**Action:** When adding or modifying custom inline `<button>` elements (like filter toggles or 'x' chips), always explicitly define `type="button"` and include `focus-visible` utility classes to ensure robust keyboard accessibility.
