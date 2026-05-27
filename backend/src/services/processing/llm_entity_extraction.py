@@ -73,3 +73,60 @@ def chunk_text(
         chunks.append("\n\n".join(current_paragraphs))
 
     return chunks
+
+
+@dataclass
+class ExtractedEntity:
+    """Entity extracted by LLM from a text chunk."""
+
+    name: str
+    type: str
+    canonical_name: str = ""
+    description: str = ""
+    confidence: float = 0.8
+    aliases: list[str] = field(default_factory=list)
+
+    def __post_init__(self):
+        if not self.canonical_name:
+            self.canonical_name = self.name.strip().lower()
+
+
+def merge_entities(entities: list[ExtractedEntity]) -> list[ExtractedEntity]:
+    """Merge duplicate entities by canonical_name, combining aliases and keeping best metadata."""
+    if not entities:
+        return []
+
+    groups: dict[str, list[ExtractedEntity]] = {}
+    for ent in entities:
+        key = ent.canonical_name.strip().lower()
+        groups.setdefault(key, []).append(ent)
+
+    merged: list[ExtractedEntity] = []
+    for key, group in groups.items():
+        best = max(group, key=lambda e: e.confidence)
+        all_aliases: set[str] = set()
+        for e in group:
+            all_aliases.update(e.aliases)
+            if e.name != best.name:
+                all_aliases.add(e.name)
+        all_aliases.discard(best.name)
+
+        description = best.description
+        if not description:
+            for e in group:
+                if e.description:
+                    description = e.description
+                    break
+
+        merged.append(
+            ExtractedEntity(
+                name=best.name,
+                type=best.type,
+                canonical_name=best.canonical_name,
+                description=description,
+                confidence=best.confidence,
+                aliases=sorted(all_aliases),
+            )
+        )
+
+    return merged
