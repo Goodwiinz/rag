@@ -36,7 +36,6 @@ __all__ = [
     "EnhancedDocumentProcessingService",
     "ProcessingResult",
     "MultimodalProcessor",
-    "EntityExtractor",
 ]
 
 _EXPORTS: Dict[str, Tuple[str, str]] = {
@@ -74,7 +73,6 @@ _EXPORTS: Dict[str, Tuple[str, str]] = {
     ),
     "ProcessingResult": ("src.services.documents.enhanced_document_processing_service", "ProcessingResult"),
     "MultimodalProcessor": ("src.services.documents.enhanced_document_processing_service", "MultimodalProcessor"),
-    "EntityExtractor": ("src.services.documents.enhanced_document_processing_service", "EntityExtractor"),
 }
 
 
