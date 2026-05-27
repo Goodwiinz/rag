@@ -81,9 +81,7 @@ interface DocumentUploadZoneProps {
   showAdvancedOptions?: boolean;
 }
 
-export const DocumentUploadZone: React.FC<
-  DocumentUploadZoneProps
-> = ({
+export const DocumentUploadZone: React.FC<DocumentUploadZoneProps> = ({
   onUploadComplete,
   onUploadError,
   maxFiles = 10,
@@ -421,8 +419,6 @@ export const DocumentUploadZone: React.FC<
       const abortController = new AbortController();
       abortControllers.current.set(uploadedFile.id, abortController);
 
-      let response, websocket;
-
       // Verify the file is still valid
       console.log('📋 File verification:', {
         name: uploadedFile.file.name,
@@ -435,13 +431,12 @@ export const DocumentUploadZone: React.FC<
         throw new Error('Invalid file: File is empty or null');
       }
 
-      const result = await enhancedDocumentService.uploadDocument(
-        uploadedFile.file,
-        uploadedFile.request,
-        handleProgressUpdate(uploadedFile.id)
-      );
-      response = result.response;
-      websocket = result.websocket;
+      const { response, websocket } =
+        await enhancedDocumentService.uploadDocument(
+          uploadedFile.file,
+          uploadedFile.request,
+          handleProgressUpdate(uploadedFile.id)
+        );
 
       // Validate response
       if (!response || !response.upload_id) {

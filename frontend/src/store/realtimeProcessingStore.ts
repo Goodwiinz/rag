@@ -7,7 +7,7 @@ import {
   DocumentProcessingState,
   WebSocketConnectionState,
   NotificationItem,
-  ProcessingStage
+  ProcessingStage,
 } from '@/types/realtime-processing';
 
 // Maximum number of documents in the processing queue
@@ -24,16 +24,34 @@ interface RealtimeProcessingActions {
 
   // Queue actions
   addDocument: (document: DocumentProcessingState) => void;
-  updateDocument: (documentId: string, updates: Partial<DocumentProcessingState>) => void;
+  updateDocument: (
+    documentId: string,
+    updates: Partial<DocumentProcessingState>
+  ) => void;
   removeDocument: (documentId: string) => void;
-  updateDocuments: (documentUpdates: Array<{ id: string; updates: Partial<DocumentProcessingState> }>) => void;
-  setQueueSummary: (summary: RealtimeProcessingState['queue']['summary']) => void;
-  setQueueMetrics: (metrics: RealtimeProcessingState['queue']['metrics']) => void;
-  updateFilters: (filters: Partial<RealtimeProcessingState['queue']['filters']>) => void;
-  setPagination: (pagination: Partial<RealtimeProcessingState['queue']['pagination']>) => void;
+  updateDocuments: (
+    documentUpdates: Array<{
+      id: string;
+      updates: Partial<DocumentProcessingState>;
+    }>
+  ) => void;
+  setQueueSummary: (
+    summary: RealtimeProcessingState['queue']['summary']
+  ) => void;
+  setQueueMetrics: (
+    metrics: RealtimeProcessingState['queue']['metrics']
+  ) => void;
+  updateFilters: (
+    filters: Partial<RealtimeProcessingState['queue']['filters']>
+  ) => void;
+  setPagination: (
+    pagination: Partial<RealtimeProcessingState['queue']['pagination']>
+  ) => void;
 
   // System metrics actions
-  updateSystemMetrics: (metrics: Partial<RealtimeProcessingState['systemMetrics']>) => void;
+  updateSystemMetrics: (
+    metrics: Partial<RealtimeProcessingState['systemMetrics']>
+  ) => void;
 
   // Notification actions
   addNotification: (notification: Omit<NotificationItem, 'id'>) => void;
@@ -51,7 +69,9 @@ interface RealtimeProcessingActions {
   setTheme: (theme: RealtimeProcessingState['ui']['theme']) => void;
 
   // Preferences actions
-  updatePreferences: (preferences: Partial<RealtimeProcessingState['preferences']>) => void;
+  updatePreferences: (
+    preferences: Partial<RealtimeProcessingState['preferences']>
+  ) => void;
 
   // Bulk actions
   pauseSelectedDocuments: () => void;
@@ -61,7 +81,9 @@ interface RealtimeProcessingActions {
 
   // Computed values
   getSelectedDocuments: () => DocumentProcessingState[];
-  getDocumentsByStatus: (status: DocumentProcessingState['status']) => DocumentProcessingState[];
+  getDocumentsByStatus: (
+    status: DocumentProcessingState['status']
+  ) => DocumentProcessingState[];
   getFilteredDocuments: () => DocumentProcessingState[];
   getUnreadNotificationsCount: () => number;
 }
@@ -79,10 +101,12 @@ const initialState: RealtimeProcessingState = {
     summary: {
       total: 0,
       queued: 0,
+      uploading: 0,
       processing: 0,
       completed: 0,
       failed: 0,
       paused: 0,
+      cancelled: 0,
     },
     metrics: {
       averageProcessingTime: 0,
@@ -130,7 +154,9 @@ const initialState: RealtimeProcessingState = {
   },
 };
 
-export const useRealtimeProcessingStore = create<RealtimeProcessingState & RealtimeProcessingActions>()(
+export const useRealtimeProcessingStore = create<
+  RealtimeProcessingState & RealtimeProcessingActions
+>()(
   devtools(
     subscribeWithSelector(
       immer((set, get) => ({
@@ -165,7 +191,9 @@ export const useRealtimeProcessingStore = create<RealtimeProcessingState & Realt
         // Queue actions
         addDocument: (document) =>
           set((state) => {
-            const existingIndex = state.queue.documents.findIndex(d => d.id === document.id);
+            const existingIndex = state.queue.documents.findIndex(
+              (d) => d.id === document.id
+            );
             if (existingIndex >= 0) {
               state.queue.documents[existingIndex] = document;
             } else {
@@ -176,26 +204,32 @@ export const useRealtimeProcessingStore = create<RealtimeProcessingState & Realt
             if (state.queue.documents.length > MAX_QUEUE_DOCUMENTS) {
               const now = Date.now();
               state.queue.documents = state.queue.documents.filter((doc) => {
-                if (doc.status !== 'completed' && doc.status !== 'failed') return true;
+                if (doc.status !== 'completed' && doc.status !== 'failed')
+                  return true;
                 const completedAt = doc.metadata.completedAt
                   ? new Date(doc.metadata.completedAt).getTime()
                   : new Date(doc.metadata.uploadStartedAt).getTime();
                 return now - completedAt < QUEUE_TRIM_AGE_MS;
               });
               // Remove from selection any evicted document ids
-              const remainingIds = new Set(state.queue.documents.map((d) => d.id));
+              const remainingIds = new Set(
+                state.queue.documents.map((d) => d.id)
+              );
               state.ui.selectedDocuments = state.ui.selectedDocuments.filter(
                 (id) => remainingIds.has(id)
               );
             }
 
             state.queue.summary.total = state.queue.documents.length;
-            state.queue.summary[document.status] = (state.queue.summary[document.status] || 0) + 1;
+            state.queue.summary[document.status] =
+              (state.queue.summary[document.status] || 0) + 1;
           }),
 
         updateDocument: (documentId, updates) =>
           set((state) => {
-            const documentIndex = state.queue.documents.findIndex(d => d.id === documentId);
+            const documentIndex = state.queue.documents.findIndex(
+              (d) => d.id === documentId
+            );
             if (documentIndex >= 0) {
               const document = state.queue.documents[documentIndex];
               const oldStatus = document.status;
@@ -212,7 +246,9 @@ export const useRealtimeProcessingStore = create<RealtimeProcessingState & Realt
 
         removeDocument: (documentId) =>
           set((state) => {
-            const documentIndex = state.queue.documents.findIndex(d => d.id === documentId);
+            const documentIndex = state.queue.documents.findIndex(
+              (d) => d.id === documentId
+            );
             if (documentIndex >= 0) {
               const document = state.queue.documents[documentIndex];
               state.queue.summary[document.status]--;
@@ -220,14 +256,18 @@ export const useRealtimeProcessingStore = create<RealtimeProcessingState & Realt
               state.queue.summary.total = state.queue.documents.length;
 
               // Remove from selected documents if present
-              state.ui.selectedDocuments = state.ui.selectedDocuments.filter(id => id !== documentId);
+              state.ui.selectedDocuments = state.ui.selectedDocuments.filter(
+                (id) => id !== documentId
+              );
             }
           }),
 
         updateDocuments: (documentUpdates) =>
           set((state) => {
             documentUpdates.forEach(({ id, updates }) => {
-              const documentIndex = state.queue.documents.findIndex(d => d.id === id);
+              const documentIndex = state.queue.documents.findIndex(
+                (d) => d.id === id
+              );
               if (documentIndex >= 0) {
                 const document = state.queue.documents[documentIndex];
                 const oldStatus = document.status;
@@ -279,14 +319,21 @@ export const useRealtimeProcessingStore = create<RealtimeProcessingState & Realt
             state.notifications.unshift(newNotification);
 
             // Limit number of notifications
-            if (state.notifications.length > state.preferences.maxNotifications) {
-              state.notifications = state.notifications.slice(0, state.preferences.maxNotifications);
+            if (
+              state.notifications.length > state.preferences.maxNotifications
+            ) {
+              state.notifications = state.notifications.slice(
+                0,
+                state.preferences.maxNotifications
+              );
             }
           }),
 
         removeNotification: (notificationId) =>
           set((state) => {
-            state.notifications = state.notifications.filter(n => n.id !== notificationId);
+            state.notifications = state.notifications.filter(
+              (n) => n.id !== notificationId
+            );
           }),
 
         clearNotifications: () =>
@@ -296,7 +343,9 @@ export const useRealtimeProcessingStore = create<RealtimeProcessingState & Realt
 
         markNotificationAsRead: (notificationId) =>
           set((state) => {
-            const notification = state.notifications.find(n => n.id === notificationId);
+            const notification = state.notifications.find(
+              (n) => n.id === notificationId
+            );
             if (notification && !notification.autoHide) {
               // Add read status if needed
             }
@@ -315,7 +364,7 @@ export const useRealtimeProcessingStore = create<RealtimeProcessingState & Realt
 
         selectAllDocuments: () =>
           set((state) => {
-            state.ui.selectedDocuments = state.queue.documents.map(d => d.id);
+            state.ui.selectedDocuments = state.queue.documents.map((d) => d.id);
           }),
 
         clearDocumentSelection: () =>
@@ -352,7 +401,7 @@ export const useRealtimeProcessingStore = create<RealtimeProcessingState & Realt
         // Bulk actions
         pauseSelectedDocuments: () => {
           const state = get();
-          state.getSelectedDocuments().forEach(doc => {
+          state.getSelectedDocuments().forEach((doc) => {
             if (doc.actions.pause) {
               get().updateDocument(doc.id, { status: 'paused' });
             }
@@ -361,7 +410,7 @@ export const useRealtimeProcessingStore = create<RealtimeProcessingState & Realt
 
         resumeSelectedDocuments: () => {
           const state = get();
-          state.getSelectedDocuments().forEach(doc => {
+          state.getSelectedDocuments().forEach((doc) => {
             if (doc.status === 'paused' && doc.actions.resume) {
               get().updateDocument(doc.id, { status: 'processing' });
             }
@@ -370,7 +419,7 @@ export const useRealtimeProcessingStore = create<RealtimeProcessingState & Realt
 
         cancelSelectedDocuments: () => {
           const state = get();
-          state.getSelectedDocuments().forEach(doc => {
+          state.getSelectedDocuments().forEach((doc) => {
             if (doc.actions.cancel) {
               get().updateDocument(doc.id, { status: 'cancelled' });
             }
@@ -379,12 +428,12 @@ export const useRealtimeProcessingStore = create<RealtimeProcessingState & Realt
 
         retrySelectedDocuments: () => {
           const state = get();
-          state.getSelectedDocuments().forEach(doc => {
+          state.getSelectedDocuments().forEach((doc) => {
             if (doc.status === 'failed' && doc.actions.retry) {
               get().updateDocument(doc.id, {
                 status: 'processing',
                 error: undefined,
-                retryCount: doc.retryCount + 1
+                retryCount: doc.retryCount + 1,
               });
             }
           });
@@ -393,12 +442,14 @@ export const useRealtimeProcessingStore = create<RealtimeProcessingState & Realt
         // Computed values
         getSelectedDocuments: () => {
           const state = get();
-          return state.queue.documents.filter(doc => state.ui.selectedDocuments.includes(doc.id));
+          return state.queue.documents.filter((doc) =>
+            state.ui.selectedDocuments.includes(doc.id)
+          );
         },
 
         getDocumentsByStatus: (status) => {
           const state = get();
-          return state.queue.documents.filter(doc => doc.status === status);
+          return state.queue.documents.filter((doc) => doc.status === status);
         },
 
         getFilteredDocuments: () => {
@@ -407,25 +458,31 @@ export const useRealtimeProcessingStore = create<RealtimeProcessingState & Realt
 
           // Apply filters
           if (state.queue.filters.fileTypes.length > 0) {
-            filtered = filtered.filter(doc => state.queue.filters.fileTypes.includes(doc.fileType));
+            filtered = filtered.filter((doc) =>
+              state.queue.filters.fileTypes.includes(doc.fileType)
+            );
           }
 
           if (state.queue.filters.statuses.length > 0) {
-            filtered = filtered.filter(doc => state.queue.filters.statuses.includes(doc.status));
+            filtered = filtered.filter((doc) =>
+              state.queue.filters.statuses.includes(doc.status)
+            );
           }
 
           if (state.queue.filters.searchTerm) {
             const searchTerm = state.queue.filters.searchTerm.toLowerCase();
-            filtered = filtered.filter(doc =>
+            filtered = filtered.filter((doc) =>
               doc.filename.toLowerCase().includes(searchTerm)
             );
           }
 
           if (state.queue.filters.dateRange) {
             const { start, end } = state.queue.filters.dateRange;
-            filtered = filtered.filter(doc => {
+            filtered = filtered.filter((doc) => {
               const uploadTime = new Date(doc.metadata.uploadStartedAt);
-              return uploadTime >= new Date(start) && uploadTime <= new Date(end);
+              return (
+                uploadTime >= new Date(start) && uploadTime <= new Date(end)
+              );
             });
           }
 
@@ -439,22 +496,29 @@ export const useRealtimeProcessingStore = create<RealtimeProcessingState & Realt
 
         getUnreadNotificationsCount: () => {
           const state = get();
-          return state.notifications.filter(n => !n.autoHide).length;
+          return state.notifications.filter((n) => !n.autoHide).length;
         },
-      })),
+      }))
     ),
     {
       name: 'realtime-processing-store',
-    },
-  ),
+    }
+  )
 );
 
 // Selectors for optimized re-renders
-export const useConnectionStatus = () => useRealtimeProcessingStore(state => state.connection);
-export const useProcessingQueue = () => useRealtimeProcessingStore(state => state.queue);
-export const useSystemMetrics = () => useRealtimeProcessingStore(state => state.systemMetrics);
-export const useNotifications = () => useRealtimeProcessingStore(state => state.notifications);
-export const useUIState = () => useRealtimeProcessingStore(state => state.ui);
-export const usePreferences = () => useRealtimeProcessingStore(state => state.preferences);
-export const useSelectedDocuments = () => useRealtimeProcessingStore(state => state.getSelectedDocuments());
-export const useFilteredDocuments = () => useRealtimeProcessingStore(state => state.getFilteredDocuments());
+export const useConnectionStatus = () =>
+  useRealtimeProcessingStore((state) => state.connection);
+export const useProcessingQueue = () =>
+  useRealtimeProcessingStore((state) => state.queue);
+export const useSystemMetrics = () =>
+  useRealtimeProcessingStore((state) => state.systemMetrics);
+export const useNotifications = () =>
+  useRealtimeProcessingStore((state) => state.notifications);
+export const useUIState = () => useRealtimeProcessingStore((state) => state.ui);
+export const usePreferences = () =>
+  useRealtimeProcessingStore((state) => state.preferences);
+export const useSelectedDocuments = () =>
+  useRealtimeProcessingStore((state) => state.getSelectedDocuments());
+export const useFilteredDocuments = () =>
+  useRealtimeProcessingStore((state) => state.getFilteredDocuments());

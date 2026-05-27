@@ -1,7 +1,14 @@
 // Real-time Processing Types
 
 // Status types defined explicitly to avoid circular references
-export type ProcessingStatus = 'queued' | 'uploading' | 'processing' | 'completed' | 'failed' | 'paused' | 'cancelled';
+export type ProcessingStatus =
+  | 'queued'
+  | 'uploading'
+  | 'processing'
+  | 'completed'
+  | 'failed'
+  | 'paused'
+  | 'cancelled';
 
 // Performance Metrics for WebSocket/processing components
 export interface PerformanceMetrics {
@@ -28,7 +35,13 @@ export interface SystemMetrics {
   averageJobDuration: number;
 }
 
-export type StageStatus = 'pending' | 'in_progress' | 'completed' | 'failed' | 'skipped' | 'cancelled';
+export type StageStatus =
+  | 'pending'
+  | 'in_progress'
+  | 'completed'
+  | 'failed'
+  | 'skipped'
+  | 'cancelled';
 
 export interface ProcessingStage {
   id: string;
@@ -78,10 +91,12 @@ export interface ProcessingQueue {
   summary: {
     total: number;
     queued: number;
+    uploading: number;
     processing: number;
     completed: number;
     failed: number;
     paused: number;
+    cancelled: number;
   };
   metrics: {
     averageProcessingTime: number; // seconds
@@ -107,7 +122,12 @@ export interface ProcessingQueue {
 }
 
 export interface WebSocketConnectionState {
-  status: 'disconnected' | 'connecting' | 'connected' | 'reconnecting' | 'error';
+  status:
+    | 'disconnected'
+    | 'connecting'
+    | 'connected'
+    | 'reconnecting'
+    | 'error';
   lastConnectedAt?: string;
   lastError?: string;
   reconnectionAttempts: number;
@@ -195,7 +215,10 @@ export interface DocumentUpdatePayload {
   [key: string]: unknown;
 }
 
-export interface DocumentUpdateMessage extends Omit<WebSocketMessage, 'payload'> {
+export interface DocumentUpdateMessage extends Omit<
+  WebSocketMessage,
+  'payload'
+> {
   type: 'document_update';
   payload: DocumentUpdatePayload;
   documentId: string;
@@ -253,14 +276,14 @@ export enum MessagePriority {
   LOW = 'low',
   NORMAL = 'normal',
   HIGH = 'high',
-  CRITICAL = 'critical'
+  CRITICAL = 'critical',
 }
 
 export enum UpdateFrequency {
   REALTIME = 'realtime',
   FREQUENT = 'frequent',
   NORMAL = 'normal',
-  PERIODIC = 'periodic'
+  PERIODIC = 'periodic',
 }
 
 export enum Channel {
@@ -270,7 +293,7 @@ export enum Channel {
   USER_NOTIFICATIONS = 'user_notifications',
   QUOTA_ALERTS = 'quota_alerts',
   QUALITY_METRICS = 'quality_metrics',
-  ADMIN_ALERTS = 'admin_alerts'
+  ADMIN_ALERTS = 'admin_alerts',
 }
 
 // Client info for WebSocket connection
@@ -305,11 +328,14 @@ export interface RealtimeStore {
   };
 
   // Actions
-  connect: (token: string, options?: {
-    channels?: Channel[];
-    frequency?: UpdateFrequency;
-    clientInfo?: WebSocketClientInfo;
-  }) => Promise<void>;
+  connect: (
+    token: string,
+    options?: {
+      channels?: Channel[];
+      frequency?: UpdateFrequency;
+      clientInfo?: WebSocketClientInfo;
+    }
+  ) => Promise<void>;
   disconnect: () => void;
   reconnect: () => void;
   subscribeToChannel: (channel: Channel) => void;
@@ -317,9 +343,15 @@ export interface RealtimeStore {
   subscribeToDocument: (documentId: string) => void;
   unsubscribeFromDocument: (documentId: string) => void;
   updateDocumentStatus: (update: DocumentUpdateMessage) => void;
-  sendWebSocketMessage: (message: WebSocketMessage | { type: string; payload: Record<string, unknown> }) => void;
+  sendWebSocketMessage: (
+    message:
+      | WebSocketMessage
+      | { type: string; payload: Record<string, unknown> }
+  ) => void;
   clearNotifications: () => void;
-  updatePreferences: (preferences: Partial<RealtimeProcessingState['preferences']>) => void;
+  updatePreferences: (
+    preferences: Partial<RealtimeProcessingState['preferences']>
+  ) => void;
   updateUI: (ui: Partial<RealtimeProcessingState['ui']>) => void;
 }
 
