@@ -2,7 +2,19 @@
 
 import { cn } from '@/lib/utils';
 import { getReferencedCitations, type Citation } from '@/utils/citationParser';
-import { Activity, Check, Copy, RefreshCw } from 'lucide-react';
+import {
+  Activity,
+  Bookmark,
+  Check,
+  Clock,
+  Copy,
+  RefreshCw,
+  Search,
+  Sparkles,
+  ThumbsDown,
+  ThumbsUp,
+  User,
+} from 'lucide-react';
 import React, { useMemo, useState } from 'react';
 import { CitationRenderer } from '../CitationRenderer';
 
@@ -13,6 +25,11 @@ export interface ChatBubbleMessage {
   timestamp: number;
   citations?: Citation[];
   diagnosticsTraceId?: string;
+  metadata?: {
+    toolsUsed?: string[];
+    responseTimeMs?: number;
+    sourcesCount?: number;
+  };
 }
 
 export interface ChatBubbleProps {
@@ -24,6 +41,51 @@ export interface ChatBubbleProps {
   streamingContent?: string;
   onRetry?: () => void;
   onCitationClick?: (citations: Citation[], clickedCitation: Citation) => void;
+}
+
+function ToolStrip({
+  toolsUsed,
+  sourcesCount,
+  responseTimeMs,
+}: {
+  toolsUsed?: string[];
+  sourcesCount?: number;
+  responseTimeMs?: number;
+}) {
+  const hasAny =
+    (toolsUsed && toolsUsed.length > 0) ||
+    (sourcesCount && sourcesCount > 0) ||
+    (responseTimeMs && responseTimeMs > 0);
+  if (!hasAny) return null;
+
+  return (
+    <div className="nous-tool-strip">
+      <div className="nous-tool-strip-icon">
+        <Search className="w-2.5 h-2.5" strokeWidth={2} />
+      </div>
+      <span className="nous-tool-strip-label">Searched</span>
+      {toolsUsed?.slice(0, 3).map((tool) => (
+        <React.Fragment key={tool}>
+          <span className="nous-tool-strip-sep" />
+          <span className="nous-tool-strip-chip">{tool}</span>
+        </React.Fragment>
+      ))}
+      {sourcesCount && sourcesCount > 0 && (
+        <>
+          <span className="nous-tool-strip-sep" />
+          <span className="nous-tool-strip-chip">
+            {sourcesCount} {sourcesCount === 1 ? 'source' : 'sources'}
+          </span>
+        </>
+      )}
+      {responseTimeMs && responseTimeMs > 0 && (
+        <span className="nous-tool-strip-time inline-flex items-center gap-1">
+          <Clock className="w-2.5 h-2.5" strokeWidth={2} />
+          {(responseTimeMs / 1000).toFixed(1)}s
+        </span>
+      )}
+    </div>
+  );
 }
 
 export const ChatBubble = React.memo(function ChatBubble({
@@ -59,126 +121,135 @@ export const ChatBubble = React.memo(function ChatBubble({
     }
   };
 
-  const visibleCitations = useMemo(
-    () => getReferencedCitations(message.content, message.citations ?? []),
-    [message.content, message.citations]
+  const allCitations = message.citations ?? [];
+
+  const inlineCitations = useMemo(
+    () => getReferencedCitations(message.content, allCitations),
+    [message.content, allCitations]
   );
+
+  // Show inline-referenced citations when available, otherwise fall back
+  // to all attached citations so footer chips + tool strip always render
+  // when the backend attached sources — even if the AI didn't use [Doc N].
+  const visibleCitations =
+    inlineCitations.length > 0 ? inlineCitations : allCitations;
+
+  const stripSourcesCount =
+    message.metadata?.sourcesCount ?? visibleCitations.length;
+  const stripToolsUsed = message.metadata?.toolsUsed;
+  const stripResponseMs = message.metadata?.responseTimeMs;
 
   return (
     <div
       className={cn(
-        'group relative mb-2 sm:mb-3',
-        isUser ? 'ml-8 sm:ml-24' : 'mr-8 sm:mr-24'
+        'group relative mb-7 sm:mb-8 flex gap-3 sm:gap-[18px]',
+        isUser ? 'flex-row-reverse' : 'flex-row'
       )}
     >
-      {/* Meta row */}
+      {/* Avatar */}
       <div
         className={cn(
-          'mb-1 flex items-center gap-2 text-[10px]',
-          isUser ? 'justify-end pr-1' : 'pl-1'
+          'flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center relative z-10',
+          isUser ? 'nous-avatar-user' : 'nous-avatar-assistant'
         )}
-        style={{ fontFamily: 'var(--nous-font-ui)' }}
       >
-        {!isUser && (
-          <>
-            {(isStreaming || isTyping) && (
-              <span className="text-[10px] font-medium text-[var(--nous-sol)] animate-pulse">
-                {isStreaming ? 'Streaming' : 'Thinking'}
-              </span>
-            )}
-            {modelName && (
-              <span className="text-[var(--nous-fg-3)] text-[10px]">
-                {modelName}
-              </span>
-            )}
-          </>
+        {isUser ? (
+          <User className="h-4 w-4" />
+        ) : (
+          <Sparkles className="h-4 w-4" />
         )}
-        <span className="text-[var(--nous-fg-3)]">{timestamp}</span>
-
-        <div className="flex items-center gap-0.5 opacity-0 transition-all duration-200 group-hover:opacity-100 touch-show">
-          <button
-            onClick={handleCopy}
-            className={cn(
-              'rounded-lg p-2 sm:p-1.5 transition-all hover:bg-[var(--nous-sol)]/8',
-              copied
-                ? 'text-[var(--nous-terra)]'
-                : 'text-[var(--nous-fg-3)] hover:text-[var(--nous-fg-1)]'
-            )}
-            aria-label={copied ? 'Copied!' : 'Copy message'}
-            title={copied ? 'Copied!' : 'Copy message'}
-          >
-            {copied ? (
-              <Check className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
-            ) : (
-              <Copy className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
-            )}
-          </button>
-          {message.role === 'assistant' && onRetry && (
-            <button
-              onClick={onRetry}
-              className="rounded-lg p-2 sm:p-1.5 text-[var(--nous-fg-3)] transition-all hover:bg-[var(--nous-sol)]/8 hover:text-[var(--nous-fg-1)]"
-              aria-label="Regenerate response"
-              title="Regenerate response"
-            >
-              <RefreshCw className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
-            </button>
-          )}
-        </div>
       </div>
 
-      {/* Bubble */}
+      {/* Content column */}
       <div
-        className={cn(
-          'relative overflow-hidden rounded-xl transition-all duration-200',
-          isUser
-            ? 'nous-bubble-user'
-            : 'nous-bubble-assistant hover:border-[var(--nous-sol)]/20'
-        )}
+        className={cn('min-w-0 flex-1', isUser ? 'text-right' : 'text-left')}
       >
-        <div className="relative z-10 px-3.5 py-2.5 sm:px-4 sm:py-3 overflow-hidden break-words">
-          {isStreaming && !streamingContent ? (
-            <div className="nous-chat-body">
+        {/* Meta row — role + model pill + time */}
+        <div
+          className={cn(
+            'mb-2 flex items-center gap-2.5',
+            isUser ? 'justify-end pr-1' : 'pl-1'
+          )}
+        >
+          {!isUser && (
+            <>
               <span
-                className="ml-0.5 inline-block h-4 w-[3px] rounded-sm animate-pulse bg-[var(--nous-sol)]"
-                data-testid="streaming-cursor"
-              />
-            </div>
-          ) : isStreaming && streamingContent ? (
-            <div className="nous-chat-body">
-              <span className="whitespace-pre-wrap">{streamingContent}</span>
-              <span
-                className="ml-0.5 inline-block h-4 w-[3px] rounded-sm animate-pulse bg-[var(--nous-sol)]"
-                data-testid="streaming-cursor"
-              />
-            </div>
-          ) : isTyping && !message.content ? (
-            <div
-              className="flex items-center gap-3 text-sm text-[var(--nous-sol)]"
+                className="text-[12px] font-medium text-[var(--nous-fg-3)]"
+                style={{ fontFamily: 'var(--nous-font-ui)' }}
+              >
+                Assistant
+              </span>
+              {modelName && (
+                <span
+                  className="inline-flex items-center gap-1 px-2 py-[2px] rounded text-[10px] font-semibold bg-[var(--nous-aurum)] text-[var(--nous-sol-safe)] dark:bg-[var(--nous-ember)] dark:text-[var(--nous-helios)]"
+                  style={{ fontFamily: 'var(--nous-font-ui)' }}
+                >
+                  <Sparkles className="w-2.5 h-2.5" strokeWidth={2} />
+                  {modelName}
+                </span>
+              )}
+            </>
+          )}
+          {isUser && (
+            <span
+              className="text-[12px] font-medium text-[var(--nous-fg-3)]"
               style={{ fontFamily: 'var(--nous-font-ui)' }}
             >
-              <div className="flex items-center gap-1.5">
+              You
+            </span>
+          )}
+          <span
+            className="inline-flex items-center gap-1 text-[11px] text-[var(--nous-fg-3)]"
+            style={{ fontFamily: 'var(--nous-font-ui)' }}
+          >
+            <Clock className="w-2.5 h-2.5" strokeWidth={2} />
+            {timestamp}
+          </span>
+        </div>
+
+        {/* Tool strip — only when we have something to show */}
+        {!isUser && !isStreaming && !isTyping && (
+          <ToolStrip
+            toolsUsed={stripToolsUsed}
+            sourcesCount={stripSourcesCount}
+            responseTimeMs={stripResponseMs}
+          />
+        )}
+
+        {/* Body
+            — user: scholarly pill (nous-bubble-user)
+            — assistant: NO wrapper — serif body sits directly on parchment,
+              matching the hybrid-chat reference where the assistant column
+              reads as a manuscript margin, not a chat card. */}
+        {isUser ? (
+          <div
+            className={cn(
+              'nous-bubble-user relative inline-block px-4 py-2.5 text-left',
+              'max-w-[92%] sm:max-w-[540px] transition-shadow hover:shadow-md'
+            )}
+          >
+            <div className="nous-chat-body">
+              <p className="whitespace-pre-wrap text-[14px] leading-relaxed">
+                {message.content}
+              </p>
+            </div>
+          </div>
+        ) : (
+          <div className="relative">
+            {isStreaming && !streamingContent ? (
+              <ThinkingPill label="Thinking" />
+            ) : isStreaming && streamingContent ? (
+              <div className="nous-chat-body">
+                <span className="whitespace-pre-wrap">{streamingContent}</span>
                 <span
-                  className="h-1.5 w-1.5 animate-bounce rounded-full bg-[var(--nous-sol)]"
-                  style={{ animationDelay: '0ms' }}
-                />
-                <span
-                  className="h-1.5 w-1.5 animate-bounce rounded-full bg-[var(--nous-sol)]/70"
-                  style={{ animationDelay: '150ms' }}
-                />
-                <span
-                  className="h-1.5 w-1.5 animate-bounce rounded-full bg-[var(--nous-sol)]/40"
-                  style={{ animationDelay: '300ms' }}
+                  className="ml-0.5 inline-block h-4 w-[3px] rounded-sm align-text-bottom animate-pulse bg-[var(--nous-sol)] dark:bg-[var(--nous-helios)]"
+                  data-testid="streaming-cursor"
                 />
               </div>
-              <span className="text-[11px] font-medium text-[var(--nous-fg-3)]">
-                Thinking…
-              </span>
-            </div>
-          ) : (
-            <div className="nous-chat-body">
-              {isUser ? (
-                <p className="whitespace-pre-wrap">{message.content}</p>
-              ) : (
+            ) : isTyping && !message.content ? (
+              <ThinkingPill label="Thinking" />
+            ) : (
+              <div className="nous-chat-body">
                 <CitationRenderer
                   content={message.content}
                   citations={message.citations as Citation[]}
@@ -188,15 +259,17 @@ export const ChatBubble = React.memo(function ChatBubble({
                     }
                   }}
                 />
-              )}
-            </div>
-          )}
-        </div>
+              </div>
+            )}
+          </div>
+        )}
 
-        {/* Citations footer */}
-        {!isUser && visibleCitations.length > 0 && (
-          <div className="relative border-t border-[var(--nous-border-1)] bg-[var(--nous-bg-1)]/50 p-3">
-            <div className="flex flex-wrap items-center gap-2">
+        {/* Citations footer chips */}
+        {!isUser &&
+          visibleCitations.length > 0 &&
+          !isStreaming &&
+          !isTyping && (
+            <div className="mt-3 flex flex-wrap items-center gap-2">
               {visibleCitations.map((citation, idx) => (
                 <button
                   key={idx}
@@ -206,14 +279,14 @@ export const ChatBubble = React.memo(function ChatBubble({
                       onCitationClick(visibleCitations, citation);
                     }
                   }}
-                  className="group/citation flex items-center gap-2 rounded-lg border border-[var(--nous-border-1)] bg-[var(--nous-bg-2)] px-2.5 py-1.5 text-[10px] transition-all hover:border-[var(--nous-sol)]/30 hover:bg-[var(--nous-sol)]/5"
+                  className="group/citation flex items-center gap-2 rounded-md border border-[var(--nous-border-1)] bg-[var(--nous-bg-2)] px-2.5 py-1.5 text-[10px] transition-all hover:border-[var(--nous-sol)]/40 hover:bg-[var(--nous-aurum)] dark:hover:bg-[var(--nous-ember)]"
                   style={{ fontFamily: 'var(--nous-font-mono)' }}
                 >
-                  <div className="h-1.5 w-1.5 rounded-full bg-[var(--nous-sol)]/30 transition-colors group-hover/citation:bg-[var(--nous-sol)]" />
+                  <div className="h-1.5 w-1.5 rounded-full bg-[var(--nous-sol)]/40 transition-colors group-hover/citation:bg-[var(--nous-sol)] dark:bg-[var(--nous-helios)]/40 dark:group-hover/citation:bg-[var(--nous-helios)]" />
                   <span className="max-w-[180px] truncate text-[var(--nous-fg-1)]">
                     {citation.title}
                   </span>
-                  <span className="border-l border-[var(--nous-border-1)] pl-2 text-[var(--nous-fg-3)]">
+                  <span className="border-l border-[var(--nous-border-1)] pl-2 text-[var(--nous-fg-3)] tabular-nums">
                     {Math.round(citation.score * 100)}%
                   </span>
                 </button>
@@ -221,7 +294,7 @@ export const ChatBubble = React.memo(function ChatBubble({
               {message.diagnosticsTraceId && (
                 <a
                   href={`/diagnostics?trace=${encodeURIComponent(message.diagnosticsTraceId)}`}
-                  className="ml-auto flex items-center gap-1 rounded-lg border border-[var(--nous-border-1)] bg-[var(--nous-bg-2)] px-2 py-1 text-[9px] text-[var(--nous-fg-3)] transition-all hover:border-[var(--nous-sol)]/30 hover:text-[var(--nous-sol)]"
+                  className="ml-auto flex items-center gap-1 rounded-md border border-[var(--nous-border-1)] bg-[var(--nous-bg-2)] px-2 py-1 text-[9px] text-[var(--nous-fg-3)] transition-all hover:border-[var(--nous-sol)]/40 hover:text-[var(--nous-sol-safe)] dark:hover:text-[var(--nous-helios)]"
                   style={{ fontFamily: 'var(--nous-font-mono)' }}
                   title="View retrieval diagnostics"
                 >
@@ -230,11 +303,92 @@ export const ChatBubble = React.memo(function ChatBubble({
                 </a>
               )}
             </div>
+          )}
+
+        {/* Scholarly action row — visible on hover */}
+        {!isUser && !isStreaming && !isTyping && message.content && (
+          <div className="nous-msg-actions">
+            <button
+              onClick={handleCopy}
+              className="nous-msg-action"
+              aria-label={copied ? 'Copied!' : 'Copy message'}
+              title={copied ? 'Copied!' : 'Copy message'}
+            >
+              {copied ? (
+                <Check className="h-3.5 w-3.5 text-[var(--nous-terra)]" />
+              ) : (
+                <Copy className="h-3.5 w-3.5" />
+              )}
+            </button>
+            {onRetry && (
+              <button
+                onClick={onRetry}
+                className="nous-msg-action"
+                aria-label="Regenerate response"
+                title="Regenerate response"
+              >
+                <RefreshCw className="h-3.5 w-3.5" />
+              </button>
+            )}
+            <button
+              className="nous-msg-action"
+              aria-label="Helpful"
+              title="Helpful"
+            >
+              <ThumbsUp className="h-3.5 w-3.5" />
+            </button>
+            <button
+              className="nous-msg-action"
+              aria-label="Not helpful"
+              title="Not helpful"
+            >
+              <ThumbsDown className="h-3.5 w-3.5" />
+            </button>
+            <button
+              className="nous-msg-action"
+              aria-label="Bookmark"
+              title="Bookmark"
+            >
+              <Bookmark className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        )}
+
+        {/* User message: copy on hover */}
+        {isUser && message.content && (
+          <div className="nous-msg-actions justify-end">
+            <button
+              onClick={handleCopy}
+              className="nous-msg-action"
+              aria-label={copied ? 'Copied!' : 'Copy message'}
+              title={copied ? 'Copied!' : 'Copy message'}
+            >
+              {copied ? (
+                <Check className="h-3.5 w-3.5 text-[var(--nous-terra)]" />
+              ) : (
+                <Copy className="h-3.5 w-3.5" />
+              )}
+            </button>
           </div>
         )}
       </div>
     </div>
   );
 });
+
+function ThinkingPill({ label }: { label: string }) {
+  return (
+    <div className="nous-streaming-pill" role="status" aria-live="polite">
+      <span
+        className="w-2 h-2 rounded-full bg-[var(--nous-sol)] dark:bg-[var(--nous-helios)]"
+        style={{
+          boxShadow: '0 0 0 3px rgba(212, 160, 57, 0.18)',
+          animation: 'nous-pulse 1.4s ease-in-out infinite',
+        }}
+      />
+      <span>{label}</span>
+    </div>
+  );
+}
 
 export default ChatBubble;

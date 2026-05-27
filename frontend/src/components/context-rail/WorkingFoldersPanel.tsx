@@ -1,6 +1,7 @@
 'use client';
 
 import { useCitationsForThread } from '@/hooks';
+import { Folder } from 'lucide-react';
 import { CollapsibleCard } from './CollapsibleCard';
 import { FolderTree, type Node } from './folder-tree';
 import { useProjectWorkingFolders } from './hooks/useProjectWorkingFolders';
@@ -17,14 +18,9 @@ interface WorkingFoldersPanelProps {
   onSelect?: (node: WorkingFoldersSelection) => void;
 }
 
-/**
- * Cowork-style folder tree. Project-scoped when `projectId` is set
- * (shows `This thread` + `Sources`/`Notes`/`Drafts`, empty slots hidden);
- * otherwise falls back to a thread-only view with a CTA to attach a project.
- */
 export function WorkingFoldersPanel({
   projectId,
-  workspaceName,
+  workspaceName: _workspaceName,
   onSelect,
 }: WorkingFoldersPanelProps = {}) {
   const { allCitations } = useCitationsForThread();
@@ -141,35 +137,21 @@ export function WorkingFoldersPanel({
   return (
     <CollapsibleCard
       title="Working folders"
-      badge={
-        totalFiles > 0
-          ? `${totalFiles} file${totalFiles === 1 ? '' : 's'}`
-          : undefined
-      }
+      icon={<Folder className="h-3 w-3" strokeWidth={1.7} />}
+      badge={totalFiles > 0 ? String(totalFiles) : undefined}
     >
-      <FolderTree nodes={tree} />
-      {!projectId && (
-        <a
-          href="/projects"
-          className="mt-3 inline-flex items-center gap-1 text-[13px]"
-          style={{
-            color: 'var(--nous-sol)',
-            fontFamily: 'var(--nous-font-ui)',
-          }}
-        >
-          Attach this chat to a project →
-        </a>
-      )}
-      {workspaceName && (
+      {totalFiles === 0 ? (
         <p
-          className="mt-3 text-[11px]"
+          className="py-2 text-[11px] text-[var(--nous-fg-3)]"
           style={{
-            color: 'var(--nous-fg-3)',
-            fontFamily: 'var(--nous-font-ui)',
+            fontFamily: 'var(--nous-font-mono)',
+            letterSpacing: '0.04em',
           }}
         >
-          Workspace · {workspaceName}
+          No files yet — cited sources will appear here.
         </p>
+      ) : (
+        <FolderTree nodes={tree} />
       )}
     </CollapsibleCard>
   );

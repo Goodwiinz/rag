@@ -398,6 +398,7 @@ async def stream_event_generator(
                     content=assistant_content,
                     model_name=request_body.model,
                     tool_executions_out=tool_executions_out,
+                    retrieved_contexts=final_values.get("retrieved_contexts"),
                 )
                 if background_tasks is not None:
                     background_tasks.add_task(
@@ -673,6 +674,7 @@ async def stream_confirm_event_generator(
                 resumed_request,
                 assistant_content,
                 tool_executions_out,
+                retrieved_contexts=final_values.get("retrieved_contexts"),
             )
         except Exception as e:
             logger.warning(
