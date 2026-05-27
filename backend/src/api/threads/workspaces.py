@@ -76,12 +76,22 @@ async def create_workspace(
     current_user: User = Depends(get_current_user),
 ):
     """Create a new workspace"""
+    user_org_id = getattr(current_user, "organization_id", None)
+    if (
+        request.organization_id is not None
+        and str(request.organization_id) != str(user_org_id)
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Cannot create workspace for a different organization",
+        )
+
     workspace = Workspace(
         name=request.name,
         description=request.description,
         is_public=request.is_public,
         owner_id=current_user.id,
-        organization_id=request.organization_id,
+        organization_id=user_org_id,
     )
     db.add(workspace)
 
@@ -901,9 +911,7 @@ async def create_collection(
     # Add initial documents if provided
     if request.document_ids:
         for i, doc_id in enumerate(request.document_ids):
-            doc_stmt = select(Document).where(Document.id == doc_id)
-            doc_result = await db.execute(doc_stmt)
-            doc = doc_result.scalars().first()
+            doc = await _get_accessible_document_or_none(db, doc_id, current_user)
             if doc:
                 collection_doc = CollectionDocument(
                     collection=collection, document_id=doc_id, sort_order=i
@@ -1063,9 +1071,7 @@ async def add_documents_to_collection(
 
     for i, doc_id in enumerate(request.document_ids):
         # Check if document exists
-        doc_stmt = select(Document).where(Document.id == doc_id)
-        doc_result = await db.execute(doc_stmt)
-        doc = doc_result.scalars().first()
+        doc = await _get_accessible_document_or_none(db, doc_id, current_user)
         if not doc:
             continue
 
@@ -1238,6 +1244,27 @@ async def _get_collection_or_404(
         raise HTTPException(status_code=404, detail="Collection not found")
 
     return collection
+
+
+async def _get_accessible_document_or_none(
+    db: AsyncSession,
+    document_id: UUID,
+    current_user: User,
+) -> Optional[Document]:
+    """Return a document only if it belongs to the current user's organization."""
+    filters = [
+        Document.id == document_id,
+        Document.is_deleted == False,
+    ]
+    user_org_id = getattr(current_user, "organization_id", None)
+    if user_org_id is not None:
+        filters.append(Document.organization_id == user_org_id)
+    else:
+        filters.append(Document.uploaded_by_user_id == current_user.id)
+
+    doc_stmt = select(Document).where(*filters)
+    doc_result = await db.execute(doc_stmt)
+    return doc_result.scalars().first()
 
 
 def _workspace_to_response(workspace: Workspace) -> WorkspaceResponse:
@@ -2125,9 +2152,7 @@ async def create_collection_standalone(
     # Add initial documents if provided
     if request.document_ids:
         for i, doc_id in enumerate(request.document_ids):
-            doc_stmt = select(Document).where(Document.id == doc_id)
-            doc_result = await db.execute(doc_stmt)
-            doc = doc_result.scalars().first()
+            doc = await _get_accessible_document_or_none(db, doc_id, current_user)
             if doc:
                 collection_doc = CollectionDocument(
                     collection=collection, document_id=doc_id, sort_order=i
@@ -2267,9 +2292,7 @@ async def add_documents_to_collection_standalone(
     max_order = max_order_result.scalar() or 0
 
     for i, doc_id in enumerate(request.document_ids):
-        doc_stmt = select(Document).where(Document.id == doc_id)
-        doc_result = await db.execute(doc_stmt)
-        doc = doc_result.scalars().first()
+        doc = await _get_accessible_document_or_none(db, doc_id, current_user)
         if not doc:
             continue
 

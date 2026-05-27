@@ -49,7 +49,10 @@ interface ProjectChatState {
     projectId: string,
     request: LinkThreadRequest
   ) => Promise<ProjectThread | null>;
-  unlinkThreadFromProject: (projectId: string, threadId: string) => Promise<void>;
+  unlinkThreadFromProject: (
+    projectId: string,
+    threadId: string
+  ) => Promise<void>;
   saveThreadToNote: (
     projectId: string,
     request: SaveThreadToNoteRequest
@@ -86,7 +89,10 @@ export const useProjectChatStore = create<ProjectChatState>()(
     fetchProjectThreads: async (projectId: string) => {
       // Guard against invalid project IDs
       if (!projectId || projectId === 'undefined') {
-        console.warn('[ProjectChatStore] fetchProjectThreads called with invalid projectId:', projectId);
+        console.warn(
+          '[ProjectChatStore] fetchProjectThreads called with invalid projectId:',
+          projectId
+        );
         return;
       }
 
@@ -120,7 +126,10 @@ export const useProjectChatStore = create<ProjectChatState>()(
     ) => {
       // Guard against invalid project IDs
       if (!projectId || projectId === 'undefined') {
-        console.warn('[ProjectChatStore] startChatFromProject called with invalid projectId:', projectId);
+        console.warn(
+          '[ProjectChatStore] startChatFromProject called with invalid projectId:',
+          projectId
+        );
         return null;
       }
 
@@ -162,7 +171,10 @@ export const useProjectChatStore = create<ProjectChatState>()(
     ) => {
       // Guard against invalid project IDs
       if (!projectId || projectId === 'undefined') {
-        console.warn('[ProjectChatStore] linkThreadToProject called with invalid projectId:', projectId);
+        console.warn(
+          '[ProjectChatStore] linkThreadToProject called with invalid projectId:',
+          projectId
+        );
         return null;
       }
 
@@ -188,6 +200,13 @@ export const useProjectChatStore = create<ProjectChatState>()(
 
         return response;
       } catch (error: any) {
+        const status = error?.error?.status_code ?? error?.status_code;
+        if (status === 409) {
+          set((state) => {
+            state.linkingThread[projectId] = false;
+          });
+          return null;
+        }
         console.error('[ProjectChatStore] linkThreadToProject failed:', error);
         set((state) => {
           state.errors[projectId] = error?.message || 'Failed to link thread';
@@ -203,7 +222,10 @@ export const useProjectChatStore = create<ProjectChatState>()(
     unlinkThreadFromProject: async (projectId: string, threadId: string) => {
       // Guard against invalid project IDs
       if (!projectId || projectId === 'undefined') {
-        console.warn('[ProjectChatStore] unlinkThreadFromProject called with invalid projectId:', projectId);
+        console.warn(
+          '[ProjectChatStore] unlinkThreadFromProject called with invalid projectId:',
+          projectId
+        );
         return;
       }
 
@@ -226,7 +248,10 @@ export const useProjectChatStore = create<ProjectChatState>()(
           state.unlinkingThread[projectId] = false;
         });
       } catch (error: any) {
-        console.error('[ProjectChatStore] unlinkThreadFromProject failed:', error);
+        console.error(
+          '[ProjectChatStore] unlinkThreadFromProject failed:',
+          error
+        );
         set((state) => {
           state.errors[projectId] = error?.message || 'Failed to unlink thread';
           state.unlinkingThread[projectId] = false;
@@ -243,7 +268,10 @@ export const useProjectChatStore = create<ProjectChatState>()(
     ) => {
       // Guard against invalid project IDs
       if (!projectId || projectId === 'undefined') {
-        console.warn('[ProjectChatStore] saveThreadToNote called with invalid projectId:', projectId);
+        console.warn(
+          '[ProjectChatStore] saveThreadToNote called with invalid projectId:',
+          projectId
+        );
         return null;
       }
 
@@ -266,7 +294,8 @@ export const useProjectChatStore = create<ProjectChatState>()(
       } catch (error: any) {
         console.error('[ProjectChatStore] saveThreadToNote failed:', error);
         set((state) => {
-          state.errors[projectId] = error?.message || 'Failed to save thread to note';
+          state.errors[projectId] =
+            error?.message || 'Failed to save thread to note';
           state.savingToNote[projectId] = false;
         });
         return null;
@@ -298,24 +327,27 @@ export const useProjectChatStore = create<ProjectChatState>()(
 /**
  * Get threads for a specific project
  */
-export const selectProjectThreads = (projectId: string) => (state: ProjectChatState) =>
-  state.linkedThreads[projectId] || [];
+export const selectProjectThreads =
+  (projectId: string) => (state: ProjectChatState) =>
+    state.linkedThreads[projectId] || [];
 
 /**
  * Get loading state for a specific project
  */
-export const selectProjectLoading = (projectId: string) => (state: ProjectChatState) =>
-  state.loadingThreads[projectId] ||
-  state.startingChat[projectId] ||
-  state.linkingThread[projectId] ||
-  state.unlinkingThread[projectId] ||
-  state.savingToNote[projectId] ||
-  false;
+export const selectProjectLoading =
+  (projectId: string) => (state: ProjectChatState) =>
+    state.loadingThreads[projectId] ||
+    state.startingChat[projectId] ||
+    state.linkingThread[projectId] ||
+    state.unlinkingThread[projectId] ||
+    state.savingToNote[projectId] ||
+    false;
 
 /**
  * Get error state for a specific project
  */
-export const selectProjectError = (projectId: string) => (state: ProjectChatState) =>
-  state.errors[projectId] || null;
+export const selectProjectError =
+  (projectId: string) => (state: ProjectChatState) =>
+    state.errors[projectId] || null;
 
 export default useProjectChatStore;

@@ -37,6 +37,7 @@ export default function ProjectsPage() {
     updateProject,
     deleteProject,
     clearError,
+    reset: resetProjects,
   } = useProjectStore();
 
   const [mounted, setMounted] = useState(false);
@@ -64,6 +65,11 @@ export default function ProjectsPage() {
     currentWorkspace,
     loadWorkspaces,
   ]);
+
+  useEffect(() => {
+    if (!mounted || isAuthenticated) return;
+    resetProjects();
+  }, [mounted, isAuthenticated, resetProjects]);
 
   useEffect(() => {
     if (!mounted || !isAuthenticated) return;
@@ -95,10 +101,14 @@ export default function ProjectsPage() {
   ]);
 
   const allTags = useMemo(() => {
+    if (!isAuthenticated) return [];
     return Array.from(
       new Set(projects.flatMap((project) => project.tags || []))
     ).sort();
-  }, [projects]);
+  }, [isAuthenticated, projects]);
+
+  const visibleProjects = isAuthenticated ? projects : [];
+  const visibleTotal = isAuthenticated ? total : 0;
 
   const handleCreateProject = async (payload: {
     name: string;
@@ -277,7 +287,7 @@ export default function ProjectsPage() {
       )}
 
       {!loading &&
-        projects.length === 0 &&
+        visibleProjects.length === 0 &&
         (() => {
           const hasActiveFilters = !!(
             searchQuery ||
@@ -316,9 +326,9 @@ export default function ProjectsPage() {
           );
         })()}
 
-      {!loading && projects.length > 0 && (
+      {!loading && visibleProjects.length > 0 && (
         <ProjectList
-          projects={projects}
+          projects={visibleProjects}
           viewMode={viewMode}
           onViewModeChange={setViewMode}
           onOpenProject={(projectId) => router.push(`/projects/${projectId}`)}
@@ -334,9 +344,9 @@ export default function ProjectsPage() {
         />
       )}
 
-      {!loading && projects.length > 0 && total > 0 && (
+      {!loading && visibleProjects.length > 0 && visibleTotal > 0 && (
         <div className="mt-6 text-center text-sm text-muted-foreground font-mono">
-          Showing {projects.length} of {total} projects
+          Showing {visibleProjects.length} of {visibleTotal} projects
         </div>
       )}
 

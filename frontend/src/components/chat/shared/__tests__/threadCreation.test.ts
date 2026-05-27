@@ -13,4 +13,18 @@ describe('buildThreadCreateRequest', () => {
       title: 'What is machine learning',
     });
   });
+
+  it('includes project_id when chat is bound to a project', () => {
+    expect(
+      buildThreadCreateRequest({
+        conversationId: 'conv-123',
+        title: 'Project discussion',
+        projectId: 'project-456',
+      })
+    ).toEqual({
+      conversation_id: 'conv-123',
+      title: 'Project discussion',
+      project_id: 'project-456',
+    });
+  });
 });

@@ -65,13 +65,17 @@ class Workspace(BaseModel):
     def __repr__(self):
         return f"<Workspace(name={self.name}, owner_id={self.owner_id})>"
 
+    def _active_members(self):
+        """Return memberships that have not been soft-deleted."""
+        return [m for m in self.members if not getattr(m, "is_deleted", False)]
+
     def is_member(self, user_id: str) -> bool:
         """Check if user is a member of this workspace"""
-        return any(str(m.user_id) == str(user_id) for m in self.members)
+        return any(str(m.user_id) == str(user_id) for m in self._active_members())
 
     def get_member_role(self, user_id: str) -> WorkspaceRole:
         """Get user's role in this workspace"""
-        for member in self.members:
+        for member in self._active_members():
             if str(member.user_id) == str(user_id):
                 return member.role
         return None

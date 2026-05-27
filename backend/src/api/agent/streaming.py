@@ -5,8 +5,10 @@ Contains the event_generator functions used by the /stream and
 """
 
 import asyncio
+import contextlib
 import json as _json
 import logging
+import time
 import uuid as _uuid
 from typing import Any, Dict, List, Optional
 
@@ -28,6 +30,33 @@ from .jobs import (
 from .trace_context import build_trace_payload
 
 logger = logging.getLogger(__name__)
+
+_DEBUG_LOG_PATH = "/Users/goodwiinz/development/RAG_system/.cursor/debug-682ae9.log"
+
+
+def _debug_log(
+    *,
+    hypothesis_id: str,
+    location: str,
+    message: str,
+    data: dict | None = None,
+) -> None:
+    # region agent log
+    try:
+        payload = {
+            "sessionId": "682ae9",
+            "hypothesisId": hypothesis_id,
+            "location": location,
+            "message": message,
+            "data": data or {},
+            "timestamp": int(time.time() * 1000),
+        }
+        with open(_DEBUG_LOG_PATH, "a", encoding="utf-8") as fh:
+            fh.write(_json.dumps(payload) + "\n")
+    except Exception:
+        pass
+    # endregion
+
 
 _SSE_HEADERS = {
     "Cache-Control": "no-cache",
@@ -142,6 +171,50 @@ def _format_sse_event(event_type: str, data: Dict[str, Any]) -> str:
     return f"event: {event_type}\ndata: {_json.dumps(data)}\n\n"
 
 
+# Trace 019e6a0e: ~20s planner + internal LLM phases emit no SSE frames;
+# idle connections get cut at ~30s. Comment keepalives reset proxy timers.
+_SSE_KEEPALIVE_SECONDS = 10
+_PLANNER_CHAIN_NODES = frozenset(
+    {
+        "planner_node",
+        "research_planner_node",
+        "writing_planner_node",
+        "data_planner_node",
+    }
+)
+
+
+async def _graph_events_with_keepalive(event_stream_iter, request: Any):
+    """Yield LangGraph events, interleaving keepalive markers during long gaps."""
+    pending: asyncio.Task | None = None
+    while True:
+        if await request.is_disconnected():
+            break
+        if pending is None:
+            pending = asyncio.create_task(event_stream_iter.__anext__())
+        sleep_task = asyncio.create_task(asyncio.sleep(_SSE_KEEPALIVE_SECONDS))
+        done, _ = await asyncio.wait(
+            {pending, sleep_task},
+            return_when=asyncio.FIRST_COMPLETED,
+        )
+        if sleep_task in done and pending not in done:
+            yield {"type": "keepalive", "elapsed_ms": int(time.time() * 1000)}
+            continue
+        sleep_task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await sleep_task
+        try:
+            event = pending.result()
+        except StopAsyncIteration:
+            pending = None
+            break
+        except Exception:
+            pending = None
+            raise
+        pending = None
+        yield {"type": "event", "event": event}
+
+
 async def stream_event_generator(
     request_body: Any,  # AgentExecuteRequest
     request: Any,  # FastAPI Request
@@ -173,7 +246,21 @@ async def stream_event_generator(
     db = AsyncSessionLocal()
     graph = None  # type: ignore[assignment]
     resolved_thread_id: Optional[str] = None
+    stream_started_at = time.monotonic()
+    keepalive_count = 0
+    first_graph_event_logged = False
     try:
+        _debug_log(
+            hypothesis_id="H7",
+            location="streaming.py:stream_event_generator",
+            message="stream_start",
+            data={
+                "thread_id": stream_thread_id,
+                "query_preview": (_get_latest_user_content(request_body.messages) or "")[
+                    :120
+                ],
+            },
+        )
         # Persist the user turn BEFORE the LLM call so a mid-stream client
         # disconnect (or any failure inside ``astream_events``) still leaves
         # the user row durable. The assistant row is written after the
@@ -204,9 +291,21 @@ async def stream_event_generator(
             if m.role == "user"
         ]
 
+        page_context = _page_context_to_dict(request_body.page_context)
+        if (
+            thread_obj is not None
+            and getattr(thread_obj, "source_project_id", None)
+            and not page_context.get("project_id")
+        ):
+            page_context["project_id"] = str(thread_obj.source_project_id)
+            if hasattr(thread_obj, "source_project") and thread_obj.source_project:
+                page_context["project_name"] = thread_obj.source_project.name
+            if not page_context.get("type") or page_context["type"] == "chat":
+                page_context["type"] = "project"
+
         initial_state = {
             "messages": messages,
-            "page_context": _page_context_to_dict(request_body.page_context),
+            "page_context": page_context,
             "retrieved_contexts": [],
             "tool_executions": [],
             "thread_id": request_body.thread_id or "",
@@ -232,7 +331,7 @@ async def stream_event_generator(
                 "thread_id": stream_thread_id,
                 "db": db,
                 "current_user": current_user,
-                "page_context": _page_context_to_dict(request_body.page_context),
+                "page_context": page_context,
             }
         }
 
@@ -273,8 +372,107 @@ async def stream_event_generator(
         async with asyncio.timeout(300):  # 5 minutes
             while True:
                 try:
-                    event = await event_stream_iter.__anext__()
-                except StopAsyncIteration:
+                    async for item in _graph_events_with_keepalive(
+                        event_stream_iter, request
+                    ):
+                        if item["type"] == "keepalive":
+                            keepalive_count += 1
+                            elapsed_ms = int((time.monotonic() - stream_started_at) * 1000)
+                            _debug_log(
+                                hypothesis_id="H8",
+                                location="streaming.py:keepalive",
+                                message="sse_keepalive",
+                                data={
+                                    "count": keepalive_count,
+                                    "elapsed_ms": elapsed_ms,
+                                },
+                            )
+                            yield (
+                                "event: heartbeat\n"
+                                f"data: {_json.dumps({'elapsed_ms': elapsed_ms})}\n\n"
+                            )
+                            continue
+
+                        event = item["event"]
+                        first_event_yielded = True
+                        if not first_graph_event_logged:
+                            first_graph_event_logged = True
+                            _debug_log(
+                                hypothesis_id="H9",
+                                location="streaming.py:first_graph_event",
+                                message="first_graph_event",
+                                data={
+                                    "kind": event.get("event", ""),
+                                    "name": event.get("name", ""),
+                                    "elapsed_ms": int(
+                                        (time.monotonic() - stream_started_at) * 1000
+                                    ),
+                                },
+                            )
+
+                        kind = event.get("event", "")
+                        name = event.get("name", "")
+
+                        if kind == "on_chat_model_stream":
+                            if not _is_user_facing_token_event(event):
+                                continue
+                            chunk = event.get("data", {}).get("chunk")
+                            if chunk and hasattr(chunk, "content") and chunk.content:
+                                yield f"event: token\ndata: {_json.dumps({'content': chunk.content})}\n\n"
+
+                        elif kind == "on_chat_model_end":
+                            inp, out = _extract_usage_tokens(event)
+                            turn_input_tokens += inp
+                            turn_output_tokens += out
+
+                        elif kind == "on_tool_start":
+                            tool_input = event.get("data", {}).get("input", {})
+                            args_preview = str(tool_input)[:500] if tool_input else ""
+                            _debug_log(
+                                hypothesis_id="H11",
+                                location="streaming.py:tool_start",
+                                message="tool_start",
+                                data={
+                                    "tool": name,
+                                    "elapsed_ms": int(
+                                        (time.monotonic() - stream_started_at) * 1000
+                                    ),
+                                },
+                            )
+                            yield f"event: tool_start\ndata: {_json.dumps({'tool': name, 'args': args_preview})}\n\n"
+
+                        elif kind == "on_tool_end":
+                            output = event.get("data", {}).get("output", "")
+                            is_error = (
+                                isinstance(output, dict) and bool(output.get("isError"))
+                            ) or (
+                                getattr(output, "status", None) == "error"
+                            )
+                            yield f"event: tool_end\ndata: {_json.dumps({'tool': name, 'result': _encode_tool_result(output), 'is_error': is_error})}\n\n"
+
+                        elif kind == "on_chain_end" and name == "rag_node":
+                            output = event.get("data", {}).get("output", {})
+                            if isinstance(output, dict):
+                                contexts = output.get("retrieved_contexts", [])
+                                if contexts:
+                                    yield f"event: rag_context\ndata: {_json.dumps({'contexts': contexts[:3]})}\n\n"
+
+                        elif kind == "on_chain_end" and name in _PLANNER_CHAIN_NODES:
+                            output = event.get("data", {}).get("output", {})
+                            if isinstance(output, dict):
+                                plan_steps = output.get("plan", [])
+                                if plan_steps:
+                                    yield f"event: plan\ndata: {_json.dumps({'steps': plan_steps, 'reasoning': ''})}\n\n"
+
+                        elif kind == "on_chain_end" and name == "reflection_gate":
+                            output = event.get("data", {}).get("output", {})
+                            if isinstance(output, dict):
+                                reflection_result = output.get("_reflection_result")
+                                if reflection_result is not None:
+                                    passed = getattr(reflection_result, "passed", True)
+                                    issues = getattr(reflection_result, "issues", [])
+                                    round_num = output.get("reflection_count", 0)
+                                    yield f"event: reflection\ndata: {_json.dumps({'passed': passed, 'issues': issues, 'round': round_num})}\n\n"
                     break
                 except _PgOpError as op_err:
                     if first_event_yielded:
@@ -292,62 +490,6 @@ async def stream_event_generator(
                     await _clear_stale_pending_confirmation(graph, config)
                     event_stream_iter = await _open_event_stream()
                     continue
-                first_event_yielded = True
-                if await request.is_disconnected():
-                    break
-
-                kind = event.get("event", "")
-                name = event.get("name", "")
-
-                if kind == "on_chat_model_stream":
-                    if not _is_user_facing_token_event(event):
-                        continue
-                    chunk = event.get("data", {}).get("chunk")
-                    if chunk and hasattr(chunk, "content") and chunk.content:
-                        yield f"event: token\ndata: {_json.dumps({'content': chunk.content})}\n\n"
-
-                elif kind == "on_chat_model_end":
-                    inp, out = _extract_usage_tokens(event)
-                    turn_input_tokens += inp
-                    turn_output_tokens += out
-
-                elif kind == "on_tool_start":
-                    tool_input = event.get("data", {}).get("input", {})
-                    args_preview = str(tool_input)[:500] if tool_input else ""
-                    yield f"event: tool_start\ndata: {_json.dumps({'tool': name, 'args': args_preview})}\n\n"
-
-                elif kind == "on_tool_end":
-                    output = event.get("data", {}).get("output", "")
-                    is_error = (
-                        isinstance(output, dict) and bool(output.get("isError"))
-                    ) or (
-                        getattr(output, "status", None) == "error"
-                    )
-                    yield f"event: tool_end\ndata: {_json.dumps({'tool': name, 'result': _encode_tool_result(output), 'is_error': is_error})}\n\n"
-
-                elif kind == "on_chain_end" and name == "rag_node":
-                    output = event.get("data", {}).get("output", {})
-                    if isinstance(output, dict):
-                        contexts = output.get("retrieved_contexts", [])
-                        if contexts:
-                            yield f"event: rag_context\ndata: {_json.dumps({'contexts': contexts[:3]})}\n\n"
-
-                elif kind == "on_chain_end" and name == "planner_node":
-                    output = event.get("data", {}).get("output", {})
-                    if isinstance(output, dict):
-                        plan_steps = output.get("plan", [])
-                        if plan_steps:
-                            yield f"event: plan\ndata: {_json.dumps({'steps': plan_steps, 'reasoning': ''})}\n\n"
-
-                elif kind == "on_chain_end" and name == "reflection_gate":
-                    output = event.get("data", {}).get("output", {})
-                    if isinstance(output, dict):
-                        reflection_result = output.get("_reflection_result")
-                        if reflection_result is not None:
-                            passed = getattr(reflection_result, "passed", True)
-                            issues = getattr(reflection_result, "issues", [])
-                            round_num = output.get("reflection_count", 0)
-                            yield f"event: reflection\ndata: {_json.dumps({'passed': passed, 'issues': issues, 'round': round_num})}\n\n"
 
         # Check graph state after streaming completes
         try:
@@ -423,6 +565,27 @@ async def stream_event_generator(
             )
 
         yield f"event: done\ndata: {_json.dumps({'status': 'complete'})}\n\n"
+        _debug_log(
+            hypothesis_id="H7",
+            location="streaming.py:stream_event_generator",
+            message="stream_done",
+            data={
+                "elapsed_ms": int((time.monotonic() - stream_started_at) * 1000),
+                "keepalive_count": keepalive_count,
+            },
+        )
+
+    except asyncio.CancelledError:
+        _debug_log(
+            hypothesis_id="H10",
+            location="streaming.py:stream_event_generator",
+            message="stream_cancelled",
+            data={
+                "elapsed_ms": int((time.monotonic() - stream_started_at) * 1000),
+                "keepalive_count": keepalive_count,
+            },
+        )
+        raise
 
     except GraphInterrupt as exc:
         # Graph hit an interrupt mid-stream (HITL confirmation needed).
@@ -456,6 +619,16 @@ async def stream_event_generator(
 
     except Exception as e:
         logger.error("SSE stream error", exc_info=e)
+        _debug_log(
+            hypothesis_id="H10",
+            location="streaming.py:stream_event_generator",
+            message="stream_error",
+            data={
+                "error": str(e)[:300],
+                "elapsed_ms": int((time.monotonic() - stream_started_at) * 1000),
+                "keepalive_count": keepalive_count,
+            },
+        )
         yield f"event: error\ndata: {_json.dumps({'error': str(e)})}\n\n"
 
     finally:
@@ -605,7 +778,7 @@ async def stream_confirm_event_generator(
                     )
                     yield f"event: tool_end\ndata: {_json.dumps({'tool': name, 'result': _encode_tool_result(output), 'is_error': is_error})}\n\n"
 
-                elif kind == "on_chain_end" and name == "planner_node":
+                elif kind == "on_chain_end" and name in _PLANNER_CHAIN_NODES:
                     output = event.get("data", {}).get("output", {})
                     if isinstance(output, dict):
                         plan_steps = output.get("plan", [])

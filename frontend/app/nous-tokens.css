@@ -88,6 +88,14 @@
   --nous-border-2: var(--nous-dusk);
 }
 
+/* ─── Optical sizing for Source Serif 4 (opsz axis 8..60) ─── */
+.nous-body,
+.nous-caption,
+.sb-conv-snippet,
+[style*='--nous-font-body'] {
+  font-optical-sizing: auto;
+}
+
 /* ─── Semantic type helpers (namespaced to avoid colliding with app utilities) ─── */
 .nous-display {
   font-family: var(--nous-font-heading);
@@ -207,4 +215,45 @@
 }
 .nous-pulse {
   animation: nous-pulse 1.4s ease-in-out infinite;
+}
+
+/* ─── App Rail ─── */
+.rail-icon {
+  stroke-width: 1.6;
+}
+
+.rail-btn[data-tip]::after {
+  content: attr(data-tip);
+  position: absolute;
+  left: calc(100% + 12px);
+  top: 50%;
+  transform: translateY(-50%) translateX(-4px);
+  padding: 5px 9px;
+  background: var(--nous-erebus);
+  color: var(--nous-selene);
+  font-family: var(--nous-font-ui);
+  font-size: 11px;
+  font-weight: 500;
+  border-radius: 5px;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: all 160ms;
+  z-index: 50;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+}
+
+.rail-btn[data-tip]:hover::after,
+.rail-btn[data-tip]:focus-visible::after {
+  opacity: 1;
+  transform: translateY(-50%) translateX(0);
+}
+
+/* Hide scrollbar on filter chips */
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }

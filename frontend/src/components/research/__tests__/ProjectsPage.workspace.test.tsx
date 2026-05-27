@@ -11,6 +11,9 @@ const mockDeleteProject = vi.fn();
 const mockClearError = vi.fn();
 const mockLoadWorkspaces = vi.fn();
 const mockGetOrCreateDefaultWorkspace = vi.fn();
+const mockResetProjects = vi.fn();
+let mockIsAuthenticated = true;
+let mockProjects: Array<{ id: string; name: string }> = [];
 
 let mockChatState: {
   currentWorkspaceId: string | null;
@@ -23,21 +26,22 @@ vi.mock('next/navigation', () => ({
 }));
 
 vi.mock('@/stores/authStore', () => ({
-  useAuthStore: () => ({ isAuthenticated: true }),
+  useAuthStore: () => ({ isAuthenticated: mockIsAuthenticated }),
 }));
 
 vi.mock('@/store/projectStore', () => ({
   useProjectStore: () => ({
-    projects: [],
+    projects: mockProjects,
     loading: false,
     mutating: false,
     error: null,
-    total: 0,
+    total: mockProjects.length,
     fetchProjects: mockFetchProjects,
     createProject: mockCreateProject,
     updateProject: mockUpdateProject,
     deleteProject: mockDeleteProject,
     clearError: mockClearError,
+    reset: mockResetProjects,
   }),
 }));
 
@@ -93,6 +97,8 @@ describe('ProjectsPage workspace behavior', () => {
     mockDeleteProject.mockResolvedValue(undefined);
     mockLoadWorkspaces.mockResolvedValue(undefined);
     mockGetOrCreateDefaultWorkspace.mockResolvedValue({ id: 'default-ws' });
+    mockIsAuthenticated = true;
+    mockProjects = [];
     mockChatState = {
       currentWorkspaceId: 'ws-selected',
       workspaces: [],
@@ -136,5 +142,18 @@ describe('ProjectsPage workspace behavior', () => {
 
     expect(mockGetOrCreateDefaultWorkspace).not.toHaveBeenCalled();
     expect(mockPush).toHaveBeenCalledWith('/projects/project-1');
+  });
+
+  it('clears stale projects instead of rendering them when unauthenticated', async () => {
+    mockIsAuthenticated = false;
+    mockProjects = [{ id: 'stale-project', name: 'Stale Project' }];
+
+    render(<ProjectsPage />);
+
+    await waitFor(() => {
+      expect(mockResetProjects).toHaveBeenCalled();
+    });
+    expect(mockFetchProjects).not.toHaveBeenCalled();
+    expect(screen.queryByText('Project List')).not.toBeInTheDocument();
   });
 });

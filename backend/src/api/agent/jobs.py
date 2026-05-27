@@ -563,9 +563,21 @@ async def _run_agent_graph(
                 if m.role == "user"
             ]
 
+            page_context = _page_context_to_dict(request.page_context)
+            if (
+                thread_obj is not None
+                and getattr(thread_obj, "source_project_id", None)
+                and not page_context.get("project_id")
+            ):
+                page_context["project_id"] = str(thread_obj.source_project_id)
+                if hasattr(thread_obj, "source_project") and thread_obj.source_project:
+                    page_context["project_name"] = thread_obj.source_project.name
+                if not page_context.get("type") or page_context["type"] == "chat":
+                    page_context["type"] = "project"
+
             initial_state = {
                 "messages": messages,
-                "page_context": _page_context_to_dict(request.page_context),
+                "page_context": page_context,
                 "retrieved_contexts": [],
                 "tool_executions": [],
                 "thread_id": request.thread_id or "",
@@ -590,7 +602,7 @@ async def _run_agent_graph(
                     "thread_id": request.thread_id or job_id,
                     "db": db,
                     "current_user": current_user,
-                    "page_context": _page_context_to_dict(request.page_context),
+                    "page_context": page_context,
                 }
             }
 

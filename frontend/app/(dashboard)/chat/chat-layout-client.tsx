@@ -4,6 +4,7 @@ import { ContextRail } from '@/components/context-rail';
 import { useChatPersistence } from '@/hooks';
 import { cn } from '@/lib/utils';
 import { useChatStore } from '@/store/chat-store';
+import { useProjectStore } from '@/store/projectStore';
 import { useAuthStore } from '@/stores/authStore';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
@@ -317,12 +318,26 @@ function ChatLayoutContent({ children }: { children: React.ReactNode }) {
   const searchParams = useSearchParams();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const projectId = searchParams.get('projectId') ?? undefined;
+  const projectStoreProjects = useProjectStore((s) => s.projects);
+  const currentProject = useProjectStore((s) => s.currentProject);
+  const fetchProject = useProjectStore((s) => s.fetchProject);
+  const resolvedProjectName = projectId
+    ? currentProject?.id === projectId
+      ? currentProject.name
+      : (projectStoreProjects.find((p) => p.id === projectId)?.name ?? null)
+    : null;
   const { currentThreadId, currentWorkspaceId } = useChatPersistence();
   const storeWorkspaces = useChatStore((s) => s.workspaces);
   const workspaceName = isAuthenticated
     ? (storeWorkspaces.find((w) => w.id === currentWorkspaceId)?.name ?? null)
     : null;
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
+
+  useEffect(() => {
+    if (projectId && !resolvedProjectName) {
+      fetchProject(projectId);
+    }
+  }, [projectId, resolvedProjectName, fetchProject]);
 
   const handleProjectBound = useCallback(
     (boundProjectId: string) => {
@@ -361,6 +376,7 @@ function ChatLayoutContent({ children }: { children: React.ReactNode }) {
             workspaceId={currentWorkspaceId ?? undefined}
             ragEnabled={true}
             projectId={projectId}
+            projectName={resolvedProjectName}
             onProjectBound={handleProjectBound}
             onSelect={(node) => {
               // Per design + Task 1 verification: note/draft detail routes don't
