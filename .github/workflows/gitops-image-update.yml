@@ -79,11 +79,10 @@ jobs:
         run: |
           VALUES_FILE="infrastructure/helm/knowledge-graph-analytics/values-dev.yaml"
 
-          yq -i '.frontend.image.tag = strenv(TAG)' "$VALUES_FILE"
           yq -i '.backend.image.tag = strenv(TAG)' "$VALUES_FILE"
 
           echo "Updated $VALUES_FILE with tag: $TAG"
-          yq '.frontend.image, .backend.image' "$VALUES_FILE"
+          yq '.backend.image' "$VALUES_FILE"
 
       - name: Commit and push
         env:
@@ -150,11 +149,10 @@ jobs:
         run: |
           VALUES_FILE="infrastructure/helm/knowledge-graph-analytics/values-staging.yaml"
 
-          yq -i '.frontend.image.tag = strenv(TAG)' "$VALUES_FILE"
           yq -i '.backend.image.tag = strenv(TAG)' "$VALUES_FILE"
 
           echo "Updated $VALUES_FILE with tag: $TAG"
-          yq '.frontend.image, .backend.image' "$VALUES_FILE"
+          yq '.backend.image' "$VALUES_FILE"
 
       - name: Commit and push
         env:
@@ -206,11 +204,10 @@ jobs:
         run: |
           VALUES_FILE="infrastructure/helm/knowledge-graph-analytics/values-production.yaml"
 
-          yq -i '.frontend.image.tag = strenv(TAG)' "$VALUES_FILE"
           yq -i '.backend.image.tag = strenv(TAG)' "$VALUES_FILE"
 
           echo "Updated $VALUES_FILE with tag: $TAG"
-          yq '.frontend.image, .backend.image' "$VALUES_FILE"
+          yq '.backend.image' "$VALUES_FILE"
 
       - name: Commit and push
         env:

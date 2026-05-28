@@ -18,70 +18,10 @@ commonLabels:
 commonAnnotations: {}
 
 # ──────────────────────────────────────────────
-# Frontend
+# Frontend deployed via Vercel — no in-cluster manifests.
+# Host: app.gen-text.app (DNS points at Vercel).
+# Supabase NEXT_PUBLIC_* env vars now configured in Vercel project settings.
 # ──────────────────────────────────────────────
-frontend:
-  enabled: true
-  replicaCount: 2
-
-  image:
-    repository: registry.digitalocean.com/ragsystemregistry/frontend
-    tag: "latest"  # overridden by CI via --set frontend.image.tag=<sha>
-    pullPolicy: IfNotPresent
-
-  service:
-    type: ClusterIP
-    port: 80
-    targetPort: 3000
-
-  ingress:
-    enabled: true
-    className: "nginx"
-    annotations:
-      nginx.ingress.kubernetes.io/ssl-redirect: "true"
-      cert-manager.io/cluster-issuer: "letsencrypt-prod"
-    hosts:
-      - host: app.gen-text.app
-        paths:
-          - path: /
-            pathType: Prefix
-    tls:
-      - secretName: rag-app-tls
-        hosts:
-          - app.gen-text.app
-
-  resources:
-    limits:
-      cpu: 500m
-      memory: 512Mi
-    requests:
-      cpu: 100m
-      memory: 256Mi
-
-  autoscaling:
-    enabled: true
-    minReplicas: 2
-    maxReplicas: 4
-    targetCPUUtilizationPercentage: 70
-
-  env:
-    - name: NODE_ENV
-      value: "production"
-    - name: HOSTNAME
-      value: "0.0.0.0"
-    - name: NEXT_PUBLIC_SUPABASE_URL
-      value: "https://nyglefacyosdqoxcrxle.supabase.co"
-    - name: NEXT_PUBLIC_SUPABASE_ANON_KEY
-      value: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im55Z2xlZmFjeW9zZHFveGNyeGxlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU0OTg3ODUsImV4cCI6MjA5MTA3NDc4NX0.L3A9KKuJsn0XSxZIzGUJDweykAzokMIMdnmlNkBzMoI"
-
-  healthCheck:
-    enabled: true
-    path: /
-    initialDelaySeconds: 15
-    periodSeconds: 10
-    timeoutSeconds: 5
-    failureThreshold: 3
-
 # ──────────────────────────────────────────────
 # Backend
 # ──────────────────────────────────────────────
@@ -174,6 +114,12 @@ backend:
       value: "300"
     - name: CORS_ORIGINS
       value: "https://app.gen-text.app,https://gen-text.app"
+    # CORS_ORIGIN_REGEX: defined in Infisical `/app` (env=prod) → synced into
+    # `app-secrets` Secret, exposed via envFrom above. MUST be pinned to the
+    # project-specific Vercel slug (e.g.
+    # ^https://nous-platform-[a-z0-9-]+\.vercel\.app$) — a broad *.vercel.app
+    # pattern allows credentialed cross-origin requests from any Vercel
+    # tenant. Empty disables.
     # Database pool sizing: tuned for Supabase session-mode pooler limits
     # (scaled for 2-6 replicas with autoscaling). Increase if upgrading plan.
     - name: DB_ASYNC_POOL_SIZE

@@ -44,71 +44,7 @@ infisical:
     langsmith-credentials: "/langsmith"
     do-kb-credentials: "/do-kb"
 
-# Frontend Configuration
-frontend:
-  enabled: true
-  replicaCount: 3
-
-  image:
-    repository: your-registry/knowledge-graph-frontend
-    tag: "1.0.0"
-    pullPolicy: IfNotPresent
-
-  service:
-    type: ClusterIP
-    port: 3000
-    targetPort: 3000
-
-  ingress:
-    enabled: true
-    className: "nginx"
-    annotations:
-      nginx.ingress.kubernetes.io/rewrite-target: /
-      nginx.ingress.kubernetes.io/ssl-redirect: "true"
-      cert-manager.io/cluster-issuer: "letsencrypt-prod"
-      nginx.ingress.kubernetes.io/rate-limit: "100"
-      nginx.ingress.kubernetes.io/rate-limit-window: "1m"
-      nginx.ingress.kubernetes.io/proxy-buffer-size: "16k"
-    hosts:
-      - host: analytics.yourdomain.com
-        paths:
-          - path: /
-            pathType: Prefix
-    tls:
-      - secretName: frontend-tls
-        hosts:
-          - analytics.yourdomain.com
-
-  resources:
-    limits:
-      cpu: 1000m
-      memory: 1Gi
-    requests:
-      cpu: 500m
-      memory: 512Mi
-
-  autoscaling:
-    enabled: true
-    minReplicas: 3
-    maxReplicas: 10
-    targetCPUUtilizationPercentage: 70
-    targetMemoryUtilizationPercentage: 80
-
-  env:
-    - name: NODE_ENV
-      value: "production"
-    - name: REACT_APP_API_URL
-      value: "https://api.yourdomain.com"
-    - name: REACT_APP_WS_URL
-      value: "wss://api.yourdomain.com"
-
-  healthCheck:
-    enabled: true
-    path: /health
-    initialDelaySeconds: 30
-    periodSeconds: 10
-    timeoutSeconds: 5
-    failureThreshold: 3
+# Frontend is deployed externally via Vercel — no in-cluster manifests.
 
 # Backend Configuration
 backend:
@@ -431,10 +367,6 @@ prometheus:
       rule_files:
         - "/etc/prometheus/rules/*.yml"
       scrape_configs:
-        - job_name: 'frontend'
-          static_configs:
-            - targets: ['frontend:3000']
-          metrics_path: /metrics
         - job_name: 'backend'
           static_configs:
             - targets: ['backend:8000']

@@ -5,7 +5,6 @@ on:
     branches: [main, develop]
     paths:
       - "backend/**"
-      - "frontend/**"
       - "docker-compose*.yml"
       - "docker-bake.hcl"
       - ".github/workflows/docker-build.yml"
@@ -104,102 +103,14 @@ jobs:
       # depends on aquasecurity/setup-trivy@v0.2.1 which was removed from GitHub,
       # breaking action resolution at "Set up job". Re-enable with a fresh pin.
 
-  build-frontend:
-    name: Build Frontend Image
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    needs: version
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
-        with:
-          driver-opts: |
-            image=moby/buildkit:latest
-
-      - name: Log in to DO Container Registry
-        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ secrets.DO_REGISTRY_TOKEN }}
-          password: ${{ secrets.DO_REGISTRY_TOKEN }}
-
-      # NEXT_PUBLIC_* + SENTRY_AUTH_TOKEN come from Infisical
-      # (project: nous-platform, path: /frontend-build).
-      # See docs/infrastructure/infisical-setup.md.
-      - name: Resolve Infisical env slug from branch
-        id: infisical-env
-        env:
-          BRANCH: ${{ github.ref_name }}
-        run: |
-          case "$BRANCH" in
-            main) echo "slug=prod" >> "$GITHUB_OUTPUT" ;;
-            develop) echo "slug=dev" >> "$GITHUB_OUTPUT" ;;
-            *) echo "slug=dev" >> "$GITHUB_OUTPUT" ;;
-          esac
-
-      - name: Fetch frontend build secrets from Infisical
-        uses: Infisical/secrets-action@v1.0.9
-        with:
-          method: "universal"
-          client-id: ${{ secrets.INFISICAL_CLIENT_ID }}
-          client-secret: ${{ secrets.INFISICAL_CLIENT_SECRET }}
-          domain: "https://app.infisical.com"
-          project-slug: "nous-platform-pl-3-o"
-          env-slug: ${{ steps.infisical-env.outputs.slug }}
-          secret-path: "/frontend-build"
-          export-type: "env"
-
-      - name: Build and push frontend image
-        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7.1.0
-        with:
-          context: .
-          file: frontend/Dockerfile.prod
-          platforms: linux/amd64
-          provenance: false
-          push: ${{ github.event_name != 'pull_request' }}
-          tags: |
-            ${{ env.REGISTRY }}/frontend:latest
-            ${{ env.REGISTRY }}/frontend:${{ needs.version.outputs.version }}
-            ${{ env.REGISTRY }}/frontend:${{ needs.version.outputs.short_sha }}
-            ${{ env.REGISTRY }}/frontend:${{ github.sha }}
-          # NEXT_PUBLIC_* are baked into the client bundle by Next.js at build
-          # time — they're public-by-design, so build-args (not a secret mount)
-          # is the correct channel. The Dockerfile reads them via matching ARGs.
-          # Values are populated from $GITHUB_ENV by the Infisical step above.
-          build-args: |
-            NEXT_PUBLIC_API_BASE_URL=/api/v1
-            BACKEND_URL=http://nous-dev-knowledge-graph-analytics-backend.rag-dev.svc.cluster.local:80
-            NEXT_PUBLIC_SUPABASE_URL=${{ env.NEXT_PUBLIC_SUPABASE_URL }}
-            NEXT_PUBLIC_SUPABASE_ANON_KEY=${{ env.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
-            NEXT_PUBLIC_STATSIG_CLIENT_KEY=${{ env.NEXT_PUBLIC_STATSIG_CLIENT_KEY }}
-            NEXT_PUBLIC_SENTRY_DSN=${{ env.NEXT_PUBLIC_SENTRY_DSN }}
-            NEXT_PUBLIC_APP_ENV=${{ env.NEXT_PUBLIC_APP_ENV }}
-            SENTRY_ORG=${{ env.SENTRY_ORG }}
-            SENTRY_PROJECT=${{ env.SENTRY_PROJECT }}
-            NEXT_PUBLIC_GIT_SHA=${{ needs.version.outputs.short_sha }}
-          secrets: |
-            sentry_auth_token=${{ env.SENTRY_AUTH_TOKEN }}
-          cache-from: type=s3,bucket=${{ env.SPACES_BUCKET }},region=${{ env.SPACES_REGION }},endpoint_url=${{ env.SPACES_ENDPOINT }},prefix=buildcache/frontend/
-          cache-to: type=s3,bucket=${{ env.SPACES_BUCKET }},region=${{ env.SPACES_REGION }},endpoint_url=${{ env.SPACES_ENDPOINT }},prefix=buildcache/frontend/,mode=max
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.DO_SPACES_ACCESS_KEY }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.DO_SPACES_SECRET_KEY }}
-
-      # Trivy scan temporarily disabled: see backend build for context.
-
   build-summary:
     name: Build Summary
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    needs: [version, build-backend, build-frontend]
+    needs: [version, build-backend]
     if: always()
     env:
       BACKEND_RESULT: ${{ needs.build-backend.result }}
-      FRONTEND_RESULT: ${{ needs.build-frontend.result }}
       VERSION: ${{ needs.version.outputs.version }}
       GH_REF: ${{ github.ref_name }}
       GH_SHA: ${{ github.sha }}
@@ -215,12 +126,6 @@ jobs:
             echo "| Backend | :white_check_mark: Pushed | \`$VERSION\` |" >> $GITHUB_STEP_SUMMARY
           else
             echo "| Backend | :x: $BACKEND_RESULT | - |" >> $GITHUB_STEP_SUMMARY
-          fi
-
-          if [ "$FRONTEND_RESULT" == "success" ]; then
-            echo "| Frontend | :white_check_mark: Pushed | \`$VERSION\` |" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "| Frontend | :x: $FRONTEND_RESULT | - |" >> $GITHUB_STEP_SUMMARY
           fi
 
           echo "" >> $GITHUB_STEP_SUMMARY
