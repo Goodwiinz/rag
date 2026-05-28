@@ -71,10 +71,51 @@ class TestStreamingGraphInterrupt:
 
         confirmation = {"tools": [{"name": "ingest_arxiv_papers", "args": {}}]}
 
-        with patch(
-            "src.services.agent.checkpointer.get_checkpointer",
-            new_callable=AsyncMock,
-            side_effect=GraphInterrupt(interrupts=[MagicMock(value=confirmation)]),
+        class _InterruptStream:
+            def __aiter__(self):
+                return self
+
+            async def __anext__(self):
+                raise GraphInterrupt(interrupts=[MagicMock(value=confirmation)])
+
+        mock_graph = MagicMock()
+        mock_graph.astream_events = MagicMock(return_value=_InterruptStream())
+        mock_graph.aget_state = AsyncMock(
+            return_value=MagicMock(
+                values={"pending_confirmation": confirmation},
+                tasks=[MagicMock(interrupts=[MagicMock()])],
+            )
+        )
+        mock_db = AsyncMock()
+        mock_db.close = AsyncMock()
+
+        with (
+            patch(
+                "src.services.agent.checkpointer.get_checkpointer",
+                new_callable=AsyncMock,
+            ),
+            patch(
+                "src.services.agent.memory.get_memory_store",
+                new_callable=AsyncMock,
+            ),
+            patch(
+                "src.services.agent.graph.compile_agent_graph",
+                return_value=mock_graph,
+            ),
+            patch(
+                "src.api.agent.streaming.AsyncSessionLocal",
+                return_value=mock_db,
+            ),
+            patch(
+                "src.api.agent.streaming._resolve_thread",
+                new_callable=AsyncMock,
+                return_value=(None, ""),
+            ),
+            patch(
+                "src.api.agent.streaming._clear_stale_pending_confirmation",
+                new_callable=AsyncMock,
+                return_value=False,
+            ),
         ):
             events = [
                 chunk
@@ -138,6 +179,11 @@ class TestBackgroundTimeout:
                 "src.api.agent.jobs.AsyncSessionLocal",
                 return_value=_session_cm(db),
             ),
+            patch(
+                "src.api.agent.jobs._resolve_thread",
+                new_callable=AsyncMock,
+                return_value=(None, ""),
+            ),
             patch("src.api.agent.jobs.asyncio.timeout") as mock_timeout,
         ):
             mock_timeout.return_value.__aenter__ = AsyncMock(
@@ -162,7 +208,8 @@ class TestCheckpointerFallbackLog:
 
         with (
             patch(
-                "langgraph.checkpoint.postgres.aio.AsyncPostgresSaver.from_conn_string",
+                "src.services.agent._pool_utils.get_shared_langgraph_pool",
+                new_callable=AsyncMock,
                 side_effect=RuntimeError("connection refused"),
             ),
             caplog.at_level(logging.ERROR),
@@ -216,7 +263,7 @@ class TestFilteredToolNodeErrorInfo:
         }
 
         with patch(
-            "src.services.agent.graph._execute_single_tool",
+            "src.services.agent._nodes_tools._execute_single_tool",
             new_callable=AsyncMock,
             return_value={
                 "message": ToolMessage(
