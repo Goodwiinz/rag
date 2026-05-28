@@ -47,7 +47,7 @@ describe('StatsigClientProvider lifecycle', () => {
     mockUseClientAsyncInit.mockClear();
   });
 
-  it('does not use Statsig async initialization during render', async () => {
+  it('uses Statsig async initialization during render', async () => {
     const { StatsigClientProvider } =
       await import('../../../../app/statsig-provider');
 
@@ -58,6 +58,10 @@ describe('StatsigClientProvider lifecycle', () => {
     );
 
     expect(screen.getByText('Application shell')).toBeInTheDocument();
-    expect(mockUseClientAsyncInit).not.toHaveBeenCalled();
+    expect(mockUseClientAsyncInit).toHaveBeenCalledWith(
+      'client-test-key',
+      expect.objectContaining({ userID: 'anonymous' }),
+      expect.objectContaining({ plugins: expect.any(Array) })
+    );
   });
 });

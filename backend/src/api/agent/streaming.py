@@ -265,6 +265,7 @@ async def stream_event_generator(
         # disconnect (or any failure inside ``astream_events``) still leaves
         # the user row durable. The assistant row is written after the
         # stream completes — Task 4 of docs/plans/2026-05-13-agent-persist-perf.md.
+        thread_obj = None
         try:
             thread_obj, _conversation_id = await _resolve_thread(
                 db, current_user, request_body

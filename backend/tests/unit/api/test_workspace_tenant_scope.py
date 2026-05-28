@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from types import SimpleNamespace
 from uuid import uuid4
 
@@ -27,9 +28,18 @@ class _ExecuteResult:
 def _db_that_refetches_created_workspace():
     captured = {}
     db = AsyncMock()
+    now = datetime.now(timezone.utc)
 
     def add(entity):
         if isinstance(entity, Workspace):
+            if entity.id is None:
+                entity.id = uuid4()
+            entity.is_archived = False
+            entity.created_at = now
+            entity.updated_at = now
+            entity.members = []
+            entity.conversations = []
+            entity.collections = []
             captured["workspace"] = entity
 
     async def execute(_stmt):

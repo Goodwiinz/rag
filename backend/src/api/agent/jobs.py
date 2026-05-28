@@ -530,6 +530,7 @@ async def _run_agent_graph(
             # assistant row continues to be written after the graph
             # finishes — Task 4 of docs/plans/2026-05-13-agent-persist-perf.md.
             resolved_thread_id: Optional[str] = None
+            thread_obj = None
             try:
                 thread_obj, _conversation_id = await _resolve_thread(
                     db, current_user, request
@@ -719,6 +720,12 @@ async def _run_agent_graph(
             except Exception:
                 logger.exception("Failed to mark cancelled job %s", job_id)
             raise
+        except asyncio.TimeoutError:
+            logger.error("Agent graph execution timed out", extra={"job_id": job_id})
+            await _set_job_async(
+                job_id,
+                {"status": "failed", "error": "Agent execution timed out after 360s"},
+            )
         except Exception as e:
             logger.error("Agent graph execution failed", exc_info=e)
             await _set_job_async(job_id, {"status": "failed", "error": str(e)})
@@ -883,6 +890,12 @@ async def _resume_agent_graph(
             except Exception:
                 logger.exception("Failed to mark cancelled resume job %s", job_id)
             raise
+        except asyncio.TimeoutError:
+            logger.error("Agent graph resume timed out", extra={"job_id": job_id})
+            await _set_job_async(
+                job_id,
+                {"status": "failed", "error": "Agent execution timed out after 360s"},
+            )
         except Exception as e:
             logger.error("Agent graph resume failed", exc_info=e)
             await _set_job_async(job_id, {"status": "failed", "error": str(e)})

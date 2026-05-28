@@ -100,12 +100,12 @@ describe('ChatPage auth states', () => {
     });
   });
 
-  it('keeps showing the loading state while authentication is still initializing', () => {
+  it('shows auth redirect state when the user is not authenticated', () => {
     render(<ChatPage />);
 
-    expect(screen.getByText('Initializing...')).toBeInTheDocument();
     expect(
-      screen.queryByText('Authentication required. Redirecting...')
-    ).not.toBeInTheDocument();
+      screen.getByText('Authentication required. Redirecting...')
+    ).toBeInTheDocument();
+    expect(screen.queryByText('Initializing...')).not.toBeInTheDocument();
   });
 });
