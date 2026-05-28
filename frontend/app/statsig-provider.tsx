@@ -8,15 +8,15 @@ import {
 } from '@statsig/react-bindings';
 import { StatsigSessionReplayPlugin } from '@statsig/session-replay';
 import { StatsigAutoCapturePlugin } from '@statsig/web-analytics';
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 interface StatsigClientProviderProps {
   children: React.ReactNode;
 }
 
-const SDK_KEY = process.env.NEXT_PUBLIC_STATSIG_CLIENT_KEY;
+const SDK_KEY = process.env.NEXT_PUBLIC_STATSIG_CLIENT_KEY?.trim();
 
-export function StatsigClientProvider({ children }: StatsigClientProviderProps) {
+function StatsigInitializedProvider({ children }: StatsigClientProviderProps) {
   const { user } = useAuth();
 
   const statsigUser = useMemo(
@@ -30,16 +30,13 @@ export function StatsigClientProvider({ children }: StatsigClientProviderProps) 
         ? { role: user.role, organization_id: user.organization_id }
         : undefined,
     }),
-    [user],
+    [user]
   );
 
   const { client } = useClientAsyncInit(SDK_KEY ?? '', statsigUser, {
     logLevel:
       process.env.NODE_ENV === 'production' ? LogLevel.Warn : LogLevel.Debug,
-    plugins: [
-      new StatsigSessionReplayPlugin(),
-      new StatsigAutoCapturePlugin(),
-    ],
+    plugins: [new StatsigSessionReplayPlugin(), new StatsigAutoCapturePlugin()],
   });
 
   useEffect(() => {
@@ -47,11 +44,23 @@ export function StatsigClientProvider({ children }: StatsigClientProviderProps) 
     void client.updateUserAsync(statsigUser);
   }, [client, statsigUser]);
 
-  if (!SDK_KEY) {
+  return <StatsigProvider client={client}>{children}</StatsigProvider>;
+}
+
+export function StatsigClientProvider({
+  children,
+}: StatsigClientProviderProps) {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!SDK_KEY || !mounted) {
     return <>{children}</>;
   }
 
-  return <StatsigProvider client={client}>{children}</StatsigProvider>;
+  return <StatsigInitializedProvider>{children}</StatsigInitializedProvider>;
 }
 
 export default StatsigClientProvider;
