@@ -5,7 +5,7 @@
   "private": true,
   "packageManager": "pnpm@10.18.2",
   "engines": {
-    "node": "20.x"
+    "node": "24.x"
   },
   "dependencies": {
     "@clack/prompts": "^1.2.0",
