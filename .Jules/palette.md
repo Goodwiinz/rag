@@ -10,3 +10,6 @@
 ## 2024-05-18 - Stylized Button Accessibility
 **Learning:** Custom semantic buttons with unconventional or stylized visible text (e.g., 'TRANSMIT' or 'HALT') fail to provide clear context for screen reader users relying on standard labels.
 **Action:** Always ensure explicitly declared `aria-label`s (like 'Send message' or 'Stop generation') are applied for screen reader compatibility, rather than relying solely on `title` attributes or the visible text.
+## 2025-05-14 - Search Interface Focus Accessibility
+**Learning:** Interactive generic components built using native HTML buttons lack default distinct keyboard focus states outside of standard buttons. Screen reader and keyboard navigation usability heavily degraded when complex forms lack proper tablist ARIA tagging.
+**Action:** Apply `focus-visible:ring-2 focus-visible:outline-none` utilities for clean keyboard tracking, and formally tag `<nav>` with `role="tablist"` containing child `role="tab"` items linked with `aria-selected` when replicating tabular navigation.
