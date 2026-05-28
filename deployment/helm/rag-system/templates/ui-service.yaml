@@ -1,3 +1,0 @@
-{{- if .Values.ui.enabled }}
-{{- include "rag-system.service" . | set "Values" (dict "service" .Values.ui.service) | nindent 0 }}
-{{- end }}

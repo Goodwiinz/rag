@@ -3,7 +3,10 @@
   "version": "1.0.0",
   "description": "Frontend for Multimodal Enterprise RAG System",
   "private": true,
-  "packageManager": "pnpm@10.33.0",
+  "packageManager": "pnpm@10.18.2",
+  "engines": {
+    "node": "20.x"
+  },
   "dependencies": {
     "@clack/prompts": "^1.2.0",
     "@heroicons/react": "^2.2.0",

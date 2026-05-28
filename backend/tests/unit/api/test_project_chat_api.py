@@ -355,6 +355,14 @@ class TestLinkThreadToProject:
         doc_result.all.return_value = [(doc_id,)]
         mock_db.execute.side_effect = [existing_result, doc_result]
 
+        async def _refresh(entity):
+            if getattr(entity, "id", None) is None:
+                entity.id = uuid4()
+            if getattr(entity, "linked_at", None) is None:
+                entity.linked_at = datetime.utcnow()
+
+        mock_db.refresh = AsyncMock(side_effect=_refresh)
+
         with patch(
             "src.api.research.project_chat._get_project_with_auth",
             new=AsyncMock(return_value=mock_project),

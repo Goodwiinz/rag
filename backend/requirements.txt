@@ -102,7 +102,7 @@ aiofiles==23.2.1
 python-magic==0.4.27
 email-validator==2.3.0
 sse-starlette==1.6.1
-kagglehub[hf-datasets]>=0.3.0
+kagglehub[hf-datasets]>=0.3.0,<1.0.0
 setuptools>=70.0.0,<72.0.0  # pkg_resources removed in 72+, needed by pybtex  # Required for openai-whisper build
 
 # Research Assistant - Citation Management
