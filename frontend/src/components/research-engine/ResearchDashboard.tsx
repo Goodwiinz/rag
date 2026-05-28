@@ -75,7 +75,7 @@ export function ResearchDashboard() {
       {/* Quick-start templates */}
       {templates.length > 0 && (
         <div className="mb-8">
-          <h2 className="text-sm font-mono text-gray-400 uppercase tracking-wide mb-3">
+          <h2 className="text-sm font-mono text-muted-foreground uppercase tracking-wide mb-3">
             Quick-start Templates
           </h2>
           <div className="flex flex-wrap gap-2">
@@ -97,7 +97,7 @@ export function ResearchDashboard() {
       {isLoading && (
         <div className="flex items-center justify-center py-20">
           <Loader2 className="h-6 w-6 animate-spin text-primary" />
-          <span className="ml-2 font-mono text-sm text-gray-500">
+          <span className="ml-2 font-mono text-sm text-muted-foreground">
             Loading projects...
           </span>
         </div>

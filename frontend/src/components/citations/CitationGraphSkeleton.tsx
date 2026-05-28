@@ -115,7 +115,7 @@ export const CitationGraphSkeleton: React.FC<CitationGraphSkeletonProps> = ({
       {/* Loading text */}
       <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2">
         <div className="w-4 h-4 border-2 border-sol/30 border-t-sol rounded-full animate-spin" />
-        <span className="text-sm text-gray-500 font-mono">
+        <span className="text-sm text-muted-foreground font-mono">
           Loading citation graph...
         </span>
       </div>

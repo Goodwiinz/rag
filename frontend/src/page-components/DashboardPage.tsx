@@ -13,22 +13,24 @@ export const DashboardPage: React.FC = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
         <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-gray-900 mb-4">
+          <h1 className="text-4xl font-bold text-foreground mb-4">
             Multimodal Enterprise RAG System
           </h1>
-          <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-            Upload documents to extract entities, build knowledge graphs, and enable intelligent search across your organization's knowledge base
+          <p className="text-xl text-foreground max-w-3xl mx-auto">
+            Upload documents to extract entities, build knowledge graphs, and
+            enable intelligent search across your organization's knowledge base
           </p>
         </div>
 
         {/* Main Content */}
         <div className="text-center">
           <div className="bg-white rounded-lg shadow p-8">
-            <h2 className="text-2xl font-semibold text-gray-900 mb-4">
+            <h2 className="text-2xl font-semibold text-foreground mb-4">
               Document Upload
             </h2>
-            <p className="text-gray-600 mb-6">
-              Get started by uploading documents to process them with our AI-powered knowledge graph system.
+            <p className="text-foreground mb-6">
+              Get started by uploading documents to process them with our
+              AI-powered knowledge graph system.
             </p>
             <Link
               href="/documents/upload"

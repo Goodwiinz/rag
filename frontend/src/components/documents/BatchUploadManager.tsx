@@ -1,5 +1,11 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { CloudArrowUpIcon, PauseIcon, PlayIcon, XMarkIcon, CheckCircleIcon } from '@heroicons/react/24/outline';
+import {
+  CloudArrowUpIcon,
+  PauseIcon,
+  PlayIcon,
+  XMarkIcon,
+  CheckCircleIcon,
+} from '@heroicons/react/24/outline';
 import { cn } from '@/lib/utils';
 import { DocumentUploader } from './DocumentUploader';
 import { CompactUploadProgress } from './UploadProgress';
@@ -66,53 +72,63 @@ export const BatchUploadManager: React.FC<BatchUploadManagerProps> = ({
     return Math.round(totalProgress / jobs.length);
   }, []);
 
-  const updateJobStatus = useCallback((jobId: string, updates: Partial<UploadJob>) => {
-    setUploadState(prev => {
-      const updatedJobs = prev.jobs.map(job =>
-        job.id === jobId ? { ...job, ...updates } : job
-      );
+  const updateJobStatus = useCallback(
+    (jobId: string, updates: Partial<UploadJob>) => {
+      setUploadState((prev) => {
+        const updatedJobs = prev.jobs.map((job) =>
+          job.id === jobId ? { ...job, ...updates } : job
+        );
 
-      const completedCount = updatedJobs.filter(job => job.status === 'completed').length;
-      const failedCount = updatedJobs.filter(job => job.status === 'error').length;
-      const totalProgress = calculateTotalProgress(updatedJobs);
-
-      return {
-        ...prev,
-        jobs: updatedJobs,
-        completedCount,
-        failedCount,
-        totalProgress,
-      };
-    });
-  }, [calculateTotalProgress]);
-
-  const simulateUploadProgress = useCallback(async (jobId: string, _file: File) => {
-    const duration = 2000 + Math.random() * 3000; // 2-5 seconds
-    const steps = 20;
-    const stepDuration = duration / steps;
-
-    for (let i = 0; i <= steps; i++) {
-      await new Promise(resolve => setTimeout(resolve, stepDuration));
-
-      setUploadState(prev => {
-        if (prev.isPaused) return prev;
-
-        const updatedJobs = prev.jobs.map(job => {
-          if (job.id === jobId && job.status === 'uploading') {
-            const progress = Math.round((i / steps) * 100);
-            return { ...job, progress };
-          }
-          return job;
-        });
+        const completedCount = updatedJobs.filter(
+          (job) => job.status === 'completed'
+        ).length;
+        const failedCount = updatedJobs.filter(
+          (job) => job.status === 'error'
+        ).length;
+        const totalProgress = calculateTotalProgress(updatedJobs);
 
         return {
           ...prev,
           jobs: updatedJobs,
-          totalProgress: calculateTotalProgress(updatedJobs),
+          completedCount,
+          failedCount,
+          totalProgress,
         };
       });
-    }
-  }, [calculateTotalProgress]);
+    },
+    [calculateTotalProgress]
+  );
+
+  const simulateUploadProgress = useCallback(
+    async (jobId: string, _file: File) => {
+      const duration = 2000 + Math.random() * 3000; // 2-5 seconds
+      const steps = 20;
+      const stepDuration = duration / steps;
+
+      for (let i = 0; i <= steps; i++) {
+        await new Promise((resolve) => setTimeout(resolve, stepDuration));
+
+        setUploadState((prev) => {
+          if (prev.isPaused) return prev;
+
+          const updatedJobs = prev.jobs.map((job) => {
+            if (job.id === jobId && job.status === 'uploading') {
+              const progress = Math.round((i / steps) * 100);
+              return { ...job, progress };
+            }
+            return job;
+          });
+
+          return {
+            ...prev,
+            jobs: updatedJobs,
+            totalProgress: calculateTotalProgress(updatedJobs),
+          };
+        });
+      }
+    },
+    [calculateTotalProgress]
+  );
 
   const simulateProcessing = useCallback(async (_jobId: string) => {
     // Simulate processing stages
@@ -124,10 +140,10 @@ export const BatchUploadManager: React.FC<BatchUploadManagerProps> = ({
     ];
 
     for (const stage of stages) {
-      await new Promise(resolve => setTimeout(resolve, stage.duration));
+      await new Promise((resolve) => setTimeout(resolve, stage.duration));
 
       if (isPausedRef.current) {
-        await new Promise(resolve => {
+        await new Promise((resolve) => {
           const checkInterval = setInterval(() => {
             if (!isPausedRef.current) {
               clearInterval(checkInterval);
@@ -139,62 +155,74 @@ export const BatchUploadManager: React.FC<BatchUploadManagerProps> = ({
     }
   }, []); // Removed uploadState.isPaused from dependencies
 
-  const processUpload = useCallback(async (job: UploadJob): Promise<void> => {
-    const controller = new AbortController();
-    activeUploads.current.set(job.id, controller);
+  const processUpload = useCallback(
+    async (job: UploadJob): Promise<void> => {
+      const controller = new AbortController();
+      activeUploads.current.set(job.id, controller);
 
-    try {
-      // Simulate upload progress
-      updateJobStatus(job.id, { status: 'uploading', progress: 0 });
-      await simulateUploadProgress(job.id, job.file);
+      try {
+        // Simulate upload progress
+        updateJobStatus(job.id, { status: 'uploading', progress: 0 });
+        await simulateUploadProgress(job.id, job.file);
 
-      // Simulate processing
-      const generatedJobId = `job-${job.id}`;
-      updateJobStatus(job.id, {
-        status: 'processing',
-        progress: 100,
-        jobId: generatedJobId,
-        documentId: `doc-${job.id}`
-      });
-      await simulateProcessing(job.id);
-
-      // Mark as completed
-      updateJobStatus(job.id, { status: 'completed', progress: 100 });
-
-    } catch (error) {
-      console.error(`Upload failed for ${job.file.name}:`, error);
-
-      // Retry logic
-      if (job.retryCount < job.maxRetries) {
+        // Simulate processing
+        const generatedJobId = `job-${job.id}`;
         updateJobStatus(job.id, {
-          status: 'pending',
-          retryCount: job.retryCount + 1,
-          error: `Retrying... (${job.retryCount + 1}/${job.maxRetries})`
+          status: 'processing',
+          progress: 100,
+          jobId: generatedJobId,
+          documentId: `doc-${job.id}`,
         });
+        await simulateProcessing(job.id);
 
-        setTimeout(() => {
-          processUpload(job);
-        }, RETRY_DELAY_MS * (job.retryCount + 1));
-      } else {
-        updateJobStatus(job.id, {
-          status: 'error',
-          error: 'Upload failed after maximum retries'
-        });
-        onUploadError?.(`Failed to upload ${job.file.name} after ${job.maxRetries} attempts`);
+        // Mark as completed
+        updateJobStatus(job.id, { status: 'completed', progress: 100 });
+      } catch (error) {
+        console.error(`Upload failed for ${job.file.name}:`, error);
+
+        // Retry logic
+        if (job.retryCount < job.maxRetries) {
+          updateJobStatus(job.id, {
+            status: 'pending',
+            retryCount: job.retryCount + 1,
+            error: `Retrying... (${job.retryCount + 1}/${job.maxRetries})`,
+          });
+
+          setTimeout(
+            () => {
+              processUpload(job);
+            },
+            RETRY_DELAY_MS * (job.retryCount + 1)
+          );
+        } else {
+          updateJobStatus(job.id, {
+            status: 'error',
+            error: 'Upload failed after maximum retries',
+          });
+          onUploadError?.(
+            `Failed to upload ${job.file.name} after ${job.maxRetries} attempts`
+          );
+        }
+      } finally {
+        activeUploads.current.delete(job.id);
       }
-    } finally {
-      activeUploads.current.delete(job.id);
-    }
-  }, [updateJobStatus, simulateUploadProgress, simulateProcessing, onUploadError]);
+    },
+    [updateJobStatus, simulateUploadProgress, simulateProcessing, onUploadError]
+  );
 
   const startUploadQueue = useCallback(() => {
-    const pendingJobs = uploadState.jobs.filter(job => job.status === 'pending');
-    uploadQueue.current = pendingJobs.map(job => job.id);
+    const pendingJobs = uploadState.jobs.filter(
+      (job) => job.status === 'pending'
+    );
+    uploadQueue.current = pendingJobs.map((job) => job.id);
 
     const processNext = () => {
-      while (activeUploads.current.size < maxConcurrentUploads && uploadQueue.current.length > 0) {
+      while (
+        activeUploads.current.size < maxConcurrentUploads &&
+        uploadQueue.current.length > 0
+      ) {
         const jobId = uploadQueue.current.shift()!;
-        const job = uploadState.jobs.find(j => j.id === jobId);
+        const job = uploadState.jobs.find((j) => j.id === jobId);
         if (job && !uploadState.isPaused) {
           processUpload(job);
         }
@@ -205,31 +233,41 @@ export const BatchUploadManager: React.FC<BatchUploadManagerProps> = ({
 
     // Monitor for completed jobs to start next ones
     const interval = setInterval(() => {
-      if (uploadQueue.current.length === 0 && activeUploads.current.size === 0) {
+      if (
+        uploadQueue.current.length === 0 &&
+        activeUploads.current.size === 0
+      ) {
         clearInterval(interval);
 
         // Check if all jobs are completed
         const allJobs = uploadState.jobs;
-        const completedJobs = allJobs.filter(job => job.status === 'completed');
-        const failedJobs = allJobs.filter(job => job.status === 'error');
+        const completedJobs = allJobs.filter(
+          (job) => job.status === 'completed'
+        );
+        const failedJobs = allJobs.filter((job) => job.status === 'error');
 
         if (completedJobs.length + failedJobs.length === allJobs.length) {
-          setUploadState(prev => ({ ...prev, isUploading: false }));
+          setUploadState((prev) => ({ ...prev, isUploading: false }));
 
           if (completedJobs.length > 0) {
             // Validate auth info before creating documents
             if (!user || !user.id || !user.organization_id) {
-              onUploadError?.('Unable to complete upload: User authentication information is missing');
+              onUploadError?.(
+                'Unable to complete upload: User authentication information is missing'
+              );
               return;
             }
 
-            const documents: Document[] = completedJobs.map(job => ({
+            const documents: Document[] = completedJobs.map((job) => ({
               id: job.documentId || `doc-${job.id}`,
               user_id: user.id,
               organization_id: user.organization_id,
               title: job.file.name,
               filename: job.file.name,
-              file_type: job.file.name.split('.').pop()?.toLowerCase() as Document['file_type'],
+              file_type: job.file.name
+                .split('.')
+                .pop()
+                ?.toLowerCase() as Document['file_type'],
               file_size: job.file.size,
               processing_status: 'indexed' as const,
               upload_timestamp: new Date().toISOString(),
@@ -244,10 +282,18 @@ export const BatchUploadManager: React.FC<BatchUploadManagerProps> = ({
         processNext();
       }
     }, 100);
-  }, [uploadState.jobs, uploadState.isPaused, maxConcurrentUploads, processUpload, onUploadComplete, onUploadError, user]);
+  }, [
+    uploadState.jobs,
+    uploadState.isPaused,
+    maxConcurrentUploads,
+    processUpload,
+    onUploadComplete,
+    onUploadError,
+    user,
+  ]);
 
   const handleFilesSelected = useCallback((files: File[]) => {
-    const newJobs: UploadJob[] = files.map(file => ({
+    const newJobs: UploadJob[] = files.map((file) => ({
       file,
       id: Math.random().toString(36).substr(2, 9),
       progress: 0,
@@ -256,7 +302,7 @@ export const BatchUploadManager: React.FC<BatchUploadManagerProps> = ({
       maxRetries: MAX_RETRIES,
     }));
 
-    setUploadState(prev => ({
+    setUploadState((prev) => ({
       ...prev,
       jobs: [...prev.jobs, ...newJobs],
     }));
@@ -264,62 +310,74 @@ export const BatchUploadManager: React.FC<BatchUploadManagerProps> = ({
     setValidationErrors([]);
   }, []);
 
-  const handleFilesRemoved = useCallback((fileIds: string[]) => {
-    // Cancel active uploads
-    fileIds.forEach(id => {
-      const controller = activeUploads.current.get(id);
-      if (controller) {
-        controller.abort();
-        activeUploads.current.delete(id);
-      }
+  const handleFilesRemoved = useCallback(
+    (fileIds: string[]) => {
+      // Cancel active uploads
+      fileIds.forEach((id) => {
+        const controller = activeUploads.current.get(id);
+        if (controller) {
+          controller.abort();
+          activeUploads.current.delete(id);
+        }
 
-      // Remove from queue
-      const queueIndex = uploadQueue.current.indexOf(id);
-      if (queueIndex > -1) {
-        uploadQueue.current.splice(queueIndex, 1);
-      }
-    });
+        // Remove from queue
+        const queueIndex = uploadQueue.current.indexOf(id);
+        if (queueIndex > -1) {
+          uploadQueue.current.splice(queueIndex, 1);
+        }
+      });
 
-    setUploadState(prev => {
-      const updatedJobs = prev.jobs.filter(job => !fileIds.includes(job.id));
-      const completedCount = updatedJobs.filter(job => job.status === 'completed').length;
-      const failedCount = updatedJobs.filter(job => job.status === 'error').length;
-      const totalProgress = calculateTotalProgress(updatedJobs);
+      setUploadState((prev) => {
+        const updatedJobs = prev.jobs.filter(
+          (job) => !fileIds.includes(job.id)
+        );
+        const completedCount = updatedJobs.filter(
+          (job) => job.status === 'completed'
+        ).length;
+        const failedCount = updatedJobs.filter(
+          (job) => job.status === 'error'
+        ).length;
+        const totalProgress = calculateTotalProgress(updatedJobs);
 
-      return {
-        ...prev,
-        jobs: updatedJobs,
-        completedCount,
-        failedCount,
-        totalProgress,
-      };
-    });
-  }, [calculateTotalProgress]);
+        return {
+          ...prev,
+          jobs: updatedJobs,
+          completedCount,
+          failedCount,
+          totalProgress,
+        };
+      });
+    },
+    [calculateTotalProgress]
+  );
 
-  const handleValidationErrors = useCallback((errors: FileValidationError[]) => {
-    setValidationErrors(errors);
-  }, []);
+  const handleValidationErrors = useCallback(
+    (errors: FileValidationError[]) => {
+      setValidationErrors(errors);
+    },
+    []
+  );
 
   const startUpload = useCallback(() => {
-    setUploadState(prev => ({ ...prev, isUploading: true, isPaused: false }));
+    setUploadState((prev) => ({ ...prev, isUploading: true, isPaused: false }));
     setTimeout(startUploadQueue, 100);
   }, [startUploadQueue]);
 
   const pauseUpload = useCallback(() => {
-    setUploadState(prev => ({ ...prev, isPaused: true }));
+    setUploadState((prev) => ({ ...prev, isPaused: true }));
   }, []);
 
   const resumeUpload = useCallback(() => {
-    setUploadState(prev => ({ ...prev, isPaused: false }));
+    setUploadState((prev) => ({ ...prev, isPaused: false }));
   }, []);
 
   const cancelUpload = useCallback(() => {
     // Cancel all active uploads
-    activeUploads.current.forEach(controller => controller.abort());
+    activeUploads.current.forEach((controller) => controller.abort());
     activeUploads.current.clear();
     uploadQueue.current = [];
 
-    setUploadState(prev => ({
+    setUploadState((prev) => ({
       ...prev,
       isUploading: false,
       isPaused: false,
@@ -327,13 +385,17 @@ export const BatchUploadManager: React.FC<BatchUploadManagerProps> = ({
   }, []);
 
   const clearCompleted = useCallback(() => {
-    setUploadState(prev => ({
+    setUploadState((prev) => ({
       ...prev,
-      jobs: prev.jobs.filter(job => job.status !== 'completed' && job.status !== 'error'),
+      jobs: prev.jobs.filter(
+        (job) => job.status !== 'completed' && job.status !== 'error'
+      ),
       completedCount: 0,
       failedCount: 0,
       totalProgress: calculateTotalProgress(
-        prev.jobs.filter(job => job.status !== 'completed' && job.status !== 'error')
+        prev.jobs.filter(
+          (job) => job.status !== 'completed' && job.status !== 'error'
+        )
       ),
     }));
   }, [calculateTotalProgress]);
@@ -346,10 +408,13 @@ export const BatchUploadManager: React.FC<BatchUploadManagerProps> = ({
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
-  const totalSize = uploadState.jobs.reduce((sum, job) => sum + job.file.size, 0);
+  const totalSize = uploadState.jobs.reduce(
+    (sum, job) => sum + job.file.size,
+    0
+  );
 
   return (
-    <div className={cn("space-y-6", className)}>
+    <div className={cn('space-y-6', className)}>
       {/* Upload Area */}
       <DocumentUploader
         onFilesSelected={handleFilesSelected}
@@ -368,7 +433,8 @@ export const BatchUploadManager: React.FC<BatchUploadManagerProps> = ({
                 Batch Upload ({uploadState.jobs.length} files)
               </h3>
               <p className="text-sm text-muted-foreground">
-                {formatFileSize(totalSize)} total • {uploadState.completedCount} completed • {uploadState.failedCount} failed
+                {formatFileSize(totalSize)} total • {uploadState.completedCount}{' '}
+                completed • {uploadState.failedCount} failed
               </p>
             </div>
 
@@ -394,7 +460,7 @@ export const BatchUploadManager: React.FC<BatchUploadManagerProps> = ({
                   ) : (
                     <button
                       onClick={pauseUpload}
-                      className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-foreground bg-card hover:bg-accent transition-colors"
+                      className="inline-flex items-center px-4 py-2 border border-border text-sm font-medium rounded-md text-foreground bg-card hover:bg-accent transition-colors"
                     >
                       <PauseIcon className="h-4 w-4 mr-2" />
                       Pause
@@ -442,16 +508,18 @@ export const BatchUploadManager: React.FC<BatchUploadManagerProps> = ({
           </div>
 
           {/* Clear Completed */}
-          {(uploadState.completedCount > 0 || uploadState.failedCount > 0) && !uploadState.isUploading && (
-            <div className="pt-4 border-t">
-              <button
-                onClick={clearCompleted}
-                className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-              >
-                Clear completed ({uploadState.completedCount + uploadState.failedCount})
-              </button>
-            </div>
-          )}
+          {(uploadState.completedCount > 0 || uploadState.failedCount > 0) &&
+            !uploadState.isUploading && (
+              <div className="pt-4 border-t">
+                <button
+                  onClick={clearCompleted}
+                  className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  Clear completed (
+                  {uploadState.completedCount + uploadState.failedCount})
+                </button>
+              </div>
+            )}
         </div>
       )}
 

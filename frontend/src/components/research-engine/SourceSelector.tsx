@@ -51,7 +51,7 @@ export function SourceSelector({
           disabled={disabled}
           className={cn(
             'flex items-center gap-2 px-3 py-1.5 rounded border text-xs font-mono transition-colors',
-            'bg-black/30 border-[#1a1a1a] text-gray-300',
+            'bg-black/30 border-[#1a1a1a] text-muted-foreground',
             'hover:bg-white/5 hover:border-brand-cyan/40',
             'disabled:opacity-50 disabled:cursor-not-allowed'
           )}
@@ -77,8 +77,8 @@ export function SourceSelector({
                 className={cn(
                   'flex items-center gap-2.5 w-full px-2.5 py-2 rounded text-left text-sm font-mono transition-colors',
                   isSelected
-                    ? 'text-gray-200 bg-white/5'
-                    : 'text-gray-500 hover:bg-white/5 hover:text-gray-300',
+                    ? 'text-muted-foreground bg-white/5'
+                    : 'text-muted-foreground hover:bg-white/5 hover:text-foreground',
                   isLastSelected && 'cursor-not-allowed opacity-60'
                 )}
               >
@@ -97,7 +97,7 @@ export function SourceSelector({
                 <source.icon
                   className={cn(
                     'h-3.5 w-3.5 shrink-0',
-                    isSelected ? 'text-brand-cyan' : 'text-gray-600'
+                    isSelected ? 'text-brand-cyan' : 'text-foreground'
                   )}
                 />
                 <span className="truncate">{source.label}</span>

@@ -4,12 +4,33 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { Edit, ExternalLink, Clock, CheckCircle, FileText, Plus, Trash2, Shield, Activity, Terminal, Database, Code, Network } from 'lucide-react';
+import {
+  Edit,
+  ExternalLink,
+  Clock,
+  CheckCircle,
+  FileText,
+  Plus,
+  Trash2,
+  Shield,
+  Activity,
+  Terminal,
+  Database,
+  Code,
+  Network,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 import { Entity, GraphEdge, EntityType } from '@/types/entity';
 import { entityService } from '@/services/entityService';
 import { useEntityPermissions } from '@/hooks/useEntityPermissions';
@@ -40,7 +61,7 @@ const typeColors: Record<string, string> = {
   PHONE: 'text-teal-400 bg-teal-400/10 border-teal-400/20',
   URL: 'text-lime-400 bg-lime-400/10 border-lime-400/20',
   JOB_TITLE: 'text-fuchsia-400 bg-fuchsia-400/10 border-fuchsia-400/20',
-  OTHER: 'text-gray-400 bg-gray-400/10 border-gray-400/20',
+  OTHER: 'text-muted-foreground bg-gray-400/10 border-border/20',
 };
 
 const getConfidenceColor = (confidence: number): string => {
@@ -53,7 +74,7 @@ export const EntityDetail: React.FC<EntityDetailProps> = ({
   entity,
   onEdit,
   onClose,
-  onEntityClick
+  onEntityClick,
 }) => {
   const { canCreate, canEdit, canDelete } = useEntityPermissions();
   const [relationships, setRelationships] = useState<GraphEdge[]>([]);
@@ -111,8 +132,13 @@ export const EntityDetail: React.FC<EntityDetailProps> = ({
           if (key === 'properties') return null;
           if (key === 'aliases' && Array.isArray(value)) {
             return (
-              <div key={key} className="border-b border-[var(--terminal-border)] pb-3">
-                <dt className="text-[10px] font-mono text-[var(--terminal-text-dim)] uppercase tracking-widest mb-2">{key}</dt>
+              <div
+                key={key}
+                className="border-b border-[var(--terminal-border)] pb-3"
+              >
+                <dt className="text-[10px] font-mono text-[var(--terminal-text-dim)] uppercase tracking-widest mb-2">
+                  {key}
+                </dt>
                 <dd className="flex flex-wrap gap-2">
                   {value.map((alias, index) => (
                     <Badge
@@ -129,8 +155,13 @@ export const EntityDetail: React.FC<EntityDetailProps> = ({
           }
           if (typeof value === 'object' && value !== null) {
             return (
-              <div key={key} className="border-b border-[var(--terminal-border)] pb-3">
-                <dt className="text-[10px] font-mono text-[var(--terminal-text-dim)] uppercase tracking-widest mb-2">{key}</dt>
+              <div
+                key={key}
+                className="border-b border-[var(--terminal-border)] pb-3"
+              >
+                <dt className="text-[10px] font-mono text-[var(--terminal-text-dim)] uppercase tracking-widest mb-2">
+                  {key}
+                </dt>
                 <dd>
                   <pre className="text-[10px] font-mono bg-[var(--terminal-bg)] p-3 rounded border border-[var(--terminal-border)] text-[var(--terminal-text-muted)] overflow-auto custom-scrollbar">
                     {JSON.stringify(value, null, 2)}
@@ -140,9 +171,16 @@ export const EntityDetail: React.FC<EntityDetailProps> = ({
             );
           }
           return (
-            <div key={key} className="border-b border-[var(--terminal-border)] pb-3 flex justify-between items-center">
-              <dt className="text-[10px] font-mono text-[var(--terminal-text-dim)] uppercase tracking-widest">{key}</dt>
-              <dd className="text-xs font-mono text-[var(--terminal-text)]">{String(value)}</dd>
+            <div
+              key={key}
+              className="border-b border-[var(--terminal-border)] pb-3 flex justify-between items-center"
+            >
+              <dt className="text-[10px] font-mono text-[var(--terminal-text-dim)] uppercase tracking-widest">
+                {key}
+              </dt>
+              <dd className="text-xs font-mono text-[var(--terminal-text)]">
+                {String(value)}
+              </dd>
             </div>
           );
         })}
@@ -159,8 +197,9 @@ export const EntityDetail: React.FC<EntityDetailProps> = ({
             {entity.name}
             <Badge
               className={cn(
-                "font-mono text-[10px] font-bold border rounded px-1.5 py-0.5 ml-2 align-middle",
-                typeColors[entity.type] || 'text-gray-400 bg-gray-400/10 border-gray-400/20'
+                'font-mono text-[10px] font-bold border rounded px-1.5 py-0.5 ml-2 align-middle',
+                typeColors[entity.type] ||
+                  'text-muted-foreground bg-gray-400/10 border-border/20'
               )}
             >
               {entity.type}
@@ -172,8 +211,15 @@ export const EntityDetail: React.FC<EntityDetailProps> = ({
               <span className="font-mono">{entity.id.substring(0, 8)}</span>
             </div>
             <div className="flex items-center gap-1.5">
-              <span className="text-[var(--terminal-text-muted)]">Confidence:</span>
-              <span className={cn("font-bold", getConfidenceColor(entity.confidence || 0))}>
+              <span className="text-[var(--terminal-text-muted)]">
+                Confidence:
+              </span>
+              <span
+                className={cn(
+                  'font-bold',
+                  getConfidenceColor(entity.confidence || 0)
+                )}
+              >
                 {((entity.confidence || 0) * 100).toFixed(1)}%
               </span>
             </div>
@@ -190,7 +236,9 @@ export const EntityDetail: React.FC<EntityDetailProps> = ({
             <Button
               variant="outline"
               size="sm"
-              onClick={() => window.open(`/documents/${entity.source_document_id}`, '_blank')}
+              onClick={() =>
+                window.open(`/documents/${entity.source_document_id}`, '_blank')
+              }
               className="font-mono text-[10px] font-bold border-[var(--terminal-border)] hover:bg-[var(--terminal-elevated)] hover:text-[var(--amber-gold)]"
             >
               <FileText className="h-3.5 w-3.5 mr-1.5" />
@@ -216,19 +264,31 @@ export const EntityDetail: React.FC<EntityDetailProps> = ({
       {/* Main Content */}
       <Tabs defaultValue="overview" className="space-y-6">
         <TabsList className="bg-[var(--terminal-bg)] border border-[var(--terminal-border)] p-1 rounded-xl w-full justify-start">
-          <TabsTrigger value="overview" className="flex items-center gap-2 rounded-lg data-[state=active]:bg-[var(--terminal-elevated)] data-[state=active]:text-[var(--phosphor-green)] font-mono text-xs font-bold px-4">
+          <TabsTrigger
+            value="overview"
+            className="flex items-center gap-2 rounded-lg data-[state=active]:bg-[var(--terminal-elevated)] data-[state=active]:text-[var(--phosphor-green)] font-mono text-xs font-bold px-4"
+          >
             <Activity className="w-3.5 h-3.5" />
             OVERVIEW
           </TabsTrigger>
-          <TabsTrigger value="relationships" className="flex items-center gap-2 rounded-lg data-[state=active]:bg-[var(--terminal-elevated)] data-[state=active]:text-[var(--phosphor-green)] font-mono text-xs font-bold px-4">
+          <TabsTrigger
+            value="relationships"
+            className="flex items-center gap-2 rounded-lg data-[state=active]:bg-[var(--terminal-elevated)] data-[state=active]:text-[var(--phosphor-green)] font-mono text-xs font-bold px-4"
+          >
             <Network className="w-3.5 h-3.5" />
             RELATIONSHIPS
           </TabsTrigger>
-          <TabsTrigger value="neighborhood" className="flex items-center gap-2 rounded-lg data-[state=active]:bg-[var(--terminal-elevated)] data-[state=active]:text-[var(--phosphor-green)] font-mono text-xs font-bold px-4">
+          <TabsTrigger
+            value="neighborhood"
+            className="flex items-center gap-2 rounded-lg data-[state=active]:bg-[var(--terminal-elevated)] data-[state=active]:text-[var(--phosphor-green)] font-mono text-xs font-bold px-4"
+          >
             <Shield className="w-3.5 h-3.5" />
             NEIGHBORHOOD
           </TabsTrigger>
-          <TabsTrigger value="metadata" className="flex items-center gap-2 rounded-lg data-[state=active]:bg-[var(--terminal-elevated)] data-[state=active]:text-[var(--phosphor-green)] font-mono text-xs font-bold px-4">
+          <TabsTrigger
+            value="metadata"
+            className="flex items-center gap-2 rounded-lg data-[state=active]:bg-[var(--terminal-elevated)] data-[state=active]:text-[var(--phosphor-green)] font-mono text-xs font-bold px-4"
+          >
             <Code className="w-3.5 h-3.5" />
             METADATA
           </TabsTrigger>
@@ -245,26 +305,38 @@ export const EntityDetail: React.FC<EntityDetailProps> = ({
               </CardHeader>
               <CardContent className="p-4 space-y-4">
                 <div className="flex justify-between items-center border-b border-[var(--terminal-border)] pb-2 border-dashed">
-                  <span className="text-xs font-mono text-[var(--terminal-text-muted)]">Entity_UUID</span>
-                  <span className="text-xs font-mono text-[var(--terminal-text)]">{entity.id}</span>
+                  <span className="text-xs font-mono text-[var(--terminal-text-muted)]">
+                    Entity_UUID
+                  </span>
+                  <span className="text-xs font-mono text-[var(--terminal-text)]">
+                    {entity.id}
+                  </span>
                 </div>
                 <div className="flex justify-between items-center border-b border-[var(--terminal-border)] pb-2 border-dashed">
-                  <span className="text-xs font-mono text-[var(--terminal-text-muted)]">Created_At</span>
+                  <span className="text-xs font-mono text-[var(--terminal-text-muted)]">
+                    Created_At
+                  </span>
                   <div className="flex items-center text-xs font-mono text-[var(--terminal-text)]">
                     <Clock className="h-3 w-3 mr-1.5 text-[var(--terminal-text-dim)]" />
                     {formatDate(entity.created_at)}
                   </div>
                 </div>
                 <div className="flex justify-between items-center border-b border-[var(--terminal-border)] pb-2 border-dashed">
-                  <span className="text-xs font-mono text-[var(--terminal-text-muted)]">Last_Update</span>
+                  <span className="text-xs font-mono text-[var(--terminal-text-muted)]">
+                    Last_Update
+                  </span>
                   <div className="flex items-center text-xs font-mono text-[var(--terminal-text)]">
                     <Clock className="h-3 w-3 mr-1.5 text-[var(--terminal-text-dim)]" />
                     {formatDate(entity.updated_at)}
                   </div>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-xs font-mono text-[var(--terminal-text-muted)]">Extraction_Protocol</span>
-                  <span className="text-xs font-mono text-[var(--cyan)]">{entity.extraction_method || 'AUTO_INFERENCE'}</span>
+                  <span className="text-xs font-mono text-[var(--terminal-text-muted)]">
+                    Extraction_Protocol
+                  </span>
+                  <span className="text-xs font-mono text-[var(--cyan)]">
+                    {entity.extraction_method || 'AUTO_INFERENCE'}
+                  </span>
                 </div>
               </CardContent>
             </Card>
@@ -279,13 +351,20 @@ export const EntityDetail: React.FC<EntityDetailProps> = ({
               <CardContent className="p-4 flex-1">
                 <p className="text-xs font-mono text-[var(--terminal-text)] leading-relaxed">
                   {entity.metadata?.description || (
-                    <span className="text-[var(--terminal-text-dim)] italic opacity-50">NO_DESCRIPTION_BUFFER_AVAILABLE</span>
+                    <span className="text-[var(--terminal-text-dim)] italic opacity-50">
+                      NO_DESCRIPTION_BUFFER_AVAILABLE
+                    </span>
                   )}
                 </p>
                 {entity.metadata?.category && (
                   <div className="mt-4 pt-4 border-t border-[var(--terminal-border)] border-dashed">
-                    <span className="text-[10px] font-mono text-[var(--terminal-text-muted)] uppercase mr-2">Category_Tag:</span>
-                    <Badge variant="outline" className="font-mono text-[10px] border-[var(--terminal-border)] text-[var(--terminal-text)]">
+                    <span className="text-[10px] font-mono text-[var(--terminal-text-muted)] uppercase mr-2">
+                      Category_Tag:
+                    </span>
+                    <Badge
+                      variant="outline"
+                      className="font-mono text-[10px] border-[var(--terminal-border)] text-[var(--terminal-text)]"
+                    >
                       {entity.metadata.category}
                     </Badge>
                   </div>
@@ -307,7 +386,9 @@ export const EntityDetail: React.FC<EntityDetailProps> = ({
                 variant="ghost"
                 disabled={!canCreate}
                 className="h-7 font-mono text-[10px] font-bold hover:text-[var(--phosphor-green)] hover:bg-[var(--phosphor-green)]/10 disabled:opacity-30 disabled:cursor-not-allowed"
-                title={!canCreate ? 'Admin access required' : 'Add relationship'}
+                title={
+                  !canCreate ? 'Admin access required' : 'Add relationship'
+                }
               >
                 <Plus className="h-3.5 w-3.5 mr-1.5" />
                 ADD_LINK {!canCreate && '(ADMIN)'}
@@ -317,36 +398,59 @@ export const EntityDetail: React.FC<EntityDetailProps> = ({
               {loading ? (
                 <div className="p-8 space-y-3">
                   {Array.from({ length: 3 }).map((_, i) => (
-                    <div key={i} className="h-12 bg-[var(--terminal-bg)] border border-[var(--terminal-border)] rounded animate-pulse"></div>
+                    <div
+                      key={i}
+                      className="h-12 bg-[var(--terminal-bg)] border border-[var(--terminal-border)] rounded animate-pulse"
+                    ></div>
                   ))}
                 </div>
               ) : relationships.length === 0 ? (
                 <div className="text-center py-12 flex flex-col items-center gap-3">
                   <Network className="w-10 h-10 text-[var(--terminal-text-muted)] opacity-20" />
-                  <p className="text-sm font-mono text-[var(--terminal-text-dim)]">NO_RELATIONSHIPS_MAPPED</p>
+                  <p className="text-sm font-mono text-[var(--terminal-text-dim)]">
+                    NO_RELATIONSHIPS_MAPPED
+                  </p>
                 </div>
               ) : (
                 <Table>
                   <TableHeader className="bg-[var(--terminal-bg)]/50">
                     <TableRow className="border-[var(--terminal-border)] hover:bg-transparent">
-                      <TableHead className="font-mono text-[10px] uppercase tracking-widest text-[var(--terminal-text-dim)] pl-6">Linked_Entity</TableHead>
-                      <TableHead className="font-mono text-[10px] uppercase tracking-widest text-[var(--terminal-text-dim)]">Link_Type</TableHead>
-                      <TableHead className="font-mono text-[10px] uppercase tracking-widest text-[var(--terminal-text-dim)]">Strength_Index</TableHead>
-                      <TableHead className="font-mono text-[10px] uppercase tracking-widest text-[var(--terminal-text-dim)]">Confidence</TableHead>
-                      <TableHead className="font-mono text-[10px] uppercase tracking-widest text-[var(--terminal-text-dim)]">Context_Data</TableHead>
-                      <TableHead className="font-mono text-[10px] uppercase tracking-widest text-[var(--terminal-text-dim)] text-right pr-6">Ops</TableHead>
+                      <TableHead className="font-mono text-[10px] uppercase tracking-widest text-[var(--terminal-text-dim)] pl-6">
+                        Linked_Entity
+                      </TableHead>
+                      <TableHead className="font-mono text-[10px] uppercase tracking-widest text-[var(--terminal-text-dim)]">
+                        Link_Type
+                      </TableHead>
+                      <TableHead className="font-mono text-[10px] uppercase tracking-widest text-[var(--terminal-text-dim)]">
+                        Strength_Index
+                      </TableHead>
+                      <TableHead className="font-mono text-[10px] uppercase tracking-widest text-[var(--terminal-text-dim)]">
+                        Confidence
+                      </TableHead>
+                      <TableHead className="font-mono text-[10px] uppercase tracking-widest text-[var(--terminal-text-dim)]">
+                        Context_Data
+                      </TableHead>
+                      <TableHead className="font-mono text-[10px] uppercase tracking-widest text-[var(--terminal-text-dim)] text-right pr-6">
+                        Ops
+                      </TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {relationships.map((rel) => (
-                      <TableRow key={rel.id} className="border-[var(--terminal-border)] hover:bg-[var(--terminal-elevated)]">
+                      <TableRow
+                        key={rel.id}
+                        className="border-[var(--terminal-border)] hover:bg-[var(--terminal-elevated)]"
+                      >
                         <TableCell className="pl-6">
                           <div className="font-mono text-xs font-bold text-[var(--terminal-text)]">
                             {rel.source === entity.id ? rel.target : rel.source}
                           </div>
                         </TableCell>
                         <TableCell>
-                          <Badge variant="outline" className="font-mono text-[9px] border-[var(--terminal-border)] text-[var(--terminal-text-muted)]">
+                          <Badge
+                            variant="outline"
+                            className="font-mono text-[9px] border-[var(--terminal-border)] text-[var(--terminal-text-muted)]"
+                          >
                             {rel.type}
                           </Badge>
                         </TableCell>
@@ -355,7 +459,9 @@ export const EntityDetail: React.FC<EntityDetailProps> = ({
                             <div className="w-16 bg-[var(--terminal-bg)] rounded-full h-1.5 border border-[var(--terminal-border)]">
                               <div
                                 className="bg-[var(--cyan)] h-full rounded-full"
-                                style={{ width: `${(rel.strength || 0) * 100}%` }}
+                                style={{
+                                  width: `${(rel.strength || 0) * 100}%`,
+                                }}
                               />
                             </div>
                             <span className="text-[10px] font-mono text-[var(--cyan)]">
@@ -364,7 +470,12 @@ export const EntityDetail: React.FC<EntityDetailProps> = ({
                           </div>
                         </TableCell>
                         <TableCell>
-                          <span className={cn("text-[10px] font-mono font-bold", getConfidenceColor(rel.confidence || 0))}>
+                          <span
+                            className={cn(
+                              'text-[10px] font-mono font-bold',
+                              getConfidenceColor(rel.confidence || 0)
+                            )}
+                          >
                             {((rel.confidence || 0) * 100).toFixed(1)}%
                           </span>
                         </TableCell>
@@ -380,8 +491,16 @@ export const EntityDetail: React.FC<EntityDetailProps> = ({
                             onClick={() => handleDeleteRelationship(rel.id)}
                             disabled={!canDelete}
                             className="h-6 w-6 text-red-500/50 hover:text-red-400 hover:bg-red-400/10 disabled:opacity-30 disabled:cursor-not-allowed"
-                            title={!canDelete ? 'Admin access required' : 'Delete relationship'}
-                            aria-label={!canDelete ? 'Admin access required' : 'Delete relationship'}
+                            title={
+                              !canDelete
+                                ? 'Admin access required'
+                                : 'Delete relationship'
+                            }
+                            aria-label={
+                              !canDelete
+                                ? 'Admin access required'
+                                : 'Delete relationship'
+                            }
                           >
                             <Trash2 className="h-3.5 w-3.5" />
                           </Button>

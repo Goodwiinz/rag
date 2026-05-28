@@ -32,7 +32,7 @@ const statusStyles: Record<string, string> = {
   paused:
     'bg-[var(--amber-gold)]/10 text-[var(--amber-gold)] border-[var(--amber-gold)]/30',
   completed: 'bg-[var(--cyan)]/10 text-[var(--cyan)] border-[var(--cyan)]/30',
-  archived: 'bg-gray-500/10 text-gray-400 border-gray-500/30',
+  archived: 'bg-gray-500/10 text-muted-foreground border-border/30',
 };
 
 export function ProjectCard({
@@ -124,13 +124,13 @@ export function ProjectCard({
 
       {project.description && (
         <p
-          className={`text-sm text-gray-500 mb-3 ${compact ? 'line-clamp-1' : 'line-clamp-2'}`}
+          className={`text-sm text-muted-foreground mb-3 ${compact ? 'line-clamp-1' : 'line-clamp-2'}`}
         >
           {project.description}
         </p>
       )}
 
-      <div className="flex items-center gap-4 text-xs text-gray-500 font-mono">
+      <div className="flex items-center gap-4 text-xs text-muted-foreground font-mono">
         <div className="flex items-center gap-1">
           <FileText className="h-3 w-3" />
           <span>{project.document_count || 0} docs</span>
@@ -154,14 +154,14 @@ export function ProjectCard({
             </span>
           ))}
           {project.tags.length > 3 && (
-            <span className="text-[11px] text-gray-500 font-mono">
+            <span className="text-[11px] text-muted-foreground font-mono">
               +{project.tags.length - 3}
             </span>
           )}
         </div>
       )}
 
-      <div className="mt-3 text-xs text-gray-600 font-mono">
+      <div className="mt-3 text-xs text-foreground font-mono">
         Updated {createdLabel}
       </div>
     </div>

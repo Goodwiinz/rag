@@ -50,7 +50,7 @@ export function StepProgress({ step }: StepProgressProps) {
   const statusIcon = () => {
     switch (step.status) {
       case 'pending':
-        return <Clock className="h-4 w-4 text-gray-500" />;
+        return <Clock className="h-4 w-4 text-muted-foreground" />;
       case 'running':
         return <Loader2 className="h-4 w-4 animate-spin text-brand-cyan" />;
       case 'complete':
@@ -63,7 +63,7 @@ export function StepProgress({ step }: StepProgressProps) {
   const statusColor = () => {
     switch (step.status) {
       case 'pending':
-        return 'border-gray-700';
+        return 'border-border';
       case 'running':
         return 'border-brand-cyan/50';
       case 'complete':
@@ -83,20 +83,22 @@ export function StepProgress({ step }: StepProgressProps) {
         className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-white/5 transition-colors"
       >
         {expanded ? (
-          <ChevronDown className="h-4 w-4 text-gray-500 shrink-0" />
+          <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
         ) : (
-          <ChevronRight className="h-4 w-4 text-gray-500 shrink-0" />
+          <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
         )}
 
         {statusIcon()}
 
-        <span className="font-mono text-sm text-gray-200 flex-1 truncate">
-          <span className="text-gray-500 mr-2">#{step.stepIndex + 1}</span>
+        <span className="font-mono text-sm text-muted-foreground flex-1 truncate">
+          <span className="text-muted-foreground mr-2">
+            #{step.stepIndex + 1}
+          </span>
           {step.stepName}
         </span>
 
         {/* Type badge */}
-        <span className="px-2 py-0.5 text-xs font-mono rounded bg-white/5 text-gray-400 border border-white/10">
+        <span className="px-2 py-0.5 text-xs font-mono rounded bg-white/5 text-muted-foreground border border-white/10">
           {step.stepType}
         </span>
 
@@ -138,7 +140,7 @@ export function StepProgress({ step }: StepProgressProps) {
 
         {/* Token count */}
         {step.tokenCount > 0 && (
-          <span className="text-xs font-mono text-gray-500">
+          <span className="text-xs font-mono text-muted-foreground">
             {step.tokenCount.toLocaleString()} tok
           </span>
         )}
@@ -159,11 +161,11 @@ export function StepProgress({ step }: StepProgressProps) {
           {/* Output preview */}
           {outputPreview && (
             <div className="mt-3">
-              <h4 className="text-xs font-mono text-gray-500 uppercase tracking-wide mb-1">
+              <h4 className="text-xs font-mono text-muted-foreground uppercase tracking-wide mb-1">
                 Output
               </h4>
               <div className="p-3 bg-black/40 rounded border border-white/5 max-h-40 overflow-auto">
-                <p className="text-xs font-mono text-gray-300 whitespace-pre-wrap">
+                <p className="text-xs font-mono text-muted-foreground whitespace-pre-wrap">
                   {outputPreview.length > 500
                     ? outputPreview.slice(0, 500) + '...'
                     : outputPreview}
@@ -175,7 +177,7 @@ export function StepProgress({ step }: StepProgressProps) {
           {/* Sources used */}
           {step.sources && step.sources.length > 0 && (
             <div>
-              <h4 className="text-xs font-mono text-gray-500 uppercase tracking-wide mb-1">
+              <h4 className="text-xs font-mono text-muted-foreground uppercase tracking-wide mb-1">
                 Sources
               </h4>
               <div className="flex flex-wrap gap-1">
@@ -197,7 +199,7 @@ export function StepProgress({ step }: StepProgressProps) {
           {/* Quality check details */}
           {step.qualityMarks.length > 0 && (
             <div>
-              <h4 className="text-xs font-mono text-gray-500 uppercase tracking-wide mb-1">
+              <h4 className="text-xs font-mono text-muted-foreground uppercase tracking-wide mb-1">
                 Quality Checks
               </h4>
               <div className="space-y-1">
@@ -211,9 +213,11 @@ export function StepProgress({ step }: StepProgressProps) {
                     ) : (
                       <X className="h-3 w-3 text-red-400" />
                     )}
-                    <span className="text-gray-400">{mark.check_type}</span>
+                    <span className="text-muted-foreground">
+                      {mark.check_type}
+                    </span>
                     {mark.details && (
-                      <span className="text-gray-600">- {mark.details}</span>
+                      <span className="text-foreground">- {mark.details}</span>
                     )}
                   </div>
                 ))}
@@ -233,7 +237,7 @@ function PromptSection({ prompt }: { prompt: string }) {
     <div>
       <button
         onClick={() => setShowPrompt(!showPrompt)}
-        className="flex items-center gap-1 text-xs font-mono text-gray-500 uppercase tracking-wide hover:text-gray-400 transition-colors"
+        className="flex items-center gap-1 text-xs font-mono text-muted-foreground uppercase tracking-wide hover:text-foreground transition-colors"
       >
         {showPrompt ? (
           <ChevronDown className="h-3 w-3" />
@@ -244,7 +248,7 @@ function PromptSection({ prompt }: { prompt: string }) {
       </button>
       {showPrompt && (
         <div className="mt-1 p-3 bg-black/40 rounded border border-white/5 max-h-60 overflow-auto">
-          <pre className="text-xs font-mono text-gray-400 whitespace-pre-wrap">
+          <pre className="text-xs font-mono text-muted-foreground whitespace-pre-wrap">
             {prompt}
           </pre>
         </div>

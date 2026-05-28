@@ -28,8 +28,8 @@ const STATUS_BADGE: Record<
 > = {
   pending: {
     bg: 'bg-gray-500/10',
-    text: 'text-gray-400',
-    border: 'border-gray-500/30',
+    text: 'text-muted-foreground',
+    border: 'border-border/30',
     label: 'Pending',
   },
   running: {
@@ -240,7 +240,7 @@ export function RunView({ runId }: RunViewProps) {
     return (
       <div className="flex items-center justify-center py-20">
         <Loader2 className="h-6 w-6 animate-spin text-sol" />
-        <span className="ml-2 font-mono text-sm text-gray-500">
+        <span className="ml-2 font-mono text-sm text-muted-foreground">
           Loading run...
         </span>
       </div>
@@ -262,18 +262,18 @@ export function RunView({ runId }: RunViewProps) {
       <div className="flex items-center gap-4 mb-6">
         <button
           onClick={() => router.back()}
-          className="p-1.5 rounded hover:bg-white/5 text-gray-400 hover:text-gray-200 transition-colors"
+          className="p-1.5 rounded hover:bg-white/5 text-muted-foreground hover:text-foreground transition-colors"
           aria-label="Go back"
         >
           <ArrowLeft className="h-5 w-5" />
         </button>
 
         <div className="flex-1">
-          <h1 className="text-xl font-mono font-bold text-gray-200">
+          <h1 className="text-xl font-mono font-bold text-muted-foreground">
             Run <span className="text-brand-cyan">{runId.slice(0, 8)}</span>
           </h1>
           {activeRun?.started_at && (
-            <p className="text-xs font-mono text-gray-500 mt-0.5">
+            <p className="text-xs font-mono text-muted-foreground mt-0.5">
               Started {new Date(activeRun.started_at).toLocaleString()}
             </p>
           )}
@@ -287,7 +287,7 @@ export function RunView({ runId }: RunViewProps) {
         </span>
 
         {/* Total tokens */}
-        <div className="flex items-center gap-1.5 text-xs font-mono text-gray-500">
+        <div className="flex items-center gap-1.5 text-xs font-mono text-muted-foreground">
           <Coins className="h-3.5 w-3.5" />
           {totalTokens.toLocaleString()} tokens
         </div>
@@ -326,7 +326,7 @@ export function RunView({ runId }: RunViewProps) {
       {/* Steps list */}
       {steps.length === 0 && !isLoading ? (
         <div className="text-center py-16">
-          <p className="text-gray-500 font-mono text-sm">
+          <p className="text-muted-foreground font-mono text-sm">
             {activeRun?.status === 'pending'
               ? 'Waiting for run to start...'
               : 'No steps received yet.'}

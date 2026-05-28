@@ -1,9 +1,17 @@
-"use client";
+'use client';
 
-import React, { useState, useEffect, useRef } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { Search, FileText, Image, Video, Music, Clock, TrendingUp } from "lucide-react";
-import { useRouter } from "next/navigation";
+import React, { useState, useEffect, useRef } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import {
+  Search,
+  FileText,
+  Image,
+  Video,
+  Music,
+  Clock,
+  TrendingUp,
+} from 'lucide-react';
+import { useRouter } from 'next/navigation';
 
 interface QuickSearchProps {
   isOpen: boolean;
@@ -13,7 +21,7 @@ interface QuickSearchProps {
 interface SearchResult {
   id: string;
   title: string;
-  type: "document" | "image" | "video" | "audio";
+  type: 'document' | 'image' | 'video' | 'audio';
   url: string;
   lastViewed: string;
   popularity: number;
@@ -21,41 +29,44 @@ interface SearchResult {
 
 const mockSearchResults: SearchResult[] = [
   {
-    id: "1",
-    title: "Q4 Financial Report 2024",
-    type: "document",
-    url: "/documents/1",
-    lastViewed: "2 hours ago",
+    id: '1',
+    title: 'Q4 Financial Report 2024',
+    type: 'document',
+    url: '/documents/1',
+    lastViewed: '2 hours ago',
     popularity: 95,
   },
   {
-    id: "2",
-    title: "Product Demo Video",
-    type: "video",
-    url: "/documents/2",
-    lastViewed: "1 day ago",
+    id: '2',
+    title: 'Product Demo Video',
+    type: 'video',
+    url: '/documents/2',
+    lastViewed: '1 day ago',
     popularity: 87,
   },
   {
-    id: "3",
-    title: "Team Meeting Notes",
-    type: "document",
-    url: "/documents/3",
-    lastViewed: "3 hours ago",
+    id: '3',
+    title: 'Team Meeting Notes',
+    type: 'document',
+    url: '/documents/3',
+    lastViewed: '3 hours ago',
     popularity: 76,
   },
   {
-    id: "4",
-    title: "Design Mockups",
-    type: "image",
-    url: "/documents/4",
-    lastViewed: "1 week ago",
+    id: '4',
+    title: 'Design Mockups',
+    type: 'image',
+    url: '/documents/4',
+    lastViewed: '1 week ago',
     popularity: 65,
   },
 ];
 
-export const QuickSearch: React.FC<QuickSearchProps> = ({ isOpen, onClose }) => {
-  const [query, setQuery] = useState("");
+export const QuickSearch: React.FC<QuickSearchProps> = ({
+  isOpen,
+  onClose,
+}) => {
+  const [query, setQuery] = useState('');
   const [results, setResults] = useState<SearchResult[]>(mockSearchResults);
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -66,24 +77,24 @@ export const QuickSearch: React.FC<QuickSearchProps> = ({ isOpen, onClose }) => 
     }
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
         e.preventDefault();
         if (!isOpen) {
           onClose();
         }
       }
-      if (e.key === "Escape" && isOpen) {
+      if (e.key === 'Escape' && isOpen) {
         onClose();
-        setQuery("");
+        setQuery('');
       }
     };
 
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
 
   useEffect(() => {
-    if (query.trim() === "") {
+    if (query.trim() === '') {
       setResults(mockSearchResults);
     } else {
       const filtered = mockSearchResults.filter((result) =>
@@ -93,15 +104,15 @@ export const QuickSearch: React.FC<QuickSearchProps> = ({ isOpen, onClose }) => 
     }
   }, [query]);
 
-  const getTypeIcon = (type: SearchResult["type"]) => {
+  const getTypeIcon = (type: SearchResult['type']) => {
     switch (type) {
-      case "document":
+      case 'document':
         return <FileText className="h-4 w-4 text-blue-500" />;
-      case "image":
+      case 'image':
         return <Image className="h-4 w-4 text-green-500" />;
-      case "video":
+      case 'video':
         return <Video className="h-4 w-4 text-purple-500" />;
-      case "audio":
+      case 'audio':
         return <Music className="h-4 w-4 text-orange-500" />;
     }
   };
@@ -109,7 +120,7 @@ export const QuickSearch: React.FC<QuickSearchProps> = ({ isOpen, onClose }) => 
   const handleResultClick = (url: string) => {
     router.push(url);
     onClose();
-    setQuery("");
+    setQuery('');
   };
 
   return (
@@ -134,18 +145,18 @@ export const QuickSearch: React.FC<QuickSearchProps> = ({ isOpen, onClose }) => 
             <div className="relative overflow-hidden rounded-2xl bg-white/95 backdrop-blur-xl border border-amber-200/20 shadow-2xl">
               <div className="absolute inset-0 bg-gradient-to-br from-amber-50/50 to-orange-50/30" />
               <div className="relative">
-                <div className="p-4 border-b border-gray-200/50">
+                <div className="p-4 border-b border-border/50">
                   <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
                     <input
                       ref={inputRef}
                       type="text"
                       value={query}
                       onChange={(e) => setQuery(e.target.value)}
                       placeholder="Search documents, images, videos..."
-                      className="w-full pl-10 pr-4 py-3 bg-white/50 border border-gray-200/50 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 transition-all"
+                      className="w-full pl-10 pr-4 py-3 bg-white/50 border border-border/50 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 transition-all"
                     />
-                    <kbd className="absolute right-3 top-1/2 -translate-y-1/2 px-2 py-1 text-xs font-mono rounded-md bg-gray-100 border border-gray-200">
+                    <kbd className="absolute right-3 top-1/2 -translate-y-1/2 px-2 py-1 text-xs font-mono rounded-md bg-gray-100 border border-border">
                       ESC
                     </kbd>
                   </div>
@@ -174,11 +185,11 @@ export const QuickSearch: React.FC<QuickSearchProps> = ({ isOpen, onClose }) => 
                                 {getTypeIcon(result.type)}
                               </div>
                               <div className="flex-1 min-w-0">
-                                <h3 className="font-medium text-gray-800 truncate">
+                                <h3 className="font-medium text-foreground truncate">
                                   {result.title}
                                 </h3>
                                 <div className="flex items-center gap-3 mt-1">
-                                  <span className="flex items-center gap-1 text-xs text-gray-500">
+                                  <span className="flex items-center gap-1 text-xs text-muted-foreground">
                                     <Clock className="h-3 w-3" />
                                     {result.lastViewed}
                                   </span>
@@ -201,11 +212,13 @@ export const QuickSearch: React.FC<QuickSearchProps> = ({ isOpen, onClose }) => 
                         exit={{ opacity: 0 }}
                         className="p-8 text-center"
                       >
-                        <div className="text-gray-400 mb-2">
+                        <div className="text-muted-foreground mb-2">
                           <Search className="h-12 w-12 mx-auto" />
                         </div>
-                        <p className="text-gray-500">No results found</p>
-                        <p className="text-sm text-gray-400 mt-1">
+                        <p className="text-muted-foreground">
+                          No results found
+                        </p>
+                        <p className="text-sm text-muted-foreground mt-1">
                           Try adjusting your search terms
                         </p>
                       </motion.div>

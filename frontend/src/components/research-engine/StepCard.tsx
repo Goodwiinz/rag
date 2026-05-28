@@ -112,9 +112,9 @@ export function StepCard({
         </span>
 
         {expanded ? (
-          <ChevronUp className="h-4 w-4 text-gray-500 shrink-0" />
+          <ChevronUp className="h-4 w-4 text-muted-foreground shrink-0" />
         ) : (
-          <ChevronDown className="h-4 w-4 text-gray-500 shrink-0" />
+          <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
         )}
       </div>
 
@@ -123,7 +123,7 @@ export function StepCard({
         <div className="border-t border-border p-4 space-y-4">
           {/* Name */}
           <div>
-            <label className="block text-xs text-gray-500 font-mono uppercase tracking-wide mb-1">
+            <label className="block text-xs text-muted-foreground font-mono uppercase tracking-wide mb-1">
               Step Name
             </label>
             <input
@@ -136,7 +136,7 @@ export function StepCard({
 
           {/* Type */}
           <div>
-            <label className="block text-xs text-gray-500 font-mono uppercase tracking-wide mb-1">
+            <label className="block text-xs text-muted-foreground font-mono uppercase tracking-wide mb-1">
               Step Type
             </label>
             <select
@@ -154,7 +154,7 @@ export function StepCard({
 
           {/* Description */}
           <div>
-            <label className="block text-xs text-gray-500 font-mono uppercase tracking-wide mb-1">
+            <label className="block text-xs text-muted-foreground font-mono uppercase tracking-wide mb-1">
               Description
             </label>
             <textarea
@@ -170,7 +170,7 @@ export function StepCard({
 
           {/* Parameters JSON */}
           <div>
-            <label className="block text-xs text-gray-500 font-mono uppercase tracking-wide mb-1">
+            <label className="block text-xs text-muted-foreground font-mono uppercase tracking-wide mb-1">
               Parameters (JSON)
             </label>
             <textarea
@@ -192,7 +192,7 @@ export function StepCard({
 
           {/* Model selector */}
           <div>
-            <label className="block text-xs text-gray-500 font-mono uppercase tracking-wide mb-1">
+            <label className="block text-xs text-muted-foreground font-mono uppercase tracking-wide mb-1">
               Model
             </label>
             <select
@@ -213,7 +213,7 @@ export function StepCard({
 
           {/* Mode toggle */}
           <div>
-            <label className="block text-xs text-gray-500 font-mono uppercase tracking-wide mb-1">
+            <label className="block text-xs text-muted-foreground font-mono uppercase tracking-wide mb-1">
               Mode
             </label>
             <button
@@ -226,10 +226,10 @@ export function StepCard({
 
           {/* Temperature slider */}
           <div>
-            <label className="block text-xs text-gray-500 font-mono uppercase tracking-wide mb-1">
+            <label className="block text-xs text-muted-foreground font-mono uppercase tracking-wide mb-1">
               Temperature{' '}
               {step.mode === 'deterministic' && (
-                <span className="text-gray-600">(disabled)</span>
+                <span className="text-foreground">(disabled)</span>
               )}
             </label>
             <div className="flex items-center gap-3">
@@ -253,7 +253,7 @@ export function StepCard({
 
           {/* Seed input */}
           <div>
-            <label className="block text-xs text-gray-500 font-mono uppercase tracking-wide mb-1">
+            <label className="block text-xs text-muted-foreground font-mono uppercase tracking-wide mb-1">
               Seed
             </label>
             <input
@@ -277,7 +277,7 @@ export function StepCard({
             <button
               onClick={onMoveUp}
               disabled={index === 0}
-              className="p-1.5 text-gray-500 hover:text-primary disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              className="p-1.5 text-muted-foreground hover:text-primary disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
               aria-label="Move step up"
             >
               <ArrowUp className="h-4 w-4" />
@@ -285,7 +285,7 @@ export function StepCard({
             <button
               onClick={onMoveDown}
               disabled={index === totalSteps - 1}
-              className="p-1.5 text-gray-500 hover:text-primary disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              className="p-1.5 text-muted-foreground hover:text-primary disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
               aria-label="Move step down"
             >
               <ArrowDown className="h-4 w-4" />
@@ -293,7 +293,7 @@ export function StepCard({
             <div className="flex-1" />
             <button
               onClick={onRemove}
-              className="p-1.5 text-gray-500 hover:text-red-400 transition-colors"
+              className="p-1.5 text-muted-foreground hover:text-red-400 transition-colors"
               aria-label="Remove step"
             >
               <Trash2 className="h-4 w-4" />

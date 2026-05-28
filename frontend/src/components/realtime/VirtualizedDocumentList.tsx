@@ -55,33 +55,54 @@ const DocumentListItem: React.FC<{
   const document = data.documents[index];
   const isSelected = data.selectedDocuments.includes(document.id);
 
-  const handleSelect = useCallback((documentId: string, selected: boolean) => {
-    data.onItemSelect?.(documentId, selected);
-  }, [data.onItemSelect]);
+  const handleSelect = useCallback(
+    (documentId: string, selected: boolean) => {
+      data.onItemSelect?.(documentId, selected);
+    },
+    [data.onItemSelect]
+  );
 
-  const handleRetry = useCallback((documentId: string) => {
-    data.onRetry?.(documentId);
-  }, [data.onRetry]);
+  const handleRetry = useCallback(
+    (documentId: string) => {
+      data.onRetry?.(documentId);
+    },
+    [data.onRetry]
+  );
 
-  const handlePause = useCallback((documentId: string) => {
-    data.onPause?.(documentId);
-  }, [data.onPause]);
+  const handlePause = useCallback(
+    (documentId: string) => {
+      data.onPause?.(documentId);
+    },
+    [data.onPause]
+  );
 
-  const handleResume = useCallback((documentId: string) => {
-    data.onResume?.(documentId);
-  }, [data.onResume]);
+  const handleResume = useCallback(
+    (documentId: string) => {
+      data.onResume?.(documentId);
+    },
+    [data.onResume]
+  );
 
-  const handleCancel = useCallback((documentId: string) => {
-    data.onCancel?.(documentId);
-  }, [data.onCancel]);
+  const handleCancel = useCallback(
+    (documentId: string) => {
+      data.onCancel?.(documentId);
+    },
+    [data.onCancel]
+  );
 
-  const handleDownload = useCallback((documentId: string) => {
-    data.onDownload?.(documentId);
-  }, [data.onDownload]);
+  const handleDownload = useCallback(
+    (documentId: string) => {
+      data.onDownload?.(documentId);
+    },
+    [data.onDownload]
+  );
 
-  const handleErrorClick = useCallback((error: string) => {
-    data.onErrorClick?.(error);
-  }, [data.onErrorClick]);
+  const handleErrorClick = useCallback(
+    (error: string) => {
+      data.onErrorClick?.(error);
+    },
+    [data.onErrorClick]
+  );
 
   return (
     <div style={style}>
@@ -115,172 +136,198 @@ const LoadingPlaceholder: React.FC<{
 }> = memo(({ index, style, compact }) => {
   return (
     <div style={style}>
-      <ListSkeletonLoader
-        count={1}
-        compact={compact}
-        className="m-2"
-      />
+      <ListSkeletonLoader count={1} compact={compact} className="m-2" />
     </div>
   );
 });
 
 LoadingPlaceholder.displayName = 'LoadingPlaceholder';
 
-export const VirtualizedDocumentList: React.FC<VirtualizedDocumentListProps> = memo(({
-  documents,
-  selectedDocuments,
-  isLoading = false,
-  height = 600,
-  itemSize = 120,
-  compact = false,
-  showActions = true,
-  showProgress = true,
-  showStages = false,
-  className = '',
-  onItemClick,
-  onItemSelect,
-  onRetry,
-  onPause,
-  onResume,
-  onCancel,
-  onDownload,
-  onErrorClick,
-  scrollToIndex,
-  threshold = 100,
-  overscanCount = 5,
-}) => {
-  const listRef = useRef<List<DocumentItemData>>(null);
-  const itemCount = documents.length;
+export const VirtualizedDocumentList: React.FC<VirtualizedDocumentListProps> =
+  memo(
+    ({
+      documents,
+      selectedDocuments,
+      isLoading = false,
+      height = 600,
+      itemSize = 120,
+      compact = false,
+      showActions = true,
+      showProgress = true,
+      showStages = false,
+      className = '',
+      onItemClick,
+      onItemSelect,
+      onRetry,
+      onPause,
+      onResume,
+      onCancel,
+      onDownload,
+      onErrorClick,
+      scrollToIndex,
+      threshold = 100,
+      overscanCount = 5,
+    }) => {
+      const listRef = useRef<List<DocumentItemData>>(null);
+      const itemCount = documents.length;
 
-  // Memoize item data to prevent unnecessary re-renders
-  const itemData = useMemo<DocumentItemData>(() => ({
-    documents,
-    selectedDocuments,
-    compact,
-    showActions,
-    showProgress,
-    showStages,
-    onItemClick,
-    onItemSelect,
-    onRetry,
-    onPause,
-    onResume,
-    onCancel,
-    onDownload,
-    onErrorClick,
-  }), [
-    documents,
-    selectedDocuments,
-    compact,
-    showActions,
-    showProgress,
-    showStages,
-    onItemClick,
-    onItemSelect,
-    onRetry,
-    onPause,
-    onResume,
-    onCancel,
-    onDownload,
-    onErrorClick,
-  ]);
+      // Memoize item data to prevent unnecessary re-renders
+      const itemData = useMemo<DocumentItemData>(
+        () => ({
+          documents,
+          selectedDocuments,
+          compact,
+          showActions,
+          showProgress,
+          showStages,
+          onItemClick,
+          onItemSelect,
+          onRetry,
+          onPause,
+          onResume,
+          onCancel,
+          onDownload,
+          onErrorClick,
+        }),
+        [
+          documents,
+          selectedDocuments,
+          compact,
+          showActions,
+          showProgress,
+          showStages,
+          onItemClick,
+          onItemSelect,
+          onRetry,
+          onPause,
+          onResume,
+          onCancel,
+          onDownload,
+          onErrorClick,
+        ]
+      );
 
-  // Handle scroll to index
-  useEffect(() => {
-    if (scrollToIndex !== undefined && listRef.current) {
-      listRef.current.scrollToItem(scrollToIndex, 'center');
-    }
-  }, [scrollToIndex]);
+      // Handle scroll to index
+      useEffect(() => {
+        if (scrollToIndex !== undefined && listRef.current) {
+          listRef.current.scrollToItem(scrollToIndex, 'center');
+        }
+      }, [scrollToIndex]);
 
-  // Memoize item renderer
-  const renderItem = useCallback(({ index, style }: { index: number; style: React.CSSProperties }) => {
-    if (isLoading && index >= documents.length) {
-      return <LoadingPlaceholder index={index} style={style} compact={compact} />;
-    }
+      // Memoize item renderer
+      const renderItem = useCallback(
+        ({ index, style }: { index: number; style: React.CSSProperties }) => {
+          if (isLoading && index >= documents.length) {
+            return (
+              <LoadingPlaceholder
+                index={index}
+                style={style}
+                compact={compact}
+              />
+            );
+          }
 
-    return <DocumentListItem index={index} style={style} data={itemData} />;
-  }, [isLoading, documents.length, compact, itemData]);
+          return (
+            <DocumentListItem index={index} style={style} data={itemData} />
+          );
+        },
+        [isLoading, documents.length, compact, itemData]
+      );
 
-  // Memoize item count including loading placeholders
-  const displayItemCount = useMemo(() => {
-    return isLoading ? itemCount + 5 : itemCount; // Show 5 loading placeholders during loading
-  }, [itemCount, isLoading]);
+      // Memoize item count including loading placeholders
+      const displayItemCount = useMemo(() => {
+        return isLoading ? itemCount + 5 : itemCount; // Show 5 loading placeholders during loading
+      }, [itemCount, isLoading]);
 
-  // Show empty state
-  if (itemCount === 0 && !isLoading) {
-    return (
-      <div className={cn('flex flex-col items-center justify-center p-8 text-gray-500', className)}>
-        <div className="w-16 h-16 mb-4 text-gray-300">
-          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-          </svg>
+      // Show empty state
+      if (itemCount === 0 && !isLoading) {
+        return (
+          <div
+            className={cn(
+              'flex flex-col items-center justify-center p-8 text-muted-foreground',
+              className
+            )}
+          >
+            <div className="w-16 h-16 mb-4 text-muted-foreground">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={1}
+                  d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                />
+              </svg>
+            </div>
+            <h3 className="text-lg font-medium text-foreground mb-2">
+              No documents found
+            </h3>
+            <p className="text-sm text-muted-foreground text-center max-w-md">
+              No documents match your current filters. Try adjusting your search
+              criteria or upload new documents.
+            </p>
+          </div>
+        );
+      }
+
+      // For small lists, don't use virtualization
+      if (itemCount < threshold && !isLoading) {
+        return (
+          <div className={cn('space-y-3', className)}>
+            {documents.map((document) => (
+              <DocumentProcessingCard
+                key={document.id}
+                document={document}
+                isSelected={selectedDocuments.includes(document.id)}
+                onSelect={onItemSelect}
+                compact={compact}
+                showActions={showActions}
+                showProgress={showProgress}
+                showStages={showStages}
+                onClick={onItemClick}
+                onRetry={onRetry}
+                onPause={onPause}
+                onResume={onResume}
+                onCancel={onCancel}
+                onDownload={onDownload}
+                onErrorClick={onErrorClick}
+              />
+            ))}
+          </div>
+        );
+      }
+
+      // Virtualized list for large datasets
+      return (
+        <div className={cn('border border-border rounded-lg', className)}>
+          <List
+            ref={listRef}
+            height={height}
+            itemCount={displayItemCount}
+            itemSize={compact ? 80 : itemSize}
+            itemData={itemData}
+            overscanCount={overscanCount}
+            className="scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100"
+            // Performance optimizations
+            useIsScrolling={false}
+            initialScrollOffset={0}
+            onItemsRendered={({ visibleStartIndex, visibleStopIndex }) => {
+              // Trigger analytics or lazy loading if needed
+              // console.log(`Rendering items ${visibleStartIndex} to ${visibleStopIndex}`);
+            }}
+          >
+            {renderItem}
+          </List>
+
+          {/* Loading overlay for skeleton loaders */}
+          {isLoading && itemCount === 0 && (
+            <div className="absolute inset-0 pointer-events-none">
+              <ListSkeletonLoader count={10} compact={compact} />
+            </div>
+          )}
         </div>
-        <h3 className="text-lg font-medium text-gray-900 mb-2">No documents found</h3>
-        <p className="text-sm text-gray-500 text-center max-w-md">
-          No documents match your current filters. Try adjusting your search criteria or upload new documents.
-        </p>
-      </div>
-    );
-  }
-
-  // For small lists, don't use virtualization
-  if (itemCount < threshold && !isLoading) {
-    return (
-      <div className={cn('space-y-3', className)}>
-        {documents.map((document) => (
-          <DocumentProcessingCard
-            key={document.id}
-            document={document}
-            isSelected={selectedDocuments.includes(document.id)}
-            onSelect={onItemSelect}
-            compact={compact}
-            showActions={showActions}
-            showProgress={showProgress}
-            showStages={showStages}
-            onClick={onItemClick}
-            onRetry={onRetry}
-            onPause={onPause}
-            onResume={onResume}
-            onCancel={onCancel}
-            onDownload={onDownload}
-            onErrorClick={onErrorClick}
-          />
-        ))}
-      </div>
-    );
-  }
-
-  // Virtualized list for large datasets
-  return (
-    <div className={cn('border border-gray-200 rounded-lg', className)}>
-      <List
-        ref={listRef}
-        height={height}
-        itemCount={displayItemCount}
-        itemSize={compact ? 80 : itemSize}
-        itemData={itemData}
-        overscanCount={overscanCount}
-        className="scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100"
-        // Performance optimizations
-        useIsScrolling={false}
-        initialScrollOffset={0}
-        onItemsRendered={({ visibleStartIndex, visibleStopIndex }) => {
-          // Trigger analytics or lazy loading if needed
-          // console.log(`Rendering items ${visibleStartIndex} to ${visibleStopIndex}`);
-        }}
-      >
-        {renderItem}
-      </List>
-
-      {/* Loading overlay for skeleton loaders */}
-      {isLoading && itemCount === 0 && (
-        <div className="absolute inset-0 pointer-events-none">
-          <ListSkeletonLoader count={10} compact={compact} />
-        </div>
-      )}
-    </div>
+      );
+    }
   );
-});
 
 VirtualizedDocumentList.displayName = 'VirtualizedDocumentList';
 
@@ -296,7 +343,7 @@ export const ListSkeletonLoader: React.FC<{
         <div
           key={index}
           className={cn(
-            'border border-gray-200 rounded-lg p-4 animate-pulse',
+            'border border-border rounded-lg p-4 animate-pulse',
             compact ? 'p-3' : 'p-4'
           )}
         >

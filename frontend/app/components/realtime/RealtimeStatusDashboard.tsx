@@ -6,7 +6,13 @@
 
 'use client';
 
-import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
+import React, {
+  useEffect,
+  useState,
+  useCallback,
+  useMemo,
+  useRef,
+} from 'react';
 import {
   Card,
   CardContent,
@@ -41,12 +47,28 @@ import {
   FileText,
   Users,
   TrendingUp,
-  Settings
+  Settings,
 } from 'lucide-react';
 
-import { useRealtimeStore, useConnectionStatus, useDocuments, useSystemMetrics, useRealtimeActions } from '@/store/realtime-store';
-import { DocumentProcessingState, ProcessingStatus, WebSocketConnectionState, Channel, UpdateFrequency } from '@/types/realtime-processing';
-import { formatFileSize, formatDuration, formatRelativeTime } from '@/lib/format-utils';
+import {
+  useRealtimeStore,
+  useConnectionStatus,
+  useDocuments,
+  useSystemMetrics,
+  useRealtimeActions,
+} from '@/store/realtime-store';
+import {
+  DocumentProcessingState,
+  ProcessingStatus,
+  WebSocketConnectionState,
+  Channel,
+  UpdateFrequency,
+} from '@/types/realtime-processing';
+import {
+  formatFileSize,
+  formatDuration,
+  formatRelativeTime,
+} from '@/lib/format-utils';
 
 interface RealtimeStatusDashboardProps {
   className?: string;
@@ -56,23 +78,31 @@ interface RealtimeStatusDashboardProps {
   refreshInterval?: number;
 }
 
-export const RealtimeStatusDashboard: React.FC<RealtimeStatusDashboardProps> = ({
+export const RealtimeStatusDashboard: React.FC<
+  RealtimeStatusDashboardProps
+> = ({
   className = '',
   autoConnect = true,
   showSystemMetrics = true,
   maxDocuments = 50,
-  refreshInterval = 30000
+  refreshInterval = 30000,
 }) => {
   const connectionStatus = useConnectionStatus();
   const documents = useDocuments();
   const systemMetrics = useSystemMetrics();
-  const { connect, disconnect, reconnect, subscribeToDocument, unsubscribeFromDocument } = useRealtimeActions();
+  const {
+    connect,
+    disconnect,
+    reconnect,
+    subscribeToDocument,
+    unsubscribeFromDocument,
+  } = useRealtimeActions();
 
   const [activeTab, setActiveTab] = useState('queue');
   const [selectedDocument, setSelectedDocument] = useState<string | null>(null);
   const [filter, setFilter] = useState({
     status: 'all' as ProcessingStatus | 'all',
-    fileType: 'all' as string
+    fileType: 'all' as string,
   });
 
   const refreshIntervalRef = useRef<NodeJS.Timeout>();
@@ -83,8 +113,12 @@ export const RealtimeStatusDashboard: React.FC<RealtimeStatusDashboardProps> = (
       const token = localStorage.getItem('auth_token');
       if (token) {
         connect(token, {
-          channels: [Channel.DOCUMENT_PROCESSING, Channel.SYSTEM_STATUS, Channel.USER_NOTIFICATIONS],
-          frequency: UpdateFrequency.REALTIME
+          channels: [
+            Channel.DOCUMENT_PROCESSING,
+            Channel.SYSTEM_STATUS,
+            Channel.USER_NOTIFICATIONS,
+          ],
+          frequency: UpdateFrequency.REALTIME,
         }).catch(console.error);
       }
     }
@@ -110,23 +144,23 @@ export const RealtimeStatusDashboard: React.FC<RealtimeStatusDashboardProps> = (
     let filtered = documents.slice(0, maxDocuments);
 
     if (filter.status !== 'all') {
-      filtered = filtered.filter(doc => doc.status === filter.status);
+      filtered = filtered.filter((doc) => doc.status === filter.status);
     }
 
     if (filter.fileType !== 'all') {
-      filtered = filtered.filter(doc => doc.fileType === filter.fileType);
+      filtered = filtered.filter((doc) => doc.fileType === filter.fileType);
     }
 
     return filtered.sort((a, b) => {
       // Sort by status priority and creation time
       const statusOrder: Record<ProcessingStatus, number> = {
-        'processing': 0,
-        'uploading': 1,
-        'queued': 2,
-        'paused': 3,
-        'failed': 4,
-        'cancelled': 5,
-        'completed': 6
+        processing: 0,
+        uploading: 1,
+        queued: 2,
+        paused: 3,
+        failed: 4,
+        cancelled: 5,
+        completed: 6,
       };
 
       const aPriority = statusOrder[a.status] ?? 999;
@@ -136,36 +170,59 @@ export const RealtimeStatusDashboard: React.FC<RealtimeStatusDashboardProps> = (
         return aPriority - bPriority;
       }
 
-      return new Date(b.metadata.uploadStartedAt).getTime() - new Date(a.metadata.uploadStartedAt).getTime();
+      return (
+        new Date(b.metadata.uploadStartedAt).getTime() -
+        new Date(a.metadata.uploadStartedAt).getTime()
+      );
     });
   }, [documents, filter, maxDocuments]);
 
   // Calculate statistics
   const statistics = useMemo(() => {
     const total = filteredDocuments.length;
-    const queued = filteredDocuments.filter(doc => doc.status === 'queued').length;
-    const processing = filteredDocuments.filter(doc => doc.status === 'processing').length;
-    const completed = filteredDocuments.filter(doc => doc.status === 'completed').length;
-    const failed = filteredDocuments.filter(doc => doc.status === 'failed').length;
+    const queued = filteredDocuments.filter(
+      (doc) => doc.status === 'queued'
+    ).length;
+    const processing = filteredDocuments.filter(
+      (doc) => doc.status === 'processing'
+    ).length;
+    const completed = filteredDocuments.filter(
+      (doc) => doc.status === 'completed'
+    ).length;
+    const failed = filteredDocuments.filter(
+      (doc) => doc.status === 'failed'
+    ).length;
 
-    const averageProgress = filteredDocuments.length > 0
-      ? Math.round(filteredDocuments.reduce((sum, doc) => sum + doc.overallProgress, 0) / filteredDocuments.length)
-      : 0;
+    const averageProgress =
+      filteredDocuments.length > 0
+        ? Math.round(
+            filteredDocuments.reduce(
+              (sum, doc) => sum + doc.overallProgress,
+              0
+            ) / filteredDocuments.length
+          )
+        : 0;
 
     return { total, queued, processing, completed, failed, averageProgress };
   }, [filteredDocuments]);
 
-  const handleDocumentClick = useCallback((documentId: string) => {
-    setSelectedDocument(selectedDocument === documentId ? null : documentId);
-  }, [selectedDocument]);
+  const handleDocumentClick = useCallback(
+    (documentId: string) => {
+      setSelectedDocument(selectedDocument === documentId ? null : documentId);
+    },
+    [selectedDocument]
+  );
 
-  const handleSubscribeToDocument = useCallback((documentId: string) => {
-    if (selectedDocument === documentId) {
-      unsubscribeFromDocument(documentId);
-    } else {
-      subscribeToDocument(documentId);
-    }
-  }, [selectedDocument, subscribeToDocument, unsubscribeFromDocument]);
+  const handleSubscribeToDocument = useCallback(
+    (documentId: string) => {
+      if (selectedDocument === documentId) {
+        unsubscribeFromDocument(documentId);
+      } else {
+        subscribeToDocument(documentId);
+      }
+    },
+    [selectedDocument, subscribeToDocument, unsubscribeFromDocument]
+  );
 
   const getStatusBadgeVariant = (status: ProcessingStatus) => {
     switch (status) {
@@ -191,23 +248,25 @@ export const RealtimeStatusDashboard: React.FC<RealtimeStatusDashboardProps> = (
       case 'failed':
         return <XCircle className="h-4 w-4 text-red-500" />;
       case 'queued':
-        return <Clock className="h-4 w-4 text-gray-500" />;
+        return <Clock className="h-4 w-4 text-muted-foreground" />;
       default:
-        return <FileText className="h-4 w-4 text-gray-500" />;
+        return <FileText className="h-4 w-4 text-muted-foreground" />;
     }
   };
 
   const renderConnectionStatus = () => (
     <div className="flex items-center gap-2 mb-4">
-      <div className={`flex items-center gap-2 px-3 py-2 rounded-md border ${
-        connectionStatus.status === 'connected'
-          ? 'bg-green-50 border-green-200 text-green-800'
-          : connectionStatus.status === 'connecting'
-          ? 'bg-blue-50 border-blue-200 text-blue-800'
-          : connectionStatus.status === 'error'
-          ? 'bg-red-50 border-red-200 text-red-800'
-          : 'bg-gray-50 border-gray-200 text-gray-800'
-      }`}>
+      <div
+        className={`flex items-center gap-2 px-3 py-2 rounded-md border ${
+          connectionStatus.status === 'connected'
+            ? 'bg-green-50 border-green-200 text-green-800'
+            : connectionStatus.status === 'connecting'
+              ? 'bg-blue-50 border-blue-200 text-blue-800'
+              : connectionStatus.status === 'error'
+                ? 'bg-red-50 border-red-200 text-red-800'
+                : 'bg-gray-50 border-border text-foreground'
+        }`}
+      >
         {connectionStatus.status === 'connected' ? (
           <Wifi className="h-4 w-4" />
         ) : (
@@ -226,7 +285,9 @@ export const RealtimeStatusDashboard: React.FC<RealtimeStatusDashboardProps> = (
       <Button
         variant="outline"
         size="sm"
-        onClick={() => connectionStatus.status === 'connected' ? disconnect() : reconnect()}
+        onClick={() =>
+          connectionStatus.status === 'connected' ? disconnect() : reconnect()
+        }
         disabled={connectionStatus.status === 'connecting'}
       >
         {connectionStatus.status === 'connected' ? 'Disconnect' : 'Connect'}
@@ -253,7 +314,9 @@ export const RealtimeStatusDashboard: React.FC<RealtimeStatusDashboardProps> = (
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-muted-foreground">Processing</p>
-              <p className="text-2xl font-bold text-blue-600">{statistics.processing}</p>
+              <p className="text-2xl font-bold text-blue-600">
+                {statistics.processing}
+              </p>
             </div>
             <Loader2 className="h-8 w-8 text-blue-500" />
           </div>
@@ -265,7 +328,9 @@ export const RealtimeStatusDashboard: React.FC<RealtimeStatusDashboardProps> = (
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-muted-foreground">Completed</p>
-              <p className="text-2xl font-bold text-green-600">{statistics.completed}</p>
+              <p className="text-2xl font-bold text-green-600">
+                {statistics.completed}
+              </p>
             </div>
             <CheckCircle className="h-8 w-8 text-green-500" />
           </div>
@@ -277,7 +342,9 @@ export const RealtimeStatusDashboard: React.FC<RealtimeStatusDashboardProps> = (
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-muted-foreground">Average Progress</p>
-              <p className="text-2xl font-bold">{statistics.averageProgress}%</p>
+              <p className="text-2xl font-bold">
+                {statistics.averageProgress}%
+              </p>
             </div>
             <TrendingUp className="h-8 w-8 text-muted-foreground" />
           </div>
@@ -290,8 +357,12 @@ export const RealtimeStatusDashboard: React.FC<RealtimeStatusDashboardProps> = (
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-muted-foreground">Active Connections</p>
-                  <p className="text-2xl font-bold">{systemMetrics.concurrentConnections}</p>
+                  <p className="text-sm text-muted-foreground">
+                    Active Connections
+                  </p>
+                  <p className="text-2xl font-bold">
+                    {systemMetrics.concurrentConnections}
+                  </p>
                 </div>
                 <Users className="h-8 w-8 text-muted-foreground" />
               </div>
@@ -303,7 +374,9 @@ export const RealtimeStatusDashboard: React.FC<RealtimeStatusDashboardProps> = (
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-muted-foreground">Active Jobs</p>
-                  <p className="text-2xl font-bold">{systemMetrics.activeJobs}</p>
+                  <p className="text-2xl font-bold">
+                    {systemMetrics.activeJobs}
+                  </p>
                 </div>
                 <Activity className="h-8 w-8 text-muted-foreground" />
               </div>
@@ -315,7 +388,9 @@ export const RealtimeStatusDashboard: React.FC<RealtimeStatusDashboardProps> = (
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-muted-foreground">CPU Usage</p>
-                  <p className="text-2xl font-bold">{systemMetrics.cpuUsage}%</p>
+                  <p className="text-2xl font-bold">
+                    {systemMetrics.cpuUsage}%
+                  </p>
                 </div>
                 <Settings className="h-8 w-8 text-muted-foreground" />
               </div>
@@ -327,7 +402,9 @@ export const RealtimeStatusDashboard: React.FC<RealtimeStatusDashboardProps> = (
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-muted-foreground">Memory Usage</p>
-                  <p className="text-2xl font-bold">{systemMetrics.memoryUsage}%</p>
+                  <p className="text-2xl font-bold">
+                    {systemMetrics.memoryUsage}%
+                  </p>
                 </div>
                 <AlertTriangle className="h-8 w-8 text-muted-foreground" />
               </div>
@@ -341,12 +418,19 @@ export const RealtimeStatusDashboard: React.FC<RealtimeStatusDashboardProps> = (
   const renderDocumentsList = () => (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold">Documents ({filteredDocuments.length})</h3>
+        <h3 className="text-lg font-semibold">
+          Documents ({filteredDocuments.length})
+        </h3>
 
         <div className="flex items-center gap-2">
           <select
             value={filter.status}
-            onChange={(e) => setFilter(prev => ({ ...prev, status: e.target.value as ProcessingStatus | 'all' }))}
+            onChange={(e) =>
+              setFilter((prev) => ({
+                ...prev,
+                status: e.target.value as ProcessingStatus | 'all',
+              }))
+            }
             className="px-3 py-2 border rounded-md"
           >
             <option value="all">All Status</option>
@@ -358,7 +442,9 @@ export const RealtimeStatusDashboard: React.FC<RealtimeStatusDashboardProps> = (
 
           <select
             value={filter.fileType}
-            onChange={(e) => setFilter(prev => ({ ...prev, fileType: e.target.value }))}
+            onChange={(e) =>
+              setFilter((prev) => ({ ...prev, fileType: e.target.value }))
+            }
             className="px-3 py-2 border rounded-md"
           >
             <option value="all">All Types</option>
@@ -393,9 +479,12 @@ export const RealtimeStatusDashboard: React.FC<RealtimeStatusDashboardProps> = (
               >
                 <TableCell>
                   <div className="space-y-1">
-                    <p className="font-medium truncate max-w-[200px]">{document.filename}</p>
+                    <p className="font-medium truncate max-w-[200px]">
+                      {document.filename}
+                    </p>
                     <p className="text-sm text-muted-foreground">
-                      {formatFileSize(document.metadata.fileSize)} • {document.fileType.toUpperCase()}
+                      {formatFileSize(document.metadata.fileSize)} •{' '}
+                      {document.fileType.toUpperCase()}
                     </p>
                   </div>
                 </TableCell>
@@ -409,7 +498,10 @@ export const RealtimeStatusDashboard: React.FC<RealtimeStatusDashboardProps> = (
                 </TableCell>
                 <TableCell>
                   <div className="w-32">
-                    <Progress value={document.overallProgress} className="h-2" />
+                    <Progress
+                      value={document.overallProgress}
+                      className="h-2"
+                    />
                     <span className="text-xs text-muted-foreground">
                       {document.overallProgress}%
                     </span>
@@ -417,7 +509,9 @@ export const RealtimeStatusDashboard: React.FC<RealtimeStatusDashboardProps> = (
                 </TableCell>
                 <TableCell>
                   <div className="space-y-1">
-                    <p className="text-sm font-medium">{document.currentStage.name}</p>
+                    <p className="text-sm font-medium">
+                      {document.currentStage.name}
+                    </p>
                     {document.currentStage.status === 'in_progress' && (
                       <p className="text-xs text-muted-foreground">
                         {document.currentStage.progress}%
@@ -428,7 +522,9 @@ export const RealtimeStatusDashboard: React.FC<RealtimeStatusDashboardProps> = (
                 <TableCell>
                   <p className="text-sm text-muted-foreground">
                     {document.metadata.processingStartedAt
-                      ? formatRelativeTime(document.metadata.processingStartedAt)
+                      ? formatRelativeTime(
+                          document.metadata.processingStartedAt
+                        )
                       : '-'}
                   </p>
                 </TableCell>
@@ -443,7 +539,9 @@ export const RealtimeStatusDashboard: React.FC<RealtimeStatusDashboardProps> = (
                       }}
                       disabled={connectionStatus.status !== 'connected'}
                     >
-                      {selectedDocument === document.id ? 'Unsubscribe' : 'Subscribe'}
+                      {selectedDocument === document.id
+                        ? 'Unsubscribe'
+                        : 'Subscribe'}
                     </Button>
 
                     {document.actions.retry && document.status === 'failed' && (
@@ -485,7 +583,9 @@ export const RealtimeStatusDashboard: React.FC<RealtimeStatusDashboardProps> = (
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
           <TabsTrigger value="queue">Queue</TabsTrigger>
-          {showSystemMetrics && <TabsTrigger value="metrics">System Metrics</TabsTrigger>}
+          {showSystemMetrics && (
+            <TabsTrigger value="metrics">System Metrics</TabsTrigger>
+          )}
           <TabsTrigger value="analytics">Analytics</TabsTrigger>
         </TabsList>
 
@@ -513,11 +613,15 @@ export const RealtimeStatusDashboard: React.FC<RealtimeStatusDashboardProps> = (
                       <div className="space-y-2">
                         <div className="flex justify-between">
                           <span>Active Connections:</span>
-                          <span className="font-mono">{systemMetrics.concurrentConnections}</span>
+                          <span className="font-mono">
+                            {systemMetrics.concurrentConnections}
+                          </span>
                         </div>
                         <div className="flex justify-between">
                           <span>Uptime:</span>
-                          <span className="font-mono">{formatDuration(Date.now())}</span>
+                          <span className="font-mono">
+                            {formatDuration(Date.now())}
+                          </span>
                         </div>
                       </div>
                     </CardContent>
@@ -531,15 +635,21 @@ export const RealtimeStatusDashboard: React.FC<RealtimeStatusDashboardProps> = (
                       <div className="space-y-2">
                         <div className="flex justify-between">
                           <span>Active Jobs:</span>
-                          <span className="font-mono">{systemMetrics.activeJobs}</span>
+                          <span className="font-mono">
+                            {systemMetrics.activeJobs}
+                          </span>
                         </div>
                         <div className="flex justify-between">
                           <span>Queued Jobs:</span>
-                          <span className="font-mono">{systemMetrics.queuedJobs}</span>
+                          <span className="font-mono">
+                            {systemMetrics.queuedJobs}
+                          </span>
                         </div>
                         <div className="flex justify-between">
                           <span>Avg Duration:</span>
-                          <span className="font-mono">{systemMetrics.averageJobDuration}s</span>
+                          <span className="font-mono">
+                            {systemMetrics.averageJobDuration}s
+                          </span>
                         </div>
                       </div>
                     </CardContent>
@@ -553,15 +663,21 @@ export const RealtimeStatusDashboard: React.FC<RealtimeStatusDashboardProps> = (
                       <div className="space-y-2">
                         <div className="flex justify-between">
                           <span>CPU Usage:</span>
-                          <span className="font-mono">{systemMetrics.cpuUsage}%</span>
+                          <span className="font-mono">
+                            {systemMetrics.cpuUsage}%
+                          </span>
                         </div>
                         <div className="flex justify-between">
                           <span>Memory Usage:</span>
-                          <span className="font-mono">{systemMetrics.memoryUsage}%</span>
+                          <span className="font-mono">
+                            {systemMetrics.memoryUsage}%
+                          </span>
                         </div>
                         <div className="flex justify-between">
                           <span>Disk Space:</span>
-                          <span className="font-mono">{systemMetrics.diskSpace}%</span>
+                          <span className="font-mono">
+                            {systemMetrics.diskSpace}%
+                          </span>
                         </div>
                       </div>
                     </CardContent>
@@ -582,7 +698,9 @@ export const RealtimeStatusDashboard: React.FC<RealtimeStatusDashboardProps> = (
             </CardHeader>
             <CardContent>
               <div className="text-center py-8">
-                <p className="text-muted-foreground">Analytics coming soon...</p>
+                <p className="text-muted-foreground">
+                  Analytics coming soon...
+                </p>
               </div>
             </CardContent>
           </Card>

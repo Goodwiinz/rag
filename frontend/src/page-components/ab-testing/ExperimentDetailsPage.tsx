@@ -16,10 +16,14 @@ export const ExperimentDetailsPage: React.FC = () => {
           >
             &larr; Back to Experiments
           </button>
-          <h1 className="text-2xl font-bold text-gray-900">Experiment Not Found</h1>
+          <h1 className="text-2xl font-bold text-foreground">
+            Experiment Not Found
+          </h1>
         </div>
         <div className="bg-white rounded-lg shadow p-6">
-          <p className="text-red-600">Experiment ID is missing. Please select a valid experiment.</p>
+          <p className="text-red-600">
+            Experiment ID is missing. Please select a valid experiment.
+          </p>
         </div>
       </div>
     );
@@ -34,11 +38,15 @@ export const ExperimentDetailsPage: React.FC = () => {
         >
           &larr; Back to Experiments
         </button>
-        <h1 className="text-2xl font-bold text-gray-900">Experiment Details</h1>
-        <p className="text-gray-600">ID: {id}</p>
+        <h1 className="text-2xl font-bold text-foreground">
+          Experiment Details
+        </h1>
+        <p className="text-foreground">ID: {id}</p>
       </div>
       <div className="bg-white rounded-lg shadow p-6">
-        <p className="text-gray-600">View detailed experiment results and metrics.</p>
+        <p className="text-foreground">
+          View detailed experiment results and metrics.
+        </p>
       </div>
     </div>
   );

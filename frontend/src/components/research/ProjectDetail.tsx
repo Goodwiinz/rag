@@ -44,7 +44,7 @@ export function ProjectDetail({
             {project.name}
           </h1>
           {project.description && (
-            <p className="text-gray-400 mt-2">{project.description}</p>
+            <p className="text-muted-foreground mt-2">{project.description}</p>
           )}
         </div>
         {actions}
@@ -61,7 +61,7 @@ export function ProjectDetail({
               className={`flex items-center gap-2 px-4 py-2 font-mono text-sm border-b-2 transition-colors ${
                 selected
                   ? 'text-sol border-sol'
-                  : 'text-gray-500 border-transparent hover:text-gray-300'
+                  : 'text-muted-foreground border-transparent hover:text-foreground'
               }`}
             >
               <Icon className="h-4 w-4" />

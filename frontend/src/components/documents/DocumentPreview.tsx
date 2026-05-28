@@ -54,45 +54,60 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
     setIsRetrying(true);
     try {
       // Call backend endpoint to requeue/reprocess the document
-      const response = await fetch(`/api/documents/${localDocument.id}/reprocess`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
+      const response = await fetch(
+        `/api/documents/${localDocument.id}/reprocess`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        }
+      );
 
       if (!response.ok) {
         throw new Error('Failed to queue document for reprocessing');
       }
 
       // Optimistic update: set status to queued
-      setLocalDocument(prev => prev ? { ...prev, processing_status: 'queued', processing_error: undefined } : null);
+      setLocalDocument((prev) =>
+        prev
+          ? {
+              ...prev,
+              processing_status: 'queued',
+              processing_error: undefined,
+            }
+          : null
+      );
 
       toast.success('Document queued for reprocessing');
     } catch (error) {
       console.error('Failed to reprocess document:', error);
-      toast.error('Failed to queue document for reprocessing. Please try again.');
+      toast.error(
+        'Failed to queue document for reprocessing. Please try again.'
+      );
     } finally {
       setIsRetrying(false);
     }
   }, [localDocument, isRetrying]);
 
   const getFileIcon = () => {
-    const iconClass = "h-8 w-8";
+    const iconClass = 'h-8 w-8';
     switch (document?.file_type) {
       case 'pdf':
-        return <DocumentTextIcon className={cn(iconClass, "text-red-600")} />;
+        return <DocumentTextIcon className={cn(iconClass, 'text-red-600')} />;
       case 'txt':
-        return <DocumentTextIcon className={cn(iconClass, "text-blue-600")} />;
+        return <DocumentTextIcon className={cn(iconClass, 'text-blue-600')} />;
       case 'jpg':
       case 'png':
-        return <PhotoIcon className={cn(iconClass, "text-green-600")} />;
+        return <PhotoIcon className={cn(iconClass, 'text-green-600')} />;
       case 'mp3':
-        return <MusicalNoteIcon className={cn(iconClass, "text-purple-600")} />;
+        return <MusicalNoteIcon className={cn(iconClass, 'text-purple-600')} />;
       case 'mp4':
-        return <VideoCameraIcon className={cn(iconClass, "text-orange-600")} />;
+        return <VideoCameraIcon className={cn(iconClass, 'text-orange-600')} />;
       default:
-        return <DocumentTextIcon className={cn(iconClass, "text-gray-600")} />;
+        return (
+          <DocumentTextIcon className={cn(iconClass, 'text-foreground')} />
+        );
     }
   };
 
@@ -101,7 +116,9 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
       case 'queued':
         return <ClockIcon className="h-4 w-4 text-yellow-600" />;
       case 'processing':
-        return <div className="h-4 w-4 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />;
+        return (
+          <div className="h-4 w-4 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
+        );
       case 'indexed':
         return <CheckCircleIcon className="h-4 w-4 text-green-600" />;
       case 'failed':
@@ -194,8 +211,8 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
             />
           ) : (
             <div className="text-center">
-              <PhotoIcon className="h-16 w-16 text-gray-400 mx-auto mb-2" />
-              <p className="text-gray-500">No preview available</p>
+              <PhotoIcon className="h-16 w-16 text-muted-foreground mx-auto mb-2" />
+              <p className="text-muted-foreground">No preview available</p>
             </div>
           )}
         </div>
@@ -207,12 +224,20 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
       return (
         <div className="flex items-center justify-center bg-gray-50 rounded-lg p-8">
           <div className="text-center">
-            <DocumentTextIcon className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-            <p className="text-lg font-medium text-gray-700 mb-2">{document.title}</p>
-            <p className="text-gray-500 mb-4">
-              {document.page_count ? `${document.page_count} pages` : 'Document preview'}
+            <DocumentTextIcon className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
+            <p className="text-lg font-medium text-foreground mb-2">
+              {document.title}
             </p>
-            <Button onClick={handleDownload} disabled={isLoading} variant="outline">
+            <p className="text-muted-foreground mb-4">
+              {document.page_count
+                ? `${document.page_count} pages`
+                : 'Document preview'}
+            </p>
+            <Button
+              onClick={handleDownload}
+              disabled={isLoading}
+              variant="outline"
+            >
               <ArrowDownTrayIcon className="h-4 w-4 mr-2" />
               {isLoading ? 'Downloading...' : 'Download to view'}
             </Button>
@@ -226,12 +251,18 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
       return (
         <div className="flex items-center justify-center bg-gray-50 rounded-lg p-8">
           <div className="text-center">
-            <MusicalNoteIcon className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-            <p className="text-lg font-medium text-gray-700 mb-2">{document.title}</p>
-            <p className="text-gray-500 mb-4">
+            <MusicalNoteIcon className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
+            <p className="text-lg font-medium text-foreground mb-2">
+              {document.title}
+            </p>
+            <p className="text-muted-foreground mb-4">
               {getDurationDisplay() || 'Audio file'}
             </p>
-            <Button onClick={handleDownload} disabled={isLoading} variant="outline">
+            <Button
+              onClick={handleDownload}
+              disabled={isLoading}
+              variant="outline"
+            >
               <ArrowDownTrayIcon className="h-4 w-4 mr-2" />
               {isLoading ? 'Downloading...' : 'Download audio'}
             </Button>
@@ -245,12 +276,18 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
       return (
         <div className="flex items-center justify-center bg-gray-50 rounded-lg p-8">
           <div className="text-center">
-            <VideoCameraIcon className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-            <p className="text-lg font-medium text-gray-700 mb-2">{document.title}</p>
-            <p className="text-gray-500 mb-4">
+            <VideoCameraIcon className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
+            <p className="text-lg font-medium text-foreground mb-2">
+              {document.title}
+            </p>
+            <p className="text-muted-foreground mb-4">
               {getDurationDisplay() || 'Video file'}
             </p>
-            <Button onClick={handleDownload} disabled={isLoading} variant="outline">
+            <Button
+              onClick={handleDownload}
+              disabled={isLoading}
+              variant="outline"
+            >
               <ArrowDownTrayIcon className="h-4 w-4 mr-2" />
               {isLoading ? 'Downloading...' : 'Download video'}
             </Button>
@@ -263,10 +300,18 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
     return (
       <div className="flex items-center justify-center bg-gray-50 rounded-lg p-8">
         <div className="text-center">
-          <DocumentTextIcon className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-          <p className="text-lg font-medium text-gray-700 mb-2">{document.title}</p>
-          <p className="text-gray-500 mb-4">Preview not available for this file type</p>
-          <Button onClick={handleDownload} disabled={isLoading} variant="outline">
+          <DocumentTextIcon className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
+          <p className="text-lg font-medium text-foreground mb-2">
+            {document.title}
+          </p>
+          <p className="text-muted-foreground mb-4">
+            Preview not available for this file type
+          </p>
+          <Button
+            onClick={handleDownload}
+            disabled={isLoading}
+            variant="outline"
+          >
             <ArrowDownTrayIcon className="h-4 w-4 mr-2" />
             {isLoading ? 'Downloading...' : 'Download file'}
           </Button>
@@ -293,10 +338,12 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
             <div className="flex items-center space-x-4">
               {getFileIcon()}
               <div>
-                <h2 className="text-xl font-semibold text-gray-900">
+                <h2 className="text-xl font-semibold text-foreground">
                   {document.title}
                 </h2>
-                <p className="text-sm text-gray-500">{document.filename}</p>
+                <p className="text-sm text-muted-foreground">
+                  {document.filename}
+                </p>
               </div>
             </div>
             <Button
@@ -315,7 +362,9 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
               {/* Preview Area */}
               <div className="lg:col-span-2">
                 <div className="mb-4">
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">Preview</h3>
+                  <h3 className="text-lg font-medium text-foreground mb-2">
+                    Preview
+                  </h3>
                 </div>
                 {renderPreviewContent()}
               </div>
@@ -324,47 +373,77 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
               <div className="space-y-6">
                 {/* File Information */}
                 <div>
-                  <h3 className="text-lg font-medium text-gray-900 mb-4">File Information</h3>
+                  <h3 className="text-lg font-medium text-foreground mb-4">
+                    File Information
+                  </h3>
                   <div className="space-y-3">
                     <div>
-                      <p className="text-sm font-medium text-gray-700">File Size</p>
-                      <p className="text-sm text-gray-500">{formatFileSize(document.file_size)}</p>
+                      <p className="text-sm font-medium text-foreground">
+                        File Size
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        {formatFileSize(document.file_size)}
+                      </p>
                     </div>
                     <div>
-                      <p className="text-sm font-medium text-gray-700">File Type</p>
-                      <p className="text-sm text-gray-500">{document.file_type?.toUpperCase()}</p>
+                      <p className="text-sm font-medium text-foreground">
+                        File Type
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        {document.file_type?.toUpperCase()}
+                      </p>
                     </div>
                     {getDurationDisplay() && (
                       <div>
-                        <p className="text-sm font-medium text-gray-700">Duration</p>
-                        <p className="text-sm text-gray-500">{getDurationDisplay()}</p>
+                        <p className="text-sm font-medium text-foreground">
+                          Duration
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                          {getDurationDisplay()}
+                        </p>
                       </div>
                     )}
                     <div>
-                      <p className="text-sm font-medium text-gray-700">Uploaded</p>
-                      <p className="text-sm text-gray-500">{formatDate(document.upload_timestamp)}</p>
+                      <p className="text-sm font-medium text-foreground">
+                        Uploaded
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        {formatDate(document.upload_timestamp)}
+                      </p>
                     </div>
                   </div>
                 </div>
 
                 {/* Processing Status */}
                 <div>
-                  <h3 className="text-lg font-medium text-gray-900 mb-4">Processing Status</h3>
+                  <h3 className="text-lg font-medium text-foreground mb-4">
+                    Processing Status
+                  </h3>
                   <div className="space-y-3">
                     <div className="flex items-center space-x-2">
                       {getStatusIcon()}
-                      <span className="text-sm text-gray-700">{getStatusText()}</span>
+                      <span className="text-sm text-foreground">
+                        {getStatusText()}
+                      </span>
                     </div>
                     {document.processing_error && (
                       <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-                        <p className="text-sm text-red-600">{document.processing_error}</p>
+                        <p className="text-sm text-red-600">
+                          {document.processing_error}
+                        </p>
                       </div>
                     )}
-                    {(document.processing_status === 'processing' || document.processing_status === 'queued' || document.processing_status === 'failed') && (
+                    {(document.processing_status === 'processing' ||
+                      document.processing_status === 'queued' ||
+                      document.processing_status === 'failed') && (
                       <ProcessingStatus
                         document={localDocument || document}
                         compact
-                        onRetry={document.processing_status === 'failed' ? handleRetry : undefined}
+                        onRetry={
+                          document.processing_status === 'failed'
+                            ? handleRetry
+                            : undefined
+                        }
                       />
                     )}
                   </div>
@@ -372,7 +451,9 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
 
                 {/* Actions */}
                 <div>
-                  <h3 className="text-lg font-medium text-gray-900 mb-4">Actions</h3>
+                  <h3 className="text-lg font-medium text-foreground mb-4">
+                    Actions
+                  </h3>
                   <div className="space-y-2">
                     <Button
                       onClick={handleDownload}
@@ -407,21 +488,28 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
                 </div>
 
                 {/* Metadata */}
-                {document.metadata && Object.keys(document.metadata).length > 0 && (
-                  <div>
-                    <h3 className="text-lg font-medium text-gray-900 mb-4">Metadata</h3>
-                    <div className="space-y-2">
-                      {Object.entries(document.metadata).map(([key, value]) => (
-                        <div key={key}>
-                          <p className="text-sm font-medium text-gray-700 capitalize">
-                            {key.replace(/_/g, ' ')}
-                          </p>
-                          <p className="text-sm text-gray-500">{String(value)}</p>
-                        </div>
-                      ))}
+                {document.metadata &&
+                  Object.keys(document.metadata).length > 0 && (
+                    <div>
+                      <h3 className="text-lg font-medium text-foreground mb-4">
+                        Metadata
+                      </h3>
+                      <div className="space-y-2">
+                        {Object.entries(document.metadata).map(
+                          ([key, value]) => (
+                            <div key={key}>
+                              <p className="text-sm font-medium text-foreground capitalize">
+                                {key.replace(/_/g, ' ')}
+                              </p>
+                              <p className="text-sm text-muted-foreground">
+                                {String(value)}
+                              </p>
+                            </div>
+                          )
+                        )}
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
               </div>
             </div>
           </div>

@@ -2,22 +2,27 @@ import type { Meta, StoryObj } from '@storybook/react';
 import { MultimodalViewer } from './MultimodalViewer';
 
 // Mock document data
-const createMockDocument = (type: 'pdf' | 'txt' | 'jpg' | 'png' | 'mp3' | 'mp4', overrides = {}) => ({
+const createMockDocument = (
+  type: 'pdf' | 'txt' | 'jpg' | 'png' | 'mp3' | 'mp4',
+  overrides = {}
+) => ({
   id: `doc-${Math.random().toString(36).substr(2, 9)}`,
   title: `Sample ${type.toUpperCase()} Document`,
   filename: `sample.${type}`,
   file_type: type as const,
   file_size: Math.floor(Math.random() * 10000000), // Random file size
-  thumbnail_url: type === 'jpg' || type === 'png'
-    ? `https://picsum.photos/800/600?random=${Math.random()}`
-    : undefined,
-  extracted_text_preview: type === 'txt'
-    ? `This is a sample text document content.\n\nLorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.\n\nDuis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.`
-    : type === 'pdf'
-    ? `Sample PDF document content with extracted text. This would typically include the OCR'd text from the PDF document pages.\n\nPage 1: Introduction\nThis document contains important information about the multimodal RAG system.`
-    : type === 'mp3' || type === 'mp4'
-    ? `This is a transcript of the audio/video content. The automatic speech recognition has processed the media file and extracted this text content for search and analysis purposes.\n\n[00:00:00] Welcome to this presentation about document processing.\n[00:00:15] Today we'll discuss the various file formats supported.`
-    : 'Extracted content would appear here for this document type.',
+  thumbnail_url:
+    type === 'jpg' || type === 'png'
+      ? `https://picsum.photos/800/600?random=${Math.random()}`
+      : undefined,
+  extracted_text_preview:
+    type === 'txt'
+      ? `This is a sample text document content.\n\nLorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.\n\nDuis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.`
+      : type === 'pdf'
+        ? `Sample PDF document content with extracted text. This would typically include the OCR'd text from the PDF document pages.\n\nPage 1: Introduction\nThis document contains important information about the multimodal RAG system.`
+        : type === 'mp3' || type === 'mp4'
+          ? `This is a transcript of the audio/video content. The automatic speech recognition has processed the media file and extracted this text content for search and analysis purposes.\n\n[00:00:00] Welcome to this presentation about document processing.\n[00:00:15] Today we'll discuss the various file formats supported.`
+          : 'Extracted content would appear here for this document type.',
   metadata: {
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
@@ -295,8 +300,12 @@ export const Gallery: Story = {
   render: () => (
     <div className="p-6 bg-gray-50 min-h-screen">
       <div className="mb-6">
-        <h2 className="text-2xl font-bold text-gray-900 mb-2">Document Type Gallery</h2>
-        <p className="text-gray-600">Examples of different document types supported by the MultimodalViewer</p>
+        <h2 className="text-2xl font-bold text-foreground mb-2">
+          Document Type Gallery
+        </h2>
+        <p className="text-foreground">
+          Examples of different document types supported by the MultimodalViewer
+        </p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -348,16 +357,21 @@ export const Playground: Story = {
   parameters: {
     docs: {
       description: {
-        story: 'Interactive playground for testing the MultimodalViewer. Try different document types and settings to see how the viewer adapts to various content formats.',
+        story:
+          'Interactive playground for testing the MultimodalViewer. Try different document types and settings to see how the viewer adapts to various content formats.',
       },
     },
   },
   render: (args) => (
     <div className="p-6 bg-gray-50 min-h-screen">
       <div className="mb-6">
-        <h2 className="text-2xl font-bold text-gray-900 mb-2">Multimodal Viewer Playground</h2>
-        <p className="text-gray-600">
-          Test different document types and viewer configurations. The viewer supports PDF, text, images, audio, and video files with appropriate controls for each type.
+        <h2 className="text-2xl font-bold text-foreground mb-2">
+          Multimodal Viewer Playground
+        </h2>
+        <p className="text-foreground">
+          Test different document types and viewer configurations. The viewer
+          supports PDF, text, images, audio, and video files with appropriate
+          controls for each type.
         </p>
       </div>
       <MultimodalViewer {...args} />

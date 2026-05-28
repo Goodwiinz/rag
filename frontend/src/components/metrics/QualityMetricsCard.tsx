@@ -4,12 +4,12 @@ import { Switch } from '@/components/ui/switch';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { cn } from '@/lib/utils';
 import {
-    ArrowTrendingDownIcon,
-    ArrowTrendingUpIcon,
-    ChartBarIcon,
-    ClockIcon,
-    DocumentTextIcon,
-    MinusIcon
+  ArrowTrendingDownIcon,
+  ArrowTrendingUpIcon,
+  ChartBarIcon,
+  ClockIcon,
+  DocumentTextIcon,
+  MinusIcon,
 } from '@heroicons/react/24/outline';
 import React, { useEffect, useState } from 'react';
 
@@ -41,8 +41,8 @@ interface WebSocketMetricsUpdate {
 
 export const QualityMetricsCard: React.FC<QualityMetricsCardProps> = ({
   className,
-  query = "abdel factual",
-  sessionId
+  query = 'abdel factual',
+  sessionId,
 }) => {
   const { isConnected, manager } = useWebSocket();
   const [isLive, setIsLive] = useState(true);
@@ -55,7 +55,7 @@ export const QualityMetricsCard: React.FC<QualityMetricsCardProps> = ({
     latency: 0,
     documentsRetrieved: 0,
     entities: 0,
-    timestamp: 0 // Initialize to 0 to prevent hydration mismatch
+    timestamp: 0, // Initialize to 0 to prevent hydration mismatch
   });
 
   // WebSocket subscription for real metrics
@@ -83,15 +83,24 @@ export const QualityMetricsCard: React.FC<QualityMetricsCardProps> = ({
         const queryComplexity = query.length > 10 ? 1 : 0.8;
 
         setMetrics({
-          answerRelevancy: Math.min(95, Math.max(45, 65 + Math.random() * 25 * queryComplexity)),
+          answerRelevancy: Math.min(
+            95,
+            Math.max(45, 65 + Math.random() * 25 * queryComplexity)
+          ),
           faithfulness: Math.min(98, Math.max(70, 80 + Math.random() * 15)),
-          contextualRelevancy: Math.min(92, Math.max(50, 70 + Math.random() * 20 * queryComplexity)),
+          contextualRelevancy: Math.min(
+            92,
+            Math.max(50, 70 + Math.random() * 20 * queryComplexity)
+          ),
           hallucinationRisk: Math.max(2, 15 - Math.random() * 10),
-          confidence: Math.min(99, Math.max(30, 60 + Math.random() * 35 * queryComplexity)),
-          latency: Math.round(300 + Math.random() * 1200 + (query.length * 10)),
+          confidence: Math.min(
+            99,
+            Math.max(30, 60 + Math.random() * 35 * queryComplexity)
+          ),
+          latency: Math.round(300 + Math.random() * 1200 + query.length * 10),
           documentsRetrieved: Math.floor(2 + Math.random() * 8),
           entities: Math.floor(Math.random() * 15),
-          timestamp: Date.now()
+          timestamp: Date.now(),
         });
       }, 2000);
 
@@ -99,7 +108,10 @@ export const QualityMetricsCard: React.FC<QualityMetricsCardProps> = ({
     }
   }, [isLive, isConnected, query]);
 
-  const getMetricColor = (value: number, type: 'higher' | 'lower' = 'higher') => {
+  const getMetricColor = (
+    value: number,
+    type: 'higher' | 'lower' = 'higher'
+  ) => {
     if (type === 'higher') {
       if (value >= 90) return 'text-green-600';
       if (value >= 80) return 'text-yellow-600';
@@ -113,7 +125,10 @@ export const QualityMetricsCard: React.FC<QualityMetricsCardProps> = ({
     }
   };
 
-  const getMetricBackground = (value: number, type: 'higher' | 'lower' = 'higher') => {
+  const getMetricBackground = (
+    value: number,
+    type: 'higher' | 'lower' = 'higher'
+  ) => {
     if (type === 'higher') {
       if (value >= 90) return 'bg-green-100 text-green-800';
       if (value >= 80) return 'bg-yellow-100 text-yellow-800';
@@ -139,21 +154,26 @@ export const QualityMetricsCard: React.FC<QualityMetricsCardProps> = ({
   };
 
   return (
-    <Card className={cn("relative overflow-hidden", className)}>
+    <Card className={cn('relative overflow-hidden', className)}>
       <CardContent className="p-6">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center space-x-3">
             <div className="flex items-center space-x-2">
               <ChartBarIcon className="h-5 w-5 text-blue-600" />
-              <h3 className="text-lg font-semibold text-gray-900">Quality Metrics</h3>
+              <h3 className="text-lg font-semibold text-foreground">
+                Quality Metrics
+              </h3>
             </div>
-            <Badge variant={isConnected ? "default" : "secondary"} className="text-xs">
-              {isConnected ? "LIVE" : "SIMULATED"}
+            <Badge
+              variant={isConnected ? 'default' : 'secondary'}
+              className="text-xs"
+            >
+              {isConnected ? 'LIVE' : 'SIMULATED'}
             </Badge>
           </div>
           <div className="flex items-center space-x-2">
-            <span className="text-sm text-gray-500">Real-time</span>
+            <span className="text-sm text-muted-foreground">Real-time</span>
             <Switch checked={isLive} onCheckedChange={setIsLive} />
           </div>
         </div>
@@ -161,7 +181,7 @@ export const QualityMetricsCard: React.FC<QualityMetricsCardProps> = ({
         {/* Query Info */}
         <div className="mb-6 p-3 bg-gray-50 rounded-lg">
           <div className="flex items-center justify-between">
-            <span className="text-sm font-medium text-gray-700 truncate max-w-md">
+            <span className="text-sm font-medium text-foreground truncate max-w-md">
               Query: {query}
             </span>
             <Badge className={getMetricBackground(metrics.confidence)}>
@@ -175,7 +195,9 @@ export const QualityMetricsCard: React.FC<QualityMetricsCardProps> = ({
           {/* Answer Relevancy */}
           <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-sm font-medium text-blue-900">Answer Relevancy</span>
+              <span className="text-sm font-medium text-blue-900">
+                Answer Relevancy
+              </span>
               <Badge className={getMetricBackground(metrics.answerRelevancy)}>
                 {metrics.answerRelevancy.toFixed(0)}%
               </Badge>
@@ -188,7 +210,9 @@ export const QualityMetricsCard: React.FC<QualityMetricsCardProps> = ({
           {/* Faithfulness */}
           <div className="p-4 bg-green-50 rounded-lg border border-green-200">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-sm font-medium text-green-900">Faithfulness</span>
+              <span className="text-sm font-medium text-green-900">
+                Faithfulness
+              </span>
               <Badge className={getMetricBackground(metrics.faithfulness)}>
                 {metrics.faithfulness.toFixed(0)}%
               </Badge>
@@ -201,8 +225,12 @@ export const QualityMetricsCard: React.FC<QualityMetricsCardProps> = ({
           {/* Contextual Relevancy */}
           <div className="p-4 bg-purple-50 rounded-lg border border-purple-200">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-sm font-medium text-purple-900">Context Relevancy</span>
-              <Badge className={getMetricBackground(metrics.contextualRelevancy)}>
+              <span className="text-sm font-medium text-purple-900">
+                Context Relevancy
+              </span>
+              <Badge
+                className={getMetricBackground(metrics.contextualRelevancy)}
+              >
                 {metrics.contextualRelevancy.toFixed(0)}%
               </Badge>
             </div>
@@ -214,8 +242,15 @@ export const QualityMetricsCard: React.FC<QualityMetricsCardProps> = ({
           {/* Hallucination Risk */}
           <div className="p-4 bg-red-50 rounded-lg border border-red-200">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-sm font-medium text-red-900">Hallucination Risk</span>
-              <Badge className={getMetricBackground(metrics.hallucinationRisk, 'lower')}>
+              <span className="text-sm font-medium text-red-900">
+                Hallucination Risk
+              </span>
+              <Badge
+                className={getMetricBackground(
+                  metrics.hallucinationRisk,
+                  'lower'
+                )}
+              >
                 {metrics.hallucinationRisk.toFixed(1)}%
               </Badge>
             </div>
@@ -228,44 +263,51 @@ export const QualityMetricsCard: React.FC<QualityMetricsCardProps> = ({
 
         {/* Performance Metrics */}
         <div className="border-t pt-4">
-          <h4 className="text-sm font-medium text-gray-700 mb-3">Performance</h4>
-          <div className="grid grid-cols-3 gap-4">
+          <h4 className="text-sm font-medium text-foreground mb-3">
+            Performance
+          </h4>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="flex items-center space-x-2">
-              <ClockIcon className="h-4 w-4 text-gray-500" />
+              <ClockIcon className="h-4 w-4 text-muted-foreground" />
               <div>
-                <div className="text-lg font-semibold text-gray-900">
+                <div className="text-lg font-semibold text-foreground">
                   {formatLatency(metrics.latency)}
                 </div>
-                <div className="text-xs text-gray-500">Latency</div>
+                <div className="text-xs text-muted-foreground">Latency</div>
               </div>
             </div>
 
             <div className="flex items-center space-x-2">
-              <DocumentTextIcon className="h-4 w-4 text-gray-500" />
+              <DocumentTextIcon className="h-4 w-4 text-muted-foreground" />
               <div>
-                <div className="text-lg font-semibold text-gray-900">
+                <div className="text-lg font-semibold text-foreground">
                   {metrics.documentsRetrieved}
                 </div>
-                <div className="text-xs text-gray-500">Docs</div>
+                <div className="text-xs text-muted-foreground">Docs</div>
               </div>
             </div>
 
             <div className="flex items-center space-x-2">
-              <ChartBarIcon className="h-4 w-4 text-gray-500" />
+              <ChartBarIcon className="h-4 w-4 text-muted-foreground" />
               <div>
-                <div className="text-lg font-semibold text-gray-900">
+                <div className="text-lg font-semibold text-foreground">
                   {metrics.entities}
                 </div>
-                <div className="text-xs text-gray-500">Entities</div>
+                <div className="text-xs text-muted-foreground">Entities</div>
               </div>
             </div>
           </div>
         </div>
 
         {/* Footer with timestamp */}
-        <div className="mt-4 pt-4 border-t border-gray-100">
-          <div className="flex items-center justify-between text-xs text-gray-500">
-            <span>Last updated: {metrics.timestamp > 0 ? new Date(metrics.timestamp).toLocaleTimeString() : '---'}</span>
+        <div className="mt-4 pt-4 border-t border-border">
+          <div className="flex items-center justify-between text-xs text-muted-foreground">
+            <span>
+              Last updated:{' '}
+              {metrics.timestamp > 0
+                ? new Date(metrics.timestamp).toLocaleTimeString()
+                : '---'}
+            </span>
             {isConnected && (
               <span className="flex items-center space-x-1">
                 <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
