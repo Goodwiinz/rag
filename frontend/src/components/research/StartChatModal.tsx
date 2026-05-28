@@ -72,16 +72,17 @@ export const StartChatModal: React.FC<StartChatModalProps> = ({
         <div className="flex items-center justify-between p-4 border-b border-[#1a1a1a]">
           <div className="flex items-center gap-2">
             <MessageSquare className="h-5 w-5 text-sol" />
-            <h2 className="font-mono font-bold text-gray-200">
+            <h2 className="font-mono font-bold text-muted-foreground">
               Start New Chat
             </h2>
           </div>
           <button
+            aria-label="Close"
             onClick={handleClose}
             disabled={isSubmitting}
-            className="p-1 text-gray-500 hover:text-gray-300 transition-colors disabled:opacity-50"
+            className="p-1 text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
           >
-            <X className="h-5 w-5" />
+            <X className="h-5 w-5" aria-hidden="true" />
           </button>
         </div>
 
@@ -89,7 +90,7 @@ export const StartChatModal: React.FC<StartChatModalProps> = ({
         <form onSubmit={handleSubmit} className="p-4 space-y-4">
           {/* Initial Message */}
           <div>
-            <label className="block text-xs text-gray-500 font-mono uppercase tracking-wide mb-2">
+            <label className="block text-xs text-muted-foreground font-mono uppercase tracking-wide mb-2">
               Initial Message <span className="text-red-400">*</span>
             </label>
             <textarea
@@ -97,18 +98,18 @@ export const StartChatModal: React.FC<StartChatModalProps> = ({
               onChange={(e) => setInitialMessage(e.target.value)}
               placeholder="Enter your first message to start the conversation..."
               disabled={isSubmitting}
-              className="w-full h-32 px-3 py-2 bg-[#1a1a1a] border border-[#333] rounded text-gray-200 font-mono text-sm placeholder:text-gray-600 focus:outline-none focus:border-sol/50 focus:ring-1 focus:ring-sol/30 disabled:opacity-50 resize-none"
+              className="w-full h-32 px-3 py-2 bg-[#1a1a1a] border border-[#333] rounded text-muted-foreground font-mono text-sm placeholder:text-foreground focus:outline-none focus:border-sol/50 focus:ring-1 focus:ring-sol/30 disabled:opacity-50 resize-none"
               required
             />
-            <p className="text-xs text-gray-600 font-mono mt-1">
+            <p className="text-xs text-foreground font-mono mt-1">
               This message will start the chat with project documents as context
             </p>
           </div>
 
           {/* Thread Title (Optional) */}
           <div>
-            <label className="block text-xs text-gray-500 font-mono uppercase tracking-wide mb-2">
-              Thread Title <span className="text-gray-600">(optional)</span>
+            <label className="block text-xs text-muted-foreground font-mono uppercase tracking-wide mb-2">
+              Thread Title <span className="text-foreground">(optional)</span>
             </label>
             <input
               type="text"
@@ -116,16 +117,19 @@ export const StartChatModal: React.FC<StartChatModalProps> = ({
               onChange={(e) => setThreadTitle(e.target.value)}
               placeholder="e.g., Research Discussion - Methods Analysis"
               disabled={isSubmitting}
-              className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#333] rounded text-gray-200 font-mono text-sm placeholder:text-gray-600 focus:outline-none focus:border-sol/50 focus:ring-1 focus:ring-sol/30 disabled:opacity-50"
+              className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#333] rounded text-muted-foreground font-mono text-sm placeholder:text-foreground focus:outline-none focus:border-sol/50 focus:ring-1 focus:ring-sol/30 disabled:opacity-50"
             />
-            <p className="text-xs text-gray-600 font-mono mt-1">
+            <p className="text-xs text-foreground font-mono mt-1">
               If not provided, a title will be generated automatically
             </p>
           </div>
 
           {/* Error Display */}
           {error && (
-            <div className="p-3 bg-red-500/10 border border-red-500/30 rounded text-sm font-mono text-red-400">
+            <div
+              role="alert"
+              className="p-3 bg-red-500/10 border border-red-500/30 rounded text-sm font-mono text-red-400"
+            >
               {error}
             </div>
           )}
@@ -143,7 +147,7 @@ export const StartChatModal: React.FC<StartChatModalProps> = ({
               type="button"
               onClick={handleClose}
               disabled={isSubmitting}
-              className="px-4 py-2 text-sm font-mono text-gray-400 hover:text-gray-300 transition-colors disabled:opacity-50"
+              className="px-4 py-2 text-sm font-mono text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
             >
               Cancel
             </button>

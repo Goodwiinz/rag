@@ -191,7 +191,7 @@ export function NoteEditor({
           <div className="flex items-center gap-2">
             <button
               onClick={() => setPreview((prev) => !prev)}
-              className="px-3 py-1.5 text-xs font-mono border border-[#333] rounded text-gray-300 hover:border-sol/50"
+              className="px-3 py-1.5 text-xs font-mono border border-[#333] rounded text-muted-foreground hover:border-sol/50"
             >
               {preview ? (
                 <span className="inline-flex items-center gap-1">
@@ -204,17 +204,18 @@ export function NoteEditor({
               )}
             </button>
             <button
+              aria-label="Close"
               onClick={onClose}
-              className="p-1 text-gray-500 hover:text-gray-300"
+              className="p-1 text-muted-foreground hover:text-foreground"
             >
-              <X className="h-5 w-5" />
+              <X className="h-5 w-5" aria-hidden="true" />
             </button>
           </div>
         </div>
 
         <div className="p-4 space-y-4 overflow-y-auto max-h-[60vh]">
           <div>
-            <label className="block text-xs text-gray-500 font-mono uppercase tracking-wide mb-1">
+            <label className="block text-xs text-muted-foreground font-mono uppercase tracking-wide mb-1">
               Title *
             </label>
             <input
@@ -222,12 +223,12 @@ export function NoteEditor({
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Note title"
-              className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#333] rounded text-sm font-mono text-gray-300 placeholder-gray-600 focus:outline-none focus:border-sol"
+              className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#333] rounded text-sm font-mono text-muted-foreground placeholder-gray-600 focus:outline-none focus:border-sol"
             />
           </div>
 
           <div>
-            <label className="block text-xs text-gray-500 font-mono uppercase tracking-wide mb-1">
+            <label className="block text-xs text-muted-foreground font-mono uppercase tracking-wide mb-1">
               Content (Markdown)
             </label>
             {!preview ? (
@@ -264,7 +265,7 @@ export function NoteEditor({
                   onKeyUp={handleTextSelect}
                   placeholder="Write note content in markdown..."
                   rows={12}
-                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#333] rounded text-sm font-mono text-gray-300 placeholder-gray-600 focus:outline-none focus:border-sol resize-none"
+                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#333] rounded text-sm font-mono text-muted-foreground placeholder-gray-600 focus:outline-none focus:border-sol resize-none"
                 />
                 {rewriteResult && (
                   <div className="mt-3">
@@ -302,7 +303,7 @@ export function NoteEditor({
           </div>
 
           <div>
-            <label className="block text-xs text-gray-500 font-mono uppercase tracking-wide mb-1">
+            <label className="block text-xs text-muted-foreground font-mono uppercase tracking-wide mb-1">
               Tags
             </label>
             <div className="flex gap-2">
@@ -317,7 +318,7 @@ export function NoteEditor({
                   }
                 }}
                 placeholder="Add tag and press Enter"
-                className="flex-1 px-3 py-2 bg-[#1a1a1a] border border-[#333] rounded text-sm font-mono text-gray-300 placeholder-gray-600 focus:outline-none focus:border-sol"
+                className="flex-1 px-3 py-2 bg-[#1a1a1a] border border-[#333] rounded text-sm font-mono text-muted-foreground placeholder-gray-600 focus:outline-none focus:border-sol"
               />
               <button
                 onClick={handleAddTag}
@@ -334,7 +335,7 @@ export function NoteEditor({
                     onClick={() =>
                       setTags((prev) => prev.filter((t) => t !== tag))
                     }
-                    className="px-2 py-1 bg-[#1a1a1a] border border-[#333] rounded text-xs font-mono text-gray-300 hover:border-red-400 hover:text-red-300"
+                    className="px-2 py-1 bg-[#1a1a1a] border border-[#333] rounded text-xs font-mono text-muted-foreground hover:border-red-400 hover:text-red-300"
                   >
                     {tag}
                   </button>
@@ -345,14 +346,14 @@ export function NoteEditor({
 
           {availableDocuments.length > 0 && (
             <div>
-              <label className="block text-xs text-gray-500 font-mono uppercase tracking-wide mb-2">
+              <label className="block text-xs text-muted-foreground font-mono uppercase tracking-wide mb-2">
                 Link Documents
               </label>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                 {availableDocuments.map((doc) => (
                   <label
                     key={doc.document_id || doc.id}
-                    className="flex items-center gap-2 px-3 py-2 border border-[#333] rounded text-sm text-gray-300"
+                    className="flex items-center gap-2 px-3 py-2 border border-[#333] rounded text-sm text-muted-foreground"
                   >
                     <input
                       type="checkbox"
@@ -374,7 +375,7 @@ export function NoteEditor({
         <div className="flex justify-end gap-3 p-4 border-t border-[#1a1a1a]">
           <button
             onClick={onClose}
-            className="px-4 py-2 text-sm font-mono text-gray-400 hover:text-gray-300 transition-colors"
+            className="px-4 py-2 text-sm font-mono text-muted-foreground hover:text-foreground transition-colors"
           >
             Cancel
           </button>
