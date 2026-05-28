@@ -20,7 +20,7 @@ metadata:
       proxy_read_timeout 86400s;
       client_max_body_size 10M;
     cert-manager.io/cluster-issuer: letsencrypt-prod
-    external-dns.alpha.kubernetes.io/hostname: multimodal-rag.example.com
+    external-dns.alpha.kubernetes.io/hostname: api.multimodal-rag.example.com
     external-dns.alpha.kubernetes.io/ttl: "300"
     external-dns.alpha.kubernetes.io/provider: cloudflare
   labels:
@@ -31,7 +31,6 @@ spec:
   ingressClassName: nginx
   tls:
   - hosts:
-    - multimodal-rag.example.com
     - api.multimodal-rag.example.com
     secretName: multimodal-rag-tls
   rules:
