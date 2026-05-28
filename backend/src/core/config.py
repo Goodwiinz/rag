@@ -21,8 +21,33 @@ def _generate_dev_secret() -> str:
 
 def _longest_literal_hostname_run(pattern: str) -> int:
     """Longest contiguous literal hostname segment (project slug specificity)."""
-    runs = re.findall(r"[A-Za-z0-9-]+", pattern)
-    return max((len(run) for run in runs), default=0)
+    host_pattern = pattern
+    for prefix in ("^https://", "^http://", "^https?://"):
+        if host_pattern.startswith(prefix):
+            host_pattern = host_pattern[len(prefix) :]
+            break
+
+    host_pattern = host_pattern.removesuffix("$").split("/", maxsplit=1)[0]
+    host_pattern = re.sub(r"\[[^\]]*\]", ".", host_pattern)
+    host_pattern = host_pattern.replace(r"\.", ".")
+
+    generic_labels = {
+        "app",
+        "com",
+        "dev",
+        "net",
+        "org",
+        "pages",
+        "vercel",
+        "web",
+    }
+    runs = re.findall(r"[A-Za-z0-9-]+", host_pattern)
+    literal_runs = [
+        run.strip("-")
+        for run in runs
+        if run.strip("-") and run.strip("-").lower() not in generic_labels
+    ]
+    return max((len(run) for run in literal_runs), default=0)
 
 
 def _cors_origin_regex_is_overbroad(pattern: str) -> bool:
