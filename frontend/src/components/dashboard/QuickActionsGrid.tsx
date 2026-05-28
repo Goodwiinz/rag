@@ -4,13 +4,13 @@ import { getAnalytics } from '@/lib/analytics';
 import { cn } from '@/lib/utils';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
-    ArrowRight,
-    MessageSquare,
-    Search,
-    Sparkles,
-    Target,
-    Upload,
-    Zap
+  ArrowRight,
+  MessageSquare,
+  Search,
+  Sparkles,
+  Target,
+  Upload,
+  Zap,
 } from 'lucide-react';
 import Link from 'next/link';
 import React, { useState } from 'react';
@@ -32,7 +32,8 @@ const quickActions: QuickAction[] = [
     href: '/documents/upload',
     icon: Upload,
     color: 'text-emerald-500',
-    bgGradient: 'from-emerald-500/10 to-teal-500/10 hover:from-emerald-500/20 hover:to-teal-500/20',
+    bgGradient:
+      'from-emerald-500/10 to-teal-500/10 hover:from-emerald-500/20 hover:to-teal-500/20',
     glowColor: 'emerald',
   },
   {
@@ -41,7 +42,8 @@ const quickActions: QuickAction[] = [
     href: '/search',
     icon: Search,
     color: 'text-blue-500',
-    bgGradient: 'from-blue-500/10 to-indigo-500/10 hover:from-blue-500/20 hover:to-indigo-500/20',
+    bgGradient:
+      'from-blue-500/10 to-indigo-500/10 hover:from-blue-500/20 hover:to-indigo-500/20',
     glowColor: 'blue',
   },
   {
@@ -50,11 +52,11 @@ const quickActions: QuickAction[] = [
     href: '/chat',
     icon: MessageSquare,
     color: 'text-amber-500',
-    bgGradient: 'from-amber-500/10 to-orange-500/10 hover:from-amber-500/20 hover:to-orange-500/20',
+    bgGradient:
+      'from-amber-500/10 to-orange-500/10 hover:from-amber-500/20 hover:to-orange-500/20',
     glowColor: 'amber',
   },
 ];
-
 
 interface QuickActionsGridProps {
   className?: string;
@@ -68,9 +70,12 @@ export function QuickActionsGrid({ className }: QuickActionsGridProps) {
       const analytics = getAnalytics();
       analytics.trackUserInteraction('quick_action', 'click', {
         action: actionTitle,
-        destination: actionHref
+        destination: actionHref,
       });
-      analytics.trackFeatureUsage('quick_actions', actionTitle.toLowerCase().replace(' ', '_'));
+      analytics.trackFeatureUsage(
+        'quick_actions',
+        actionTitle.toLowerCase().replace(' ', '_')
+      );
     } catch (error) {
       // Analytics not initialized, silently ignore
     }
@@ -94,7 +99,7 @@ export function QuickActionsGrid({ className }: QuickActionsGridProps) {
       scale: 1,
       y: 0,
       transition: {
-        type: "spring" as const,
+        type: 'spring' as const,
         stiffness: 100,
         damping: 10,
       },
@@ -123,7 +128,7 @@ export function QuickActionsGrid({ className }: QuickActionsGridProps) {
           transition={{
             duration: 10,
             repeat: Infinity,
-            ease: "easeInOut",
+            ease: 'easeInOut',
           }}
         />
         <motion.div
@@ -135,7 +140,7 @@ export function QuickActionsGrid({ className }: QuickActionsGridProps) {
           transition={{
             duration: 15,
             repeat: Infinity,
-            ease: "easeInOut",
+            ease: 'easeInOut',
             delay: 2,
           }}
         />
@@ -160,13 +165,13 @@ export function QuickActionsGrid({ className }: QuickActionsGridProps) {
           >
             <motion.div
               animate={{
-                rotate: [0, 360]
+                rotate: [0, 360],
               }}
               transition={{
                 duration: 20,
                 repeat: Infinity,
-                ease: "linear",
-                repeatDelay: 5
+                ease: 'linear',
+                repeatDelay: 5,
               }}
             >
               <Sparkles className="h-6 w-6 text-amber-500" />
@@ -177,7 +182,7 @@ export function QuickActionsGrid({ className }: QuickActionsGridProps) {
               className="text-lg font-semibold text-foreground flex items-center gap-2"
               variants={itemVariants}
             >
-              <span className="bg-gradient-to-r from-amber-600 to-orange-600 bg-clip-text text-transparent">
+              <span className="text-[var(--nous-fg-accent-safe)]">
                 Quick Actions
               </span>
               <Target className="h-4 w-4 text-amber-500" />
@@ -218,7 +223,8 @@ export function QuickActionsGrid({ className }: QuickActionsGridProps) {
                 whileHover={{
                   scale: 1.02,
                   y: -2,
-                  boxShadow: '0 20px 25px -5px rgba(251,191,36,0.1), 0 10px 10px -5px rgba(251,191,36,0.04)',
+                  boxShadow:
+                    '0 20px 25px -5px rgba(251,191,36,0.1), 0 10px 10px -5px rgba(251,191,36,0.04)',
                 }}
                 whileTap={{ scale: 0.98 }}
               >
@@ -239,7 +245,14 @@ export function QuickActionsGrid({ className }: QuickActionsGridProps) {
                           key={i}
                           className="absolute w-1 h-1 rounded-full"
                           style={{
-                            backgroundColor: action.glowColor === 'amber' ? '#f59e0b' : action.glowColor === 'blue' ? '#3b82f6' : action.glowColor === 'emerald' ? '#10b981' : '#9333ea',
+                            backgroundColor:
+                              action.glowColor === 'amber'
+                                ? '#f59e0b'
+                                : action.glowColor === 'blue'
+                                  ? '#3b82f6'
+                                  : action.glowColor === 'emerald'
+                                    ? '#10b981'
+                                    : '#9333ea',
                             left: `${Math.random() * 80 + 10}%`,
                             top: `${Math.random() * 80 + 10}%`,
                           }}
@@ -277,7 +290,7 @@ export function QuickActionsGrid({ className }: QuickActionsGridProps) {
                       }}
                       transition={{
                         duration: hoveredAction === action.title ? 0.6 : 0,
-                        ease: "easeInOut",
+                        ease: 'easeInOut',
                       }}
                     >
                       <action.icon className={cn('h-6 w-6', action.color)} />
@@ -303,10 +316,14 @@ export function QuickActionsGrid({ className }: QuickActionsGridProps) {
                         }}
                         transition={{ duration: 0.2 }}
                       >
-                        <ArrowRight className={cn(
-                          'h-4 w-4 transition-colors duration-300',
-                          hoveredAction === action.title ? 'text-amber-500' : 'text-muted-foreground'
-                        )} />
+                        <ArrowRight
+                          className={cn(
+                            'h-4 w-4 transition-colors duration-300',
+                            hoveredAction === action.title
+                              ? 'text-amber-500'
+                              : 'text-muted-foreground'
+                          )}
+                        />
                       </motion.div>
                     </div>
                     <p className="text-xs text-muted-foreground mt-1">
@@ -320,7 +337,7 @@ export function QuickActionsGrid({ className }: QuickActionsGridProps) {
                   className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -skew-x-12"
                   initial={{ x: '-100%' }}
                   whileHover={{ x: '200%' }}
-                  transition={{ duration: 0.6, ease: "easeInOut" }}
+                  transition={{ duration: 0.6, ease: 'easeInOut' }}
                 />
               </motion.div>
             </Link>

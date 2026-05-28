@@ -36,7 +36,16 @@ const Badge = ({
   </div>
 );
 
-const TECH_NAMES = ['PYTHON', 'REACT', 'OPENAI', 'LANGCHAIN', 'PINECONE', 'DOCKER', 'KUBERNETES', 'GRAPHQL'];
+const TECH_NAMES = [
+  'PYTHON',
+  'REACT',
+  'OPENAI',
+  'LANGCHAIN',
+  'PINECONE',
+  'DOCKER',
+  'KUBERNETES',
+  'GRAPHQL',
+];
 
 const TechTicker = () => (
   <div className="w-full bg-[var(--terminal-bg)] border-y border-[var(--terminal-border)] overflow-hidden py-4 relative">
@@ -65,7 +74,10 @@ interface HeroSectionProps {
   scrollOpacity: MotionValue<number>;
 }
 
-export function HeroSection({ isAuthenticated, scrollOpacity }: HeroSectionProps) {
+export function HeroSection({
+  isAuthenticated,
+  scrollOpacity,
+}: HeroSectionProps) {
   return (
     <>
       {/* Navigation */}
@@ -161,9 +173,7 @@ export function HeroSection({ isAuthenticated, scrollOpacity }: HeroSectionProps
             </div>
 
             <h1 className="text-5xl md:text-7xl lg:text-8xl font-mono font-bold text-[var(--terminal-text)] mb-8 tracking-tighter leading-[0.9]">
-              <span className="block text-transparent bg-clip-text bg-gradient-to-r from-[var(--phosphor-green)] via-[var(--amber-gold)] to-[var(--phosphor-green)] bg-[length:200%_auto] animate-shine">
-                νοῦς
-              </span>
+              <span className="block text-[var(--nous-sol)]">νοῦς</span>
               <span className="block text-[0.4em] tracking-[0.2em] text-[var(--terminal-text-dim)] mt-2 uppercase">
                 Multimodal Intelligence
               </span>
