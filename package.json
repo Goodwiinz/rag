@@ -22,7 +22,7 @@
     "trigger:deploy": "pnpm dlx trigger.dev@latest deploy"
   },
   "engines": {
-    "node": "20.x",
+    "node": "24.x",
     "npm": ">=9.6.7"
   },
   "repository": {
