@@ -6,6 +6,7 @@ variables. Default values are only used for local development.
 """
 
 import os
+import re
 import secrets
 from typing import Dict, List, Optional
 
@@ -16,6 +17,28 @@ from pydantic_settings import BaseSettings
 def _generate_dev_secret() -> str:
     """Generate a random secret for development only."""
     return secrets.token_urlsafe(32)
+
+
+def _longest_literal_hostname_run(pattern: str) -> int:
+    """Longest contiguous literal hostname segment (project slug specificity)."""
+    runs = re.findall(r"[A-Za-z0-9-]+", pattern)
+    return max((len(run) for run in runs), default=0)
+
+
+def _cors_origin_regex_is_overbroad(pattern: str) -> bool:
+    """Detect regex shapes unsafe with allow_credentials=True."""
+    if pattern in {
+        "^https://.*$",
+        "^https://.+$",
+        "^https?://.*$",
+        "^https?://.+$",
+    }:
+        return True
+    if ".*" in pattern or ".+" in pattern:
+        return True
+    if "(.*)" in pattern or "(.+)" in pattern:
+        return True
+    return False
 
 
 class Settings(BaseSettings):
@@ -72,6 +95,48 @@ class Settings(BaseSettings):
     def cors_expose_list(self) -> List[str]:
         """Parse CORS_EXPOSE_HEADERS string into a list."""
         return [h.strip() for h in self.CORS_EXPOSE_HEADERS.split(",") if h.strip()]
+
+    @field_validator("CORS_ORIGIN_REGEX")
+    @classmethod
+    def validate_cors_origin_regex(cls, v: str) -> str:
+        """Reject overly broad origin regexes used with credentialed CORS."""
+        if not v or not v.strip():
+            return ""
+
+        pattern = v.strip()
+        if not pattern.startswith("^") or not pattern.endswith("$"):
+            raise ValueError("CORS_ORIGIN_REGEX must be anchored with ^ and $")
+
+        env = os.getenv("ENVIRONMENT", "development")
+        if env in ("production", "staging"):
+            if not pattern.startswith("^https://"):
+                raise ValueError(
+                    "CORS_ORIGIN_REGEX must use ^https:// in production/staging"
+                )
+        elif not (
+            pattern.startswith("^https://") or pattern.startswith("^http://")
+        ):
+            raise ValueError(
+                "CORS_ORIGIN_REGEX must start with ^https:// or ^http://"
+            )
+
+        try:
+            re.compile(pattern)
+        except re.error as exc:
+            raise ValueError(f"CORS_ORIGIN_REGEX is invalid: {exc}") from exc
+
+        if _cors_origin_regex_is_overbroad(pattern):
+            raise ValueError(
+                "CORS_ORIGIN_REGEX is too permissive for credentialed CORS"
+            )
+
+        if _longest_literal_hostname_run(pattern) < 6:
+            raise ValueError(
+                "CORS_ORIGIN_REGEX must include a project-specific literal "
+                "hostname segment (at least 6 characters, e.g. nous-platform)"
+            )
+
+        return pattern
 
     # Database
     DATABASE_URL: str = (
