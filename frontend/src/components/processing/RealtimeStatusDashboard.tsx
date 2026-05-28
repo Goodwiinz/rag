@@ -91,7 +91,11 @@ const StatusIndicator: React.FC<StatusIndicatorProps> = ({
   className,
 }) => {
   const statusConfig = {
-    queued: { icon: ClockIcon, color: 'text-gray-500', bgColor: 'bg-gray-100' },
+    queued: {
+      icon: ClockIcon,
+      color: 'text-muted-foreground',
+      bgColor: 'bg-gray-100',
+    },
     uploading: {
       icon: ArrowPathIcon,
       color: 'text-blue-500',
@@ -115,7 +119,7 @@ const StatusIndicator: React.FC<StatusIndicatorProps> = ({
     },
     cancelled: {
       icon: XMarkIcon,
-      color: 'text-gray-500',
+      color: 'text-muted-foreground',
       bgColor: 'bg-gray-100',
     },
   };
@@ -155,7 +159,7 @@ const ProgressRing: React.FC<ProgressRingProps> = ({
           stroke="currentColor"
           strokeWidth={strokeWidth}
           fill="none"
-          className="text-gray-200"
+          className="text-muted-foreground"
         />
         <circle
           cx={size / 2}
@@ -228,7 +232,7 @@ const StageProgress: React.FC<StageProgressProps> = ({
                     ? 'border-red-500 bg-red-500'
                     : isActive
                       ? 'border-blue-500 bg-blue-500'
-                      : 'border-gray-300'
+                      : 'border-border'
               )}
             >
               {isCompleted && (
@@ -250,12 +254,12 @@ const StageProgress: React.FC<StageProgressProps> = ({
                 <span
                   className={cn(
                     'text-sm font-medium',
-                    isActive ? 'text-blue-600' : 'text-gray-600'
+                    isActive ? 'text-blue-600' : 'text-foreground'
                   )}
                 >
                   {stage.name}
                 </span>
-                <span className="text-xs text-gray-500">
+                <span className="text-xs text-muted-foreground">
                   {stage.duration
                     ? `${(stage.duration / 1000).toFixed(1)}s`
                     : '-'}
@@ -300,7 +304,7 @@ const DocumentCard: React.FC<DocumentCardProps> = ({
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -20 }}
       className={cn(
-        'bg-white rounded-lg border border-gray-200 shadow-sm hover:shadow-md transition-all duration-200',
+        'bg-white rounded-lg border border-border shadow-sm hover:shadow-md transition-all duration-200',
         selected && 'ring-2 ring-blue-500 ring-offset-2',
         compact ? 'p-3' : 'p-4'
       )}
@@ -320,7 +324,7 @@ const DocumentCard: React.FC<DocumentCardProps> = ({
           <div className="flex items-center justify-between">
             <h3
               className={cn(
-                'text-sm font-medium text-gray-900 truncate',
+                'text-sm font-medium text-foreground truncate',
                 compact && 'text-xs'
               )}
             >
@@ -332,7 +336,7 @@ const DocumentCard: React.FC<DocumentCardProps> = ({
                 type="checkbox"
                 checked={selected}
                 onChange={() => onSelect(document.id)}
-                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-border rounded"
               />
             </div>
           </div>
@@ -340,7 +344,7 @@ const DocumentCard: React.FC<DocumentCardProps> = ({
           {/* File info */}
           <div
             className={cn(
-              'flex items-center space-x-4 mt-1 text-xs text-gray-500',
+              'flex items-center space-x-4 mt-1 text-xs text-muted-foreground',
               compact && 'mt-0'
             )}
           >
@@ -360,10 +364,10 @@ const DocumentCard: React.FC<DocumentCardProps> = ({
           {!compact && (
             <div className="mt-3">
               <div className="flex items-center justify-between mb-1">
-                <span className="text-sm text-gray-600">
+                <span className="text-sm text-foreground">
                   {document.currentStage.name}
                 </span>
-                <span className="text-xs text-gray-500">
+                <span className="text-xs text-muted-foreground">
                   {document.currentStage.progress}%
                 </span>
               </div>
@@ -387,7 +391,7 @@ const DocumentCard: React.FC<DocumentCardProps> = ({
             {document.actions.pause && document.status === 'processing' && (
               <IconButton
                 onClick={() => handleAction(() => onPause(document.id))}
-                className="h-8 w-8 text-gray-400 hover:text-yellow-600 hover:bg-yellow-50 rounded"
+                className="h-8 w-8 text-muted-foreground hover:text-yellow-600 hover:bg-yellow-50 rounded"
                 label="Pause"
                 icon={<PauseIcon className="h-4 w-4" />}
               />
@@ -395,7 +399,7 @@ const DocumentCard: React.FC<DocumentCardProps> = ({
             {document.actions.resume && document.status === 'paused' && (
               <IconButton
                 onClick={() => handleAction(() => onResume(document.id))}
-                className="h-8 w-8 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded"
+                className="h-8 w-8 text-muted-foreground hover:text-green-600 hover:bg-green-50 rounded"
                 label="Resume"
                 icon={<PlayIcon className="h-4 w-4" />}
               />
@@ -403,7 +407,7 @@ const DocumentCard: React.FC<DocumentCardProps> = ({
             {document.actions.retry && document.status === 'failed' && (
               <IconButton
                 onClick={() => handleAction(() => onRetry(document.id))}
-                className="h-8 w-8 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded"
+                className="h-8 w-8 text-muted-foreground hover:text-blue-600 hover:bg-blue-50 rounded"
                 label="Retry"
                 icon={<ArrowPathIcon className="h-4 w-4" />}
               />
@@ -413,7 +417,7 @@ const DocumentCard: React.FC<DocumentCardProps> = ({
                 document.status === 'processing') && (
                 <IconButton
                   onClick={() => handleAction(() => onCancel(document.id))}
-                  className="h-8 w-8 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded"
+                  className="h-8 w-8 text-muted-foreground hover:text-red-600 hover:bg-red-50 rounded"
                   label="Cancel"
                   icon={<XMarkIcon className="h-4 w-4" />}
                 />
@@ -569,23 +573,23 @@ export const RealtimeStatusDashboard: React.FC<
 
       {/* Summary Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
-        <div className="bg-white p-3 rounded-lg border border-gray-200">
+        <div className="bg-white p-3 rounded-lg border border-border">
           <div className="flex items-center space-x-2">
-            <DocumentTextIcon className="h-5 w-5 text-gray-400" />
+            <DocumentTextIcon className="h-5 w-5 text-muted-foreground" />
             <div>
-              <p className="text-xs text-gray-500">Total</p>
-              <p className="text-lg font-semibold text-gray-900">
+              <p className="text-xs text-muted-foreground">Total</p>
+              <p className="text-lg font-semibold text-foreground">
                 {queue.summary.total}
               </p>
             </div>
           </div>
         </div>
 
-        <div className="bg-white p-3 rounded-lg border border-gray-200">
+        <div className="bg-white p-3 rounded-lg border border-border">
           <div className="flex items-center space-x-2">
             <ClockIcon className="h-5 w-5 text-blue-400" />
             <div>
-              <p className="text-xs text-gray-500">Queued</p>
+              <p className="text-xs text-muted-foreground">Queued</p>
               <p className="text-lg font-semibold text-blue-600">
                 {queue.summary.queued}
               </p>
@@ -593,11 +597,11 @@ export const RealtimeStatusDashboard: React.FC<
           </div>
         </div>
 
-        <div className="bg-white p-3 rounded-lg border border-gray-200">
+        <div className="bg-white p-3 rounded-lg border border-border">
           <div className="flex items-center space-x-2">
             <ArrowPathIcon className="h-5 w-5 text-blue-400" />
             <div>
-              <p className="text-xs text-gray-500">Processing</p>
+              <p className="text-xs text-muted-foreground">Processing</p>
               <p className="text-lg font-semibold text-blue-600">
                 {queue.summary.processing}
               </p>
@@ -605,11 +609,11 @@ export const RealtimeStatusDashboard: React.FC<
           </div>
         </div>
 
-        <div className="bg-white p-3 rounded-lg border border-gray-200">
+        <div className="bg-white p-3 rounded-lg border border-border">
           <div className="flex items-center space-x-2">
             <CheckCircleIcon className="h-5 w-5 text-green-400" />
             <div>
-              <p className="text-xs text-gray-500">Completed</p>
+              <p className="text-xs text-muted-foreground">Completed</p>
               <p className="text-lg font-semibold text-green-600">
                 {queue.summary.completed}
               </p>
@@ -617,11 +621,11 @@ export const RealtimeStatusDashboard: React.FC<
           </div>
         </div>
 
-        <div className="bg-white p-3 rounded-lg border border-gray-200">
+        <div className="bg-white p-3 rounded-lg border border-border">
           <div className="flex items-center space-x-2">
             <XCircleIcon className="h-5 w-5 text-red-400" />
             <div>
-              <p className="text-xs text-gray-500">Failed</p>
+              <p className="text-xs text-muted-foreground">Failed</p>
               <p className="text-lg font-semibold text-red-600">
                 {queue.summary.failed}
               </p>
@@ -629,11 +633,11 @@ export const RealtimeStatusDashboard: React.FC<
           </div>
         </div>
 
-        <div className="bg-white p-3 rounded-lg border border-gray-200">
+        <div className="bg-white p-3 rounded-lg border border-border">
           <div className="flex items-center space-x-2">
             <PauseIcon className="h-5 w-5 text-yellow-400" />
             <div>
-              <p className="text-xs text-gray-500">Paused</p>
+              <p className="text-xs text-muted-foreground">Paused</p>
               <p className="text-lg font-semibold text-yellow-600">
                 {queue.summary.paused}
               </p>
@@ -641,11 +645,11 @@ export const RealtimeStatusDashboard: React.FC<
           </div>
         </div>
 
-        <div className="bg-white p-3 rounded-lg border border-gray-200">
+        <div className="bg-white p-3 rounded-lg border border-border">
           <div className="flex items-center space-x-2">
             <div className="h-5 w-5 rounded-full bg-blue-500" />
             <div>
-              <p className="text-xs text-gray-500">Success Rate</p>
+              <p className="text-xs text-muted-foreground">Success Rate</p>
               <p className="text-lg font-semibold text-blue-600">
                 {queue.metrics.successRate.toFixed(1)}%
               </p>
@@ -656,18 +660,18 @@ export const RealtimeStatusDashboard: React.FC<
 
       {/* Filters and Controls */}
       {showFilters && (
-        <div className="bg-white p-4 rounded-lg border border-gray-200">
+        <div className="bg-white p-4 rounded-lg border border-border">
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between space-y-4 lg:space-y-0">
             {/* Search */}
             <div className="flex-1 max-w-md">
               <div className="relative">
-                <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <input
                   type="text"
                   placeholder="Search documents..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full pl-10 pr-4 py-2 border border-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
             </div>
@@ -685,7 +689,7 @@ export const RealtimeStatusDashboard: React.FC<
                     )
                   )
                 }
-                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="px-3 py-2 border border-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               >
                 <option value="queued">Queued</option>
                 <option value="processing">Processing</option>
@@ -705,7 +709,7 @@ export const RealtimeStatusDashboard: React.FC<
                     )
                   )
                 }
-                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="px-3 py-2 border border-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               >
                 <option value="pdf">PDF</option>
                 <option value="txt">TXT</option>
@@ -724,7 +728,7 @@ export const RealtimeStatusDashboard: React.FC<
                   'h-8 w-8 rounded',
                   viewMode === 'list'
                     ? 'bg-blue-100 text-blue-600'
-                    : 'text-gray-400 hover:text-gray-600'
+                    : 'text-muted-foreground hover:text-foreground'
                 )}
                 label="List view"
                 icon={<ListBulletIcon className="h-5 w-5" />}
@@ -735,7 +739,7 @@ export const RealtimeStatusDashboard: React.FC<
                   'h-8 w-8 rounded',
                   viewMode === 'grid'
                     ? 'bg-blue-100 text-blue-600'
-                    : 'text-gray-400 hover:text-gray-600'
+                    : 'text-muted-foreground hover:text-foreground'
                 )}
                 label="Grid view"
                 icon={<Squares2X2Icon className="h-5 w-5" />}
@@ -781,10 +785,10 @@ export const RealtimeStatusDashboard: React.FC<
       )}
 
       {/* Document List */}
-      <div className="bg-white rounded-lg border border-gray-200">
-        <div className="p-4 border-b border-gray-200">
+      <div className="bg-white rounded-lg border border-border">
+        <div className="p-4 border-b border-border">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-gray-900">Documents</h2>
+            <h2 className="text-lg font-semibold text-foreground">Documents</h2>
             <div className="flex items-center space-x-4">
               <label className="flex items-center space-x-2">
                 <input
@@ -795,11 +799,11 @@ export const RealtimeStatusDashboard: React.FC<
                     filteredAndSearchedDocs.length > 0
                   }
                   onChange={handleSelectAll}
-                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-border rounded"
                 />
-                <span className="text-sm text-gray-600">Select All</span>
+                <span className="text-sm text-foreground">Select All</span>
               </label>
-              <span className="text-sm text-gray-500">
+              <span className="text-sm text-muted-foreground">
                 {filteredAndSearchedDocs.length} of {queue.summary.total}{' '}
                 documents
               </span>
@@ -837,25 +841,25 @@ export const RealtimeStatusDashboard: React.FC<
 
         {filteredAndSearchedDocs.length === 0 && (
           <div className="p-8 text-center">
-            <DocumentTextIcon className="mx-auto h-12 w-12 text-gray-400" />
-            <p className="mt-2 text-sm text-gray-600">No documents found</p>
+            <DocumentTextIcon className="mx-auto h-12 w-12 text-muted-foreground" />
+            <p className="mt-2 text-sm text-foreground">No documents found</p>
           </div>
         )}
       </div>
 
       {/* System Metrics */}
       {showSystemMetrics && (
-        <div className="bg-white rounded-lg border border-gray-200 p-4">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">
+        <div className="bg-white rounded-lg border border-border p-4">
+          <h3 className="text-lg font-semibold text-foreground mb-4">
             System Metrics
           </h3>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div>
               <div className="flex items-center space-x-2">
-                <CpuChipIcon className="h-5 w-5 text-gray-400" />
+                <CpuChipIcon className="h-5 w-5 text-muted-foreground" />
                 <div>
-                  <p className="text-xs text-gray-500">CPU Usage</p>
-                  <p className="text-lg font-semibold text-gray-900">
+                  <p className="text-xs text-muted-foreground">CPU Usage</p>
+                  <p className="text-lg font-semibold text-foreground">
                     {systemMetrics.cpuUsage.toFixed(1)}%
                   </p>
                 </div>
@@ -864,10 +868,10 @@ export const RealtimeStatusDashboard: React.FC<
 
             <div>
               <div className="flex items-center space-x-2">
-                <CircleStackIcon className="h-5 w-5 text-gray-400" />
+                <CircleStackIcon className="h-5 w-5 text-muted-foreground" />
                 <div>
-                  <p className="text-xs text-gray-500">Memory Usage</p>
-                  <p className="text-lg font-semibold text-gray-900">
+                  <p className="text-xs text-muted-foreground">Memory Usage</p>
+                  <p className="text-lg font-semibold text-foreground">
                     {(systemMetrics.memoryUsage / 1024).toFixed(1)} GB
                   </p>
                 </div>
@@ -876,10 +880,10 @@ export const RealtimeStatusDashboard: React.FC<
 
             <div>
               <div className="flex items-center space-x-2">
-                <ServerIcon className="h-5 w-5 text-gray-400" />
+                <ServerIcon className="h-5 w-5 text-muted-foreground" />
                 <div>
-                  <p className="text-xs text-gray-500">Active Jobs</p>
-                  <p className="text-lg font-semibold text-gray-900">
+                  <p className="text-xs text-muted-foreground">Active Jobs</p>
+                  <p className="text-lg font-semibold text-foreground">
                     {systemMetrics.activeJobs}
                   </p>
                 </div>
@@ -888,10 +892,10 @@ export const RealtimeStatusDashboard: React.FC<
 
             <div>
               <div className="flex items-center space-x-2">
-                <ArrowPathIcon className="h-5 w-5 text-gray-400" />
+                <ArrowPathIcon className="h-5 w-5 text-muted-foreground" />
                 <div>
-                  <p className="text-xs text-gray-500">Avg Duration</p>
-                  <p className="text-lg font-semibold text-gray-900">
+                  <p className="text-xs text-muted-foreground">Avg Duration</p>
+                  <p className="text-lg font-semibold text-foreground">
                     {formatDuration(systemMetrics.averageJobDuration)}
                   </p>
                 </div>

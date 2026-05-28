@@ -30,7 +30,7 @@ const getSourceBadgeColor = (source?: string) => {
     case 'crossref':
       return 'bg-purple-500/10 text-purple-500 border-purple-500/20';
     default:
-      return 'bg-gray-500/10 text-gray-500 border-gray-500/20';
+      return 'bg-gray-500/10 text-muted-foreground border-border/20';
   }
 };
 
@@ -75,7 +75,7 @@ const CitationItem = memo<{
 
               {/* Venue */}
               {citation.venue && (
-                <p className="text-xs font-mono text-gray-500 mt-1 truncate">
+                <p className="text-xs font-mono text-muted-foreground mt-1 truncate">
                   {citation.venue}
                 </p>
               )}
@@ -230,11 +230,11 @@ export function CitationList({
           className
         )}
       >
-        <BookOpen className="w-12 h-12 text-gray-600 mx-auto mb-4" />
+        <BookOpen className="w-12 h-12 text-foreground mx-auto mb-4" />
         <p className="font-mono text-sm text-[var(--terminal-text-muted)]">
           No citations found
         </p>
-        <p className="font-mono text-xs text-gray-600 mt-2">
+        <p className="font-mono text-xs text-foreground mt-2">
           Citations will appear here after extraction
         </p>
       </div>
@@ -278,7 +278,7 @@ export function CitationList({
 
                     {/* Venue */}
                     {citation.venue && (
-                      <p className="text-xs font-mono text-gray-500 mt-1">
+                      <p className="text-xs font-mono text-muted-foreground mt-1">
                         {citation.venue}
                       </p>
                     )}
@@ -382,7 +382,7 @@ export function CitationList({
         <span className="text-xs font-mono text-[var(--terminal-text-muted)]">
           {citations.length.toLocaleString()} citations
         </span>
-        <span className="text-[10px] font-mono text-gray-500">
+        <span className="text-[10px] font-mono text-muted-foreground">
           Virtual scrolling enabled
         </span>
       </div>

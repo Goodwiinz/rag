@@ -412,7 +412,9 @@ export default function ArxivManagement() {
                     </span>
                     <span className="inline-flex items-center gap-2 rounded-full border border-[var(--terminal-border)] bg-[var(--terminal-bg)]/60 px-3 py-1 text-[10px] font-mono font-bold uppercase tracking-[0.18em] text-foreground">
                       <ShieldCheck className="h-3.5 w-3.5 text-[var(--amber-gold)]" />
-                      {isGuest ? 'Workspace Actions Locked' : 'Workspace Actions Ready'}
+                      {isGuest
+                        ? 'Workspace Actions Locked'
+                        : 'Workspace Actions Ready'}
                     </span>
                   </div>
                 </div>
@@ -585,10 +587,15 @@ export default function ArxivManagement() {
                   key={item.label}
                   className="min-w-[110px] rounded-2xl border border-[var(--terminal-border)] bg-[var(--terminal-bg)]/75 px-4 py-3"
                 >
-                  <div className="text-[10px] font-mono uppercase tracking-[0.18em] text-gray-500">
+                  <div className="text-[10px] font-mono uppercase tracking-[0.18em] text-muted-foreground">
                     {item.label}
                   </div>
-                  <div className={cn('mt-1 text-2xl font-mono font-bold', item.color)}>
+                  <div
+                    className={cn(
+                      'mt-1 text-2xl font-mono font-bold',
+                      item.color
+                    )}
+                  >
                     {item.value}
                   </div>
                 </div>
@@ -624,7 +631,7 @@ export default function ArxivManagement() {
                       'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background',
                       isActive
                         ? 'border-primary text-primary'
-                        : 'border-transparent text-gray-500 hover:text-gray-300'
+                        : 'border-transparent text-muted-foreground hover:text-foreground'
                     )}
                   >
                     <Icon className="h-3.5 w-3.5" aria-hidden="true" />

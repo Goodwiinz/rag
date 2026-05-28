@@ -209,7 +209,7 @@ export const DocumentUploadZone: React.FC<DocumentUploadZoneProps> = ({
       case 'failed':
         return 'text-red-600 bg-red-50 border-red-200';
       default:
-        return 'text-gray-600 bg-gray-50 border-gray-200';
+        return 'text-foreground bg-gray-50 border-border';
     }
   };
 
@@ -592,7 +592,7 @@ export const DocumentUploadZone: React.FC<DocumentUploadZoneProps> = ({
       case 'failed':
         return <ExclamationTriangleIcon className="h-5 w-5 text-red-500" />;
       default:
-        return <DocumentPlusIcon className="h-5 w-5 text-gray-400" />;
+        return <DocumentPlusIcon className="h-5 w-5 text-muted-foreground" />;
     }
   };
 
@@ -612,7 +612,7 @@ export const DocumentUploadZone: React.FC<DocumentUploadZoneProps> = ({
             <CloudArrowUpIcon className="h-6 w-6 text-blue-600" />
             Enhanced Document Upload
           </CardTitle>
-          <CardDescription className="text-gray-600">
+          <CardDescription className="text-foreground">
             Upload documents with automatic processing, entity extraction, and
             knowledge graph integration
           </CardDescription>
@@ -628,7 +628,7 @@ export const DocumentUploadZone: React.FC<DocumentUploadZoneProps> = ({
                   ? 'bg-blue-50 border-blue-200 text-blue-800'
                   : getUploadStateMessage().type === 'ready'
                     ? 'bg-amber-50 border-amber-200 text-amber-800'
-                    : 'bg-gray-50 border-gray-200 text-gray-800'
+                    : 'bg-gray-50 border-border text-foreground'
             )}
             role="status"
             aria-live={getUploadStateMessage().ariaLive}
@@ -673,7 +673,7 @@ export const DocumentUploadZone: React.FC<DocumentUploadZoneProps> = ({
                 'relative border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all duration-200',
                 isDragActive
                   ? 'border-blue-400 bg-blue-50 scale-[1.02]'
-                  : 'border-gray-300 hover:border-gray-400 hover:bg-gray-50',
+                  : 'border-border hover:border-border hover:bg-gray-50',
                 isUploading && 'opacity-50 cursor-not-allowed'
               )}
               role="button"
@@ -688,12 +688,12 @@ export const DocumentUploadZone: React.FC<DocumentUploadZoneProps> = ({
                 </div>
 
                 <div>
-                  <p className="text-lg font-semibold text-gray-900">
+                  <p className="text-lg font-semibold text-foreground">
                     {isDragActive
                       ? 'Release files here'
                       : 'Choose files or drag them here'}
                   </p>
-                  <p className="text-sm text-gray-600 mt-1">
+                  <p className="text-sm text-foreground mt-1">
                     {isDragActive ? '' : 'Click to browse or drag and drop'}
                   </p>
                 </div>
@@ -720,10 +720,10 @@ export const DocumentUploadZone: React.FC<DocumentUploadZoneProps> = ({
                   <Badge variant="secondary" className="px-2 py-1">
                     MP4
                   </Badge>
-                  <span className="text-gray-500">and more</span>
+                  <span className="text-muted-foreground">and more</span>
                 </div>
 
-                <p className="text-xs text-gray-500">
+                <p className="text-xs text-muted-foreground">
                   Maximum file size: 50MB • Maximum files: {maxFiles}
                 </p>
               </div>
@@ -755,7 +755,7 @@ export const DocumentUploadZone: React.FC<DocumentUploadZoneProps> = ({
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-4">
                   <h3
-                    className="text-lg font-semibold text-gray-900"
+                    className="text-lg font-semibold text-foreground"
                     id="files-heading"
                   >
                     Files ({uploadedFiles.length})
@@ -796,7 +796,7 @@ export const DocumentUploadZone: React.FC<DocumentUploadZoneProps> = ({
                     ) : (
                       <ExclamationTriangleIcon className="w-3 h-3 text-red-500" />
                     )}
-                    <span className="text-gray-500">
+                    <span className="text-muted-foreground">
                       {authLoading
                         ? 'Checking auth...'
                         : isAuthenticated
@@ -893,7 +893,7 @@ export const DocumentUploadZone: React.FC<DocumentUploadZoneProps> = ({
                           >
                             {file.file.name}
                           </h4>
-                          <div className="flex items-center space-x-2 text-xs text-gray-600">
+                          <div className="flex items-center space-x-2 text-xs text-foreground">
                             <span
                               aria-label={`File size: ${formatFileSize(file.file.size)}`}
                             >
@@ -983,7 +983,7 @@ export const DocumentUploadZone: React.FC<DocumentUploadZoneProps> = ({
                             {file.currentStep}
                           </span>
                           <span
-                            className="text-sm text-gray-600"
+                            className="text-sm text-foreground"
                             aria-label={`Upload progress: ${Math.round(file.progress)} percent complete`}
                           >
                             {Math.round(file.progress)}%
@@ -1187,7 +1187,7 @@ export const DocumentUploadZone: React.FC<DocumentUploadZoneProps> = ({
                             </div>
                           </div>
 
-                          <div className="text-xs text-gray-500 pt-2">
+                          <div className="text-xs text-muted-foreground pt-2">
                             Estimated processing time:{' '}
                             {(() => {
                               return enhancedDocumentService.estimateProcessingTime(

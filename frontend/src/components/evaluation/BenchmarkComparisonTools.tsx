@@ -200,9 +200,17 @@ const mockCompetitorData: CompetitorData[] = [
     description: 'Leading enterprise RAG solution',
     lastUpdated: '2024-10-10',
     metrics: {
-      answerRelevancy: { value: 75.2, confidence: 0.8, source: 'Public reports' },
+      answerRelevancy: {
+        value: 75.2,
+        confidence: 0.8,
+        source: 'Public reports',
+      },
       faithfulness: { value: 89.5, confidence: 0.7, source: 'Public reports' },
-      contextualRelevancy: { value: 72.8, confidence: 0.6, source: 'Public reports' },
+      contextualRelevancy: {
+        value: 72.8,
+        confidence: 0.6,
+        source: 'Public reports',
+      },
       latency: { value: 1950, confidence: 0.8, source: 'User testing' },
       throughput: { value: 48, confidence: 0.7, source: 'Public reports' },
       successRate: { value: 88.3, confidence: 0.8, source: 'Public reports' },
@@ -215,12 +223,28 @@ const mockCompetitorData: CompetitorData[] = [
     description: 'AI-powered search platform',
     lastUpdated: '2024-10-08',
     metrics: {
-      answerRelevancy: { value: 71.8, confidence: 0.7, source: 'Industry analysis' },
-      faithfulness: { value: 86.2, confidence: 0.6, source: 'Industry analysis' },
-      contextualRelevancy: { value: 69.5, confidence: 0.7, source: 'Industry analysis' },
+      answerRelevancy: {
+        value: 71.8,
+        confidence: 0.7,
+        source: 'Industry analysis',
+      },
+      faithfulness: {
+        value: 86.2,
+        confidence: 0.6,
+        source: 'Industry analysis',
+      },
+      contextualRelevancy: {
+        value: 69.5,
+        confidence: 0.7,
+        source: 'Industry analysis',
+      },
       latency: { value: 1680, confidence: 0.8, source: 'User testing' },
       throughput: { value: 52, confidence: 0.8, source: 'User testing' },
-      successRate: { value: 85.7, confidence: 0.7, source: 'Industry analysis' },
+      successRate: {
+        value: 85.7,
+        confidence: 0.7,
+        source: 'Industry analysis',
+      },
     },
   },
 ];
@@ -288,7 +312,10 @@ const BenchmarkComparisonTools: React.FC<BenchmarkComparisonToolsProps> = ({
   className,
 }) => {
   const [selectedBenchmark, setSelectedBenchmark] = useState<string>('bmd-001');
-  const [selectedCompetitors, setSelectedCompetitors] = useState<string[]>(['comp-001', 'comp-002']);
+  const [selectedCompetitors, setSelectedCompetitors] = useState<string[]>([
+    'comp-001',
+    'comp-002',
+  ]);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [showPercentiles, setShowPercentiles] = useState(true);
   const [showTrends, setShowTrends] = useState(false);
@@ -297,20 +324,22 @@ const BenchmarkComparisonTools: React.FC<BenchmarkComparisonToolsProps> = ({
 
   // Your system data (mock if not provided)
   const yourData = useMemo(() => {
-    return yourSystemData || {
-      answerRelevancy: 78.5,
-      faithfulness: 92.3,
-      contextualRelevancy: 85.2,
-      latency: 1650,
-      throughput: 58,
-      successRate: 91.8,
-      userSatisfaction: 83.5,
-    };
+    return (
+      yourSystemData || {
+        answerRelevancy: 78.5,
+        faithfulness: 92.3,
+        contextualRelevancy: 85.2,
+        latency: 1650,
+        throughput: 58,
+        successRate: 91.8,
+        userSatisfaction: 83.5,
+      }
+    );
   }, [yourSystemData]);
 
   // Get selected benchmark
   const selectedBenchmarkData = useMemo(() => {
-    return mockBenchmarkData.find(b => b.id === selectedBenchmark);
+    return mockBenchmarkData.find((b) => b.id === selectedBenchmark);
   }, [selectedBenchmark]);
 
   const primaryIndustryStandard = industryStandards[0];
@@ -319,66 +348,73 @@ const BenchmarkComparisonTools: React.FC<BenchmarkComparisonToolsProps> = ({
   const comparisons = useMemo((): ComparisonResult[] => {
     if (!selectedBenchmarkData) return [];
 
-    return Object.entries(yourData).map(([metric, value]) => {
-      const benchmarkValue = selectedBenchmarkData.metrics[metric]?.value;
-      if (!benchmarkValue) return null;
+    return Object.entries(yourData)
+      .map(([metric, value]) => {
+        const benchmarkValue = selectedBenchmarkData.metrics[metric]?.value;
+        if (!benchmarkValue) return null;
 
-      const difference = value - benchmarkValue;
-      const differencePercent = (difference / benchmarkValue) * 100;
+        const difference = value - benchmarkValue;
+        const differencePercent = (difference / benchmarkValue) * 100;
 
-      // Calculate percentile ranking
-      // For metrics like latency, lower is better, so reverse the sort
-      const isLowerBetter = metric.includes('latency');
-      const allValues = [
-        benchmarkValue,
-        ...mockCompetitorData.map(c => c.metrics[metric]?.value || 0).filter(v => v > 0),
-        value,
-      ].sort((a, b) => isLowerBetter ? a - b : b - a);
+        // Calculate percentile ranking
+        // For metrics like latency, lower is better, so reverse the sort
+        const isLowerBetter = metric.includes('latency');
+        const allValues = [
+          benchmarkValue,
+          ...mockCompetitorData
+            .map((c) => c.metrics[metric]?.value || 0)
+            .filter((v) => v > 0),
+          value,
+        ].sort((a, b) => (isLowerBetter ? a - b : b - a));
 
-      const rank = allValues.indexOf(value) + 1;
-      const percentile = ((allValues.length - rank) / allValues.length) * 100;
+        const rank = allValues.indexOf(value) + 1;
+        const percentile = ((allValues.length - rank) / allValues.length) * 100;
 
-      let status: 'leading' | 'competitive' | 'lagging' = 'competitive';
-      if (differencePercent > 10) status = 'leading';
-      else if (differencePercent < -10) status = 'lagging';
+        let status: 'leading' | 'competitive' | 'lagging' = 'competitive';
+        if (differencePercent > 10) status = 'leading';
+        else if (differencePercent < -10) status = 'lagging';
 
-      const recommendations = [];
-      if (status === 'lagging') {
-        if (metric.includes('latency')) {
-          recommendations.push('Consider optimizing your retrieval pipeline');
-          recommendations.push('Implement caching for frequent queries');
-        } else if (metric.includes('Relevancy')) {
-          recommendations.push('Improve document chunking strategy');
-          recommendations.push('Enhance embedding models');
-        } else if (metric.includes('throughput')) {
-          recommendations.push('Scale your infrastructure');
-          recommendations.push('Optimize parallel processing');
+        const recommendations = [];
+        if (status === 'lagging') {
+          if (metric.includes('latency')) {
+            recommendations.push('Consider optimizing your retrieval pipeline');
+            recommendations.push('Implement caching for frequent queries');
+          } else if (metric.includes('Relevancy')) {
+            recommendations.push('Improve document chunking strategy');
+            recommendations.push('Enhance embedding models');
+          } else if (metric.includes('throughput')) {
+            recommendations.push('Scale your infrastructure');
+            recommendations.push('Optimize parallel processing');
+          }
         }
-      }
 
-      return {
-        metric,
-        yourValue: value,
-        benchmarkValue,
-        difference,
-        differencePercent,
-        rank,
-        totalCompetitors: allValues.length,
-        percentile,
-        status,
-        recommendations,
-      };
-    }).filter(Boolean) as ComparisonResult[];
+        return {
+          metric,
+          yourValue: value,
+          benchmarkValue,
+          difference,
+          differencePercent,
+          rank,
+          totalCompetitors: allValues.length,
+          percentile,
+          status,
+          recommendations,
+        };
+      })
+      .filter(Boolean) as ComparisonResult[];
   }, [yourData, selectedBenchmarkData]);
 
   // Radar chart data
   const radarData = useMemo(() => {
-    const metrics = Object.keys(yourData).filter(key =>
-      selectedCategory === 'all' ||
-      benchmarkCategories.find(cat => cat.id === selectedCategory)?.metrics.includes(key)
+    const metrics = Object.keys(yourData).filter(
+      (key) =>
+        selectedCategory === 'all' ||
+        benchmarkCategories
+          .find((cat) => cat.id === selectedCategory)
+          ?.metrics.includes(key)
     );
 
-    return metrics.map(metric => {
+    return metrics.map((metric) => {
       const benchmark = selectedBenchmarkData?.metrics[metric]?.value || 0;
       const standard = industryStandards[0]?.metrics[metric];
 
@@ -401,7 +437,10 @@ const BenchmarkComparisonTools: React.FC<BenchmarkComparisonToolsProps> = ({
       };
 
       return {
-        metric: metric.replace(/([A-Z])/g, ' $1').trim().replace(/\b\w/g, l => l.toUpperCase()),
+        metric: metric
+          .replace(/([A-Z])/g, ' $1')
+          .trim()
+          .replace(/\b\w/g, (l) => l.toUpperCase()),
         yourSystem: normalize(yourValue),
         benchmark: normalize(benchmark),
         industryAvg: normalize(standard?.average || benchmark),
@@ -412,20 +451,23 @@ const BenchmarkComparisonTools: React.FC<BenchmarkComparisonToolsProps> = ({
 
   // Performance comparison chart data
   const performanceData = useMemo(() => {
-    const competitors = mockCompetitorData.filter(c => selectedCompetitors.includes(c.id));
+    const competitors = mockCompetitorData.filter((c) =>
+      selectedCompetitors.includes(c.id)
+    );
 
-    return Object.keys(yourData).map(metric => {
+    return Object.keys(yourData).map((metric) => {
       const dataPoint: any = {
         metric: metric.replace(/([A-Z])/g, ' $1').trim(),
         'Your System': yourData[metric as keyof typeof yourData],
       };
 
-      competitors.forEach(competitor => {
+      competitors.forEach((competitor) => {
         dataPoint[competitor.name] = competitor.metrics[metric]?.value || 0;
       });
 
       if (selectedBenchmarkData) {
-        dataPoint['Benchmark'] = selectedBenchmarkData.metrics[metric]?.value || 0;
+        dataPoint['Benchmark'] =
+          selectedBenchmarkData.metrics[metric]?.value || 0;
       }
 
       return dataPoint;
@@ -451,7 +493,7 @@ const BenchmarkComparisonTools: React.FC<BenchmarkComparisonToolsProps> = ({
       case 'lagging':
         return 'text-red-600 bg-red-100 border-red-200';
       default:
-        return 'text-gray-600 bg-gray-100 border-gray-200';
+        return 'text-foreground bg-gray-100 border-border';
     }
   };
 
@@ -484,11 +526,15 @@ const BenchmarkComparisonTools: React.FC<BenchmarkComparisonToolsProps> = ({
       yourSystem: yourData,
       benchmark: selectedBenchmarkData,
       comparisons,
-      competitors: mockCompetitorData.filter(c => selectedCompetitors.includes(c.id)),
+      competitors: mockCompetitorData.filter((c) =>
+        selectedCompetitors.includes(c.id)
+      ),
       industryStandards,
     };
 
-    const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' });
+    const blob = new Blob([JSON.stringify(report, null, 2)], {
+      type: 'application/json',
+    });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -497,15 +543,25 @@ const BenchmarkComparisonTools: React.FC<BenchmarkComparisonToolsProps> = ({
     URL.revokeObjectURL(url);
 
     onExportReport?.(report);
-  }, [yourData, selectedBenchmarkData, comparisons, selectedCompetitors, onExportReport]);
+  }, [
+    yourData,
+    selectedBenchmarkData,
+    comparisons,
+    selectedCompetitors,
+    onExportReport,
+  ]);
 
   return (
     <div className={`space-y-6 ${className}`}>
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Benchmark Comparison</h2>
-          <p className="text-gray-600 dark:text-gray-400">Compare your RAG system against industry benchmarks and competitors</p>
+          <h2 className="text-2xl font-bold text-foreground">
+            Benchmark Comparison
+          </h2>
+          <p className="text-foreground">
+            Compare your RAG system against industry benchmarks and competitors
+          </p>
         </div>
         <div className="flex items-center space-x-2">
           <Button
@@ -514,22 +570,16 @@ const BenchmarkComparisonTools: React.FC<BenchmarkComparisonToolsProps> = ({
             onClick={refreshData}
             disabled={isLoading}
           >
-            <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+            <RefreshCw
+              className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`}
+            />
             Refresh
           </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={exportReport}
-          >
+          <Button variant="outline" size="sm" onClick={exportReport}>
             <Download className="h-4 w-4 mr-2" />
             Export Report
           </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={onSettingsClick}
-          >
+          <Button variant="outline" size="sm" onClick={onSettingsClick}>
             <Settings className="h-4 w-4 mr-2" />
             Settings
           </Button>
@@ -548,12 +598,15 @@ const BenchmarkComparisonTools: React.FC<BenchmarkComparisonToolsProps> = ({
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <div>
               <Label>Benchmark Source</Label>
-              <Select value={selectedBenchmark} onValueChange={setSelectedBenchmark}>
+              <Select
+                value={selectedBenchmark}
+                onValueChange={setSelectedBenchmark}
+              >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {mockBenchmarkData.map(benchmark => (
+                  {mockBenchmarkData.map((benchmark) => (
                     <SelectItem key={benchmark.id} value={benchmark.id}>
                       {benchmark.name}
                     </SelectItem>
@@ -563,13 +616,16 @@ const BenchmarkComparisonTools: React.FC<BenchmarkComparisonToolsProps> = ({
             </div>
             <div>
               <Label>Category Focus</Label>
-              <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+              <Select
+                value={selectedCategory}
+                onValueChange={setSelectedCategory}
+              >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Categories</SelectItem>
-                  {benchmarkCategories.map(category => (
+                  {benchmarkCategories.map((category) => (
                     <SelectItem key={category.id} value={category.id}>
                       {category.name}
                     </SelectItem>
@@ -599,16 +655,24 @@ const BenchmarkComparisonTools: React.FC<BenchmarkComparisonToolsProps> = ({
           <div>
             <Label>Compare Against</Label>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mt-2">
-              {mockCompetitorData.map(competitor => (
-                <div key={competitor.id} className="flex items-center space-x-2">
+              {mockCompetitorData.map((competitor) => (
+                <div
+                  key={competitor.id}
+                  className="flex items-center space-x-2"
+                >
                   <Switch
                     id={`comp-${competitor.id}`}
                     checked={selectedCompetitors.includes(competitor.id)}
                     onCheckedChange={(checked) => {
                       if (checked) {
-                        setSelectedCompetitors(prev => [...prev, competitor.id]);
+                        setSelectedCompetitors((prev) => [
+                          ...prev,
+                          competitor.id,
+                        ]);
                       } else {
-                        setSelectedCompetitors(prev => prev.filter(id => id !== competitor.id));
+                        setSelectedCompetitors((prev) =>
+                          prev.filter((id) => id !== competitor.id)
+                        );
                       }
                     }}
                   />
@@ -656,17 +720,22 @@ const BenchmarkComparisonTools: React.FC<BenchmarkComparisonToolsProps> = ({
               </CardHeader>
               <CardContent>
                 <div className="space-y-2">
-                  {comparisons.slice(0, 3).map(comparison => (
-                    <div key={comparison.metric} className="flex items-center justify-between">
+                  {comparisons.slice(0, 3).map((comparison) => (
+                    <div
+                      key={comparison.metric}
+                      className="flex items-center justify-between"
+                    >
                       <div className="flex items-center space-x-2">
                         {getMetricIcon(comparison.metric)}
-                        <span className="text-sm">{comparison.metric.replace(/([A-Z])/g, ' $1').trim()}</span>
+                        <span className="text-sm">
+                          {comparison.metric.replace(/([A-Z])/g, ' $1').trim()}
+                        </span>
                       </div>
                       <div className="flex items-center space-x-2">
                         <Badge className={getStatusColor(comparison.status)}>
                           #{comparison.rank}/{comparison.totalCompetitors}
                         </Badge>
-                        <span className="text-sm text-gray-500">
+                        <span className="text-sm text-muted-foreground">
                           {comparison.percentile.toFixed(0)}th
                         </span>
                       </div>
@@ -686,13 +755,16 @@ const BenchmarkComparisonTools: React.FC<BenchmarkComparisonToolsProps> = ({
               <CardContent>
                 <div className="space-y-2">
                   {comparisons
-                    .filter(c => c.status === 'leading')
+                    .filter((c) => c.status === 'leading')
                     .slice(0, 3)
-                    .map(comparison => (
+                    .map((comparison) => (
                       <div key={comparison.metric} className="text-sm">
-                        <div className="font-medium">{comparison.metric.replace(/([A-Z])/g, ' $1').trim()}</div>
+                        <div className="font-medium">
+                          {comparison.metric.replace(/([A-Z])/g, ' $1').trim()}
+                        </div>
                         <div className="text-green-600">
-                          +{comparison.differencePercent.toFixed(1)}% vs benchmark
+                          +{comparison.differencePercent.toFixed(1)}% vs
+                          benchmark
                         </div>
                       </div>
                     ))}
@@ -710,13 +782,16 @@ const BenchmarkComparisonTools: React.FC<BenchmarkComparisonToolsProps> = ({
               <CardContent>
                 <div className="space-y-2">
                   {comparisons
-                    .filter(c => c.status === 'lagging')
+                    .filter((c) => c.status === 'lagging')
                     .slice(0, 3)
-                    .map(comparison => (
+                    .map((comparison) => (
                       <div key={comparison.metric} className="text-sm">
-                        <div className="font-medium">{comparison.metric.replace(/([A-Z])/g, ' $1').trim()}</div>
+                        <div className="font-medium">
+                          {comparison.metric.replace(/([A-Z])/g, ' $1').trim()}
+                        </div>
                         <div className="text-red-600">
-                          {comparison.differencePercent.toFixed(1)}% below benchmark
+                          {comparison.differencePercent.toFixed(1)}% below
+                          benchmark
                         </div>
                       </div>
                     ))}
@@ -729,7 +804,9 @@ const BenchmarkComparisonTools: React.FC<BenchmarkComparisonToolsProps> = ({
           <Card>
             <CardHeader>
               <CardTitle>Performance Comparison</CardTitle>
-              <CardDescription>Compare your system against selected benchmarks and competitors</CardDescription>
+              <CardDescription>
+                Compare your system against selected benchmarks and competitors
+              </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="h-80">
@@ -749,7 +826,7 @@ const BenchmarkComparisonTools: React.FC<BenchmarkComparisonToolsProps> = ({
                     <Bar dataKey="Your System" fill="#3b82f6" />
                     <Bar dataKey="Benchmark" fill="#10b981" />
                     {mockCompetitorData
-                      .filter(c => selectedCompetitors.includes(c.id))
+                      .filter((c) => selectedCompetitors.includes(c.id))
                       .map((competitor, index) => (
                         <Bar
                           key={competitor.id}
@@ -769,21 +846,29 @@ const BenchmarkComparisonTools: React.FC<BenchmarkComparisonToolsProps> = ({
           <Card>
             <CardHeader>
               <CardTitle>Metric-by-Metric Analysis</CardTitle>
-              <CardDescription>Detailed comparison for each performance metric</CardDescription>
+              <CardDescription>
+                Detailed comparison for each performance metric
+              </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {comparisons.map(comparison => (
-                  <div key={comparison.metric} className="border rounded-lg p-4">
+                {comparisons.map((comparison) => (
+                  <div
+                    key={comparison.metric}
+                    className="border rounded-lg p-4"
+                  >
                     <div className="flex items-start justify-between mb-3">
                       <div className="flex items-center space-x-3">
                         {getMetricIcon(comparison.metric)}
                         <div>
                           <h4 className="font-medium">
-                            {comparison.metric.replace(/([A-Z])/g, ' $1').trim()}
+                            {comparison.metric
+                              .replace(/([A-Z])/g, ' $1')
+                              .trim()}
                           </h4>
-                          <p className="text-sm text-gray-600 dark:text-gray-400">
-                            Rank #{comparison.rank} of {comparison.totalCompetitors}
+                          <p className="text-sm text-foreground">
+                            Rank #{comparison.rank} of{' '}
+                            {comparison.totalCompetitors}
                           </p>
                         </div>
                       </div>
@@ -800,21 +885,30 @@ const BenchmarkComparisonTools: React.FC<BenchmarkComparisonToolsProps> = ({
                         <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
                           {comparison.yourValue.toFixed(1)}
                         </div>
-                        <div className="text-sm text-gray-600 dark:text-gray-400">Your System</div>
+                        <div className="text-sm text-foreground">
+                          Your System
+                        </div>
                       </div>
                       <div className="text-center p-3 bg-gray-50 dark:bg-gray-800 rounded">
-                        <div className="text-2xl font-bold text-gray-600 dark:text-gray-400">
+                        <div className="text-2xl font-bold text-foreground">
                           {comparison.benchmarkValue.toFixed(1)}
                         </div>
-                        <div className="text-sm text-gray-600 dark:text-gray-400">Benchmark</div>
+                        <div className="text-sm text-foreground">Benchmark</div>
                       </div>
                       <div className="text-center p-3 bg-green-50 dark:bg-green-900/20 rounded">
-                        <div className={`text-2xl font-bold ${
-                          comparison.differencePercent >= 0 ? 'text-green-600' : 'text-red-600'
-                        }`}>
-                          {comparison.differencePercent >= 0 ? '+' : ''}{comparison.differencePercent.toFixed(1)}%
+                        <div
+                          className={`text-2xl font-bold ${
+                            comparison.differencePercent >= 0
+                              ? 'text-green-600'
+                              : 'text-red-600'
+                          }`}
+                        >
+                          {comparison.differencePercent >= 0 ? '+' : ''}
+                          {comparison.differencePercent.toFixed(1)}%
                         </div>
-                        <div className="text-sm text-gray-600 dark:text-gray-400">Difference</div>
+                        <div className="text-sm text-foreground">
+                          Difference
+                        </div>
                       </div>
                     </div>
 
@@ -824,17 +918,25 @@ const BenchmarkComparisonTools: React.FC<BenchmarkComparisonToolsProps> = ({
                           <span>Percentile Ranking</span>
                           <span>{comparison.percentile.toFixed(0)}th</span>
                         </div>
-                        <Progress value={comparison.percentile} className="h-2" />
+                        <Progress
+                          value={comparison.percentile}
+                          className="h-2"
+                        />
                       </div>
                     )}
 
                     {comparison.recommendations.length > 0 && (
                       <div>
-                        <h5 className="font-medium text-sm mb-2">Recommendations:</h5>
-                        <ul className="text-sm text-gray-600 dark:text-gray-400 space-y-1">
+                        <h5 className="font-medium text-sm mb-2">
+                          Recommendations:
+                        </h5>
+                        <ul className="text-sm text-foreground space-y-1">
                           {comparison.recommendations.map((rec, index) => (
-                            <li key={index} className="flex items-start space-x-2">
-                              <ChevronRight className="h-4 w-4 mt-0.5 text-gray-400" />
+                            <li
+                              key={index}
+                              className="flex items-start space-x-2"
+                            >
+                              <ChevronRight className="h-4 w-4 mt-0.5 text-muted-foreground" />
                               <span>{rec}</span>
                             </li>
                           ))}
@@ -853,7 +955,9 @@ const BenchmarkComparisonTools: React.FC<BenchmarkComparisonToolsProps> = ({
           <Card>
             <CardHeader>
               <CardTitle>Multi-Dimensional Comparison</CardTitle>
-              <CardDescription>Radar chart showing performance across all metrics</CardDescription>
+              <CardDescription>
+                Radar chart showing performance across all metrics
+              </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="h-96">
@@ -861,7 +965,11 @@ const BenchmarkComparisonTools: React.FC<BenchmarkComparisonToolsProps> = ({
                   <RadarChart data={radarData}>
                     <PolarGrid />
                     <PolarAngleAxis dataKey="metric" tick={{ fontSize: 12 }} />
-                    <PolarRadiusAxis angle={90} domain={[0, 100]} tick={{ fontSize: 10 }} />
+                    <PolarRadiusAxis
+                      angle={90}
+                      domain={[0, 100]}
+                      tick={{ fontSize: 10 }}
+                    />
                     <Radar
                       name="Your System"
                       dataKey="yourSystem"
@@ -910,20 +1018,29 @@ const BenchmarkComparisonTools: React.FC<BenchmarkComparisonToolsProps> = ({
               <CardContent>
                 <div className="space-y-3">
                   {comparisons
-                    .filter(c => c.status === 'leading')
-                    .map(comparison => (
-                      <div key={comparison.metric} className="flex items-start space-x-3">
+                    .filter((c) => c.status === 'leading')
+                    .map((comparison) => (
+                      <div
+                        key={comparison.metric}
+                        className="flex items-start space-x-3"
+                      >
                         <CheckCircle className="h-5 w-5 text-green-500 mt-0.5" />
                         <div>
-                          <h5 className="font-medium">{comparison.metric.replace(/([A-Z])/g, ' $1').trim()}</h5>
-                          <p className="text-sm text-gray-600 dark:text-gray-400">
-                            Outperforms {comparison.percentile.toFixed(0)}% of comparable systems
+                          <h5 className="font-medium">
+                            {comparison.metric
+                              .replace(/([A-Z])/g, ' $1')
+                              .trim()}
+                          </h5>
+                          <p className="text-sm text-foreground">
+                            Outperforms {comparison.percentile.toFixed(0)}% of
+                            comparable systems
                           </p>
                         </div>
                       </div>
                     ))}
-                  {comparisons.filter(c => c.status === 'leading').length === 0 && (
-                    <p className="text-sm text-gray-500">
+                  {comparisons.filter((c) => c.status === 'leading').length ===
+                    0 && (
+                    <p className="text-sm text-muted-foreground">
                       No metrics are currently leading compared to benchmarks
                     </p>
                   )}
@@ -941,28 +1058,41 @@ const BenchmarkComparisonTools: React.FC<BenchmarkComparisonToolsProps> = ({
               <CardContent>
                 <div className="space-y-3">
                   {comparisons
-                    .filter(c => c.status === 'lagging')
-                    .map(comparison => (
-                      <div key={comparison.metric} className="flex items-start space-x-3">
+                    .filter((c) => c.status === 'lagging')
+                    .map((comparison) => (
+                      <div
+                        key={comparison.metric}
+                        className="flex items-start space-x-3"
+                      >
                         <XCircle className="h-5 w-5 text-red-500 mt-0.5" />
                         <div>
-                          <h5 className="font-medium">{comparison.metric.replace(/([A-Z])/g, ' $1').trim()}</h5>
-                          <p className="text-sm text-gray-600 dark:text-gray-400">
-                            {Math.abs(comparison.differencePercent).toFixed(1)}% below benchmark average
+                          <h5 className="font-medium">
+                            {comparison.metric
+                              .replace(/([A-Z])/g, ' $1')
+                              .trim()}
+                          </h5>
+                          <p className="text-sm text-foreground">
+                            {Math.abs(comparison.differencePercent).toFixed(1)}%
+                            below benchmark average
                           </p>
                           <div className="mt-1">
-                            <p className="text-xs text-gray-500">Priority recommendations:</p>
-                            <ul className="text-xs text-gray-600 ml-2">
-                              {comparison.recommendations.slice(0, 2).map((rec, index) => (
-                                <li key={index}>• {rec}</li>
-                              ))}
+                            <p className="text-xs text-muted-foreground">
+                              Priority recommendations:
+                            </p>
+                            <ul className="text-xs text-foreground ml-2">
+                              {comparison.recommendations
+                                .slice(0, 2)
+                                .map((rec, index) => (
+                                  <li key={index}>• {rec}</li>
+                                ))}
                             </ul>
                           </div>
                         </div>
                       </div>
                     ))}
-                  {comparisons.filter(c => c.status === 'lagging').length === 0 && (
-                    <p className="text-sm text-gray-500">
+                  {comparisons.filter((c) => c.status === 'lagging').length ===
+                    0 && (
+                    <p className="text-sm text-muted-foreground">
                       All metrics are competitive with industry benchmarks
                     </p>
                   )}
@@ -975,66 +1105,99 @@ const BenchmarkComparisonTools: React.FC<BenchmarkComparisonToolsProps> = ({
           <Card>
             <CardHeader>
               <CardTitle>Industry Standards Compliance</CardTitle>
-              <CardDescription>How your system compares to established industry standards</CardDescription>
+              <CardDescription>
+                How your system compares to established industry standards
+              </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {primaryIndustryStandard && Object.entries(primaryIndustryStandard.metrics).map(([metric, standards]) => {
-                  const yourValue = yourData[metric as keyof typeof yourData] as number;
-                  const percentile = ((yourValue - standards.min) / (standards.best - standards.min)) * 100;
+                {primaryIndustryStandard &&
+                  Object.entries(primaryIndustryStandard.metrics).map(
+                    ([metric, standards]) => {
+                      const yourValue = yourData[
+                        metric as keyof typeof yourData
+                      ] as number;
+                      const percentile =
+                        ((yourValue - standards.min) /
+                          (standards.best - standards.min)) *
+                        100;
 
-                  let status = 'below-average';
-                  if (yourValue >= standards.topQuartile) status = 'excellent';
-                  else if (yourValue >= standards.average) status = 'good';
-                  else if (yourValue >= standards.min) status = 'acceptable';
+                      let status = 'below-average';
+                      if (yourValue >= standards.topQuartile)
+                        status = 'excellent';
+                      else if (yourValue >= standards.average) status = 'good';
+                      else if (yourValue >= standards.min)
+                        status = 'acceptable';
 
-                  return (
-                    <div key={metric} className="border rounded-lg p-4">
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center space-x-2">
-                          {getMetricIcon(metric)}
-                          <span className="font-medium">
-                            {metric.replace(/([A-Z])/g, ' $1').trim()}
-                          </span>
-                        </div>
-                        <Badge
-                          variant={status === 'excellent' ? 'default' :
-                                  status === 'good' ? 'secondary' :
-                                  status === 'acceptable' ? 'outline' : 'destructive'}
-                        >
-                          {status}
-                        </Badge>
-                      </div>
+                      return (
+                        <div key={metric} className="border rounded-lg p-4">
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center space-x-2">
+                              {getMetricIcon(metric)}
+                              <span className="font-medium">
+                                {metric.replace(/([A-Z])/g, ' $1').trim()}
+                              </span>
+                            </div>
+                            <Badge
+                              variant={
+                                status === 'excellent'
+                                  ? 'default'
+                                  : status === 'good'
+                                    ? 'secondary'
+                                    : status === 'acceptable'
+                                      ? 'outline'
+                                      : 'destructive'
+                              }
+                            >
+                              {status}
+                            </Badge>
+                          </div>
 
-                      <div className="grid grid-cols-5 gap-2 text-xs">
-                        <div className="text-center">
-                          <div className="text-gray-500">Min</div>
-                          <div className="font-medium">{standards.min}</div>
-                        </div>
-                        <div className="text-center">
-                          <div className="text-gray-500">Average</div>
-                          <div className="font-medium">{standards.average}</div>
-                        </div>
-                        <div className="text-center">
-                          <div className="text-gray-500">Top Quartile</div>
-                          <div className="font-medium">{standards.topQuartile}</div>
-                        </div>
-                        <div className="text-center">
-                          <div className="text-gray-500">Best</div>
-                          <div className="font-medium">{standards.best}</div>
-                        </div>
-                        <div className="text-center">
-                          <div className="text-gray-500">You</div>
-                          <div className="font-bold text-blue-600">{yourValue}</div>
-                        </div>
-                      </div>
+                          <div className="grid grid-cols-5 gap-2 text-xs">
+                            <div className="text-center">
+                              <div className="text-muted-foreground">Min</div>
+                              <div className="font-medium">{standards.min}</div>
+                            </div>
+                            <div className="text-center">
+                              <div className="text-muted-foreground">
+                                Average
+                              </div>
+                              <div className="font-medium">
+                                {standards.average}
+                              </div>
+                            </div>
+                            <div className="text-center">
+                              <div className="text-muted-foreground">
+                                Top Quartile
+                              </div>
+                              <div className="font-medium">
+                                {standards.topQuartile}
+                              </div>
+                            </div>
+                            <div className="text-center">
+                              <div className="text-muted-foreground">Best</div>
+                              <div className="font-medium">
+                                {standards.best}
+                              </div>
+                            </div>
+                            <div className="text-center">
+                              <div className="text-muted-foreground">You</div>
+                              <div className="font-bold text-blue-600">
+                                {yourValue}
+                              </div>
+                            </div>
+                          </div>
 
-                      <div className="mt-2">
-                        <Progress value={Math.max(0, Math.min(100, percentile))} className="h-2" />
-                      </div>
-                    </div>
-                  );
-                })}
+                          <div className="mt-2">
+                            <Progress
+                              value={Math.max(0, Math.min(100, percentile))}
+                              className="h-2"
+                            />
+                          </div>
+                        </div>
+                      );
+                    }
+                  )}
               </div>
             </CardContent>
           </Card>

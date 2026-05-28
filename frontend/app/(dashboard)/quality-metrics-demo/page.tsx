@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { QualityMetricsCard } from '@/components/metrics/QualityMetricsCard';
 
 export default function QualityMetricsDemo() {
-  const [query, setQuery] = useState("abdel factual");
+  const [query, setQuery] = useState('abdel factual');
   const [sessionId] = useState<string | null>(null);
 
   return (
@@ -30,18 +30,15 @@ export default function QualityMetricsDemo() {
                   className="mt-1"
                 />
               </div>
-              <p className="text-sm text-gray-600">
-                This component shows simulated quality metrics in real-time.
-                The metrics update every 2 seconds with realistic values.
+              <p className="text-sm text-foreground">
+                This component shows simulated quality metrics in real-time. The
+                metrics update every 2 seconds with realistic values.
               </p>
             </div>
           </CardContent>
         </Card>
 
-        <QualityMetricsCard
-          query={query}
-          sessionId={sessionId || undefined}
-        />
+        <QualityMetricsCard query={query} sessionId={sessionId || undefined} />
       </div>
     </div>
   );

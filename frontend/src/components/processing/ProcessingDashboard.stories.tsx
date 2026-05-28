@@ -7,9 +7,13 @@ const createMockQueueItem = (
   overrides: Partial<UploadQueueItem> = {}
 ): UploadQueueItem => ({
   id: `job-${Math.random().toString(36).substr(2, 9)}`,
-  file: new File(['test content'], `test-file-${Math.random().toString(36).substr(2, 5)}.pdf`, {
-    type: 'application/pdf',
-  }),
+  file: new File(
+    ['test content'],
+    `test-file-${Math.random().toString(36).substr(2, 5)}.pdf`,
+    {
+      type: 'application/pdf',
+    }
+  ),
   status: 'processing',
   progress: Math.floor(Math.random() * 100),
   uploadStartTime: Date.now() - Math.random() * 300000, // Random time in last 5 minutes
@@ -18,7 +22,9 @@ const createMockQueueItem = (
 
 const mockQueueItems: UploadQueueItem[] = [
   createMockQueueItem({
-    file: new File(['PDF content'], 'document.pdf', { type: 'application/pdf' }),
+    file: new File(['PDF content'], 'document.pdf', {
+      type: 'application/pdf',
+    }),
     status: 'completed',
     progress: 100,
     completedAt: Date.now() - 60000,
@@ -205,10 +211,13 @@ export const DarkMode: Story = {
 // Mock data for different scenarios
 const largeQueueItems = Array.from({ length: 20 }, (_, i) =>
   createMockQueueItem({
-    file: new File([`Content ${i}`], `file-${i}.pdf`, { type: 'application/pdf' }),
-    status: i < 3 ? 'completed' : i < 8 ? 'processing' : i < 15 ? 'pending' : 'error',
+    file: new File([`Content ${i}`], `file-${i}.pdf`, {
+      type: 'application/pdf',
+    }),
+    status:
+      i < 3 ? 'completed' : i < 8 ? 'processing' : i < 15 ? 'pending' : 'error',
     progress: i < 3 ? 100 : i < 8 ? Math.floor(Math.random() * 100) : 0,
-    completedAt: i < 3 ? Date.now() - (i * 10000) : undefined,
+    completedAt: i < 3 ? Date.now() - i * 10000 : undefined,
     error: i >= 15 ? `Error processing file ${i}` : undefined,
   })
 );
@@ -239,16 +248,20 @@ export const Playground: Story = {
   parameters: {
     docs: {
       description: {
-        story: 'Interactive playground for testing the processing dashboard. The dashboard will show mock data and update in real-time to demonstrate the features.',
+        story:
+          'Interactive playground for testing the processing dashboard. The dashboard will show mock data and update in real-time to demonstrate the features.',
       },
     },
   },
   render: (args) => (
     <div className="p-6 bg-gray-50 min-h-screen">
       <div className="mb-6">
-        <h2 className="text-2xl font-bold text-gray-900 mb-2">Processing Dashboard Demo</h2>
-        <p className="text-gray-600">
-          This dashboard shows real-time processing status with mock data. Try the controls to filter, pause, or interact with the queue.
+        <h2 className="text-2xl font-bold text-foreground mb-2">
+          Processing Dashboard Demo
+        </h2>
+        <p className="text-foreground">
+          This dashboard shows real-time processing status with mock data. Try
+          the controls to filter, pause, or interact with the queue.
         </p>
       </div>
       <ProcessingDashboard {...args} />

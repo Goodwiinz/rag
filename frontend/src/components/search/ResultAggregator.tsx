@@ -17,7 +17,12 @@ import { ResultAggregation, SearchStageResult } from '@/types/search';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 
 interface ResultAggregatorProps {
   searchResults: SearchStageResult[];
@@ -42,7 +47,11 @@ interface DuplicateGroupProps {
   onRemove: (item: any) => void;
 }
 
-const DuplicateGroup: React.FC<DuplicateGroupProps> = ({ group, onKeep, onRemove }) => {
+const DuplicateGroup: React.FC<DuplicateGroupProps> = ({
+  group,
+  onKeep,
+  onRemove,
+}) => {
   const [selectedItem, setSelectedItem] = useState(group[0]);
 
   return (
@@ -64,21 +73,21 @@ const DuplicateGroup: React.FC<DuplicateGroupProps> = ({ group, onKeep, onRemove
           <div
             key={index}
             className={cn(
-              "p-3 rounded-lg border cursor-pointer transition-colors",
+              'p-3 rounded-lg border cursor-pointer transition-colors',
               selectedItem === item
-                ? "border-blue-300 bg-blue-50"
-                : "border-gray-200 bg-white hover:bg-gray-50"
+                ? 'border-blue-300 bg-blue-50'
+                : 'border-border bg-white hover:bg-gray-50'
             )}
             onClick={() => setSelectedItem(item)}
           >
             <div className="flex items-start justify-between">
               <div className="flex-1">
-                <h4 className="font-medium text-gray-900">{item.title}</h4>
+                <h4 className="font-medium text-foreground">{item.title}</h4>
                 <div className="flex items-center space-x-2 mt-1">
                   <Badge variant="outline" className="text-xs">
                     {item.source}
                   </Badge>
-                  <span className="text-xs text-gray-500">
+                  <span className="text-xs text-muted-foreground">
                     Score: {Math.round(item.score * 100)}%
                   </span>
                 </div>
@@ -122,7 +131,9 @@ const AggregationDetail: React.FC<AggregationDetailProps> = ({
   isOpen,
   onClose,
 }) => {
-  const [activeTab, setActiveTab] = useState<'overview' | 'duplicates' | 'sources' | 'metrics'>('overview');
+  const [activeTab, setActiveTab] = useState<
+    'overview' | 'duplicates' | 'sources' | 'metrics'
+  >('overview');
 
   const getScoreColor = (score: number) => {
     if (score >= 90) return 'text-green-600';
@@ -146,17 +157,17 @@ const AggregationDetail: React.FC<AggregationDetailProps> = ({
         </DialogHeader>
 
         {/* Tabs */}
-        <div className="border-b border-gray-200">
+        <div className="border-b border-border">
           <nav className="flex space-x-8">
             {['overview', 'duplicates', 'sources', 'metrics'].map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab as any)}
                 className={cn(
-                  "py-2 px-1 border-b-2 font-medium text-sm capitalize",
+                  'py-2 px-1 border-b-2 font-medium text-sm capitalize',
                   activeTab === tab
-                    ? "border-blue-500 text-blue-600"
-                    : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border'
                 )}
               >
                 {tab}
@@ -170,7 +181,7 @@ const AggregationDetail: React.FC<AggregationDetailProps> = ({
           {activeTab === 'overview' && (
             <div className="space-y-6">
               {/* Summary Stats */}
-              <div className="grid grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                 <div className="p-4 bg-blue-50 rounded-lg">
                   <div className="text-2xl font-bold text-blue-900">
                     {aggregation.final_results.length}
@@ -181,7 +192,9 @@ const AggregationDetail: React.FC<AggregationDetailProps> = ({
                   <div className="text-2xl font-bold text-green-900">
                     {aggregation.deduplication_stats.duplicates_removed}
                   </div>
-                  <div className="text-sm text-green-700">Duplicates Removed</div>
+                  <div className="text-sm text-green-700">
+                    Duplicates Removed
+                  </div>
                 </div>
                 <div className="p-4 bg-purple-50 rounded-lg">
                   <div className="text-2xl font-bold text-purple-900">
@@ -199,42 +212,63 @@ const AggregationDetail: React.FC<AggregationDetailProps> = ({
 
               {/* Source Breakdown */}
               <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-3">Source Contribution</h3>
-                <div className="grid grid-cols-4 gap-4">
-                  {Object.entries(aggregation.source_breakdown).map(([source, count]) => (
-                    <div key={source} className="p-3 bg-gray-50 rounded-lg">
-                      <div className="flex items-center justify-between">
-                        <span className="font-medium text-gray-900 capitalize">{source}</span>
-                        <span className="text-lg font-bold text-gray-900">{count}</span>
+                <h3 className="text-lg font-semibold text-foreground mb-3">
+                  Source Contribution
+                </h3>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                  {Object.entries(aggregation.source_breakdown).map(
+                    ([source, count]) => (
+                      <div key={source} className="p-3 bg-gray-50 rounded-lg">
+                        <div className="flex items-center justify-between">
+                          <span className="font-medium text-foreground capitalize">
+                            {source}
+                          </span>
+                          <span className="text-lg font-bold text-foreground">
+                            {count}
+                          </span>
+                        </div>
+                        <div className="mt-2 w-full bg-gray-200 rounded-full h-2">
+                          <div
+                            className="bg-blue-600 h-2 rounded-full"
+                            style={{
+                              width: `${(count / aggregation.final_results.length) * 100}%`,
+                            }}
+                          />
+                        </div>
                       </div>
-                      <div className="mt-2 w-full bg-gray-200 rounded-full h-2">
-                        <div
-                          className="bg-blue-600 h-2 rounded-full"
-                          style={{
-                            width: `${(count / aggregation.final_results.length) * 100}%`
-                          }}
-                        />
-                      </div>
-                    </div>
-                  ))}
+                    )
+                  )}
                 </div>
               </div>
 
               {/* Top Results */}
               <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-3">Top Results</h3>
+                <h3 className="text-lg font-semibold text-foreground mb-3">
+                  Top Results
+                </h3>
                 <div className="space-y-2">
-                  {aggregation.final_results.slice(0, 5).map((result, index) => (
-                    <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                      <div className="flex items-center space-x-3">
-                        <span className="font-medium text-gray-900">#{index + 1}</span>
-                        <span className="text-gray-800">{result.title}</span>
+                  {aggregation.final_results
+                    .slice(0, 5)
+                    .map((result, index) => (
+                      <div
+                        key={index}
+                        className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
+                      >
+                        <div className="flex items-center space-x-3">
+                          <span className="font-medium text-foreground">
+                            #{index + 1}
+                          </span>
+                          <span className="text-foreground">
+                            {result.title}
+                          </span>
+                        </div>
+                        <Badge
+                          className={getScoreBackground(result.score * 100)}
+                        >
+                          {Math.round(result.score * 100)}%
+                        </Badge>
                       </div>
-                      <Badge className={getScoreBackground(result.score * 100)}>
-                        {Math.round(result.score * 100)}%
-                      </Badge>
-                    </div>
-                  ))}
+                    ))}
                 </div>
               </div>
             </div>
@@ -247,10 +281,14 @@ const AggregationDetail: React.FC<AggregationDetailProps> = ({
                 <div className="flex items-center space-x-2">
                   <DocumentDuplicateIcon className="h-5 w-5 text-yellow-600" />
                   <div>
-                    <h3 className="font-medium text-yellow-900">Deduplication Summary</h3>
+                    <h3 className="font-medium text-yellow-900">
+                      Deduplication Summary
+                    </h3>
                     <p className="text-sm text-yellow-800">
-                      {aggregation.deduplication_stats.initial_count} → {aggregation.deduplication_stats.final_count} results
-                      ({aggregation.deduplication_stats.duplicates_removed} duplicates removed)
+                      {aggregation.deduplication_stats.initial_count} →{' '}
+                      {aggregation.deduplication_stats.final_count} results (
+                      {aggregation.deduplication_stats.duplicates_removed}{' '}
+                      duplicates removed)
                     </p>
                   </div>
                 </div>
@@ -258,13 +296,18 @@ const AggregationDetail: React.FC<AggregationDetailProps> = ({
 
               {/* Simulate duplicate groups for demonstration */}
               <div className="space-y-3">
-                <div className="p-4 border border-gray-200 rounded-lg">
+                <div className="p-4 border border-border rounded-lg">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="font-medium text-gray-900">Similarity Threshold: 85%</span>
-                    <Badge className="bg-green-100 text-green-800">Active</Badge>
+                    <span className="font-medium text-foreground">
+                      Similarity Threshold: 85%
+                    </span>
+                    <Badge className="bg-green-100 text-green-800">
+                      Active
+                    </Badge>
                   </div>
-                  <p className="text-sm text-gray-600">
-                    Items with similarity above 85% are flagged as potential duplicates
+                  <p className="text-sm text-foreground">
+                    Items with similarity above 85% are flagged as potential
+                    duplicates
                   </p>
                 </div>
               </div>
@@ -274,35 +317,58 @@ const AggregationDetail: React.FC<AggregationDetailProps> = ({
           {/* Sources Tab */}
           {activeTab === 'sources' && (
             <div className="space-y-4">
-              <h3 className="text-lg font-semibold text-gray-900">Search Stage Details</h3>
+              <h3 className="text-lg font-semibold text-foreground">
+                Search Stage Details
+              </h3>
               <div className="space-y-3">
                 {searchResults.map((result, index) => (
-                  <div key={index} className="p-4 border border-gray-200 rounded-lg">
+                  <div
+                    key={index}
+                    className="p-4 border border-border rounded-lg"
+                  >
                     <div className="flex items-center justify-between mb-3">
                       <div className="flex items-center space-x-3">
-                        <h4 className="font-medium text-gray-900 capitalize">{result.stage} Search</h4>
+                        <h4 className="font-medium text-foreground capitalize">
+                          {result.stage} Search
+                        </h4>
                         {result.error ? (
-                          <Badge className="bg-red-100 text-red-800">Failed</Badge>
+                          <Badge className="bg-red-100 text-red-800">
+                            Failed
+                          </Badge>
                         ) : (
-                          <Badge className="bg-green-100 text-green-800">Success</Badge>
+                          <Badge className="bg-green-100 text-green-800">
+                            Success
+                          </Badge>
                         )}
                       </div>
-                      <div className="text-sm text-gray-600">
+                      <div className="text-sm text-foreground">
                         {result.results.length} results • {result.latency_ms}ms
                       </div>
                     </div>
 
                     <div className="grid grid-cols-2 gap-4 text-sm">
                       <div>
-                        <span className="text-gray-600">Contribution:</span>
+                        <span className="text-foreground">Contribution:</span>
                         <span className="ml-2 font-medium">
-                          {aggregation.source_breakdown[result.stage as keyof typeof aggregation.source_breakdown]} items
+                          {
+                            aggregation.source_breakdown[
+                              result.stage as keyof typeof aggregation.source_breakdown
+                            ]
+                          }{' '}
+                          items
                         </span>
                       </div>
                       <div>
-                        <span className="text-gray-600">Confidence:</span>
-                        <span className={cn("ml-2 font-medium", getScoreColor(result.confidence_score * 100))}>
-                          {result.confidence_score ? `${Math.round(result.confidence_score * 100)}%` : 'N/A'}
+                        <span className="text-foreground">Confidence:</span>
+                        <span
+                          className={cn(
+                            'ml-2 font-medium',
+                            getScoreColor(result.confidence_score * 100)
+                          )}
+                        >
+                          {result.confidence_score
+                            ? `${Math.round(result.confidence_score * 100)}%`
+                            : 'N/A'}
                         </span>
                       </div>
                     </div>
@@ -323,74 +389,117 @@ const AggregationDetail: React.FC<AggregationDetailProps> = ({
             <div className="space-y-6">
               {/* Quality Metrics */}
               <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-3">Quality Metrics</h3>
+                <h3 className="text-lg font-semibold text-foreground mb-3">
+                  Quality Metrics
+                </h3>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="p-4 bg-gray-50 rounded-lg">
                     <div className="flex items-center justify-between mb-2">
-                      <span className="text-gray-700">Aggregation Confidence</span>
-                      <span className={cn("font-bold", getScoreColor(aggregation.aggregation_confidence * 100))}>
+                      <span className="text-foreground">
+                        Aggregation Confidence
+                      </span>
+                      <span
+                        className={cn(
+                          'font-bold',
+                          getScoreColor(
+                            aggregation.aggregation_confidence * 100
+                          )
+                        )}
+                      >
                         {Math.round(aggregation.aggregation_confidence * 100)}%
                       </span>
                     </div>
                     <div className="w-full bg-gray-200 rounded-full h-2">
                       <div
-                        className={cn("h-2 rounded-full",
-                          aggregation.aggregation_confidence >= 0.9 ? "bg-green-600" :
-                          aggregation.aggregation_confidence >= 0.8 ? "bg-yellow-600" : "bg-red-600"
+                        className={cn(
+                          'h-2 rounded-full',
+                          aggregation.aggregation_confidence >= 0.9
+                            ? 'bg-green-600'
+                            : aggregation.aggregation_confidence >= 0.8
+                              ? 'bg-yellow-600'
+                              : 'bg-red-600'
                         )}
-                        style={{ width: `${aggregation.aggregation_confidence * 100}%` }}
+                        style={{
+                          width: `${aggregation.aggregation_confidence * 100}%`,
+                        }}
                       />
                     </div>
                   </div>
 
                   <div className="p-4 bg-gray-50 rounded-lg">
                     <div className="flex items-center justify-between mb-2">
-                      <span className="text-gray-700">Diversity Score</span>
-                      <span className={cn("font-bold", getScoreColor(aggregation.diversity_score * 100))}>
+                      <span className="text-foreground">Diversity Score</span>
+                      <span
+                        className={cn(
+                          'font-bold',
+                          getScoreColor(aggregation.diversity_score * 100)
+                        )}
+                      >
                         {Math.round(aggregation.diversity_score * 100)}%
                       </span>
                     </div>
                     <div className="w-full bg-gray-200 rounded-full h-2">
                       <div
-                        className={cn("h-2 rounded-full",
-                          aggregation.diversity_score >= 0.9 ? "bg-green-600" :
-                          aggregation.diversity_score >= 0.8 ? "bg-yellow-600" : "bg-red-600"
+                        className={cn(
+                          'h-2 rounded-full',
+                          aggregation.diversity_score >= 0.9
+                            ? 'bg-green-600'
+                            : aggregation.diversity_score >= 0.8
+                              ? 'bg-yellow-600'
+                              : 'bg-red-600'
                         )}
-                        style={{ width: `${aggregation.diversity_score * 100}%` }}
+                        style={{
+                          width: `${aggregation.diversity_score * 100}%`,
+                        }}
                       />
                     </div>
                   </div>
 
                   <div className="p-4 bg-gray-50 rounded-lg">
                     <div className="flex items-center justify-between mb-2">
-                      <span className="text-gray-700">Coverage Score</span>
-                      <span className={cn("font-bold", getScoreColor(aggregation.coverage_score * 100))}>
+                      <span className="text-foreground">Coverage Score</span>
+                      <span
+                        className={cn(
+                          'font-bold',
+                          getScoreColor(aggregation.coverage_score * 100)
+                        )}
+                      >
                         {Math.round(aggregation.coverage_score * 100)}%
                       </span>
                     </div>
                     <div className="w-full bg-gray-200 rounded-full h-2">
                       <div
-                        className={cn("h-2 rounded-full",
-                          aggregation.coverage_score >= 0.9 ? "bg-green-600" :
-                          aggregation.coverage_score >= 0.8 ? "bg-yellow-600" : "bg-red-600"
+                        className={cn(
+                          'h-2 rounded-full',
+                          aggregation.coverage_score >= 0.9
+                            ? 'bg-green-600'
+                            : aggregation.coverage_score >= 0.8
+                              ? 'bg-yellow-600'
+                              : 'bg-red-600'
                         )}
-                        style={{ width: `${aggregation.coverage_score * 100}%` }}
+                        style={{
+                          width: `${aggregation.coverage_score * 100}%`,
+                        }}
                       />
                     </div>
                   </div>
 
                   <div className="p-4 bg-gray-50 rounded-lg">
                     <div className="flex items-center justify-between mb-2">
-                      <span className="text-gray-700">Fusion Method</span>
-                      <span className="font-bold text-gray-900 capitalize">
+                      <span className="text-foreground">Fusion Method</span>
+                      <span className="font-bold text-foreground capitalize">
                         {aggregation.fusion_method}
                       </span>
                     </div>
-                    <p className="text-sm text-gray-600">
-                      {aggregation.fusion_method === 'rrf' && 'Reciprocal Rank Fusion'}
-                      {aggregation.fusion_method === 'weighted_average' && 'Weighted Average'}
-                      {aggregation.fusion_method === 'condorcet' && 'Condorcet Method'}
-                      {aggregation.fusion_method === 'rank_biased' && 'Rank Biased Fusion'}
+                    <p className="text-sm text-foreground">
+                      {aggregation.fusion_method === 'rrf' &&
+                        'Reciprocal Rank Fusion'}
+                      {aggregation.fusion_method === 'weighted_average' &&
+                        'Weighted Average'}
+                      {aggregation.fusion_method === 'condorcet' &&
+                        'Condorcet Method'}
+                      {aggregation.fusion_method === 'rank_biased' &&
+                        'Rank Biased Fusion'}
                     </p>
                   </div>
                 </div>
@@ -412,7 +521,9 @@ export const ResultAggregator: React.FC<ResultAggregatorProps> = ({
   autoAggregate = false,
   className,
 }) => {
-  const [aggregation, setAggregation] = useState<ResultAggregation | null>(null);
+  const [aggregation, setAggregation] = useState<ResultAggregation | null>(
+    null
+  );
   const [isAggregating, setIsAggregating] = useState(false);
   const [showDetailDialog, setShowDetailDialog] = useState(false);
 
@@ -425,14 +536,17 @@ export const ResultAggregator: React.FC<ResultAggregatorProps> = ({
     const words1 = new Set(title1.split(/\s+/));
     const words2 = new Set(title2.split(/\s+/));
 
-    const intersection = new Set([...words1].filter(x => words2.has(x)));
+    const intersection = new Set([...words1].filter((x) => words2.has(x)));
     const union = new Set([...words1, ...words2]);
 
     return intersection.size / union.size;
   }, []);
 
   const rrfFusion = useCallback((rankings: any[][], k: number = 60): any[] => {
-    const scoreMap = new Map<string, { score: number; item: any; sources: string[] }>();
+    const scoreMap = new Map<
+      string,
+      { score: number; item: any; sources: string[] }
+    >();
 
     rankings.forEach((ranking, sourceIndex) => {
       ranking.forEach((item, rank) => {
@@ -446,7 +560,7 @@ export const ResultAggregator: React.FC<ResultAggregatorProps> = ({
           scoreMap.set(key, {
             score: 1 / (k + rank + 1),
             item: { ...item, score: 1 / (k + rank + 1) },
-            sources: [`source_${sourceIndex}`]
+            sources: [`source_${sourceIndex}`],
           });
         }
       });
@@ -454,103 +568,126 @@ export const ResultAggregator: React.FC<ResultAggregatorProps> = ({
 
     return Array.from(scoreMap.values())
       .sort((a, b) => b.score - a.score)
-      .map(v => v.item);
+      .map((v) => v.item);
   }, []);
 
-  const weightedAverageFusion = useCallback((rankings: any[][], weights: number[]): any[] => {
-    const scoreMap = new Map<string, { score: number; item: any; sources: string[] }>();
+  const weightedAverageFusion = useCallback(
+    (rankings: any[][], weights: number[]): any[] => {
+      const scoreMap = new Map<
+        string,
+        { score: number; item: any; sources: string[] }
+      >();
 
-    rankings.forEach((ranking, sourceIndex) => {
-      const weight = weights[sourceIndex] || 1;
+      rankings.forEach((ranking, sourceIndex) => {
+        const weight = weights[sourceIndex] || 1;
 
-      ranking.forEach((item) => {
-        const key = item.title || item.id;
-        const normalizedScore = item.score || 1;
-        const weightedScore = normalizedScore * weight;
+        ranking.forEach((item) => {
+          const key = item.title || item.id;
+          const normalizedScore = item.score || 1;
+          const weightedScore = normalizedScore * weight;
 
-        const existing = scoreMap.get(key);
+          const existing = scoreMap.get(key);
 
-        if (existing) {
-          existing.score += weightedScore;
-          existing.sources.push(`source_${sourceIndex}`);
-        } else {
-          scoreMap.set(key, {
-            score: weightedScore,
-            item: { ...item, score: weightedScore },
-            sources: [`source_${sourceIndex}`]
-          });
-        }
+          if (existing) {
+            existing.score += weightedScore;
+            existing.sources.push(`source_${sourceIndex}`);
+          } else {
+            scoreMap.set(key, {
+              score: weightedScore,
+              item: { ...item, score: weightedScore },
+              sources: [`source_${sourceIndex}`],
+            });
+          }
+        });
       });
-    });
 
-    return Array.from(scoreMap.values())
-      .sort((a, b) => b.score - a.score)
-      .map(v => v.item);
-  }, []);
+      return Array.from(scoreMap.values())
+        .sort((a, b) => b.score - a.score)
+        .map((v) => v.item);
+    },
+    []
+  );
 
-  const deduplicateResults = useCallback((results: any[]): { deduplicated: any[]; duplicatesRemoved: number } => {
-    if (results.length === 0) return { deduplicated: [], duplicatesRemoved: 0 };
+  const deduplicateResults = useCallback(
+    (results: any[]): { deduplicated: any[]; duplicatesRemoved: number } => {
+      if (results.length === 0)
+        return { deduplicated: [], duplicatesRemoved: 0 };
 
-    const groups: any[][] = [];
-    const used = new Set<number>();
+      const groups: any[][] = [];
+      const used = new Set<number>();
 
-    for (let i = 0; i < results.length; i++) {
-      if (used.has(i)) continue;
+      for (let i = 0; i < results.length; i++) {
+        if (used.has(i)) continue;
 
-      const group = [results[i]];
-      used.add(i);
+        const group = [results[i]];
+        used.add(i);
 
-      for (let j = i + 1; j < results.length; j++) {
-        if (used.has(j)) continue;
+        for (let j = i + 1; j < results.length; j++) {
+          if (used.has(j)) continue;
 
-        const similarity = calculateSimilarity(results[i], results[j]);
-        if (similarity > 0.85) { // 85% similarity threshold
-          group.push(results[j]);
-          used.add(j);
+          const similarity = calculateSimilarity(results[i], results[j]);
+          if (similarity > 0.85) {
+            // 85% similarity threshold
+            group.push(results[j]);
+            used.add(j);
+          }
+        }
+
+        groups.push(group);
+      }
+
+      const deduplicated = groups.map((group) => group[0]); // Keep first item from each group
+      const duplicatesRemoved = results.length - deduplicated.length;
+
+      return { deduplicated, duplicatesRemoved };
+    },
+    [calculateSimilarity]
+  );
+
+  const calculateDiversityScore = useCallback(
+    (results: any[]): number => {
+      if (results.length === 0) return 0;
+      if (results.length === 1) return 1;
+
+      let totalSimilarity = 0;
+      let comparisons = 0;
+
+      for (let i = 0; i < Math.min(results.length, 10); i++) {
+        for (let j = i + 1; j < Math.min(results.length, 10); j++) {
+          totalSimilarity += calculateSimilarity(results[i], results[j]);
+          comparisons++;
         }
       }
 
-      groups.push(group);
-    }
+      const avgSimilarity = totalSimilarity / comparisons;
+      return 1 - avgSimilarity; // Diversity = 1 - average similarity
+    },
+    [calculateSimilarity]
+  );
 
-    const deduplicated = groups.map(group => group[0]); // Keep first item from each group
-    const duplicatesRemoved = results.length - deduplicated.length;
+  const calculateCoverageScore = useCallback(
+    (searchResults: SearchStageResult[], finalResults: any[]): number => {
+      const totalPossible = searchResults.reduce(
+        (sum, result) => sum + result.results.length,
+        0
+      );
+      const uniqueSources = new Set(
+        searchResults.filter((r) => !r.error).map((r) => r.stage)
+      ).size;
 
-    return { deduplicated, duplicatesRemoved };
-  }, [calculateSimilarity]);
+      if (totalPossible === 0) return 0;
 
-  const calculateDiversityScore = useCallback((results: any[]): number => {
-    if (results.length === 0) return 0;
-    if (results.length === 1) return 1;
+      // Coverage based on ratio of final results to total possible
+      const ratioCoverage =
+        finalResults.length / Math.min(totalPossible, maxResults);
 
-    let totalSimilarity = 0;
-    let comparisons = 0;
+      // Coverage based on source diversity
+      const sourceCoverage = uniqueSources / 3; // Assuming max 3 sources
 
-    for (let i = 0; i < Math.min(results.length, 10); i++) {
-      for (let j = i + 1; j < Math.min(results.length, 10); j++) {
-        totalSimilarity += calculateSimilarity(results[i], results[j]);
-        comparisons++;
-      }
-    }
-
-    const avgSimilarity = totalSimilarity / comparisons;
-    return 1 - avgSimilarity; // Diversity = 1 - average similarity
-  }, [calculateSimilarity]);
-
-  const calculateCoverageScore = useCallback((searchResults: SearchStageResult[], finalResults: any[]): number => {
-    const totalPossible = searchResults.reduce((sum, result) => sum + result.results.length, 0);
-    const uniqueSources = new Set(searchResults.filter(r => !r.error).map(r => r.stage)).size;
-
-    if (totalPossible === 0) return 0;
-
-    // Coverage based on ratio of final results to total possible
-    const ratioCoverage = finalResults.length / Math.min(totalPossible, maxResults);
-
-    // Coverage based on source diversity
-    const sourceCoverage = uniqueSources / 3; // Assuming max 3 sources
-
-    return (ratioCoverage * 0.7 + sourceCoverage * 0.3);
-  }, [maxResults]);
+      return ratioCoverage * 0.7 + sourceCoverage * 0.3;
+    },
+    [maxResults]
+  );
 
   const performAggregation = useCallback(async () => {
     if (searchResults.length === 0) return;
@@ -559,10 +696,10 @@ export const ResultAggregator: React.FC<ResultAggregatorProps> = ({
 
     try {
       // Simulate aggregation time
-      await new Promise(resolve => setTimeout(resolve, 800));
+      await new Promise((resolve) => setTimeout(resolve, 800));
 
-      const successfulResults = searchResults.filter(result => !result.error);
-      const rankings = successfulResults.map(result => result.results);
+      const successfulResults = searchResults.filter((result) => !result.error);
+      const rankings = successfulResults.map((result) => result.results);
 
       let fusedResults: any[] = [];
 
@@ -580,7 +717,8 @@ export const ResultAggregator: React.FC<ResultAggregatorProps> = ({
       }
 
       // Deduplicate results
-      const { deduplicated, duplicatesRemoved } = deduplicateResults(fusedResults);
+      const { deduplicated, duplicatesRemoved } =
+        deduplicateResults(fusedResults);
 
       // Limit results
       const finalResults = deduplicated.slice(0, maxResults);
@@ -590,13 +728,16 @@ export const ResultAggregator: React.FC<ResultAggregatorProps> = ({
         vector: 0,
         graph: 0,
         keyword: 0,
-        fused: finalResults.length
+        fused: finalResults.length,
       };
 
       // Calculate metrics
       const diversityScore = calculateDiversityScore(finalResults);
       const coverageScore = calculateCoverageScore(searchResults, finalResults);
-      const aggregationConfidence = Math.min(1, (diversityScore + coverageScore) / 2);
+      const aggregationConfidence = Math.min(
+        1,
+        (diversityScore + coverageScore) / 2
+      );
 
       const resultAggregation: ResultAggregation = {
         final_results: finalResults,
@@ -604,23 +745,32 @@ export const ResultAggregator: React.FC<ResultAggregatorProps> = ({
         deduplication_stats: {
           initial_count: fusedResults.length,
           final_count: finalResults.length,
-          duplicates_removed: duplicatesRemoved
+          duplicates_removed: duplicatesRemoved,
         },
         aggregation_confidence: aggregationConfidence,
         diversity_score: diversityScore,
         coverage_score: coverageScore,
-        fusion_method: fusionStrategy
+        fusion_method: fusionStrategy,
       };
 
       setAggregation(resultAggregation);
       onAggregationComplete?.(resultAggregation);
-
     } catch (error) {
       console.error('Aggregation failed:', error);
     } finally {
       setIsAggregating(false);
     }
-  }, [searchResults, fusionStrategy, maxResults, rrfFusion, weightedAverageFusion, deduplicateResults, calculateDiversityScore, calculateCoverageScore, onAggregationComplete]);
+  }, [
+    searchResults,
+    fusionStrategy,
+    maxResults,
+    rrfFusion,
+    weightedAverageFusion,
+    deduplicateResults,
+    calculateDiversityScore,
+    calculateCoverageScore,
+    onAggregationComplete,
+  ]);
 
   useEffect(() => {
     if (autoAggregate && searchResults.length > 0) {
@@ -633,7 +783,7 @@ export const ResultAggregator: React.FC<ResultAggregatorProps> = ({
   }
 
   return (
-    <div className={cn("space-y-4", className)}>
+    <div className={cn('space-y-4', className)}>
       {/* Aggregation Header */}
       <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
         <div className="flex items-center space-x-3">
@@ -643,8 +793,8 @@ export const ResultAggregator: React.FC<ResultAggregatorProps> = ({
             <ArrowsRightLeftIcon className="h-5 w-5 text-purple-600" />
           )}
           <div>
-            <h3 className="font-medium text-gray-900">Result Aggregation</h3>
-            <p className="text-sm text-gray-600">
+            <h3 className="font-medium text-foreground">Result Aggregation</h3>
+            <p className="text-sm text-foreground">
               {fusionStrategy.toUpperCase()} fusion • {maxResults} max results
             </p>
           </div>
@@ -653,11 +803,12 @@ export const ResultAggregator: React.FC<ResultAggregatorProps> = ({
         <div className="flex items-center space-x-3">
           {aggregation && (
             <div className="text-right">
-              <div className="text-sm font-medium text-gray-900">
+              <div className="text-sm font-medium text-foreground">
                 {aggregation.final_results.length} final results
               </div>
-              <div className="text-xs text-gray-600">
-                {aggregation.deduplication_stats.duplicates_removed} duplicates removed
+              <div className="text-xs text-foreground">
+                {aggregation.deduplication_stats.duplicates_removed} duplicates
+                removed
               </div>
             </div>
           )}
@@ -706,16 +857,21 @@ export const ResultAggregator: React.FC<ResultAggregatorProps> = ({
         <div className="space-y-3">
           <div className="flex items-center space-x-2 p-3 bg-purple-50 rounded-lg">
             <div className="h-4 w-4 animate-spin rounded-full border-2 border-purple-600 border-t-transparent" />
-            <span className="text-sm text-purple-800">Aggregating results...</span>
+            <span className="text-sm text-purple-800">
+              Aggregating results...
+            </span>
           </div>
 
           <div className="space-y-2">
             <div className="flex items-center justify-between text-sm">
-              <span className="text-gray-600">Fusing search results</span>
-              <span className="text-gray-900">50%</span>
+              <span className="text-foreground">Fusing search results</span>
+              <span className="text-foreground">50%</span>
             </div>
             <div className="w-full bg-gray-200 rounded-full h-2">
-              <div className="bg-purple-600 h-2 rounded-full transition-all duration-500" style={{ width: '50%' }} />
+              <div
+                className="bg-purple-600 h-2 rounded-full transition-all duration-500"
+                style={{ width: '50%' }}
+              />
             </div>
           </div>
         </div>
@@ -725,7 +881,7 @@ export const ResultAggregator: React.FC<ResultAggregatorProps> = ({
       {aggregation && !isAggregating && (
         <div className="space-y-3">
           {/* Quick Stats */}
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div className="flex items-center space-x-2 p-3 bg-green-50 rounded-lg">
               <CheckCircleIcon className="h-4 w-4 text-green-600" />
               <div>
@@ -750,7 +906,8 @@ export const ResultAggregator: React.FC<ResultAggregatorProps> = ({
               <ChartBarIcon className="h-4 w-4 text-purple-600" />
               <div>
                 <div className="text-sm font-medium text-purple-900">
-                  {Math.round(aggregation.aggregation_confidence * 100)}% Confidence
+                  {Math.round(aggregation.aggregation_confidence * 100)}%
+                  Confidence
                 </div>
                 <div className="text-xs text-purple-700">Quality score</div>
               </div>

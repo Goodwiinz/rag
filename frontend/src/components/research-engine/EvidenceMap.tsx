@@ -204,7 +204,7 @@ export function EvidenceMap({ projectId }: EvidenceMapProps) {
     return (
       <div className="flex items-center justify-center py-20">
         <Loader2 className="h-6 w-6 animate-spin text-sol" />
-        <span className="ml-2 font-mono text-sm text-gray-500">
+        <span className="ml-2 font-mono text-sm text-muted-foreground">
           Loading evidence map...
         </span>
       </div>
@@ -228,7 +228,7 @@ export function EvidenceMap({ projectId }: EvidenceMapProps) {
       <div className="flex items-center gap-4 mb-6">
         <button
           onClick={() => router.back()}
-          className="p-1.5 rounded hover:bg-white/5 text-gray-400 hover:text-gray-200 transition-colors"
+          className="p-1.5 rounded hover:bg-white/5 text-muted-foreground hover:text-foreground transition-colors"
           aria-label="Go back"
         >
           <ArrowLeft className="h-5 w-5" />
@@ -236,7 +236,7 @@ export function EvidenceMap({ projectId }: EvidenceMapProps) {
         <div className="flex-1">
           <h1 className="text-xl font-mono font-bold text-sol">Evidence Map</h1>
           {projectName && (
-            <p className="text-xs font-mono text-gray-500 mt-0.5">
+            <p className="text-xs font-mono text-muted-foreground mt-0.5">
               {projectName}
             </p>
           )}
@@ -257,7 +257,9 @@ export function EvidenceMap({ projectId }: EvidenceMapProps) {
                   opacity: 0.7,
                 }}
               />
-              <span className="text-xs font-mono text-gray-500">{label}</span>
+              <span className="text-xs font-mono text-muted-foreground">
+                {label}
+              </span>
             </div>
           ))}
         </div>
@@ -265,10 +267,10 @@ export function EvidenceMap({ projectId }: EvidenceMapProps) {
 
       {!hasData ? (
         <div className="flex flex-col items-center justify-center py-20 border border-dashed border-white/10 rounded">
-          <p className="text-gray-500 font-mono text-sm mb-1">
+          <p className="text-muted-foreground font-mono text-sm mb-1">
             No evidence data available yet.
           </p>
-          <p className="text-gray-600 font-mono text-xs">
+          <p className="text-foreground font-mono text-xs">
             Run a research blueprint to start building the evidence graph.
           </p>
         </div>
@@ -354,19 +356,19 @@ export function EvidenceMap({ projectId }: EvidenceMapProps) {
                 </span>
                 <button
                   onClick={() => setSelectedNode(null)}
-                  className="p-1 rounded hover:bg-white/5 text-gray-500 hover:text-gray-300 transition-colors"
+                  className="p-1 rounded hover:bg-white/5 text-muted-foreground hover:text-foreground transition-colors"
                   aria-label="Close detail panel"
                 >
                   <X className="h-4 w-4" />
                 </button>
               </div>
 
-              <h3 className="text-sm font-mono font-semibold text-gray-200 mb-2">
+              <h3 className="text-sm font-mono font-semibold text-muted-foreground mb-2">
                 {selectedNode.label}
               </h3>
 
               {selectedNode.description && (
-                <p className="text-xs font-mono text-gray-400 mb-3">
+                <p className="text-xs font-mono text-muted-foreground mb-3">
                   {selectedNode.description}
                 </p>
               )}
@@ -374,7 +376,7 @@ export function EvidenceMap({ projectId }: EvidenceMapProps) {
               {selectedNode.metadata &&
                 Object.keys(selectedNode.metadata).length > 0 && (
                   <div>
-                    <h4 className="text-xs font-mono text-gray-500 uppercase tracking-wide mb-1">
+                    <h4 className="text-xs font-mono text-muted-foreground uppercase tracking-wide mb-1">
                       Metadata
                     </h4>
                     <div className="space-y-1">
@@ -384,8 +386,8 @@ export function EvidenceMap({ projectId }: EvidenceMapProps) {
                             key={key}
                             className="flex justify-between text-xs font-mono"
                           >
-                            <span className="text-gray-500">{key}</span>
-                            <span className="text-gray-400 truncate ml-2 max-w-[160px]">
+                            <span className="text-muted-foreground">{key}</span>
+                            <span className="text-muted-foreground truncate ml-2 max-w-[160px]">
                               {String(value)}
                             </span>
                           </div>

@@ -18,8 +18,19 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 
 interface GraphCentralityMetricsProps {
@@ -91,7 +102,8 @@ export const GraphCentralityMetrics: React.FC<GraphCentralityMetricsProps> = ({
       icon: ShareIcon,
       color: 'text-blue-600',
       formula: 'CD(v) = deg(v)',
-      interpretation: 'Higher values indicate well-connected entities with many direct relationships.',
+      interpretation:
+        'Higher values indicate well-connected entities with many direct relationships.',
     },
     {
       id: 'betweenness',
@@ -100,7 +112,8 @@ export const GraphCentralityMetrics: React.FC<GraphCentralityMetricsProps> = ({
       icon: UsersIcon,
       color: 'text-green-600',
       formula: 'CB(v) = Σ(s≠v≠t) σst(v) / σst',
-      interpretation: 'Higher values indicate entities that act as bridges between different parts of the network.',
+      interpretation:
+        'Higher values indicate entities that act as bridges between different parts of the network.',
     },
     {
       id: 'closeness',
@@ -109,7 +122,8 @@ export const GraphCentralityMetrics: React.FC<GraphCentralityMetricsProps> = ({
       icon: MapIcon,
       color: 'text-purple-600',
       formula: 'CC(v) = (n-1) / Σu d(v,u)',
-      interpretation: 'Higher values indicate entities that can quickly reach all other entities in the network.',
+      interpretation:
+        'Higher values indicate entities that can quickly reach all other entities in the network.',
     },
     {
       id: 'eigenvector',
@@ -118,7 +132,8 @@ export const GraphCentralityMetrics: React.FC<GraphCentralityMetricsProps> = ({
       icon: AcademicCapIcon,
       color: 'text-orange-600',
       formula: 'Ax = λx',
-      interpretation: 'Higher values indicate entities connected to other important entities (influence propagation).',
+      interpretation:
+        'Higher values indicate entities connected to other important entities (influence propagation).',
     },
     {
       id: 'pagerank',
@@ -127,7 +142,8 @@ export const GraphCentralityMetrics: React.FC<GraphCentralityMetricsProps> = ({
       icon: ChartBarIcon,
       color: 'text-red-600',
       formula: 'PR(v) = (1-d)/n + d Σ PR(u)/L(u)',
-      interpretation: 'Higher values indicate entities that are referenced by other important entities.',
+      interpretation:
+        'Higher values indicate entities that are referenced by other important entities.',
     },
     {
       id: 'clustering',
@@ -136,7 +152,8 @@ export const GraphCentralityMetrics: React.FC<GraphCentralityMetricsProps> = ({
       icon: CogIcon,
       color: 'text-indigo-600',
       formula: 'C(v) = 2T(v) / (deg(v) * (deg(v) - 1))',
-      interpretation: 'Higher values indicate entities whose neighbors are well-connected to each other.',
+      interpretation:
+        'Higher values indicate entities whose neighbors are well-connected to each other.',
     },
   ];
 
@@ -146,9 +163,9 @@ export const GraphCentralityMetrics: React.FC<GraphCentralityMetricsProps> = ({
 
     // Build adjacency list
     const adjacencyList = new Map<string, Set<string>>();
-    const entityMap = new Map(entities.map(e => [e.id, e]));
+    const entityMap = new Map(entities.map((e) => [e.id, e]));
 
-    relationships.forEach(rel => {
+    relationships.forEach((rel) => {
       if (!adjacencyList.has(rel.source_entity_id)) {
         adjacencyList.set(rel.source_entity_id, new Set());
       }
@@ -159,7 +176,7 @@ export const GraphCentralityMetrics: React.FC<GraphCentralityMetricsProps> = ({
       adjacencyList.get(rel.target_entity_id)!.add(rel.source_entity_id);
     });
 
-    entities.forEach(entity => {
+    entities.forEach((entity) => {
       const neighbors = adjacencyList.get(entity.id) || new Set();
 
       // Degree Centrality
@@ -169,9 +186,12 @@ export const GraphCentralityMetrics: React.FC<GraphCentralityMetricsProps> = ({
       let totalDistance = 0;
       let reachableCount = 0;
       const visited = new Set<string>();
-      const queue = Array.from(neighbors).map(n => ({ node: n, distance: 1 }));
+      const queue = Array.from(neighbors).map((n) => ({
+        node: n,
+        distance: 1,
+      }));
       visited.add(entity.id);
-      queue.forEach(q => visited.add(q.node));
+      queue.forEach((q) => visited.add(q.node));
 
       while (queue.length > 0) {
         const current = queue.shift()!;
@@ -179,7 +199,7 @@ export const GraphCentralityMetrics: React.FC<GraphCentralityMetricsProps> = ({
         reachableCount++;
 
         const currentNeighbors = adjacencyList.get(current.node) || new Set();
-        currentNeighbors.forEach(neighbor => {
+        currentNeighbors.forEach((neighbor) => {
           if (!visited.has(neighbor)) {
             visited.add(neighbor);
             queue.push({ node: neighbor, distance: current.distance + 1 });
@@ -187,15 +207,16 @@ export const GraphCentralityMetrics: React.FC<GraphCentralityMetricsProps> = ({
         });
       }
 
-      const closeness = reachableCount > 1 ? (reachableCount - 1) / totalDistance : 0;
+      const closeness =
+        reachableCount > 1 ? (reachableCount - 1) / totalDistance : 0;
 
       // Betweenness Centrality (simplified approximation)
       let betweenness = 0;
       if (degree > 1) {
         // Simplified: count how many shortest paths potentially go through this node
-        entities.forEach(other1 => {
+        entities.forEach((other1) => {
           if (other1.id === entity.id) return;
-          entities.forEach(other2 => {
+          entities.forEach((other2) => {
             if (other2.id === entity.id || other2.id === other1.id) return;
 
             const other1Neighbors = adjacencyList.get(other1.id) || new Set();
@@ -211,7 +232,7 @@ export const GraphCentralityMetrics: React.FC<GraphCentralityMetricsProps> = ({
 
       // Eigenvector Centrality (simplified)
       let eigenvector = 0;
-      neighbors.forEach(neighborId => {
+      neighbors.forEach((neighborId) => {
         const neighborEntity = entityMap.get(neighborId);
         if (neighborEntity) {
           eigenvector += neighborEntity.confidence;
@@ -221,8 +242,9 @@ export const GraphCentralityMetrics: React.FC<GraphCentralityMetricsProps> = ({
 
       // PageRank (simplified)
       let pagerank = 0.15; // Damping factor
-      neighbors.forEach(neighborId => {
-        const neighborDegree = (adjacencyList.get(neighborId) || new Set()).size;
+      neighbors.forEach((neighborId) => {
+        const neighborDegree = (adjacencyList.get(neighborId) || new Set())
+          .size;
         if (neighborDegree > 0) {
           pagerank += 0.85 / neighborDegree;
         }
@@ -235,8 +257,9 @@ export const GraphCentralityMetrics: React.FC<GraphCentralityMetricsProps> = ({
         const neighborArray = Array.from(neighbors);
 
         neighborArray.forEach((neighbor1, i) => {
-          neighborArray.slice(i + 1).forEach(neighbor2 => {
-            const neighbor1Neighbors = adjacencyList.get(neighbor1) || new Set();
+          neighborArray.slice(i + 1).forEach((neighbor2) => {
+            const neighbor1Neighbors =
+              adjacencyList.get(neighbor1) || new Set();
             if (neighbor1Neighbors.has(neighbor2)) {
               neighborConnections++;
             }
@@ -262,27 +285,29 @@ export const GraphCentralityMetrics: React.FC<GraphCentralityMetricsProps> = ({
 
   // Get current metric data
   const currentMetricData = useMemo(() => {
-    const metric = centralityMetrics.find(m => m.id === selectedMetric);
+    const metric = centralityMetrics.find((m) => m.id === selectedMetric);
     if (!metric) return [];
 
     const scoresWithEntities = centralityScores
-      .map(score => ({
-        entity: entities.find(e => e.id === score.entityId),
+      .map((score) => ({
+        entity: entities.find((e) => e.id === score.entityId),
         value: score[selectedMetric as keyof CentralityScore] as number,
         score,
       }))
-      .filter(item => item.entity !== undefined)
+      .filter((item) => item.entity !== undefined)
       .sort((a, b) => b.value - a.value);
 
     // Apply filters
     let filtered = scoresWithEntities;
 
     if (filters.entityType !== 'all') {
-      filtered = filtered.filter(item => item.entity!.type === filters.entityType);
+      filtered = filtered.filter(
+        (item) => item.entity!.type === filters.entityType
+      );
     }
 
     if (filters.minValue > 0) {
-      filtered = filtered.filter(item => item.value >= filters.minValue);
+      filtered = filtered.filter((item) => item.value >= filters.minValue);
     }
 
     return filtered.slice(0, filters.topN);
@@ -292,7 +317,7 @@ export const GraphCentralityMetrics: React.FC<GraphCentralityMetricsProps> = ({
   const metricStats = useMemo(() => {
     if (currentMetricData.length === 0) return null;
 
-    const values = currentMetricData.map(d => d.value);
+    const values = currentMetricData.map((d) => d.value);
     const max = Math.max(...values);
     const min = Math.min(...values);
     const avg = values.reduce((sum, val) => sum + val, 0) / values.length;
@@ -302,48 +327,68 @@ export const GraphCentralityMetrics: React.FC<GraphCentralityMetricsProps> = ({
   }, [currentMetricData]);
 
   // Get metric detail for an entity
-  const getMetricDetail = useCallback((entity: Entity) => {
-    const score = centralityScores.find(s => s.entityId === entity.id);
-    if (!score) return null;
+  const getMetricDetail = useCallback(
+    (entity: Entity) => {
+      const score = centralityScores.find((s) => s.entityId === entity.id);
+      if (!score) return null;
 
-    const value = score[selectedMetric as keyof CentralityScore] as number;
-    const rank = currentMetricData.findIndex(d => d.entity?.id === entity.id) + 1;
-    const percentile = ((currentMetricData.length - rank) / currentMetricData.length) * 100;
+      const value = score[selectedMetric as keyof CentralityScore] as number;
+      const rank =
+        currentMetricData.findIndex((d) => d.entity?.id === entity.id) + 1;
+      const percentile =
+        ((currentMetricData.length - rank) / currentMetricData.length) * 100;
 
-    // Find related entities that contribute to this metric
-    const relatedEntities = relationships
-      .filter(r => r.source_entity_id === entity.id || r.target_entity_id === entity.id)
-      .map(rel => {
-        const relatedId = rel.source_entity_id === entity.id ? rel.target_entity_id : rel.source_entity_id;
-        const relatedEntity = entities.find(e => e.id === relatedId);
-        return {
-          entity: relatedEntity,
-          relationship: rel,
-          contribution: rel.confidence * rel.weight,
-        };
-      })
-      .filter(item => item.entity !== undefined)
-      .sort((a, b) => b.contribution - a.contribution)
-      .slice(0, 5);
+      // Find related entities that contribute to this metric
+      const relatedEntities = relationships
+        .filter(
+          (r) =>
+            r.source_entity_id === entity.id || r.target_entity_id === entity.id
+        )
+        .map((rel) => {
+          const relatedId =
+            rel.source_entity_id === entity.id
+              ? rel.target_entity_id
+              : rel.source_entity_id;
+          const relatedEntity = entities.find((e) => e.id === relatedId);
+          return {
+            entity: relatedEntity,
+            relationship: rel,
+            contribution: rel.confidence * rel.weight,
+          };
+        })
+        .filter((item) => item.entity !== undefined)
+        .sort((a, b) => b.contribution - a.contribution)
+        .slice(0, 5);
 
-    return {
-      entity,
-      metric: selectedMetric,
-      value,
-      rank,
-      percentile,
-      relatedEntities: relatedEntities as any[],
-    };
-  }, [centralityScores, selectedMetric, currentMetricData, relationships, entities]);
+      return {
+        entity,
+        metric: selectedMetric,
+        value,
+        rank,
+        percentile,
+        relatedEntities: relatedEntities as any[],
+      };
+    },
+    [
+      centralityScores,
+      selectedMetric,
+      currentMetricData,
+      relationships,
+      entities,
+    ]
+  );
 
   // Handle entity click
-  const handleEntityClick = useCallback((entity: Entity) => {
-    setSelectedEntity(entity);
-    const detail = getMetricDetail(entity);
-    if (detail) {
-      setMetricDetail(detail);
-    }
-  }, [getMetricDetail]);
+  const handleEntityClick = useCallback(
+    (entity: Entity) => {
+      setSelectedEntity(entity);
+      const detail = getMetricDetail(entity);
+      if (detail) {
+        setMetricDetail(detail);
+      }
+    },
+    [getMetricDetail]
+  );
 
   // Get entity type color
   const getEntityTypeColor = (type: Entity['type']) => {
@@ -355,12 +400,12 @@ export const GraphCentralityMetrics: React.FC<GraphCentralityMetricsProps> = ({
       date: 'bg-orange-100 text-orange-800 border-orange-200',
       product: 'bg-pink-100 text-pink-800 border-pink-200',
     };
-    return colors[type] || 'bg-gray-100 text-gray-800 border-gray-200';
+    return colors[type] || 'bg-gray-100 text-foreground border-border';
   };
 
   // Get metric icon
   const getMetricIcon = (metricId: string) => {
-    const metric = centralityMetrics.find(m => m.id === metricId);
+    const metric = centralityMetrics.find((m) => m.id === metricId);
     return metric?.icon || ChartBarIcon;
   };
 
@@ -379,8 +424,8 @@ export const GraphCentralityMetrics: React.FC<GraphCentralityMetricsProps> = ({
 
   // Get metric color
   const getMetricColor = (metricId: string) => {
-    const metric = centralityMetrics.find(m => m.id === metricId);
-    return metric?.color || 'text-gray-600';
+    const metric = centralityMetrics.find((m) => m.id === metricId);
+    return metric?.color || 'text-foreground';
   };
 
   // Format metric value
@@ -399,11 +444,11 @@ export const GraphCentralityMetrics: React.FC<GraphCentralityMetricsProps> = ({
     }
   };
 
-  const currentMetric = centralityMetrics.find(m => m.id === selectedMetric);
+  const currentMetric = centralityMetrics.find((m) => m.id === selectedMetric);
   const CurrentMetricIcon = getMetricIcon(selectedMetric);
 
   return (
-    <div className={cn("space-y-6", className)}>
+    <div className={cn('space-y-6', className)}>
       {/* Metric Selection Header */}
       <Card>
         <CardHeader>
@@ -425,17 +470,22 @@ export const GraphCentralityMetrics: React.FC<GraphCentralityMetricsProps> = ({
         <CardContent>
           {/* Metric Selection */}
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
-            {centralityMetrics.map(metric => {
+            {centralityMetrics.map((metric) => {
               const MetricIcon = metric.icon;
               return (
                 <Button
                   key={metric.id}
-                  variant={selectedMetric === metric.id ? "default" : "outline"}
+                  variant={selectedMetric === metric.id ? 'default' : 'outline'}
                   size="sm"
                   onClick={() => setSelectedMetric(metric.id)}
                   className="h-16 flex-col space-y-1"
                 >
-                  <MetricIcon className={cn("h-6 w-6", selectedMetric === metric.id ? "" : metric.color)} />
+                  <MetricIcon
+                    className={cn(
+                      'h-6 w-6',
+                      selectedMetric === metric.id ? '' : metric.color
+                    )}
+                  />
                   <span className="text-xs">{metric.name}</span>
                 </Button>
               );
@@ -446,20 +496,32 @@ export const GraphCentralityMetrics: React.FC<GraphCentralityMetricsProps> = ({
           {currentMetric && (
             <div className="p-4 bg-gray-50 rounded-lg">
               <div className="flex items-start space-x-3">
-                <CurrentMetricIcon className={cn("h-6 w-6 mt-1", currentMetric.color)} />
+                <CurrentMetricIcon
+                  className={cn('h-6 w-6 mt-1', currentMetric.color)}
+                />
                 <div className="flex-1">
-                  <h3 className="font-medium text-gray-900">{currentMetric.name}</h3>
-                  <p className="text-sm text-gray-600 mt-1">{currentMetric.description}</p>
+                  <h3 className="font-medium text-foreground">
+                    {currentMetric.name}
+                  </h3>
+                  <p className="text-sm text-foreground mt-1">
+                    {currentMetric.description}
+                  </p>
                   <div className="mt-2 space-y-1">
-                    <p className="text-xs text-gray-500">
-                      <span className="font-medium">Formula:</span> {currentMetric.formula}
+                    <p className="text-xs text-muted-foreground">
+                      <span className="font-medium">Formula:</span>{' '}
+                      {currentMetric.formula}
                     </p>
-                    <p className="text-xs text-gray-500">
-                      <span className="font-medium">Interpretation:</span> {currentMetric.interpretation}
+                    <p className="text-xs text-muted-foreground">
+                      <span className="font-medium">Interpretation:</span>{' '}
+                      {currentMetric.interpretation}
                     </p>
                   </div>
                 </div>
-                <Button variant="ghost" size="sm" aria-label="Metric Information">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  aria-label="Metric Information"
+                >
                   <InformationCircleIcon className="h-5 w-5" />
                 </Button>
               </div>
@@ -470,10 +532,15 @@ export const GraphCentralityMetrics: React.FC<GraphCentralityMetricsProps> = ({
           {showFilters && (
             <div className="mt-4 pt-4 border-t grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-foreground mb-2">
                   Entity Type
                 </label>
-                <Select value={filters.entityType} onValueChange={(value: any) => setFilters(prev => ({ ...prev, entityType: value }))}>
+                <Select
+                  value={filters.entityType}
+                  onValueChange={(value: any) =>
+                    setFilters((prev) => ({ ...prev, entityType: value }))
+                  }
+                >
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
@@ -490,7 +557,7 @@ export const GraphCentralityMetrics: React.FC<GraphCentralityMetricsProps> = ({
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-foreground mb-2">
                   Minimum Value
                 </label>
                 <input
@@ -498,16 +565,26 @@ export const GraphCentralityMetrics: React.FC<GraphCentralityMetricsProps> = ({
                   step="0.01"
                   min="0"
                   value={filters.minValue}
-                  onChange={(e) => setFilters(prev => ({ ...prev, minValue: parseFloat(e.target.value) || 0 }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                  onChange={(e) =>
+                    setFilters((prev) => ({
+                      ...prev,
+                      minValue: parseFloat(e.target.value) || 0,
+                    }))
+                  }
+                  className="w-full px-3 py-2 border border-border rounded-md text-sm"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-foreground mb-2">
                   Top Results
                 </label>
-                <Select value={filters.topN.toString()} onValueChange={(value) => setFilters(prev => ({ ...prev, topN: parseInt(value) }))}>
+                <Select
+                  value={filters.topN.toString()}
+                  onValueChange={(value) =>
+                    setFilters((prev) => ({ ...prev, topN: parseInt(value) }))
+                  }
+                >
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
@@ -528,20 +605,28 @@ export const GraphCentralityMetrics: React.FC<GraphCentralityMetricsProps> = ({
             <div className="mt-4 pt-4 border-t">
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
                 <div>
-                  <div className="text-lg font-bold text-gray-900">{metricStats.count}</div>
-                  <div className="text-sm text-gray-500">Entities</div>
+                  <div className="text-lg font-bold text-foreground">
+                    {metricStats.count}
+                  </div>
+                  <div className="text-sm text-muted-foreground">Entities</div>
                 </div>
                 <div>
-                  <div className="text-lg font-bold text-gray-900">{formatMetricValue(metricStats.max, selectedMetric)}</div>
-                  <div className="text-sm text-gray-500">Maximum</div>
+                  <div className="text-lg font-bold text-foreground">
+                    {formatMetricValue(metricStats.max, selectedMetric)}
+                  </div>
+                  <div className="text-sm text-muted-foreground">Maximum</div>
                 </div>
                 <div>
-                  <div className="text-lg font-bold text-gray-900">{formatMetricValue(metricStats.avg, selectedMetric)}</div>
-                  <div className="text-sm text-gray-500">Average</div>
+                  <div className="text-lg font-bold text-foreground">
+                    {formatMetricValue(metricStats.avg, selectedMetric)}
+                  </div>
+                  <div className="text-sm text-muted-foreground">Average</div>
                 </div>
                 <div>
-                  <div className="text-lg font-bold text-gray-900">{formatMetricValue(metricStats.median || 0, selectedMetric)}</div>
-                  <div className="text-sm text-gray-500">Median</div>
+                  <div className="text-lg font-bold text-foreground">
+                    {formatMetricValue(metricStats.median || 0, selectedMetric)}
+                  </div>
+                  <div className="text-sm text-muted-foreground">Median</div>
                 </div>
               </div>
             </div>
@@ -553,21 +638,27 @@ export const GraphCentralityMetrics: React.FC<GraphCentralityMetricsProps> = ({
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center">
-            <CurrentMetricIcon className={cn("h-5 w-5 mr-2", currentMetric?.color)} />
+            <CurrentMetricIcon
+              className={cn('h-5 w-5 mr-2', currentMetric?.color)}
+            />
             {currentMetric?.name} Results
           </CardTitle>
         </CardHeader>
         <CardContent>
           {currentMetricData.length === 0 ? (
             <div className="text-center py-8">
-              <ChartBarIcon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <p className="text-gray-500">No entities found matching the current criteria.</p>
+              <ChartBarIcon className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+              <p className="text-muted-foreground">
+                No entities found matching the current criteria.
+              </p>
             </div>
           ) : (
             <div className="space-y-3">
               {currentMetricData.map((item, index) => {
                 const entity = item.entity!;
-                const percentage = metricStats ? (item.value / metricStats.max) * 100 : 0;
+                const percentage = metricStats
+                  ? (item.value / metricStats.max) * 100
+                  : 0;
 
                 return (
                   <div
@@ -577,10 +668,12 @@ export const GraphCentralityMetrics: React.FC<GraphCentralityMetricsProps> = ({
                   >
                     {/* Rank */}
                     <div className="flex-shrink-0 w-8 text-center">
-                      <div className={cn(
-                        "text-sm font-bold",
-                        index < 3 ? "text-blue-600" : "text-gray-500"
-                      )}>
+                      <div
+                        className={cn(
+                          'text-sm font-bold',
+                          index < 3 ? 'text-blue-600' : 'text-muted-foreground'
+                        )}
+                      >
                         #{index + 1}
                       </div>
                     </div>
@@ -588,15 +681,19 @@ export const GraphCentralityMetrics: React.FC<GraphCentralityMetricsProps> = ({
                     {/* Entity Info */}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center space-x-2">
-                        <span className="font-medium truncate">{entity.name}</span>
+                        <span className="font-medium truncate">
+                          {entity.name}
+                        </span>
                         <Badge className={getEntityTypeColor(entity.type)}>
                           {entity.type}
                         </Badge>
                       </div>
-                      <div className="flex items-center space-x-4 mt-1 text-sm text-gray-500">
+                      <div className="flex items-center space-x-4 mt-1 text-sm text-muted-foreground">
                         <span>{entity.mentions} mentions</span>
                         <span>{entity.document_ids.length} documents</span>
-                        <span>{Math.round(entity.confidence * 100)}% confidence</span>
+                        <span>
+                          {Math.round(entity.confidence * 100)}% confidence
+                        </span>
                       </div>
                     </div>
 
@@ -605,7 +702,7 @@ export const GraphCentralityMetrics: React.FC<GraphCentralityMetricsProps> = ({
                       <div className="text-lg font-bold">
                         {formatMetricValue(item.value, selectedMetric)}
                       </div>
-                      <div className="text-sm text-gray-500">
+                      <div className="text-sm text-muted-foreground">
                         {Math.round(percentage)}th percentile
                       </div>
                     </div>
@@ -617,7 +714,11 @@ export const GraphCentralityMetrics: React.FC<GraphCentralityMetricsProps> = ({
 
                     {/* Actions */}
                     <div className="flex-shrink-0">
-                      <Button variant="ghost" size="sm" aria-label="View Entity Details">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        aria-label="View Entity Details"
+                      >
                         <EyeIcon className="h-4 w-4" />
                       </Button>
                     </div>
@@ -631,11 +732,16 @@ export const GraphCentralityMetrics: React.FC<GraphCentralityMetricsProps> = ({
 
       {/* Metric Detail Modal */}
       {metricDetail && (
-        <Dialog open={!!metricDetail} onOpenChange={() => setMetricDetail(null)}>
+        <Dialog
+          open={!!metricDetail}
+          onOpenChange={() => setMetricDetail(null)}
+        >
           <DialogContent className="max-w-4xl">
             <DialogHeader>
               <DialogTitle className="flex items-center">
-                <CurrentMetricIcon className={cn("h-5 w-5 mr-2", currentMetric?.color)} />
+                <CurrentMetricIcon
+                  className={cn('h-5 w-5 mr-2', currentMetric?.color)}
+                />
                 {metricDetail.entity.name} - {currentMetric?.name}
               </DialogTitle>
             </DialogHeader>
@@ -644,91 +750,134 @@ export const GraphCentralityMetrics: React.FC<GraphCentralityMetricsProps> = ({
               {/* Overview */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="text-center p-4 bg-gray-50 rounded-lg">
-                  <div className="text-2xl font-bold text-gray-900">
+                  <div className="text-2xl font-bold text-foreground">
                     {formatMetricValue(metricDetail.value, selectedMetric)}
                   </div>
-                  <div className="text-sm text-gray-500">{currentMetric?.name}</div>
+                  <div className="text-sm text-muted-foreground">
+                    {currentMetric?.name}
+                  </div>
                 </div>
                 <div className="text-center p-4 bg-gray-50 rounded-lg">
-                  <div className="text-2xl font-bold text-blue-600">#{metricDetail.rank}</div>
-                  <div className="text-sm text-gray-500">Rank</div>
+                  <div className="text-2xl font-bold text-blue-600">
+                    #{metricDetail.rank}
+                  </div>
+                  <div className="text-sm text-muted-foreground">Rank</div>
                 </div>
                 <div className="text-center p-4 bg-gray-50 rounded-lg">
                   <div className="text-2xl font-bold text-green-600">
                     {Math.round(metricDetail.percentile)}%
                   </div>
-                  <div className="text-sm text-gray-500">Percentile</div>
+                  <div className="text-sm text-muted-foreground">
+                    Percentile
+                  </div>
                 </div>
                 <div className="text-center p-4 bg-gray-50 rounded-lg">
                   <div className="text-2xl font-bold text-purple-600">
                     {metricDetail.relatedEntities.length}
                   </div>
-                  <div className="text-sm text-gray-500">Related Entities</div>
+                  <div className="text-sm text-muted-foreground">
+                    Related Entities
+                  </div>
                 </div>
               </div>
 
               {/* Related Entities */}
               {metricDetail.relatedEntities.length > 0 && (
                 <div>
-                  <h4 className="font-medium text-gray-900 mb-3">Entities Contributing to This Score</h4>
+                  <h4 className="font-medium text-foreground mb-3">
+                    Entities Contributing to This Score
+                  </h4>
                   <div className="space-y-2">
-                    {metricDetail.relatedEntities.map(({ entity, relationship, contribution }) => {
-                      const EntityTypeIcon = getEntityTypeIcon(entity.type);
-                      return (
-                        <div
-                          key={entity.id}
-                          className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
-                        >
-                          <div className="flex items-center space-x-2">
-                            <EntityTypeIcon className="h-4 w-4" />
-                            <span className="font-medium">{entity.name}</span>
-                            <Badge className={getEntityTypeColor(entity.type)}>
-                              {entity.type}
-                            </Badge>
+                    {metricDetail.relatedEntities.map(
+                      ({ entity, relationship, contribution }) => {
+                        const EntityTypeIcon = getEntityTypeIcon(entity.type);
+                        return (
+                          <div
+                            key={entity.id}
+                            className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
+                          >
+                            <div className="flex items-center space-x-2">
+                              <EntityTypeIcon className="h-4 w-4" />
+                              <span className="font-medium">{entity.name}</span>
+                              <Badge
+                                className={getEntityTypeColor(entity.type)}
+                              >
+                                {entity.type}
+                              </Badge>
+                            </div>
+                            <div className="flex items-center space-x-3">
+                              <Badge variant="outline">
+                                {relationship.relationship_type}
+                              </Badge>
+                              <span className="text-sm text-muted-foreground">
+                                Contribution: {contribution.toFixed(3)}
+                              </span>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                aria-label="Open Relationship"
+                              >
+                                <ArrowTopRightOnSquareIcon className="h-4 w-4" />
+                              </Button>
+                            </div>
                           </div>
-                          <div className="flex items-center space-x-3">
-                            <Badge variant="outline">
-                              {relationship.relationship_type}
-                            </Badge>
-                            <span className="text-sm text-gray-500">
-                              Contribution: {contribution.toFixed(3)}
-                            </span>
-                            <Button variant="ghost" size="sm" aria-label="Open Relationship">
-                              <ArrowTopRightOnSquareIcon className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </div>
-                      );
-                    })}
+                        );
+                      }
+                    )}
                   </div>
                 </div>
               )}
 
               {/* Entity Details */}
               <div>
-                <h4 className="font-medium text-gray-900 mb-3">Entity Details</h4>
+                <h4 className="font-medium text-foreground mb-3">
+                  Entity Details
+                </h4>
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div>
-                    <span className="font-medium text-gray-700">Description:</span>
-                    <p className="mt-1">{metricDetail.entity.description || 'No description available'}</p>
+                    <span className="font-medium text-foreground">
+                      Description:
+                    </span>
+                    <p className="mt-1">
+                      {metricDetail.entity.description ||
+                        'No description available'}
+                    </p>
                   </div>
                   <div>
-                    <span className="font-medium text-gray-700">Aliases:</span>
+                    <span className="font-medium text-foreground">
+                      Aliases:
+                    </span>
                     <div className="mt-1 flex flex-wrap gap-1">
                       {metricDetail.entity.aliases.map((alias, index) => (
-                        <Badge key={index} variant="secondary" className="text-xs">
+                        <Badge
+                          key={index}
+                          variant="secondary"
+                          className="text-xs"
+                        >
                           {alias}
                         </Badge>
                       ))}
                     </div>
                   </div>
                   <div>
-                    <span className="font-medium text-gray-700">First Seen:</span>
-                    <div className="mt-1">{new Date(metricDetail.entity.first_seen).toLocaleDateString()}</div>
+                    <span className="font-medium text-foreground">
+                      First Seen:
+                    </span>
+                    <div className="mt-1">
+                      {new Date(
+                        metricDetail.entity.first_seen
+                      ).toLocaleDateString()}
+                    </div>
                   </div>
                   <div>
-                    <span className="font-medium text-gray-700">Last Seen:</span>
-                    <div className="mt-1">{new Date(metricDetail.entity.last_seen).toLocaleDateString()}</div>
+                    <span className="font-medium text-foreground">
+                      Last Seen:
+                    </span>
+                    <div className="mt-1">
+                      {new Date(
+                        metricDetail.entity.last_seen
+                      ).toLocaleDateString()}
+                    </div>
                   </div>
                 </div>
               </div>

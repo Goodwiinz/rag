@@ -15,7 +15,7 @@ import {
   InformationCircleIcon,
   ExclamationTriangleIcon,
   CheckCircleIcon,
-  XCircleIcon
+  XCircleIcon,
 } from '@heroicons/react/24/outline';
 
 export interface MetricCardProps {
@@ -35,7 +35,13 @@ export interface MetricCardProps {
     error_color?: string;
   };
   previousValue?: number | string;
-  format?: 'number' | 'percentage' | 'currency' | 'duration' | 'bytes' | 'custom';
+  format?:
+    | 'number'
+    | 'percentage'
+    | 'currency'
+    | 'duration'
+    | 'bytes'
+    | 'custom';
   customFormat?: (value: number | string) => string;
   size?: 'sm' | 'md' | 'lg';
   variant?: 'default' | 'compact' | 'detailed';
@@ -62,7 +68,7 @@ const MetricCard: React.FC<MetricCardProps> = ({
   variant = 'default',
   onClick,
   className,
-  children
+  children,
 }) => {
   // Format value based on type
   const formatValue = (val: number | string): string => {
@@ -80,7 +86,7 @@ const MetricCard: React.FC<MetricCardProps> = ({
       case 'currency':
         return new Intl.NumberFormat('en-US', {
           style: 'currency',
-          currency: 'USD'
+          currency: 'USD',
         }).format(val);
       case 'duration':
         if (val < 1000) {
@@ -112,7 +118,12 @@ const MetricCard: React.FC<MetricCardProps> = ({
     if (status !== 'default') return status;
     if (!threshold || typeof value !== 'number') return 'default';
 
-    const { value: thresholdValue, type, error_color, warning_color } = threshold;
+    const {
+      value: thresholdValue,
+      type,
+      error_color,
+      warning_color,
+    } = threshold;
     const isWarning = false;
     let isError = false;
 
@@ -149,7 +160,7 @@ const MetricCard: React.FC<MetricCardProps> = ({
           border: 'border-green-200',
           text: 'text-green-900',
           value: 'text-green-600',
-          badge: 'bg-green-100 text-green-800'
+          badge: 'bg-green-100 text-green-800',
         };
       case 'warning':
         return {
@@ -157,7 +168,7 @@ const MetricCard: React.FC<MetricCardProps> = ({
           border: 'border-yellow-200',
           text: 'text-yellow-900',
           value: 'text-yellow-600',
-          badge: 'bg-yellow-100 text-yellow-800'
+          badge: 'bg-yellow-100 text-yellow-800',
         };
       case 'error':
         return {
@@ -165,7 +176,7 @@ const MetricCard: React.FC<MetricCardProps> = ({
           border: 'border-red-200',
           text: 'text-red-900',
           value: 'text-red-600',
-          badge: 'bg-red-100 text-red-800'
+          badge: 'bg-red-100 text-red-800',
         };
       case 'info':
         return {
@@ -173,15 +184,15 @@ const MetricCard: React.FC<MetricCardProps> = ({
           border: 'border-blue-200',
           text: 'text-blue-900',
           value: 'text-blue-600',
-          badge: 'bg-blue-100 text-blue-800'
+          badge: 'bg-blue-100 text-blue-800',
         };
       default:
         return {
           bg: 'bg-white',
-          border: 'border-gray-200',
-          text: 'text-gray-900',
-          value: 'text-gray-900',
-          badge: 'bg-gray-100 text-gray-800'
+          border: 'border-border',
+          text: 'text-foreground',
+          value: 'text-foreground',
+          badge: 'bg-gray-100 text-foreground',
         };
     }
   };
@@ -196,14 +207,14 @@ const MetricCard: React.FC<MetricCardProps> = ({
           card: 'p-4',
           title: 'text-sm font-medium',
           value: 'text-lg font-semibold',
-          description: 'text-xs'
+          description: 'text-xs',
         };
       case 'lg':
         return {
           card: 'p-8',
           title: 'text-xl font-semibold',
           value: 'text-4xl font-bold',
-          description: 'text-base'
+          description: 'text-base',
         };
       case 'md':
       default:
@@ -211,7 +222,7 @@ const MetricCard: React.FC<MetricCardProps> = ({
           card: 'p-6',
           title: 'text-lg font-semibold',
           value: 'text-2xl font-bold',
-          description: 'text-sm'
+          description: 'text-sm',
         };
     }
   };
@@ -222,10 +233,18 @@ const MetricCard: React.FC<MetricCardProps> = ({
   const renderTrend = () => {
     if (!trend) return null;
 
-    const TrendIcon = trend.direction === 'up' ? ArrowTrendingUpIcon :
-                     trend.direction === 'down' ? ArrowTrendingDownIcon : MinusIcon;
-    const trendColor = trend.direction === 'up' ? 'text-green-600' :
-                      trend.direction === 'down' ? 'text-red-600' : 'text-gray-500';
+    const TrendIcon =
+      trend.direction === 'up'
+        ? ArrowTrendingUpIcon
+        : trend.direction === 'down'
+          ? ArrowTrendingDownIcon
+          : MinusIcon;
+    const trendColor =
+      trend.direction === 'up'
+        ? 'text-green-600'
+        : trend.direction === 'down'
+          ? 'text-red-600'
+          : 'text-muted-foreground';
 
     return (
       <div className={cn('flex items-center space-x-1', trendColor)}>
@@ -269,7 +288,8 @@ const MetricCard: React.FC<MetricCardProps> = ({
   }
 
   const formattedValue = formatValue(value);
-  const formattedPreviousValue = previousValue !== undefined ? formatValue(previousValue) : null;
+  const formattedPreviousValue =
+    previousValue !== undefined ? formatValue(previousValue) : null;
 
   return (
     <Card
@@ -301,7 +321,9 @@ const MetricCard: React.FC<MetricCardProps> = ({
         </CardHeader>
       )}
 
-      <CardContent className={cn(variant === 'default' ? sizeClasses.card : 'px-6 pb-6')}>
+      <CardContent
+        className={cn(variant === 'default' ? sizeClasses.card : 'px-6 pb-6')}
+      >
         {variant === 'default' && (
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center space-x-2">
@@ -309,7 +331,12 @@ const MetricCard: React.FC<MetricCardProps> = ({
               <div>
                 <h3 className={cn(sizeClasses.title, colors.text)}>{title}</h3>
                 {description && (
-                  <p className={cn('text-muted-foreground', sizeClasses.description)}>
+                  <p
+                    className={cn(
+                      'text-muted-foreground',
+                      sizeClasses.description
+                    )}
+                  >
                     {description}
                   </p>
                 )}
@@ -324,7 +351,9 @@ const MetricCard: React.FC<MetricCardProps> = ({
             {formattedValue}
           </div>
           {unit && (
-            <span className={cn('text-muted-foreground', sizeClasses.description)}>
+            <span
+              className={cn('text-muted-foreground', sizeClasses.description)}
+            >
               {unit}
             </span>
           )}
@@ -337,16 +366,24 @@ const MetricCard: React.FC<MetricCardProps> = ({
 
         {formattedPreviousValue && (
           <div className="mt-2 flex items-center space-x-2">
-            <span className={cn('text-muted-foreground', sizeClasses.description)}>
+            <span
+              className={cn('text-muted-foreground', sizeClasses.description)}
+            >
               Previous: {formattedPreviousValue}
             </span>
             {typeof value === 'number' && typeof previousValue === 'number' && (
-              <span className={cn(
-                'text-sm font-medium',
-                value > previousValue ? 'text-green-600' :
-                value < previousValue ? 'text-red-600' : 'text-gray-500'
-              )}>
-                {value > previousValue ? '+' : ''}{((value - previousValue) / previousValue * 100).toFixed(1)}%
+              <span
+                className={cn(
+                  'text-sm font-medium',
+                  value > previousValue
+                    ? 'text-green-600'
+                    : value < previousValue
+                      ? 'text-red-600'
+                      : 'text-muted-foreground'
+                )}
+              >
+                {value > previousValue ? '+' : ''}
+                {(((value - previousValue) / previousValue) * 100).toFixed(1)}%
               </span>
             )}
           </div>
@@ -362,20 +399,21 @@ const MetricCard: React.FC<MetricCardProps> = ({
               <div
                 className={cn(
                   'h-2 rounded-full transition-all duration-300',
-                  computedStatus === 'error' ? 'bg-red-500' :
-                  computedStatus === 'warning' ? 'bg-yellow-500' : 'bg-green-500'
+                  computedStatus === 'error'
+                    ? 'bg-red-500'
+                    : computedStatus === 'warning'
+                      ? 'bg-yellow-500'
+                      : 'bg-green-500'
                 )}
-                style={{ width: `${Math.min((value / threshold.value) * 100, 100)}%` }}
+                style={{
+                  width: `${Math.min((value / threshold.value) * 100, 100)}%`,
+                }}
               />
             </div>
           </div>
         )}
 
-        {children && (
-          <div className="mt-4">
-            {children}
-          </div>
-        )}
+        {children && <div className="mt-4">{children}</div>}
       </CardContent>
     </Card>
   );

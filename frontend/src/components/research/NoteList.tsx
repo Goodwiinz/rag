@@ -40,9 +40,9 @@ export function NoteList({
   if (notes.length === 0) {
     return (
       <div className="text-center py-12 bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg">
-        <StickyNote className="h-12 w-12 text-gray-600 mx-auto mb-4" />
-        <p className="text-gray-400 font-mono">No notes yet</p>
-        <p className="text-sm text-gray-500 mt-2">
+        <StickyNote className="h-12 w-12 text-foreground mx-auto mb-4" />
+        <p className="text-muted-foreground font-mono">No notes yet</p>
+        <p className="text-sm text-muted-foreground mt-2">
           Create notes to organize your research
         </p>
       </div>
@@ -53,13 +53,13 @@ export function NoteList({
     <div>
       {availableTags.length > 0 && onTagChange && (
         <div className="mb-4 flex items-center gap-2">
-          <span className="text-xs text-gray-500 font-mono">
+          <span className="text-xs text-muted-foreground font-mono">
             Filter by tag:
           </span>
           <select
             value={selectedTag || ''}
             onChange={(e) => onTagChange(e.target.value)}
-            className="px-3 py-1.5 bg-[#1a1a1a] border border-[#333] rounded text-xs font-mono text-gray-300 focus:outline-none focus:border-sol"
+            className="px-3 py-1.5 bg-[#1a1a1a] border border-[#333] rounded text-xs font-mono text-muted-foreground focus:outline-none focus:border-sol"
           >
             <option value="">All</option>
             {availableTags.map((tag) => (
@@ -84,14 +84,14 @@ export function NoteList({
                 {note.is_pinned && (
                   <Pin className="h-4 w-4 text-helios shrink-0" />
                 )}
-                <h3 className="font-mono font-medium text-gray-200 truncate">
+                <h3 className="font-mono font-medium text-muted-foreground truncate">
                   {note.title}
                 </h3>
               </div>
               <div className="flex items-center gap-1 shrink-0">
                 <button
                   onClick={() => onTogglePin(note.id)}
-                  className="p-1.5 text-gray-500 hover:text-helios transition-colors"
+                  className="p-1.5 text-muted-foreground hover:text-helios transition-colors"
                   title={note.is_pinned ? 'Unpin' : 'Pin'}
                 >
                   {note.is_pinned ? (
@@ -102,14 +102,14 @@ export function NoteList({
                 </button>
                 <button
                   onClick={() => onEdit(note)}
-                  className="p-1.5 text-gray-500 hover:text-sol transition-colors"
+                  className="p-1.5 text-muted-foreground hover:text-sol transition-colors"
                   title="Edit note"
                 >
                   <Edit2 className="h-4 w-4" />
                 </button>
                 <button
                   onClick={() => onDelete(note.id)}
-                  className="p-1.5 text-gray-500 hover:text-red-400 transition-colors"
+                  className="p-1.5 text-muted-foreground hover:text-red-400 transition-colors"
                   title="Delete note"
                 >
                   <Trash2 className="h-4 w-4" />
@@ -117,7 +117,7 @@ export function NoteList({
               </div>
             </div>
 
-            <p className="text-sm text-gray-400 whitespace-pre-wrap line-clamp-4">
+            <p className="text-sm text-muted-foreground whitespace-pre-wrap line-clamp-4">
               {note.content_preview || note.content}
             </p>
 
@@ -126,13 +126,13 @@ export function NoteList({
                 {(note.tags || []).map((tag) => (
                   <span
                     key={tag}
-                    className="px-1.5 py-0.5 bg-[#1a1a1a] border border-[#333] rounded text-[11px] font-mono text-gray-400"
+                    className="px-1.5 py-0.5 bg-[#1a1a1a] border border-[#333] rounded text-[11px] font-mono text-muted-foreground"
                   >
                     {tag}
                   </span>
                 ))}
               </div>
-              <p className="text-xs text-gray-600 font-mono">
+              <p className="text-xs text-foreground font-mono">
                 Updated {new Date(note.updated_at).toLocaleDateString()}
               </p>
             </div>

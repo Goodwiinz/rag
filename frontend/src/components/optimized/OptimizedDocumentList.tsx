@@ -45,7 +45,10 @@ interface OptimizedDocumentListProps {
     };
   };
   onDocumentSelect?: (document: Document) => void;
-  onDocumentStatusChange?: (documentId: string, status: ProcessingStatus) => void;
+  onDocumentStatusChange?: (
+    documentId: string,
+    status: ProcessingStatus
+  ) => void;
 }
 
 // Memoized document item for performance
@@ -87,97 +90,107 @@ const VirtualizedDocumentList = memo<{
   onLoadMore: () => void;
   hasMore: boolean;
   isLoading: boolean;
-}>(({ documents, selectedId, onSelect, onStatusChange, onLoadMore, hasMore, isLoading }) => {
-  const listRef = useRef<List>(null);
-  const [scrollPosition, setScrollPosition] = useState(0);
+}>(
+  ({
+    documents,
+    selectedId,
+    onSelect,
+    onStatusChange,
+    onLoadMore,
+    hasMore,
+    isLoading,
+  }) => {
+    const listRef = useRef<List>(null);
+    const [scrollPosition, setScrollPosition] = useState(0);
 
-  // Memoized item data to prevent unnecessary re-renders
-  const itemData = useMemo(
-    () => ({
-      documents,
-      selectedId,
-      onSelect,
-      onStatusChange,
-    }),
-    [documents, selectedId, onSelect, onStatusChange]
-  );
+    // Memoized item data to prevent unnecessary re-renders
+    const itemData = useMemo(
+      () => ({
+        documents,
+        selectedId,
+        onSelect,
+        onStatusChange,
+      }),
+      [documents, selectedId, onSelect, onStatusChange]
+    );
 
-  // Handle scroll events with throttling — ref stores instance so we can cancel on dep changes
-  const throttleRef = useRef<ReturnType<typeof throttle>>();
-  useEffect(() => {
-    throttleRef.current = throttle((e: React.UIEvent<HTMLDivElement>) => {
-      const element = e.currentTarget;
-      setScrollPosition(element.scrollTop);
+    // Handle scroll events with throttling — ref stores instance so we can cancel on dep changes
+    const throttleRef = useRef<ReturnType<typeof throttle>>();
+    useEffect(() => {
+      throttleRef.current = throttle((e: React.UIEvent<HTMLDivElement>) => {
+        const element = e.currentTarget;
+        setScrollPosition(element.scrollTop);
 
-      // Check if near bottom for infinite loading
-      if (
-        element.scrollHeight - element.scrollTop - element.clientHeight < 1000 &&
-        hasMore &&
-        !isLoading
-      ) {
-        onLoadMore();
-      }
-    }, THROTTLE_DELAY);
-    return () => {
-      throttleRef.current?.cancel();
-    };
-  }, [hasMore, isLoading, onLoadMore]);
+        // Check if near bottom for infinite loading
+        if (
+          element.scrollHeight - element.scrollTop - element.clientHeight <
+            1000 &&
+          hasMore &&
+          !isLoading
+        ) {
+          onLoadMore();
+        }
+      }, THROTTLE_DELAY);
+      return () => {
+        throttleRef.current?.cancel();
+      };
+    }, [hasMore, isLoading, onLoadMore]);
 
-  const handleScroll = useCallback(
-    (e: React.UIEvent<HTMLDivElement>) => {
+    const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
       throttleRef.current?.(e);
-    },
-    []
-  );
+    }, []);
 
-  // Render item function
-  const renderItem = useCallback(
-    ({ index, style }: { index: number; style: React.CSSProperties }) => (
-      <DocumentItem
-        key={documents[index]?.id || `item-${index}`}
-        index={index}
-        style={style}
-        data={itemData}
-      />
-    ),
-    [documents, itemData]
-  );
+    // Render item function
+    const renderItem = useCallback(
+      ({ index, style }: { index: number; style: React.CSSProperties }) => (
+        <DocumentItem
+          key={documents[index]?.id || `item-${index}`}
+          index={index}
+          style={style}
+          data={itemData}
+        />
+      ),
+      [documents, itemData]
+    );
 
-  return (
-    <div
-      className="h-full overflow-auto"
-      onScroll={handleScroll}
-      style={{ contain: 'strict' }}
-    >
-      <List
-        ref={listRef}
-        height={typeof window !== 'undefined' ? window.innerHeight - 200 : 600}
-        itemCount={documents.length}
-        itemSize={ITEM_HEIGHT}
-        itemData={itemData}
-        overscanCount={BUFFER_SIZE}
-        className="virtualized-list"
+    return (
+      <div
+        className="h-full overflow-auto"
+        onScroll={handleScroll}
         style={{ contain: 'strict' }}
       >
-        {renderItem}
-      </List>
+        <List
+          ref={listRef}
+          height={
+            typeof window !== 'undefined' ? window.innerHeight - 200 : 600
+          }
+          itemCount={documents.length}
+          itemSize={ITEM_HEIGHT}
+          itemData={itemData}
+          overscanCount={BUFFER_SIZE}
+          className="virtualized-list"
+          style={{ contain: 'strict' }}
+        >
+          {renderItem}
+        </List>
 
-      {/* Loading indicator for infinite scroll */}
-      {isLoading && documents.length > 0 && (
-        <div className="flex justify-center py-4">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" />
-        </div>
-      )}
+        {/* Loading indicator for infinite scroll */}
+        {isLoading && documents.length > 0 && (
+          <div className="flex justify-center py-4">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" />
+          </div>
+        )}
 
-      {/* End of content indicator */}
-      {!hasMore && documents.length > 0 && (
-        <div className="text-center py-4 text-gray-500">
-          End of documents
-        </div>
-      )}
-    </div>
-  );
-});
+        {/* End of content indicator */}
+        {!hasMore && documents.length > 0 && (
+          <div className="text-center py-4 text-muted-foreground">
+            End of documents
+          </div>
+        )}
+      </div>
+    );
+  }
+);
 
 VirtualizedDocumentList.displayName = 'VirtualizedDocumentList';
 
@@ -196,7 +209,9 @@ export const OptimizedDocumentList: React.FC<OptimizedDocumentListProps> = ({
   const debounceRef = useRef<ReturnType<typeof debounce>>();
   useEffect(() => {
     debounceRef.current = debounce((searchTerm: string) => {
-      queryClient.invalidateQueries({ queryKey: ['documents', organizationId] });
+      queryClient.invalidateQueries({
+        queryKey: ['documents', organizationId],
+      });
     }, DEBOUNCE_DELAY);
     return () => {
       debounceRef.current?.cancel();
@@ -288,7 +303,15 @@ export const OptimizedDocumentList: React.FC<OptimizedDocumentListProps> = ({
     return () => {
       unsubscribe('document_status_updates', handleStatusUpdate);
     };
-  }, [isConnected, queryClient, organizationId, filters, onDocumentStatusChange, subscribe, unsubscribe]);
+  }, [
+    isConnected,
+    queryClient,
+    organizationId,
+    filters,
+    onDocumentStatusChange,
+    subscribe,
+    unsubscribe,
+  ]);
 
   // Handle document selection with performance tracking
   const handleDocumentSelect = useCallback(
@@ -299,7 +322,10 @@ export const OptimizedDocumentList: React.FC<OptimizedDocumentListProps> = ({
       onDocumentSelect?.(document);
 
       const endTime = performance.now();
-      performanceMonitor.recordInteraction('document_select', endTime - startTime);
+      performanceMonitor.recordInteraction(
+        'document_select',
+        endTime - startTime
+      );
     },
     [onDocumentSelect]
   );
@@ -331,12 +357,9 @@ export const OptimizedDocumentList: React.FC<OptimizedDocumentListProps> = ({
   );
 
   // Handle search input with debouncing
-  const handleSearchChange = useCallback(
-    (searchTerm: string) => {
-      debounceRef.current?.(searchTerm);
-    },
-    []
-  );
+  const handleSearchChange = useCallback((searchTerm: string) => {
+    debounceRef.current?.(searchTerm);
+  }, []);
 
   // Memoized load more function
   const handleLoadMore = useCallback(() => {
@@ -352,7 +375,9 @@ export const OptimizedDocumentList: React.FC<OptimizedDocumentListProps> = ({
         <div className="text-lg font-semibold">Error loading documents</div>
         <div className="text-sm">{error?.message || 'Unknown error'}</div>
         <button
-          onClick={() => queryClient.invalidateQueries(['documents', organizationId])}
+          onClick={() =>
+            queryClient.invalidateQueries(['documents', organizationId])
+          }
           className="mt-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
         >
           Retry
@@ -377,12 +402,12 @@ export const OptimizedDocumentList: React.FC<OptimizedDocumentListProps> = ({
   return (
     <div className="h-full flex flex-col">
       {/* Search and filter bar */}
-      <div className="p-4 border-b border-gray-200 bg-white">
+      <div className="p-4 border-b border-border bg-white">
         <input
           type="text"
           placeholder="Search documents..."
           onChange={(e) => handleSearchChange(e.target.value)}
-          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          className="w-full px-4 py-2 border border-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
         />
       </div>
 
@@ -400,14 +425,18 @@ export const OptimizedDocumentList: React.FC<OptimizedDocumentListProps> = ({
       </div>
 
       {/* Connection status indicator */}
-      <div className="p-2 border-t border-gray-200 bg-gray-50">
-        <div className="flex items-center justify-between text-xs text-gray-500">
+      <div className="p-2 border-t border-border bg-gray-50">
+        <div className="flex items-center justify-between text-xs text-muted-foreground">
           <span>
             {documents.length} documents loaded
             {isFetchingNextPage && ' (loading more...)'}
           </span>
-          <span className={`flex items-center ${isConnected ? 'text-green-500' : 'text-red-500'}`}>
-            <span className={`w-2 h-2 rounded-full mr-1 ${isConnected ? 'bg-green-500' : 'bg-red-500'}`} />
+          <span
+            className={`flex items-center ${isConnected ? 'text-green-500' : 'text-red-500'}`}
+          >
+            <span
+              className={`w-2 h-2 rounded-full mr-1 ${isConnected ? 'bg-green-500' : 'bg-red-500'}`}
+            />
             {isConnected ? 'Connected' : 'Disconnected'}
           </span>
         </div>

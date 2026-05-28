@@ -25,8 +25,10 @@ export function DashboardTopbar() {
     <header className="h-16 border-b border-border bg-background/80 backdrop-blur-md flex items-center justify-between px-8 sticky top-0 z-20 ml-64 transition-all duration-300">
       {/* Breadcrumbs */}
       <div className="flex items-center gap-2 text-sm">
-        <span className="text-gray-500 font-medium">{breadcrumbs[0]}</span>
-        <ChevronRight className="w-4 h-4 text-gray-700" />
+        <span className="text-muted-foreground font-medium">
+          {breadcrumbs[0]}
+        </span>
+        <ChevronRight className="w-4 h-4 text-foreground" />
         <span className="text-white font-medium">{breadcrumbs[1]}</span>
       </div>
 
@@ -35,7 +37,7 @@ export function DashboardTopbar() {
         <Button
           variant="ghost"
           size="sm"
-          className="text-gray-400 hover:text-white hover:bg-white/5 hidden md:flex gap-2 h-8 border border-border rounded-full px-4"
+          className="text-muted-foreground hover:text-white hover:bg-white/5 hidden md:flex gap-2 h-8 border border-border rounded-full px-4"
         >
           Feedback
         </Button>
@@ -44,7 +46,7 @@ export function DashboardTopbar() {
 
         <a
           href="#"
-          className="flex items-center text-sm text-gray-400 hover:text-white gap-1.5 transition-colors"
+          className="flex items-center text-sm text-muted-foreground hover:text-white gap-1.5 transition-colors"
         >
           <Book className="w-4 h-4" />
           <span className="hidden sm:inline">Docs</span>
@@ -52,7 +54,7 @@ export function DashboardTopbar() {
 
         <a
           href="#"
-          className="flex items-center text-sm text-gray-400 hover:text-white gap-1.5 transition-colors mr-2"
+          className="flex items-center text-sm text-muted-foreground hover:text-white gap-1.5 transition-colors mr-2"
         >
           <HelpCircle className="w-4 h-4" />
           <span className="hidden sm:inline">Support</span>
@@ -63,7 +65,7 @@ export function DashboardTopbar() {
             <span className="text-xs font-medium text-white leading-none">
               {user?.email?.split('@')[0] || 'User'}
             </span>
-            <span className="text-[10px] text-gray-500 leading-none mt-1">
+            <span className="text-[10px] text-muted-foreground leading-none mt-1">
               Admin
             </span>
           </div>

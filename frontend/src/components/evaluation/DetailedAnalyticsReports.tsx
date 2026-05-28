@@ -209,7 +209,16 @@ interface AnalyticsData {
 
 // Mock data generation
 const generateMockAnalyticsData = (timeRange: string): AnalyticsData => {
-  const days = timeRange === '1d' ? 1 : timeRange === '7d' ? 7 : timeRange === '30d' ? 30 : timeRange === '90d' ? 90 : 365;
+  const days =
+    timeRange === '1d'
+      ? 1
+      : timeRange === '7d'
+        ? 7
+        : timeRange === '30d'
+          ? 30
+          : timeRange === '90d'
+            ? 90
+            : 365;
   const now = new Date();
 
   return {
@@ -244,21 +253,36 @@ const generateMockAnalyticsData = (timeRange: string): AnalyticsData => {
           documentsPerHour: Math.floor(Math.random() * 50) + 10,
         };
       }),
-      errorRates: Array.from({ length: Math.min(days, 30) }, (_, i): {
-        date: string;
-        errorRate: number;
-        errorType: string;
-        count: number;
-      } => {
-        const date = new Date(now.getTime() - (days - i) * 24 * 60 * 60 * 1000);
-        const errorTypes: string[] = ['timeout', 'validation', 'processing', 'network'];
-        return {
-          date: date.toLocaleDateString(),
-          errorRate: Math.random() * 5 + 1,
-          errorType: errorTypes[Math.floor(Math.random() * errorTypes.length)] || 'timeout',
-          count: Math.floor(Math.random() * 20) + 1,
-        };
-      }),
+      errorRates: Array.from(
+        { length: Math.min(days, 30) },
+        (
+          _,
+          i
+        ): {
+          date: string;
+          errorRate: number;
+          errorType: string;
+          count: number;
+        } => {
+          const date = new Date(
+            now.getTime() - (days - i) * 24 * 60 * 60 * 1000
+          );
+          const errorTypes: string[] = [
+            'timeout',
+            'validation',
+            'processing',
+            'network',
+          ];
+          return {
+            date: date.toLocaleDateString(),
+            errorRate: Math.random() * 5 + 1,
+            errorType:
+              errorTypes[Math.floor(Math.random() * errorTypes.length)] ||
+              'timeout',
+            count: Math.floor(Math.random() * 20) + 1,
+          };
+        }
+      ),
     },
     usage: {
       queryPatterns: Array.from({ length: 24 }, (_, i) => ({
@@ -268,31 +292,73 @@ const generateMockAnalyticsData = (timeRange: string): AnalyticsData => {
       })),
       modalityDistribution: (() => {
         const items = [
-          { modality: 'Text', count: Math.floor(Math.random() * 5000) + 3000, percentage: 0 },
-          { modality: 'Image', count: Math.floor(Math.random() * 2000) + 1000, percentage: 0 },
-          { modality: 'Audio', count: Math.floor(Math.random() * 1000) + 500, percentage: 0 },
-          { modality: 'Video', count: Math.floor(Math.random() * 800) + 200, percentage: 0 },
+          {
+            modality: 'Text',
+            count: Math.floor(Math.random() * 5000) + 3000,
+            percentage: 0,
+          },
+          {
+            modality: 'Image',
+            count: Math.floor(Math.random() * 2000) + 1000,
+            percentage: 0,
+          },
+          {
+            modality: 'Audio',
+            count: Math.floor(Math.random() * 1000) + 500,
+            percentage: 0,
+          },
+          {
+            modality: 'Video',
+            count: Math.floor(Math.random() * 800) + 200,
+            percentage: 0,
+          },
         ];
         const total = items.reduce((sum, item) => sum + item.count, 0);
-        return items.map(item => ({
+        return items.map((item) => ({
           ...item,
           percentage: total > 0 ? (item.count / total) * 100 : 0,
         }));
       })(),
       fileTypeDistribution: [
-        { fileType: 'PDF', count: Math.floor(Math.random() * 1000) + 500, sizeMB: Math.floor(Math.random() * 5000) + 2000 },
-        { fileType: 'TXT', count: Math.floor(Math.random() * 500) + 200, sizeMB: Math.floor(Math.random() * 500) + 100 },
-        { fileType: 'JPG', count: Math.floor(Math.random() * 800) + 300, sizeMB: Math.floor(Math.random() * 2000) + 500 },
-        { fileType: 'PNG', count: Math.floor(Math.random() * 600) + 200, sizeMB: Math.floor(Math.random() * 1500) + 300 },
-        { fileType: 'MP3', count: Math.floor(Math.random() * 200) + 50, sizeMB: Math.floor(Math.random() * 3000) + 1000 },
-        { fileType: 'MP4', count: Math.floor(Math.random() * 150) + 30, sizeMB: Math.floor(Math.random() * 8000) + 2000 },
+        {
+          fileType: 'PDF',
+          count: Math.floor(Math.random() * 1000) + 500,
+          sizeMB: Math.floor(Math.random() * 5000) + 2000,
+        },
+        {
+          fileType: 'TXT',
+          count: Math.floor(Math.random() * 500) + 200,
+          sizeMB: Math.floor(Math.random() * 500) + 100,
+        },
+        {
+          fileType: 'JPG',
+          count: Math.floor(Math.random() * 800) + 300,
+          sizeMB: Math.floor(Math.random() * 2000) + 500,
+        },
+        {
+          fileType: 'PNG',
+          count: Math.floor(Math.random() * 600) + 200,
+          sizeMB: Math.floor(Math.random() * 1500) + 300,
+        },
+        {
+          fileType: 'MP3',
+          count: Math.floor(Math.random() * 200) + 50,
+          sizeMB: Math.floor(Math.random() * 3000) + 1000,
+        },
+        {
+          fileType: 'MP4',
+          count: Math.floor(Math.random() * 150) + 30,
+          sizeMB: Math.floor(Math.random() * 8000) + 2000,
+        },
       ],
       userActivity: Array.from({ length: 10 }, (_, i) => ({
         userId: `user-${i + 1}`,
         userName: `User ${i + 1}`,
         queryCount: Math.floor(Math.random() * 100) + 10,
         documentsUploaded: Math.floor(Math.random() * 50) + 5,
-        lastActive: new Date(now.getTime() - Math.random() * 7 * 24 * 60 * 60 * 1000).toISOString(),
+        lastActive: new Date(
+          now.getTime() - Math.random() * 7 * 24 * 60 * 60 * 1000
+        ).toISOString(),
       })),
     },
     quality: {
@@ -306,46 +372,124 @@ const generateMockAnalyticsData = (timeRange: string): AnalyticsData => {
         };
       }),
       qualityScores: [
-        { metric: 'Answer Relevancy', current: 78.5, target: 70, trend: 'up' as const, status: 'good' as const },
-        { metric: 'Faithfulness', current: 92.3, target: 90, trend: 'stable' as const, status: 'good' as const },
-        { metric: 'Contextual Relevancy', current: 85.2, target: 70, trend: 'up' as const, status: 'good' as const },
-        { metric: 'Response Latency', current: 1450, target: 2000, trend: 'down' as const, status: 'good' as const },
-        { metric: 'Success Rate', current: 91.8, target: 90, trend: 'stable' as const, status: 'good' as const },
+        {
+          metric: 'Answer Relevancy',
+          current: 78.5,
+          target: 70,
+          trend: 'up' as const,
+          status: 'good' as const,
+        },
+        {
+          metric: 'Faithfulness',
+          current: 92.3,
+          target: 90,
+          trend: 'stable' as const,
+          status: 'good' as const,
+        },
+        {
+          metric: 'Contextual Relevancy',
+          current: 85.2,
+          target: 70,
+          trend: 'up' as const,
+          status: 'good' as const,
+        },
+        {
+          metric: 'Response Latency',
+          current: 1450,
+          target: 2000,
+          trend: 'down' as const,
+          status: 'good' as const,
+        },
+        {
+          metric: 'Success Rate',
+          current: 91.8,
+          target: 90,
+          trend: 'stable' as const,
+          status: 'good' as const,
+        },
       ],
-      hallucinationAnalysis: Array.from({ length: Math.min(days, 30) }, (_, i) => {
-        const date = new Date(now.getTime() - (days - i) * 24 * 60 * 60 * 1000);
-        return {
-          date: date.toLocaleDateString(),
-          hallucinationScore: Math.random() * 10 + 5,
-          detectedCount: Math.floor(Math.random() * 10) + 1,
-          correctedCount: Math.floor(Math.random() * 8) + 1,
-        };
-      }),
+      hallucinationAnalysis: Array.from(
+        { length: Math.min(days, 30) },
+        (_, i) => {
+          const date = new Date(
+            now.getTime() - (days - i) * 24 * 60 * 60 * 1000
+          );
+          return {
+            date: date.toLocaleDateString(),
+            hallucinationScore: Math.random() * 10 + 5,
+            detectedCount: Math.floor(Math.random() * 10) + 1,
+            correctedCount: Math.floor(Math.random() * 8) + 1,
+          };
+        }
+      ),
     },
     compliance: {
       securityMetrics: [
-        { metric: 'Failed Login Attempts', value: 3, threshold: 10, status: 'compliant' as const },
-        { metric: 'Data Access Violations', value: 0, threshold: 0, status: 'compliant' as const },
-        { metric: 'Unauthorized API Calls', value: 1, threshold: 5, status: 'compliant' as const },
-        { metric: 'Suspicious Activity Score', value: 2.5, threshold: 5.0, status: 'compliant' as const },
+        {
+          metric: 'Failed Login Attempts',
+          value: 3,
+          threshold: 10,
+          status: 'compliant' as const,
+        },
+        {
+          metric: 'Data Access Violations',
+          value: 0,
+          threshold: 0,
+          status: 'compliant' as const,
+        },
+        {
+          metric: 'Unauthorized API Calls',
+          value: 1,
+          threshold: 5,
+          status: 'compliant' as const,
+        },
+        {
+          metric: 'Suspicious Activity Score',
+          value: 2.5,
+          threshold: 5.0,
+          status: 'compliant' as const,
+        },
       ],
-      auditLogs: Array.from({ length: 50 }, (_, i): {
-        date: string;
-        actionType: string;
-        userId: string;
-        result: 'success' | 'failure';
-        risk: 'low' | 'medium' | 'high';
-      } => {
-        const actionTypes: string[] = ['login', 'document_upload', 'query', 'download', 'settings_change'];
-        const riskLevels: ('low' | 'medium' | 'high')[] = ['low', 'medium', 'high'];
-        return {
-          date: new Date(now.getTime() - Math.random() * 7 * 24 * 60 * 60 * 1000).toISOString(),
-          actionType: actionTypes[Math.floor(Math.random() * actionTypes.length)] || 'login',
-          userId: `user-${Math.floor(Math.random() * 10) + 1}`,
-          result: Math.random() > 0.1 ? 'success' as const : 'failure' as const,
-          risk: riskLevels[Math.floor(Math.random() * riskLevels.length)] || 'low',
-        };
-      }),
+      auditLogs: Array.from(
+        { length: 50 },
+        (
+          _,
+          i
+        ): {
+          date: string;
+          actionType: string;
+          userId: string;
+          result: 'success' | 'failure';
+          risk: 'low' | 'medium' | 'high';
+        } => {
+          const actionTypes: string[] = [
+            'login',
+            'document_upload',
+            'query',
+            'download',
+            'settings_change',
+          ];
+          const riskLevels: ('low' | 'medium' | 'high')[] = [
+            'low',
+            'medium',
+            'high',
+          ];
+          return {
+            date: new Date(
+              now.getTime() - Math.random() * 7 * 24 * 60 * 60 * 1000
+            ).toISOString(),
+            actionType:
+              actionTypes[Math.floor(Math.random() * actionTypes.length)] ||
+              'login',
+            userId: `user-${Math.floor(Math.random() * 10) + 1}`,
+            result:
+              Math.random() > 0.1 ? ('success' as const) : ('failure' as const),
+            risk:
+              riskLevels[Math.floor(Math.random() * riskLevels.length)] ||
+              'low',
+          };
+        }
+      ),
     },
   };
 };
@@ -372,7 +516,12 @@ const reportTemplates: ReportConfig[] = [
     category: 'usage',
     timeRange: '30d',
     filters: {},
-    metrics: ['userActivity', 'queryPatterns', 'modalityDistribution', 'fileTypeDistribution'],
+    metrics: [
+      'userActivity',
+      'queryPatterns',
+      'modalityDistribution',
+      'fileTypeDistribution',
+    ],
     visualizations: ['pie', 'bar', 'heatmap'],
     format: 'pdf',
     schedule: {
@@ -405,7 +554,16 @@ const reportTemplates: ReportConfig[] = [
   },
 ];
 
-const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16'];
+const COLORS = [
+  '#3b82f6',
+  '#10b981',
+  '#f59e0b',
+  '#ef4444',
+  '#8b5cf6',
+  '#ec4899',
+  '#06b6d4',
+  '#84cc16',
+];
 
 const DetailedAnalyticsReports: React.FC<DetailedAnalyticsReportsProps> = ({
   onExportReport,
@@ -414,11 +572,17 @@ const DetailedAnalyticsReports: React.FC<DetailedAnalyticsReportsProps> = ({
   className,
 }) => {
   const [selectedTimeRange, setSelectedTimeRange] = useState('30d');
-  const [selectedReport, setSelectedReport] = useState<ReportConfig | null>(null);
-  const [analyticsData, setAnalyticsData] = useState<AnalyticsData>(() => generateMockAnalyticsData(selectedTimeRange));
+  const [selectedReport, setSelectedReport] = useState<ReportConfig | null>(
+    null
+  );
+  const [analyticsData, setAnalyticsData] = useState<AnalyticsData>(() =>
+    generateMockAnalyticsData(selectedTimeRange)
+  );
   const [activeTab, setActiveTab] = useState('overview');
   const [isLoading, setIsLoading] = useState(false);
-  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(['overview', 'performance']));
+  const [expandedSections, setExpandedSections] = useState<Set<string>>(
+    new Set(['overview', 'performance'])
+  );
 
   // Update analytics data when time range changes
   React.useEffect(() => {
@@ -433,7 +597,7 @@ const DetailedAnalyticsReports: React.FC<DetailedAnalyticsReportsProps> = ({
 
   // Toggle section expansion
   const toggleSection = useCallback((section: string) => {
-    setExpandedSections(prev => {
+    setExpandedSections((prev) => {
       const newSet = new Set(prev);
       if (newSet.has(section)) {
         newSet.delete(section);
@@ -445,26 +609,34 @@ const DetailedAnalyticsReports: React.FC<DetailedAnalyticsReportsProps> = ({
   }, []);
 
   // Export report
-  const exportReport = useCallback((format: string) => {
-    const report = {
-      timeRange: selectedTimeRange,
-      data: analyticsData,
-      reportConfig: selectedReport,
-      generatedAt: new Date().toISOString(),
-      format,
-    };
+  const exportReport = useCallback(
+    (format: string) => {
+      const report = {
+        timeRange: selectedTimeRange,
+        data: analyticsData,
+        reportConfig: selectedReport,
+        generatedAt: new Date().toISOString(),
+        format,
+      };
 
-    onExportReport?.(report);
-  }, [selectedTimeRange, analyticsData, selectedReport, onExportReport]);
+      onExportReport?.(report);
+    },
+    [selectedTimeRange, analyticsData, selectedReport, onExportReport]
+  );
 
   // Get modality icon
   const getModalityIcon = (modality: string) => {
     switch (modality.toLowerCase()) {
-      case 'text': return <FileText className="h-4 w-4" />;
-      case 'image': return <Image className="h-4 w-4" />;
-      case 'audio': return <Music className="h-4 w-4" />;
-      case 'video': return <Video className="h-4 w-4" />;
-      default: return <File className="h-4 w-4" />;
+      case 'text':
+        return <FileText className="h-4 w-4" />;
+      case 'image':
+        return <Image className="h-4 w-4" />;
+      case 'audio':
+        return <Music className="h-4 w-4" />;
+      case 'video':
+        return <Video className="h-4 w-4" />;
+      default:
+        return <File className="h-4 w-4" />;
     }
   };
 
@@ -480,7 +652,7 @@ const DetailedAnalyticsReports: React.FC<DetailedAnalyticsReportsProps> = ({
       case 'violation':
         return <XCircle className="h-4 w-4 text-red-500" />;
       default:
-        return <Info className="h-4 w-4 text-gray-500" />;
+        return <Info className="h-4 w-4 text-muted-foreground" />;
     }
   };
 
@@ -489,11 +661,18 @@ const DetailedAnalyticsReports: React.FC<DetailedAnalyticsReportsProps> = ({
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Analytics Reports</h2>
-          <p className="text-gray-600 dark:text-gray-400">Comprehensive analytics and reporting for your RAG system</p>
+          <h2 className="text-2xl font-bold text-foreground">
+            Analytics Reports
+          </h2>
+          <p className="text-foreground">
+            Comprehensive analytics and reporting for your RAG system
+          </p>
         </div>
         <div className="flex items-center space-x-2">
-          <Select value={selectedTimeRange} onValueChange={setSelectedTimeRange}>
+          <Select
+            value={selectedTimeRange}
+            onValueChange={setSelectedTimeRange}
+          >
             <SelectTrigger className="w-40">
               <SelectValue />
             </SelectTrigger>
@@ -508,10 +687,14 @@ const DetailedAnalyticsReports: React.FC<DetailedAnalyticsReportsProps> = ({
           <Button
             variant="outline"
             size="sm"
-            onClick={() => setAnalyticsData(generateMockAnalyticsData(selectedTimeRange))}
+            onClick={() =>
+              setAnalyticsData(generateMockAnalyticsData(selectedTimeRange))
+            }
             disabled={isLoading}
           >
-            <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+            <RefreshCw
+              className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`}
+            />
             Refresh
           </Button>
           <Button
@@ -532,23 +715,35 @@ const DetailedAnalyticsReports: React.FC<DetailedAnalyticsReportsProps> = ({
             <FileText className="h-5 w-5 mr-2" />
             Report Templates
           </CardTitle>
-          <CardDescription>Pre-configured reports for different analytics needs</CardDescription>
+          <CardDescription>
+            Pre-configured reports for different analytics needs
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {reportTemplates.map(template => (
+            {reportTemplates.map((template) => (
               <div
                 key={template.id}
                 className={`border rounded-lg p-4 cursor-pointer transition-all hover:shadow-md ${
-                  selectedReport?.id === template.id ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20' : ''
+                  selectedReport?.id === template.id
+                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                    : ''
                 }`}
                 onClick={() => setSelectedReport(template)}
               >
                 <div className="flex items-start justify-between mb-2">
                   <div className="flex items-center space-x-2">
-                    <Badge variant={template.category === 'performance' ? 'default' :
-                                   template.category === 'usage' ? 'secondary' :
-                                   template.category === 'quality' ? 'outline' : 'destructive'}>
+                    <Badge
+                      variant={
+                        template.category === 'performance'
+                          ? 'default'
+                          : template.category === 'usage'
+                            ? 'secondary'
+                            : template.category === 'quality'
+                              ? 'outline'
+                              : 'destructive'
+                      }
+                    >
                       {template.category}
                     </Badge>
                     {template.schedule?.enabled && (
@@ -560,8 +755,10 @@ const DetailedAnalyticsReports: React.FC<DetailedAnalyticsReportsProps> = ({
                   </div>
                 </div>
                 <h4 className="font-medium mb-1">{template.name}</h4>
-                <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">{template.description}</p>
-                <div className="flex items-center justify-between text-xs text-gray-500">
+                <p className="text-sm text-foreground mb-3">
+                  {template.description}
+                </p>
+                <div className="flex items-center justify-between text-xs text-muted-foreground">
                   <span>Time range: {template.timeRange}</span>
                   <span>Format: {template.format.toUpperCase()}</span>
                 </div>
@@ -579,8 +776,9 @@ const DetailedAnalyticsReports: React.FC<DetailedAnalyticsReportsProps> = ({
               <BarChart3 className="h-5 w-5 mr-2" />
               Analytics Overview
             </CardTitle>
-            <div className="text-sm text-gray-500">
-              {new Date(analyticsData.timeRange.start).toLocaleDateString()} - {new Date(analyticsData.timeRange.end).toLocaleDateString()}
+            <div className="text-sm text-muted-foreground">
+              {new Date(analyticsData.timeRange.start).toLocaleDateString()} -{' '}
+              {new Date(analyticsData.timeRange.end).toLocaleDateString()}
             </div>
           </div>
         </CardHeader>
@@ -590,37 +788,37 @@ const DetailedAnalyticsReports: React.FC<DetailedAnalyticsReportsProps> = ({
               <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
                 {analyticsData.overview.totalQueries.toLocaleString()}
               </div>
-              <div className="text-sm text-gray-600 dark:text-gray-400">Total Queries</div>
+              <div className="text-sm text-foreground">Total Queries</div>
             </div>
             <div className="text-center p-4 bg-green-50 dark:bg-green-900/20 rounded-lg">
               <div className="text-2xl font-bold text-green-600 dark:text-green-400">
                 {analyticsData.overview.uniqueUsers}
               </div>
-              <div className="text-sm text-gray-600 dark:text-gray-400">Unique Users</div>
+              <div className="text-sm text-foreground">Unique Users</div>
             </div>
             <div className="text-center p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
               <div className="text-2xl font-bold text-purple-600 dark:text-purple-400">
                 {analyticsData.overview.documentsProcessed}
               </div>
-              <div className="text-sm text-gray-600 dark:text-gray-400">Documents</div>
+              <div className="text-sm text-foreground">Documents</div>
             </div>
             <div className="text-center p-4 bg-orange-50 dark:bg-orange-900/20 rounded-lg">
               <div className="text-2xl font-bold text-orange-600 dark:text-orange-400">
                 {analyticsData.overview.averageLatency.toFixed(0)}ms
               </div>
-              <div className="text-sm text-gray-600 dark:text-gray-400">Avg Latency</div>
+              <div className="text-sm text-foreground">Avg Latency</div>
             </div>
             <div className="text-center p-4 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg">
               <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
                 {analyticsData.overview.successRate.toFixed(1)}%
               </div>
-              <div className="text-sm text-gray-600 dark:text-gray-400">Success Rate</div>
+              <div className="text-sm text-foreground">Success Rate</div>
             </div>
             <div className="text-center p-4 bg-pink-50 dark:bg-pink-900/20 rounded-lg">
               <div className="text-2xl font-bold text-pink-600 dark:text-pink-400">
                 {analyticsData.overview.userSatisfaction.toFixed(1)}%
               </div>
-              <div className="text-sm text-gray-600 dark:text-gray-400">Satisfaction</div>
+              <div className="text-sm text-foreground">Satisfaction</div>
             </div>
           </div>
         </CardContent>
@@ -641,12 +839,16 @@ const DetailedAnalyticsReports: React.FC<DetailedAnalyticsReportsProps> = ({
           <Card>
             <CardHeader>
               <CardTitle>System Overview</CardTitle>
-              <CardDescription>High-level summary of your RAG system analytics</CardDescription>
+              <CardDescription>
+                High-level summary of your RAG system analytics
+              </CardDescription>
             </CardHeader>
             <CardContent>
-              <p className="text-gray-600 dark:text-gray-400 mb-4">
-                This dashboard provides comprehensive analytics across performance, usage, quality, and compliance metrics.
-                Select a category above to dive deeper into specific analytics, or choose a pre-configured report template to get started.
+              <p className="text-foreground mb-4">
+                This dashboard provides comprehensive analytics across
+                performance, usage, quality, and compliance metrics. Select a
+                category above to dive deeper into specific analytics, or choose
+                a pre-configured report template to get started.
               </p>
               <div className="space-y-3">
                 <div className="flex items-center justify-between p-3 border rounded-lg">
@@ -654,28 +856,36 @@ const DetailedAnalyticsReports: React.FC<DetailedAnalyticsReportsProps> = ({
                     <Activity className="h-4 w-4 text-blue-500" />
                     <span className="font-medium">Performance</span>
                   </div>
-                  <span className="text-sm text-gray-500">Latency, throughput, and error rate metrics</span>
+                  <span className="text-sm text-muted-foreground">
+                    Latency, throughput, and error rate metrics
+                  </span>
                 </div>
                 <div className="flex items-center justify-between p-3 border rounded-lg">
                   <div className="flex items-center space-x-2">
                     <Users className="h-4 w-4 text-green-500" />
                     <span className="font-medium">Usage</span>
                   </div>
-                  <span className="text-sm text-gray-500">Query patterns and user activity analysis</span>
+                  <span className="text-sm text-muted-foreground">
+                    Query patterns and user activity analysis
+                  </span>
                 </div>
                 <div className="flex items-center justify-between p-3 border rounded-lg">
                   <div className="flex items-center space-x-2">
                     <Target className="h-4 w-4 text-purple-500" />
                     <span className="font-medium">Quality</span>
                   </div>
-                  <span className="text-sm text-gray-500">RAG Triad metrics and hallucination detection</span>
+                  <span className="text-sm text-muted-foreground">
+                    RAG Triad metrics and hallucination detection
+                  </span>
                 </div>
                 <div className="flex items-center justify-between p-3 border rounded-lg">
                   <div className="flex items-center space-x-2">
                     <CheckCircle className="h-4 w-4 text-orange-500" />
                     <span className="font-medium">Compliance</span>
                   </div>
-                  <span className="text-sm text-gray-500">Security metrics and audit logs</span>
+                  <span className="text-sm text-muted-foreground">
+                    Security metrics and audit logs
+                  </span>
                 </div>
               </div>
             </CardContent>
@@ -693,7 +903,11 @@ const DetailedAnalyticsReports: React.FC<DetailedAnalyticsReportsProps> = ({
                   size="sm"
                   onClick={() => toggleSection('latency')}
                 >
-                  {expandedSections.has('latency') ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                  {expandedSections.has('latency') ? (
+                    <ChevronUp className="h-4 w-4" />
+                  ) : (
+                    <ChevronDown className="h-4 w-4" />
+                  )}
                 </Button>
               </div>
             </CardHeader>
@@ -707,9 +921,27 @@ const DetailedAnalyticsReports: React.FC<DetailedAnalyticsReportsProps> = ({
                       <YAxis tick={{ fontSize: 12 }} />
                       <Tooltip />
                       <Legend />
-                      <Line type="monotone" dataKey="avgLatency" stroke="#3b82f6" strokeWidth={2} name="Average" />
-                      <Line type="monotone" dataKey="p95Latency" stroke="#f59e0b" strokeWidth={2} name="95th Percentile" />
-                      <Line type="monotone" dataKey="p99Latency" stroke="#ef4444" strokeWidth={2} name="99th Percentile" />
+                      <Line
+                        type="monotone"
+                        dataKey="avgLatency"
+                        stroke="#3b82f6"
+                        strokeWidth={2}
+                        name="Average"
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="p95Latency"
+                        stroke="#f59e0b"
+                        strokeWidth={2}
+                        name="95th Percentile"
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="p99Latency"
+                        stroke="#ef4444"
+                        strokeWidth={2}
+                        name="99th Percentile"
+                      />
                     </LineChart>
                   </ResponsiveContainer>
                 </div>
@@ -726,7 +958,11 @@ const DetailedAnalyticsReports: React.FC<DetailedAnalyticsReportsProps> = ({
                   size="sm"
                   onClick={() => toggleSection('throughput')}
                 >
-                  {expandedSections.has('throughput') ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                  {expandedSections.has('throughput') ? (
+                    <ChevronUp className="h-4 w-4" />
+                  ) : (
+                    <ChevronDown className="h-4 w-4" />
+                  )}
                 </Button>
               </div>
             </CardHeader>
@@ -734,15 +970,33 @@ const DetailedAnalyticsReports: React.FC<DetailedAnalyticsReportsProps> = ({
               <CardContent>
                 <div className="h-80">
                   <ResponsiveContainer width="100%" height="100%">
-                    <ComposedChart data={analyticsData.performance.throughputTrends}>
+                    <ComposedChart
+                      data={analyticsData.performance.throughputTrends}
+                    >
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="date" tick={{ fontSize: 12 }} />
                       <YAxis yAxisId="left" tick={{ fontSize: 12 }} />
-                      <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 12 }} />
+                      <YAxis
+                        yAxisId="right"
+                        orientation="right"
+                        tick={{ fontSize: 12 }}
+                      />
                       <Tooltip />
                       <Legend />
-                      <Bar yAxisId="left" dataKey="documentsPerHour" fill="#10b981" name="Documents/Hour" />
-                      <Line yAxisId="right" type="monotone" dataKey="queriesPerMinute" stroke="#3b82f6" strokeWidth={2} name="Queries/Minute" />
+                      <Bar
+                        yAxisId="left"
+                        dataKey="documentsPerHour"
+                        fill="#10b981"
+                        name="Documents/Hour"
+                      />
+                      <Line
+                        yAxisId="right"
+                        type="monotone"
+                        dataKey="queriesPerMinute"
+                        stroke="#3b82f6"
+                        strokeWidth={2}
+                        name="Queries/Minute"
+                      />
                     </ComposedChart>
                   </ResponsiveContainer>
                 </div>
@@ -766,7 +1020,13 @@ const DetailedAnalyticsReports: React.FC<DetailedAnalyticsReportsProps> = ({
                       <XAxis dataKey="hour" tick={{ fontSize: 12 }} />
                       <YAxis tick={{ fontSize: 12 }} />
                       <Tooltip />
-                      <Area type="monotone" dataKey="queryCount" stroke="#3b82f6" fill="#3b82f620" name="Query Count" />
+                      <Area
+                        type="monotone"
+                        dataKey="queryCount"
+                        stroke="#3b82f6"
+                        fill="#3b82f620"
+                        name="Query Count"
+                      />
                     </AreaChart>
                   </ResponsiveContainer>
                 </div>
@@ -794,9 +1054,14 @@ const DetailedAnalyticsReports: React.FC<DetailedAnalyticsReportsProps> = ({
                         fill="#8884d8"
                         dataKey="count"
                       >
-                        {analyticsData.usage.modalityDistribution.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                        ))}
+                        {analyticsData.usage.modalityDistribution.map(
+                          (entry, index) => (
+                            <Cell
+                              key={`cell-${index}`}
+                              fill={COLORS[index % COLORS.length]}
+                            />
+                          )
+                        )}
                       </Pie>
                       <Tooltip />
                     </PieChart>
@@ -817,11 +1082,25 @@ const DetailedAnalyticsReports: React.FC<DetailedAnalyticsReportsProps> = ({
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="fileType" tick={{ fontSize: 12 }} />
                     <YAxis yAxisId="left" tick={{ fontSize: 12 }} />
-                    <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 12 }} />
+                    <YAxis
+                      yAxisId="right"
+                      orientation="right"
+                      tick={{ fontSize: 12 }}
+                    />
                     <Tooltip />
                     <Legend />
-                    <Bar yAxisId="left" dataKey="count" fill="#3b82f6" name="File Count" />
-                    <Bar yAxisId="right" dataKey="sizeMB" fill="#10b981" name="Size (MB)" />
+                    <Bar
+                      yAxisId="left"
+                      dataKey="count"
+                      fill="#3b82f6"
+                      name="File Count"
+                    />
+                    <Bar
+                      yAxisId="right"
+                      dataKey="sizeMB"
+                      fill="#10b981"
+                      name="Size (MB)"
+                    />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -834,25 +1113,37 @@ const DetailedAnalyticsReports: React.FC<DetailedAnalyticsReportsProps> = ({
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {analyticsData.usage.userActivity.slice(0, 5).map((user, index) => (
-                  <div key={user.userId} className="flex items-center justify-between p-3 border rounded-lg">
-                    <div className="flex items-center space-x-3">
-                      <div className="w-8 h-8 bg-blue-100 dark:bg-blue-900/20 rounded-full flex items-center justify-center">
-                        <span className="text-sm font-medium">#{index + 1}</span>
+                {analyticsData.usage.userActivity
+                  .slice(0, 5)
+                  .map((user, index) => (
+                    <div
+                      key={user.userId}
+                      className="flex items-center justify-between p-3 border rounded-lg"
+                    >
+                      <div className="flex items-center space-x-3">
+                        <div className="w-8 h-8 bg-blue-100 dark:bg-blue-900/20 rounded-full flex items-center justify-center">
+                          <span className="text-sm font-medium">
+                            #{index + 1}
+                          </span>
+                        </div>
+                        <div>
+                          <div className="font-medium">{user.userName}</div>
+                          <div className="text-sm text-muted-foreground">
+                            Last active:{' '}
+                            {new Date(user.lastActive).toLocaleDateString()}
+                          </div>
+                        </div>
                       </div>
-                      <div>
-                        <div className="font-medium">{user.userName}</div>
-                        <div className="text-sm text-gray-500">
-                          Last active: {new Date(user.lastActive).toLocaleDateString()}
+                      <div className="text-right">
+                        <div className="font-medium">
+                          {user.queryCount} queries
+                        </div>
+                        <div className="text-sm text-muted-foreground">
+                          {user.documentsUploaded} docs
                         </div>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <div className="font-medium">{user.queryCount} queries</div>
-                      <div className="text-sm text-gray-500">{user.documentsUploaded} docs</div>
-                    </div>
-                  </div>
-                ))}
+                  ))}
               </div>
             </CardContent>
           </Card>
@@ -863,7 +1154,9 @@ const DetailedAnalyticsReports: React.FC<DetailedAnalyticsReportsProps> = ({
           <Card>
             <CardHeader>
               <CardTitle>RAG Triad Metrics</CardTitle>
-              <CardDescription>Core quality metrics for Retrieval-Augmented Generation</CardDescription>
+              <CardDescription>
+                Core quality metrics for Retrieval-Augmented Generation
+              </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="h-80">
@@ -874,9 +1167,27 @@ const DetailedAnalyticsReports: React.FC<DetailedAnalyticsReportsProps> = ({
                     <YAxis tick={{ fontSize: 12 }} domain={[0, 100]} />
                     <Tooltip />
                     <Legend />
-                    <Line type="monotone" dataKey="answerRelevancy" stroke="#3b82f6" strokeWidth={2} name="Answer Relevancy" />
-                    <Line type="monotone" dataKey="faithfulness" stroke="#10b981" strokeWidth={2} name="Faithfulness" />
-                    <Line type="monotone" dataKey="contextualRelevancy" stroke="#f59e0b" strokeWidth={2} name="Contextual Relevancy" />
+                    <Line
+                      type="monotone"
+                      dataKey="answerRelevancy"
+                      stroke="#3b82f6"
+                      strokeWidth={2}
+                      name="Answer Relevancy"
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="faithfulness"
+                      stroke="#10b981"
+                      strokeWidth={2}
+                      name="Faithfulness"
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="contextualRelevancy"
+                      stroke="#f59e0b"
+                      strokeWidth={2}
+                      name="Contextual Relevancy"
+                    />
                   </LineChart>
                 </ResponsiveContainer>
               </div>
@@ -889,27 +1200,41 @@ const DetailedAnalyticsReports: React.FC<DetailedAnalyticsReportsProps> = ({
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {analyticsData.quality.qualityScores.map(score => (
-                  <div key={score.metric} className="flex items-center justify-between p-4 border rounded-lg">
+                {analyticsData.quality.qualityScores.map((score) => (
+                  <div
+                    key={score.metric}
+                    className="flex items-center justify-between p-4 border rounded-lg"
+                  >
                     <div className="flex items-center space-x-3">
                       {getStatusIcon(score.status)}
                       <div>
                         <div className="font-medium">{score.metric}</div>
-                        <div className="text-sm text-gray-500">Target: {score.target}</div>
+                        <div className="text-sm text-muted-foreground">
+                          Target: {score.target}
+                        </div>
                       </div>
                     </div>
                     <div className="flex items-center space-x-4">
                       <div className="text-right">
-                        <div className="font-bold text-lg">{score.current.toFixed(1)}</div>
+                        <div className="font-bold text-lg">
+                          {score.current.toFixed(1)}
+                        </div>
                         <div className="flex items-center space-x-1 text-sm">
-                          {score.trend === 'up' ? <TrendingUp className="h-3 w-3 text-green-500" /> :
-                           score.trend === 'down' ? <TrendingDown className="h-3 w-3 text-red-500" /> :
-                           <div className="w-3 h-3 bg-gray-300 rounded-full" />}
+                          {score.trend === 'up' ? (
+                            <TrendingUp className="h-3 w-3 text-green-500" />
+                          ) : score.trend === 'down' ? (
+                            <TrendingDown className="h-3 w-3 text-red-500" />
+                          ) : (
+                            <div className="w-3 h-3 bg-gray-300 rounded-full" />
+                          )}
                           <span>{score.trend}</span>
                         </div>
                       </div>
                       <div className="w-24">
-                        <Progress value={(score.current / score.target) * 100} className="h-2" />
+                        <Progress
+                          value={(score.current / score.target) * 100}
+                          className="h-2"
+                        />
                       </div>
                     </div>
                   </div>
@@ -925,16 +1250,39 @@ const DetailedAnalyticsReports: React.FC<DetailedAnalyticsReportsProps> = ({
             <CardContent>
               <div className="h-80">
                 <ResponsiveContainer width="100%" height="100%">
-                  <ComposedChart data={analyticsData.quality.hallucinationAnalysis}>
+                  <ComposedChart
+                    data={analyticsData.quality.hallucinationAnalysis}
+                  >
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="date" tick={{ fontSize: 12 }} />
                     <YAxis yAxisId="left" tick={{ fontSize: 12 }} />
-                    <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 12 }} />
+                    <YAxis
+                      yAxisId="right"
+                      orientation="right"
+                      tick={{ fontSize: 12 }}
+                    />
                     <Tooltip />
                     <Legend />
-                    <Line yAxisId="left" type="monotone" dataKey="hallucinationScore" stroke="#ef4444" strokeWidth={2} name="Hallucination Score" />
-                    <Bar yAxisId="right" dataKey="detectedCount" fill="#f59e0b" name="Detected" />
-                    <Bar yAxisId="right" dataKey="correctedCount" fill="#10b981" name="Corrected" />
+                    <Line
+                      yAxisId="left"
+                      type="monotone"
+                      dataKey="hallucinationScore"
+                      stroke="#ef4444"
+                      strokeWidth={2}
+                      name="Hallucination Score"
+                    />
+                    <Bar
+                      yAxisId="right"
+                      dataKey="detectedCount"
+                      fill="#f59e0b"
+                      name="Detected"
+                    />
+                    <Bar
+                      yAxisId="right"
+                      dataKey="correctedCount"
+                      fill="#10b981"
+                      name="Corrected"
+                    />
                   </ComposedChart>
                 </ResponsiveContainer>
               </div>
@@ -950,19 +1298,31 @@ const DetailedAnalyticsReports: React.FC<DetailedAnalyticsReportsProps> = ({
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {analyticsData.compliance.securityMetrics.map(metric => (
-                  <div key={metric.metric} className="flex items-center justify-between p-4 border rounded-lg">
+                {analyticsData.compliance.securityMetrics.map((metric) => (
+                  <div
+                    key={metric.metric}
+                    className="flex items-center justify-between p-4 border rounded-lg"
+                  >
                     <div className="flex items-center space-x-3">
                       {getStatusIcon(metric.status)}
                       <div>
                         <div className="font-medium">{metric.metric}</div>
-                        <div className="text-sm text-gray-500">Threshold: {metric.threshold}</div>
+                        <div className="text-sm text-muted-foreground">
+                          Threshold: {metric.threshold}
+                        </div>
                       </div>
                     </div>
                     <div className="text-right">
                       <div className="font-bold text-lg">{metric.value}</div>
-                      <Badge variant={metric.status === 'compliant' ? 'default' :
-                                     metric.status === 'warning' ? 'secondary' : 'destructive'}>
+                      <Badge
+                        variant={
+                          metric.status === 'compliant'
+                            ? 'default'
+                            : metric.status === 'warning'
+                              ? 'secondary'
+                              : 'destructive'
+                        }
+                      >
                         {metric.status}
                       </Badge>
                     </div>
@@ -978,25 +1338,43 @@ const DetailedAnalyticsReports: React.FC<DetailedAnalyticsReportsProps> = ({
             </CardHeader>
             <CardContent>
               <div className="space-y-2">
-                {analyticsData.compliance.auditLogs.slice(0, 10).map((log, index) => (
-                  <div key={index} className="flex items-center justify-between p-3 border rounded">
-                    <div className="flex items-center space-x-3">
-                      <Badge variant={log.result === 'success' ? 'default' : 'destructive'}>
-                        {log.result}
-                      </Badge>
-                      <div>
-                        <div className="font-medium">{log.actionType.replace('_', ' ')}</div>
-                        <div className="text-sm text-gray-500">
-                          {log.userId} • {new Date(log.date).toLocaleString()}
+                {analyticsData.compliance.auditLogs
+                  .slice(0, 10)
+                  .map((log, index) => (
+                    <div
+                      key={index}
+                      className="flex items-center justify-between p-3 border rounded"
+                    >
+                      <div className="flex items-center space-x-3">
+                        <Badge
+                          variant={
+                            log.result === 'success' ? 'default' : 'destructive'
+                          }
+                        >
+                          {log.result}
+                        </Badge>
+                        <div>
+                          <div className="font-medium">
+                            {log.actionType.replace('_', ' ')}
+                          </div>
+                          <div className="text-sm text-muted-foreground">
+                            {log.userId} • {new Date(log.date).toLocaleString()}
+                          </div>
                         </div>
                       </div>
+                      <Badge
+                        variant={
+                          log.risk === 'low'
+                            ? 'secondary'
+                            : log.risk === 'medium'
+                              ? 'default'
+                              : 'destructive'
+                        }
+                      >
+                        {log.risk}
+                      </Badge>
                     </div>
-                    <Badge variant={log.risk === 'low' ? 'secondary' :
-                                   log.risk === 'medium' ? 'default' : 'destructive'}>
-                      {log.risk}
-                    </Badge>
-                  </div>
-                ))}
+                  ))}
               </div>
             </CardContent>
           </Card>

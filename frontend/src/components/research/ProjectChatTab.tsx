@@ -157,7 +157,9 @@ export const ProjectChatTab: React.FC<ProjectChatTabProps> = ({
       <div className="flex items-center justify-center py-12">
         <div className="flex flex-col items-center gap-3">
           <Loader2 className="h-8 w-8 animate-spin text-sol" />
-          <p className="text-sm text-gray-400 font-mono">Loading threads...</p>
+          <p className="text-sm text-muted-foreground font-mono">
+            Loading threads...
+          </p>
         </div>
       </div>
     );
@@ -172,10 +174,12 @@ export const ProjectChatTab: React.FC<ProjectChatTabProps> = ({
             <AlertCircle className="h-8 w-8 text-red-400" />
           </div>
           <div>
-            <h3 className="text-lg font-mono font-bold text-gray-200 mb-2">
+            <h3 className="text-lg font-mono font-bold text-muted-foreground mb-2">
               Failed to Load Threads
             </h3>
-            <p className="text-sm text-gray-400 font-mono mb-4">{error}</p>
+            <p className="text-sm text-muted-foreground font-mono mb-4">
+              {error}
+            </p>
             <button
               onClick={handleRetry}
               className="flex items-center gap-2 px-4 py-2 bg-sol/10 text-sol border border-sol/30 rounded font-mono text-sm hover:bg-sol/20 transition-colors mx-auto"
@@ -196,13 +200,13 @@ export const ProjectChatTab: React.FC<ProjectChatTabProps> = ({
         <div className="flex items-center justify-center py-12">
           <div className="flex flex-col items-center gap-4 max-w-md text-center">
             <div className="p-4 rounded-full bg-[#1a1a1a] border border-[#333]">
-              <MessageSquare className="h-12 w-12 text-gray-500" />
+              <MessageSquare className="h-12 w-12 text-muted-foreground" />
             </div>
             <div>
-              <h3 className="text-lg font-mono font-bold text-gray-200 mb-2">
+              <h3 className="text-lg font-mono font-bold text-muted-foreground mb-2">
                 No Chat Threads Linked
               </h3>
-              <p className="text-sm text-gray-400 font-mono mb-4">
+              <p className="text-sm text-muted-foreground font-mono mb-4">
                 Start a new chat using this project's documents as context, or
                 link an existing thread.
               </p>
@@ -252,7 +256,7 @@ export const ProjectChatTab: React.FC<ProjectChatTabProps> = ({
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <MessageSquare className="h-5 w-5 text-sol" />
-          <h3 className="text-lg font-mono font-bold text-gray-200">
+          <h3 className="text-lg font-mono font-bold text-muted-foreground">
             Linked Threads ({threads.length})
           </h3>
         </div>
@@ -315,10 +319,10 @@ export const ProjectChatTab: React.FC<ProjectChatTabProps> = ({
       <AlertDialog open={unlinkDialogOpen} onOpenChange={setUnlinkDialogOpen}>
         <AlertDialogContent className="bg-[#0a0a0a] border-[#1a1a1a]">
           <AlertDialogHeader>
-            <AlertDialogTitle className="font-mono text-gray-200">
+            <AlertDialogTitle className="font-mono text-muted-foreground">
               Unlink Thread from Project?
             </AlertDialogTitle>
-            <AlertDialogDescription className="font-mono text-gray-400">
+            <AlertDialogDescription className="font-mono text-muted-foreground">
               This will remove the connection between this thread and the
               project. The thread and its messages will not be deleted.
             </AlertDialogDescription>

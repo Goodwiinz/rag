@@ -23,7 +23,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
 import { Progress } from '@/components/ui/progress';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
 import {
   Table,
   TableBody,
@@ -65,9 +72,9 @@ import {
   AlertTriangle,
   CheckCircle,
   Clock,
- Zap,
- Brain,
- Database,
+  Zap,
+  Brain,
+  Database,
   Filter,
   Download,
   Upload,
@@ -101,7 +108,14 @@ interface CustomMetric {
   type: 'simple' | 'composite' | 'derived' | 'calculated';
   formula: string;
   dataSource: string[];
-  aggregation: 'sum' | 'average' | 'min' | 'max' | 'count' | 'percentile' | 'custom';
+  aggregation:
+    | 'sum'
+    | 'average'
+    | 'min'
+    | 'max'
+    | 'count'
+    | 'percentile'
+    | 'custom';
   unit: string;
   target?: {
     value: number;
@@ -162,10 +176,12 @@ const mockCustomMetrics: CustomMetric[] = [
   {
     id: 'metric-001',
     name: 'Response Quality Index',
-    description: 'Composite metric combining answer relevancy, faithfulness, and user satisfaction',
+    description:
+      'Composite metric combining answer relevancy, faithfulness, and user satisfaction',
     category: 'quality',
     type: 'composite',
-    formula: '(answer_relevancy * 0.4) + (faithfulness * 0.4) + (user_satisfaction * 0.2)',
+    formula:
+      '(answer_relevancy * 0.4) + (faithfulness * 0.4) + (user_satisfaction * 0.2)',
     dataSource: ['answer_relevancy', 'faithfulness', 'user_satisfaction'],
     aggregation: 'average',
     unit: 'score',
@@ -199,8 +215,14 @@ const mockCustomMetrics: CustomMetric[] = [
     description: 'Ratio of successful queries to total resource consumption',
     category: 'performance',
     type: 'derived',
-    formula: '(successful_queries / total_queries) / (avg_cpu_usage + avg_memory_usage)',
-    dataSource: ['successful_queries', 'total_queries', 'avg_cpu_usage', 'avg_memory_usage'],
+    formula:
+      '(successful_queries / total_queries) / (avg_cpu_usage + avg_memory_usage)',
+    dataSource: [
+      'successful_queries',
+      'total_queries',
+      'avg_cpu_usage',
+      'avg_memory_usage',
+    ],
     aggregation: 'average',
     unit: 'ratio',
     target: {
@@ -258,7 +280,8 @@ const metricTemplates: MetricTemplate[] = [
   {
     id: 'template-001',
     name: 'User Engagement Score',
-    description: 'Measures user engagement based on query frequency and feedback',
+    description:
+      'Measures user engagement based on query frequency and feedback',
     category: 'usage',
     formula: '(queries_per_session * 0.6) + (avg_session_duration * 0.4)',
     dataSources: ['queries_per_session', 'avg_session_duration'],
@@ -288,28 +311,62 @@ const metricTemplates: MetricTemplate[] = [
 ];
 
 const availableDataSources = [
-  { id: 'answer_relevancy', name: 'Answer Relevancy', type: 'quality', unit: '%' },
+  {
+    id: 'answer_relevancy',
+    name: 'Answer Relevancy',
+    type: 'quality',
+    unit: '%',
+  },
   { id: 'faithfulness', name: 'Faithfulness', type: 'quality', unit: '%' },
-  { id: 'contextual_relevancy', name: 'Contextual Relevancy', type: 'quality', unit: '%' },
-  { id: 'user_satisfaction', name: 'User Satisfaction', type: 'usage', unit: '%' },
-  { id: 'response_latency', name: 'Response Latency', type: 'performance', unit: 'ms' },
+  {
+    id: 'contextual_relevancy',
+    name: 'Contextual Relevancy',
+    type: 'quality',
+    unit: '%',
+  },
+  {
+    id: 'user_satisfaction',
+    name: 'User Satisfaction',
+    type: 'usage',
+    unit: '%',
+  },
+  {
+    id: 'response_latency',
+    name: 'Response Latency',
+    type: 'performance',
+    unit: 'ms',
+  },
   { id: 'success_rate', name: 'Success Rate', type: 'performance', unit: '%' },
-  { id: 'queries_per_minute', name: 'Queries Per Minute', type: 'usage', unit: 'qpm' },
-  { id: 'documents_processed', name: 'Documents Processed', type: 'usage', unit: 'count' },
+  {
+    id: 'queries_per_minute',
+    name: 'Queries Per Minute',
+    type: 'usage',
+    unit: 'qpm',
+  },
+  {
+    id: 'documents_processed',
+    name: 'Documents Processed',
+    type: 'usage',
+    unit: 'count',
+  },
   { id: 'cpu_usage', name: 'CPU Usage', type: 'technical', unit: '%' },
   { id: 'memory_usage', name: 'Memory Usage', type: 'technical', unit: '%' },
   { id: 'error_rate', name: 'Error Rate', type: 'performance', unit: '%' },
-  { id: 'cache_hit_rate', name: 'Cache Hit Rate', type: 'performance', unit: '%' },
+  {
+    id: 'cache_hit_rate',
+    name: 'Cache Hit Rate',
+    type: 'performance',
+    unit: '%',
+  },
 ];
 
-const CustomMetricCreationTracking: React.FC<CustomMetricCreationTrackingProps> = ({
-  onMetricCreate,
-  onMetricUpdate,
-  onMetricDelete,
-  className,
-}) => {
+const CustomMetricCreationTracking: React.FC<
+  CustomMetricCreationTrackingProps
+> = ({ onMetricCreate, onMetricUpdate, onMetricDelete, className }) => {
   const [metrics, setMetrics] = useState<CustomMetric[]>(mockCustomMetrics);
-  const [selectedMetric, setSelectedMetric] = useState<CustomMetric | null>(null);
+  const [selectedMetric, setSelectedMetric] = useState<CustomMetric | null>(
+    null
+  );
   const [activeTab, setActiveTab] = useState('metrics');
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [editingMetric, setEditingMetric] = useState<CustomMetric | null>(null);
@@ -319,54 +376,60 @@ const CustomMetricCreationTracking: React.FC<CustomMetricCreationTrackingProps> 
 
   // Filter metrics
   const filteredMetrics = useMemo(() => {
-    return metrics.filter(metric => {
-      const matchesSearch = metric.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           metric.description.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesCategory = filterCategory === 'all' || metric.category === filterCategory;
-      const matchesStatus = filterStatus === 'all' ||
-                           (filterStatus === 'active' && metric.isActive) ||
-                           (filterStatus === 'inactive' && !metric.isActive);
+    return metrics.filter((metric) => {
+      const matchesSearch =
+        metric.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        metric.description.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesCategory =
+        filterCategory === 'all' || metric.category === filterCategory;
+      const matchesStatus =
+        filterStatus === 'all' ||
+        (filterStatus === 'active' && metric.isActive) ||
+        (filterStatus === 'inactive' && !metric.isActive);
       return matchesSearch && matchesCategory && matchesStatus;
     });
   }, [metrics, searchTerm, filterCategory, filterStatus]);
 
   // Generate mock metric data
-  const generateMetricData = useCallback((metricId: string, days: number = 30): MetricDataPoint[] => {
-    const metric = metrics.find(m => m.id === metricId);
-    if (!metric) return [];
+  const generateMetricData = useCallback(
+    (metricId: string, days: number = 30): MetricDataPoint[] => {
+      const metric = metrics.find((m) => m.id === metricId);
+      if (!metric) return [];
 
-    const data: MetricDataPoint[] = [];
-    const now = new Date();
+      const data: MetricDataPoint[] = [];
+      const now = new Date();
 
-    for (let i = days; i >= 0; i--) {
-      const date = new Date(now);
-      date.setDate(date.getDate() - i);
+      for (let i = days; i >= 0; i--) {
+        const date = new Date(now);
+        date.setDate(date.getDate() - i);
 
-      let value = 75 + Math.random() * 20; // Base value with variation
+        let value = 75 + Math.random() * 20; // Base value with variation
 
-      // Add trend based on metric type
-      if (metric.category === 'quality') {
-        value += (days - i) * 0.2; // Slight improvement trend
-      } else if (metric.category === 'performance') {
-        value += Math.sin((days - i) / 7 * Math.PI * 2) * 5; // Weekly pattern
+        // Add trend based on metric type
+        if (metric.category === 'quality') {
+          value += (days - i) * 0.2; // Slight improvement trend
+        } else if (metric.category === 'performance') {
+          value += Math.sin(((days - i) / 7) * Math.PI * 2) * 5; // Weekly pattern
+        }
+
+        // Add some outliers
+        if (Math.random() < 0.05) {
+          value += (Math.random() - 0.5) * 30;
+        }
+
+        // Clamp values
+        value = Math.max(0, Math.min(100, value));
+
+        data.push({
+          timestamp: date.toISOString(),
+          value: Math.round(value * 100) / 100,
+        });
       }
 
-      // Add some outliers
-      if (Math.random() < 0.05) {
-        value += (Math.random() - 0.5) * 30;
-      }
-
-      // Clamp values
-      value = Math.max(0, Math.min(100, value));
-
-      data.push({
-        timestamp: date.toISOString(),
-        value: Math.round(value * 100) / 100,
-      });
-    }
-
-    return data;
-  }, [metrics]);
+      return data;
+    },
+    [metrics]
+  );
 
   // Safe arithmetic expression evaluator
   const safeEvaluate = (expression: string): number => {
@@ -384,7 +447,10 @@ const CustomMetricCreationTracking: React.FC<CustomMetricCreationTrackingProps> 
 
     const parseNumber = (): number => {
       let numStr = '';
-      while (pos < cleanExpr.length && (cleanExpr[pos]?.match(/[\d\.]/) || cleanExpr[pos] === '-')) {
+      while (
+        pos < cleanExpr.length &&
+        (cleanExpr[pos]?.match(/[\d\.]/) || cleanExpr[pos] === '-')
+      ) {
         numStr += cleanExpr[pos];
         pos++;
       }
@@ -403,7 +469,10 @@ const CustomMetricCreationTracking: React.FC<CustomMetricCreationTrackingProps> 
 
     const parseTerm = (): number => {
       let result = parseFactor();
-      while (pos < cleanExpr.length && (cleanExpr[pos] === '*' || cleanExpr[pos] === '/')) {
+      while (
+        pos < cleanExpr.length &&
+        (cleanExpr[pos] === '*' || cleanExpr[pos] === '/')
+      ) {
         const op = cleanExpr[pos];
         pos++;
         const right = parseFactor();
@@ -414,7 +483,10 @@ const CustomMetricCreationTracking: React.FC<CustomMetricCreationTrackingProps> 
 
     const parseExpression = (): number => {
       let result = parseTerm();
-      while (pos < cleanExpr.length && (cleanExpr[pos] === '+' || cleanExpr[pos] === '-')) {
+      while (
+        pos < cleanExpr.length &&
+        (cleanExpr[pos] === '+' || cleanExpr[pos] === '-')
+      ) {
         const op = cleanExpr[pos];
         pos++;
         const right = parseTerm();
@@ -460,81 +532,99 @@ const CustomMetricCreationTracking: React.FC<CustomMetricCreationTrackingProps> 
   // Get category icon
   const getCategoryIcon = (category: string) => {
     switch (category) {
-      case 'performance': return <Zap className="h-4 w-4" />;
-      case 'quality': return <Target className="h-4 w-4" />;
-      case 'usage': return <Activity className="h-4 w-4" />;
-      case 'business': return <Calculator className="h-4 w-4" />;
-      case 'technical': return <Database className="h-4 w-4" />;
-      default: return <BarChart3 className="h-4 w-4" />;
+      case 'performance':
+        return <Zap className="h-4 w-4" />;
+      case 'quality':
+        return <Target className="h-4 w-4" />;
+      case 'usage':
+        return <Activity className="h-4 w-4" />;
+      case 'business':
+        return <Calculator className="h-4 w-4" />;
+      case 'technical':
+        return <Database className="h-4 w-4" />;
+      default:
+        return <BarChart3 className="h-4 w-4" />;
     }
   };
 
   // Get status color
   const getStatusColor = (metric: CustomMetric) => {
-    if (!metric.isActive) return 'bg-gray-100 text-gray-800 border-gray-200';
+    if (!metric.isActive) return 'bg-gray-100 text-foreground border-border';
 
     const currentValue = calculateMetricValue(metric);
     if (metric.thresholds) {
-      if (currentValue <= metric.thresholds.critical) return 'bg-red-100 text-red-800 border-red-200';
-      if (currentValue <= metric.thresholds.warning) return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+      if (currentValue <= metric.thresholds.critical)
+        return 'bg-red-100 text-red-800 border-red-200';
+      if (currentValue <= metric.thresholds.warning)
+        return 'bg-yellow-100 text-yellow-800 border-yellow-200';
     }
     return 'bg-green-100 text-green-800 border-green-200';
   };
 
   // Create or update metric
-  const handleSaveMetric = useCallback((metricData: Partial<CustomMetric>) => {
-    if (editingMetric) {
-      // Update existing metric
-      setMetrics(prev => prev.map(m =>
-        m.id === editingMetric.id
-          ? { ...m, ...metricData, updated: new Date().toISOString() }
-          : m
-      ));
-      setEditingMetric(null);
-    } else {
-      // Create new metric
-      const newMetric: CustomMetric = {
-        id: `metric-${Date.now()}`,
-        name: metricData.name || 'New Metric',
-        description: metricData.description || '',
-        category: metricData.category || 'performance',
-        type: metricData.type || 'simple',
-        formula: metricData.formula || '',
-        dataSource: metricData.dataSource || [],
-        aggregation: metricData.aggregation || 'average',
-        unit: metricData.unit || '',
-        target: metricData.target,
-        thresholds: metricData.thresholds,
-        tags: metricData.tags || [],
-        isActive: metricData.isActive ?? true,
-        schedule: metricData.schedule,
-        permissions: {
-          view: ['team-a'],
-          edit: ['team-a'],
-        },
-        created: new Date().toISOString(),
-        updated: new Date().toISOString(),
-        createdBy: 'current-user',
-      };
-      setMetrics(prev => [...prev, newMetric]);
-      onMetricCreate?.(newMetric);
-    }
-    setIsCreateDialogOpen(false);
-  }, [editingMetric, onMetricCreate]);
+  const handleSaveMetric = useCallback(
+    (metricData: Partial<CustomMetric>) => {
+      if (editingMetric) {
+        // Update existing metric
+        setMetrics((prev) =>
+          prev.map((m) =>
+            m.id === editingMetric.id
+              ? { ...m, ...metricData, updated: new Date().toISOString() }
+              : m
+          )
+        );
+        setEditingMetric(null);
+      } else {
+        // Create new metric
+        const newMetric: CustomMetric = {
+          id: `metric-${Date.now()}`,
+          name: metricData.name || 'New Metric',
+          description: metricData.description || '',
+          category: metricData.category || 'performance',
+          type: metricData.type || 'simple',
+          formula: metricData.formula || '',
+          dataSource: metricData.dataSource || [],
+          aggregation: metricData.aggregation || 'average',
+          unit: metricData.unit || '',
+          target: metricData.target,
+          thresholds: metricData.thresholds,
+          tags: metricData.tags || [],
+          isActive: metricData.isActive ?? true,
+          schedule: metricData.schedule,
+          permissions: {
+            view: ['team-a'],
+            edit: ['team-a'],
+          },
+          created: new Date().toISOString(),
+          updated: new Date().toISOString(),
+          createdBy: 'current-user',
+        };
+        setMetrics((prev) => [...prev, newMetric]);
+        onMetricCreate?.(newMetric);
+      }
+      setIsCreateDialogOpen(false);
+    },
+    [editingMetric, onMetricCreate]
+  );
 
   // Delete metric
-  const handleDeleteMetric = useCallback((metricId: string) => {
-    setMetrics(prev => prev.filter(m => m.id !== metricId));
-    onMetricDelete?.(metricId);
-  }, [onMetricDelete]);
+  const handleDeleteMetric = useCallback(
+    (metricId: string) => {
+      setMetrics((prev) => prev.filter((m) => m.id !== metricId));
+      onMetricDelete?.(metricId);
+    },
+    [onMetricDelete]
+  );
 
   // Toggle metric active status
   const toggleMetricStatus = useCallback((metricId: string) => {
-    setMetrics(prev => prev.map(m =>
-      m.id === metricId
-        ? { ...m, isActive: !m.isActive, updated: new Date().toISOString() }
-        : m
-    ));
+    setMetrics((prev) =>
+      prev.map((m) =>
+        m.id === metricId
+          ? { ...m, isActive: !m.isActive, updated: new Date().toISOString() }
+          : m
+      )
+    );
   }, []);
 
   return (
@@ -542,11 +632,16 @@ const CustomMetricCreationTracking: React.FC<CustomMetricCreationTrackingProps> 
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Custom Metrics</h2>
-          <p className="text-gray-600 dark:text-gray-400">Create and track custom metrics for your RAG system</p>
+          <h2 className="text-2xl font-bold text-foreground">Custom Metrics</h2>
+          <p className="text-foreground">
+            Create and track custom metrics for your RAG system
+          </p>
         </div>
         <div className="flex items-center space-x-2">
-          <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+          <Dialog
+            open={isCreateDialogOpen}
+            onOpenChange={setIsCreateDialogOpen}
+          >
             <DialogTrigger asChild>
               <Button>
                 <Plus className="h-4 w-4 mr-2" />
@@ -555,9 +650,12 @@ const CustomMetricCreationTracking: React.FC<CustomMetricCreationTrackingProps> 
             </DialogTrigger>
             <DialogContent className="max-w-4xl">
               <DialogHeader>
-                <DialogTitle>{editingMetric ? 'Edit Metric' : 'Create Custom Metric'}</DialogTitle>
+                <DialogTitle>
+                  {editingMetric ? 'Edit Metric' : 'Create Custom Metric'}
+                </DialogTitle>
                 <DialogDescription>
-                  Define a custom metric to track specific aspects of your RAG system performance
+                  Define a custom metric to track specific aspects of your RAG
+                  system performance
                 </DialogDescription>
               </DialogHeader>
               <MetricForm
@@ -579,7 +677,7 @@ const CustomMetricCreationTracking: React.FC<CustomMetricCreationTrackingProps> 
           <div className="flex items-center space-x-4">
             <div className="flex-1">
               <div className="relative">
-                <Filter className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Filter className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   placeholder="Search metrics..."
                   value={searchTerm}
@@ -622,7 +720,10 @@ const CustomMetricCreationTracking: React.FC<CustomMetricCreationTrackingProps> 
             <BarChart3 className="h-4 w-4" />
             <span>Metrics</span>
           </TabsTrigger>
-          <TabsTrigger value="templates" className="flex items-center space-x-2">
+          <TabsTrigger
+            value="templates"
+            className="flex items-center space-x-2"
+          >
             <Copy className="h-4 w-4" />
             <span>Templates</span>
           </TabsTrigger>
@@ -639,15 +740,20 @@ const CustomMetricCreationTracking: React.FC<CustomMetricCreationTrackingProps> 
         {/* Metrics Tab */}
         <TabsContent value="metrics" className="space-y-4">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {filteredMetrics.map(metric => (
-              <Card key={metric.id} className="hover:shadow-md transition-shadow">
+            {filteredMetrics.map((metric) => (
+              <Card
+                key={metric.id}
+                className="hover:shadow-md transition-shadow"
+              >
                 <CardHeader className="pb-3">
                   <div className="flex items-start justify-between">
                     <div className="flex items-center space-x-3">
                       {getCategoryIcon(metric.category)}
                       <div>
                         <CardTitle className="text-lg">{metric.name}</CardTitle>
-                        <CardDescription className="mt-1">{metric.description}</CardDescription>
+                        <CardDescription className="mt-1">
+                          {metric.description}
+                        </CardDescription>
                       </div>
                     </div>
                     <div className="flex items-center space-x-2">
@@ -673,7 +779,7 @@ const CustomMetricCreationTracking: React.FC<CustomMetricCreationTrackingProps> 
                         </Badge>
                       )}
                     </div>
-                    <div className="text-sm text-gray-500">
+                    <div className="text-sm text-muted-foreground">
                       {metric.unit}
                     </div>
                   </div>
@@ -682,12 +788,16 @@ const CustomMetricCreationTracking: React.FC<CustomMetricCreationTrackingProps> 
                     <div>
                       <div className="flex items-center justify-between text-sm mb-2">
                         <span>Current Value</span>
-                        <span className="font-bold text-lg">{calculateMetricValue(metric).toFixed(2)}</span>
+                        <span className="font-bold text-lg">
+                          {calculateMetricValue(metric).toFixed(2)}
+                        </span>
                       </div>
                       {metric.target && (
-                        <div className="flex items-center justify-between text-sm text-gray-500">
+                        <div className="flex items-center justify-between text-sm text-muted-foreground">
                           <span>Target</span>
-                          <span>{metric.target.value} {metric.unit}</span>
+                          <span>
+                            {metric.target.value} {metric.unit}
+                          </span>
                         </div>
                       )}
                     </div>
@@ -702,7 +812,7 @@ const CustomMetricCreationTracking: React.FC<CustomMetricCreationTrackingProps> 
 
                   {metric.tags.length > 0 && (
                     <div className="flex flex-wrap gap-1">
-                      {metric.tags.map(tag => (
+                      {metric.tags.map((tag) => (
                         <Badge key={tag} variant="outline" className="text-xs">
                           {tag}
                         </Badge>
@@ -711,8 +821,9 @@ const CustomMetricCreationTracking: React.FC<CustomMetricCreationTrackingProps> 
                   )}
 
                   <div className="flex items-center justify-between pt-2">
-                    <div className="text-xs text-gray-500">
-                      Last updated: {new Date(metric.updated).toLocaleDateString()}
+                    <div className="text-xs text-muted-foreground">
+                      Last updated:{' '}
+                      {new Date(metric.updated).toLocaleDateString()}
                     </div>
                     <div className="flex items-center space-x-1">
                       <Button
@@ -751,8 +862,11 @@ const CustomMetricCreationTracking: React.FC<CustomMetricCreationTrackingProps> 
         {/* Templates Tab */}
         <TabsContent value="templates" className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {metricTemplates.map(template => (
-              <Card key={template.id} className="hover:shadow-md transition-shadow">
+            {metricTemplates.map((template) => (
+              <Card
+                key={template.id}
+                className="hover:shadow-md transition-shadow"
+              >
                 <CardHeader>
                   <CardTitle className="text-lg">{template.name}</CardTitle>
                   <CardDescription>{template.description}</CardDescription>
@@ -760,7 +874,9 @@ const CustomMetricCreationTracking: React.FC<CustomMetricCreationTrackingProps> 
                 <CardContent className="space-y-4">
                   <div className="flex items-center justify-between">
                     <Badge variant="outline">{template.category}</Badge>
-                    <div className="text-sm text-gray-500">{template.unit}</div>
+                    <div className="text-sm text-muted-foreground">
+                      {template.unit}
+                    </div>
                   </div>
 
                   <div className="space-y-2">
@@ -773,8 +889,12 @@ const CustomMetricCreationTracking: React.FC<CustomMetricCreationTrackingProps> 
                   <div className="space-y-2">
                     <div className="text-sm font-medium">Data Sources:</div>
                     <div className="flex flex-wrap gap-1">
-                      {template.dataSources.map(source => (
-                        <Badge key={source} variant="outline" className="text-xs">
+                      {template.dataSources.map((source) => (
+                        <Badge
+                          key={source}
+                          variant="outline"
+                          className="text-xs"
+                        >
                           {source}
                         </Badge>
                       ))}
@@ -839,12 +959,16 @@ const CustomMetricCreationTracking: React.FC<CustomMetricCreationTrackingProps> 
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis
                         dataKey="timestamp"
-                        tickFormatter={(value) => new Date(value).toLocaleDateString()}
+                        tickFormatter={(value) =>
+                          new Date(value).toLocaleDateString()
+                        }
                         tick={{ fontSize: 12 }}
                       />
                       <YAxis tick={{ fontSize: 12 }} />
                       <Tooltip
-                        labelFormatter={(value) => new Date(value as string).toLocaleString()}
+                        labelFormatter={(value) =>
+                          new Date(value as string).toLocaleString()
+                        }
                       />
                       <Legend />
                       <Line
@@ -887,10 +1011,13 @@ const CustomMetricCreationTracking: React.FC<CustomMetricCreationTrackingProps> 
           ) : (
             <Card>
               <CardContent className="pt-6">
-                <div className="text-center py-8 text-gray-500">
+                <div className="text-center py-8 text-muted-foreground">
                   <BarChart3 className="h-12 w-12 mx-auto mb-4 opacity-50" />
                   <p>Select a metric to view its tracking data</p>
-                  <p className="text-sm">Choose a metric from the Metrics tab to see historical trends</p>
+                  <p className="text-sm">
+                    Choose a metric from the Metrics tab to see historical
+                    trends
+                  </p>
                 </div>
               </CardContent>
             </Card>
@@ -902,80 +1029,108 @@ const CustomMetricCreationTracking: React.FC<CustomMetricCreationTrackingProps> 
           <Card>
             <CardHeader>
               <CardTitle>Metrics Overview</CardTitle>
-              <CardDescription>Analysis of all active custom metrics</CardDescription>
+              <CardDescription>
+                Analysis of all active custom metrics
+              </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-6">
-                {metrics.filter(m => m.isActive).map(metric => {
-                  const currentValue = calculateMetricValue(metric);
-                  const data = generateMetricData(metric.id, 7); // Last 7 days
-                  const firstDataPoint = data[0];
-              const lastDataPoint = data[data.length - 1];
-              const trend = data.length > 1 && firstDataPoint?.value !== undefined && lastDataPoint?.value !== undefined && firstDataPoint.value !== 0 ?
-                    (lastDataPoint.value - firstDataPoint.value) / firstDataPoint.value * 100 : 0;
+                {metrics
+                  .filter((m) => m.isActive)
+                  .map((metric) => {
+                    const currentValue = calculateMetricValue(metric);
+                    const data = generateMetricData(metric.id, 7); // Last 7 days
+                    const firstDataPoint = data[0];
+                    const lastDataPoint = data[data.length - 1];
+                    const trend =
+                      data.length > 1 &&
+                      firstDataPoint?.value !== undefined &&
+                      lastDataPoint?.value !== undefined &&
+                      firstDataPoint.value !== 0
+                        ? ((lastDataPoint.value - firstDataPoint.value) /
+                            firstDataPoint.value) *
+                          100
+                        : 0;
 
-                  return (
-                    <div key={metric.id} className="border rounded-lg p-4">
-                      <div className="flex items-start justify-between mb-4">
-                        <div className="flex items-center space-x-3">
-                          {getCategoryIcon(metric.category)}
-                          <div>
-                            <h4 className="font-medium">{metric.name}</h4>
-                            <p className="text-sm text-gray-500">{metric.description}</p>
-                          </div>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          <Badge variant="outline">{metric.category}</Badge>
-                          <div className="flex items-center space-x-1">
-                            {trend > 0 ? <TrendingUp className="h-4 w-4 text-green-500" /> :
-                             trend < 0 ? <TrendingDown className="h-4 w-4 text-red-500" /> :
-                             <div className="w-4 h-4 bg-gray-300 rounded-full" />}
-                            <span className="text-sm">{trend > 0 ? '+' : ''}{trend.toFixed(1)}%</span>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div className="text-center p-3 bg-blue-50 dark:bg-blue-900/20 rounded">
-                          <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-                            {currentValue.toFixed(2)}
-                          </div>
-                          <div className="text-sm text-gray-600 dark:text-gray-400">Current Value</div>
-                        </div>
-                        {metric.target && (
-                          <div className="text-center p-3 bg-green-50 dark:bg-green-900/20 rounded">
-                            <div className="text-2xl font-bold text-green-600 dark:text-green-400">
-                              {metric.target.value}
+                    return (
+                      <div key={metric.id} className="border rounded-lg p-4">
+                        <div className="flex items-start justify-between mb-4">
+                          <div className="flex items-center space-x-3">
+                            {getCategoryIcon(metric.category)}
+                            <div>
+                              <h4 className="font-medium">{metric.name}</h4>
+                              <p className="text-sm text-muted-foreground">
+                                {metric.description}
+                              </p>
                             </div>
-                            <div className="text-sm text-gray-600 dark:text-gray-400">Target</div>
                           </div>
-                        )}
-                        <div className="text-center p-3 bg-purple-50 dark:bg-purple-900/20 rounded">
-                          <div className="text-2xl font-bold text-purple-600 dark:text-purple-400">
-                            {metric.dataSource.length}
+                          <div className="flex items-center space-x-2">
+                            <Badge variant="outline">{metric.category}</Badge>
+                            <div className="flex items-center space-x-1">
+                              {trend > 0 ? (
+                                <TrendingUp className="h-4 w-4 text-green-500" />
+                              ) : trend < 0 ? (
+                                <TrendingDown className="h-4 w-4 text-red-500" />
+                              ) : (
+                                <div className="w-4 h-4 bg-gray-300 rounded-full" />
+                              )}
+                              <span className="text-sm">
+                                {trend > 0 ? '+' : ''}
+                                {trend.toFixed(1)}%
+                              </span>
+                            </div>
                           </div>
-                          <div className="text-sm text-gray-600 dark:text-gray-400">Data Sources</div>
                         </div>
-                      </div>
 
-                      <div className="mt-4">
-                        <div className="text-sm font-medium mb-2">Mini Chart (Last 7 days)</div>
-                        <div className="h-20">
-                          <ResponsiveContainer width="100%" height="100%">
-                            <AreaChart data={data}>
-                              <Area
-                                type="monotone"
-                                dataKey="value"
-                                stroke="#3b82f6"
-                                fill="#3b82f620"
-                              />
-                            </AreaChart>
-                          </ResponsiveContainer>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                          <div className="text-center p-3 bg-blue-50 dark:bg-blue-900/20 rounded">
+                            <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+                              {currentValue.toFixed(2)}
+                            </div>
+                            <div className="text-sm text-foreground">
+                              Current Value
+                            </div>
+                          </div>
+                          {metric.target && (
+                            <div className="text-center p-3 bg-green-50 dark:bg-green-900/20 rounded">
+                              <div className="text-2xl font-bold text-green-600 dark:text-green-400">
+                                {metric.target.value}
+                              </div>
+                              <div className="text-sm text-foreground">
+                                Target
+                              </div>
+                            </div>
+                          )}
+                          <div className="text-center p-3 bg-purple-50 dark:bg-purple-900/20 rounded">
+                            <div className="text-2xl font-bold text-purple-600 dark:text-purple-400">
+                              {metric.dataSource.length}
+                            </div>
+                            <div className="text-sm text-foreground">
+                              Data Sources
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="mt-4">
+                          <div className="text-sm font-medium mb-2">
+                            Mini Chart (Last 7 days)
+                          </div>
+                          <div className="h-20">
+                            <ResponsiveContainer width="100%" height="100%">
+                              <AreaChart data={data}>
+                                <Area
+                                  type="monotone"
+                                  dataKey="value"
+                                  stroke="#3b82f6"
+                                  fill="#3b82f620"
+                                />
+                              </AreaChart>
+                            </ResponsiveContainer>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
               </div>
             </CardContent>
           </Card>
@@ -986,7 +1141,11 @@ const CustomMetricCreationTracking: React.FC<CustomMetricCreationTrackingProps> 
 };
 
 // Metric Form Component
-const MetricForm: React.FC<MetricFormProps> = ({ metric, onSubmit, onCancel }) => {
+const MetricForm: React.FC<MetricFormProps> = ({
+  metric,
+  onSubmit,
+  onCancel,
+}) => {
   const [formData, setFormData] = useState({
     name: metric?.name || '',
     description: metric?.description || '',
@@ -1017,11 +1176,16 @@ const MetricForm: React.FC<MetricFormProps> = ({ metric, onSubmit, onCancel }) =
       aggregation: formData.aggregation as any,
       unit: formData.unit,
       dataSource: formData.selectedDataSources,
-      tags: formData.tags.split(',').map(tag => tag.trim()).filter(Boolean),
-      schedule: formData.scheduleEnabled ? {
-        enabled: true,
-        frequency: formData.scheduleFrequency as any,
-      } : undefined,
+      tags: formData.tags
+        .split(',')
+        .map((tag) => tag.trim())
+        .filter(Boolean),
+      schedule: formData.scheduleEnabled
+        ? {
+            enabled: true,
+            frequency: formData.scheduleFrequency as any,
+          }
+        : undefined,
     };
 
     if (formData.targetValue) {
@@ -1056,14 +1220,21 @@ const MetricForm: React.FC<MetricFormProps> = ({ metric, onSubmit, onCancel }) =
           <Input
             id="metric-name"
             value={formData.name}
-            onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+            onChange={(e) =>
+              setFormData((prev) => ({ ...prev, name: e.target.value }))
+            }
             placeholder="Enter metric name"
             required
           />
         </div>
         <div>
           <Label htmlFor="metric-category">Category *</Label>
-          <Select value={formData.category} onValueChange={(value) => setFormData(prev => ({ ...prev, category: value as any }))}>
+          <Select
+            value={formData.category}
+            onValueChange={(value) =>
+              setFormData((prev) => ({ ...prev, category: value as any }))
+            }
+          >
             <SelectTrigger>
               <SelectValue />
             </SelectTrigger>
@@ -1083,7 +1254,9 @@ const MetricForm: React.FC<MetricFormProps> = ({ metric, onSubmit, onCancel }) =
         <Textarea
           id="metric-description"
           value={formData.description}
-          onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+          onChange={(e) =>
+            setFormData((prev) => ({ ...prev, description: e.target.value }))
+          }
           placeholder="Describe what this metric measures"
           rows={3}
         />
@@ -1092,7 +1265,12 @@ const MetricForm: React.FC<MetricFormProps> = ({ metric, onSubmit, onCancel }) =
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
           <Label htmlFor="metric-type">Type</Label>
-          <Select value={formData.type} onValueChange={(value) => setFormData(prev => ({ ...prev, type: value as any }))}>
+          <Select
+            value={formData.type}
+            onValueChange={(value) =>
+              setFormData((prev) => ({ ...prev, type: value as any }))
+            }
+          >
             <SelectTrigger>
               <SelectValue />
             </SelectTrigger>
@@ -1106,7 +1284,12 @@ const MetricForm: React.FC<MetricFormProps> = ({ metric, onSubmit, onCancel }) =
         </div>
         <div>
           <Label htmlFor="metric-aggregation">Aggregation</Label>
-          <Select value={formData.aggregation} onValueChange={(value) => setFormData(prev => ({ ...prev, aggregation: value as any }))}>
+          <Select
+            value={formData.aggregation}
+            onValueChange={(value) =>
+              setFormData((prev) => ({ ...prev, aggregation: value as any }))
+            }
+          >
             <SelectTrigger>
               <SelectValue />
             </SelectTrigger>
@@ -1128,13 +1311,16 @@ const MetricForm: React.FC<MetricFormProps> = ({ metric, onSubmit, onCancel }) =
         <Textarea
           id="metric-formula"
           value={formData.formula}
-          onChange={(e) => setFormData(prev => ({ ...prev, formula: e.target.value }))}
+          onChange={(e) =>
+            setFormData((prev) => ({ ...prev, formula: e.target.value }))
+          }
           placeholder="e.g., (answer_relevancy * 0.6) + (faithfulness * 0.4)"
           rows={3}
           required
         />
-        <p className="text-xs text-gray-500 mt-1">
-          Use data source names in your formula. Available operators: +, -, *, /, (, )
+        <p className="text-xs text-muted-foreground mt-1">
+          Use data source names in your formula. Available operators: +, -, *,
+          /, (, )
         </p>
       </div>
 
@@ -1143,7 +1329,9 @@ const MetricForm: React.FC<MetricFormProps> = ({ metric, onSubmit, onCancel }) =
         <Input
           id="metric-unit"
           value={formData.unit}
-          onChange={(e) => setFormData(prev => ({ ...prev, unit: e.target.value }))}
+          onChange={(e) =>
+            setFormData((prev) => ({ ...prev, unit: e.target.value }))
+          }
           placeholder="e.g., %, ms, score, ratio"
         />
       </div>
@@ -1157,13 +1345,26 @@ const MetricForm: React.FC<MetricFormProps> = ({ metric, onSubmit, onCancel }) =
               id="target-value"
               type="number"
               value={formData.targetValue}
-              onChange={(e) => setFormData(prev => ({ ...prev, targetValue: e.target.value }))}
+              onChange={(e) =>
+                setFormData((prev) => ({
+                  ...prev,
+                  targetValue: e.target.value,
+                }))
+              }
               placeholder="e.g., 80"
             />
           </div>
           <div>
             <Label htmlFor="target-operator">Operator</Label>
-            <Select value={formData.targetOperator} onValueChange={(value) => setFormData(prev => ({ ...prev, targetOperator: value as any }))}>
+            <Select
+              value={formData.targetOperator}
+              onValueChange={(value) =>
+                setFormData((prev) => ({
+                  ...prev,
+                  targetOperator: value as any,
+                }))
+              }
+            >
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
@@ -1184,7 +1385,12 @@ const MetricForm: React.FC<MetricFormProps> = ({ metric, onSubmit, onCancel }) =
               id="warning-threshold"
               type="number"
               value={formData.warningThreshold}
-              onChange={(e) => setFormData(prev => ({ ...prev, warningThreshold: e.target.value }))}
+              onChange={(e) =>
+                setFormData((prev) => ({
+                  ...prev,
+                  warningThreshold: e.target.value,
+                }))
+              }
               placeholder="e.g., 70"
             />
           </div>
@@ -1194,7 +1400,12 @@ const MetricForm: React.FC<MetricFormProps> = ({ metric, onSubmit, onCancel }) =
               id="critical-threshold"
               type="number"
               value={formData.criticalThreshold}
-              onChange={(e) => setFormData(prev => ({ ...prev, criticalThreshold: e.target.value }))}
+              onChange={(e) =>
+                setFormData((prev) => ({
+                  ...prev,
+                  criticalThreshold: e.target.value,
+                }))
+              }
               placeholder="e.g., 60"
             />
           </div>
@@ -1205,7 +1416,9 @@ const MetricForm: React.FC<MetricFormProps> = ({ metric, onSubmit, onCancel }) =
         <Switch
           id="schedule-enabled"
           checked={formData.scheduleEnabled}
-          onCheckedChange={(checked) => setFormData(prev => ({ ...prev, scheduleEnabled: checked }))}
+          onCheckedChange={(checked) =>
+            setFormData((prev) => ({ ...prev, scheduleEnabled: checked }))
+          }
         />
         <Label htmlFor="schedule-enabled">Enable scheduled calculation</Label>
       </div>
@@ -1213,7 +1426,15 @@ const MetricForm: React.FC<MetricFormProps> = ({ metric, onSubmit, onCancel }) =
       {formData.scheduleEnabled && (
         <div>
           <Label htmlFor="schedule-frequency">Frequency</Label>
-          <Select value={formData.scheduleFrequency} onValueChange={(value) => setFormData(prev => ({ ...prev, scheduleFrequency: value as any }))}>
+          <Select
+            value={formData.scheduleFrequency}
+            onValueChange={(value) =>
+              setFormData((prev) => ({
+                ...prev,
+                scheduleFrequency: value as any,
+              }))
+            }
+          >
             <SelectTrigger>
               <SelectValue />
             </SelectTrigger>
@@ -1232,7 +1453,9 @@ const MetricForm: React.FC<MetricFormProps> = ({ metric, onSubmit, onCancel }) =
         <Input
           id="metric-tags"
           value={formData.tags}
-          onChange={(e) => setFormData(prev => ({ ...prev, tags: e.target.value }))}
+          onChange={(e) =>
+            setFormData((prev) => ({ ...prev, tags: e.target.value }))
+          }
           placeholder="e.g., quality, user-experience, important (comma-separated)"
         />
       </div>

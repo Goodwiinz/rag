@@ -54,15 +54,21 @@ const FallbackUI: React.FC<FallbackUIProps> = ({
   maxRetries = 3,
   component = 'Component',
   showErrorDetails = false,
-  enableRetry = true
+  enableRetry = true,
 }) => {
   const [showDetails, setShowDetails] = React.useState(false);
 
   const getErrorIcon = () => {
-    if (error.name === 'ChunkLoadError' || error.message.includes('Loading chunk')) {
+    if (
+      error.name === 'ChunkLoadError' ||
+      error.message.includes('Loading chunk')
+    ) {
       return DocumentTextIcon;
     }
-    if (error.message.includes('WebSocket') || error.message.includes('connection')) {
+    if (
+      error.message.includes('WebSocket') ||
+      error.message.includes('connection')
+    ) {
       return SignalIcon;
     }
     if (error.message.includes('Network') || error.message.includes('fetch')) {
@@ -74,7 +80,8 @@ const FallbackUI: React.FC<FallbackUIProps> = ({
   const Icon = getErrorIcon();
 
   const canRetry = enableRetry && retryCount < maxRetries;
-  const isRetryableError = error.name === 'ChunkLoadError' ||
+  const isRetryableError =
+    error.name === 'ChunkLoadError' ||
     error.message.includes('Loading chunk') ||
     error.message.includes('Network') ||
     error.message.includes('WebSocket');
@@ -89,13 +96,13 @@ const FallbackUI: React.FC<FallbackUIProps> = ({
         </div>
 
         <div className="flex-1 min-w-0">
-          <h3 className="text-lg font-medium text-gray-900 mb-2">
+          <h3 className="text-lg font-medium text-foreground mb-2">
             {component} Error
           </h3>
 
-          <p className="text-sm text-gray-600 mb-4">
-            Something went wrong while rendering this component. The error has been logged
-            and our team will investigate.
+          <p className="text-sm text-foreground mb-4">
+            Something went wrong while rendering this component. The error has
+            been logged and our team will investigate.
           </p>
 
           {/* Error summary */}
@@ -104,9 +111,7 @@ const FallbackUI: React.FC<FallbackUIProps> = ({
               {error.name}: {error.message}
             </p>
             {component && (
-              <p className="text-xs text-red-600">
-                Component: {component}
-              </p>
+              <p className="text-xs text-red-600">Component: {component}</p>
             )}
           </div>
 
@@ -125,7 +130,7 @@ const FallbackUI: React.FC<FallbackUIProps> = ({
             {showErrorDetails && (
               <button
                 onClick={() => setShowDetails(!showDetails)}
-                className="inline-flex items-center px-3 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded transition-colors"
+                className="inline-flex items-center px-3 py-2 text-sm font-medium text-foreground bg-gray-100 hover:bg-gray-200 rounded transition-colors"
               >
                 {showDetails ? 'Hide' : 'Show'} Details
               </button>
@@ -134,7 +139,7 @@ const FallbackUI: React.FC<FallbackUIProps> = ({
             {onDismiss && (
               <button
                 onClick={onDismiss}
-                className="inline-flex items-center px-3 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded transition-colors"
+                className="inline-flex items-center px-3 py-2 text-sm font-medium text-foreground bg-gray-100 hover:bg-gray-200 rounded transition-colors"
               >
                 Dismiss
               </button>
@@ -144,17 +149,21 @@ const FallbackUI: React.FC<FallbackUIProps> = ({
           {/* Detailed error information */}
           {showDetails && showErrorDetails && (
             <div className="mt-4 space-y-3">
-              <div className="bg-gray-50 border border-gray-200 rounded p-3">
-                <h4 className="text-sm font-medium text-gray-900 mb-2">Error Stack Trace</h4>
-                <pre className="text-xs text-gray-700 whitespace-pre-wrap overflow-x-auto">
+              <div className="bg-gray-50 border border-border rounded p-3">
+                <h4 className="text-sm font-medium text-foreground mb-2">
+                  Error Stack Trace
+                </h4>
+                <pre className="text-xs text-foreground whitespace-pre-wrap overflow-x-auto">
                   {error.stack}
                 </pre>
               </div>
 
               {errorInfo && (
-                <div className="bg-gray-50 border border-gray-200 rounded p-3">
-                  <h4 className="text-sm font-medium text-gray-900 mb-2">Component Stack</h4>
-                  <pre className="text-xs text-gray-700 whitespace-pre-wrap overflow-x-auto">
+                <div className="bg-gray-50 border border-border rounded p-3">
+                  <h4 className="text-sm font-medium text-foreground mb-2">
+                    Component Stack
+                  </h4>
+                  <pre className="text-xs text-foreground whitespace-pre-wrap overflow-x-auto">
                     {errorInfo.componentStack}
                   </pre>
                 </div>
@@ -168,7 +177,10 @@ const FallbackUI: React.FC<FallbackUIProps> = ({
 };
 
 // Generic Error Boundary Class Component
-export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+export class ErrorBoundary extends Component<
+  ErrorBoundaryProps,
+  ErrorBoundaryState
+> {
   private retryTimeoutId?: NodeJS.Timeout;
 
   constructor(props: ErrorBoundaryProps) {
@@ -191,7 +203,11 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
     this.setState({ error, errorInfo });
 
     // Log error to console
-    console.error(`Error in ${this.props.component || 'component'}:`, error, errorInfo);
+    console.error(
+      `Error in ${this.props.component || 'component'}:`,
+      error,
+      errorInfo
+    );
 
     // Call custom error handler
     if (this.props.onError) {
@@ -240,7 +256,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
     }
 
     // Clear error state and increment retry count
-    this.setState(prevState => ({
+    this.setState((prevState) => ({
       hasError: false,
       error: undefined,
       errorInfo: undefined,
@@ -383,17 +399,17 @@ export const useErrorHandler = () => {
     // Example: Sentry.captureException(error, { tags: { context } });
   }, []);
 
-  const handleAsyncError = React.useCallback(async (
-    asyncOperation: () => Promise<any>,
-    context?: string
-  ) => {
-    try {
-      return await asyncOperation();
-    } catch (error) {
-      handleError(error as Error, context);
-      throw error; // Re-throw for caller to handle
-    }
-  }, [handleError]);
+  const handleAsyncError = React.useCallback(
+    async (asyncOperation: () => Promise<any>, context?: string) => {
+      try {
+        return await asyncOperation();
+      } catch (error) {
+        handleError(error as Error, context);
+        throw error; // Re-throw for caller to handle
+      }
+    },
+    [handleError]
+  );
 
   return {
     handleError,

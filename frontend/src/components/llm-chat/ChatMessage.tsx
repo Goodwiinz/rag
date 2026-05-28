@@ -28,21 +28,29 @@ export function ChatMessage({
   const isUser = message.role === 'user';
 
   return (
-    <div className={`group flex gap-4 \${isUser ? 'flex-row-reverse' : ''} animate-in fade-in slide-in-from-bottom-2 duration-500`}>
-      <div className={`w-10 h-10 rounded-xl shrink-0 flex items-center justify-center border shadow-lg \${
+    <div
+      className={`group flex gap-4 \${isUser ? 'flex-row-reverse' : ''} animate-in fade-in slide-in-from-bottom-2 duration-500`}
+    >
+      <div
+        className={`w-10 h-10 rounded-xl shrink-0 flex items-center justify-center border shadow-lg \${
         isUser
           ? 'bg-gradient-to-br from-purple-600 to-purple-700 border-purple-500 text-white shadow-purple-600/30'
-          : 'bg-gradient-to-br from-[#1A1A1A] to-[#0E1015] border-[#27272A] text-gray-300 shadow-black/20'
-      }`}>
+          : 'bg-gradient-to-br from-[#1A1A1A] to-[#0E1015] border-[#27272A] text-muted-foreground shadow-black/20'
+      }`}
+      >
         {isUser ? <User className="w-5 h-5" /> : <Bot className="w-5 h-5" />}
       </div>
 
-      <div className={`flex-1 max-w-[85%] \${isUser ? 'items-end' : 'items-start'} flex flex-col`}>
-        <div className={`inline-block rounded-2xl px-6 py-4 text-sm leading-relaxed shadow-lg \${
+      <div
+        className={`flex-1 max-w-[85%] \${isUser ? 'items-end' : 'items-start'} flex flex-col`}
+      >
+        <div
+          className={`inline-block rounded-2xl px-6 py-4 text-sm leading-relaxed shadow-lg \${
           isUser
             ? 'bg-gradient-to-br from-purple-600 to-purple-700 text-white shadow-purple-600/20'
-            : 'bg-[#1A1A1A] text-gray-300 border border-[#27272A] shadow-black/20'
-        }`}>
+            : 'bg-[#1A1A1A] text-muted-foreground border border-[#27272A] shadow-black/20'
+        }`}
+        >
           {message.role === 'assistant' ? (
             <MarkdownRenderer content={message.content} />
           ) : (
@@ -51,14 +59,16 @@ export function ChatMessage({
         </div>
 
         {message.timestamp && (
-          <span className="text-xs text-gray-600 mt-2 px-1">
+          <span className="text-xs text-foreground mt-2 px-1">
             {formatTimestamp(message.timestamp)}
           </span>
         )}
 
-        <div className={`opacity-0 group-hover:opacity-100 transition-opacity mt-2 \${
+        <div
+          className={`opacity-0 group-hover:opacity-100 transition-opacity mt-2 \${
           isUser ? 'flex-row-reverse' : 'flex-row'
-        } flex`}>
+        } flex`}
+        >
           <ChatMessageActions
             message={message}
             index={index}

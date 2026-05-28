@@ -42,7 +42,9 @@ export function KeyboardShortcutsDialog({
               key={i}
               className="flex items-center justify-between py-2 px-3 rounded-lg bg-muted border border-border"
             >
-              <span className="text-sm text-gray-400">{shortcut.desc}</span>
+              <span className="text-sm text-muted-foreground">
+                {shortcut.desc}
+              </span>
               <div className="flex gap-1">
                 {shortcut.keys.map((key, j) => (
                   <kbd

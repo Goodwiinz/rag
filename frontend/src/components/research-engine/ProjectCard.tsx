@@ -8,7 +8,7 @@ const statusStyles: Record<string, string> = {
   active: 'bg-sol/10 text-sol border-sol/30',
   paused: 'bg-helios/10 text-helios border-helios/30',
   completed: 'bg-brand-cyan/10 text-brand-cyan border-brand-cyan/30',
-  archived: 'bg-gray-500/10 text-gray-400 border-gray-500/30',
+  archived: 'bg-gray-500/10 text-muted-foreground border-border/30',
 };
 
 export interface ProjectCardProps {
@@ -35,7 +35,7 @@ export function ProjectCard({ project }: ProjectCardProps) {
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <FolderKanban className="h-5 w-5 text-sol shrink-0" />
-            <h3 className="font-mono font-medium text-gray-200 truncate group-hover:text-sol transition-colors">
+            <h3 className="font-mono font-medium text-muted-foreground truncate group-hover:text-sol transition-colors">
               {project.name}
             </h3>
           </div>
@@ -50,13 +50,13 @@ export function ProjectCard({ project }: ProjectCardProps) {
       </div>
 
       {project.description && (
-        <p className="text-sm text-gray-500 mb-3 line-clamp-2">
+        <p className="text-sm text-muted-foreground mb-3 line-clamp-2">
           {project.description}
         </p>
       )}
 
       {createdDate && (
-        <div className="flex items-center gap-1 text-xs text-gray-600 font-mono">
+        <div className="flex items-center gap-1 text-xs text-foreground font-mono">
           <Calendar className="h-3 w-3" />
           <span>Created {createdDate}</span>
         </div>

@@ -43,12 +43,39 @@ export const MathDisplay: React.FC<MathDisplayProps> = ({
         const safeHtml = DOMPurify.sanitize(html, {
           USE_PROFILES: { mathMl: true, html: true },
           ALLOWED_TAGS: [
-            'math', 'semantics', 'annotation', 'span', 'svg', 'path', 'g',
-            'mspace', 'mn', 'mo', 'mi', 'mover', 'munder', 'munderover',
-            'mfrac', 'msqrt', 'mroot', 'mstyle', 'merror', 'mpadded',
-            'mphantom', 'mrow', 'menclose', 'msub', 'msup', 'msubsup',
-            'mtext', 'br', 'table', 'tbody', 'tr', 'td'
-          ]
+            'math',
+            'semantics',
+            'annotation',
+            'span',
+            'svg',
+            'path',
+            'g',
+            'mspace',
+            'mn',
+            'mo',
+            'mi',
+            'mover',
+            'munder',
+            'munderover',
+            'mfrac',
+            'msqrt',
+            'mroot',
+            'mstyle',
+            'merror',
+            'mpadded',
+            'mphantom',
+            'mrow',
+            'menclose',
+            'msub',
+            'msup',
+            'msubsup',
+            'mtext',
+            'br',
+            'table',
+            'tbody',
+            'tr',
+            'td',
+          ],
         });
 
         setKatexHtml(safeHtml);
@@ -71,7 +98,7 @@ export const MathDisplay: React.FC<MathDisplayProps> = ({
     return (
       <pre
         className={cn(
-          'font-mono text-sm text-gray-300 whitespace-pre-wrap',
+          'font-mono text-sm text-muted-foreground whitespace-pre-wrap',
           block
             ? 'my-3 rounded-lg border border-[#1a1a1a] bg-black/30 p-4'
             : 'inline rounded bg-black/30 px-1.5 py-0.5'
@@ -102,7 +129,7 @@ export const MathDisplay: React.FC<MathDisplayProps> = ({
         <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-helios" />
         <code
           className={cn(
-            'font-mono text-sm text-gray-300',
+            'font-mono text-sm text-muted-foreground',
             'rounded border border-[#1a1a1a] bg-black/30 px-2 py-1',
             'bg-gradient-to-r from-purple-500/5 to-brand-cyan/5'
           )}
@@ -116,7 +143,7 @@ export const MathDisplay: React.FC<MathDisplayProps> = ({
   return (
     <code
       className={cn(
-        'font-mono text-sm text-gray-300',
+        'font-mono text-sm text-muted-foreground',
         'rounded border border-[#1a1a1a] bg-black/30 px-2 py-1',
         'bg-gradient-to-r from-purple-500/5 to-brand-cyan/5',
         block && 'my-3 block text-center'

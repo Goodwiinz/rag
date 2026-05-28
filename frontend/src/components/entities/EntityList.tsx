@@ -54,7 +54,7 @@ const typeColors: Record<string, string> = {
   PHONE: 'text-teal-400 bg-teal-400/10 border-teal-400/20',
   URL: 'text-lime-400 bg-lime-400/10 border-lime-400/20',
   JOB_TITLE: 'text-fuchsia-400 bg-fuchsia-400/10 border-fuchsia-400/20',
-  OTHER: 'text-gray-400 bg-gray-400/10 border-gray-400/20',
+  OTHER: 'text-muted-foreground bg-gray-400/10 border-border/20',
 };
 
 const getConfidenceColor = (confidence: number): string => {
@@ -315,7 +315,7 @@ export const EntityList: React.FC<EntityListProps> = ({
                       className={cn(
                         'font-mono text-[10px] uppercase tracking-wide border',
                         typeColors[entity.type] ||
-                          'text-gray-400 bg-gray-400/10 border-gray-400/20'
+                          'text-muted-foreground bg-gray-400/10 border-border/20'
                       )}
                     >
                       {entity.type}

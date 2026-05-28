@@ -18,7 +18,12 @@ import { useDocumentUpload } from '@/hooks/upload/useDocumentUpload';
 import { useDocumentProcessingUpdates } from '@/hooks/useWebSocket';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { UploadQueueItem } from '@/services/uploadService';
 
 interface ProcessingDashboardProps {
@@ -56,7 +61,9 @@ export const ProcessingDashboard: React.FC<ProcessingDashboardProps> = ({
 }) => {
   const [isPaused, setIsPaused] = useState(false);
   const [showDetails, setShowDetails] = useState<string | null>(null);
-  const [selectedFilter, setSelectedFilter] = useState<'all' | 'processing' | 'completed' | 'failed' | 'queued'>('all');
+  const [selectedFilter, setSelectedFilter] = useState<
+    'all' | 'processing' | 'completed' | 'failed' | 'queued'
+  >('all');
   const [timeSeriesData, setTimeSeriesData] = useState<TimeSeriesData[]>([]);
   const [showChart, setShowChart] = useState(false);
 
@@ -79,28 +86,40 @@ export const ProcessingDashboard: React.FC<ProcessingDashboardProps> = ({
   // Calculate processing statistics
   const processingStats = useMemo((): ProcessingStats => {
     const totalFiles = queueItems.length;
-    const completedFiles = queueItems.filter(item => item.status === 'completed').length;
-    const processingFiles = queueItems.filter(item => item.status === 'processing').length;
-    const queuedFiles = queueItems.filter(item => item.status === 'pending').length;
-    const failedFiles = queueItems.filter(item => item.status === 'error').length;
+    const completedFiles = queueItems.filter(
+      (item) => item.status === 'completed'
+    ).length;
+    const processingFiles = queueItems.filter(
+      (item) => item.status === 'processing'
+    ).length;
+    const queuedFiles = queueItems.filter(
+      (item) => item.status === 'pending'
+    ).length;
+    const failedFiles = queueItems.filter(
+      (item) => item.status === 'error'
+    ).length;
 
     // Calculate average processing time
-    const completedItems = queueItems.filter(item =>
-      item.status === 'completed' && item.uploadStartTime && item.completedAt
+    const completedItems = queueItems.filter(
+      (item) =>
+        item.status === 'completed' && item.uploadStartTime && item.completedAt
     );
-    const averageProcessingTime = completedItems.length > 0
-      ? completedItems.reduce((sum, item) => {
-          const totalTime = (item.completedAt! - item.uploadStartTime!) / 1000;
-          return sum + totalTime;
-        }, 0) / completedItems.length
-      : 0;
+    const averageProcessingTime =
+      completedItems.length > 0
+        ? completedItems.reduce((sum, item) => {
+            const totalTime =
+              (item.completedAt! - item.uploadStartTime!) / 1000;
+            return sum + totalTime;
+          }, 0) / completedItems.length
+        : 0;
 
     // Calculate throughput per hour (last hour)
-    const oneHourAgo = Date.now() - (60 * 60 * 1000);
-    const recentCompleted = queueItems.filter(item =>
-      item.status === 'completed' &&
-      item.completedAt &&
-      item.completedAt > oneHourAgo
+    const oneHourAgo = Date.now() - 60 * 60 * 1000;
+    const recentCompleted = queueItems.filter(
+      (item) =>
+        item.status === 'completed' &&
+        item.completedAt &&
+        item.completedAt > oneHourAgo
     );
     const throughputPerHour = recentCompleted.length;
 
@@ -123,13 +142,13 @@ export const ProcessingDashboard: React.FC<ProcessingDashboardProps> = ({
   const filteredItems = useMemo(() => {
     switch (selectedFilter) {
       case 'processing':
-        return queueItems.filter(item => item.status === 'processing');
+        return queueItems.filter((item) => item.status === 'processing');
       case 'completed':
-        return queueItems.filter(item => item.status === 'completed');
+        return queueItems.filter((item) => item.status === 'completed');
       case 'failed':
-        return queueItems.filter(item => item.status === 'error');
+        return queueItems.filter((item) => item.status === 'error');
       case 'queued':
-        return queueItems.filter(item => item.status === 'pending');
+        return queueItems.filter((item) => item.status === 'pending');
       default:
         return queueItems;
     }
@@ -147,7 +166,7 @@ export const ProcessingDashboard: React.FC<ProcessingDashboardProps> = ({
           processing: processingStats.processingFiles,
         };
 
-        setTimeSeriesData(prev => {
+        setTimeSeriesData((prev) => {
           const updated = [...prev, dataPoint];
           // Keep only last 20 data points
           return updated.slice(-20);
@@ -167,9 +186,12 @@ export const ProcessingDashboard: React.FC<ProcessingDashboardProps> = ({
     });
   }, [processingUpdates]);
 
-  const handleRetry = useCallback((fileId: string) => {
-    retryUpload(fileId);
-  }, [retryUpload]);
+  const handleRetry = useCallback(
+    (fileId: string) => {
+      retryUpload(fileId);
+    },
+    [retryUpload]
+  );
 
   const handleCancelAll = useCallback(() => {
     if (confirm('Are you sure you want to cancel all uploads?')) {
@@ -192,11 +214,11 @@ export const ProcessingDashboard: React.FC<ProcessingDashboardProps> = ({
       case 'processing':
         return 'text-blue-600 bg-blue-50';
       case 'pending':
-        return 'text-gray-600 bg-gray-50';
+        return 'text-foreground bg-gray-50';
       case 'error':
         return 'text-red-600 bg-red-50';
       default:
-        return 'text-gray-600 bg-gray-50';
+        return 'text-foreground bg-gray-50';
     }
   }, []);
 
@@ -216,7 +238,7 @@ export const ProcessingDashboard: React.FC<ProcessingDashboardProps> = ({
   }, []);
 
   return (
-    <div className={cn("space-y-6", className)}>
+    <div className={cn('space-y-6', className)}>
       {/* Header Stats */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="p-4 bg-card border rounded-lg">
@@ -350,22 +372,14 @@ export const ProcessingDashboard: React.FC<ProcessingDashboardProps> = ({
 
           <div className="flex items-center space-x-2">
             {/* Cleanup */}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleCleanup}
-            >
+            <Button variant="outline" size="sm" onClick={handleCleanup}>
               <TrashIcon className="h-4 w-4 mr-2" />
               Cleanup
             </Button>
 
             {/* Cancel All */}
             {hasActiveUploads && (
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={handleCancelAll}
-              >
+              <Button variant="destructive" size="sm" onClick={handleCancelAll}>
                 <XMarkIcon className="h-4 w-4 mr-2" />
                 Cancel All
               </Button>
@@ -382,10 +396,7 @@ export const ProcessingDashboard: React.FC<ProcessingDashboardProps> = ({
           </h3>
         </div>
 
-        <div
-          className="overflow-y-auto"
-          style={{ maxHeight }}
-        >
+        <div className="overflow-y-auto" style={{ maxHeight }}>
           {filteredItems.length === 0 ? (
             <div className="p-8 text-center text-muted-foreground">
               <DocumentIcon className="h-12 w-12 mx-auto mb-4 opacity-50" />
@@ -431,7 +442,7 @@ export const ProcessingDashboard: React.FC<ProcessingDashboardProps> = ({
               <DialogTitle>Processing Details</DialogTitle>
             </DialogHeader>
             {(() => {
-              const item = queueItems.find(i => i.id === showDetails);
+              const item = queueItems.find((i) => i.id === showDetails);
               return item ? <ProcessingItemDetails item={item} /> : null;
             })()}
           </DialogContent>
@@ -494,9 +505,7 @@ const ProcessingQueueItem: React.FC<ProcessingQueueItemProps> = ({
     <div className="p-4 hover:bg-accent/50 transition-colors">
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center space-x-3 flex-1 min-w-0">
-          <div className="text-xl">
-            {getFileIcon(item.file)}
-          </div>
+          <div className="text-xl">{getFileIcon(item.file)}</div>
 
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium text-foreground truncate">
@@ -515,20 +524,14 @@ const ProcessingQueueItem: React.FC<ProcessingQueueItemProps> = ({
         </div>
 
         <div className="flex items-center space-x-2">
-          <Badge
-            className={cn("text-xs", getStatusColor(item.status))}
-          >
+          <Badge className={cn('text-xs', getStatusColor(item.status))}>
             <div className="flex items-center space-x-1">
               {getStatusIcon(item.status)}
               <span>{getStatusText(item.status)}</span>
             </div>
           </Badge>
 
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onShowDetails}
-          >
+          <Button variant="ghost" size="sm" onClick={onShowDetails}>
             <EyeIcon className="h-4 w-4" />
           </Button>
 
@@ -588,9 +591,9 @@ const ProcessingChart: React.FC<ProcessingChartProps> = ({ data }) => {
   }
 
   // Simple SVG chart implementation
-  const maxCompleted = Math.max(...data.map(d => d.completed), 1);
-  const maxFailed = Math.max(...data.map(d => d.failed), 1);
-  const maxProcessing = Math.max(...data.map(d => d.processing), 1);
+  const maxCompleted = Math.max(...data.map((d) => d.completed), 1);
+  const maxFailed = Math.max(...data.map((d) => d.failed), 1);
+  const maxProcessing = Math.max(...data.map((d) => d.processing), 1);
   const maxValue = Math.max(maxCompleted, maxFailed, maxProcessing);
 
   const width = 600;
@@ -636,11 +639,18 @@ const ProcessingChart: React.FC<ProcessingChartProps> = ({ data }) => {
           fill="none"
           stroke="#10b981"
           strokeWidth="2"
-          points={data.map((d, i) => {
-            const x = padding + (width - 2 * padding) * (i / Math.max(data.length - 1, 1));
-            const y = height - padding - ((height - 2 * padding) * (d.completed / maxValue));
-            return `${x},${y}`;
-          }).join(' ')}
+          points={data
+            .map((d, i) => {
+              const x =
+                padding +
+                (width - 2 * padding) * (i / Math.max(data.length - 1, 1));
+              const y =
+                height -
+                padding -
+                (height - 2 * padding) * (d.completed / maxValue);
+              return `${x},${y}`;
+            })
+            .join(' ')}
         />
 
         {/* Failed line */}
@@ -648,11 +658,18 @@ const ProcessingChart: React.FC<ProcessingChartProps> = ({ data }) => {
           fill="none"
           stroke="#ef4444"
           strokeWidth="2"
-          points={data.map((d, i) => {
-            const x = padding + (width - 2 * padding) * (i / Math.max(data.length - 1, 1));
-            const y = height - padding - ((height - 2 * padding) * (d.failed / maxValue));
-            return `${x},${y}`;
-          }).join(' ')}
+          points={data
+            .map((d, i) => {
+              const x =
+                padding +
+                (width - 2 * padding) * (i / Math.max(data.length - 1, 1));
+              const y =
+                height -
+                padding -
+                (height - 2 * padding) * (d.failed / maxValue);
+              return `${x},${y}`;
+            })
+            .join(' ')}
         />
 
         {/* Processing line */}
@@ -660,37 +677,58 @@ const ProcessingChart: React.FC<ProcessingChartProps> = ({ data }) => {
           fill="none"
           stroke="#3b82f6"
           strokeWidth="2"
-          points={data.map((d, i) => {
-            const x = padding + (width - 2 * padding) * (i / Math.max(data.length - 1, 1));
-            const y = height - padding - ((height - 2 * padding) * (d.processing / maxValue));
-            return `${x},${y}`;
-          }).join(' ')}
+          points={data
+            .map((d, i) => {
+              const x =
+                padding +
+                (width - 2 * padding) * (i / Math.max(data.length - 1, 1));
+              const y =
+                height -
+                padding -
+                (height - 2 * padding) * (d.processing / maxValue);
+              return `${x},${y}`;
+            })
+            .join(' ')}
         />
 
         {/* Data points */}
         {data.map((d, i) => {
-          const x = padding + (width - 2 * padding) * (i / Math.max(data.length - 1, 1));
+          const x =
+            padding +
+            (width - 2 * padding) * (i / Math.max(data.length - 1, 1));
 
           return (
             <g key={i}>
               {/* Completed point */}
               <circle
                 cx={x}
-                cy={height - padding - ((height - 2 * padding) * (d.completed / maxValue))}
+                cy={
+                  height -
+                  padding -
+                  (height - 2 * padding) * (d.completed / maxValue)
+                }
                 r="3"
                 fill="#10b981"
               />
               {/* Failed point */}
               <circle
                 cx={x}
-                cy={height - padding - ((height - 2 * padding) * (d.failed / maxValue))}
+                cy={
+                  height -
+                  padding -
+                  (height - 2 * padding) * (d.failed / maxValue)
+                }
                 r="3"
                 fill="#ef4444"
               />
               {/* Processing point */}
               <circle
                 cx={x}
-                cy={height - padding - ((height - 2 * padding) * (d.processing / maxValue))}
+                cy={
+                  height -
+                  padding -
+                  (height - 2 * padding) * (d.processing / maxValue)
+                }
                 r="3"
                 fill="#3b82f6"
               />
@@ -711,7 +749,9 @@ interface ProcessingItemDetailsProps {
   item: UploadQueueItem;
 }
 
-const ProcessingItemDetails: React.FC<ProcessingItemDetailsProps> = ({ item }) => {
+const ProcessingItemDetails: React.FC<ProcessingItemDetailsProps> = ({
+  item,
+}) => {
   const getFileTypeCategory = (file: File): string => {
     if (file.type === 'application/pdf') return 'PDF Document';
     if (file.type === 'text/plain') return 'Text Document';
@@ -740,7 +780,8 @@ const ProcessingItemDetails: React.FC<ProcessingItemDetailsProps> = ({ item }) =
     const elapsedSeconds = (endTime - startTime) / 1000;
 
     if (elapsedSeconds < 60) return `${Math.round(elapsedSeconds)}s`;
-    if (elapsedSeconds < 3600) return `${Math.round(elapsedSeconds / 60)}m ${Math.round(elapsedSeconds % 60)}s`;
+    if (elapsedSeconds < 3600)
+      return `${Math.round(elapsedSeconds / 60)}m ${Math.round(elapsedSeconds % 60)}s`;
     return `${Math.floor(elapsedSeconds / 3600)}h ${Math.round((elapsedSeconds % 3600) / 60)}m`;
   };
 
@@ -748,67 +789,103 @@ const ProcessingItemDetails: React.FC<ProcessingItemDetailsProps> = ({ item }) =
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className="text-sm font-medium text-muted-foreground">File Name</label>
+          <label className="text-sm font-medium text-muted-foreground">
+            File Name
+          </label>
           <p className="text-sm text-foreground">{item.file.name}</p>
         </div>
         <div>
-          <label className="text-sm font-medium text-muted-foreground">File Type</label>
-          <p className="text-sm text-foreground">{getFileTypeCategory(item.file)}</p>
+          <label className="text-sm font-medium text-muted-foreground">
+            File Type
+          </label>
+          <p className="text-sm text-foreground">
+            {getFileTypeCategory(item.file)}
+          </p>
         </div>
         <div>
-          <label className="text-sm font-medium text-muted-foreground">File Size</label>
-          <p className="text-sm text-foreground">{formatFileSize(item.file.size)}</p>
+          <label className="text-sm font-medium text-muted-foreground">
+            File Size
+          </label>
+          <p className="text-sm text-foreground">
+            {formatFileSize(item.file.size)}
+          </p>
         </div>
         <div>
-          <label className="text-sm font-medium text-muted-foreground">Status</label>
+          <label className="text-sm font-medium text-muted-foreground">
+            Status
+          </label>
           <Badge className="mt-1">{item.status}</Badge>
         </div>
         <div>
-          <label className="text-sm font-medium text-muted-foreground">Progress</label>
+          <label className="text-sm font-medium text-muted-foreground">
+            Progress
+          </label>
           <p className="text-sm text-foreground">{item.progress}%</p>
         </div>
         <div>
-          <label className="text-sm font-medium text-muted-foreground">Elapsed Time</label>
+          <label className="text-sm font-medium text-muted-foreground">
+            Elapsed Time
+          </label>
           <p className="text-sm text-foreground">{getElapsedTime()}</p>
         </div>
         {item.jobId && (
           <div>
-            <label className="text-sm font-medium text-muted-foreground">Job ID</label>
+            <label className="text-sm font-medium text-muted-foreground">
+              Job ID
+            </label>
             <p className="text-sm text-foreground font-mono">{item.jobId}</p>
           </div>
         )}
         {item.documentId && (
           <div>
-            <label className="text-sm font-medium text-muted-foreground">Document ID</label>
-            <p className="text-sm text-foreground font-mono">{item.documentId}</p>
+            <label className="text-sm font-medium text-muted-foreground">
+              Document ID
+            </label>
+            <p className="text-sm text-foreground font-mono">
+              {item.documentId}
+            </p>
           </div>
         )}
       </div>
 
       {item.uploadStartTime && (
         <div>
-          <label className="text-sm font-medium text-muted-foreground">Upload Started</label>
-          <p className="text-sm text-foreground">{formatTimestamp(item.uploadStartTime)}</p>
+          <label className="text-sm font-medium text-muted-foreground">
+            Upload Started
+          </label>
+          <p className="text-sm text-foreground">
+            {formatTimestamp(item.uploadStartTime)}
+          </p>
         </div>
       )}
 
       {item.processingStartTime && (
         <div>
-          <label className="text-sm font-medium text-muted-foreground">Processing Started</label>
-          <p className="text-sm text-foreground">{formatTimestamp(item.processingStartTime)}</p>
+          <label className="text-sm font-medium text-muted-foreground">
+            Processing Started
+          </label>
+          <p className="text-sm text-foreground">
+            {formatTimestamp(item.processingStartTime)}
+          </p>
         </div>
       )}
 
       {item.completedAt && (
         <div>
-          <label className="text-sm font-medium text-muted-foreground">Completed At</label>
-          <p className="text-sm text-foreground">{formatTimestamp(item.completedAt)}</p>
+          <label className="text-sm font-medium text-muted-foreground">
+            Completed At
+          </label>
+          <p className="text-sm text-foreground">
+            {formatTimestamp(item.completedAt)}
+          </p>
         </div>
       )}
 
       {item.error && (
         <div>
-          <label className="text-sm font-medium text-muted-foreground">Error Details</label>
+          <label className="text-sm font-medium text-muted-foreground">
+            Error Details
+          </label>
           <div className="mt-1 p-3 bg-destructive/10 border border-destructive/20 rounded text-sm text-destructive">
             {item.error}
           </div>
@@ -817,7 +894,9 @@ const ProcessingItemDetails: React.FC<ProcessingItemDetailsProps> = ({ item }) =
 
       {item.uploadResponse && (
         <div>
-          <label className="text-sm font-medium text-muted-foreground">Upload Response</label>
+          <label className="text-sm font-medium text-muted-foreground">
+            Upload Response
+          </label>
           <div className="mt-1 p-3 bg-muted/50 rounded text-xs font-mono">
             <pre>{JSON.stringify(item.uploadResponse, null, 2)}</pre>
           </div>

@@ -80,9 +80,7 @@ export default function DocumentDetailPage() {
 
     setLoading(true);
     try {
-      const response = await api.get<Document>(
-        `/documents/${documentId}`
-      );
+      const response = await api.get<Document>(`/documents/${documentId}`);
       if (response) {
         // Normalize: backend detail API returns document_type, not file_type
         const doc =
@@ -262,14 +260,14 @@ export default function DocumentDetailPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0a0a0f] text-gray-300 font-sans pb-20">
+    <div className="min-h-screen bg-[#0a0a0f] text-muted-foreground font-sans pb-20">
       {/* Header / Nav */}
       <header className="border-b border-[#1a1a28] bg-[#0a0a0f]/80 backdrop-blur-xl sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-4">
             <button
               onClick={() => router.push('/documents')}
-              className="p-2 rounded-lg hover:bg-[#1a1a28] text-gray-400 hover:text-[#D4A039] transition-all"
+              className="p-2 rounded-lg hover:bg-[#1a1a28] text-muted-foreground hover:text-[#D4A039] transition-all"
             >
               <ArrowLeft className="w-5 h-5" />
             </button>
@@ -282,7 +280,7 @@ export default function DocumentDetailPage() {
                 <h1 className="text-sm font-mono font-bold text-white tracking-wide truncate max-w-[200px] md:max-w-md">
                   {document.title}
                 </h1>
-                <p className="text-[10px] font-mono text-gray-500 uppercase tracking-widest">
+                <p className="text-[10px] font-mono text-muted-foreground uppercase tracking-widest">
                   ID: {document.id.substring(0, 8)}
                 </p>
               </div>
@@ -290,11 +288,11 @@ export default function DocumentDetailPage() {
           </div>
 
           <div className="flex items-center gap-3">
-            <button className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-lg border border-[#1a1a28] bg-[#0d0d14] text-xs font-mono text-gray-400 hover:text-white hover:border-gray-700 transition-all">
+            <button className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-lg border border-[#1a1a28] bg-[#0d0d14] text-xs font-mono text-muted-foreground hover:text-white hover:border-border transition-all">
               <Download className="w-3.5 h-3.5" />
               DOWNLOAD
             </button>
-            <button className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-lg border border-[#1a1a28] bg-[#0d0d14] text-xs font-mono text-gray-400 hover:text-white hover:border-gray-700 transition-all">
+            <button className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-lg border border-[#1a1a28] bg-[#0d0d14] text-xs font-mono text-muted-foreground hover:text-white hover:border-border transition-all">
               <Share2 className="w-3.5 h-3.5" />
               SHARE
             </button>
@@ -316,7 +314,7 @@ export default function DocumentDetailPage() {
             {/* Status Card */}
             <div className="rounded-xl border border-[#1a1a28] bg-[#0d0d14] overflow-hidden">
               <div className="px-6 py-4 border-b border-[#1a1a28] flex items-center justify-between">
-                <h2 className="text-xs font-mono font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2">
+                <h2 className="text-xs font-mono font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-2">
                   <Activity className="w-4 h-4 text-[#D4A039]" />
                   Processing Status
                 </h2>
@@ -343,7 +341,7 @@ export default function DocumentDetailPage() {
             {/* Citations Card */}
             <div className="rounded-xl border border-[#1a1a28] bg-[#0d0d14] overflow-hidden">
               <div className="px-6 py-4 border-b border-[#1a1a28] flex items-center justify-between">
-                <h2 className="text-xs font-mono font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2">
+                <h2 className="text-xs font-mono font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-2">
                   <BookOpen className="w-4 h-4 text-[#D4A039]" />
                   Research Citations
                 </h2>
@@ -355,7 +353,7 @@ export default function DocumentDetailPage() {
                   className={cn(
                     'px-3 py-1.5 rounded-lg text-xs font-mono font-bold flex items-center gap-2 transition-all',
                     extracting || document.processing_status !== 'indexed'
-                      ? 'bg-gray-800 text-gray-500 cursor-not-allowed'
+                      ? 'bg-gray-800 text-muted-foreground cursor-not-allowed'
                       : 'bg-[#D4A039]/10 border border-[#D4A039]/30 text-[#D4A039] hover:bg-[#D4A039]/20 hover:shadow-[0_0_20px_rgba(212,160,57,0.2)]'
                   )}
                 >
@@ -398,7 +396,7 @@ export default function DocumentDetailPage() {
                         <p className="text-sm font-mono font-bold text-[#D4A039]">
                           Analyzing Document...
                         </p>
-                        <p className="text-xs font-mono text-gray-500 mt-0.5">
+                        <p className="text-xs font-mono text-muted-foreground mt-0.5">
                           Using hybrid extraction pipeline (ArXiv → Semantic
                           Scholar → CrossRef)
                         </p>
@@ -414,7 +412,7 @@ export default function DocumentDetailPage() {
                 {!extracting && citations.length > 0 && (
                   <div className="space-y-3">
                     <div className="flex items-center justify-between mb-4">
-                      <p className="text-xs font-mono text-gray-400">
+                      <p className="text-xs font-mono text-muted-foreground">
                         Found{' '}
                         <span className="text-[#D4A039] font-bold">
                           {citations.length}
@@ -434,7 +432,7 @@ export default function DocumentDetailPage() {
                               <h4 className="text-sm font-mono font-bold text-white line-clamp-2 mb-2">
                                 {citation.documentTitle || 'Untitled'}
                               </h4>
-                              <p className="text-xs font-mono text-gray-400">
+                              <p className="text-xs font-mono text-muted-foreground">
                                 {citation.authors && citation.authors.length > 0
                                   ? citation.authors.slice(0, 3).join(', ') +
                                     (citation.authors.length > 3
@@ -444,7 +442,7 @@ export default function DocumentDetailPage() {
                                 {citation.year && ` (${citation.year})`}
                               </p>
                               {citation.venue && (
-                                <p className="text-xs font-mono text-gray-500 mt-1">
+                                <p className="text-xs font-mono text-muted-foreground mt-1">
                                   {citation.venue}
                                 </p>
                               )}
@@ -481,11 +479,11 @@ export default function DocumentDetailPage() {
                 {/* Empty State */}
                 {!extracting && citations.length === 0 && !extractionError && (
                   <div className="text-center py-12">
-                    <BookOpen className="w-12 h-12 text-gray-600 mx-auto mb-4" />
-                    <p className="font-mono text-sm text-gray-500 mb-2">
+                    <BookOpen className="w-12 h-12 text-foreground mx-auto mb-4" />
+                    <p className="font-mono text-sm text-muted-foreground mb-2">
                       No citations extracted yet
                     </p>
-                    <p className="font-mono text-xs text-gray-600">
+                    <p className="font-mono text-xs text-foreground">
                       Click "Extract Citations" to analyze this document
                     </p>
                   </div>
@@ -508,7 +506,7 @@ export default function DocumentDetailPage() {
                     'px-4 py-3 text-xs font-mono font-bold flex items-center gap-2 border-b-2 transition-all',
                     activeTab === tab.id
                       ? 'border-[#D4A039] text-[#D4A039] bg-[#D4A039]/5'
-                      : 'border-transparent text-gray-500 hover:text-gray-300 hover:bg-[#1a1a28]/50'
+                      : 'border-transparent text-muted-foreground hover:text-foreground hover:bg-[#1a1a28]/50'
                   )}
                 >
                   <tab.icon className="w-4 h-4" />
@@ -523,11 +521,11 @@ export default function DocumentDetailPage() {
                 <div className="space-y-6 py-6">
                   {/* Summary / Description */}
                   <div className="rounded-xl border border-[#1a1a28] bg-[#0d0d14] p-6">
-                    <h3 className="text-xs font-mono font-bold text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                    <h3 className="text-xs font-mono font-bold text-muted-foreground uppercase tracking-widest mb-4 flex items-center gap-2">
                       <FileText className="w-4 h-4" />
                       Content Summary
                     </h3>
-                    <p className="text-sm leading-relaxed text-gray-300">
+                    <p className="text-sm leading-relaxed text-muted-foreground">
                       {document.content_summary ||
                         document.content_preview ||
                         document.description ||
@@ -557,30 +555,30 @@ export default function DocumentDetailPage() {
                     <div className="absolute top-0 right-0 p-4 opacity-10">
                       <Sparkles className="w-24 h-24 text-[#D4A039]" />
                     </div>
-                    <h3 className="text-xs font-mono font-bold text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                    <h3 className="text-xs font-mono font-bold text-muted-foreground uppercase tracking-widest mb-4 flex items-center gap-2">
                       <Cpu className="w-4 h-4" />
                       AI Analysis
                     </h3>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="p-4 rounded-lg bg-[#1a1a28]/50 border border-[#1a1a28]">
-                        <span className="text-[10px] font-mono text-gray-500 uppercase">
+                        <span className="text-[10px] font-mono text-muted-foreground uppercase">
                           Entity Density
                         </span>
                         <div className="text-xl font-mono font-bold text-white mt-1">
                           High{' '}
-                          <span className="text-xs font-normal text-gray-500">
+                          <span className="text-xs font-normal text-muted-foreground">
                             (Top 10%)
                           </span>
                         </div>
                       </div>
                       <div className="p-4 rounded-lg bg-[#1a1a28]/50 border border-[#1a1a28]">
-                        <span className="text-[10px] font-mono text-gray-500 uppercase">
+                        <span className="text-[10px] font-mono text-muted-foreground uppercase">
                           Knowledge Graph
                         </span>
                         <div className="text-xl font-mono font-bold text-white mt-1">
                           Connected{' '}
-                          <span className="text-xs font-normal text-gray-500">
+                          <span className="text-xs font-normal text-muted-foreground">
                             (12 Nodes)
                           </span>
                         </div>
@@ -594,7 +592,7 @@ export default function DocumentDetailPage() {
                 <div className="py-6">
                   <div className="rounded-xl border border-[#1a1a28] bg-[#0d0d14] overflow-hidden">
                     <table className="w-full text-sm text-left">
-                      <thead className="bg-[#1a1a28] text-xs font-mono text-gray-400 uppercase">
+                      <thead className="bg-[#1a1a28] text-xs font-mono text-muted-foreground uppercase">
                         <tr>
                           <th className="px-6 py-3 font-bold">Property</th>
                           <th className="px-6 py-3 font-bold">Value</th>
@@ -610,7 +608,7 @@ export default function DocumentDetailPage() {
                               <td className="px-6 py-3 text-[#D4A039]">
                                 {key}
                               </td>
-                              <td className="px-6 py-3 text-gray-300">
+                              <td className="px-6 py-3 text-muted-foreground">
                                 {typeof value === 'object'
                                   ? JSON.stringify(value)
                                   : String(value)}
@@ -623,7 +621,7 @@ export default function DocumentDetailPage() {
                           <tr>
                             <td
                               colSpan={2}
-                              className="px-6 py-8 text-center text-gray-500 italic"
+                              className="px-6 py-8 text-center text-muted-foreground italic"
                             >
                               No metadata extracted
                             </td>
@@ -638,8 +636,8 @@ export default function DocumentDetailPage() {
               {activeTab === 'preview' && (
                 <div className="py-6 flex items-center justify-center min-h-[400px] rounded-xl border border-[#1a1a28] border-dashed bg-[#0d0d14]/50">
                   <div className="text-center">
-                    <Eye className="w-12 h-12 text-gray-600 mx-auto mb-4" />
-                    <p className="font-mono text-sm text-gray-500">
+                    <Eye className="w-12 h-12 text-foreground mx-auto mb-4" />
+                    <p className="font-mono text-sm text-muted-foreground">
                       Preview not available in this view
                     </p>
                     <button className="mt-4 px-4 py-2 rounded-lg bg-[#1a1a28] text-xs font-mono text-[#D4A039] hover:bg-[#D4A039]/10 transition-all">
@@ -655,7 +653,7 @@ export default function DocumentDetailPage() {
                   className="py-6 space-y-6 relative"
                 >
                   <div className="flex items-center justify-between">
-                    <h3 className="text-xs font-mono font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2">
+                    <h3 className="text-xs font-mono font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-2">
                       <Table2 className="w-4 h-4 text-[#00d4ff]" />
                       Extracted Tables & Formulas
                     </h3>
@@ -679,7 +677,7 @@ export default function DocumentDetailPage() {
                             'px-3 py-1.5 rounded-lg text-xs font-mono font-bold flex items-center gap-2 transition-all',
                             tablesLoading ||
                               document.processing_status !== 'indexed'
-                              ? 'bg-gray-800 text-gray-500 cursor-not-allowed'
+                              ? 'bg-gray-800 text-muted-foreground cursor-not-allowed'
                               : 'bg-[#D4A039]/10 border border-[#D4A039]/30 text-[#D4A039] hover:bg-[#D4A039]/20'
                           )}
                         >
@@ -699,7 +697,7 @@ export default function DocumentDetailPage() {
                     <>
                       {regionResult && (
                         <div>
-                          <h4 className="text-xs font-mono text-gray-400 mb-2">
+                          <h4 className="text-xs font-mono text-muted-foreground mb-2">
                             Crop Extraction Result
                           </h4>
                           <ExtractedTablePreview
@@ -727,11 +725,11 @@ export default function DocumentDetailPage() {
                         </div>
                       ) : !tablesLoading ? (
                         <div className="text-center py-12 rounded-xl border border-[#1a1a28] border-dashed bg-[#0d0d14]/50">
-                          <Table2 className="w-12 h-12 text-gray-600 mx-auto mb-4" />
-                          <p className="font-mono text-sm text-gray-500">
+                          <Table2 className="w-12 h-12 text-foreground mx-auto mb-4" />
+                          <p className="font-mono text-sm text-muted-foreground">
                             No tables extracted yet
                           </p>
-                          <p className="font-mono text-xs text-gray-600 mt-2">
+                          <p className="font-mono text-xs text-foreground mt-2">
                             Click &quot;Extract Tables&quot; to find tables in
                             this document
                           </p>
@@ -752,11 +750,11 @@ export default function DocumentDetailPage() {
                     </>
                   ) : (
                     <div className="text-center py-12 rounded-xl border border-[#1a1a28] border-dashed bg-[#0d0d14]/50">
-                      <Table2 className="w-12 h-12 text-gray-600 mx-auto mb-4" />
-                      <p className="font-mono text-sm text-gray-500">
+                      <Table2 className="w-12 h-12 text-foreground mx-auto mb-4" />
+                      <p className="font-mono text-sm text-muted-foreground">
                         Table extraction is only available for PDF documents
                       </p>
-                      <p className="font-mono text-xs text-gray-600 mt-2">
+                      <p className="font-mono text-xs text-foreground mt-2">
                         Upload a PDF to use this feature
                       </p>
                     </div>
@@ -770,14 +768,14 @@ export default function DocumentDetailPage() {
           <div className="space-y-6">
             {/* File Info Card */}
             <div className="rounded-xl border border-[#1a1a28] bg-[#0d0d14] p-6">
-              <h3 className="text-xs font-mono font-bold text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+              <h3 className="text-xs font-mono font-bold text-muted-foreground uppercase tracking-widest mb-4 flex items-center gap-2">
                 <HardDrive className="w-4 h-4" />
                 File Details
               </h3>
 
               <div className="space-y-4 font-mono text-xs">
                 <div className="flex justify-between items-center border-b border-[#1a1a28] pb-2">
-                  <span className="text-gray-500">Filename</span>
+                  <span className="text-muted-foreground">Filename</span>
                   <span
                     className="text-white truncate max-w-[150px]"
                     title={document.filename}
@@ -786,7 +784,7 @@ export default function DocumentDetailPage() {
                   </span>
                 </div>
                 <div className="flex justify-between items-center border-b border-[#1a1a28] pb-2">
-                  <span className="text-gray-500">Type</span>
+                  <span className="text-muted-foreground">Type</span>
                   <span className="text-[#D4A039] bg-[#D4A039]/10 px-2 py-0.5 rounded">
                     {document.document_type?.toUpperCase() ||
                       document.file_type?.toUpperCase() ||
@@ -795,7 +793,7 @@ export default function DocumentDetailPage() {
                   </span>
                 </div>
                 <div className="flex justify-between items-center border-b border-[#1a1a28] pb-2">
-                  <span className="text-gray-500">Size</span>
+                  <span className="text-muted-foreground">Size</span>
                   <span className="text-white">
                     {formatFileSize(
                       document.file_size_bytes || document.file_size
@@ -803,7 +801,7 @@ export default function DocumentDetailPage() {
                   </span>
                 </div>
                 <div className="flex justify-between items-center border-b border-[#1a1a28] pb-2">
-                  <span className="text-gray-500">Uploaded</span>
+                  <span className="text-muted-foreground">Uploaded</span>
                   <span className="text-white">
                     {formatDate(
                       document.created_at || document.upload_timestamp
@@ -811,7 +809,7 @@ export default function DocumentDetailPage() {
                   </span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-gray-500">Last Modified</span>
+                  <span className="text-muted-foreground">Last Modified</span>
                   <span className="text-white">
                     {formatDate(
                       document.updated_at ||
@@ -825,7 +823,7 @@ export default function DocumentDetailPage() {
 
             {/* AI Integrity Card */}
             <div className="rounded-xl border border-[#1a1a28] bg-[#0d0d14] p-6">
-              <h3 className="text-xs font-mono font-bold text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+              <h3 className="text-xs font-mono font-bold text-muted-foreground uppercase tracking-widest mb-4 flex items-center gap-2">
                 <Shield className="w-4 h-4" />
                 AI Integrity
               </h3>
@@ -838,7 +836,7 @@ export default function DocumentDetailPage() {
               </div>
               <button
                 onClick={() => setIntegrityOpen(true)}
-                className="w-full px-3 py-2 rounded-lg border border-[#1a1a28] bg-[#1a1a28]/50 text-xs font-mono text-gray-400 hover:text-[#D4A039] hover:border-[#D4A039]/30 transition-all"
+                className="w-full px-3 py-2 rounded-lg border border-[#1a1a28] bg-[#1a1a28]/50 text-xs font-mono text-muted-foreground hover:text-[#D4A039] hover:border-[#D4A039]/30 transition-all"
               >
                 View Details
               </button>

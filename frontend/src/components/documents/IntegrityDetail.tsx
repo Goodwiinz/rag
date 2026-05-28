@@ -117,7 +117,7 @@ export const IntegrityDetail: React.FC<IntegrityDetailProps> = ({
             <span className="text-3xl font-bold tabular-nums" style={{ color }}>
               {pct}%
             </span>
-            <span className="text-[10px] uppercase tracking-wider text-gray-300">
+            <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
               AI Prob.
             </span>
           </div>
@@ -156,11 +156,11 @@ export const IntegrityDetail: React.FC<IntegrityDetailProps> = ({
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-w-lg border-[#1a1a1a] bg-black/30 backdrop-blur-xl sm:max-w-xl">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-gray-100">
+          <DialogTitle className="flex items-center gap-2 text-muted-foreground">
             <Shield className="h-5 w-5 text-brand-cyan" />
             AI Integrity Analysis
           </DialogTitle>
-          <DialogDescription className="text-gray-400">
+          <DialogDescription className="text-muted-foreground">
             Detection analysis for this document
           </DialogDescription>
         </DialogHeader>
@@ -169,7 +169,9 @@ export const IntegrityDetail: React.FC<IntegrityDetailProps> = ({
           {loading && (
             <div className="flex flex-col items-center justify-center gap-3 py-12">
               <Loader2 className="h-8 w-8 animate-spin text-brand-cyan" />
-              <span className="text-sm text-gray-400">Loading score...</span>
+              <span className="text-sm text-muted-foreground">
+                Loading score...
+              </span>
             </div>
           )}
 
@@ -182,11 +184,11 @@ export const IntegrityDetail: React.FC<IntegrityDetailProps> = ({
 
           {noScore && !loading && !error && (
             <div className="flex flex-col items-center gap-3 py-12 text-center">
-              <Shield className="h-10 w-10 text-gray-500" />
-              <p className="text-sm text-gray-400">
+              <Shield className="h-10 w-10 text-muted-foreground" />
+              <p className="text-sm text-muted-foreground">
                 No integrity score available yet.
               </p>
-              <p className="text-xs text-gray-500">
+              <p className="text-xs text-muted-foreground">
                 Run a check to analyze this document for AI-generated content.
               </p>
             </div>
@@ -200,18 +202,18 @@ export const IntegrityDetail: React.FC<IntegrityDetailProps> = ({
 
               <div className="grid grid-cols-2 gap-3 rounded-lg border border-[#1a1a1a] bg-black/20 p-4">
                 <div>
-                  <span className="text-[10px] uppercase tracking-wider text-gray-500">
+                  <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
                     Method
                   </span>
-                  <p className="text-sm font-medium text-gray-300">
+                  <p className="text-sm font-medium text-muted-foreground">
                     {score.method}
                   </p>
                 </div>
                 <div>
-                  <span className="text-[10px] uppercase tracking-wider text-gray-500">
+                  <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
                     Analyzed
                   </span>
-                  <p className="text-sm font-medium text-gray-300">
+                  <p className="text-sm font-medium text-muted-foreground">
                     {formatDate(score.analyzed_at)}
                   </p>
                 </div>
@@ -219,7 +221,7 @@ export const IntegrityDetail: React.FC<IntegrityDetailProps> = ({
 
               {score.segment_scores.length > 0 && (
                 <div className="space-y-3">
-                  <h4 className="text-xs font-semibold uppercase tracking-wider text-gray-400">
+                  <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                     Segment Breakdown
                   </h4>
                   <div className="max-h-60 space-y-3 overflow-y-auto pr-1">
@@ -229,7 +231,7 @@ export const IntegrityDetail: React.FC<IntegrityDetailProps> = ({
                           key={idx}
                           className="rounded-md border border-[#1a1a1a] bg-black/20 p-3"
                         >
-                          <p className="mb-2 line-clamp-2 text-xs text-gray-300">
+                          <p className="mb-2 line-clamp-2 text-xs text-muted-foreground">
                             {segment.text_preview}
                           </p>
                           {renderSegmentBar(segment.ai_probability)}
@@ -247,7 +249,7 @@ export const IntegrityDetail: React.FC<IntegrityDetailProps> = ({
           <Button
             variant="ghost"
             onClick={onClose}
-            className="text-gray-300 hover:text-white"
+            className="text-muted-foreground hover:text-white"
           >
             Close
           </Button>

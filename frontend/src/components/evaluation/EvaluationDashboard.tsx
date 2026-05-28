@@ -20,7 +20,13 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 
 interface EvaluationDashboardProps {
@@ -133,122 +139,179 @@ export const EvaluationDashboard: React.FC<EvaluationDashboardProps> = ({
   const [showFilters, setShowFilters] = useState(false);
 
   // Mock data generation (in real implementation, this would come from API)
-  const ragTriadMetrics = useMemo((): RAGTriadMetrics => ({
-    answerRelevancy: {
-      current: 78.5,
-      target: 70,
-      trend: 'up',
-      history: Array.from({ length: 24 }, (_, i) => ({
-        timestamp: Date.now() - (23 - i) * 60 * 60 * 1000,
-        value: 70 + Math.random() * 15 + (i * 0.3),
-      })),
-      distribution: [
-        { range: '90-100', count: 15, percentage: 12.5 },
-        { range: '80-90', count: 35, percentage: 29.2 },
-        { range: '70-80', count: 40, percentage: 33.3 },
-        { range: '60-70', count: 20, percentage: 16.7 },
-        { range: '0-60', count: 10, percentage: 8.3 },
-      ],
-    },
-    faithfulness: {
-      current: 92.3,
-      target: 90,
-      trend: 'stable',
-      history: Array.from({ length: 24 }, (_, i) => ({
-        timestamp: Date.now() - (23 - i) * 60 * 60 * 1000,
-        value: 88 + Math.random() * 8 + Math.sin(i * 0.5) * 2,
-      })),
-      distribution: [
-        { range: '95-100', count: 25, percentage: 20.8 },
-        { range: '90-95', count: 45, percentage: 37.5 },
-        { range: '85-90', count: 30, percentage: 25.0 },
-        { range: '80-85', count: 15, percentage: 12.5 },
-        { range: '0-80', count: 5, percentage: 4.2 },
-      ],
-    },
-    contextualRelevancy: {
-      current: 85.2,
-      target: 70,
-      trend: 'up',
-      history: Array.from({ length: 24 }, (_, i) => ({
-        timestamp: Date.now() - (23 - i) * 60 * 60 * 1000,
-        value: 75 + Math.random() * 20 + (i * 0.4),
-      })),
-      distribution: [
-        { range: '90-100', count: 30, percentage: 25.0 },
-        { range: '80-90', count: 40, percentage: 33.3 },
-        { range: '70-80', count: 25, percentage: 20.8 },
-        { range: '60-70', count: 20, percentage: 16.7 },
-        { range: '0-60', count: 5, percentage: 4.2 },
-      ],
-    },
-  }), []);
+  const ragTriadMetrics = useMemo(
+    (): RAGTriadMetrics => ({
+      answerRelevancy: {
+        current: 78.5,
+        target: 70,
+        trend: 'up',
+        history: Array.from({ length: 24 }, (_, i) => ({
+          timestamp: Date.now() - (23 - i) * 60 * 60 * 1000,
+          value: 70 + Math.random() * 15 + i * 0.3,
+        })),
+        distribution: [
+          { range: '90-100', count: 15, percentage: 12.5 },
+          { range: '80-90', count: 35, percentage: 29.2 },
+          { range: '70-80', count: 40, percentage: 33.3 },
+          { range: '60-70', count: 20, percentage: 16.7 },
+          { range: '0-60', count: 10, percentage: 8.3 },
+        ],
+      },
+      faithfulness: {
+        current: 92.3,
+        target: 90,
+        trend: 'stable',
+        history: Array.from({ length: 24 }, (_, i) => ({
+          timestamp: Date.now() - (23 - i) * 60 * 60 * 1000,
+          value: 88 + Math.random() * 8 + Math.sin(i * 0.5) * 2,
+        })),
+        distribution: [
+          { range: '95-100', count: 25, percentage: 20.8 },
+          { range: '90-95', count: 45, percentage: 37.5 },
+          { range: '85-90', count: 30, percentage: 25.0 },
+          { range: '80-85', count: 15, percentage: 12.5 },
+          { range: '0-80', count: 5, percentage: 4.2 },
+        ],
+      },
+      contextualRelevancy: {
+        current: 85.2,
+        target: 70,
+        trend: 'up',
+        history: Array.from({ length: 24 }, (_, i) => ({
+          timestamp: Date.now() - (23 - i) * 60 * 60 * 1000,
+          value: 75 + Math.random() * 20 + i * 0.4,
+        })),
+        distribution: [
+          { range: '90-100', count: 30, percentage: 25.0 },
+          { range: '80-90', count: 40, percentage: 33.3 },
+          { range: '70-80', count: 25, percentage: 20.8 },
+          { range: '60-70', count: 20, percentage: 16.7 },
+          { range: '0-60', count: 5, percentage: 4.2 },
+        ],
+      },
+    }),
+    []
+  );
 
-  const performanceMetrics = useMemo((): PerformanceMetrics => ({
-    latency: {
-      current: 1250,
-      target: 2000,
-      p50: 980,
-      p95: 2100,
-      p99: 3500,
-      trend: 'improving',
-    },
-    throughput: {
-      current: 45,
-      target: 30,
-      peak: 78,
-      average: 42,
-    },
-    errorRate: {
-      current: 2.3,
-      target: 5,
-      errors: [
-        { type: 'Timeout', count: 15, percentage: 35.7 },
-        { type: 'Validation', count: 12, percentage: 28.6 },
-        { type: 'Processing', count: 10, percentage: 23.8 },
-        { type: 'Network', count: 5, percentage: 11.9 },
-      ],
-    },
-    resourceUsage: {
-      cpu: 65,
-      memory: 78,
-      gpu: 45,
-    },
-  }), []);
+  const performanceMetrics = useMemo(
+    (): PerformanceMetrics => ({
+      latency: {
+        current: 1250,
+        target: 2000,
+        p50: 980,
+        p95: 2100,
+        p99: 3500,
+        trend: 'improving',
+      },
+      throughput: {
+        current: 45,
+        target: 30,
+        peak: 78,
+        average: 42,
+      },
+      errorRate: {
+        current: 2.3,
+        target: 5,
+        errors: [
+          { type: 'Timeout', count: 15, percentage: 35.7 },
+          { type: 'Validation', count: 12, percentage: 28.6 },
+          { type: 'Processing', count: 10, percentage: 23.8 },
+          { type: 'Network', count: 5, percentage: 11.9 },
+        ],
+      },
+      resourceUsage: {
+        cpu: 65,
+        memory: 78,
+        gpu: 45,
+      },
+    }),
+    []
+  );
 
-  const qualityMetrics = useMemo((): QualityMetrics => ({
-    hallucinationScore: {
-      current: 8.2,
-      target: 10,
-      trend: 'improving',
-    },
-    factualAccuracy: {
-      current: 91.5,
-      target: 85,
-      trend: 'stable',
-    },
-    coherenceScore: {
-      current: 88.7,
-      target: 80,
-      trend: 'improving',
-    },
-  }), []);
+  const qualityMetrics = useMemo(
+    (): QualityMetrics => ({
+      hallucinationScore: {
+        current: 8.2,
+        target: 10,
+        trend: 'improving',
+      },
+      factualAccuracy: {
+        current: 91.5,
+        target: 85,
+        trend: 'stable',
+      },
+      coherenceScore: {
+        current: 88.7,
+        target: 80,
+        trend: 'improving',
+      },
+    }),
+    []
+  );
 
-  const benchmarks = useMemo((): BenchmarkData[] => [
-    { name: 'Answer Relevancy', score: 78.5, rank: 15, total: 100, percentile: 85, category: 'rag_triad' },
-    { name: 'Faithfulness', score: 92.3, rank: 8, total: 100, percentile: 92, category: 'rag_triad' },
-    { name: 'Contextual Relevancy', score: 85.2, rank: 12, total: 100, percentile: 88, category: 'rag_triad' },
-    { name: 'Latency', score: 88.0, rank: 20, total: 100, percentile: 80, category: 'performance' },
-    { name: 'Throughput', score: 92.5, rank: 10, total: 100, percentile: 90, category: 'performance' },
-    { name: 'Overall Quality', score: 87.1, rank: 18, total: 100, percentile: 82, category: 'overall' },
-  ], []);
+  const benchmarks = useMemo(
+    (): BenchmarkData[] => [
+      {
+        name: 'Answer Relevancy',
+        score: 78.5,
+        rank: 15,
+        total: 100,
+        percentile: 85,
+        category: 'rag_triad',
+      },
+      {
+        name: 'Faithfulness',
+        score: 92.3,
+        rank: 8,
+        total: 100,
+        percentile: 92,
+        category: 'rag_triad',
+      },
+      {
+        name: 'Contextual Relevancy',
+        score: 85.2,
+        rank: 12,
+        total: 100,
+        percentile: 88,
+        category: 'rag_triad',
+      },
+      {
+        name: 'Latency',
+        score: 88.0,
+        rank: 20,
+        total: 100,
+        percentile: 80,
+        category: 'performance',
+      },
+      {
+        name: 'Throughput',
+        score: 92.5,
+        rank: 10,
+        total: 100,
+        percentile: 90,
+        category: 'performance',
+      },
+      {
+        name: 'Overall Quality',
+        score: 87.1,
+        rank: 18,
+        total: 100,
+        percentile: 82,
+        category: 'overall',
+      },
+    ],
+    []
+  );
 
   // Generate alerts based on metrics
   React.useEffect(() => {
     const newAlerts: Alert[] = [];
 
     // Check RAG Triad metrics
-    if (ragTriadMetrics.answerRelevancy.current < ragTriadMetrics.answerRelevancy.target) {
+    if (
+      ragTriadMetrics.answerRelevancy.current <
+      ragTriadMetrics.answerRelevancy.target
+    ) {
       newAlerts.push({
         id: 'answer-relevancy-low',
         type: 'warning',
@@ -262,7 +325,9 @@ export const EvaluationDashboard: React.FC<EvaluationDashboardProps> = ({
       });
     }
 
-    if (performanceMetrics.latency.current > performanceMetrics.latency.target) {
+    if (
+      performanceMetrics.latency.current > performanceMetrics.latency.target
+    ) {
       newAlerts.push({
         id: 'latency-high',
         type: 'error',
@@ -276,7 +341,10 @@ export const EvaluationDashboard: React.FC<EvaluationDashboardProps> = ({
       });
     }
 
-    if (qualityMetrics.hallucinationScore.current > qualityMetrics.hallucinationScore.target) {
+    if (
+      qualityMetrics.hallucinationScore.current >
+      qualityMetrics.hallucinationScore.target
+    ) {
       newAlerts.push({
         id: 'hallucination-high',
         type: 'warning',
@@ -298,7 +366,7 @@ export const EvaluationDashboard: React.FC<EvaluationDashboardProps> = ({
     setIsRefreshing(true);
     try {
       // In real implementation, this would fetch fresh data from API
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise((resolve) => setTimeout(resolve, 1000));
     } catch (error) {
       console.error('Error refreshing dashboard data:', error);
     } finally {
@@ -343,7 +411,7 @@ export const EvaluationDashboard: React.FC<EvaluationDashboardProps> = ({
       case 'degrading':
         return 'text-red-600';
       default:
-        return 'text-gray-600';
+        return 'text-foreground';
     }
   };
 
@@ -371,7 +439,7 @@ export const EvaluationDashboard: React.FC<EvaluationDashboardProps> = ({
   };
 
   return (
-    <div className={cn("space-y-6", className)}>
+    <div className={cn('space-y-6', className)}>
       {/* Header */}
       <Card>
         <CardHeader>
@@ -381,7 +449,12 @@ export const EvaluationDashboard: React.FC<EvaluationDashboardProps> = ({
               Query Performance Evaluation Dashboard
             </div>
             <div className="flex items-center space-x-2">
-              <Select value={currentTimeRange} onValueChange={(value) => setCurrentTimeRange(value as typeof currentTimeRange)}>
+              <Select
+                value={currentTimeRange}
+                onValueChange={(value) =>
+                  setCurrentTimeRange(value as typeof currentTimeRange)
+                }
+              >
                 <SelectTrigger className="w-32">
                   <SelectValue />
                 </SelectTrigger>
@@ -399,7 +472,9 @@ export const EvaluationDashboard: React.FC<EvaluationDashboardProps> = ({
                 onClick={refreshData}
                 disabled={isRefreshing}
               >
-                <ArrowPathIcon className={cn("h-4 w-4", isRefreshing && "animate-spin")} />
+                <ArrowPathIcon
+                  className={cn('h-4 w-4', isRefreshing && 'animate-spin')}
+                />
               </Button>
               <Button
                 variant="ghost"
@@ -424,32 +499,38 @@ export const EvaluationDashboard: React.FC<EvaluationDashboardProps> = ({
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {alerts.slice(0, 3).map(alert => {
+              {alerts.slice(0, 3).map((alert) => {
                 const AlertIcon = getAlertIcon(alert.type);
                 return (
                   <div
                     key={alert.id}
                     className={cn(
-                      "flex items-start space-x-3 p-3 rounded-lg border",
+                      'flex items-start space-x-3 p-3 rounded-lg border',
                       getAlertColor(alert.type)
                     )}
                   >
                     <AlertIcon className="h-5 w-5 mt-0.5" />
                     <div className="flex-1">
                       <div className="flex items-center justify-between mb-1">
-                        <h4 className="font-medium text-gray-900">{alert.title}</h4>
-                        <span className="text-xs text-gray-500">
+                        <h4 className="font-medium text-foreground">
+                          {alert.title}
+                        </h4>
+                        <span className="text-xs text-muted-foreground">
                           {new Date(alert.timestamp).toLocaleTimeString()}
                         </span>
                       </div>
-                      <p className="text-sm text-gray-700">{alert.message}</p>
+                      <p className="text-sm text-foreground">{alert.message}</p>
                     </div>
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => setAlerts(prev => prev.map(a =>
-                        a.id === alert.id ? { ...a, acknowledged: true } : a
-                      ))}
+                      onClick={() =>
+                        setAlerts((prev) =>
+                          prev.map((a) =>
+                            a.id === alert.id ? { ...a, acknowledged: true } : a
+                          )
+                        )
+                      }
                     >
                       Dismiss
                     </Button>
@@ -478,10 +559,24 @@ export const EvaluationDashboard: React.FC<EvaluationDashboardProps> = ({
                 Answer Relevancy
               </div>
               <div className="flex items-center space-x-1">
-                {React.createElement(getTrendIcon(ragTriadMetrics.answerRelevancy.trend), {
-                  className: cn("h-4 w-4", getTrendColor(ragTriadMetrics.answerRelevancy.trend))
-                })}
-                <span className={cn("text-sm font-medium", getMetricStatus(ragTriadMetrics.answerRelevancy.current, ragTriadMetrics.answerRelevancy.target))}>
+                {React.createElement(
+                  getTrendIcon(ragTriadMetrics.answerRelevancy.trend),
+                  {
+                    className: cn(
+                      'h-4 w-4',
+                      getTrendColor(ragTriadMetrics.answerRelevancy.trend)
+                    ),
+                  }
+                )}
+                <span
+                  className={cn(
+                    'text-sm font-medium',
+                    getMetricStatus(
+                      ragTriadMetrics.answerRelevancy.current,
+                      ragTriadMetrics.answerRelevancy.target
+                    )
+                  )}
+                >
                   {ragTriadMetrics.answerRelevancy.current}%
                 </span>
               </div>
@@ -490,23 +585,37 @@ export const EvaluationDashboard: React.FC<EvaluationDashboardProps> = ({
           <CardContent>
             <div className="space-y-4">
               <div className="flex justify-between items-center">
-                <span className="text-sm text-gray-600">Target: {ragTriadMetrics.answerRelevancy.target}%</span>
-                <span className="text-sm text-gray-600">Current: {ragTriadMetrics.answerRelevancy.current}%</span>
+                <span className="text-sm text-foreground">
+                  Target: {ragTriadMetrics.answerRelevancy.target}%
+                </span>
+                <span className="text-sm text-foreground">
+                  Current: {ragTriadMetrics.answerRelevancy.current}%
+                </span>
               </div>
-              <Progress value={ragTriadMetrics.answerRelevancy.current} className="h-2" />
+              <Progress
+                value={ragTriadMetrics.answerRelevancy.current}
+                className="h-2"
+              />
               <div className="space-y-1">
-                {ragTriadMetrics.answerRelevancy.distribution.slice(0, 3).map((item, index) => (
-                  <div key={index} className="flex justify-between text-sm">
-                    <span className="text-gray-600">{item.range}%</span>
-                    <span className="font-medium">{item.count} queries</span>
-                  </div>
-                ))}
+                {ragTriadMetrics.answerRelevancy.distribution
+                  .slice(0, 3)
+                  .map((item, index) => (
+                    <div key={index} className="flex justify-between text-sm">
+                      <span className="text-foreground">{item.range}%</span>
+                      <span className="font-medium">{item.count} queries</span>
+                    </div>
+                  ))}
               </div>
               <Button
                 variant="outline"
                 size="sm"
                 className="w-full"
-                onClick={() => onMetricClick?.('answerRelevancy', ragTriadMetrics.answerRelevancy)}
+                onClick={() =>
+                  onMetricClick?.(
+                    'answerRelevancy',
+                    ragTriadMetrics.answerRelevancy
+                  )
+                }
               >
                 View Details
               </Button>
@@ -522,10 +631,24 @@ export const EvaluationDashboard: React.FC<EvaluationDashboardProps> = ({
                 Faithfulness
               </div>
               <div className="flex items-center space-x-1">
-                {React.createElement(getTrendIcon(ragTriadMetrics.faithfulness.trend), {
-                  className: cn("h-4 w-4", getTrendColor(ragTriadMetrics.faithfulness.trend))
-                })}
-                <span className={cn("text-sm font-medium", getMetricStatus(ragTriadMetrics.faithfulness.current, ragTriadMetrics.faithfulness.target))}>
+                {React.createElement(
+                  getTrendIcon(ragTriadMetrics.faithfulness.trend),
+                  {
+                    className: cn(
+                      'h-4 w-4',
+                      getTrendColor(ragTriadMetrics.faithfulness.trend)
+                    ),
+                  }
+                )}
+                <span
+                  className={cn(
+                    'text-sm font-medium',
+                    getMetricStatus(
+                      ragTriadMetrics.faithfulness.current,
+                      ragTriadMetrics.faithfulness.target
+                    )
+                  )}
+                >
                   {ragTriadMetrics.faithfulness.current}%
                 </span>
               </div>
@@ -534,23 +657,34 @@ export const EvaluationDashboard: React.FC<EvaluationDashboardProps> = ({
           <CardContent>
             <div className="space-y-4">
               <div className="flex justify-between items-center">
-                <span className="text-sm text-gray-600">Target: {ragTriadMetrics.faithfulness.target}%</span>
-                <span className="text-sm text-gray-600">Current: {ragTriadMetrics.faithfulness.current}%</span>
+                <span className="text-sm text-foreground">
+                  Target: {ragTriadMetrics.faithfulness.target}%
+                </span>
+                <span className="text-sm text-foreground">
+                  Current: {ragTriadMetrics.faithfulness.current}%
+                </span>
               </div>
-              <Progress value={ragTriadMetrics.faithfulness.current} className="h-2" />
+              <Progress
+                value={ragTriadMetrics.faithfulness.current}
+                className="h-2"
+              />
               <div className="space-y-1">
-                {ragTriadMetrics.faithfulness.distribution.slice(0, 3).map((item, index) => (
-                  <div key={index} className="flex justify-between text-sm">
-                    <span className="text-gray-600">{item.range}%</span>
-                    <span className="font-medium">{item.count} queries</span>
-                  </div>
-                ))}
+                {ragTriadMetrics.faithfulness.distribution
+                  .slice(0, 3)
+                  .map((item, index) => (
+                    <div key={index} className="flex justify-between text-sm">
+                      <span className="text-foreground">{item.range}%</span>
+                      <span className="font-medium">{item.count} queries</span>
+                    </div>
+                  ))}
               </div>
               <Button
                 variant="outline"
                 size="sm"
                 className="w-full"
-                onClick={() => onMetricClick?.('faithfulness', ragTriadMetrics.faithfulness)}
+                onClick={() =>
+                  onMetricClick?.('faithfulness', ragTriadMetrics.faithfulness)
+                }
               >
                 View Details
               </Button>
@@ -566,10 +700,24 @@ export const EvaluationDashboard: React.FC<EvaluationDashboardProps> = ({
                 Contextual Relevancy
               </div>
               <div className="flex items-center space-x-1">
-                {React.createElement(getTrendIcon(ragTriadMetrics.contextualRelevancy.trend), {
-                  className: cn("h-4 w-4", getTrendColor(ragTriadMetrics.contextualRelevancy.trend))
-                })}
-                <span className={cn("text-sm font-medium", getMetricStatus(ragTriadMetrics.contextualRelevancy.current, ragTriadMetrics.contextualRelevancy.target))}>
+                {React.createElement(
+                  getTrendIcon(ragTriadMetrics.contextualRelevancy.trend),
+                  {
+                    className: cn(
+                      'h-4 w-4',
+                      getTrendColor(ragTriadMetrics.contextualRelevancy.trend)
+                    ),
+                  }
+                )}
+                <span
+                  className={cn(
+                    'text-sm font-medium',
+                    getMetricStatus(
+                      ragTriadMetrics.contextualRelevancy.current,
+                      ragTriadMetrics.contextualRelevancy.target
+                    )
+                  )}
+                >
                   {ragTriadMetrics.contextualRelevancy.current}%
                 </span>
               </div>
@@ -578,23 +726,37 @@ export const EvaluationDashboard: React.FC<EvaluationDashboardProps> = ({
           <CardContent>
             <div className="space-y-4">
               <div className="flex justify-between items-center">
-                <span className="text-sm text-gray-600">Target: {ragTriadMetrics.contextualRelevancy.target}%</span>
-                <span className="text-sm text-gray-600">Current: {ragTriadMetrics.contextualRelevancy.current}%</span>
+                <span className="text-sm text-foreground">
+                  Target: {ragTriadMetrics.contextualRelevancy.target}%
+                </span>
+                <span className="text-sm text-foreground">
+                  Current: {ragTriadMetrics.contextualRelevancy.current}%
+                </span>
               </div>
-              <Progress value={ragTriadMetrics.contextualRelevancy.current} className="h-2" />
+              <Progress
+                value={ragTriadMetrics.contextualRelevancy.current}
+                className="h-2"
+              />
               <div className="space-y-1">
-                {ragTriadMetrics.contextualRelevancy.distribution.slice(0, 3).map((item, index) => (
-                  <div key={index} className="flex justify-between text-sm">
-                    <span className="text-gray-600">{item.range}%</span>
-                    <span className="font-medium">{item.count} queries</span>
-                  </div>
-                ))}
+                {ragTriadMetrics.contextualRelevancy.distribution
+                  .slice(0, 3)
+                  .map((item, index) => (
+                    <div key={index} className="flex justify-between text-sm">
+                      <span className="text-foreground">{item.range}%</span>
+                      <span className="font-medium">{item.count} queries</span>
+                    </div>
+                  ))}
               </div>
               <Button
                 variant="outline"
                 size="sm"
                 className="w-full"
-                onClick={() => onMetricClick?.('contextualRelevancy', ragTriadMetrics.contextualRelevancy)}
+                onClick={() =>
+                  onMetricClick?.(
+                    'contextualRelevancy',
+                    ragTriadMetrics.contextualRelevancy
+                  )
+                }
               >
                 View Details
               </Button>
@@ -616,37 +778,59 @@ export const EvaluationDashboard: React.FC<EvaluationDashboardProps> = ({
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4 text-center">
                 <div>
-                  <div className="text-lg font-bold">{performanceMetrics.latency.current}ms</div>
-                  <div className="text-sm text-gray-500">Current</div>
+                  <div className="text-lg font-bold">
+                    {performanceMetrics.latency.current}ms
+                  </div>
+                  <div className="text-sm text-muted-foreground">Current</div>
                 </div>
                 <div>
-                  <div className={cn("text-lg font-bold", getMetricStatus(performanceMetrics.latency.target, performanceMetrics.latency.current))}>
+                  <div
+                    className={cn(
+                      'text-lg font-bold',
+                      getMetricStatus(
+                        performanceMetrics.latency.target,
+                        performanceMetrics.latency.current
+                      )
+                    )}
+                  >
                     {performanceMetrics.latency.target}ms
                   </div>
-                  <div className="text-sm text-gray-500">Target</div>
+                  <div className="text-sm text-muted-foreground">Target</div>
                 </div>
               </div>
 
               <div className="space-y-2">
                 <div className="flex justify-between text-sm">
                   <span>P50:</span>
-                  <span className="font-medium">{performanceMetrics.latency.p50}ms</span>
+                  <span className="font-medium">
+                    {performanceMetrics.latency.p50}ms
+                  </span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span>P95:</span>
-                  <span className="font-medium">{performanceMetrics.latency.p95}ms</span>
+                  <span className="font-medium">
+                    {performanceMetrics.latency.p95}ms
+                  </span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span>P99:</span>
-                  <span className="font-medium">{performanceMetrics.latency.p99}ms</span>
+                  <span className="font-medium">
+                    {performanceMetrics.latency.p99}ms
+                  </span>
                 </div>
               </div>
 
               <div className="flex items-center space-x-2">
-                {React.createElement(getTrendIcon(performanceMetrics.latency.trend), {
-                  className: cn("h-4 w-4", getTrendColor(performanceMetrics.latency.trend))
-                })}
-                <span className="text-sm text-gray-600 capitalize">
+                {React.createElement(
+                  getTrendIcon(performanceMetrics.latency.trend),
+                  {
+                    className: cn(
+                      'h-4 w-4',
+                      getTrendColor(performanceMetrics.latency.trend)
+                    ),
+                  }
+                )}
+                <span className="text-sm text-foreground capitalize">
                   {performanceMetrics.latency.trend}
                 </span>
               </div>
@@ -665,29 +849,52 @@ export const EvaluationDashboard: React.FC<EvaluationDashboardProps> = ({
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4 text-center">
                 <div>
-                  <div className="text-lg font-bold">{performanceMetrics.throughput.current}</div>
-                  <div className="text-sm text-gray-500">Queries/min</div>
+                  <div className="text-lg font-bold">
+                    {performanceMetrics.throughput.current}
+                  </div>
+                  <div className="text-sm text-muted-foreground">
+                    Queries/min
+                  </div>
                 </div>
                 <div>
-                  <div className={cn("text-lg font-bold", getMetricStatus(performanceMetrics.errorRate.target, performanceMetrics.errorRate.current))}>
+                  <div
+                    className={cn(
+                      'text-lg font-bold',
+                      getMetricStatus(
+                        performanceMetrics.errorRate.target,
+                        performanceMetrics.errorRate.current
+                      )
+                    )}
+                  >
                     {performanceMetrics.errorRate.current}%
                   </div>
-                  <div className="text-sm text-gray-500">Error Rate</div>
+                  <div className="text-sm text-muted-foreground">
+                    Error Rate
+                  </div>
                 </div>
               </div>
 
               <div>
-                <div className="text-sm font-medium text-gray-700 mb-2">Peak Throughput: {performanceMetrics.throughput.peak} queries/min</div>
-                <div className="text-sm text-gray-600 mb-3">Average: {performanceMetrics.throughput.average} queries/min</div>
+                <div className="text-sm font-medium text-foreground mb-2">
+                  Peak Throughput: {performanceMetrics.throughput.peak}{' '}
+                  queries/min
+                </div>
+                <div className="text-sm text-foreground mb-3">
+                  Average: {performanceMetrics.throughput.average} queries/min
+                </div>
               </div>
 
               <div>
-                <h4 className="text-sm font-medium text-gray-700 mb-2">Error Breakdown</h4>
+                <h4 className="text-sm font-medium text-foreground mb-2">
+                  Error Breakdown
+                </h4>
                 <div className="space-y-1">
                   {performanceMetrics.errorRate.errors.map((error, index) => (
                     <div key={index} className="flex justify-between text-sm">
                       <span>{error.type}</span>
-                      <span className="font-medium">{error.count} ({error.percentage}%)</span>
+                      <span className="font-medium">
+                        {error.count} ({error.percentage}%)
+                      </span>
                     </div>
                   ))}
                 </div>
@@ -708,35 +915,71 @@ export const EvaluationDashboard: React.FC<EvaluationDashboardProps> = ({
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="text-center">
-              <div className="text-lg font-bold text-red-600">{qualityMetrics.hallucinationScore.current}%</div>
-              <div className="text-sm text-gray-500">Hallucination Score</div>
-              <div className="text-xs text-gray-400 mt-1">Target: ≤{qualityMetrics.hallucinationScore.target}%</div>
+              <div className="text-lg font-bold text-red-600">
+                {qualityMetrics.hallucinationScore.current}%
+              </div>
+              <div className="text-sm text-muted-foreground">
+                Hallucination Score
+              </div>
+              <div className="text-xs text-muted-foreground mt-1">
+                Target: ≤{qualityMetrics.hallucinationScore.target}%
+              </div>
               <div className="flex items-center justify-center mt-2 space-x-1">
-                {React.createElement(getTrendIcon(qualityMetrics.hallucinationScore.trend), {
-                  className: cn("h-3 w-3", getTrendColor(qualityMetrics.hallucinationScore.trend))
-                })}
+                {React.createElement(
+                  getTrendIcon(qualityMetrics.hallucinationScore.trend),
+                  {
+                    className: cn(
+                      'h-3 w-3',
+                      getTrendColor(qualityMetrics.hallucinationScore.trend)
+                    ),
+                  }
+                )}
               </div>
             </div>
 
             <div className="text-center">
-              <div className="text-lg font-bold text-green-600">{qualityMetrics.factualAccuracy.current}%</div>
-              <div className="text-sm text-gray-500">Factual Accuracy</div>
-              <div className="text-xs text-gray-400 mt-1">Target: ≥{qualityMetrics.factualAccuracy.target}%</div>
+              <div className="text-lg font-bold text-green-600">
+                {qualityMetrics.factualAccuracy.current}%
+              </div>
+              <div className="text-sm text-muted-foreground">
+                Factual Accuracy
+              </div>
+              <div className="text-xs text-muted-foreground mt-1">
+                Target: ≥{qualityMetrics.factualAccuracy.target}%
+              </div>
               <div className="flex items-center justify-center mt-2 space-x-1">
-                {React.createElement(getTrendIcon(qualityMetrics.factualAccuracy.trend), {
-                  className: cn("h-3 w-3", getTrendColor(qualityMetrics.factualAccuracy.trend))
-                })}
+                {React.createElement(
+                  getTrendIcon(qualityMetrics.factualAccuracy.trend),
+                  {
+                    className: cn(
+                      'h-3 w-3',
+                      getTrendColor(qualityMetrics.factualAccuracy.trend)
+                    ),
+                  }
+                )}
               </div>
             </div>
 
             <div className="text-center">
-              <div className="text-lg font-bold text-blue-600">{qualityMetrics.coherenceScore.current}%</div>
-              <div className="text-sm text-gray-500">Coherence Score</div>
-              <div className="text-xs text-gray-400 mt-1">Target: ≥{qualityMetrics.coherenceScore.target}%</div>
+              <div className="text-lg font-bold text-blue-600">
+                {qualityMetrics.coherenceScore.current}%
+              </div>
+              <div className="text-sm text-muted-foreground">
+                Coherence Score
+              </div>
+              <div className="text-xs text-muted-foreground mt-1">
+                Target: ≥{qualityMetrics.coherenceScore.target}%
+              </div>
               <div className="flex items-center justify-center mt-2 space-x-1">
-                {React.createElement(getTrendIcon(qualityMetrics.coherenceScore.trend), {
-                  className: cn("h-3 w-3", getTrendColor(qualityMetrics.coherenceScore.trend))
-                })}
+                {React.createElement(
+                  getTrendIcon(qualityMetrics.coherenceScore.trend),
+                  {
+                    className: cn(
+                      'h-3 w-3',
+                      getTrendColor(qualityMetrics.coherenceScore.trend)
+                    ),
+                  }
+                )}
               </div>
             </div>
           </div>
@@ -753,8 +996,11 @@ export const EvaluationDashboard: React.FC<EvaluationDashboardProps> = ({
         </CardHeader>
         <CardContent>
           <div className="space-y-3">
-            {benchmarks.map(benchmark => (
-              <div key={benchmark.name} className="flex items-center justify-between p-3 border rounded-lg">
+            {benchmarks.map((benchmark) => (
+              <div
+                key={benchmark.name}
+                className="flex items-center justify-between p-3 border rounded-lg"
+              >
                 <div className="flex-1">
                   <div className="flex items-center space-x-2">
                     <span className="font-medium">{benchmark.name}</span>
@@ -762,8 +1008,9 @@ export const EvaluationDashboard: React.FC<EvaluationDashboardProps> = ({
                       {benchmark.category}
                     </Badge>
                   </div>
-                  <div className="text-sm text-gray-500 mt-1">
-                    Rank #{benchmark.rank} of {benchmark.total} (Percentile: {benchmark.percentile}%)
+                  <div className="text-sm text-muted-foreground mt-1">
+                    Rank #{benchmark.rank} of {benchmark.total} (Percentile:{' '}
+                    {benchmark.percentile}%)
                   </div>
                 </div>
                 <div className="text-right">
@@ -788,26 +1035,47 @@ export const EvaluationDashboard: React.FC<EvaluationDashboardProps> = ({
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div>
               <div className="flex justify-between items-center mb-2">
-                <span className="text-sm font-medium text-gray-700">CPU Usage</span>
-                <span className="text-sm font-bold">{performanceMetrics.resourceUsage.cpu}%</span>
+                <span className="text-sm font-medium text-foreground">
+                  CPU Usage
+                </span>
+                <span className="text-sm font-bold">
+                  {performanceMetrics.resourceUsage.cpu}%
+                </span>
               </div>
-              <Progress value={performanceMetrics.resourceUsage.cpu} className="h-2" />
+              <Progress
+                value={performanceMetrics.resourceUsage.cpu}
+                className="h-2"
+              />
             </div>
 
             <div>
               <div className="flex justify-between items-center mb-2">
-                <span className="text-sm font-medium text-gray-700">Memory Usage</span>
-                <span className="text-sm font-bold">{performanceMetrics.resourceUsage.memory}%</span>
+                <span className="text-sm font-medium text-foreground">
+                  Memory Usage
+                </span>
+                <span className="text-sm font-bold">
+                  {performanceMetrics.resourceUsage.memory}%
+                </span>
               </div>
-              <Progress value={performanceMetrics.resourceUsage.memory} className="h-2" />
+              <Progress
+                value={performanceMetrics.resourceUsage.memory}
+                className="h-2"
+              />
             </div>
 
             <div>
               <div className="flex justify-between items-center mb-2">
-                <span className="text-sm font-medium text-gray-700">GPU Usage</span>
-                <span className="text-sm font-bold">{performanceMetrics.resourceUsage.gpu}%</span>
+                <span className="text-sm font-medium text-foreground">
+                  GPU Usage
+                </span>
+                <span className="text-sm font-bold">
+                  {performanceMetrics.resourceUsage.gpu}%
+                </span>
               </div>
-              <Progress value={performanceMetrics.resourceUsage.gpu} className="h-2" />
+              <Progress
+                value={performanceMetrics.resourceUsage.gpu}
+                className="h-2"
+              />
             </div>
           </div>
         </CardContent>

@@ -13,10 +13,14 @@ export const CreateExperimentPage: React.FC = () => {
         >
           &larr; Back to Experiments
         </button>
-        <h1 className="text-2xl font-bold text-gray-900">Create New Experiment</h1>
+        <h1 className="text-2xl font-bold text-foreground">
+          Create New Experiment
+        </h1>
       </div>
       <div className="bg-white rounded-lg shadow p-6">
-        <p className="text-gray-600">Configure and create a new A/B testing experiment.</p>
+        <p className="text-foreground">
+          Configure and create a new A/B testing experiment.
+        </p>
       </div>
     </div>
   );

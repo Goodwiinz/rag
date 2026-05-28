@@ -3,7 +3,11 @@ import { useEffect, useState } from 'react';
 import { useDocumentUpload } from './useDocumentUpload';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { CloudArrowUpIcon, TrashIcon, ArrowPathIcon } from '@heroicons/react/24/outline';
+import {
+  CloudArrowUpIcon,
+  TrashIcon,
+  ArrowPathIcon,
+} from '@heroicons/react/24/outline';
 
 // Mock component to demonstrate the hook
 const UploadDemo = ({ options }: { options?: any }) => {
@@ -48,7 +52,9 @@ const UploadDemo = ({ options }: { options?: any }) => {
 
   const createMockFiles = () => {
     const mockFiles = [
-      new File(['PDF content'], 'mock-document.pdf', { type: 'application/pdf' }),
+      new File(['PDF content'], 'mock-document.pdf', {
+        type: 'application/pdf',
+      }),
       new File(['Image content'], 'mock-image.jpg', { type: 'image/jpeg' }),
       new File(['Text content'], 'mock-notes.txt', { type: 'text/plain' }),
     ];
@@ -59,9 +65,12 @@ const UploadDemo = ({ options }: { options?: any }) => {
     <div className="p-6 bg-gray-50 min-h-screen">
       <div className="max-w-6xl mx-auto space-y-6">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">useDocumentUpload Hook Demo</h2>
-          <p className="text-gray-600">
-            This demonstrates the useDocumentUpload hook functionality with mock data.
+          <h2 className="text-2xl font-bold text-foreground mb-2">
+            useDocumentUpload Hook Demo
+          </h2>
+          <p className="text-foreground">
+            This demonstrates the useDocumentUpload hook functionality with mock
+            data.
           </p>
         </div>
 
@@ -74,17 +83,14 @@ const UploadDemo = ({ options }: { options?: any }) => {
                 type="file"
                 multiple
                 onChange={handleFileSelect}
-                className="block w-full text-sm text-gray-500
+                className="block w-full text-sm text-muted-foreground
                   file:mr-4 file:py-2 file:px-4
                   file:rounded-full file:border-0
                   file:text-sm file:font-semibold
                   file:bg-blue-50 file:text-blue-700
                   hover:file:bg-blue-100"
               />
-              <Button
-                variant="outline"
-                onClick={createMockFiles}
-              >
+              <Button variant="outline" onClick={createMockFiles}>
                 Add Mock Files
               </Button>
               <Button
@@ -98,13 +104,20 @@ const UploadDemo = ({ options }: { options?: any }) => {
 
             {selectedFiles.length > 0 && (
               <div className="space-y-2">
-                <p className="text-sm font-medium text-gray-700">Selected Files:</p>
+                <p className="text-sm font-medium text-foreground">
+                  Selected Files:
+                </p>
                 {selectedFiles.map((file, index) => (
-                  <div key={index} className="flex items-center justify-between p-2 bg-gray-50 rounded">
+                  <div
+                    key={index}
+                    className="flex items-center justify-between p-2 bg-gray-50 rounded"
+                  >
                     <div className="flex items-center space-x-2">
                       <span>{getFileIcon(file)}</span>
                       <span className="text-sm">{file.name}</span>
-                      <Badge variant="secondary">{formatFileSize(file.size)}</Badge>
+                      <Badge variant="secondary">
+                        {formatFileSize(file.size)}
+                      </Badge>
                     </div>
                   </div>
                 ))}
@@ -118,26 +131,36 @@ const UploadDemo = ({ options }: { options?: any }) => {
           <h3 className="text-lg font-semibold mb-4">Upload Statistics</h3>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className="text-center">
-              <div className="text-2xl font-bold text-blue-600">{stats.totalFiles}</div>
-              <div className="text-sm text-gray-600">Total Files</div>
+              <div className="text-2xl font-bold text-blue-600">
+                {stats.totalFiles}
+              </div>
+              <div className="text-sm text-foreground">Total Files</div>
             </div>
             <div className="text-center">
-              <div className="text-2xl font-bold text-green-600">{stats.completedFiles}</div>
-              <div className="text-sm text-gray-600">Completed</div>
+              <div className="text-2xl font-bold text-green-600">
+                {stats.completedFiles}
+              </div>
+              <div className="text-sm text-foreground">Completed</div>
             </div>
             <div className="text-center">
-              <div className="text-2xl font-bold text-orange-600">{stats.processingFiles}</div>
-              <div className="text-sm text-gray-600">Processing</div>
+              <div className="text-2xl font-bold text-orange-600">
+                {stats.processingFiles}
+              </div>
+              <div className="text-sm text-foreground">Processing</div>
             </div>
             <div className="text-center">
-              <div className="text-2xl font-bold text-red-600">{stats.failedFiles}</div>
-              <div className="text-sm text-gray-600">Failed</div>
+              <div className="text-2xl font-bold text-red-600">
+                {stats.failedFiles}
+              </div>
+              <div className="text-sm text-foreground">Failed</div>
             </div>
           </div>
 
           <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
-              <div className="text-sm font-medium text-gray-700">Overall Progress</div>
+              <div className="text-sm font-medium text-foreground">
+                Overall Progress
+              </div>
               <div className="mt-1">
                 <div className="w-full bg-gray-200 rounded-full h-2">
                   <div
@@ -145,16 +168,26 @@ const UploadDemo = ({ options }: { options?: any }) => {
                     style={{ width: `${overallProgress}%` }}
                   />
                 </div>
-                <div className="text-sm text-gray-600 mt-1">{overallProgress}%</div>
+                <div className="text-sm text-foreground mt-1">
+                  {overallProgress}%
+                </div>
               </div>
             </div>
             <div>
-              <div className="text-sm font-medium text-gray-700">Upload Speed</div>
-              <div className="text-lg font-semibold text-gray-900">{uploadSpeed}</div>
+              <div className="text-sm font-medium text-foreground">
+                Upload Speed
+              </div>
+              <div className="text-lg font-semibold text-foreground">
+                {uploadSpeed}
+              </div>
             </div>
             <div>
-              <div className="text-sm font-medium text-gray-700">Time Remaining</div>
-              <div className="text-lg font-semibold text-gray-900">{estimatedTimeRemaining}</div>
+              <div className="text-sm font-medium text-foreground">
+                Time Remaining
+              </div>
+              <div className="text-lg font-semibold text-foreground">
+                {estimatedTimeRemaining}
+              </div>
             </div>
           </div>
         </div>
@@ -184,16 +217,16 @@ const UploadDemo = ({ options }: { options?: any }) => {
           </div>
 
           <div className="flex items-center space-x-4 mb-4">
-            <Badge variant={isUploading ? "default" : "secondary"}>
+            <Badge variant={isUploading ? 'default' : 'secondary'}>
               {isUploading ? 'Uploading' : 'Idle'}
             </Badge>
-            <Badge variant={hasActiveUploads ? "default" : "secondary"}>
+            <Badge variant={hasActiveUploads ? 'default' : 'secondary'}>
               {hasActiveUploads ? 'Active' : 'No Active Uploads'}
             </Badge>
-            <Badge variant={allCompleted ? "default" : "secondary"}>
+            <Badge variant={allCompleted ? 'default' : 'secondary'}>
               {allCompleted ? 'All Completed' : 'In Progress'}
             </Badge>
-            <Badge variant={hasErrors ? "destructive" : "secondary"}>
+            <Badge variant={hasErrors ? 'destructive' : 'secondary'}>
               {hasErrors ? 'Has Errors' : 'No Errors'}
             </Badge>
           </div>
@@ -202,19 +235,32 @@ const UploadDemo = ({ options }: { options?: any }) => {
         {/* Queue Items */}
         {queueItems.length > 0 && (
           <div className="bg-white p-6 rounded-lg shadow">
-            <h3 className="text-lg font-semibold mb-4">Queue Items ({queueItems.length})</h3>
+            <h3 className="text-lg font-semibold mb-4">
+              Queue Items ({queueItems.length})
+            </h3>
             <div className="space-y-3">
               {queueItems.map((item) => (
-                <div key={item.id} className="flex items-center justify-between p-4 border rounded-lg">
+                <div
+                  key={item.id}
+                  className="flex items-center justify-between p-4 border rounded-lg"
+                >
                   <div className="flex items-center space-x-3 flex-1 min-w-0">
                     <div className="text-lg">{getFileIcon(item.file)}</div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-900 truncate">{item.file.name}</p>
+                      <p className="text-sm font-medium text-foreground truncate">
+                        {item.file.name}
+                      </p>
                       <div className="flex items-center space-x-2 mt-1">
-                        <Badge variant="outline">{getStatusText(item.status)}</Badge>
-                        <span className="text-xs text-gray-500">{formatFileSize(item.file.size)}</span>
+                        <Badge variant="outline">
+                          {getStatusText(item.status)}
+                        </Badge>
+                        <span className="text-xs text-muted-foreground">
+                          {formatFileSize(item.file.size)}
+                        </span>
                         {item.progress > 0 && (
-                          <span className="text-xs text-gray-500">{item.progress}%</span>
+                          <span className="text-xs text-muted-foreground">
+                            {item.progress}%
+                          </span>
                         )}
                       </div>
                     </div>
@@ -253,9 +299,13 @@ const UploadDemo = ({ options }: { options?: any }) => {
         {/* Empty State */}
         {queueItems.length === 0 && (
           <div className="bg-white p-12 rounded-lg shadow text-center">
-            <CloudArrowUpIcon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No files in queue</h3>
-            <p className="text-gray-600">Select files above to add them to the upload queue.</p>
+            <CloudArrowUpIcon className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-foreground mb-2">
+              No files in queue
+            </h3>
+            <p className="text-foreground">
+              Select files above to add them to the upload queue.
+            </p>
           </div>
         )}
       </div>
@@ -364,7 +414,8 @@ export const WithAutoCleanup: Story = {
   parameters: {
     docs: {
       description: {
-        story: 'Demonstrates auto-cleanup functionality. Completed items will be automatically removed from the queue after the specified interval.',
+        story:
+          'Demonstrates auto-cleanup functionality. Completed items will be automatically removed from the queue after the specified interval.',
       },
     },
   },
@@ -384,7 +435,8 @@ export const Playground: Story = {
   parameters: {
     docs: {
       description: {
-        story: 'Interactive playground for testing the useDocumentUpload hook. Use the file input to select files or add mock files to test the upload queue functionality. The hook provides a complete upload management system with real-time progress tracking, error handling, and queue management.',
+        story:
+          'Interactive playground for testing the useDocumentUpload hook. Use the file input to select files or add mock files to test the upload queue functionality. The hook provides a complete upload management system with real-time progress tracking, error handling, and queue management.',
       },
     },
   },

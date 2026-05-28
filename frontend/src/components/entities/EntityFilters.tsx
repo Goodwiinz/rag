@@ -4,7 +4,13 @@
  */
 
 import React, { useState } from 'react';
-import { Search, Filter, X, ChevronDown, SlidersHorizontal } from 'lucide-react';
+import {
+  Search,
+  Filter,
+  X,
+  ChevronDown,
+  SlidersHorizontal,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { IconButtonSm } from '@/components/ui/icon-button';
 import { Input } from '@/components/ui/input';
@@ -73,7 +79,7 @@ const typeColors: Record<string, string> = {
   TECHNOLOGY: 'bg-cyan-400/20 text-cyan-400 border-cyan-400/30',
   DOCUMENT: 'bg-orange-400/20 text-orange-400 border-orange-400/30',
   TOPIC: 'bg-pink-400/20 text-pink-400 border-pink-400/30',
-  OTHER: 'bg-gray-400/20 text-gray-400 border-gray-400/30',
+  OTHER: 'bg-gray-400/20 text-muted-foreground border-border/30',
 };
 
 export const EntityFilters: React.FC<EntityFiltersProps> = ({
@@ -97,7 +103,7 @@ export const EntityFilters: React.FC<EntityFiltersProps> = ({
 
   // Special filter for null/unknown types
   const SPECIAL_FILTERS = [
-    { value: '__null__', label: 'Unknown Type', isSpecial: true }
+    { value: '__null__', label: 'Unknown Type', isSpecial: true },
   ];
 
   // Use available types from props or fall back to defaults
@@ -107,7 +113,7 @@ export const EntityFilters: React.FC<EntityFiltersProps> = ({
   const allFilterOptions = [...SPECIAL_FILTERS, ...entityTypes];
 
   // Filter types based on search query
-  const filteredTypes = allFilterOptions.filter(item => {
+  const filteredTypes = allFilterOptions.filter((item) => {
     const label = typeof item === 'string' ? item : item.label;
     return label.toLowerCase().includes(typeSearchQuery.toLowerCase());
   });
@@ -115,7 +121,11 @@ export const EntityFilters: React.FC<EntityFiltersProps> = ({
   // Calculate null type count (total entities - sum of known type counts)
   const nullTypeCount = typeCounts
     ? Object.keys(typeCounts).length > 0
-      ? Math.max(0, totalCount - Object.values(typeCounts).reduce((sum, count) => sum + count, 0))
+      ? Math.max(
+          0,
+          totalCount -
+            Object.values(typeCounts).reduce((sum, count) => sum + count, 0)
+        )
       : 0
     : 0;
 
@@ -228,12 +238,18 @@ export const EntityFilters: React.FC<EntityFiltersProps> = ({
               ) : (
                 filteredTypes.map((item) => {
                   // Handle special filters (like null type)
-                  if (typeof item === 'object' && 'isSpecial' in item && item.isSpecial) {
+                  if (
+                    typeof item === 'object' &&
+                    'isSpecial' in item &&
+                    item.isSpecial
+                  ) {
                     return (
                       <DropdownMenuCheckboxItem
                         key={item.value}
                         checked={selectedTypes.includes(item.value as any)}
-                        onCheckedChange={() => handleTypeToggle(item.value as any)}
+                        onCheckedChange={() =>
+                          handleTypeToggle(item.value as any)
+                        }
                         className="font-mono text-xs focus:bg-[var(--terminal-elevated)] focus:text-[var(--amber)] bg-amber-400/10"
                       >
                         <div className="flex items-center justify-between w-full">
@@ -265,7 +281,8 @@ export const EntityFilters: React.FC<EntityFiltersProps> = ({
                           <span
                             className={cn(
                               'inline-block w-2 h-2 rounded-full mr-2',
-                              typeColors[type]?.split(' ')[0] || 'bg-gray-400/20'
+                              typeColors[type]?.split(' ')[0] ||
+                                'bg-gray-400/20'
                             )}
                           />
                           {type}
