@@ -15,10 +15,14 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Generator, List, Optional
 
-import kagglehub
-from kagglehub import KaggleDatasetAdapter
-
 logger = logging.getLogger(__name__)
+
+
+def _import_kagglehub():
+    """Lazy import — kagglehub pulls heavy deps and version-mismatches break app import."""
+    import kagglehub
+
+    return kagglehub
 
 
 @dataclass
@@ -190,7 +194,7 @@ class KaggleBulkIngestionService:
 
             # Run blocking download in thread pool
             def download_dataset():
-                return kagglehub.dataset_download(
+                return _import_kagglehub().dataset_download(
                     self.DATASET_NAME,
                 )
 
@@ -256,7 +260,7 @@ class KaggleBulkIngestionService:
                         return self._json_lines_generator(json_file)
 
         # Fall back to download (blocking)
-        dataset_path = kagglehub.dataset_download(self.DATASET_NAME)
+        dataset_path = _import_kagglehub().dataset_download(self.DATASET_NAME)
         json_file = Path(dataset_path) / "arxiv-metadata-oai-snapshot.json"
         return self._json_lines_generator(json_file)
 
