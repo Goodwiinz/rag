@@ -21,7 +21,8 @@ def _generate_dev_secret() -> str:
 
 def _longest_literal_hostname_run(pattern: str) -> int:
     """Longest contiguous literal hostname segment (project slug specificity)."""
-    runs = re.findall(r"[A-Za-z0-9-]+", pattern)
+    pattern_without_character_classes = re.sub(r"\[[^\]]*\]", "", pattern)
+    runs = re.findall(r"[A-Za-z0-9-]+", pattern_without_character_classes)
     return max((len(run) for run in runs), default=0)
 
 
