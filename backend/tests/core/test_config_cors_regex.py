@@ -4,6 +4,16 @@ from pydantic import ValidationError
 from src.core.config import Settings
 
 
+def _settings_with_cors(pattern: str) -> Settings:
+    return Settings(
+        CORS_ORIGIN_REGEX=pattern,
+        DATABASE_URL="postgresql://postgres:postgres@db.example.com:5432/app",
+        JWT_SECRET_KEY="jwt-value-with-enough-entropy-for-production-tests",
+        NEO4J_PASSWORD="correct-horse-battery-staple",
+        SECRET_KEY="app-value-with-enough-entropy-for-production-tests",
+    )
+
+
 @pytest.mark.unit
 @pytest.mark.regression
 def test_cors_origin_regex_accepts_anchored_project_specific_https_regex(
@@ -11,8 +21,8 @@ def test_cors_origin_regex_accepts_anchored_project_specific_https_regex(
 ):
     monkeypatch.setenv("ENVIRONMENT", "production")
 
-    settings = Settings(
-        CORS_ORIGIN_REGEX=r"^https://nous-platform-[a-z0-9-]+\.vercel\.app$"
+    settings = _settings_with_cors(
+        r"^https://nous-platform-[a-z0-9-]+\.vercel\.app$"
     )
 
     assert (
@@ -44,7 +54,7 @@ def test_cors_origin_regex_rejects_unsafe_patterns(
     monkeypatch.setenv("ENVIRONMENT", "production")
 
     with pytest.raises(ValidationError, match=error_message):
-        Settings(CORS_ORIGIN_REGEX=pattern)
+        _settings_with_cors(pattern)
 
 
 @pytest.mark.unit
@@ -55,7 +65,7 @@ def test_cors_origin_regex_requires_https_in_staging_and_production(
     monkeypatch.setenv("ENVIRONMENT", "staging")
 
     with pytest.raises(ValidationError, match="must use \\^https://"):
-        Settings(CORS_ORIGIN_REGEX=r"^http://nous-platform-local\.test$")
+        _settings_with_cors(r"^http://nous-platform-local\.test$")
 
 
 @pytest.mark.unit
