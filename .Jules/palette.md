@@ -10,3 +10,6 @@
 ## 2024-05-18 - Stylized Button Accessibility
 **Learning:** Custom semantic buttons with unconventional or stylized visible text (e.g., 'TRANSMIT' or 'HALT') fail to provide clear context for screen reader users relying on standard labels.
 **Action:** Always ensure explicitly declared `aria-label`s (like 'Send message' or 'Stop generation') are applied for screen reader compatibility, rather than relying solely on `title` attributes or the visible text.
+## 2026-05-29 - Distinct ARIA Labels for Identical Landmarks
+**Learning:** When a page contains multiple identical semantic landmarks (such as multiple `<nav>` elements), screen readers cannot distinguish between them unless they have distinct accessible names. Without unique labels, users may become disoriented or have difficulty navigating.
+**Action:** Always provide unique, descriptive `aria-label` attributes to identical landmark elements (e.g., `<nav aria-label="Main navigation">` and `<nav aria-label="Utility navigation">`) to ensure a clear and accessible page structure.

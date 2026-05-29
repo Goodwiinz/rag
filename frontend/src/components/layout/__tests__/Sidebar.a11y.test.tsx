@@ -44,13 +44,11 @@ vi.mock('../navigation', () => ({
 //   TODO: Add aria-label to collapsed nav links so axe passes without disabling the rule.
 const KNOWN_SIDEBAR_RULES_TO_DISABLE = {
   rules: {
-    'landmark-unique': { enabled: false },
   },
 };
 
 const KNOWN_COLLAPSED_RULES_TO_DISABLE = {
   rules: {
-    'landmark-unique': { enabled: false },
     'link-name': { enabled: false },
   },
 };
