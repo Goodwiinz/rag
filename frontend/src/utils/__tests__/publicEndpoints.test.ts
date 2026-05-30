@@ -10,9 +10,11 @@ describe('public endpoint resolution', () => {
   const originalApiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
   const originalWsUrl = process.env.NEXT_PUBLIC_WS_URL;
   const originalWebsocketUrl = process.env.NEXT_PUBLIC_WEBSOCKET_URL;
-  const originalTestOrigin = (globalThis as typeof globalThis & {
-    __TEST_BROWSER_ORIGIN__?: string;
-  }).__TEST_BROWSER_ORIGIN__;
+  const originalTestOrigin = (
+    globalThis as typeof globalThis & {
+      __TEST_BROWSER_ORIGIN__?: string;
+    }
+  ).__TEST_BROWSER_ORIGIN__;
 
   const setLocation = (origin: string) => {
     (
@@ -48,9 +50,44 @@ describe('public endpoint resolution', () => {
     setLocation('https://dev-app.gen-text.app/login');
 
     expect(getPublicApiOrigin()).toBe('https://dev-api.gen-text.app');
-    expect(getPublicApiBaseUrl()).toBe(
-      'https://dev-api.gen-text.app/api/v1'
-    );
+    expect(getPublicApiBaseUrl()).toBe('https://dev-api.gen-text.app/api/v1');
+    expect(getPublicWebSocketOrigin()).toBe('wss://dev-api.gen-text.app');
+  });
+
+  it.each([
+    [
+      'https://staging-app.gen-text.app/login',
+      'https://staging-api.gen-text.app',
+    ],
+    ['https://app.gen-text.app/login', 'https://api.gen-text.app'],
+  ])(
+    'derives the split-deployment API origin for %s',
+    (browserOrigin, expectedApiOrigin) => {
+      delete process.env.NEXT_PUBLIC_API_URL;
+      delete process.env.NEXT_PUBLIC_API_BASE_URL;
+      delete process.env.NEXT_PUBLIC_WS_URL;
+      delete process.env.NEXT_PUBLIC_WEBSOCKET_URL;
+
+      setLocation(browserOrigin);
+
+      expect(getPublicApiOrigin()).toBe(expectedApiOrigin);
+      expect(getPublicApiBaseUrl()).toBe(`${expectedApiOrigin}/api/v1`);
+      expect(getPublicWebSocketOrigin()).toBe(
+        expectedApiOrigin.replace(/^http/, 'ws')
+      );
+    }
+  );
+
+  it('uses configured API endpoints from Vercel preview deployments', () => {
+    process.env.NEXT_PUBLIC_API_URL = 'https://dev-api.gen-text.app';
+    delete process.env.NEXT_PUBLIC_API_BASE_URL;
+    delete process.env.NEXT_PUBLIC_WS_URL;
+    delete process.env.NEXT_PUBLIC_WEBSOCKET_URL;
+
+    setLocation('https://nous-platform-git-feature-goodwiinz.vercel.app');
+
+    expect(getPublicApiOrigin()).toBe('https://dev-api.gen-text.app');
+    expect(getPublicApiBaseUrl()).toBe('https://dev-api.gen-text.app/api/v1');
     expect(getPublicWebSocketOrigin()).toBe('wss://dev-api.gen-text.app');
   });
 
@@ -62,9 +99,7 @@ describe('public endpoint resolution', () => {
     setLocation('https://dev-app.gen-text.app/login');
 
     expect(getPublicApiOrigin()).toBe('https://dev-api.gen-text.app');
-    expect(getPublicApiBaseUrl()).toBe(
-      'https://dev-api.gen-text.app/api/v1'
-    );
+    expect(getPublicApiBaseUrl()).toBe('https://dev-api.gen-text.app/api/v1');
     expect(getPublicWebSocketOrigin()).toBe('wss://dev-api.gen-text.app');
   });
 
@@ -81,10 +116,10 @@ describe('public endpoint resolution', () => {
     expect(getPublicWebSocketOrigin()).toBe('ws://localhost:8000');
   });
 
-
   it('ignores baked remote public env on localhost', () => {
     process.env.NEXT_PUBLIC_API_URL = 'https://dev-api.gen-text.app';
-    process.env.NEXT_PUBLIC_API_BASE_URL = 'https://dev-api.gen-text.app/api/v1';
+    process.env.NEXT_PUBLIC_API_BASE_URL =
+      'https://dev-api.gen-text.app/api/v1';
     process.env.NEXT_PUBLIC_WS_URL = 'wss://dev-api.gen-text.app';
 
     setLocation('http://localhost:3000/login');
@@ -138,8 +173,6 @@ describe('public endpoint resolution', () => {
     expect(getPublicApiBaseUrl()).toBe(
       'https://staging-api.gen-text.app/api/v1'
     );
-    expect(getPublicWebSocketOrigin()).toBe(
-      'wss://staging-api.gen-text.app'
-    );
+    expect(getPublicWebSocketOrigin()).toBe('wss://staging-api.gen-text.app');
   });
 });
