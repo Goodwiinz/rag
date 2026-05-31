@@ -56,6 +56,75 @@ class TestThreadOwnership:
         db.commit.assert_not_called()
 
 
+class TestHitlCheckpointOwnership:
+    """HITL resume must fail closed when checkpoint ownership is missing."""
+
+    async def test_resume_rejects_legacy_checkpoint_when_thread_not_owned(self):
+        from src.api.agent.execute import AgentExecuteRequest, _get_job, _set_job
+        from src.api.agent.jobs import _resume_agent_graph
+
+        job_id = str(uuid4())
+        current_user = _make_user()
+        foreign_thread_id = str(uuid4())
+
+        _set_job(
+            job_id,
+            {
+                "status": "awaiting_confirmation",
+                "tool_executions": [],
+                "user_id": str(current_user.id),
+                "request": AgentExecuteRequest(
+                    messages=[{"role": "user", "content": "ingest this paper"}],
+                    thread_id=foreign_thread_id,
+                ).model_dump(),
+            },
+        )
+
+        db = AsyncMock()
+        db.execute = AsyncMock(
+            return_value=MagicMock(scalar_one_or_none=Mock(return_value=None))
+        )
+
+        mock_graph = MagicMock()
+        mock_graph.aget_state = AsyncMock(
+            return_value=MagicMock(
+                values={
+                    "pending_confirmation": {
+                        "tools": [{"name": "ingest_arxiv_papers", "args": {}}]
+                    },
+                    # Legacy checkpoint: no user_id in state.
+                }
+            )
+        )
+        mock_graph.ainvoke = AsyncMock()
+
+        with (
+            patch(
+                "src.services.agent.checkpointer.get_checkpointer",
+                new_callable=AsyncMock,
+            ),
+            patch(
+                "src.services.agent.memory.get_memory_store",
+                new_callable=AsyncMock,
+            ),
+            patch(
+                "src.services.agent.graph.compile_agent_graph",
+                return_value=mock_graph,
+            ),
+            patch(
+                "src.api.agent.jobs.AsyncSessionLocal",
+                return_value=_session_cm(db),
+            ),
+        ):
+            await _resume_agent_graph(job_id, True, current_user)
+
+        mock_graph.ainvoke.assert_not_called()
+        job = _get_job(job_id)
+        assert job is not None
+        assert job["status"] == "error"
+        assert job["error"] == "Thread not found"
+
+
 class TestStreamingGraphInterrupt:
     """Bug 2 — GraphInterrupt handler must not KeyError on empty config."""
 
