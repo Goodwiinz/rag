@@ -88,9 +88,9 @@ export default function ArxivManagement() {
   const [extractEntities, setExtractEntities] = useState(true);
 
   const tabs = [
-    { id: 'tracking' as const, label: 'Track Changes', icon: TrendingUp },
-    { id: 'ingest' as const, label: 'Ingest Papers', icon: Upload },
-    { id: 'extract' as const, label: 'Extract Features', icon: Brain },
+    { id: 'tracking' as const, label: 'Track changes', icon: TrendingUp },
+    { id: 'ingest' as const, label: 'Ingest papers', icon: Upload },
+    { id: 'extract' as const, label: 'Extract features', icon: Brain },
     { id: 'stats' as const, label: 'Statistics', icon: BarChart3 },
   ];
 
@@ -379,137 +379,127 @@ export default function ArxivManagement() {
     }
   };
 
+  const overviewSteps = [
+    {
+      key: 'search',
+      icon: Search,
+      title: 'Search',
+      description: 'Explore papers, compare abstracts, and build a shortlist.',
+      state: 'Ready',
+    },
+    {
+      key: 'ingest',
+      icon: Upload,
+      title: 'Queue',
+      description: 'Push selected papers into background ingestion jobs.',
+      state: isGuest ? 'Sign in' : 'Ready',
+    },
+    {
+      key: 'extract',
+      icon: Brain,
+      title: 'Extract',
+      description:
+        'Generate entities, topics, keyphrases, citations, and summaries.',
+      state: isGuest ? 'Sign in' : 'Ready',
+    },
+  ];
+
   return (
     <div className="mx-auto max-w-7xl space-y-6 p-6">
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.4fr)_minmax(320px,0.9fr)]">
-        <section className="overflow-hidden rounded-2xl border border-[var(--terminal-border)] bg-[linear-gradient(135deg,rgba(212,160,57,0.08),rgba(17,24,39,0.18)_45%,rgba(10,10,10,0.92)_100%)] p-5 sm:p-6">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-            <div className="space-y-4">
-              <div className="flex items-start gap-4">
-                <div className="rounded-xl border border-[var(--terminal-border)] bg-[var(--terminal-bg)]/80 p-3">
-                  <Activity className="h-6 w-6 text-primary" />
-                </div>
-                <div className="space-y-3">
-                  <div>
-                    <h1 className="text-2xl font-mono font-bold tracking-[0.16em] text-[var(--terminal-text)] sm:text-3xl">
-                      ARXIV_RESEARCH_HUB
-                    </h1>
-                    <p className="mt-2 max-w-2xl text-sm font-mono leading-relaxed text-muted-foreground">
-                      Search the public arXiv corpus, track category changes,
-                      and push selected papers into your workspace ingestion and
-                      extraction pipeline.
-                    </p>
-                  </div>
-
-                  <div className="flex flex-wrap gap-2">
-                    <span className="inline-flex items-center gap-2 rounded-full border border-[var(--terminal-border)] bg-[var(--terminal-bg)]/60 px-3 py-1 text-[10px] font-mono font-bold uppercase tracking-[0.18em] text-foreground">
-                      <Search className="h-3.5 w-3.5 text-[var(--cyan)]" />
-                      Public Search
-                    </span>
-                    <span className="inline-flex items-center gap-2 rounded-full border border-[var(--terminal-border)] bg-[var(--terminal-bg)]/60 px-3 py-1 text-[10px] font-mono font-bold uppercase tracking-[0.18em] text-foreground">
-                      <BarChart3 className="h-3.5 w-3.5 text-primary" />
-                      Live Stats
-                    </span>
-                    <span className="inline-flex items-center gap-2 rounded-full border border-[var(--terminal-border)] bg-[var(--terminal-bg)]/60 px-3 py-1 text-[10px] font-mono font-bold uppercase tracking-[0.18em] text-foreground">
-                      <ShieldCheck className="h-3.5 w-3.5 text-[var(--amber-gold)]" />
-                      {isGuest ? 'Workspace Actions Locked' : 'Workspace Actions Ready'}
-                    </span>
-                  </div>
-                </div>
+        <section className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+          <div className="border-b border-border bg-muted/30 p-6">
+            <div className="flex items-start gap-4">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+                <Activity aria-hidden="true" className="h-6 w-6 text-primary" />
               </div>
-
-              <div className="grid gap-3 md:grid-cols-3">
-                {[
-                  {
-                    key: 'search',
-                    icon: Search,
-                    title: 'Search',
-                    description:
-                      'Explore papers, compare abstracts, and build a shortlist.',
-                    state: 'Ready',
-                    stateTone: 'text-[var(--cyan)]',
-                  },
-                  {
-                    key: 'ingest',
-                    icon: Upload,
-                    title: 'Queue',
-                    description:
-                      'Push selected papers into background ingestion jobs.',
-                    state: isGuest ? 'Sign in' : 'Ready',
-                    stateTone: isGuest
-                      ? 'text-[var(--amber-gold)]'
-                      : 'text-primary',
-                  },
-                  {
-                    key: 'extract',
-                    icon: Brain,
-                    title: 'Extract',
-                    description:
-                      'Generate entities, topics, keyphrases, citations, and summaries.',
-                    state: isGuest ? 'Sign in' : 'Ready',
-                    stateTone: isGuest
-                      ? 'text-[var(--amber-gold)]'
-                      : 'text-primary',
-                  },
-                ].map((step) => {
-                  const StepIcon = step.icon;
-
-                  return (
-                    <div
-                      key={step.key}
-                      className="rounded-xl border border-[var(--terminal-border)] bg-[var(--terminal-bg)]/65 p-4"
-                    >
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="rounded-lg border border-[var(--terminal-border)] bg-[var(--terminal-surface)] p-2">
-                          <StepIcon
-                            className="h-4 w-4 text-foreground"
-                            aria-hidden="true"
-                          />
-                        </div>
-                        <span
-                          className={cn(
-                            'text-[10px] font-mono font-bold uppercase tracking-[0.18em]',
-                            step.stateTone
-                          )}
-                        >
-                          {step.state}
-                        </span>
-                      </div>
-                      <div className="mt-4 space-y-2">
-                        <p className="text-sm font-mono font-bold uppercase tracking-[0.14em] text-foreground">
-                          {step.title}
-                        </p>
-                        <p className="text-[11px] font-mono leading-relaxed text-muted-foreground">
-                          {step.description}
-                        </p>
-                      </div>
-                    </div>
-                  );
-                })}
+              <div className="space-y-2">
+                <h1 className="text-xl font-semibold text-foreground sm:text-2xl">
+                  arXiv research
+                </h1>
+                <p className="max-w-2xl text-sm leading-relaxed text-muted-foreground">
+                  Search the public arXiv corpus, track category changes, and
+                  push selected papers into your workspace ingestion and
+                  extraction pipeline.
+                </p>
+                <div className="flex flex-wrap gap-2 pt-1">
+                  <span className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2.5 py-1 text-xs font-medium text-muted-foreground">
+                    <Search
+                      aria-hidden="true"
+                      className="h-3.5 w-3.5 text-primary"
+                    />
+                    Public search
+                  </span>
+                  <span className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2.5 py-1 text-xs font-medium text-muted-foreground">
+                    <BarChart3
+                      aria-hidden="true"
+                      className="h-3.5 w-3.5 text-primary"
+                    />
+                    Tracking stats
+                  </span>
+                  <span className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2.5 py-1 text-xs font-medium text-muted-foreground">
+                    <ShieldCheck
+                      aria-hidden="true"
+                      className="h-3.5 w-3.5 text-primary"
+                    />
+                    {isGuest
+                      ? 'Workspace actions locked'
+                      : 'Workspace actions ready'}
+                  </span>
+                </div>
               </div>
             </div>
+          </div>
+
+          <div className="grid gap-3 p-6 md:grid-cols-3">
+            {overviewSteps.map((step) => {
+              const StepIcon = step.icon;
+              return (
+                <div
+                  key={step.key}
+                  className="rounded-lg border border-border bg-muted/20 p-4"
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="rounded-lg bg-muted p-2 text-primary">
+                      <StepIcon aria-hidden="true" className="h-4 w-4" />
+                    </div>
+                    <span className="text-xs font-medium text-muted-foreground">
+                      {step.state}
+                    </span>
+                  </div>
+                  <div className="mt-4 space-y-1.5">
+                    <p className="text-sm font-medium text-foreground">
+                      {step.title}
+                    </p>
+                    <p className="text-xs leading-relaxed text-muted-foreground">
+                      {step.description}
+                    </p>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </section>
 
         <aside className="space-y-4">
-          <div className="rounded-2xl border border-[var(--terminal-border)] bg-[var(--terminal-bg)]/75 p-5">
+          <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <p className="text-[10px] font-mono font-bold uppercase tracking-[0.22em] text-muted-foreground">
-                  Current Mode
+                <p className="text-xs font-medium text-muted-foreground">
+                  Current mode
                 </p>
-                <p className="mt-2 text-xl font-mono font-bold uppercase tracking-[0.16em] text-foreground">
-                  {isGuest ? 'Discovery Mode' : 'Workspace Mode'}
+                <p className="mt-1 text-lg font-semibold text-foreground">
+                  {isGuest ? 'Discovery mode' : 'Workspace mode'}
                 </p>
               </div>
-              <div className="rounded-full border border-[var(--terminal-border)] bg-[var(--terminal-surface)] px-3 py-1 text-[10px] font-mono font-bold uppercase tracking-[0.18em] text-primary">
+              <span className="rounded-md border border-border bg-muted px-2.5 py-1 text-xs font-medium text-foreground">
                 {isGuest ? 'Guest' : 'Authenticated'}
-              </div>
+              </span>
             </div>
 
-            <p className="mt-4 text-[11px] font-mono leading-relaxed text-muted-foreground">
+            <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
               {isGuest
-                ? 'Public search and live stats stay available without signing in. Queueing ingestion, extraction, and category scans remain tied to an authenticated workspace.'
+                ? 'Public search and tracking stats stay available without signing in. Queueing ingestion, extraction, and category scans remain tied to an authenticated workspace.'
                 : 'All tracking, ingestion, and extraction actions are available in this workspace session.'}
             </p>
 
@@ -517,27 +507,27 @@ export default function ArxivManagement() {
               {isGuest ? (
                 <Link
                   href="/login"
-                  className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-[11px] font-mono font-bold uppercase tracking-[0.14em] text-background transition-colors hover:bg-primary/85"
+                  className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-[var(--nous-helios)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                 >
-                  <LogIn className="h-4 w-4" aria-hidden="true" />
-                  Sign In To Unlock Workspace
+                  <LogIn aria-hidden="true" className="h-4 w-4" />
+                  Sign in to unlock workspace
                 </Link>
               ) : (
                 <>
                   <button
                     type="button"
                     onClick={() => setActiveTab('tracking')}
-                    className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-[11px] font-mono font-bold uppercase tracking-[0.14em] text-background transition-colors hover:bg-primary/85"
+                    className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-[var(--nous-helios)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                   >
-                    Run Tracking Workflow
-                    <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                    Run tracking workflow
+                    <ArrowRight aria-hidden="true" className="h-4 w-4" />
                   </button>
                   <button
                     type="button"
                     onClick={() => setActiveTab('ingest')}
-                    className="inline-flex items-center gap-2 rounded-lg border border-[var(--terminal-border)] px-4 py-2.5 text-[11px] font-mono font-bold uppercase tracking-[0.14em] text-muted-foreground transition-colors hover:bg-[var(--terminal-surface)]"
+                    className="inline-flex items-center gap-2 rounded-lg border border-border px-4 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:border-[var(--nous-helios)] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                   >
-                    Review Search Results
+                    Review search results
                   </button>
                 </>
               )}
@@ -545,15 +535,39 @@ export default function ArxivManagement() {
           </div>
 
           {isStatsLoading && !stats && (
-            <div className="inline-flex items-center gap-2 rounded-2xl border border-[var(--terminal-border)] bg-[var(--terminal-bg)]/75 px-4 py-3 text-[11px] font-mono text-muted-foreground">
-              <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
-              Loading metrics…
+            <div
+              role="status"
+              aria-live="polite"
+              className="grid grid-cols-2 gap-3"
+            >
+              {[0, 1, 2, 3].map((i) => (
+                <div
+                  key={i}
+                  className="rounded-xl border border-border bg-card px-4 py-3 shadow-sm"
+                >
+                  <div className="h-3 w-16 animate-pulse rounded bg-muted" />
+                  <div className="mt-2 h-7 w-12 animate-pulse rounded bg-muted" />
+                </div>
+              ))}
+              <span className="sr-only">Loading tracking metrics…</span>
             </div>
           )}
 
           {!isStatsLoading && !stats && statsError && (
-            <div className="rounded-2xl border border-red-900 bg-red-950/70 px-4 py-3 text-[10px] font-mono text-red-300">
-              Unable to load stats: {statsError}
+            <div
+              role="alert"
+              className="flex flex-col items-start gap-3 rounded-xl border border-border bg-card px-4 py-3 shadow-sm"
+            >
+              <p className="text-sm text-foreground">
+                Couldn&apos;t load tracking metrics. {statsError}
+              </p>
+              <button
+                type="button"
+                onClick={() => fetchStats()}
+                className="rounded text-sm font-medium text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+              >
+                Retry
+              </button>
             </div>
           )}
 
@@ -563,32 +577,28 @@ export default function ArxivManagement() {
                 {
                   label: 'Tracked',
                   value: stats.statistics.total_papers_tracked,
-                  color: 'text-primary',
                 },
                 {
                   label: 'Active',
                   value: stats.statistics.active_papers,
-                  color: 'text-[var(--cyan)]',
                 },
                 {
                   label: 'Categories',
                   value: stats.statistics.categories_tracked,
-                  color: 'text-foreground',
                 },
                 {
                   label: 'Deleted',
                   value: stats.statistics.deleted_papers,
-                  color: 'text-[var(--amber-gold)]',
                 },
               ].map((item) => (
                 <div
                   key={item.label}
-                  className="min-w-[110px] rounded-2xl border border-[var(--terminal-border)] bg-[var(--terminal-bg)]/75 px-4 py-3"
+                  className="min-w-[110px] rounded-xl border border-border bg-card px-4 py-3 shadow-sm"
                 >
-                  <div className="text-[10px] font-mono uppercase tracking-[0.18em] text-gray-500">
+                  <div className="text-xs text-muted-foreground">
                     {item.label}
                   </div>
-                  <div className={cn('mt-1 text-2xl font-mono font-bold', item.color)}>
+                  <div className="mt-1 text-2xl font-semibold text-foreground tabular-nums">
                     {item.value}
                   </div>
                 </div>
@@ -598,8 +608,8 @@ export default function ArxivManagement() {
         </aside>
       </div>
 
-      <div className="rounded-lg border border-[var(--terminal-border)] bg-[var(--terminal-bg)]">
-        <div className="border-b border-[var(--terminal-border)] bg-[var(--terminal-bg)] px-3 py-2 sm:px-4">
+      <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+        <div className="border-b border-border bg-muted/30 px-3 py-2 sm:px-4">
           <div className="overflow-x-auto">
             <div
               className="flex min-w-max items-center gap-1"
@@ -620,14 +630,14 @@ export default function ArxivManagement() {
                     aria-controls={`panel-${tab.id}`}
                     onClick={() => setActiveTab(tab.id)}
                     className={cn(
-                      'relative flex items-center gap-2 border-b-2 px-4 py-2 text-sm font-mono transition-colors touch-manipulation',
-                      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background',
+                      'relative flex items-center gap-2 border-b-2 px-4 py-2.5 text-sm font-medium transition-colors',
+                      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
                       isActive
                         ? 'border-primary text-primary'
-                        : 'border-transparent text-gray-500 hover:text-gray-300'
+                        : 'border-transparent text-muted-foreground hover:text-foreground'
                     )}
                   >
-                    <Icon className="h-3.5 w-3.5" aria-hidden="true" />
+                    <Icon aria-hidden="true" className="h-4 w-4" />
                     {tab.label}
                   </button>
                 );
@@ -640,31 +650,38 @@ export default function ArxivManagement() {
             isIngesting ||
             isExtracting ||
             message) && (
-            <div className="mt-3 space-y-2 rounded-lg border border-[var(--terminal-border)] bg-[var(--terminal-bg)]/60 p-3">
+            <div className="mt-3 space-y-2 rounded-lg border border-border bg-background p-3">
               {(isTracking || isSearching || isIngesting || isExtracting) && (
                 <ProgressBar
                   value={progress}
                   label={
                     isTracking
-                      ? 'Tracking Progress'
+                      ? 'Tracking progress'
                       : isSearching
-                        ? 'Search Progress'
+                        ? 'Search progress'
                         : isIngesting
-                          ? 'Ingestion Progress'
-                          : 'Extraction Progress'
+                          ? 'Ingestion progress'
+                          : 'Extraction progress'
                   }
                 />
               )}
               {message && (
                 <div
+                  role={hasMessageError ? 'alert' : undefined}
                   className={cn(
-                    'rounded-md border px-3 py-2 text-[11px] font-mono leading-relaxed',
+                    'flex items-start gap-2 rounded-md border px-3 py-2 text-sm leading-relaxed',
                     hasMessageError
-                      ? 'border-red-900 bg-red-950 text-red-300'
-                      : 'border-[var(--terminal-border)] bg-[var(--terminal-surface)] text-muted-foreground'
+                      ? 'border-[var(--nous-mars)]/40 bg-[var(--nous-mars)]/10 text-foreground'
+                      : 'border-border bg-muted/40 text-muted-foreground'
                   )}
                 >
-                  {message}
+                  {hasMessageError && (
+                    <span
+                      aria-hidden="true"
+                      className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--nous-mars)]"
+                    />
+                  )}
+                  <span>{message}</span>
                 </div>
               )}
             </div>
@@ -682,10 +699,10 @@ export default function ArxivManagement() {
               id={`panel-${activeTab}`}
               role="tabpanel"
               aria-labelledby={`tab-${activeTab}`}
-              initial={{ opacity: 0, y: 8, filter: 'blur(8px)' }}
-              animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
-              exit={{ opacity: 0, y: -8, filter: 'blur(8px)' }}
-              transition={{ duration: 0.25 }}
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -6 }}
+              transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
               className="min-h-[420px]"
             >
               {activeTab === 'tracking' && (
