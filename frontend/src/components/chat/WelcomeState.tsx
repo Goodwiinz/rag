@@ -1,196 +1,108 @@
 'use client';
 
-import { motion } from 'framer-motion';
-import { Cpu, GitBranch, Shield, Wifi, Zap } from 'lucide-react';
+import { motion, useReducedMotion } from 'framer-motion';
+import {
+  CornerDownLeft,
+  GitCompare,
+  ListChecks,
+  Quote,
+  Workflow,
+} from 'lucide-react';
 import React from 'react';
 
 export interface WelcomeStateProps {
   onPromptSelect: (prompt: string) => void;
+  /** Accepted for API compatibility; the empty state renders the same regardless. */
   selectedModel?: string;
 }
 
-const FEATURES = [
-  {
-    icon: Zap,
-    label: 'RAPID PROCESSING',
-    desc: 'Sub-second response latency',
-    seed: 'Summarize the current document in three bullets — ',
-  },
-  {
-    icon: GitBranch,
-    label: 'CITATION CHAIN',
-    desc: 'Inline references to source passages',
-    seed: 'Walk me through the citations supporting ',
-  },
-  {
-    icon: Cpu,
-    label: 'NEURAL INFERENCE',
-    desc: 'Multi-step agent with tool access',
-    seed: 'Plan a research workflow for ',
-  },
-  {
-    icon: Shield,
-    label: 'LOCAL CONTEXT',
-    desc: 'Grounded in your knowledge graph',
-    seed: 'Explain how the entities in my graph relate to ',
-  },
-] as const;
+interface Starter {
+  icon: typeof ListChecks;
+  prompt: string;
+}
+
+// Researcher tasks, not feature boasts. Each populates the composer verbatim.
+const STARTERS: Starter[] = [
+  { icon: ListChecks, prompt: 'Summarize this document in three points' },
+  { icon: Quote, prompt: 'Show the sources behind this claim' },
+  { icon: Workflow, prompt: 'How do the entities in my graph relate?' },
+  { icon: GitCompare, prompt: 'Compare these two findings' },
+];
 
 const NOUS_EASE: [number, number, number, number] = [0.16, 1, 0.3, 1];
 
-export function WelcomeState({
-  onPromptSelect,
-  selectedModel,
-}: WelcomeStateProps) {
-  const ready = Boolean(selectedModel);
+export function WelcomeState({ onPromptSelect }: WelcomeStateProps) {
+  const reduceMotion = useReducedMotion();
 
   return (
-    <div
-      className="relative flex-1 flex flex-col items-center justify-center p-8 sm:p-16 overflow-hidden"
-      style={{ background: 'var(--term-bg)' }}
-    >
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0 opacity-30"
-        style={{
-          backgroundImage:
-            'radial-gradient(1px 1px at 18% 28%, var(--term-accent) 0%, transparent 100%), radial-gradient(1px 1px at 72% 20%, var(--term-accent) 0%, transparent 100%), radial-gradient(1.5px 1.5px at 38% 76%, var(--term-accent) 0%, transparent 100%), radial-gradient(1px 1px at 86% 62%, var(--term-accent) 0%, transparent 100%), radial-gradient(1px 1px at 12% 86%, var(--term-accent) 0%, transparent 100%), radial-gradient(1px 1px at 56% 14%, var(--term-accent) 0%, transparent 100%)',
-        }}
-      />
-
+    <div className="flex min-h-full flex-col items-center justify-center px-6 py-16">
       <motion.div
-        initial={{ opacity: 0, y: 16 }}
+        initial={reduceMotion ? false : { opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.7, ease: NOUS_EASE }}
-        className="relative z-10 flex flex-col items-center max-w-2xl w-full"
+        transition={{ duration: 0.4, ease: NOUS_EASE }}
+        className="w-full max-w-xl"
       >
-        <div className="relative w-52 h-52 sm:w-64 sm:h-64 grid place-items-center mb-10 sm:mb-12">
-          <div
-            className="absolute inset-0 rounded-full"
-            style={{
-              border: '1px solid rgba(48, 54, 61, 0.5)',
-              animation: 'term-spin 30s linear infinite reverse',
-            }}
-          />
-          <div
-            className="absolute rounded-full"
-            style={{
-              inset: '40px',
-              border: '1px solid var(--term-border)',
-              animation: 'term-spin 20s linear infinite',
-            }}
-          />
-          <div
-            aria-hidden
-            className="absolute inset-0 rounded-full"
-            style={{
-              border: '1px solid rgba(212, 160, 57, 0.08)',
-              animation: 'term-radar 3s ease-in-out infinite',
-            }}
-          />
-          <div
-            className="relative w-20 h-20 grid place-items-center"
-            style={{
-              color: 'var(--term-accent)',
-              filter: 'drop-shadow(0 0 15px rgba(212, 160, 57, 0.4))',
-              animation: 'term-float 4s ease-in-out infinite',
-            }}
-          >
-            <Wifi className="w-14 h-14" strokeWidth={1.4} />
-          </div>
-        </div>
-
         <h2
-          className="font-nous-mono text-lg sm:text-xl font-medium mb-2 text-center"
-          style={{
-            color: 'var(--term-text)',
-            letterSpacing: '0.18em',
-          }}
+          className="text-[1.625rem] font-semibold leading-tight tracking-[-0.02em] text-[var(--nous-fg-1)]"
+          style={{ fontFamily: 'var(--nous-font-heading)' }}
         >
-          {ready ? 'NEURAL LINK ESTABLISHED' : 'AWAITING NEURAL HANDSHAKE'}
+          What would you like to find out?
         </h2>
         <p
-          className="font-nous-mono text-xs mb-10 sm:mb-12 max-w-md text-center"
-          style={{ color: 'var(--term-text-muted)' }}
+          className="mt-3 max-w-[46ch] text-[0.9375rem] leading-relaxed text-[var(--nous-fg-2)]"
+          style={{ fontFamily: 'var(--nous-font-body)' }}
         >
-          {ready
-            ? 'AWAITING TRANSMISSION · INPUT QUERY VIA STREAM'
-            : 'SELECT MODEL FROM TOOLBAR · OPEN STREAM TO PROCEED'}
+          Ask a question and NOUS answers from your corpus, tracing every claim
+          back to the source passage it came from.
         </p>
 
-        {ready && (
-          <motion.div
-            initial="hidden"
-            animate="visible"
-            variants={{
-              hidden: {},
-              visible: {
-                transition: { staggerChildren: 0.07, delayChildren: 0.35 },
-              },
-            }}
-            className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full max-w-xl"
-          >
-            {FEATURES.map((feat, idx) => {
-              const Icon = feat.icon;
-              return (
-                <motion.button
-                  key={feat.label}
-                  variants={{
-                    hidden: { opacity: 0, y: 12 },
-                    visible: {
-                      opacity: 1,
-                      y: 0,
-                      transition: { duration: 0.45, ease: NOUS_EASE },
-                    },
-                  }}
-                  onClick={() => onPromptSelect(feat.seed)}
-                  className="group text-left rounded-[10px] p-3.5 transition-colors duration-200"
-                  style={{
-                    background: 'rgba(13, 13, 18, 0.5)',
-                    border: '1px solid var(--term-border)',
-                    backdropFilter: 'blur(8px)',
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.borderColor =
-                      'rgba(212, 160, 57, 0.3)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.borderColor = 'var(--term-border)';
-                  }}
+        <p
+          className="mt-9 mb-2.5 text-xs font-medium text-[var(--nous-fg-3)]"
+          style={{ fontFamily: 'var(--nous-font-ui)' }}
+        >
+          Start with
+        </p>
+
+        <ul className="overflow-hidden rounded-[var(--nous-radius-lg)] border border-[var(--nous-border-1)] bg-[var(--nous-bg-2)]">
+          {STARTERS.map(({ icon: Icon, prompt }, idx) => (
+            <li key={prompt}>
+              <button
+                type="button"
+                onClick={() => onPromptSelect(prompt)}
+                className="group flex w-full items-center gap-3.5 px-3.5 py-3 text-left transition-colors duration-150 hover:bg-[var(--nous-sol-subtle)] focus-visible:bg-[var(--nous-sol-subtle)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/40 focus-visible:ring-inset"
+                style={{
+                  borderTop:
+                    idx === 0 ? undefined : '1px solid var(--nous-border-1)',
+                }}
+              >
+                <span
+                  aria-hidden
+                  className="grid h-8 w-8 shrink-0 place-items-center rounded-[var(--nous-radius-md)] bg-[var(--nous-bg-3)] text-[var(--nous-fg-3)] transition-colors duration-150 group-hover:text-[var(--nous-sol)] group-focus-visible:text-[var(--nous-sol)]"
                 >
-                  <div className="flex items-start justify-between mb-2">
-                    <Icon
-                      className="w-4 h-4"
-                      style={{ color: 'var(--term-accent)' }}
-                      strokeWidth={1.6}
-                    />
-                    <span
-                      className="font-nous-mono text-[9px] tabular-nums"
-                      style={{ color: 'var(--term-text-dim)' }}
-                    >
-                      0{idx + 1}
-                    </span>
-                  </div>
-                  <div
-                    className="font-nous-mono text-[10px] mb-1"
-                    style={{
-                      color: 'var(--term-text)',
-                      letterSpacing: '0.06em',
-                    }}
-                  >
-                    {feat.label}
-                  </div>
-                  <div
-                    className="font-nous-mono text-[9px] leading-relaxed"
-                    style={{ color: 'var(--term-text-muted)' }}
-                  >
-                    {feat.desc}
-                  </div>
-                </motion.button>
-              );
-            })}
-          </motion.div>
-        )}
+                  <Icon className="h-4 w-4" strokeWidth={1.8} />
+                </span>
+                <span
+                  className="flex-1 text-[0.9375rem] text-[var(--nous-fg-1)]"
+                  style={{ fontFamily: 'var(--nous-font-ui)' }}
+                >
+                  {prompt}
+                </span>
+                <CornerDownLeft
+                  aria-hidden
+                  className="h-4 w-4 shrink-0 text-[var(--nous-fg-3)] opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100"
+                  strokeWidth={1.8}
+                />
+              </button>
+            </li>
+          ))}
+        </ul>
+
+        <p
+          className="mt-4 text-xs text-[var(--nous-fg-3)]"
+          style={{ fontFamily: 'var(--nous-font-ui)' }}
+        >
+          Press Enter to send, Shift + Enter for a new line.
+        </p>
       </motion.div>
     </div>
   );
