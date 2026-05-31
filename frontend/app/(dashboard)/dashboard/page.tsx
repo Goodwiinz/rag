@@ -53,10 +53,12 @@ const DOC_TYPE_ICON_MAP: Record<string, typeof FileText> = {
 
 export default function DashboardPage() {
   const { isAuthenticated, isLoading: authLoading, user } = useAuth();
-  const { documents } = useDocuments({
-    initialPageSize: 100,
+  // Only the total count is needed here, so fetch a single page, not 100 docs.
+  const { pagination } = useDocuments({
+    initialPageSize: 1,
     autoFetch: isAuthenticated && !authLoading,
   });
+  const documentCount = pagination?.total ?? 0;
 
   const [showKeyboardShortcuts, setShowKeyboardShortcuts] = useState(false);
   const [showQuickSearch, setShowQuickSearch] = useState(false);
@@ -83,14 +85,14 @@ export default function DashboardPage() {
       analytics.trackPageView('/dashboard', 'Dashboard');
       if (isAuthenticated && user) {
         analytics.trackFeatureUsage('dashboard', 'viewed', {
-          documentCount: documents?.length || 0,
+          documentCount,
           authProvider: 'email',
         });
       }
     } catch {
       // Analytics not initialized
     }
-  }, [isAuthenticated, user, documents]);
+  }, [isAuthenticated, user, documentCount]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -172,7 +174,7 @@ export default function DashboardPage() {
 
   // Stats — wired to real data, documents from useDocuments hook
   const stats = {
-    documents: documents?.length ?? 0,
+    documents: documentCount,
     searches: totalSearches,
     chats: totalChats,
     processing: processingCount,
