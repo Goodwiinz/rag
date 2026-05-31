@@ -3,7 +3,7 @@
 import { useAuth } from '@/hooks/useAuth';
 import { cn } from '@/lib/utils';
 import { api } from '@/services/api-client';
-import { ArrowLeft, CheckCircle2, Shield } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, ShieldCheck } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import React, { useEffect, useState } from 'react';
@@ -53,85 +53,108 @@ function CliAuthPageContent(): React.JSX.Element {
   };
 
   return (
-    <main className="min-h-screen bg-[var(--terminal-bg)] text-[var(--terminal-text)] flex items-center justify-center px-6 py-12">
-      <section className="w-full max-w-xl rounded-3xl border border-[var(--terminal-border)] bg-[var(--terminal-surface)]/95 p-8 shadow-2xl shadow-black/30">
-        <div className="mb-8 flex items-center gap-4">
-          <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-[var(--phosphor-green)]/30 bg-[var(--terminal-elevated)]">
-            <Shield className="h-6 w-6 text-[var(--phosphor-green)]" />
+    <main className="flex min-h-screen items-center justify-center bg-background px-6 py-12 text-foreground">
+      <section className="w-full max-w-xl rounded-2xl border border-border bg-card p-8 shadow-lg">
+        <div className="mb-7 flex items-start gap-4">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-primary/30 bg-primary/10">
+            <ShieldCheck className="h-6 w-6 text-primary" aria-hidden="true" />
           </div>
           <div>
-            <p className="text-[10px] font-mono uppercase tracking-[0.35em] text-[var(--terminal-text-muted)]">
-              NOUS CLI
+            <p className="text-sm font-medium text-muted-foreground">
+              NOUS command line
             </p>
-            <h1 className="text-2xl font-mono font-bold uppercase tracking-[0.18em]">
-              Authorize Terminal Access
+            <h1 className="mt-0.5 text-2xl font-semibold tracking-tight text-foreground">
+              Connect the CLI to your account
             </h1>
           </div>
         </div>
 
-        <div className="mb-8 space-y-4 rounded-2xl border border-[var(--terminal-border)] bg-[var(--terminal-bg)]/70 p-5 font-mono">
-          <div>
-            <p className="text-[10px] uppercase tracking-[0.3em] text-[var(--terminal-text-muted)]">
-              Session ID
-            </p>
-            <p className="mt-2 break-all text-sm">{sessionId || 'missing-session-id'}</p>
-          </div>
-          <div>
-            <p className="text-[10px] uppercase tracking-[0.3em] text-[var(--terminal-text-muted)]">
-              Verification Code
-            </p>
-            <p className="mt-2 text-lg tracking-[0.35em] text-[var(--phosphor-green)]">
-              {verificationCode || 'MISSING'}
-            </p>
-          </div>
-        </div>
-
-        <p className="mb-8 max-w-lg text-sm leading-7 text-[var(--terminal-text-muted)]">
-          Approve this request to let the NOUS command line connect to your current account and
-          organization.
+        <p
+          className="mb-7 max-w-lg text-[0.95rem] leading-7 text-muted-foreground"
+          style={{ fontFamily: 'var(--nous-font-body)' }}
+        >
+          Approving this request lets the NOUS command line sign in as you and
+          act on your current organization. Check the code below matches the one
+          shown in your terminal.
         </p>
 
+        <dl className="mb-7 space-y-4 rounded-xl border border-border bg-background/60 p-5">
+          <div>
+            <dt className="text-sm font-medium text-muted-foreground">
+              Session ID
+            </dt>
+            <dd className="mt-1.5 break-all font-mono text-sm text-foreground">
+              {sessionId || 'No session ID provided'}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-sm font-medium text-muted-foreground">
+              Verification code
+            </dt>
+            <dd className="mt-1.5 font-mono text-lg tracking-[0.3em] text-primary">
+              {verificationCode || 'Missing'}
+            </dd>
+          </div>
+        </dl>
+
         {isConnected ? (
-          <div className="rounded-2xl border border-[var(--phosphor-green)]/30 bg-[var(--phosphor-green)]/10 p-5 font-mono">
-            <p className="text-sm font-bold uppercase tracking-[0.22em] text-[var(--phosphor-green)]">
-              CLI connected, return to terminal.
-            </p>
-            <p className="mt-3 text-sm leading-7 text-[var(--terminal-text-muted)]">
-              The pending NOUS terminal session can finish sign-in automatically now.
-            </p>
+          <div
+            role="status"
+            className="mb-6 flex items-start gap-3 rounded-xl border border-primary/30 bg-primary/10 p-5"
+          >
+            <CheckCircle2
+              className="mt-0.5 h-5 w-5 shrink-0 text-primary"
+              aria-hidden="true"
+            />
+            <div>
+              <p className="text-sm font-semibold text-foreground">
+                CLI connected. You can return to your terminal.
+              </p>
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                The pending NOUS terminal session will finish signing in
+                automatically.
+              </p>
+            </div>
           </div>
         ) : null}
 
         {error ? (
-          <div className="mb-6 rounded-2xl border border-red-400/30 bg-red-500/10 p-4 text-sm text-red-200">
+          <div
+            role="alert"
+            className="mb-6 rounded-xl border border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive"
+          >
             {error}
           </div>
         ) : null}
 
-        <div className="flex flex-col gap-4 sm:flex-row">
+        <div className="flex flex-col gap-3 sm:flex-row">
           <button
             type="button"
             onClick={handleApprove}
-            disabled={!sessionId || !verificationCode || isSubmitting || isConnected}
+            disabled={
+              !sessionId || !verificationCode || isSubmitting || isConnected
+            }
             className={cn(
-              'inline-flex min-h-12 flex-1 items-center justify-center gap-3 rounded-2xl border border-[var(--phosphor-green)]/30',
-              'bg-[var(--phosphor-green)]/90 px-5 font-mono text-sm font-bold uppercase tracking-[0.22em] text-[var(--terminal-bg)]',
-              'transition hover:bg-[var(--phosphor-green)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--phosphor-green)]',
+              'inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl',
+              'bg-primary px-5 text-sm font-semibold text-primary-foreground',
+              'transition-colors hover:bg-primary/90',
+              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card',
               'disabled:cursor-not-allowed disabled:opacity-60'
             )}
           >
-            <CheckCircle2 className="h-4 w-4" />
-            {isSubmitting ? 'Approving...' : 'Approve CLI Login'}
+            <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+            {isSubmitting ? 'Approving…' : 'Approve sign-in'}
           </button>
           <Link
             href="/login"
             className={cn(
-              'inline-flex min-h-12 flex-1 items-center justify-center gap-3 rounded-2xl border border-[var(--terminal-border)]',
-              'bg-transparent px-5 font-mono text-sm font-bold uppercase tracking-[0.22em] text-[var(--terminal-text-muted)]',
-              'transition hover:border-[var(--terminal-text-muted)] hover:text-[var(--terminal-text)]'
+              'inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl border border-border',
+              'bg-transparent px-5 text-sm font-semibold text-muted-foreground',
+              'transition-colors hover:border-foreground/30 hover:text-foreground',
+              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card'
             )}
           >
-            <ArrowLeft className="h-4 w-4" />
+            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
             Cancel
           </Link>
         </div>

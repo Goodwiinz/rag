@@ -34,7 +34,7 @@ interface RegisterFormData {
   organization_name: string;
 }
 
-// Terminal Observatory Theme Constants
+// Brand accent constants (Sol gold). Retained for reference.
 const _PHOSPHOR_GREEN = '#D4A039';
 const _AMBER = '#ffb700';
 
@@ -73,13 +73,13 @@ export default function RegisterPage() {
 
     // Validate passwords match
     if (formData.password !== formData.confirmPassword) {
-      setError('Access keys do not match');
+      setError('Passwords do not match');
       return;
     }
 
     // Validate password strength
     if (formData.password.length < 8) {
-      setError('Access key must be at least 8 characters');
+      setError('Password must be at least 8 characters');
       return;
     }
 
@@ -100,7 +100,7 @@ export default function RegisterPage() {
       }
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : 'Account provisioning failed'
+        err instanceof Error ? err.message : 'Could not create your account'
       );
     } finally {
       setIsSubmitting(false);
@@ -115,22 +115,22 @@ export default function RegisterPage() {
   };
 
   const features = [
-    { icon: Sparkles, text: 'Neural Semantic Search' },
-    { icon: Database, text: 'Multimodal Ingestion' },
-    { icon: Zap, text: 'Knowledge Graph Synthesis' },
-    { icon: Shield, text: 'Zero-Trust Protocol' },
+    { icon: Sparkles, text: 'Semantic search across your documents' },
+    { icon: Database, text: 'Ingest text, tables, and images together' },
+    { icon: Zap, text: 'Connected answers from a knowledge graph' },
+    { icon: Shield, text: 'Private by default, scoped to your team' },
   ];
 
   const passwordStrength = () => {
     const password = formData.password;
     if (!password) return { level: 0, text: '', color: '' };
     if (password.length < 6)
-      return { level: 1, text: 'WEAK', color: 'bg-red-500' };
+      return { level: 1, text: 'Weak', color: 'bg-destructive' };
     if (password.length < 8)
-      return { level: 2, text: 'FAIR', color: 'bg-yellow-500' };
+      return { level: 2, text: 'Fair', color: 'bg-amber-500' };
     if (password.length < 12)
-      return { level: 3, text: 'GOOD', color: 'bg-[var(--phosphor-green)]' };
-    return { level: 4, text: 'OPTIMAL', color: 'bg-[var(--phosphor-green)]' };
+      return { level: 3, text: 'Good', color: 'bg-primary' };
+    return { level: 4, text: 'Strong', color: 'bg-primary' };
   };
 
   const strength = passwordStrength();
@@ -159,126 +159,121 @@ export default function RegisterPage() {
     );
   }
 
-  return (
-    <div className="min-h-screen flex bg-[var(--terminal-bg)] relative overflow-hidden">
-      {/* Background Grid */}
-      <div className="absolute inset-0 opacity-[0.02] pointer-events-none">
-        <div
-          className="h-full w-full"
-          style={{
-            backgroundImage: `linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)`,
-            backgroundSize: '40px 40px',
-          }}
-        />
-      </div>
+  const inputClasses =
+    'w-full pl-11 pr-4 py-2.5 rounded-lg bg-background border border-border text-sm text-foreground placeholder:text-muted-foreground/70 outline-none transition-colors focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/40';
 
-      {/* Left Panel - Branding */}
-      <div className="hidden lg:flex lg:w-5/12 relative overflow-hidden border-r border-[var(--terminal-border)]">
+  return (
+    <div className="min-h-screen flex bg-background text-foreground">
+      {/* Left panel — brand */}
+      <div className="hidden lg:flex lg:w-5/12 relative border-r border-border">
         <div className="relative z-10 flex flex-col justify-center px-16 lg:px-20">
           {/* Logo */}
           <motion.div
-            initial={{ opacity: 0, y: -10 }}
+            initial={{ opacity: 0, y: -8 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5 }}
-            className="flex items-center gap-4 mb-16"
+            transition={{ duration: 0.4 }}
+            className="flex items-center gap-3 mb-14"
           >
-            <div className="flex items-center justify-center w-14 h-14 rounded-xl border border-[var(--phosphor-green)]/30 bg-[var(--phosphor-green)]/10">
-              <Terminal className="w-7 h-7 text-[var(--phosphor-green)]" />
+            <div className="flex items-center justify-center w-12 h-12 rounded-xl border border-border bg-card">
+              <Terminal className="w-6 h-6 text-primary" aria-hidden="true" />
             </div>
             <div>
-              <h1 className="text-3xl font-mono font-bold text-[var(--terminal-text)] tracking-tighter">
-                RAG SYSTEM
+              <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+                NOUS
               </h1>
-              <p className="text-[10px] font-mono font-bold text-[var(--phosphor-green)]/70 uppercase tracking-[0.3em]">
-                Identity Registry
+              <p className="text-sm text-muted-foreground">
+                Document intelligence
               </p>
             </div>
           </motion.div>
 
-          {/* Hero Text */}
+          {/* Hero */}
           <motion.div
-            initial={{ opacity: 0, y: 10 }}
+            initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.2 }}
+            transition={{ duration: 0.5, delay: 0.1 }}
           >
-            <h2 className="text-4xl font-mono font-bold text-[var(--terminal-text)] leading-tight mb-8 tracking-tight uppercase">
-              Initialize
-              <br />
-              <span className="bg-gradient-to-r from-[var(--phosphor-green)] to-[var(--cyan)] bg-clip-text text-transparent">
-                New Node
-              </span>
+            <h2 className="text-4xl font-semibold tracking-tight text-foreground leading-tight mb-5">
+              Make sense of everything you read.
             </h2>
-            <p className="text-sm font-mono text-[var(--terminal-text-muted)] max-w-sm mb-12 leading-relaxed uppercase tracking-wide">
-              Provision access credentials for high-density document
-              intelligence and synthesis.
+            <p
+              className="text-base text-muted-foreground max-w-sm mb-12 leading-relaxed"
+              style={{ fontFamily: 'var(--nous-font-body)' }}
+            >
+              Create an account to search, connect, and synthesize your
+              documents in one place.
             </p>
           </motion.div>
 
           {/* Features */}
-          <motion.div
+          <motion.ul
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            transition={{ duration: 0.6, delay: 0.4 }}
-            className="space-y-5"
+            transition={{ duration: 0.5, delay: 0.2 }}
+            className="space-y-4"
           >
             {features.map((feature, i) => (
-              <div key={i} className="flex items-center gap-4 group">
-                <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-[var(--terminal-surface)] border border-[var(--terminal-border)] group-hover:border-[var(--phosphor-green)]/50 transition-colors">
-                  <feature.icon className="w-4 h-4 text-[var(--phosphor-green)]" />
+              <li key={i} className="flex items-center gap-3">
+                <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-card border border-border">
+                  <feature.icon
+                    className="w-4 h-4 text-primary"
+                    aria-hidden="true"
+                  />
                 </div>
-                <span className="text-[11px] font-mono font-bold text-[var(--terminal-text-dim)] uppercase tracking-widest group-hover:text-[var(--terminal-text)] transition-colors">
+                <span className="text-sm text-muted-foreground">
                   {feature.text}
                 </span>
-              </div>
+              </li>
             ))}
-          </motion.div>
+          </motion.ul>
         </div>
       </div>
 
-      {/* Right Panel - Register Form */}
-      <div className="flex-1 flex items-center justify-center px-6 lg:px-8 py-12 relative overflow-y-auto bg-[var(--terminal-bg)]">
+      {/* Right panel — form */}
+      <div className="flex-1 flex items-center justify-center px-6 lg:px-8 py-12 overflow-y-auto">
         <motion.div
-          initial={{ opacity: 0, scale: 0.98 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.5 }}
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4 }}
           className="w-full max-w-lg"
         >
-          {/* Form Container */}
-          <div className="rounded-2xl border border-[var(--terminal-border)] bg-[var(--terminal-surface)] p-8 shadow-2xl shadow-black/50 relative overflow-hidden">
-            {/* Form Header */}
-            <div className="text-center mb-10">
-              <h2 className="text-xl font-mono font-bold text-[var(--terminal-text)] uppercase tracking-[0.2em]">
-                Provisioning Terminal
+          <div className="rounded-2xl border border-border bg-card p-8 shadow-sm">
+            {/* Header */}
+            <div className="mb-8">
+              <h2 className="text-2xl font-semibold tracking-tight text-foreground">
+                Create your account
               </h2>
-              <div className="h-0.5 w-12 bg-[var(--phosphor-green)] mx-auto mt-3 opacity-50" />
+              <p className="mt-1.5 text-sm text-muted-foreground">
+                Set up access for you and your team.
+              </p>
             </div>
 
             {/* Form */}
             <form onSubmit={handleSubmit} className="space-y-5">
               {error && (
-                <motion.div
-                  initial={{ opacity: 0, y: -5 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="rounded-lg border border-red-500/30 bg-red-500/5 p-3"
+                <div
+                  role="alert"
+                  className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2.5"
                 >
-                  <p className="text-[10px] font-mono text-red-400 font-bold uppercase tracking-tighter">
-                    Provisioning Error: {error}
-                  </p>
-                </motion.div>
+                  <p className="text-sm text-destructive">{error}</p>
+                </div>
               )}
 
-              {/* Name Fields */}
+              {/* Name fields */}
               <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
+                <div className="space-y-1.5">
                   <label
                     htmlFor="first_name"
-                    className="block text-[10px] font-mono text-[var(--terminal-text-dim)] uppercase tracking-[0.2em] font-bold pl-1"
+                    className="block text-sm font-medium text-foreground"
                   >
-                    First Name
+                    First name
                   </label>
                   <div className="relative">
                     <div className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none">
-                      <User className="w-4 h-4 text-[var(--terminal-text-muted)]" />
+                      <User
+                        className="w-4 h-4 text-muted-foreground"
+                        aria-hidden="true"
+                      />
                     </div>
                     <input
                       id="first_name"
@@ -287,22 +282,25 @@ export default function RegisterPage() {
                       required
                       value={formData.first_name}
                       onChange={handleChange}
-                      className="w-full pl-11 pr-4 py-2.5 rounded-xl bg-[var(--terminal-bg)] border border-[var(--terminal-border)] font-mono text-sm text-[var(--terminal-text)] placeholder:text-[var(--terminal-text-muted)]/30 focus:border-[var(--phosphor-green)]/50 focus:ring-0 outline-none transition-all"
-                      placeholder="FIRSTNAME"
+                      className={inputClasses}
+                      placeholder="Ada"
                     />
                   </div>
                 </div>
 
-                <div className="space-y-2">
+                <div className="space-y-1.5">
                   <label
                     htmlFor="last_name"
-                    className="block text-[10px] font-mono text-[var(--terminal-text-dim)] uppercase tracking-[0.2em] font-bold pl-1"
+                    className="block text-sm font-medium text-foreground"
                   >
-                    Last Name
+                    Last name
                   </label>
                   <div className="relative">
                     <div className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none">
-                      <User className="w-4 h-4 text-[var(--terminal-text-muted)]" />
+                      <User
+                        className="w-4 h-4 text-muted-foreground"
+                        aria-hidden="true"
+                      />
                     </div>
                     <input
                       id="last_name"
@@ -311,24 +309,27 @@ export default function RegisterPage() {
                       required
                       value={formData.last_name}
                       onChange={handleChange}
-                      className="w-full pl-11 pr-4 py-2.5 rounded-xl bg-[var(--terminal-bg)] border border-[var(--terminal-border)] font-mono text-sm text-[var(--terminal-text)] placeholder:text-[var(--terminal-text-muted)]/30 focus:border-[var(--phosphor-green)]/50 focus:ring-0 outline-none transition-all"
-                      placeholder="LASTNAME"
+                      className={inputClasses}
+                      placeholder="Lovelace"
                     />
                   </div>
                 </div>
               </div>
 
-              {/* Email Field */}
-              <div className="space-y-2">
+              {/* Email */}
+              <div className="space-y-1.5">
                 <label
                   htmlFor="email"
-                  className="block text-[10px] font-mono text-[var(--terminal-text-dim)] uppercase tracking-[0.2em] font-bold pl-1"
+                  className="block text-sm font-medium text-foreground"
                 >
-                  Identity Protocol
+                  Email
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none">
-                    <Mail className="w-4 h-4 text-[var(--terminal-text-muted)]" />
+                    <Mail
+                      className="w-4 h-4 text-muted-foreground"
+                      aria-hidden="true"
+                    />
                   </div>
                   <input
                     id="email"
@@ -337,23 +338,29 @@ export default function RegisterPage() {
                     required
                     value={formData.email}
                     onChange={handleChange}
-                    className="w-full pl-11 pr-4 py-2.5 rounded-xl bg-[var(--terminal-bg)] border border-[var(--terminal-border)] font-mono text-sm text-[var(--terminal-text)] placeholder:text-[var(--terminal-text-muted)]/30 focus:border-[var(--phosphor-green)]/50 focus:ring-0 outline-none transition-all"
-                    placeholder="UID@DOMAIN.COM"
+                    className={inputClasses}
+                    placeholder="you@company.com"
                   />
                 </div>
               </div>
 
-              {/* Organization Field */}
-              <div className="space-y-2">
+              {/* Organization */}
+              <div className="space-y-1.5">
                 <label
                   htmlFor="organization_name"
-                  className="block text-[10px] font-mono text-[var(--terminal-text-dim)] uppercase tracking-[0.2em] font-bold pl-1"
+                  className="block text-sm font-medium text-foreground"
                 >
-                  Organization
+                  Organization{' '}
+                  <span className="font-normal text-muted-foreground">
+                    (optional)
+                  </span>
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none">
-                    <Building2 className="w-4 h-4 text-[var(--terminal-text-muted)]" />
+                    <Building2
+                      className="w-4 h-4 text-muted-foreground"
+                      aria-hidden="true"
+                    />
                   </div>
                   <input
                     id="organization_name"
@@ -361,23 +368,26 @@ export default function RegisterPage() {
                     type="text"
                     value={formData.organization_name}
                     onChange={handleChange}
-                    className="w-full pl-11 pr-4 py-2.5 rounded-xl bg-[var(--terminal-bg)] border border-[var(--terminal-border)] font-mono text-sm text-[var(--terminal-text)] placeholder:text-[var(--terminal-text-muted)]/30 focus:border-[var(--phosphor-green)]/50 focus:ring-0 outline-none transition-all"
-                    placeholder="CORP_IDENTIFIER"
+                    className={inputClasses}
+                    placeholder="Acme Inc."
                   />
                 </div>
               </div>
 
-              {/* Password Field */}
-              <div className="space-y-2">
+              {/* Password */}
+              <div className="space-y-1.5">
                 <label
                   htmlFor="password"
-                  className="block text-[10px] font-mono text-[var(--terminal-text-dim)] uppercase tracking-[0.2em] font-bold pl-1"
+                  className="block text-sm font-medium text-foreground"
                 >
-                  Security Key
+                  Password
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none">
-                    <Lock className="w-4 h-4 text-[var(--terminal-text-muted)]" />
+                    <Lock
+                      className="w-4 h-4 text-muted-foreground"
+                      aria-hidden="true"
+                    />
                   </div>
                   <input
                     id="password"
@@ -386,55 +396,62 @@ export default function RegisterPage() {
                     required
                     value={formData.password}
                     onChange={handleChange}
-                    className="w-full pl-11 pr-12 py-2.5 rounded-xl bg-[var(--terminal-bg)] border border-[var(--terminal-border)] font-mono text-sm text-[var(--terminal-text)] placeholder:text-[var(--terminal-text-muted)]/30 focus:border-[var(--phosphor-green)]/50 focus:ring-0 outline-none transition-all"
-                    placeholder="KEY_BUFFER"
+                    className={cn(inputClasses, 'pr-12')}
+                    placeholder="At least 8 characters"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute inset-y-0 right-0 flex items-center pr-3.5 text-[var(--terminal-text-muted)] hover:text-[var(--phosphor-green)] transition-colors"
+                    aria-label={
+                      showPassword ? 'Hide password' : 'Show password'
+                    }
+                    aria-pressed={showPassword}
+                    className="absolute inset-y-0 right-0 flex items-center pr-3.5 text-muted-foreground hover:text-foreground rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors"
                   >
                     {showPassword ? (
-                      <EyeOff className="w-4 h-4" />
+                      <EyeOff className="w-4 h-4" aria-hidden="true" />
                     ) : (
-                      <Eye className="w-4 h-4" />
+                      <Eye className="w-4 h-4" aria-hidden="true" />
                     )}
                   </button>
                 </div>
                 {/* Strength */}
                 {formData.password && (
-                  <div className="flex items-center gap-2 mt-2 px-1">
-                    <div className="flex-1 flex gap-1">
+                  <div className="flex items-center gap-2 mt-2">
+                    <div className="flex-1 flex gap-1" aria-hidden="true">
                       {[1, 2, 3, 4].map((level) => (
                         <div
                           key={level}
                           className={cn(
-                            'h-0.5 flex-1 rounded-full transition-all duration-500',
+                            'h-1 flex-1 rounded-full transition-colors duration-300',
                             level <= strength.level
                               ? strength.color
-                              : 'bg-white/5'
+                              : 'bg-muted'
                           )}
                         />
                       ))}
                     </div>
-                    <span className="text-[8px] font-mono text-[var(--terminal-text-dim)] font-bold">
+                    <span className="text-xs text-muted-foreground">
                       {strength.text}
                     </span>
                   </div>
                 )}
               </div>
 
-              {/* Confirm Field */}
-              <div className="space-y-2">
+              {/* Confirm password */}
+              <div className="space-y-1.5">
                 <label
                   htmlFor="confirmPassword"
-                  className="block text-[10px] font-mono text-[var(--terminal-text-dim)] uppercase tracking-[0.2em] font-bold pl-1"
+                  className="block text-sm font-medium text-foreground"
                 >
-                  Verify Key
+                  Confirm password
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none">
-                    <Lock className="w-4 h-4 text-[var(--terminal-text-muted)]" />
+                    <Lock
+                      className="w-4 h-4 text-muted-foreground"
+                      aria-hidden="true"
+                    />
                   </div>
                   <input
                     id="confirmPassword"
@@ -443,8 +460,8 @@ export default function RegisterPage() {
                     required
                     value={formData.confirmPassword}
                     onChange={handleChange}
-                    className="w-full pl-11 pr-12 py-2.5 rounded-xl bg-[var(--terminal-bg)] border border-[var(--terminal-border)] font-mono text-sm text-[var(--terminal-text)] placeholder:text-[var(--terminal-text-muted)]/30 focus:border-[var(--phosphor-green)]/50 focus:ring-0 outline-none transition-all"
-                    placeholder="RE_ENTER_KEY"
+                    className={cn(inputClasses, 'pr-12')}
+                    placeholder="Re-enter your password"
                   />
                   <button
                     type="button"
@@ -453,50 +470,62 @@ export default function RegisterPage() {
                         ? setShowConfirmPassword(false)
                         : setShowConfirmPassword(true)
                     }
-                    className="absolute inset-y-0 right-0 flex items-center pr-3.5 text-[var(--terminal-text-muted)] hover:text-[var(--phosphor-green)] transition-colors"
+                    aria-label={
+                      showConfirmPassword
+                        ? 'Hide confirmation password'
+                        : 'Show confirmation password'
+                    }
+                    aria-pressed={showConfirmPassword}
+                    className="absolute inset-y-0 right-0 flex items-center pr-3.5 text-muted-foreground hover:text-foreground rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors"
                   >
                     {showConfirmPassword ? (
-                      <EyeOff className="w-4 h-4" />
+                      <EyeOff className="w-4 h-4" aria-hidden="true" />
                     ) : (
-                      <Eye className="w-4 h-4" />
+                      <Eye className="w-4 h-4" aria-hidden="true" />
                     )}
                   </button>
                 </div>
               </div>
 
-              {/* Submit Button */}
+              {/* Submit */}
               <button
                 type="submit"
                 disabled={isSubmitting}
                 className={cn(
-                  'group w-full flex items-center justify-center gap-3 py-3.5 px-4 rounded-xl font-mono text-xs font-bold uppercase tracking-[0.2em]',
-                  'bg-[var(--phosphor-green)] text-[var(--terminal-bg)]',
-                  'hover:shadow-[0_0_25px_var(--phosphor-green-glow)] hover:scale-[1.02] active:scale-[0.98]',
-                  'disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300'
+                  'group w-full flex items-center justify-center gap-2 py-3 px-4 rounded-lg text-sm font-medium',
+                  'bg-primary text-primary-foreground',
+                  'hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card',
+                  'disabled:opacity-60 disabled:cursor-not-allowed transition-colors'
                 )}
               >
                 {isSubmitting ? (
                   <>
-                    <RefreshCw className="w-4 h-4 animate-spin" />
-                    <span>Allocating Registry...</span>
+                    <RefreshCw className="w-4 h-4" aria-hidden="true" />
+                    <span>Creating account...</span>
                   </>
                 ) : (
                   <>
-                    <span>Commit Identity</span>
-                    <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                    <span>Create account</span>
+                    <ArrowRight
+                      className="w-4 h-4 transition-transform group-hover:translate-x-0.5"
+                      aria-hidden="true"
+                    />
                   </>
                 )}
               </button>
             </form>
 
-            {/* Login Link */}
-            <div className="mt-8 pt-6 border-t border-[var(--terminal-border)] text-center">
-              <Link
-                href="/login"
-                className="text-[10px] font-mono text-[var(--terminal-text-dim)] uppercase tracking-widest hover:text-[var(--phosphor-green)] transition-colors"
-              >
-                Return to Access Terminal
-              </Link>
+            {/* Login link */}
+            <div className="mt-6 pt-6 border-t border-border text-center">
+              <p className="text-sm text-muted-foreground">
+                Already have an account?{' '}
+                <Link
+                  href="/login"
+                  className="font-medium text-primary hover:underline rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  Sign in
+                </Link>
+              </p>
             </div>
           </div>
         </motion.div>

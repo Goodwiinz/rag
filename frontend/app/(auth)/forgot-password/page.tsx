@@ -3,7 +3,7 @@
 import { createClient } from '@/lib/supabase/client';
 import { cn } from '@/lib/utils';
 import { motion } from 'framer-motion';
-import { ArrowLeft, ArrowRight, Lock, Mail, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Mail } from 'lucide-react';
 import Link from 'next/link';
 import React, { useEffect, useState } from 'react';
 
@@ -48,30 +48,38 @@ export default function ForgotPasswordPage() {
 
   if (sent) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[var(--terminal-bg)]">
+      <div className="min-h-screen flex items-center justify-center bg-background px-6 py-12">
         <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="max-w-md w-full mx-6"
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+          className="w-full max-w-md"
         >
-          <div className="rounded-2xl border border-[var(--terminal-border)] bg-[var(--terminal-surface)] p-10 text-center">
-            <div className="flex items-center justify-center w-16 h-16 rounded-full bg-[var(--phosphor-green)]/10 border border-[var(--phosphor-green)]/30 mx-auto mb-6">
-              <Mail className="w-8 h-8 text-[var(--phosphor-green)]" />
+          <div className="rounded-xl border border-border bg-card p-8 text-center shadow-sm">
+            <div
+              className="mx-auto mb-6 flex h-14 w-14 items-center justify-center rounded-full bg-primary/10 text-primary"
+              aria-hidden="true"
+            >
+              <Mail className="h-6 w-6" />
             </div>
-            <h2 className="text-xl font-mono font-bold text-[var(--terminal-text)] uppercase tracking-[0.15em] mb-3">
-              Reset Link Sent
-            </h2>
-            <p className="text-sm font-mono text-[var(--terminal-text-muted)] mb-8 leading-relaxed">
-              We sent a password reset link to{' '}
-              <span className="text-[var(--phosphor-green)]">{email}</span>.
-              Check your inbox and follow the instructions.
+            <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+              Check your inbox
+            </h1>
+            <p
+              className="mt-3 text-[15px] leading-relaxed text-muted-foreground"
+              style={{ fontFamily: 'var(--nous-font-body)' }}
+            >
+              If an account exists for{' '}
+              <span className="font-medium text-foreground">{email}</span>, a
+              password reset link is on its way. Follow it to choose a new
+              password.
             </p>
             <Link
               href="/login"
-              className="inline-flex items-center gap-2 text-[10px] font-mono text-[var(--terminal-text-dim)] uppercase tracking-widest hover:text-[var(--phosphor-green)] transition-colors"
+              className="mt-8 inline-flex items-center gap-2 rounded-md text-sm font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
             >
-              <ArrowLeft className="w-3 h-3" />
-              Return to Access Terminal
+              <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+              Back to sign in
             </Link>
           </div>
         </motion.div>
@@ -80,59 +88,58 @@ export default function ForgotPasswordPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[var(--terminal-bg)] relative overflow-hidden">
-      <div className="absolute inset-0 opacity-[0.02] pointer-events-none">
-        <div
-          className="h-full w-full"
-          style={{
-            backgroundImage: `linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)`,
-            backgroundSize: '40px 40px',
-          }}
-        />
-      </div>
-
+    <div className="min-h-screen flex items-center justify-center bg-background px-6 py-12">
       <motion.div
-        initial={{ opacity: 0, scale: 0.98 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ duration: 0.5 }}
-        className="w-full max-w-md mx-6"
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+        className="w-full max-w-md"
       >
-        <div className="rounded-2xl border border-[var(--terminal-border)] bg-[var(--terminal-surface)] p-8 shadow-2xl shadow-black/50">
-          <div className="text-center mb-8">
-            <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-[var(--terminal-elevated)] border border-[var(--terminal-border)] mb-4">
-              <Lock className="w-5 h-5 text-[var(--phosphor-green)]" />
+        <div className="rounded-xl border border-border bg-card p-8 shadow-sm">
+          <div className="mb-8">
+            <div
+              className="mb-5 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary"
+              aria-hidden="true"
+            >
+              <Mail className="h-5 w-5" />
             </div>
-            <h2 className="text-xl font-mono font-bold text-[var(--terminal-text)] uppercase tracking-[0.2em]">
-              Key Recovery
-            </h2>
-            <p className="text-[10px] font-mono text-[var(--terminal-text-muted)] uppercase tracking-wider mt-2">
-              Enter your identity protocol to receive a reset link
+            <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+              Reset your password
+            </h1>
+            <p
+              className="mt-2 text-[15px] leading-relaxed text-muted-foreground"
+              style={{ fontFamily: 'var(--nous-font-body)' }}
+            >
+              Enter the email address linked to your account and we will send
+              you a link to set a new password.
             </p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-5">
             {error && (
               <motion.div
-                initial={{ opacity: 0, y: -5 }}
+                initial={{ opacity: 0, y: -4 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="rounded-lg border border-red-500/30 bg-red-500/5 p-3"
+                role="alert"
+                className="rounded-md border border-destructive/30 bg-destructive/5 px-3.5 py-2.5"
               >
-                <p className="text-[10px] font-mono text-red-400 font-bold uppercase tracking-tighter">
-                  Recovery Error: {error}
-                </p>
+                <p className="text-sm text-destructive">{error}</p>
               </motion.div>
             )}
 
             <div className="space-y-2">
               <label
                 htmlFor="email"
-                className="block text-[10px] font-mono text-[var(--terminal-text-dim)] uppercase tracking-[0.2em] font-bold pl-1"
+                className="block text-sm font-medium text-foreground"
               >
-                Identity Protocol
+                Email address
               </label>
               <div className="relative">
-                <div className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none">
-                  <Mail className="w-4 h-4 text-[var(--terminal-text-muted)]" />
+                <div
+                  className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-muted-foreground"
+                  aria-hidden="true"
+                >
+                  <Mail className="h-4 w-4" />
                 </div>
                 <input
                   id="email"
@@ -141,43 +148,38 @@ export default function ForgotPasswordPage() {
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full pl-11 pr-4 py-3 rounded-xl bg-[var(--terminal-bg)] border border-[var(--terminal-border)] font-mono text-sm text-[var(--terminal-text)] placeholder:text-[var(--terminal-text-muted)]/30 focus:border-[var(--phosphor-green)]/50 focus:ring-0 outline-none transition-all"
-                  placeholder="UID@DOMAIN.COM"
+                  aria-describedby="email-hint"
+                  className="w-full rounded-md border border-input bg-background py-2.5 pl-10 pr-4 text-sm text-foreground placeholder:text-muted-foreground/70 transition-colors focus-visible:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background"
+                  placeholder="you@example.com"
+                  autoComplete="email"
                 />
               </div>
+              <p id="email-hint" className="text-xs text-muted-foreground">
+                We will only use this to send your reset link.
+              </p>
             </div>
 
             <button
               type="submit"
               disabled={isSubmitting}
               className={cn(
-                'group w-full flex items-center justify-center gap-3 py-3.5 px-4 rounded-xl font-mono text-xs font-bold uppercase tracking-[0.2em]',
-                'bg-[var(--phosphor-green)] text-[var(--terminal-bg)]',
-                'hover:shadow-[0_0_25px_var(--phosphor-green-glow)] hover:scale-[1.02] active:scale-[0.98]',
-                'disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300'
+                'w-full rounded-md bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground',
+                'transition-colors hover:bg-primary/90',
+                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
+                'disabled:cursor-not-allowed disabled:opacity-60'
               )}
             >
-              {isSubmitting ? (
-                <>
-                  <RefreshCw className="w-4 h-4 animate-spin" />
-                  <span>Transmitting...</span>
-                </>
-              ) : (
-                <>
-                  <span>Send Reset Link</span>
-                  <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-                </>
-              )}
+              {isSubmitting ? 'Sending...' : 'Send reset link'}
             </button>
           </form>
 
-          <div className="mt-8 pt-6 border-t border-[var(--terminal-border)] text-center">
+          <div className="mt-8 border-t border-border pt-6 text-center">
             <Link
               href="/login"
-              className="inline-flex items-center gap-2 text-[10px] font-mono text-[var(--terminal-text-dim)] uppercase tracking-widest hover:text-[var(--phosphor-green)] transition-colors"
+              className="inline-flex items-center gap-2 rounded-md text-sm font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
             >
-              <ArrowLeft className="w-3 h-3" />
-              Return to Access Terminal
+              <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+              Back to sign in
             </Link>
           </div>
         </div>
