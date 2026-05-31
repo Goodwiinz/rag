@@ -1,0 +1,182 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-05-31T00:00:00Z",
+  "title": "Design System: NOUS",
+  "extensions": {
+    "colorMeta": {
+      "sol": {
+        "role": "primary",
+        "displayName": "Sol — Solar Gold",
+        "canonical": "#d4a039",
+        "tonalRamp": ["#3a2c0f", "#5c4516", "#7d5f1d", "#996d1a", "#b8882f", "#d4a039", "#e8b84a", "#f5d680"]
+      },
+      "sol-safe": {
+        "role": "primary",
+        "displayName": "Sol Safe — Accessible Gold",
+        "canonical": "#996d1a",
+        "tonalRamp": ["#2e2009", "#473111", "#6b4d16", "#7f5c14", "#996d1a", "#b8882f", "#d4a039", "#e8b84a"]
+      },
+      "helios": {
+        "role": "primary",
+        "displayName": "Helios — Warm Solar Glow (dark accent)",
+        "canonical": "#e8b84a",
+        "tonalRamp": ["#3a2c0f", "#5c4516", "#7d5f1d", "#a47c25", "#c89a33", "#e8b84a", "#f5d680", "#fbe8bd"]
+      },
+      "erebus": {
+        "role": "neutral",
+        "displayName": "Erebus — The Void (ink + warm dark stack)",
+        "canonical": "#0a0a0e",
+        "tonalRamp": ["#0a0a0e", "#141210", "#1e1b17", "#28241e", "#332e26", "#3d372e", "#524c42", "#8a8070"]
+      },
+      "selene": {
+        "role": "neutral",
+        "displayName": "Selene — Moonlit Surface (warm light scale)",
+        "canonical": "#f7f7f5",
+        "tonalRamp": ["#2a261f", "#4a4a4e", "#6a6a6e", "#9a9a9e", "#c8c8c6", "#e2e2e0", "#f7f7f5", "#ffffff"]
+      },
+      "aurum": {
+        "role": "neutral",
+        "displayName": "Aurum — Parchment Wash",
+        "canonical": "#fdf6e3",
+        "tonalRamp": ["#3d372e", "#524c42", "#8a8070", "#c8bfa8", "#e4d9bb", "#f5e9c8", "#fdf6e3", "#fffdf5"]
+      },
+      "terra": {
+        "role": "tertiary",
+        "displayName": "Terra — Living Green (success)",
+        "canonical": "#34d399",
+        "tonalRamp": ["#0c3d2a", "#11553a", "#177a52", "#1f9c6a", "#28b884", "#34d399", "#4ade80", "#a7f3d0"]
+      },
+      "mars": {
+        "role": "tertiary",
+        "displayName": "Mars — Red Planet (error)",
+        "canonical": "#ef4444",
+        "tonalRamp": ["#450f0f", "#651616", "#8a1d1d", "#b82f2f", "#d43a3a", "#ef4444", "#f87171", "#fecaca"]
+      }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display", "purpose": "Showcase / marketing hero headlines only (Inter 700, 4.5rem)." },
+      "headline": { "displayName": "Headline / H1", "purpose": "Page titles (Inter 700, 2.5rem)." },
+      "title": { "displayName": "Title / H2", "purpose": "Section headings (Inter 600)." },
+      "body": { "displayName": "Body", "purpose": "Long-form reading — answers, drafts. Source Serif 4, line-height 1.8, 65–75ch." },
+      "label": { "displayName": "Label / UI", "purpose": "Buttons, nav, fields, badges (Inter 500)." },
+      "overline": { "displayName": "Overline", "purpose": "Rationed uppercase eyebrows in Sol-Safe (Inter 600, 0.16em tracking)." },
+      "mono": { "displayName": "Mono", "purpose": "Endpoints, IDs, code (JetBrains Mono) on an Aurum chip." }
+    },
+    "shadows": [
+      { "name": "sm", "value": "0 1px 2px rgba(10,10,14,0.04)", "purpose": "Resting cards and inputs (light mode)." },
+      { "name": "md", "value": "0 4px 12px rgba(10,10,14,0.06)", "purpose": "Raised panels, dropdowns." },
+      { "name": "lg", "value": "0 8px 30px rgba(10,10,14,0.08)", "purpose": "Interactive card hover lift." },
+      { "name": "xl", "value": "0 20px 60px rgba(10,10,14,0.15)", "purpose": "Modals and sheets." },
+      { "name": "focus", "value": "0 0 0 3px rgba(212,160,57,0.25)", "purpose": "Sol focus ring, both modes." },
+      { "name": "accent-glow", "value": "0 8px 30px rgba(212,160,57,0.3)", "purpose": "Gold CTA hover only — glow-on-intent." }
+    ],
+    "motion": [
+      { "name": "ease-out", "value": "cubic-bezier(0.16, 1, 0.3, 1)", "purpose": "Default exponential ease-out for state transitions and lifts." },
+      { "name": "ease-in-out", "value": "cubic-bezier(0.65, 0, 0.35, 1)", "purpose": "Symmetric transitions (toggles, expands)." },
+      { "name": "duration-fast", "value": "200ms", "purpose": "Buttons, inputs, hover feedback." },
+      { "name": "duration-medium", "value": "300ms", "purpose": "Card lifts, composer glow." }
+    ],
+    "breakpoints": [
+      { "name": "sm", "value": "640px" },
+      { "name": "md", "value": "768px" },
+      { "name": "lg", "value": "1024px" },
+      { "name": "xl", "value": "1280px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Accent Button (gold CTA)",
+      "kind": "button",
+      "refersTo": "button-accent",
+      "description": "The single loudest action on a screen — full Sol gold with a glow-on-intent hover. Use once per view.",
+      "html": "<button class=\"ds-btn-accent\">Generate draft</button>",
+      "css": ".ds-btn-accent { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 40px; padding: 8px 16px; background: #d4a039; color: #ffffff; border: none; border-radius: 8px; font-family: Inter, sans-serif; font-size: 14px; font-weight: 500; cursor: pointer; transition: transform 200ms cubic-bezier(0.16,1,0.3,1), box-shadow 200ms cubic-bezier(0.16,1,0.3,1); } .ds-btn-accent:hover { transform: translateY(-1px); box-shadow: 0 8px 30px rgba(212,160,57,0.3); } .ds-btn-accent:focus-visible { outline: none; box-shadow: 0 0 0 2px #f7f7f5, 0 0 0 4px #d4a039; } .ds-btn-accent:active { transform: scale(0.98); }"
+    },
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Default action — accessible deep gold (Sol-Safe) with a subtle lift on hover.",
+      "html": "<button class=\"ds-btn-primary\">Save changes</button>",
+      "css": ".ds-btn-primary { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 40px; padding: 8px 16px; background: #996d1a; color: #f7f7f5; border: none; border-radius: 8px; font-family: Inter, sans-serif; font-size: 14px; font-weight: 500; cursor: pointer; transition: all 200ms cubic-bezier(0.16,1,0.3,1); } .ds-btn-primary:hover { background: #8a6217; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(10,10,14,0.15); } .ds-btn-primary:focus-visible { outline: none; box-shadow: 0 0 0 2px #f7f7f5, 0 0 0 4px #d4a039; }"
+    },
+    {
+      "name": "Ghost Button",
+      "kind": "button",
+      "refersTo": "button-ghost",
+      "description": "Low-emphasis nav action — transparent at rest, fills with Aurum parchment wash on hover.",
+      "html": "<button class=\"ds-btn-ghost\">Cancel</button>",
+      "css": ".ds-btn-ghost { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 40px; padding: 8px 16px; background: transparent; color: #4a4a4e; border: none; border-radius: 8px; font-family: Inter, sans-serif; font-size: 14px; font-weight: 500; cursor: pointer; transition: all 200ms cubic-bezier(0.16,1,0.3,1); } .ds-btn-ghost:hover { background: #fdf6e3; color: #0a0a0e; } .ds-btn-ghost:focus-visible { outline: none; box-shadow: 0 0 0 2px #d4a039; }"
+    },
+    {
+      "name": "Interactive Card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "Container at 12px radius. Flat at rest; lifts with a Helios border on hover when interactive.",
+      "html": "<div class=\"ds-card\"><h3 class=\"ds-card-title\">quantum-computing.pdf</h3><p class=\"ds-card-body\">42 pages processed. 18 entities extracted, 7 relationships mapped.</p></div>",
+      "css": ".ds-card { background: #ffffff; color: #0a0a0e; border: 1px solid #e2e2e0; border-radius: 12px; padding: 24px; box-shadow: 0 1px 2px rgba(10,10,14,0.04); transition: all 300ms cubic-bezier(0.16,1,0.3,1); cursor: pointer; } .ds-card:hover { transform: translateY(-2px); border-color: #e8b84a; box-shadow: 0 8px 30px rgba(10,10,14,0.08); } .ds-card-title { margin: 0 0 6px; font-family: Inter, sans-serif; font-size: 20px; font-weight: 600; letter-spacing: -0.01em; color: #0a0a0e; } .ds-card-body { margin: 0; font-family: 'Source Serif 4', Georgia, serif; font-size: 15px; line-height: 1.7; color: #4a4a4e; }"
+    },
+    {
+      "name": "Text Input",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "40px field; on focus the border shifts to Sol and a soft 30% gold ring fades in.",
+      "html": "<input class=\"ds-input\" type=\"text\" placeholder=\"Ask NOUS anything...\" />",
+      "css": ".ds-input { width: 100%; height: 40px; padding: 8px 12px; background: #f7f7f5; color: #0a0a0e; border: 1px solid #e2e2e0; border-radius: 8px; font-family: Inter, sans-serif; font-size: 14px; transition: border-color 200ms, box-shadow 200ms; } .ds-input::placeholder { color: #6a6a6e; } .ds-input:focus-visible { outline: none; border-color: #d4a039; box-shadow: 0 0 0 3px rgba(212,160,57,0.3); }"
+    },
+    {
+      "name": "Accent Badge",
+      "kind": "chip",
+      "refersTo": "badge-accent",
+      "description": "Full-pill status chip. Accent = Sol gold + white (Featured); muted = Aurum + Sol-Safe (Draft).",
+      "html": "<span class=\"ds-badge-accent\">Featured</span> <span class=\"ds-badge-muted\">Draft</span>",
+      "css": ".ds-badge-accent, .ds-badge-muted { display: inline-flex; align-items: center; padding: 4px 12px; border-radius: 9999px; border: 1px solid transparent; font-family: Inter, sans-serif; font-size: 12px; font-weight: 500; } .ds-badge-accent { background: #d4a039; color: #ffffff; } .ds-badge-muted { background: #fdf6e3; color: #996d1a; }"
+    },
+    {
+      "name": "Citation Reference (signature)",
+      "kind": "custom",
+      "refersTo": "citation-ref",
+      "description": "The provenance primitive — an 18px gold-on-parchment pill set inline in answers. The visual form of 'no citation, no claim.'",
+      "html": "<p class=\"ds-cite-line\">Hybrid retrieval fuses vector, keyword and graph search<a class=\"ds-cite-ref\" href=\"#\">1</a> before reranking<a class=\"ds-cite-ref\" href=\"#\">2</a>.</p>",
+      "css": ".ds-cite-line { font-family: 'Source Serif 4', Georgia, serif; font-size: 15px; line-height: 1.8; color: #0a0a0e; max-width: 70ch; } .ds-cite-ref { display: inline-grid; place-items: center; width: 18px; height: 18px; margin: 0 2px; border-radius: 9999px; background: #fdf6e3; color: #996d1a; font-family: Inter, sans-serif; font-size: 10px; font-weight: 600; text-decoration: none; vertical-align: text-top; transition: background 160ms, color 160ms; } .ds-cite-ref:hover { background: #d4a039; color: #ffffff; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Observatory",
+    "overview": "NOUS is an instrument for seeing clearly: the leap from scattered perception to structured comprehension, rendered as a well-kept observatory — precise instruments, a calm dark sky, and one warm light to read by. The celestial palette (Erebus the void, Selene the moon, Sol the solar gold) is the organizing idea, not decoration. Light mode is a clean daytime workspace; dark mode is a deliberately warm night sky, parchment lit by candlelight, never cold blue-grey. Reading is the job, so the body face is a serif tuned for long sessions while the chrome stays in crisp Inter. The system rejects the ChatGPT-wrapper look, clinical dark UIs, default glassmorphism, and magical-AI theatrics: confidence comes from visible sources, and the gold earns attention because it is rare.",
+    "keyCharacteristics": [
+      "Celestial palette where one warm gold is the single accent voice.",
+      "Warm in both modes — parchment-by-candlelight dark, not blue-grey.",
+      "Serif body for reading, sans for chrome; no pure-white text.",
+      "Calm at rest; warmth and a gold glow appear on the action about to happen.",
+      "Provenance is visible — citation pills, source strips, margin rules."
+    ],
+    "rules": [
+      { "name": "The One Voice Rule", "body": "Sol gold is the only accent. It appears on ≤10% of any screen — primary action, focus, links, citations. Its rarity is what makes it read as a signal. Never introduce a second decorative accent hue.", "section": "colors" },
+      { "name": "The No Pure White Rule", "body": "The brightest text is Ivory (#f5f0e8), never #ffffff. White is reserved for text on saturated fills. On dark surfaces pure white is forbidden — it's harsh and breaks the warmth.", "section": "colors" },
+      { "name": "The Sol-Safe Rule", "body": "For gold text or icons on light backgrounds use Sol Safe (#996d1a), not Sol (#d4a039). Full Sol fails AA as small text on Selene.", "section": "colors" },
+      { "name": "The Read-Don't-Skim Rule", "body": "Body copy is a serif at line-height 1.8 because the user is reading, not skimming. Do not swap body to a sans for consistency; the serif is the reading instrument.", "section": "typography" },
+      { "name": "The Quiet Eyebrow Rule", "body": "Uppercase overlines are allowed but rationed. Never put a tracked all-caps eyebrow above every section — that's AI scaffolding.", "section": "typography" },
+      { "name": "The Warmth-Is-Elevation Rule", "body": "In dark mode, do not reach for bigger shadows to show hierarchy — step up the warm depth stack instead. Shadows are a light-mode tool; warmth is the dark-mode tool.", "section": "elevation" },
+      { "name": "The Glow-On-Intent Rule", "body": "A gold glow shadow appears only on the action the user is about to take (CTA hover, composer focus). Never use the gold glow as ambient decoration on resting surfaces.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do keep Sol gold to ≤10% of any screen — one accent voice.",
+      "Do use Sol-Safe (#996d1a) for gold text/icons on light; reserve full Sol for fills and glows.",
+      "Do convey dark-mode depth by stepping up the warm stack (Nyx → Dusk), not with shadows.",
+      "Do set long-form body in Source Serif 4 at line-height 1.8, capped at 65–75ch.",
+      "Do put the gold glow only on the action about to happen (CTA hover, composer focus).",
+      "Do make provenance visible — citation pills, source strips, margin rules.",
+      "Do give every icon-only control an aria-label, and ship a prefers-reduced-motion alternative for every animation."
+    ],
+    "donts": [
+      "Don't make NOUS look like a ChatGPT wrapper — a bare chatbox with no sense of provenance.",
+      "Don't use a cold, clinical blue-grey dark theme; pure white (#ffffff) text is forbidden — brightest is Ivory.",
+      "Don't use glassmorphism as a default surface, or gold glow as ambient decoration.",
+      "Don't introduce a second decorative accent hue. Gold is the only voice.",
+      "Don't swap the serif body to a sans for consistency — reading is the job.",
+      "Don't stack a tracked all-caps eyebrow above every section, and never nest cards.",
+      "Don't lean on magical-AI or buzzword framing in UI copy — say what the product literally does."
+    ]
+  }
+}
