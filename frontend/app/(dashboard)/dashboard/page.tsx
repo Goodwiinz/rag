@@ -31,7 +31,6 @@ import {
   Network,
   Search,
   Sparkles,
-  Terminal,
   TrendingUp,
   Upload,
   Zap,
@@ -42,7 +41,6 @@ import { useCallback, useEffect, useState } from 'react';
 // Import enhanced components
 import { KeyboardShortcuts } from '@/components/dashboard/KeyboardShortcuts';
 import { QuickSearch } from '@/components/dashboard/QuickSearch';
-import { COLORS } from '@/theme/constants';
 
 // Icon mapping for document types returned by the backend
 const DOC_TYPE_ICON_MAP: Record<string, typeof FileText> = {
@@ -53,17 +51,9 @@ const DOC_TYPE_ICON_MAP: Record<string, typeof FileText> = {
   audio: Music,
 };
 
-const DOC_TYPE_COLOR_MAP: Record<string, string> = {
-  pdf: COLORS.error,
-  image: COLORS.info,
-  images: COLORS.info,
-  video: COLORS.chart4,
-  audio: COLORS.amber,
-};
-
 export default function DashboardPage() {
   const { isAuthenticated, isLoading: authLoading, user } = useAuth();
-  const { documents, loading: docsLoading } = useDocuments({
+  const { documents } = useDocuments({
     initialPageSize: 100,
     autoFetch: isAuthenticated && !authLoading,
   });
@@ -82,7 +72,7 @@ export default function DashboardPage() {
   const [servicesState, setServicesState] = useState<
     'loading' | 'loaded' | 'error'
   >('loading');
-  const [recentActivity, setRecentActivity] = useState<
+  const [recentActivity] = useState<
     Array<{ type: string; text: string; time: string }>
   >([]);
 
@@ -174,7 +164,6 @@ export default function DashboardPage() {
       });
 
     // TODO: wire to /activity or /events endpoint when available
-    // Recent activity has no backend endpoint yet — use empty or keep defaults
   }, [isAuthenticated, authLoading]);
 
   useEffect(() => {
@@ -191,25 +180,10 @@ export default function DashboardPage() {
 
   // Quick actions
   const quickActions = [
-    {
-      icon: Upload,
-      label: 'Upload',
-      href: '/documents/upload',
-      color: COLORS.phosphorGreen,
-    },
-    {
-      icon: Search,
-      label: 'Search',
-      href: '/search',
-      color: COLORS.phosphorGreen,
-    },
-    { icon: Bot, label: 'Chat', href: '/chat', color: COLORS.amber },
-    {
-      icon: Database,
-      label: 'ArXiv',
-      href: '/arxiv',
-      color: COLORS.phosphorGreen,
-    },
+    { icon: Upload, label: 'Upload', href: '/documents/upload' },
+    { icon: Search, label: 'Search', href: '/search' },
+    { icon: Bot, label: 'Chat', href: '/chat' },
+    { icon: Database, label: 'arXiv', href: '/arxiv' },
   ];
 
   // System services — real data only. Loading / empty / error states render
@@ -226,38 +200,58 @@ export default function DashboardPage() {
     type: ft.type.toUpperCase(),
     count: ft.count,
     icon: DOC_TYPE_ICON_MAP[ft.type.toLowerCase()] ?? FileText,
-    color: DOC_TYPE_COLOR_MAP[ft.type.toLowerCase()] ?? COLORS.info,
   }));
   const hasDocTypes = docTypes.length > 0;
 
+  const statCards = [
+    { label: 'Documents', value: stats.documents, icon: FileText },
+    { label: 'Searches', value: stats.searches, icon: Search },
+    { label: 'Conversations', value: stats.chats, icon: MessageSquare },
+    { label: 'Processing', value: stats.processing, icon: Zap },
+  ];
+
+  const insights = [
+    {
+      text: 'Knowledge-graph insights appear here as entities are extracted.',
+      icon: Network,
+    },
+    {
+      text: 'Search-quality metrics become available after your first 100 queries.',
+      icon: TrendingUp,
+    },
+    {
+      text: 'Pipeline stats populate as documents are processed.',
+      icon: Gauge,
+    },
+  ];
+
   return (
     <MotionConfig reducedMotion="user">
-      <div className="min-h-screen bg-[var(--terminal-bg)] relative overflow-hidden flex flex-col">
+      <div className="min-h-screen bg-background relative flex flex-col">
         {/* Content */}
-        <div className="relative p-6 space-y-6 flex-1 overflow-y-auto terminal-scrollbar">
+        <div className="relative p-6 space-y-6 flex-1 overflow-y-auto">
           {/* Header */}
           <motion.div
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
-            className="rounded-xl overflow-hidden border border-[var(--terminal-border)] bg-[var(--terminal-surface)] shadow-xl"
+            className="rounded-xl border border-border bg-card shadow-sm"
           >
-            <div className="h-0.5 bg-gradient-to-r from-[var(--phosphor-green)] via-[var(--phosphor-green)]/40 to-transparent" />
             <div className="p-6">
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-lg bg-[var(--phosphor-green)]/10 border border-[var(--phosphor-green)]/20 flex items-center justify-center">
-                    <Terminal
+                  <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center">
+                    <Gauge
                       aria-hidden="true"
-                      className="w-6 h-6 text-[var(--phosphor-green)]"
+                      className="w-6 h-6 text-primary"
                     />
                   </div>
                   <div>
-                    <h1 className="text-xl font-mono font-bold text-[var(--terminal-text)]">
-                      System Overview
-                      {user?.email ? `: ${user.email.split('@')[0]}` : ''}
+                    <h1 className="text-xl font-semibold text-foreground">
+                      Overview
+                      {user?.email ? `, ${user.email.split('@')[0]}` : ''}
                     </h1>
-                    <p className="text-xs font-mono text-[var(--terminal-text-dim)] mt-0.5 uppercase tracking-widest">
-                      Knowledge Base Metrics & Status
+                    <p className="text-sm text-muted-foreground mt-0.5">
+                      Knowledge base metrics and status
                     </p>
                   </div>
                 </div>
@@ -265,13 +259,13 @@ export default function DashboardPage() {
                 <div className="flex items-center gap-3">
                   <div
                     role="status"
-                    className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-[var(--phosphor-green)]/30 bg-[var(--phosphor-green)]/5"
+                    className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-primary/30 bg-primary/5"
                   >
                     <span
                       aria-hidden="true"
-                      className="inline-flex h-2 w-2 rounded-full bg-[var(--phosphor-green)]"
+                      className="inline-flex h-2 w-2 rounded-full bg-primary"
                     />
-                    <span className="text-[10px] font-mono font-bold text-[var(--phosphor-green)] uppercase tracking-widest">
+                    <span className="text-xs font-medium text-primary">
                       Live
                     </span>
                   </div>
@@ -291,29 +285,23 @@ export default function DashboardPage() {
               <Link
                 key={action.label}
                 href={action.href}
-                className="rounded-xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--phosphor-green)]"
+                className="rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               >
                 <motion.div
-                  whileHover={{ y: -4 }}
-                  className={cn(
-                    'group p-4 rounded-xl border border-[var(--terminal-border)] bg-[var(--terminal-surface)] shadow-lg',
-                    'hover:border-[var(--phosphor-green)]/30 hover:shadow-[0_0_15px_rgba(212,160,57,0.06)] transition-all duration-300 cursor-pointer'
-                  )}
+                  whileHover={{ y: -2 }}
+                  className="group p-4 rounded-xl border border-border bg-card shadow-sm hover:border-[var(--nous-helios)] hover:shadow-md transition-all duration-300 cursor-pointer"
                 >
                   <div className="flex items-center gap-3">
-                    <div
-                      className="p-2 rounded-lg border border-transparent group-hover:border-current transition-colors"
-                      style={{
-                        backgroundColor: `${action.color}10`,
-                        color: action.color,
-                      }}
-                    >
-                      <action.icon className="w-4 h-4" />
+                    <div className="p-2 rounded-lg bg-primary/10 text-primary">
+                      <action.icon aria-hidden="true" className="w-4 h-4" />
                     </div>
-                    <span className="font-mono text-xs font-bold text-[var(--terminal-text-dim)] group-hover:text-[var(--terminal-text)] transition-colors uppercase tracking-wider">
+                    <span className="text-sm font-medium text-foreground">
                       {action.label}
                     </span>
-                    <ChevronRight className="w-3.5 h-3.5 text-[var(--terminal-text-muted)]/40 ml-auto group-hover:text-[var(--phosphor-green)] group-hover:translate-x-0.5 transition-all" />
+                    <ChevronRight
+                      aria-hidden="true"
+                      className="w-3.5 h-3.5 text-muted-foreground ml-auto group-hover:text-primary group-hover:translate-x-0.5 transition-all"
+                    />
                   </div>
                 </motion.div>
               </Link>
@@ -327,58 +315,23 @@ export default function DashboardPage() {
             transition={{ delay: 0.2 }}
             className="grid grid-cols-2 lg:grid-cols-4 gap-4"
           >
-            {[
-              {
-                label: 'Active Documents',
-                value: stats.documents,
-                icon: FileText,
-                color: COLORS.phosphorGreen,
-              },
-              {
-                label: 'Daily Queries',
-                value: stats.searches,
-                icon: Search,
-                color: COLORS.phosphorGreen,
-              },
-              {
-                label: 'Active Conversations',
-                value: stats.chats,
-                icon: MessageSquare,
-                color: COLORS.amber,
-              },
-              {
-                label: 'Processing Queue',
-                value: stats.processing,
-                icon: Zap,
-                color: COLORS.phosphorGreen,
-              },
-            ].map((stat, idx) => (
+            {statCards.map((stat, idx) => (
               <motion.div
                 key={stat.label}
                 initial={{ opacity: 0, scale: 0.98 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ delay: 0.2 + idx * 0.05 }}
-                className="rounded-xl border border-[var(--terminal-border)] bg-[var(--terminal-surface)] p-5 shadow-lg relative group overflow-hidden"
+                className="rounded-xl border border-border bg-card p-5 shadow-sm"
               >
-                <div
-                  className="absolute top-0 left-0 w-1 h-full bg-gradient-to-b opacity-40 group-hover:opacity-100 transition-opacity"
-                  style={{
-                    backgroundImage: `linear-gradient(to bottom, ${stat.color}, transparent)`,
-                  }}
-                />
-
                 <div className="flex items-start justify-between mb-4">
-                  <div className="p-2 rounded-lg bg-[var(--terminal-bg)] border border-[var(--terminal-border)]">
-                    <stat.icon
-                      className="w-4 h-4"
-                      style={{ color: stat.color }}
-                    />
+                  <div className="p-2 rounded-lg bg-muted text-primary">
+                    <stat.icon aria-hidden="true" className="w-4 h-4" />
                   </div>
                 </div>
-                <div className="text-2xl font-mono font-bold text-[var(--terminal-text)]">
+                <div className="text-2xl font-semibold text-foreground tabular-nums">
                   {stat.value}
                 </div>
-                <div className="text-[11px] font-mono text-[var(--terminal-text-dim)] mt-1 uppercase tracking-widest">
+                <div className="text-xs text-muted-foreground mt-1">
                   {stat.label}
                 </div>
               </motion.div>
@@ -387,17 +340,17 @@ export default function DashboardPage() {
 
           {/* Main Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* System Status */}
+            {/* Service health */}
             <motion.div
               initial={{ opacity: 0, x: -10 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: 0.3 }}
-              className="lg:col-span-2 rounded-xl border border-[var(--terminal-border)] bg-[var(--terminal-surface)] overflow-hidden shadow-xl"
+              className="lg:col-span-2 rounded-xl border border-border bg-card overflow-hidden shadow-sm"
             >
-              <div className="flex items-center gap-3 px-5 py-4 border-b border-[var(--terminal-border)] bg-[var(--terminal-bg)]/30">
-                <Activity className="w-4 h-4 text-[var(--phosphor-green)]" />
-                <span className="text-xs font-mono font-bold text-[var(--terminal-text)] uppercase tracking-widest">
-                  Active Neural Nodes
+              <div className="flex items-center gap-3 px-5 py-4 border-b border-border bg-muted/30">
+                <Activity aria-hidden="true" className="w-4 h-4 text-primary" />
+                <span className="text-sm font-medium text-foreground">
+                  Service health
                 </span>
               </div>
 
@@ -405,9 +358,9 @@ export default function DashboardPage() {
                 {servicesState === 'error' ? (
                   <div
                     role="alert"
-                    className="flex flex-col items-start gap-3 p-4 rounded-xl border border-[var(--terminal-border)] bg-[var(--terminal-bg)]/20"
+                    className="flex flex-col items-start gap-3 p-4 rounded-xl border border-border bg-muted/20"
                   >
-                    <p className="text-[11px] font-mono text-[var(--terminal-text)]">
+                    <p className="text-sm text-foreground">
                       Couldn&apos;t reach the service health endpoint.
                     </p>
                     <button
@@ -416,7 +369,7 @@ export default function DashboardPage() {
                         setServicesState('loading');
                         fetchDashboardData();
                       }}
-                      className="text-[11px] font-mono uppercase tracking-widest text-[var(--phosphor-green)] underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--phosphor-green)]"
+                      className="text-sm font-medium text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded"
                     >
                       Retry
                     </button>
@@ -424,7 +377,7 @@ export default function DashboardPage() {
                 ) : !hasServiceData ? (
                   <div
                     role="status"
-                    className="p-4 text-[11px] font-mono text-[var(--terminal-text-dim)]"
+                    className="p-4 text-sm text-muted-foreground"
                   >
                     {servicesState === 'loading'
                       ? 'Checking service health…'
@@ -433,15 +386,15 @@ export default function DashboardPage() {
                 ) : (
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                     {services.map((service) => {
-                      const statusLabel =
-                        service.status === 'online' ? 'Online' : service.status;
+                      const online = service.status === 'online';
+                      const statusLabel = online ? 'Online' : service.status;
                       return (
                         <div
                           key={service.name}
-                          className="p-4 rounded-xl border border-[var(--terminal-border)] bg-[var(--terminal-bg)]/20 hover:border-[var(--phosphor-green)]/20 hover:shadow-[0_0_20px_rgba(212,160,57,0.06)] transition-all group"
+                          className="p-4 rounded-xl border border-border bg-muted/20 hover:border-[var(--nous-helios)] hover:shadow-md transition-all group"
                         >
                           <div className="flex items-center justify-between mb-3">
-                            <span className="text-[11px] font-mono text-[var(--terminal-text-muted)] group-hover:text-[var(--terminal-text)] transition-colors">
+                            <span className="text-xs text-muted-foreground group-hover:text-foreground transition-colors">
                               {service.name}
                             </span>
                             <span className="flex items-center gap-1.5">
@@ -449,27 +402,27 @@ export default function DashboardPage() {
                                 aria-hidden="true"
                                 className={cn(
                                   'w-1.5 h-1.5 rounded-full',
-                                  service.status === 'online'
-                                    ? 'bg-[var(--phosphor-green)] shadow-[0_0_8px_var(--phosphor-green)]'
-                                    : 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.6)]'
+                                  online
+                                    ? 'bg-[var(--nous-terra)]'
+                                    : 'bg-[var(--nous-mars)]'
                                 )}
                               />
-                              <span className="text-[9px] font-mono uppercase tracking-tight text-[var(--terminal-text-dim)]">
+                              <span className="text-[11px] text-muted-foreground">
                                 {statusLabel}
                               </span>
                             </span>
                           </div>
                           <div className="flex items-baseline gap-2 mb-3">
-                            <span className="text-lg font-mono text-[var(--terminal-text)]">
+                            <span className="text-lg font-medium text-foreground tabular-nums">
                               {service.latency}
                             </span>
-                            <span className="text-[9px] font-mono text-[var(--terminal-text-dim)] font-bold tracking-tighter uppercase">
+                            <span className="text-[11px] text-muted-foreground">
                               latency
                             </span>
                           </div>
                           {/* Load bar */}
                           <div
-                            className="h-1 bg-[var(--terminal-border)] rounded-full overflow-hidden"
+                            className="h-1 bg-border rounded-full overflow-hidden"
                             role="progressbar"
                             aria-valuenow={service.load}
                             aria-valuemin={0}
@@ -482,16 +435,15 @@ export default function DashboardPage() {
                               transition={{ duration: 1, delay: 0.5 }}
                               className={cn(
                                 'h-full rounded-full',
-                                service.load < 50 &&
-                                  'bg-[var(--phosphor-green)]/50',
+                                service.load < 50 && 'bg-[var(--nous-terra)]',
                                 service.load >= 50 &&
                                   service.load < 75 &&
-                                  'bg-[var(--amber-gold)]/60',
-                                service.load >= 75 && 'bg-red-500/60'
+                                  'bg-[var(--nous-helios)]',
+                                service.load >= 75 && 'bg-[var(--nous-mars)]'
                               )}
                             />
                           </div>
-                          <div className="text-[9px] font-mono text-[var(--terminal-text-dim)] mt-2 uppercase tracking-tight">
+                          <div className="text-[11px] text-muted-foreground mt-2">
                             {service.load}% resource load
                           </div>
                         </div>
@@ -502,23 +454,26 @@ export default function DashboardPage() {
               </div>
             </motion.div>
 
-            {/* Activity Feed */}
+            {/* Recent activity */}
             <motion.div
               initial={{ opacity: 0, x: 10 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: 0.4 }}
-              className="rounded-xl border border-[var(--terminal-border)] bg-[var(--terminal-surface)] overflow-hidden shadow-xl"
+              className="rounded-xl border border-border bg-card overflow-hidden shadow-sm"
             >
-              <div className="flex items-center gap-3 px-5 py-4 border-b border-[var(--terminal-border)] bg-[var(--terminal-bg)]/30">
-                <Clock className="w-4 h-4 text-[var(--terminal-text-dim)]" />
-                <span className="text-xs font-mono font-bold text-[var(--terminal-text)] uppercase tracking-widest">
-                  Neural Stream
+              <div className="flex items-center gap-3 px-5 py-4 border-b border-border bg-muted/30">
+                <Clock
+                  aria-hidden="true"
+                  className="w-4 h-4 text-muted-foreground"
+                />
+                <span className="text-sm font-medium text-foreground">
+                  Recent activity
                 </span>
               </div>
 
               <div className="p-4">
                 {!hasActivity ? (
-                  <p className="p-3 text-[11px] font-mono text-[var(--terminal-text-dim)]">
+                  <p className="p-3 text-sm text-muted-foreground">
                     No recent activity yet.
                   </p>
                 ) : (
@@ -529,24 +484,17 @@ export default function DashboardPage() {
                         initial={{ opacity: 0, x: 5 }}
                         animate={{ opacity: 1, x: 0 }}
                         transition={{ delay: 0.5 + idx * 0.05 }}
-                        className="flex items-start gap-3 p-3 rounded-lg border border-[var(--terminal-border)] bg-[var(--terminal-bg)]/10 hover:bg-[var(--terminal-bg)]/30 transition-colors group"
+                        className="flex items-start gap-3 p-3 rounded-lg border border-border bg-muted/10 hover:bg-muted/30 transition-colors group"
                       >
                         <div
                           aria-hidden="true"
-                          className={cn(
-                            'w-1 h-4 rounded-full mt-0.5 shrink-0 transition-all group-hover:h-6',
-                            item.type === 'upload' &&
-                              'bg-[var(--phosphor-green)]',
-                            item.type === 'search' && 'bg-[var(--cyan)]',
-                            item.type === 'chat' && 'bg-[var(--amber-gold)]',
-                            item.type === 'process' && 'bg-purple-500'
-                          )}
+                          className="w-1 h-4 rounded-full mt-0.5 shrink-0 bg-primary transition-all group-hover:h-6"
                         />
                         <div className="flex-1 min-w-0">
-                          <p className="text-[11px] font-mono text-[var(--terminal-text)] truncate">
+                          <p className="text-sm text-foreground truncate">
                             {item.text}
                           </p>
-                          <p className="text-[9px] font-mono text-[var(--terminal-text-dim)] mt-0.5">
+                          <p className="text-xs text-muted-foreground mt-0.5">
                             {item.time}
                           </p>
                         </div>
@@ -558,29 +506,32 @@ export default function DashboardPage() {
             </motion.div>
           </div>
 
-          {/* Document Types & AI Insights */}
+          {/* Document types & Insights */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 pb-6">
-            {/* Document Types */}
+            {/* Document types */}
             <motion.div
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.5 }}
-              className="rounded-xl border border-[var(--terminal-border)] bg-[var(--terminal-surface)] overflow-hidden shadow-xl"
+              className="rounded-xl border border-border bg-card overflow-hidden shadow-sm"
             >
-              <div className="flex items-center gap-3 px-5 py-4 border-b border-[var(--terminal-border)] bg-[var(--terminal-bg)]/30">
-                <BarChart3 className="w-4 h-4 text-[var(--terminal-text-dim)]" />
-                <span className="text-xs font-mono font-bold text-[var(--terminal-text)] uppercase tracking-widest">
-                  Corpus Distribution
+              <div className="flex items-center gap-3 px-5 py-4 border-b border-border bg-muted/30">
+                <BarChart3
+                  aria-hidden="true"
+                  className="w-4 h-4 text-muted-foreground"
+                />
+                <span className="text-sm font-medium text-foreground">
+                  Document types
                 </span>
               </div>
 
               <div className="p-6">
                 {!hasDocTypes ? (
-                  <p className="text-xs font-mono text-[var(--terminal-text-dim)]">
+                  <p className="text-sm text-muted-foreground">
                     No documents indexed yet.{' '}
                     <Link
                       href="/documents/upload"
-                      className="text-[var(--phosphor-green)] underline-offset-4 hover:underline"
+                      className="text-primary underline-offset-4 hover:underline"
                     >
                       Upload your first document
                     </Link>
@@ -590,24 +541,20 @@ export default function DashboardPage() {
                   <div className="space-y-4">
                     {docTypes.map((doc, idx) => (
                       <div key={doc.type} className="flex items-center gap-4">
-                        <div className="p-2 rounded-lg bg-[var(--terminal-bg)] border border-[var(--terminal-border)]">
-                          <doc.icon
-                            aria-hidden="true"
-                            className="w-4 h-4"
-                            style={{ color: doc.color }}
-                          />
+                        <div className="p-2 rounded-lg bg-muted text-primary">
+                          <doc.icon aria-hidden="true" className="w-4 h-4" />
                         </div>
                         <div className="flex-1">
                           <div className="flex items-center justify-between mb-1.5">
-                            <span className="text-xs font-mono text-[var(--terminal-text)] font-medium uppercase tracking-tighter">
+                            <span className="text-sm font-medium text-foreground">
                               {doc.type}
                             </span>
-                            <span className="text-xs font-mono text-[var(--terminal-text-dim)]">
+                            <span className="text-sm text-muted-foreground tabular-nums">
                               {doc.count}
                             </span>
                           </div>
                           <div
-                            className="h-1.5 bg-[var(--terminal-border)] rounded-full overflow-hidden"
+                            className="h-1.5 bg-border rounded-full overflow-hidden"
                             role="progressbar"
                             aria-valuenow={doc.count}
                             aria-valuemin={0}
@@ -623,8 +570,7 @@ export default function DashboardPage() {
                                 duration: 1,
                                 delay: 0.6 + idx * 0.1,
                               }}
-                              className="h-full rounded-full"
-                              style={{ backgroundColor: doc.color }}
+                              className="h-full rounded-full bg-primary"
                             />
                           </div>
                         </div>
@@ -635,66 +581,56 @@ export default function DashboardPage() {
               </div>
             </motion.div>
 
-            {/* AI Insights */}
+            {/* Insights */}
             <motion.div
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.6 }}
-              className="rounded-xl border border-[var(--terminal-border)] bg-[var(--terminal-surface)] overflow-hidden shadow-xl"
+              className="rounded-xl border border-border bg-card overflow-hidden shadow-sm"
             >
-              <div className="flex items-center gap-3 px-5 py-4 border-b border-[var(--terminal-border)] bg-[var(--terminal-bg)]/30">
-                <Brain className="w-4 h-4 text-[var(--amber-gold)]" />
-                <span className="text-xs font-mono font-bold text-[var(--terminal-text)] uppercase tracking-widest">
-                  Synthetic Insights
+              <div className="flex items-center gap-3 px-5 py-4 border-b border-border bg-muted/30">
+                <Brain aria-hidden="true" className="w-4 h-4 text-primary" />
+                <span className="text-sm font-medium text-foreground">
+                  Insights
                 </span>
               </div>
 
               <div className="p-6 space-y-4">
-                {[
-                  {
-                    text: 'Knowledge graph insights will appear here as entities are extracted',
-                    icon: Network,
-                    color: COLORS.phosphorGreen,
-                  },
-                  {
-                    text: 'Search quality metrics available after first 100 queries',
-                    icon: TrendingUp,
-                    color: COLORS.phosphorGreen,
-                  },
-                  {
-                    text: 'Pipeline optimization stats populate with document processing',
-                    icon: Gauge,
-                    color: COLORS.amber,
-                  },
-                ].map((insight, idx) => (
+                {insights.map((insight, idx) => (
                   <motion.div
                     key={idx}
                     initial={{ opacity: 0, x: -5 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: 0.7 + idx * 0.1 }}
-                    className="flex items-start gap-4 p-4 rounded-xl border border-[var(--terminal-border)] bg-[var(--terminal-bg)]/20"
+                    className="flex items-start gap-4 p-4 rounded-xl border border-border bg-muted/20"
                   >
-                    <div className="p-2 rounded-lg bg-[var(--terminal-bg)] border border-[var(--terminal-border)] shrink-0">
-                      <insight.icon
-                        className="w-4 h-4"
-                        style={{ color: insight.color }}
-                      />
+                    <div className="p-2 rounded-lg bg-muted text-muted-foreground shrink-0">
+                      <insight.icon aria-hidden="true" className="w-4 h-4" />
                     </div>
-                    <p className="text-xs font-mono text-[var(--terminal-text-dim)] leading-relaxed">
+                    <p className="text-sm text-muted-foreground leading-relaxed">
                       {insight.text}
                     </p>
                   </motion.div>
                 ))}
 
-                <Link href="/chat">
-                  <div className="flex items-center justify-between p-4 rounded-xl border border-[var(--amber-gold)]/20 bg-[var(--amber-gold)]/5 hover:border-[var(--amber-gold)]/40 transition-all cursor-pointer group">
+                <Link
+                  href="/chat"
+                  className="block rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                >
+                  <div className="flex items-center justify-between p-4 rounded-xl border border-primary/20 bg-primary/5 hover:border-primary/40 transition-all group">
                     <div className="flex items-center gap-3">
-                      <Sparkles className="w-4 h-4 text-[var(--amber-gold)]" />
-                      <span className="text-xs font-mono font-bold text-[var(--amber-gold)] uppercase tracking-widest">
-                        Execute Neural Session
+                      <Sparkles
+                        aria-hidden="true"
+                        className="w-4 h-4 text-primary"
+                      />
+                      <span className="text-sm font-medium text-primary">
+                        Open the research chat
                       </span>
                     </div>
-                    <ArrowUpRight className="w-4 h-4 text-[var(--amber-gold)]/60 group-hover:text-[var(--amber-gold)] group-hover:translate-x-1 group-hover:-translate-y-1 transition-all" />
+                    <ArrowUpRight
+                      aria-hidden="true"
+                      className="w-4 h-4 text-primary/60 group-hover:text-primary group-hover:translate-x-1 group-hover:-translate-y-1 transition-all"
+                    />
                   </div>
                 </Link>
               </div>
