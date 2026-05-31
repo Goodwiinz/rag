@@ -5,10 +5,17 @@ import { useRouter } from 'next/navigation';
 import type { ResearchProject } from '@/store/research-engine-store';
 
 const statusStyles: Record<string, string> = {
-  active: 'bg-sol/10 text-sol border-sol/30',
-  paused: 'bg-helios/10 text-helios border-helios/30',
-  completed: 'bg-brand-cyan/10 text-brand-cyan border-brand-cyan/30',
-  archived: 'bg-gray-500/10 text-gray-400 border-gray-500/30',
+  active: 'bg-primary/10 text-primary border-primary/30',
+  paused: 'bg-muted text-muted-foreground border-border',
+  completed: 'bg-primary/5 text-primary/80 border-primary/20',
+  archived: 'bg-muted/60 text-muted-foreground border-border',
+};
+
+const statusLabels: Record<string, string> = {
+  active: 'Active',
+  paused: 'Paused',
+  completed: 'Completed',
+  archived: 'Archived',
 };
 
 export interface ProjectCardProps {
@@ -19,6 +26,7 @@ export function ProjectCard({ project }: ProjectCardProps) {
   const router = useRouter();
   const status = project.status || 'active';
   const statusClass = statusStyles[status] || statusStyles.active;
+  const statusLabel = statusLabels[status] || status;
 
   const createdDate = project.created_at
     ? new Date(project.created_at).toLocaleDateString()
@@ -29,35 +37,38 @@ export function ProjectCard({ project }: ProjectCardProps) {
       onClick={() =>
         router.push(`/research-engine/projects/${project.id}/blueprint`)
       }
-      className="group bg-card border border-border rounded-lg p-4 cursor-pointer hover:border-primary/50 transition-colors"
+      className="group bg-card border border-border rounded-lg p-4 cursor-pointer shadow-sm transition-colors hover:border-primary/50"
     >
       <div className="flex items-start justify-between gap-3 mb-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <FolderKanban className="h-5 w-5 text-sol shrink-0" />
-            <h3 className="font-mono font-medium text-gray-200 truncate group-hover:text-sol transition-colors">
+            <FolderKanban
+              aria-hidden="true"
+              className="h-5 w-5 text-primary shrink-0"
+            />
+            <h3 className="font-medium text-foreground truncate transition-colors group-hover:text-primary">
               {project.name}
             </h3>
           </div>
           <div className="mt-2">
             <span
-              className={`px-2 py-0.5 border rounded text-[11px] uppercase font-mono ${statusClass}`}
+              className={`inline-flex items-center px-2 py-0.5 rounded-md border text-[11px] font-medium ${statusClass}`}
             >
-              {status}
+              {statusLabel}
             </span>
           </div>
         </div>
       </div>
 
       {project.description && (
-        <p className="text-sm text-gray-500 mb-3 line-clamp-2">
+        <p className="text-sm text-muted-foreground mb-3 line-clamp-2">
           {project.description}
         </p>
       )}
 
       {createdDate && (
-        <div className="flex items-center gap-1 text-xs text-gray-600 font-mono">
-          <Calendar className="h-3 w-3" />
+        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <Calendar aria-hidden="true" className="h-3 w-3" />
           <span>Created {createdDate}</span>
         </div>
       )}

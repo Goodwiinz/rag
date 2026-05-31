@@ -20,15 +20,14 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 
-function SurfaceEyebrow({ children }: { children: React.ReactNode }) {
+function SectionEyebrow({ children }: { children: React.ReactNode }) {
   return (
     <p
-      className="m-0 mb-2 uppercase"
+      className="m-0 mb-2"
       style={{
         fontFamily: 'var(--nous-font-ui)',
-        fontSize: '11px',
-        fontWeight: 600,
-        letterSpacing: '0.14em',
+        fontSize: '13px',
+        fontWeight: 500,
         color: 'var(--nous-sol-safe)',
       }}
     >
@@ -72,12 +71,11 @@ function SurfaceSub({ children }: { children: React.ReactNode }) {
 function SidebarLabel({ children }: { children: React.ReactNode }) {
   return (
     <p
-      className="m-0 mb-2.5 uppercase"
+      className="m-0 mb-2.5"
       style={{
         fontFamily: 'var(--nous-font-ui)',
-        fontSize: '11px',
+        fontSize: '12px',
         fontWeight: 600,
-        letterSpacing: '0.08em',
         color: 'var(--nous-fg-3)',
       }}
     >
@@ -115,9 +113,10 @@ function SidebarItem({
       <span>{label}</span>
       {count !== undefined ? (
         <small
+          className="tabular-nums"
           style={{
-            fontFamily: 'var(--nous-font-mono)',
-            fontSize: '11px',
+            fontFamily: 'var(--nous-font-ui)',
+            fontSize: '12px',
             color: 'var(--nous-fg-3)',
           }}
         >
@@ -143,13 +142,13 @@ const THREADS: Array<{
   {
     title: 'How does the attention mechanism differ in Mamba-2?',
     snippet:
-      'Based on your annotated PDFs: Mamba-2 introduces state-space duality, framing attention as a structured matrix…',
+      'Based on your annotated PDFs: Mamba-2 introduces state-space duality, framing attention as a structured matrix.',
     time: '2h ago',
   },
   {
     title: 'Summarize Q3 customer interviews',
     snippet:
-      'Three recurring themes emerged across 14 calls: onboarding friction, pricing confusion, and a desire for…',
+      'Three recurring themes emerged across 14 calls: onboarding friction, pricing confusion, and a desire for deeper reporting.',
     time: 'yesterday',
   },
   {
@@ -185,7 +184,7 @@ const SOURCES: Array<{
       'Through State Space Duality (SSD), we frame attention and selective SSMs as instances of the same structured-matrix computation, enabling algorithms that share strengths of both.',
   },
   {
-    title: 'State Space Duality — Primer',
+    title: 'State Space Duality, a primer',
     source: 'Internal notes · ssd_primer.md',
     score: 0.76,
     excerpt:
@@ -235,7 +234,7 @@ export default function DesignSystemPage() {
         }}
       >
         <div className="mx-auto max-w-[1400px] px-6">
-          <SurfaceEyebrow>Frontend UI Kit</SurfaceEyebrow>
+          <SectionEyebrow>Frontend UI kit</SectionEyebrow>
           <h1
             className="m-0 mb-2"
             style={{
@@ -246,7 +245,7 @@ export default function DesignSystemPage() {
               color: 'var(--nous-fg-1)',
             }}
           >
-            NOUS — Components & Surfaces
+            Components and surfaces
           </h1>
           <p
             className="m-0 max-w-[640px] leading-relaxed"
@@ -283,11 +282,11 @@ export default function DesignSystemPage() {
         onMouseEnter={() => setActiveTab('#primitives')}
       >
         <div className="mx-auto max-w-[1400px] px-6">
-          <SurfaceEyebrow>01 · Primitives</SurfaceEyebrow>
+          <SectionEyebrow>01 · Primitives</SectionEyebrow>
           <SurfaceTitle>Buttons, badges, inputs</SurfaceTitle>
           <SurfaceSub>
             Base interactive elements. Every color resolves through CSS
-            variables so dark mode flips automatically when the{' '}
+            variables, so dark mode flips automatically when the{' '}
             <code className="nous-mono">.dark</code> class or{' '}
             <code className="nous-mono">data-theme=&quot;dark&quot;</code>{' '}
             attribute is set on a parent.
@@ -318,7 +317,7 @@ export default function DesignSystemPage() {
               <div className="flex flex-wrap items-center gap-3">
                 <Badge variant="muted">Draft</Badge>
                 <Badge variant="accent">Featured</Badge>
-                <Badge variant="success">✓ Verified</Badge>
+                <Badge variant="success">Verified</Badge>
                 <Badge variant="warning">Review</Badge>
                 <Badge variant="outline">Archived</Badge>
               </div>
@@ -341,12 +340,11 @@ export default function DesignSystemPage() {
               <Card interactive>
                 <div className="px-6 pb-3 pt-6">
                   <p
-                    className="m-0 mb-2 uppercase"
+                    className="m-0 mb-2"
                     style={{
                       fontFamily: 'var(--nous-font-ui)',
-                      fontSize: '11px',
-                      fontWeight: 600,
-                      letterSpacing: '0.14em',
+                      fontSize: '13px',
+                      fontWeight: 500,
                       color: 'var(--nous-sol-safe)',
                     }}
                   >
@@ -394,7 +392,7 @@ export default function DesignSystemPage() {
         onMouseEnter={() => setActiveTab('#workspace')}
       >
         <div className="mx-auto max-w-[1400px] px-6">
-          <SurfaceEyebrow>02 · Workspace home</SurfaceEyebrow>
+          <SectionEyebrow>02 · Workspace home</SectionEyebrow>
           <SurfaceTitle>Dashboard</SurfaceTitle>
           <SurfaceSub>
             Three-column layout: source navigator on the left, recent threads in
@@ -438,7 +436,7 @@ export default function DesignSystemPage() {
                 Good morning, Maya.
               </h1>
               <p
-                className="m-0 mb-8 italic"
+                className="m-0 mb-8"
                 style={{
                   fontFamily: 'var(--nous-font-body)',
                   fontSize: '15px',
@@ -456,7 +454,7 @@ export default function DesignSystemPage() {
                     interactive
                     role="button"
                     tabIndex={0}
-                    className="flex cursor-pointer justify-between px-5 py-4 shadow-none"
+                    className="flex cursor-pointer justify-between px-5 py-4 shadow-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                   >
                     <div>
                       <p
@@ -484,8 +482,8 @@ export default function DesignSystemPage() {
                     <span
                       className="whitespace-nowrap"
                       style={{
-                        fontFamily: 'var(--nous-font-mono)',
-                        fontSize: '11px',
+                        fontFamily: 'var(--nous-font-ui)',
+                        fontSize: '12px',
                         color: 'var(--nous-fg-3)',
                       }}
                     >
@@ -522,11 +520,11 @@ export default function DesignSystemPage() {
         onMouseEnter={() => setActiveTab('#chat')}
       >
         <div className="mx-auto max-w-[1400px] px-6">
-          <SurfaceEyebrow>03 · Agent chat</SurfaceEyebrow>
-          <SurfaceTitle>Composer and streamed reply</SurfaceTitle>
+          <SectionEyebrow>03 · Agent chat</SectionEyebrow>
+          <SurfaceTitle>Composer and reply</SurfaceTitle>
           <SurfaceSub>
-            The reply is serif (Source Serif 4, 16px, 1.65 line-height).
-            Citations are amber pills rendered inline as superscripts.
+            The reply is set in Source Serif 4 at 16px with 1.65 line-height.
+            Citations are warm-gold pills rendered inline as superscripts.
           </SurfaceSub>
 
           <div className="mx-auto max-w-[820px]">
@@ -540,12 +538,11 @@ export default function DesignSystemPage() {
               style={{ borderColor: 'var(--nous-border-1)' }}
             >
               <p
-                className="m-0 mb-2 uppercase"
+                className="m-0 mb-2"
                 style={{
                   fontFamily: 'var(--nous-font-ui)',
-                  fontSize: '11px',
+                  fontSize: '12px',
                   fontWeight: 600,
-                  letterSpacing: '0.08em',
                   color: 'var(--nous-fg-3)',
                 }}
               >
@@ -567,12 +564,11 @@ export default function DesignSystemPage() {
 
             <div className="py-5">
               <p
-                className="m-0 mb-2 uppercase"
+                className="m-0 mb-2"
                 style={{
                   fontFamily: 'var(--nous-font-ui)',
-                  fontSize: '11px',
+                  fontSize: '12px',
                   fontWeight: 600,
-                  letterSpacing: '0.08em',
                   color: 'var(--nous-sol-safe)',
                 }}
               >
@@ -595,16 +591,16 @@ export default function DesignSystemPage() {
                 </p>
                 <p className="m-0 mb-3">
                   Mamba-2<span className="nous-cite-ref">2</span> instead
-                  re-derives attention as a structured state-space matrix — the
+                  re-derives attention as a structured state-space matrix, the
                   &quot;SSD&quot; duality
-                  <span className="nous-cite-ref">3</span> — which lets the same
+                  <span className="nous-cite-ref">3</span>, which lets the same
                   computation run either recurrently or in parallel, trading
                   FLOPs for a smaller activation footprint.
                 </p>
                 <p className="m-0 mb-3">
                   In benchmarks on Pile
                   <span className="nous-cite-ref">4</span>, Mamba-2 matches
-                  Transformer++ quality at 8× the training throughput for long
+                  Transformer++ quality at 8x the training throughput for long
                   contexts.
                 </p>
                 <div className="mt-3 flex flex-wrap gap-2">
@@ -613,7 +609,7 @@ export default function DesignSystemPage() {
                       <button
                         key={chip}
                         type="button"
-                        className="rounded-full border px-3 py-1 text-xs font-medium transition-colors"
+                        className="rounded-full border px-3 py-1 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                         style={{
                           fontFamily: 'var(--nous-font-ui)',
                           borderColor: 'var(--nous-border-1)',
@@ -643,11 +639,11 @@ export default function DesignSystemPage() {
         onMouseEnter={() => setActiveTab('#search')}
       >
         <div className="mx-auto max-w-[1400px] px-6">
-          <SurfaceEyebrow>04 · Retrieved sources</SurfaceEyebrow>
+          <SectionEyebrow>04 · Retrieved sources</SectionEyebrow>
           <SurfaceTitle>Hybrid search results</SurfaceTitle>
           <SurfaceSub>
-            Each result shows title, source + page, an extractive excerpt, and a
-            relevance score. Citations map one-to-one with the chat above.
+            Each result shows title, source and page, an extractive excerpt, and
+            a relevance score. Citations map one-to-one with the chat above.
           </SurfaceSub>
 
           <div className="grid grid-cols-1 gap-10 lg:grid-cols-[1fr_280px]">
@@ -677,8 +673,8 @@ export default function DesignSystemPage() {
               </div>
               <div>
                 <SidebarLabel>Relevance</SidebarLabel>
-                <SidebarItem label="> 80%" count={2} />
-                <SidebarItem label="60–80%" count={2} />
+                <SidebarItem label="Above 80%" count={2} />
+                <SidebarItem label="60 to 80%" count={2} />
               </div>
             </aside>
           </div>
@@ -687,14 +683,14 @@ export default function DesignSystemPage() {
 
       <footer className="py-12 text-center">
         <p
-          className="m-0 italic"
+          className="m-0"
           style={{
             fontFamily: 'var(--nous-font-body)',
             fontSize: '13px',
             color: 'var(--nous-fg-3)',
           }}
         >
-          NOUS UI kit · Next.js 15 + TypeScript + Tailwind · colors &amp; type
+          NOUS UI kit · Next.js 15 + TypeScript + Tailwind · colors and type
           resolved via CSS variables
         </p>
       </footer>
@@ -718,13 +714,12 @@ function PrimitiveCard({
       }}
     >
       <h3
-        className="m-0 mb-5 uppercase"
+        className="m-0 mb-5"
         style={{
           fontFamily: 'var(--nous-font-ui)',
-          fontSize: '13px',
+          fontSize: '14px',
           fontWeight: 600,
-          letterSpacing: '0.08em',
-          color: 'var(--nous-fg-3)',
+          color: 'var(--nous-fg-2)',
         }}
       >
         {title}

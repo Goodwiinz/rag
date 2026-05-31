@@ -48,21 +48,23 @@ export function SourceSelector({
     <Popover>
       <PopoverTrigger asChild>
         <button
+          type="button"
           disabled={disabled}
           className={cn(
-            'flex items-center gap-2 px-3 py-1.5 rounded border text-xs font-mono transition-colors',
-            'bg-black/30 border-[#1a1a1a] text-gray-300',
-            'hover:bg-white/5 hover:border-brand-cyan/40',
+            'flex items-center gap-2 px-3 py-2 rounded-lg border text-sm transition-colors',
+            'bg-background border-border text-foreground',
+            'hover:border-primary/40 hover:bg-muted/50',
+            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
             'disabled:opacity-50 disabled:cursor-not-allowed'
           )}
         >
-          <Database className="h-3.5 w-3.5 text-brand-cyan" />
-          <span>Sources ({selected.length})</span>
+          <Database aria-hidden="true" className="h-4 w-4 text-primary" />
+          <span className="tabular-nums">Sources ({selected.length})</span>
         </button>
       </PopoverTrigger>
       <PopoverContent
         align="start"
-        className="w-56 bg-[#0a0a0a] border-[#1a1a1a] p-2"
+        className="w-56 bg-popover border-border p-2"
       >
         <div className="space-y-1">
           {SOURCES.map((source) => {
@@ -71,14 +73,16 @@ export function SourceSelector({
 
             return (
               <button
+                type="button"
                 key={source.id}
                 onClick={() => handleToggle(source.id)}
                 disabled={isLastSelected}
                 className={cn(
-                  'flex items-center gap-2.5 w-full px-2.5 py-2 rounded text-left text-sm font-mono transition-colors',
+                  'flex items-center gap-2.5 w-full px-2.5 py-2 rounded-lg text-left text-sm transition-colors',
+                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                   isSelected
-                    ? 'text-gray-200 bg-white/5'
-                    : 'text-gray-500 hover:bg-white/5 hover:text-gray-300',
+                    ? 'text-foreground bg-muted/60'
+                    : 'text-muted-foreground hover:bg-muted/40 hover:text-foreground',
                   isLastSelected && 'cursor-not-allowed opacity-60'
                 )}
               >
@@ -86,18 +90,14 @@ export function SourceSelector({
                   checked={isSelected}
                   onCheckedChange={() => handleToggle(source.id)}
                   disabled={isLastSelected}
-                  className={cn(
-                    'h-3.5 w-3.5 rounded-sm border',
-                    isSelected
-                      ? 'border-brand-cyan data-[state=checked]:bg-brand-cyan data-[state=checked]:text-black'
-                      : 'border-[#333]'
-                  )}
+                  className="h-3.5 w-3.5 rounded-sm border-border data-[state=checked]:bg-primary data-[state=checked]:border-primary data-[state=checked]:text-primary-foreground"
                   onClick={(e) => e.stopPropagation()}
                 />
                 <source.icon
+                  aria-hidden="true"
                   className={cn(
                     'h-3.5 w-3.5 shrink-0',
-                    isSelected ? 'text-brand-cyan' : 'text-gray-600'
+                    isSelected ? 'text-primary' : 'text-muted-foreground'
                   )}
                 />
                 <span className="truncate">{source.label}</span>
