@@ -4,7 +4,6 @@ import { AppSidebar } from '@/components/layout/AppSidebar';
 import {
     Breadcrumb,
     BreadcrumbItem,
-    BreadcrumbLink,
     BreadcrumbList,
     BreadcrumbPage,
     BreadcrumbSeparator,
@@ -135,7 +134,9 @@ export function DashboardLayout({ children, fullHeight = false }: DashboardLayou
           <Breadcrumb>
             <BreadcrumbList>
               <BreadcrumbItem className="hidden md:block">
-                <BreadcrumbLink href="#">{breadcrumb.section}</BreadcrumbLink>
+                <span className="text-muted-foreground">
+                  {breadcrumb.section}
+                </span>
               </BreadcrumbItem>
               <BreadcrumbSeparator className="hidden md:block" />
               <BreadcrumbItem>
@@ -146,19 +147,42 @@ export function DashboardLayout({ children, fullHeight = false }: DashboardLayou
 
           {/* Right side actions */}
           <div className="ml-auto flex items-center gap-3">
-            <Button variant="ghost" size="sm" className="hidden md:flex h-7 text-xs">
-              Feedback
+            <Button
+              variant="ghost"
+              size="sm"
+              className="hidden md:flex h-7 text-xs"
+              asChild
+            >
+              <a
+                href="https://github.com/Goodwiinz/rag/issues/new"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Feedback
+              </a>
             </Button>
 
             <Separator orientation="vertical" className="h-4 hidden md:block" />
 
-            <a href="#" className="flex items-center text-xs text-muted-foreground hover:text-foreground gap-1 transition-colors">
-              <Book className="w-3.5 h-3.5" />
+            <a
+              href="https://github.com/Goodwiinz/rag#readme"
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Documentation (opens in a new tab)"
+              className="flex items-center text-xs text-muted-foreground hover:text-foreground gap-1 transition-colors"
+            >
+              <Book aria-hidden="true" className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Docs</span>
             </a>
 
-            <a href="#" className="flex items-center text-xs text-muted-foreground hover:text-foreground gap-1 transition-colors">
-              <HelpCircle className="w-3.5 h-3.5" />
+            <a
+              href="https://github.com/Goodwiinz/rag/issues"
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Support (opens in a new tab)"
+              className="flex items-center text-xs text-muted-foreground hover:text-foreground gap-1 transition-colors"
+            >
+              <HelpCircle aria-hidden="true" className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Support</span>
             </a>
 
@@ -169,8 +193,8 @@ export function DashboardLayout({ children, fullHeight = false }: DashboardLayou
                 <span className="text-xs font-medium leading-none">{user?.email?.split('@')[0] || 'User'}</span>
                 <span className="text-[10px] text-muted-foreground leading-none mt-0.5">Admin</span>
               </div>
-              <div className="h-7 w-7 rounded-full bg-muted border flex items-center justify-center text-muted-foreground hover:border-foreground/20 cursor-pointer transition">
-                <UserIcon className="w-3.5 h-3.5" />
+              <div className="h-7 w-7 rounded-full bg-muted border flex items-center justify-center text-muted-foreground">
+                <UserIcon aria-hidden="true" className="w-3.5 h-3.5" />
               </div>
             </div>
           </div>

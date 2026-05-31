@@ -198,6 +198,18 @@ export default function SearchPage() {
     [input, isLoading]
   );
 
+  // Run an initial query passed via ?q= (e.g. from the dashboard quick search).
+  // Read from window to avoid a useSearchParams Suspense boundary on this page.
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search).get('q');
+    if (q && q.trim()) {
+      setInput(q);
+      void runSearch(q);
+    }
+    // Mount-only: consume the param once.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   return (
     <div className="relative flex h-full flex-col overflow-hidden">
       <div className="min-h-0 flex-1 overflow-y-auto">
