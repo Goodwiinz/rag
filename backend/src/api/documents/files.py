@@ -22,7 +22,11 @@ from src.core.dependencies import (
 from src.models.document import Document, DocumentType, ProcessingStatus
 from src.models.organization import Organization
 from src.models.user import User, UserRole
+import logging
+
 from src.services.documents.file_service import FileService, get_file_service
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/files", tags=["files"])
 
@@ -81,9 +85,6 @@ async def upload_file(
     """Upload a file to the system"""
 
     # Debug logging
-    import logging
-
-    logger = logging.getLogger(__name__)
     logger.info(f"📤 Upload Request Debug:")
     logger.info(f"  - User ID: {current_user.id}")
     logger.info(f"  - User Email: {current_user.email}")
@@ -180,7 +181,8 @@ async def upload_file(
         )
 
     except Exception as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        logger.error("Error uploading file: %s", str(e), exc_info=True)
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Failed to upload file")
 
 
 @router.get("/", response_model=FileListResponse)
@@ -239,8 +241,9 @@ async def list_files(
         )
 
     except Exception as e:
+        logger.error("Error listing files: %s", str(e), exc_info=True)
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal server error"
         )
 
 
@@ -366,7 +369,8 @@ async def update_file_metadata(
 
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        logger.error("Error updating file metadata: %s", str(e), exc_info=True)
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Failed to update file metadata")
 
 
 @router.delete("/{file_id}")
@@ -403,7 +407,8 @@ async def delete_file(
             )
 
     except Exception as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        logger.error("Error deleting file: %s", str(e), exc_info=True)
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Failed to delete file")
 
 
 @router.get("/{file_id}/content")
@@ -586,8 +591,9 @@ async def get_file_statistics(
         stats = await file_service.get_file_stats(str(organization.id))
         return FileStatsResponse(**stats)
     except Exception as e:
+        logger.error("Error getting file stats: %s", str(e), exc_info=True)
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal server error"
         )
 
 
@@ -639,4 +645,5 @@ async def reprocess_file(
 
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        logger.error("Error queueing file for reprocessing: %s", str(e), exc_info=True)
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Failed to queue file for reprocessing")
