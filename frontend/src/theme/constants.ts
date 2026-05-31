@@ -16,6 +16,11 @@
 // CORE COLOR PALETTE
 // =============================================================================
 
+// NOTE: values remapped onto the NOUS "Observatory" brand palette (2026-05-31).
+// Keys are unchanged so every consumer updates for free. The legacy "phosphor"/
+// "cyan"/"terminal" key names are kept only for backward-compat; the VALUES are
+// brand tokens now (One Voice gold accent, warm-dark surfaces, no pure white,
+// no cold blue-grey). Don't reintroduce the old terminal/cyan hexes.
 export const COLORS = {
   // NOUS brand accent (Sol / Helios / Apollo)
   phosphorGreen: '#D4A039',
@@ -28,45 +33,46 @@ export const COLORS = {
   amberMuted: '#E8B84A33',
   amberSubtle: '#E8B84A1a',
 
-  cyan: '#00d4ff',
-  cyanDim: '#00d4ff80',
-  cyanMuted: '#00d4ff33',
-  cyanSubtle: '#00d4ff1a',
+  // Legacy "cyan" secondary collapsed onto the single gold accent (One Voice).
+  cyan: '#D4A039',
+  cyanDim: '#D4A03980',
+  cyanMuted: '#D4A03933',
+  cyanSubtle: '#D4A0391a',
 
-  // Status colors
-  success: '#22c55e',
-  successMuted: '#22c55e33',
+  // Status colors — brand semantic signal (Terra / Corona / Mars); info → neutral.
+  success: '#34d399',
+  successMuted: '#34d39933',
   warning: '#f59e0b',
   warningMuted: '#f59e0b33',
   error: '#ef4444',
   errorMuted: '#ef444433',
-  info: '#3b82f6',
-  infoMuted: '#3b82f633',
+  info: '#8a8070',
+  infoMuted: '#8a807033',
 
-  // Terminal backgrounds
-  background: '#0a0a0f',
-  surface: '#0d0d12',
-  surfaceHover: '#141419',
-  surfaceActive: '#1a1a20',
-  elevated: '#1a1a20',
+  // Warm-dark surfaces (Nyx → Umber depth stack), not cold blue-grey.
+  background: '#141210',
+  surface: '#1e1b17',
+  surfaceHover: '#28241e',
+  surfaceActive: '#332e26',
+  elevated: '#28241e',
 
-  // Terminal borders
-  border: '#30363d',
-  borderMuted: '#21262d',
-  borderSubtle: '#161b22',
+  // Warm borders (Shade family).
+  border: '#2a261f',
+  borderMuted: '#28241e',
+  borderSubtle: '#1e1b17',
 
-  // Terminal text
-  text: '#ffffff',
-  textMuted: '#8b949e',
-  textSubtle: '#484f58',
-  textDisabled: '#30363d',
+  // Warm ivory text — never pure white.
+  text: '#f5f0e8',
+  textMuted: '#c8bfa8',
+  textSubtle: '#8a8070',
+  textDisabled: '#524c42',
 
-  // Chart colors (for data visualization)
+  // Chart colors (data viz is the one sanctioned multi-hue zone; curated + warm).
   chart1: '#D4A039', // Sol gold
-  chart2: '#00d4ff', // cyan
+  chart2: '#0e7490', // deep teal
   chart3: '#E8B84A', // Helios
-  chart4: '#a855f7', // purple
-  chart5: '#ec4899', // pink
+  chart4: '#b45309', // burnt amber
+  chart5: '#9f1239', // deep rose
 } as const;
 
 // =============================================================================
