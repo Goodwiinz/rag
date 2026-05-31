@@ -12,7 +12,7 @@ import {
 import type { FileTypeStats } from '@/services/documentAnalyticsApi';
 import analyticsService from '@/services/analyticsService';
 import type { ServiceStatus } from '@/services/analyticsService';
-import { AnimatePresence, motion } from 'framer-motion';
+import { motion } from 'framer-motion';
 import {
   Activity,
   ArrowUpRight,
@@ -69,7 +69,6 @@ export default function DashboardPage() {
   });
 
   const [mounted, setMounted] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
   const [showKeyboardShortcuts, setShowKeyboardShortcuts] = useState(false);
   const [showQuickSearch, setShowQuickSearch] = useState(false);
   const [currentTime, setCurrentTime] = useState('');
@@ -127,12 +126,6 @@ export default function DashboardPage() {
       // Analytics not initialized
     }
   }, [isAuthenticated, user, documents]);
-
-  // Loading state
-  useEffect(() => {
-    const timer = setTimeout(() => setIsLoading(false), 800);
-    return () => clearTimeout(timer);
-  }, []);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -244,69 +237,23 @@ export default function DashboardPage() {
     },
   ];
 
-  // System services — fallback to defaults when API hasn't responded yet
-  const displayServices =
-    services.length > 0
-      ? services
-      : [
-          // TODO: wire to /health endpoint when available
-          { name: 'API Gateway', status: 'online', latency: '—', load: 0 },
-          { name: 'PostgreSQL', status: 'online', latency: '—', load: 0 },
-          { name: 'Vector Store', status: 'online', latency: '—', load: 0 },
-          { name: 'Neo4j Graph', status: 'online', latency: '—', load: 0 },
-          { name: 'Redis Cache', status: 'online', latency: '—', load: 0 },
-          { name: 'AI Engine', status: 'online', latency: '—', load: 0 },
-        ];
+  // System services — real data only. Loading / empty / error states render
+  // honestly in the panel below; no fabricated "online" placeholders.
+  const hasServiceData = services.length > 0;
 
-  // Recent activity — wired to state, with fallback placeholder
+  // Recent activity — real data only; an honest empty state renders below.
   // TODO: wire to /activity or /events endpoint when available
-  const displayActivity =
-    recentActivity.length > 0
-      ? recentActivity
-      : [
-          {
-            type: 'process',
-            text: 'Waiting for activity data...',
-            time: 'just now',
-          },
-        ];
+  const hasActivity = recentActivity.length > 0;
 
-  // Document type breakdown — wired to real /files/stats data
+  // Document type breakdown — real /files/stats data only (no fabricated split).
   const totalDocCount = filesByType.reduce((sum, ft) => sum + ft.count, 0);
-  const docTypes =
-    filesByType.length > 0
-      ? filesByType.map((ft) => ({
-          type: ft.type.toUpperCase(),
-          count: ft.count,
-          icon: DOC_TYPE_ICON_MAP[ft.type.toLowerCase()] ?? FileText,
-          color: DOC_TYPE_COLOR_MAP[ft.type.toLowerCase()] ?? COLORS.info,
-        }))
-      : [
-          {
-            type: 'PDF',
-            count: Math.floor(stats.documents * 0.4),
-            icon: FileText,
-            color: COLORS.error,
-          },
-          {
-            type: 'Images',
-            count: Math.floor(stats.documents * 0.3),
-            icon: ImageIcon,
-            color: COLORS.info,
-          },
-          {
-            type: 'Video',
-            count: Math.floor(stats.documents * 0.2),
-            icon: FileVideo,
-            color: COLORS.chart4,
-          },
-          {
-            type: 'Audio',
-            count: Math.floor(stats.documents * 0.1),
-            icon: Music,
-            color: COLORS.amber,
-          },
-        ];
+  const docTypes = filesByType.map((ft) => ({
+    type: ft.type.toUpperCase(),
+    count: ft.count,
+    icon: DOC_TYPE_ICON_MAP[ft.type.toLowerCase()] ?? FileText,
+    color: DOC_TYPE_COLOR_MAP[ft.type.toLowerCase()] ?? COLORS.info,
+  }));
+  const hasDocTypes = docTypes.length > 0;
 
   return (
     <div className="min-h-screen bg-[var(--terminal-bg)] relative overflow-hidden flex flex-col">
@@ -323,7 +270,10 @@ export default function DashboardPage() {
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div className="flex items-center gap-4">
                 <div className="w-12 h-12 rounded-lg bg-[var(--phosphor-green)]/10 border border-[var(--phosphor-green)]/20 flex items-center justify-center">
-                  <Terminal className="w-6 h-6 text-[var(--phosphor-green)]" />
+                  <Terminal
+                    aria-hidden="true"
+                    className="w-6 h-6 text-[var(--phosphor-green)]"
+                  />
                 </div>
                 <div>
                   <h1 className="text-xl font-mono font-bold text-[var(--terminal-text)]">
@@ -345,8 +295,11 @@ export default function DashboardPage() {
                     {mounted ? currentTime : '--:--:--'}
                   </span>
                 </div>
-                <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-[var(--phosphor-green)]/30 bg-[var(--phosphor-green)]/5">
-                  <span className="relative flex h-2 w-2">
+                <div
+                  role="status"
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-[var(--phosphor-green)]/30 bg-[var(--phosphor-green)]/5"
+                >
+                  <span aria-hidden="true" className="relative flex h-2 w-2">
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[var(--phosphor-green)] opacity-75" />
                     <span className="relative inline-flex rounded-full h-2 w-2 bg-[var(--phosphor-green)]" />
                   </span>
@@ -481,61 +434,103 @@ export default function DashboardPage() {
             </div>
 
             <div className="p-5">
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                {displayServices.map((service) => (
-                  <div
-                    key={service.name}
-                    className="p-4 rounded-xl border border-[var(--terminal-border)] bg-[var(--terminal-bg)]/20 hover:border-[var(--phosphor-green)]/20 hover:shadow-[0_0_20px_rgba(212,160,57,0.06)] transition-all group"
+              {servicesState === 'error' ? (
+                <div
+                  role="alert"
+                  className="flex flex-col items-start gap-3 p-4 rounded-xl border border-[var(--terminal-border)] bg-[var(--terminal-bg)]/20"
+                >
+                  <p className="text-[11px] font-mono text-[var(--terminal-text)]">
+                    Couldn&apos;t reach the service health endpoint.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setServicesState('loading');
+                      fetchDashboardData();
+                    }}
+                    className="text-[11px] font-mono uppercase tracking-widest text-[var(--phosphor-green)] underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--phosphor-green)]"
                   >
-                    <div className="flex items-center justify-between mb-3">
-                      <span className="text-[11px] font-mono text-[var(--terminal-text-muted)] group-hover:text-[var(--terminal-text)] transition-colors">
-                        {service.name}
-                      </span>
-                      {servicesState === 'loading' ? (
-                        <span className="relative flex h-2 w-2">
-                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[var(--amber-gold)] opacity-75" />
-                          <span className="relative inline-flex rounded-full h-2 w-2 bg-[var(--amber-gold)]" />
-                        </span>
-                      ) : servicesState === 'error' ? (
-                        <div className="w-1.5 h-1.5 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.6)]" />
-                      ) : (
-                        <div className="w-1.5 h-1.5 rounded-full bg-[var(--phosphor-green)] shadow-[0_0_8px_var(--phosphor-green)]" />
-                      )}
-                    </div>
-                    <div className="flex items-baseline gap-2 mb-3">
-                      <span className="text-lg font-mono text-[var(--terminal-text)]">
-                        {servicesState === 'loading' ? '...' : service.latency}
-                      </span>
-                      <span className="text-[9px] font-mono text-[var(--terminal-text-dim)] font-bold tracking-tighter">
-                        {servicesState === 'loading'
-                          ? 'connecting'
-                          : servicesState === 'error'
-                            ? 'unreachable'
-                            : 'DELAY'}
-                      </span>
-                    </div>
-                    {/* Load bar */}
-                    <div className="h-1 bg-[var(--terminal-border)] rounded-full overflow-hidden">
-                      <motion.div
-                        initial={{ width: 0 }}
-                        animate={{ width: `${service.load}%` }}
-                        transition={{ duration: 1, delay: 0.5 }}
-                        className={cn(
-                          'h-full rounded-full',
-                          service.load < 50 && 'bg-[var(--phosphor-green)]/50',
-                          service.load >= 50 &&
-                            service.load < 75 &&
-                            'bg-[var(--amber-gold)]/60',
-                          service.load >= 75 && 'bg-red-500/60'
-                        )}
-                      />
-                    </div>
-                    <div className="text-[9px] font-mono text-[var(--terminal-text-dim)] mt-2 uppercase tracking-tight">
-                      {service.load}% resource load
-                    </div>
-                  </div>
-                ))}
-              </div>
+                    Retry
+                  </button>
+                </div>
+              ) : !hasServiceData ? (
+                <div
+                  role="status"
+                  className="p-4 text-[11px] font-mono text-[var(--terminal-text-dim)]"
+                >
+                  {servicesState === 'loading'
+                    ? 'Checking service health…'
+                    : 'No service data available.'}
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                  {services.map((service) => {
+                    const statusLabel =
+                      service.status === 'online' ? 'Online' : service.status;
+                    return (
+                      <div
+                        key={service.name}
+                        className="p-4 rounded-xl border border-[var(--terminal-border)] bg-[var(--terminal-bg)]/20 hover:border-[var(--phosphor-green)]/20 hover:shadow-[0_0_20px_rgba(212,160,57,0.06)] transition-all group"
+                      >
+                        <div className="flex items-center justify-between mb-3">
+                          <span className="text-[11px] font-mono text-[var(--terminal-text-muted)] group-hover:text-[var(--terminal-text)] transition-colors">
+                            {service.name}
+                          </span>
+                          <span className="flex items-center gap-1.5">
+                            <span
+                              aria-hidden="true"
+                              className={cn(
+                                'w-1.5 h-1.5 rounded-full',
+                                service.status === 'online'
+                                  ? 'bg-[var(--phosphor-green)] shadow-[0_0_8px_var(--phosphor-green)]'
+                                  : 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.6)]'
+                              )}
+                            />
+                            <span className="text-[9px] font-mono uppercase tracking-tight text-[var(--terminal-text-dim)]">
+                              {statusLabel}
+                            </span>
+                          </span>
+                        </div>
+                        <div className="flex items-baseline gap-2 mb-3">
+                          <span className="text-lg font-mono text-[var(--terminal-text)]">
+                            {service.latency}
+                          </span>
+                          <span className="text-[9px] font-mono text-[var(--terminal-text-dim)] font-bold tracking-tighter uppercase">
+                            latency
+                          </span>
+                        </div>
+                        {/* Load bar */}
+                        <div
+                          className="h-1 bg-[var(--terminal-border)] rounded-full overflow-hidden"
+                          role="progressbar"
+                          aria-valuenow={service.load}
+                          aria-valuemin={0}
+                          aria-valuemax={100}
+                          aria-label={`${service.name} resource load`}
+                        >
+                          <motion.div
+                            initial={{ width: 0 }}
+                            animate={{ width: `${service.load}%` }}
+                            transition={{ duration: 1, delay: 0.5 }}
+                            className={cn(
+                              'h-full rounded-full',
+                              service.load < 50 &&
+                                'bg-[var(--phosphor-green)]/50',
+                              service.load >= 50 &&
+                                service.load < 75 &&
+                                'bg-[var(--amber-gold)]/60',
+                              service.load >= 75 && 'bg-red-500/60'
+                            )}
+                          />
+                        </div>
+                        <div className="text-[9px] font-mono text-[var(--terminal-text-dim)] mt-2 uppercase tracking-tight">
+                          {service.load}% resource load
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </motion.div>
 
@@ -554,36 +549,42 @@ export default function DashboardPage() {
             </div>
 
             <div className="p-4">
-              <div className="space-y-3">
-                {displayActivity.map((item, idx) => (
-                  <motion.div
-                    key={idx}
-                    initial={{ opacity: 0, x: 5 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: 0.5 + idx * 0.05 }}
-                    className="flex items-start gap-3 p-3 rounded-lg border border-[var(--terminal-border)] bg-[var(--terminal-bg)]/10 hover:bg-[var(--terminal-bg)]/30 transition-colors group"
-                  >
-                    <div
-                      className={cn(
-                        'w-1 h-4 rounded-full mt-0.5 shrink-0 transition-all group-hover:h-6',
-                        item.type === 'upload' && 'bg-[var(--phosphor-green)]',
-                        item.type === 'search' && 'bg-[var(--cyan)]',
-                        item.type === 'chat' && 'bg-[var(--amber-gold)]',
-                        item.type === 'process' && 'bg-purple-500',
-                        idx === 0 && 'animate-pulse-live'
-                      )}
-                    />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-[11px] font-mono text-[var(--terminal-text)] truncate">
-                        {item.text}
-                      </p>
-                      <p className="text-[9px] font-mono text-[var(--terminal-text-dim)] mt-0.5">
-                        {item.time}
-                      </p>
-                    </div>
-                  </motion.div>
-                ))}
-              </div>
+              {!hasActivity ? (
+                <p className="p-3 text-[11px] font-mono text-[var(--terminal-text-dim)]">
+                  No recent activity yet.
+                </p>
+              ) : (
+                <div className="space-y-3">
+                  {recentActivity.map((item, idx) => (
+                    <motion.div
+                      key={`${item.type}-${idx}`}
+                      initial={{ opacity: 0, x: 5 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: 0.5 + idx * 0.05 }}
+                      className="flex items-start gap-3 p-3 rounded-lg border border-[var(--terminal-border)] bg-[var(--terminal-bg)]/10 hover:bg-[var(--terminal-bg)]/30 transition-colors group"
+                    >
+                      <div
+                        aria-hidden="true"
+                        className={cn(
+                          'w-1 h-4 rounded-full mt-0.5 shrink-0 transition-all group-hover:h-6',
+                          item.type === 'upload' && 'bg-[var(--phosphor-green)]',
+                          item.type === 'search' && 'bg-[var(--cyan)]',
+                          item.type === 'chat' && 'bg-[var(--amber-gold)]',
+                          item.type === 'process' && 'bg-purple-500'
+                        )}
+                      />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[11px] font-mono text-[var(--terminal-text)] truncate">
+                          {item.text}
+                        </p>
+                        <p className="text-[9px] font-mono text-[var(--terminal-text-dim)] mt-0.5">
+                          {item.time}
+                        </p>
+                      </div>
+                    </motion.div>
+                  ))}
+                </div>
+              )}
             </div>
           </motion.div>
         </div>
@@ -605,39 +606,60 @@ export default function DashboardPage() {
             </div>
 
             <div className="p-6">
-              <div className="space-y-4">
-                {docTypes.map((doc, idx) => (
-                  <div key={doc.type} className="flex items-center gap-4">
-                    <div className="p-2 rounded-lg bg-[var(--terminal-bg)] border border-[var(--terminal-border)]">
-                      <doc.icon
-                        className="w-4 h-4"
-                        style={{ color: doc.color }}
-                      />
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex items-center justify-between mb-1.5">
-                        <span className="text-xs font-mono text-[var(--terminal-text)] font-medium uppercase tracking-tighter">
-                          {doc.type}
-                        </span>
-                        <span className="text-xs font-mono text-[var(--terminal-text-dim)]">
-                          {doc.count} units
-                        </span>
-                      </div>
-                      <div className="h-1.5 bg-[var(--terminal-border)] rounded-full overflow-hidden">
-                        <motion.div
-                          initial={{ width: 0 }}
-                          animate={{
-                            width: `${(doc.count / (totalDocCount || stats.documents || 1)) * 100}%`,
-                          }}
-                          transition={{ duration: 1, delay: 0.6 + idx * 0.1 }}
-                          className="h-full rounded-full"
-                          style={{ backgroundColor: doc.color }}
+              {!hasDocTypes ? (
+                <p className="text-xs font-mono text-[var(--terminal-text-dim)]">
+                  No documents indexed yet.{' '}
+                  <Link
+                    href="/documents/upload"
+                    className="text-[var(--phosphor-green)] underline-offset-4 hover:underline"
+                  >
+                    Upload your first document
+                  </Link>
+                  .
+                </p>
+              ) : (
+                <div className="space-y-4">
+                  {docTypes.map((doc, idx) => (
+                    <div key={doc.type} className="flex items-center gap-4">
+                      <div className="p-2 rounded-lg bg-[var(--terminal-bg)] border border-[var(--terminal-border)]">
+                        <doc.icon
+                          aria-hidden="true"
+                          className="w-4 h-4"
+                          style={{ color: doc.color }}
                         />
                       </div>
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between mb-1.5">
+                          <span className="text-xs font-mono text-[var(--terminal-text)] font-medium uppercase tracking-tighter">
+                            {doc.type}
+                          </span>
+                          <span className="text-xs font-mono text-[var(--terminal-text-dim)]">
+                            {doc.count}
+                          </span>
+                        </div>
+                        <div
+                          className="h-1.5 bg-[var(--terminal-border)] rounded-full overflow-hidden"
+                          role="progressbar"
+                          aria-valuenow={doc.count}
+                          aria-valuemin={0}
+                          aria-valuemax={totalDocCount || doc.count}
+                          aria-label={`${doc.type} document count`}
+                        >
+                          <motion.div
+                            initial={{ width: 0 }}
+                            animate={{
+                              width: `${(doc.count / (totalDocCount || 1)) * 100}%`,
+                            }}
+                            transition={{ duration: 1, delay: 0.6 + idx * 0.1 }}
+                            className="h-full rounded-full"
+                            style={{ backgroundColor: doc.color }}
+                          />
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </div>
           </motion.div>
 
@@ -707,28 +729,6 @@ export default function DashboardPage() {
           </motion.div>
         </div>
       </div>
-
-      {/* Loading Overlay */}
-      <AnimatePresence>
-        {isLoading && (
-          <motion.div
-            initial={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-[var(--terminal-bg)] z-50 flex items-center justify-center"
-          >
-            <div className="text-center">
-              <motion.div
-                animate={{ rotate: 360 }}
-                transition={{ duration: 1.5, repeat: Infinity, ease: 'linear' }}
-                className="w-10 h-10 border-2 border-[var(--phosphor-green)]/10 border-t-[var(--phosphor-green)] rounded-full mx-auto"
-              />
-              <p className="text-[10px] font-mono text-[var(--terminal-text-dim)] mt-4 uppercase tracking-widest">
-                Initializing Neural Interface...
-              </p>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
 
       {/* Modals */}
       <KeyboardShortcuts
