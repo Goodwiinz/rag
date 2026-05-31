@@ -1,23 +1,15 @@
 /**
- * Document Upload Page
- * Terminal Observatory themed document upload interface
+ * Document upload page
+ * Add documents to the knowledge base and track ingestion progress.
  */
 
 'use client';
 
 import { useState, useCallback, useEffect } from 'react';
 import { useDropzone } from 'react-dropzone';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, MotionConfig } from 'framer-motion';
 import { v4 as uuidv4 } from 'uuid';
 import {
-  Terminal,
-  Activity,
-  ArrowRight,
-  ChevronLeft,
-  Database,
-  Cpu,
-  Network,
-  Loader2,
   Upload,
   UploadCloud,
   FilePlus,
@@ -26,12 +18,13 @@ import {
   Music,
   Video,
   Trash2,
-  CheckCircle,
+  CheckCircle2,
   AlertTriangle,
   Sparkles,
   ShieldCheck,
+  Database,
+  ListChecks,
 } from 'lucide-react';
-import Link from 'next/link';
 
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -91,11 +84,6 @@ export default function DocumentUploadPage() {
     setMounted(true);
   }, []);
 
-  // Terminal typing effect
-  useEffect(() => {
-    // Effect removed for cleaner UI
-  }, []);
-
   const getDefaultRequest = (file: File): DocumentUploadRequest => ({
     title: file.name.replace(/\.[^/.]+$/, ''),
     description: '',
@@ -112,7 +100,7 @@ export default function DocumentUploadPage() {
         rejectedFiles.forEach(({ file, errors }) => {
           errors.forEach((error: any) => {
             toast({
-              title: 'Transmission Error',
+              title: 'File rejected',
               description: `${file.name}: ${error.message}`,
               variant: 'destructive',
             });
@@ -123,8 +111,8 @@ export default function DocumentUploadPage() {
 
       if (uploadedFiles.length + acceptedFiles.length > 10) {
         toast({
-          title: 'Queue Overload',
-          description: 'Maximum 10 files allowed per upload session',
+          title: 'Too many files',
+          description: 'You can upload up to 10 files at a time.',
           variant: 'destructive',
         });
         return;
@@ -137,7 +125,7 @@ export default function DocumentUploadPage() {
 
         if (!validation.isValid) {
           toast({
-            title: 'Incompatible Payload',
+            title: 'Unsupported file',
             description: validation.errors.join(', '),
             variant: 'destructive',
           });
@@ -147,18 +135,15 @@ export default function DocumentUploadPage() {
         // Pre-upload duplicate check via content hash
         try {
           const sha256 = await computeSHA256(file);
-          const response: any = await api.post(
-            '/documents/check-duplicate',
-            {
-              sha256,
-            }
-          );
+          const response: any = await api.post('/documents/check-duplicate', {
+            sha256,
+          });
           const data = response?.data ?? response;
           if (data?.exists) {
             const existing = data.document;
             toast({
-              title: 'Duplicate Detected',
-              description: `"${file.name}" matches existing document "${existing?.title || existing?.filename}" — skipped.`,
+              title: 'Already uploaded',
+              description: `"${file.name}" matches existing document "${existing?.title || existing?.filename}", so it was skipped.`,
               variant: 'destructive',
             });
             continue;
@@ -173,7 +158,7 @@ export default function DocumentUploadPage() {
           request: getDefaultRequest(file),
           status: 'pending' as const,
           progress: 0,
-          currentStep: 'Ready for ingestion',
+          currentStep: 'Ready to upload',
         });
       }
 
@@ -224,11 +209,11 @@ export default function DocumentUploadPage() {
           documentId: update.result.document_id,
           jobId: update.result.job_id,
           progress: 100,
-          currentStep: 'Synchronized',
+          currentStep: 'Indexed',
         });
         toast({
-          title: 'Node Ingested',
-          description: `${update.result.title} processed successfully`,
+          title: 'Document ready',
+          description: `${update.result.title} was processed successfully.`,
         });
       }
 
@@ -238,9 +223,9 @@ export default function DocumentUploadPage() {
           error: update.error_message || 'Processing failed',
         });
         toast({
-          title: 'Protocol Breach',
+          title: 'Processing failed',
           description:
-            update.error_message || 'An error occurred during ingestion',
+            update.error_message || 'Something went wrong while processing.',
           variant: 'destructive',
         });
       }
@@ -251,7 +236,7 @@ export default function DocumentUploadPage() {
       updateFileStatus(uploadedFile.id, {
         status: 'uploading',
         progress: 0,
-        currentStep: 'Establishing uplink',
+        currentStep: 'Uploading',
       });
 
       const result = await enhancedDocumentService.uploadDocument(
@@ -272,12 +257,12 @@ export default function DocumentUploadPage() {
     } catch (error) {
       updateFileStatus(uploadedFile.id, {
         status: 'failed',
-        error: error instanceof Error ? error.message : 'Uplink failed',
+        error: error instanceof Error ? error.message : 'Upload failed',
       });
       toast({
-        title: 'Upload Failed',
+        title: 'Upload failed',
         description:
-          error instanceof Error ? error.message : 'An error occurred',
+          error instanceof Error ? error.message : 'Something went wrong.',
         variant: 'destructive',
       });
     }
@@ -287,8 +272,8 @@ export default function DocumentUploadPage() {
     if (authLoading) return;
     if (!isAuthenticated || !organization) {
       toast({
-        title: 'Auth Required',
-        description: 'Authenticate to initialize ingestion.',
+        title: 'Sign in required',
+        description: 'Sign in to start uploading documents.',
         variant: 'destructive',
       });
       return;
@@ -323,302 +308,370 @@ export default function DocumentUploadPage() {
       type.includes('text') ||
       type.includes('document')
     )
-      return <FileText className="w-5 h-5" />;
-    if (type.includes('image')) return <ImageIcon className="w-5 h-5" />;
-    if (type.includes('audio')) return <Music className="w-5 h-5" />;
-    if (type.includes('video')) return <Video className="w-5 h-5" />;
-    return <FilePlus className="w-5 h-5" />;
+      return <FileText aria-hidden="true" className="w-5 h-5" />;
+    if (type.includes('image'))
+      return <ImageIcon aria-hidden="true" className="w-5 h-5" />;
+    if (type.includes('audio'))
+      return <Music aria-hidden="true" className="w-5 h-5" />;
+    if (type.includes('video'))
+      return <Video aria-hidden="true" className="w-5 h-5" />;
+    return <FilePlus aria-hidden="true" className="w-5 h-5" />;
   };
 
+  // Status colour resolves to a brand token; it is always paired with a text
+  // label and icon so colour is never the only signal.
   const getStatusColor = (status: UploadedFile['status']) => {
     switch (status) {
       case 'completed':
-        return 'var(--phosphor-green)';
+        return 'var(--nous-terra)';
       case 'queued':
       case 'processing':
       case 'uploading':
-        return 'var(--cyan)';
+        return 'var(--nous-helios)';
       case 'failed':
-        return 'var(--error-red)';
+        return 'var(--nous-mars)';
       default:
-        return 'var(--terminal-text-muted)';
+        return 'var(--muted-foreground)';
     }
   };
 
-  const fileTypes = [
-    { ext: 'PDF', color: 'var(--error-red)' },
-    { ext: 'DOCX', color: 'var(--cyan)' },
-    { ext: 'TXT', color: 'var(--terminal-text-dim)' },
-    { ext: 'JPG', color: 'var(--amber-gold)' },
-    { ext: 'PNG', color: 'var(--phosphor-green)' },
-    { ext: 'MP3', color: '#a855f7' },
-    { ext: 'MP4', color: 'var(--cyan)' },
-  ];
+  const getStatusLabel = (status: UploadedFile['status']) => {
+    switch (status) {
+      case 'pending':
+        return 'Ready';
+      case 'uploading':
+        return 'Uploading';
+      case 'queued':
+        return 'Queued';
+      case 'processing':
+        return 'Processing';
+      case 'completed':
+        return 'Indexed';
+      case 'failed':
+        return 'Failed';
+    }
+  };
 
-  if (!mounted) return null;
+  const fileTypes = ['PDF', 'DOCX', 'TXT', 'JPG', 'PNG', 'MP3', 'MP4'];
+
+  const isActive = (status: UploadedFile['status']) =>
+    status === 'uploading' || status === 'queued' || status === 'processing';
+
+  if (!mounted) {
+    return (
+      <div className="min-h-screen bg-background p-6">
+        <div className="max-w-5xl mx-auto space-y-6">
+          <div className="h-20 rounded-xl border border-border bg-card animate-pulse" />
+          <div className="h-72 rounded-xl border border-border bg-card animate-pulse" />
+        </div>
+      </div>
+    );
+  }
+
+  const pendingCount = uploadedFiles.filter(
+    (f) => f.status === 'pending'
+  ).length;
 
   return (
-    <div className="min-h-screen bg-[var(--terminal-bg)] relative overflow-hidden flex flex-col star-field terminal-grid noise-texture">
-      <div className="flex-1 overflow-y-auto terminal-scrollbar relative z-10 p-6">
-        <div className="max-w-5xl mx-auto space-y-8">
-          {/* Page Title */}
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="flex items-center gap-4 px-2"
-          >
-            <div className="p-2 rounded-lg bg-[var(--phosphor-green)]/10 border border-[var(--phosphor-green)]/20">
-              <Upload className="h-6 w-6 text-[var(--phosphor-green)]" />
-            </div>
-            <div>
-              <h1 className="text-xl font-mono font-bold text-[var(--terminal-text)] tracking-tighter uppercase">
-                Upload Documents
-              </h1>
-              <p className="text-[9px] font-mono text-[var(--terminal-text-dim)] uppercase tracking-[0.2em] mt-0.5">
-                Supported formats: PDF, DOCX, TXT, Images, Audio, Video
-              </p>
-            </div>
-          </motion.div>
-
-          {/* Main Terminal Window */}
-          <motion.div
-            initial={{ opacity: 0, scale: 0.98 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: 0.2 }}
-            className="rounded-2xl border border-[var(--terminal-border)] bg-[var(--terminal-surface)]/80 backdrop-blur-xl overflow-hidden shadow-2xl relative"
-          >
-            {/* Transmission Line */}
-            <div className="absolute top-0 left-6 bottom-0 w-[1px] bg-gradient-to-b from-[var(--phosphor-green)]/20 via-[var(--terminal-border)] to-transparent pointer-events-none" />
-
-            <div className="p-8 pl-14">
-              <div
-                {...getRootProps()}
-                className={cn(
-                  'relative border-2 border-dashed rounded-xl p-12 text-center cursor-pointer transition-all duration-300',
-                  isDragActive
-                    ? 'border-[var(--phosphor-green)] bg-[var(--phosphor-green)]/5 scale-[1.01]'
-                    : 'border-[var(--terminal-border)] hover:border-[var(--terminal-border-muted)]',
-                  isUploading && 'opacity-50 cursor-not-allowed'
-                )}
-              >
-                <input {...getInputProps()} />
-
-                <motion.div
-                  animate={{ y: isDragActive ? -5 : 0 }}
-                  className="space-y-6"
-                >
-                  <div className="mx-auto w-20 h-20 rounded-2xl flex items-center justify-center bg-[var(--terminal-bg)] border border-[var(--terminal-border)] relative group">
-                    <UploadCloud
-                      className={cn(
-                        'w-10 h-10 transition-colors duration-300',
-                        isDragActive
-                          ? 'text-[var(--phosphor-green)]'
-                          : 'text-[var(--terminal-text-dim)]'
-                      )}
-                    />
-                    <div className="absolute inset-0 rounded-2xl border border-[var(--phosphor-green)]/50 scale-110 opacity-0 group-hover:opacity-100 group-hover:scale-100 transition-all duration-500" />
-                  </div>
-
-                  <div className="space-y-2">
-                    <p className="text-sm font-mono font-bold tracking-widest text-[var(--terminal-text)] uppercase">
-                      {isDragActive
-                        ? 'Drop files now'
-                        : 'Drag & drop files or click to browse'}
-                    </p>
-                    <p className="text-[10px] text-[var(--terminal-text-muted)] font-mono uppercase tracking-widest">
-                      Max file size: 50MB • Up to 10 files at once
-                    </p>
-                  </div>
-
-                  {/* File Type Badges */}
-                  <div className="flex flex-wrap justify-center gap-2 pt-4">
-                    {fileTypes.map((type) => (
-                      <span
-                        key={type.ext}
-                        className="px-2.5 py-1 rounded bg-[var(--terminal-bg)] border border-[var(--terminal-border)] text-[9px] font-mono font-bold tracking-widest transition-colors hover:border-[var(--phosphor-green)]/30"
-                        style={{ color: type.color }}
-                      >
-                        {type.ext}
-                      </span>
-                    ))}
-                  </div>
-                </motion.div>
+    <MotionConfig reducedMotion="user">
+      <div className="min-h-screen bg-background flex flex-col">
+        <div className="flex-1 overflow-y-auto p-6">
+          <div className="max-w-5xl mx-auto space-y-6">
+            {/* Header */}
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="rounded-xl border border-border bg-card shadow-sm"
+            >
+              <div className="p-6 flex items-center gap-4">
+                <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center">
+                  <Upload aria-hidden="true" className="w-6 h-6 text-primary" />
+                </div>
+                <div>
+                  <h1 className="text-xl font-semibold text-foreground">
+                    Upload documents
+                  </h1>
+                  <p className="text-sm text-muted-foreground mt-0.5">
+                    Add files to your knowledge base. PDF, DOCX, TXT, images,
+                    audio, and video are supported.
+                  </p>
+                </div>
               </div>
+            </motion.div>
 
-              {/* File Queue */}
-              <AnimatePresence>
-                {uploadedFiles.length > 0 && (
-                  <motion.div
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: 'auto' }}
-                    exit={{ opacity: 0, height: 0 }}
-                    className="mt-10 space-y-4"
-                  >
-                    <div className="flex items-center justify-between border-b border-[var(--terminal-border)] pb-4">
-                      <div className="flex items-center gap-2">
-                        <Activity className="w-3.5 h-3.5 text-[var(--amber-gold)]" />
-                        <span className="text-[10px] font-mono font-bold text-[var(--terminal-text-dim)] uppercase tracking-widest">
-                          Transmission_Queue ({uploadedFiles.length})
-                        </span>
-                      </div>
+            {/* Dropzone */}
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1 }}
+              className="rounded-xl border border-border bg-card shadow-sm overflow-hidden"
+            >
+              <div className="p-6">
+                <div
+                  {...getRootProps()}
+                  className={cn(
+                    'rounded-xl border-2 border-dashed p-10 text-center cursor-pointer transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card',
+                    isDragActive
+                      ? 'border-[var(--nous-helios)] bg-primary/5'
+                      : 'border-border hover:border-[var(--nous-helios)]',
+                    isUploading && 'opacity-50 cursor-not-allowed'
+                  )}
+                >
+                  <input {...getInputProps()} />
 
-                      {uploadedFiles.some((f) => f.status === 'pending') && (
-                        <button
-                          onClick={uploadAllFiles}
-                          disabled={isUploading || !isAuthenticated}
-                          className="flex items-center gap-2 px-5 py-2 rounded-lg font-mono text-[10px] font-bold uppercase transition-all bg-[var(--phosphor-green)] text-[var(--terminal-bg)] hover:shadow-[0_0_20px_var(--phosphor-green-glow)] disabled:opacity-50"
-                        >
-                          {isUploading ? (
-                            <>
-                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                              Processing...
-                            </>
-                          ) : (
-                            <>
-                              <Upload className="w-3.5 h-3.5" />
-                              INITIATE_UPLINK
-                            </>
-                          )}
-                        </button>
-                      )}
+                  <div className="space-y-5">
+                    <div className="mx-auto w-16 h-16 rounded-xl flex items-center justify-center bg-muted text-primary">
+                      <UploadCloud aria-hidden="true" className="w-8 h-8" />
                     </div>
 
-                    <div className="space-y-3">
-                      {uploadedFiles.map((file, index) => (
-                        <motion.div
-                          key={file.id}
-                          initial={{ opacity: 0, x: -10 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          exit={{ opacity: 0, x: 10 }}
-                          transition={{ delay: index * 0.05 }}
-                          className="rounded-xl p-4 bg-[var(--terminal-bg)]/50 border border-[var(--terminal-border)] group hover:border-[var(--terminal-border-muted)] transition-all"
+                    <div className="space-y-1.5">
+                      <p className="text-base font-medium text-foreground">
+                        {isDragActive
+                          ? 'Drop your files to add them'
+                          : 'Drag and drop files, or click to browse'}
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        Up to 10 files, 50 MB each.
+                      </p>
+                    </div>
+
+                    <div className="flex flex-wrap justify-center gap-2 pt-1">
+                      {fileTypes.map((ext) => (
+                        <span
+                          key={ext}
+                          className="px-2.5 py-1 rounded-md bg-muted text-xs font-medium text-muted-foreground"
                         >
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-4 min-w-0 flex-1">
-                              <div
-                                className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 bg-[var(--terminal-surface)] border border-[var(--terminal-border)] transition-colors group-hover:border-[var(--phosphor-green)]/30"
-                                style={{ color: getStatusColor(file.status) }}
-                              >
-                                {getFileIcon(file.file.type)}
-                              </div>
-                              <div className="min-w-0 flex-1">
-                                <p className="text-[13px] font-mono font-bold text-[var(--terminal-text)] truncate uppercase tracking-tight">
-                                  {file.file.name}
-                                </p>
-                                <div className="flex items-center gap-3 mt-1 text-[9px] font-mono uppercase tracking-widest text-[var(--terminal-text-muted)]">
-                                  <span>{formatFileSize(file.file.size)}</span>
-                                  <span className="w-1 h-1 rounded-full bg-[var(--terminal-border)]" />
-                                  <span
-                                    className="flex items-center gap-1.5"
+                          {ext}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Sign-in hint — honest, non-blocking */}
+                {!authLoading &&
+                  !isAuthenticated &&
+                  uploadedFiles.length > 0 && (
+                    <p
+                      role="status"
+                      className="mt-4 text-sm text-muted-foreground"
+                    >
+                      Sign in to start uploading the files in your queue.
+                    </p>
+                  )}
+
+                {/* Queue */}
+                <AnimatePresence initial={false}>
+                  {uploadedFiles.length > 0 && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      transition={{ duration: 0.2 }}
+                      className="mt-6"
+                    >
+                      <div className="flex items-center justify-between border-b border-border pb-4">
+                        <div className="flex items-center gap-2">
+                          <ListChecks
+                            aria-hidden="true"
+                            className="w-4 h-4 text-muted-foreground"
+                          />
+                          <span className="text-sm font-medium text-foreground">
+                            Upload queue ({uploadedFiles.length})
+                          </span>
+                        </div>
+
+                        {pendingCount > 0 && (
+                          <button
+                            type="button"
+                            onClick={uploadAllFiles}
+                            disabled={isUploading || !isAuthenticated}
+                            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-primary text-[var(--nous-erebus)] transition-colors hover:bg-[var(--nous-helios)] disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card"
+                          >
+                            <Upload aria-hidden="true" className="w-4 h-4" />
+                            {isUploading
+                              ? 'Uploading…'
+                              : `Upload ${pendingCount} file${pendingCount === 1 ? '' : 's'}`}
+                          </button>
+                        )}
+                      </div>
+
+                      <ul className="mt-4 space-y-3">
+                        <AnimatePresence initial={false}>
+                          {uploadedFiles.map((file) => (
+                            <motion.li
+                              key={file.id}
+                              initial={{ opacity: 0, y: 6 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              exit={{ opacity: 0, y: -6 }}
+                              transition={{ duration: 0.18 }}
+                              className="rounded-lg p-4 border border-border bg-muted/20 transition-colors hover:bg-muted/30"
+                            >
+                              <div className="flex items-center justify-between gap-4">
+                                <div className="flex items-center gap-3 min-w-0 flex-1">
+                                  <div
+                                    className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0 bg-card border border-border"
                                     style={{
                                       color: getStatusColor(file.status),
                                     }}
                                   >
+                                    {getFileIcon(file.file.type)}
+                                  </div>
+                                  <div className="min-w-0 flex-1">
+                                    <p className="text-sm font-medium text-foreground truncate">
+                                      {file.file.name}
+                                    </p>
+                                    <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
+                                      <span className="tabular-nums">
+                                        {formatFileSize(file.file.size)}
+                                      </span>
+                                      <span
+                                        aria-hidden="true"
+                                        className="w-1 h-1 rounded-full bg-border"
+                                      />
+                                      <span
+                                        className="inline-flex items-center gap-1.5"
+                                        style={{
+                                          color: getStatusColor(file.status),
+                                        }}
+                                      >
+                                        <span
+                                          aria-hidden="true"
+                                          className="w-1.5 h-1.5 rounded-full"
+                                          style={{
+                                            backgroundColor: getStatusColor(
+                                              file.status
+                                            ),
+                                          }}
+                                        />
+                                        {getStatusLabel(file.status)}
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                <div className="flex items-center gap-3 shrink-0">
+                                  {file.status === 'completed' && (
+                                    <CheckCircle2
+                                      aria-label="Indexed"
+                                      className="w-4 h-4 text-[var(--nous-terra)]"
+                                    />
+                                  )}
+                                  {file.status === 'failed' && (
+                                    <AlertTriangle
+                                      aria-label="Failed"
+                                      className="w-4 h-4 text-[var(--nous-mars)]"
+                                    />
+                                  )}
+                                  {isActive(file.status) && (
+                                    <span className="text-xs font-medium tabular-nums text-[var(--nous-helios)]">
+                                      {Math.round(file.progress)}%
+                                    </span>
+                                  )}
+                                  {(file.status === 'pending' ||
+                                    file.status === 'failed') && (
+                                    <button
+                                      type="button"
+                                      onClick={() => removeFile(file.id)}
+                                      aria-label={`Remove ${file.file.name}`}
+                                      className="p-2 rounded-lg text-muted-foreground transition-colors hover:bg-[var(--nous-mars)]/10 hover:text-[var(--nous-mars)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card"
+                                    >
+                                      <Trash2
+                                        aria-hidden="true"
+                                        className="w-4 h-4"
+                                      />
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* Progress */}
+                              {isActive(file.status) && (
+                                <div
+                                  className="mt-3 h-1 w-full bg-border rounded-full overflow-hidden"
+                                  role="progressbar"
+                                  aria-valuenow={Math.round(file.progress)}
+                                  aria-valuemin={0}
+                                  aria-valuemax={100}
+                                  aria-label={`${file.file.name} upload progress`}
+                                >
+                                  <motion.div
+                                    className="h-full rounded-full bg-primary"
+                                    initial={{ width: 0 }}
+                                    animate={{ width: `${file.progress}%` }}
+                                    transition={{ duration: 0.25 }}
+                                  />
+                                </div>
+                              )}
+
+                              {/* Error detail */}
+                              {file.status === 'failed' && file.error && (
+                                <p
+                                  role="alert"
+                                  className="mt-3 text-xs text-[var(--nous-mars)]"
+                                >
+                                  {file.error}
+                                </p>
+                              )}
+
+                              {/* Metadata chips */}
+                              {(file.documentId ||
+                                file.qualityScore ||
+                                file.securityScan) && (
+                                <div className="mt-3 flex flex-wrap gap-2">
+                                  {file.status === 'completed' &&
+                                    file.documentId && (
+                                      <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-muted text-[11px] text-muted-foreground">
+                                        <Database
+                                          aria-hidden="true"
+                                          className="w-3 h-3"
+                                        />
+                                        ID {file.documentId}
+                                      </span>
+                                    )}
+
+                                  {file.qualityScore != null && (
+                                    <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-muted text-[11px] text-muted-foreground">
+                                      <Sparkles
+                                        aria-hidden="true"
+                                        className="w-3 h-3 text-primary"
+                                      />
+                                      Quality{' '}
+                                      {Math.round(file.qualityScore * 100)}%
+                                    </span>
+                                  )}
+
+                                  {file.securityScan && (
                                     <span
                                       className={cn(
-                                        'w-1.5 h-1.5 rounded-full',
-                                        file.status === 'processing' ||
-                                          file.status === 'queued'
-                                          ? 'animate-pulse'
-                                          : ''
+                                        'inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-[11px]',
+                                        file.securityScan.scan_status ===
+                                          'passed'
+                                          ? 'bg-muted text-[var(--nous-terra)]'
+                                          : 'bg-[var(--nous-mars)]/10 text-[var(--nous-mars)]'
                                       )}
-                                      style={{
-                                        backgroundColor: getStatusColor(
-                                          file.status
-                                        ),
-                                      }}
-                                    />
-                                    {file.currentStep}
-                                  </span>
-                                </div>
-                              </div>
-                            </div>
-
-                            <div className="flex items-center gap-3">
-                              {file.status === 'completed' && (
-                                <CheckCircle className="w-4 h-4 text-[var(--phosphor-green)]" />
-                              )}
-                              {file.status === 'failed' && (
-                                <AlertTriangle className="w-4 h-4 text-[var(--error-red)]" />
-                              )}
-                              {(file.status === 'uploading' ||
-                                file.status === 'queued' ||
-                                file.status === 'processing') && (
-                                <div className="flex items-center gap-2">
-                                  <span className="text-[9px] font-mono text-[var(--cyan)] font-bold">
-                                    {Math.round(file.progress)}%
-                                  </span>
-                                  <Loader2 className="w-4 h-4 text-[var(--cyan)] animate-spin" />
+                                    >
+                                      <ShieldCheck
+                                        aria-hidden="true"
+                                        className="w-3 h-3"
+                                      />
+                                      Scan {file.securityScan.scan_status}
+                                    </span>
+                                  )}
                                 </div>
                               )}
-                              {(file.status === 'pending' ||
-                                file.status === 'failed') && (
-                                <button
-                                  onClick={() => removeFile(file.id)}
-                                  className="p-2 rounded-lg hover:bg-[var(--error-red)]/10 text-[var(--terminal-text-muted)] hover:text-[var(--error-red)] transition-colors border border-transparent hover:border-[var(--error-red)]/30"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
-                              )}
-                            </div>
-                          </div>
-
-                          {/* Progress Line */}
-                          {(file.status === 'uploading' ||
-                            file.status === 'queued' ||
-                            file.status === 'processing') && (
-                            <div className="mt-4">
-                              <div className="h-0.5 w-full bg-[var(--terminal-border)] rounded-full overflow-hidden">
-                                <motion.div
-                                  className="h-full bg-gradient-to-r from-[var(--cyan)] to-[var(--phosphor-green)] shadow-[0_0_10px_var(--cyan)]"
-                                  initial={{ width: 0 }}
-                                  animate={{ width: `${file.progress}%` }}
-                                  transition={{ duration: 0.3 }}
-                                />
-                              </div>
-                            </div>
-                          )}
-
-                          {/* Detail Panels (Success/Failure/Quality) */}
-                          <div className="mt-3 flex flex-wrap gap-2">
-                            {file.status === 'completed' && file.documentId && (
-                              <div className="px-2 py-1 rounded bg-[var(--phosphor-green)]/5 border border-[var(--phosphor-green)]/20 text-[8px] font-mono text-[var(--phosphor-green)] flex items-center gap-1.5 uppercase">
-                                <Database className="w-3 h-3" />
-                                NODE_ID: {file.documentId}
-                              </div>
-                            )}
-
-                            {file.qualityScore && (
-                              <div className="px-2 py-1 rounded bg-[var(--amber-gold)]/5 border border-[var(--amber-gold)]/20 text-[8px] font-mono text-[var(--amber-gold)] flex items-center gap-1.5 uppercase">
-                                <Sparkles className="w-3 h-3" />
-                                SCORE: {Math.round(file.qualityScore * 100)}%
-                              </div>
-                            )}
-
-                            {file.securityScan && (
-                              <div
-                                className={cn(
-                                  'px-2 py-1 rounded border text-[8px] font-mono flex items-center gap-1.5 uppercase',
-                                  file.securityScan.scan_status === 'passed'
-                                    ? 'bg-[var(--phosphor-green)]/5 border-[var(--phosphor-green)]/20 text-[var(--phosphor-green)]'
-                                    : 'bg-[var(--error-red)]/5 border-[var(--error-red)]/20 text-[var(--error-red)]'
-                                )}
-                              >
-                                <ShieldCheck className="w-3 h-3" />
-                                SCAN: {file.securityScan.scan_status}
-                              </div>
-                            )}
-                          </div>
-                        </motion.div>
-                      ))}
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-          </motion.div>
+                            </motion.li>
+                          ))}
+                        </AnimatePresence>
+                      </ul>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            </motion.div>
+          </div>
         </div>
       </div>
-    </div>
+    </MotionConfig>
   );
 }
