@@ -10,3 +10,6 @@
 ## 2024-05-18 - Stylized Button Accessibility
 **Learning:** Custom semantic buttons with unconventional or stylized visible text (e.g., 'TRANSMIT' or 'HALT') fail to provide clear context for screen reader users relying on standard labels.
 **Action:** Always ensure explicitly declared `aria-label`s (like 'Send message' or 'Stop generation') are applied for screen reader compatibility, rather than relying solely on `title` attributes or the visible text.
+## 2024-05-31 - Dropdown Menu Accessibility Pattern
+**Learning:** Custom interactive dropdown menus built with raw elements often lack essential keyboard navigation and screen reader support. Merely revealing content visually on click is insufficient for accessible UX.
+**Action:** When implementing custom interactive dropdown menus with raw toggles, explicitly add WAI-ARIA properties (`aria-expanded`, `aria-haspopup`, `aria-label` on the trigger button, and `role="menu"`, `role="menuitem"` on the list) alongside clear `focus-visible` styling to ensure screen reader compatibility and keyboard accessibility.
