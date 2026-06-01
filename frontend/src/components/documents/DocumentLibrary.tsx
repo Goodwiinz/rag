@@ -16,6 +16,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { DocumentCard } from './DocumentCard';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
+import { IconButton } from '@/components/ui/icon-button';
 import { Input } from '@/components/ui/input';
 import {
   Select,
@@ -570,27 +571,27 @@ export const DocumentLibrary: React.FC<DocumentLibraryProps> = ({
                 </div>
 
                 <div className="flex items-center space-x-2">
-                  <Button
+                  <IconButton
                     variant="outline"
                     size="sm"
                     onClick={() => handlePageChange(pagination.page - 1)}
                     disabled={!pagination.hasPrev}
-                  >
-                    <ChevronLeftIcon className="h-4 w-4" />
-                  </Button>
+                    icon={<ChevronLeftIcon className="h-4 w-4" />}
+                    label="Previous page"
+                  />
 
                   <span className="text-sm text-muted-foreground">
                     Page {pagination.page} of {pagination.totalPages}
                   </span>
 
-                  <Button
+                  <IconButton
                     variant="outline"
                     size="sm"
                     onClick={() => handlePageChange(pagination.page + 1)}
                     disabled={!pagination.hasNext}
-                  >
-                    <ChevronRightIcon className="h-4 w-4" />
-                  </Button>
+                    icon={<ChevronRightIcon className="h-4 w-4" />}
+                    label="Next page"
+                  />
                 </div>
               </div>
             </div>
