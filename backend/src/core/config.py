@@ -20,8 +20,67 @@ def _generate_dev_secret() -> str:
 
 
 def _longest_literal_hostname_run(pattern: str) -> int:
-    """Longest contiguous literal hostname segment (project slug specificity)."""
-    runs = re.findall(r"[A-Za-z0-9-]+", pattern)
+    """Longest literal run in the first hostname label (project slug specificity)."""
+    host_pattern = re.sub(r"^\^?https?\??://", "", pattern).removesuffix("$")
+    first_label_chars: list[str] = []
+    escaped = False
+    in_class = False
+    for char in host_pattern:
+        if escaped:
+            if char == ".":
+                break
+            first_label_chars.append(char)
+            escaped = False
+            continue
+        if char == "\\":
+            escaped = True
+            continue
+        if char == "[":
+            in_class = True
+            first_label_chars.append(char)
+            continue
+        if char == "]":
+            in_class = False
+            first_label_chars.append(char)
+            continue
+        if not in_class and char in ".:/":
+            break
+        first_label_chars.append(char)
+
+    runs: list[str] = []
+    current_run: list[str] = []
+    escaped = False
+    in_class = False
+    for char in first_label_chars:
+        if escaped:
+            if char.isalnum() or char == "-":
+                current_run.append(char)
+            elif current_run:
+                runs.append("".join(current_run))
+                current_run = []
+            escaped = False
+            continue
+        if char == "\\":
+            escaped = True
+            continue
+        if char == "[":
+            in_class = True
+            if current_run:
+                runs.append("".join(current_run))
+                current_run = []
+            continue
+        if char == "]":
+            in_class = False
+            continue
+        if in_class:
+            continue
+        if char.isalnum() or char == "-":
+            current_run.append(char)
+        elif current_run:
+            runs.append("".join(current_run))
+            current_run = []
+    if current_run:
+        runs.append("".join(current_run))
     return max((len(run) for run in runs), default=0)
 
 

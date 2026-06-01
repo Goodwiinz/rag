@@ -48,6 +48,7 @@ def test_cors_origin_regex_accepts_specific_preview_host(monkeypatch):
         (r"^https://.*$", "too permissive"),
         (r"^https://.+$", "too permissive"),
         (r"^https://proj-[a-z0-9-]+\.app$", "project-specific literal"),
+        (r"^https://[a-z0-9-]+\.vercel\.app$", "project-specific literal"),
         (r"^https://nous-platform-[a-z0-9+\.vercel\.app$", "invalid"),
     ],
 )
