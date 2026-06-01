@@ -275,7 +275,7 @@ function LoginPageContent(): React.JSX.Element | null {
                 className="h-4 w-4 rounded border-[var(--nous-border-2)] text-[var(--nous-sol)] focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/40"
               />
               <span className="nous-ui text-sm text-[var(--nous-fg-2)]">
-                Download NOUS CLI credentials after signing in
+                Download NOUS CLI auth after sign in
               </span>
             </label>
 
