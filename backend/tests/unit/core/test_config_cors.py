@@ -9,7 +9,7 @@ from src.core.config import Settings
 
 
 _STRONG_SECRET = "test-secret-value-with-more-than-32-characters"
-_JWT_SECRET = "test-jwt-secret-value-with-more-than-32-characters"
+_JWT_SECRET = "test-token-signing-value-with-more-than-32-characters"
 _DATABASE_URL = "postgresql://postgres:postgres@postgres:5432/multimodal_rag"
 
 
@@ -47,7 +47,7 @@ def test_cors_origin_regex_accepts_specific_preview_host(monkeypatch):
         ("https://nous-platform-[a-z0-9-]+\\.vercel\\.app", "anchored"),
         (r"^https://.*$", "too permissive"),
         (r"^https://.+$", "too permissive"),
-        (r"^https://nous-[a-z0-9-]+\.vercel\.app$", "project-specific literal"),
+        (r"^https://proj-[a-z0-9-]+\.app$", "project-specific literal"),
         (r"^https://nous-platform-[a-z0-9+\.vercel\.app$", "invalid"),
     ],
 )
