@@ -1,5 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Area, AreaChart } from 'recharts';
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  Area,
+  AreaChart,
+} from 'recharts';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -11,7 +21,7 @@ import {
   ArrowPathIcon,
   SignalSlashIcon,
   WifiIcon,
-  ExclamationTriangleIcon
+  ExclamationTriangleIcon,
 } from '@heroicons/react/24/outline';
 import { useWebSocket } from '@/hooks/useWebSocket';
 
@@ -61,7 +71,7 @@ interface WebSocketMetricsUpdate {
 export const RealTimeMetrics: React.FC<RealTimeMetricsProps> = ({
   className,
   maxDataPoints = 50,
-  updateInterval = 5000
+  updateInterval = 5000,
 }) => {
   const { isConnected, manager } = useWebSocket();
   const [isLive, setIsLive] = useState(true);
@@ -97,7 +107,8 @@ export const RealTimeMetrics: React.FC<RealTimeMetricsProps> = ({
         timestamp: data.payload.timestamp,
         answerRelevancy: data.payload.metrics.rag_triad.answer_relevancy,
         faithfulness: data.payload.metrics.rag_triad.faithfulness,
-        contextualRelevancy: data.payload.metrics.rag_triad.contextual_relevancy,
+        contextualRelevancy:
+          data.payload.metrics.rag_triad.contextual_relevancy,
         latency: data.payload.metrics.performance.latency_ms,
         throughput: data.payload.metrics.performance.throughput_qpm,
         errorRate: data.payload.metrics.performance.error_rate,
@@ -106,7 +117,7 @@ export const RealTimeMetrics: React.FC<RealTimeMetricsProps> = ({
         memoryUsage: data.payload.metrics.performance.memory_usage,
       };
 
-      setMetrics(prev => {
+      setMetrics((prev) => {
         const updated = [...prev, newMetric];
         return updated.slice(-maxDataPoints);
       });
@@ -115,7 +126,7 @@ export const RealTimeMetrics: React.FC<RealTimeMetricsProps> = ({
 
     const handleError = (error: any) => {
       const errorMessage = error?.message || 'Connection error';
-      setConnectionErrors(prev => [...prev.slice(-4), errorMessage]);
+      setConnectionErrors((prev) => [...prev.slice(-4), errorMessage]);
     };
 
     manager.on('metrics_update', handleMetricsUpdate);
@@ -134,10 +145,14 @@ export const RealTimeMetrics: React.FC<RealTimeMetricsProps> = ({
     intervalRef.current = setInterval(() => {
       const newMetric: MetricData = {
         timestamp: Date.now(),
-        answerRelevancy: 70 + Math.random() * 20 + Math.sin(Date.now() * 0.0001) * 5,
-        faithfulness: 85 + Math.random() * 10 + Math.cos(Date.now() * 0.00015) * 3,
-        contextualRelevancy: 75 + Math.random() * 15 + Math.sin(Date.now() * 0.00012) * 4,
-        latency: 800 + Math.random() * 400 + Math.sin(Date.now() * 0.0002) * 100,
+        answerRelevancy:
+          70 + Math.random() * 20 + Math.sin(Date.now() * 0.0001) * 5,
+        faithfulness:
+          85 + Math.random() * 10 + Math.cos(Date.now() * 0.00015) * 3,
+        contextualRelevancy:
+          75 + Math.random() * 15 + Math.sin(Date.now() * 0.00012) * 4,
+        latency:
+          800 + Math.random() * 400 + Math.sin(Date.now() * 0.0002) * 100,
         throughput: 30 + Math.random() * 20 + Math.cos(Date.now() * 0.0001) * 5,
         errorRate: 1 + Math.random() * 3,
         activeUsers: 50 + Math.floor(Math.random() * 30),
@@ -145,7 +160,7 @@ export const RealTimeMetrics: React.FC<RealTimeMetricsProps> = ({
         memoryUsage: 60 + Math.random() * 25,
       };
 
-      setMetrics(prev => {
+      setMetrics((prev) => {
         const updated = [...prev, newMetric];
         return updated.slice(-maxDataPoints);
       });
@@ -177,7 +192,7 @@ export const RealTimeMetrics: React.FC<RealTimeMetricsProps> = ({
   };
 
   const formatChartData = (data: MetricData[]) => {
-    return data.map(item => ({
+    return data.map((item) => ({
       time: formatTime(item.timestamp),
       answerRelevancy: Math.round(item.answerRelevancy * 10) / 10,
       faithfulness: Math.round(item.faithfulness * 10) / 10,
@@ -194,7 +209,7 @@ export const RealTimeMetrics: React.FC<RealTimeMetricsProps> = ({
   const currentValues = getCurrentValues();
 
   return (
-    <div className={cn("space-y-6", className)}>
+    <div className={cn('space-y-6', className)}>
       {/* Header */}
       <Card>
         <CardHeader>
@@ -208,11 +223,11 @@ export const RealTimeMetrics: React.FC<RealTimeMetricsProps> = ({
                 )}
                 <span>Real-time Metrics</span>
               </div>
-              <Badge variant={isLive ? "default" : "secondary"}>
-                {isLive ? "LIVE" : "PAUSED"}
+              <Badge variant={isLive ? 'default' : 'secondary'}>
+                {isLive ? 'LIVE' : 'PAUSED'}
               </Badge>
               {lastUpdate && (
-                <span className="text-sm text-gray-500">
+                <span className="text-sm text-muted-foreground">
                   Last update: {lastUpdate.toLocaleTimeString()}
                 </span>
               )}
@@ -226,11 +241,7 @@ export const RealTimeMetrics: React.FC<RealTimeMetricsProps> = ({
                 />
                 <span className="text-sm">Live Updates</span>
               </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setMetrics([])}
-              >
+              <Button variant="ghost" size="sm" onClick={() => setMetrics([])}>
                 <ArrowPathIcon className="h-4 w-4" />
               </Button>
             </div>
@@ -272,7 +283,7 @@ export const RealTimeMetrics: React.FC<RealTimeMetricsProps> = ({
               <div className="text-2xl font-bold text-blue-600">
                 {currentValues.answerRelevancy.toFixed(1)}%
               </div>
-              <div className="text-sm text-gray-600">Answer Relevancy</div>
+              <div className="text-sm text-foreground">Answer Relevancy</div>
             </CardContent>
           </Card>
           <Card>
@@ -280,15 +291,17 @@ export const RealTimeMetrics: React.FC<RealTimeMetricsProps> = ({
               <div className="text-2xl font-bold text-green-600">
                 {currentValues.faithfulness.toFixed(1)}%
               </div>
-              <div className="text-sm text-gray-600">Faithfulness</div>
+              <div className="text-sm text-foreground">Faithfulness</div>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="p-4">
-              <div className="text-2xl font-bold text-purple-600">
+              <div className="text-2xl font-bold text-[var(--nous-fg-accent)]">
                 {currentValues.contextualRelevancy.toFixed(1)}%
               </div>
-              <div className="text-sm text-gray-600">Contextual Relevancy</div>
+              <div className="text-sm text-foreground">
+                Contextual Relevancy
+              </div>
             </CardContent>
           </Card>
           <Card>
@@ -296,7 +309,7 @@ export const RealTimeMetrics: React.FC<RealTimeMetricsProps> = ({
               <div className="text-2xl font-bold text-orange-600">
                 {currentValues.latency.toFixed(0)}ms
               </div>
-              <div className="text-sm text-gray-600">Latency</div>
+              <div className="text-sm text-foreground">Latency</div>
             </CardContent>
           </Card>
           <Card>
@@ -304,7 +317,7 @@ export const RealTimeMetrics: React.FC<RealTimeMetricsProps> = ({
               <div className="text-2xl font-bold text-cyan-600">
                 {currentValues.throughput.toFixed(1)}
               </div>
-              <div className="text-sm text-gray-600">QPM</div>
+              <div className="text-sm text-foreground">QPM</div>
             </CardContent>
           </Card>
           <Card>
@@ -312,7 +325,7 @@ export const RealTimeMetrics: React.FC<RealTimeMetricsProps> = ({
               <div className="text-2xl font-bold text-red-600">
                 {currentValues.errorRate.toFixed(1)}%
               </div>
-              <div className="text-sm text-gray-600">Error Rate</div>
+              <div className="text-sm text-foreground">Error Rate</div>
             </CardContent>
           </Card>
         </div>
@@ -326,7 +339,10 @@ export const RealTimeMetrics: React.FC<RealTimeMetricsProps> = ({
         <CardContent>
           <div className="h-80">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={formatChartData(metrics)} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+              <LineChart
+                data={formatChartData(metrics)}
+                margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+              >
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis
                   dataKey="time"
@@ -452,19 +468,21 @@ export const RealTimeMetrics: React.FC<RealTimeMetricsProps> = ({
                   <div className="text-2xl font-bold text-blue-600">
                     {currentValues.activeUsers}
                   </div>
-                  <div className="text-sm text-gray-600">Active Users</div>
+                  <div className="text-sm text-foreground">Active Users</div>
                 </div>
                 <div className="text-center">
                   <div className="text-2xl font-bold text-green-600">
-                    {isConnected ? "Connected" : "Disconnected"}
+                    {isConnected ? 'Connected' : 'Disconnected'}
                   </div>
-                  <div className="text-sm text-gray-600">WebSocket Status</div>
+                  <div className="text-sm text-foreground">
+                    WebSocket Status
+                  </div>
                 </div>
                 <div className="text-center">
-                  <div className="text-2xl font-bold text-purple-600">
+                  <div className="text-2xl font-bold text-[var(--nous-fg-accent)]">
                     {metrics.length}
                   </div>
-                  <div className="text-sm text-gray-600">Data Points</div>
+                  <div className="text-sm text-foreground">Data Points</div>
                 </div>
               </>
             )}

@@ -23,7 +23,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
 import { Progress } from '@/components/ui/progress';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
 import {
   Table,
   TableBody,
@@ -102,7 +109,13 @@ interface EvaluationTask {
   id: string;
   title: string;
   description: string;
-  type: 'query_evaluation' | 'response_quality' | 'content_review' | 'usability_test' | 'accuracy_check' | 'compliance_review';
+  type:
+    | 'query_evaluation'
+    | 'response_quality'
+    | 'content_review'
+    | 'usability_test'
+    | 'accuracy_check'
+    | 'compliance_review';
   priority: 'low' | 'medium' | 'high' | 'urgent';
   status: 'pending' | 'assigned' | 'in_progress' | 'completed' | 'cancelled';
   workflow: {
@@ -159,7 +172,14 @@ interface EvaluationDimension {
   id: string;
   name: string;
   description: string;
-  type: 'quality' | 'accuracy' | 'relevance' | 'clarity' | 'completeness' | 'usability' | 'performance';
+  type:
+    | 'quality'
+    | 'accuracy'
+    | 'relevance'
+    | 'clarity'
+    | 'completeness'
+    | 'usability'
+    | 'performance';
   weight: number;
   required: boolean;
   guidelines: string[];
@@ -277,7 +297,8 @@ const mockEvaluationTasks: EvaluationTask[] = [
   {
     id: 'task-001',
     title: 'Query Answer Quality Assessment',
-    description: 'Evaluate the quality, accuracy, and completeness of AI-generated answers for a set of test queries',
+    description:
+      'Evaluate the quality, accuracy, and completeness of AI-generated answers for a set of test queries',
     type: 'query_evaluation',
     priority: 'high',
     status: 'completed',
@@ -298,7 +319,11 @@ const mockEvaluationTasks: EvaluationTask[] = [
           type: 'accuracy',
           weight: 0.4,
           required: true,
-          guidelines: ['Check all facts against source documents', 'Verify no hallucinations', 'Cross-reference with provided sources'],
+          guidelines: [
+            'Check all facts against source documents',
+            'Verify no hallucinations',
+            'Cross-reference with provided sources',
+          ],
         },
         {
           id: 'relevance',
@@ -307,7 +332,11 @@ const mockEvaluationTasks: EvaluationTask[] = [
           type: 'relevance',
           weight: 0.3,
           required: true,
-          guidelines: ['Assess if answer directly addresses the question', 'Check for unnecessary information', 'Evaluate completeness of response'],
+          guidelines: [
+            'Assess if answer directly addresses the question',
+            'Check for unnecessary information',
+            'Evaluate completeness of response',
+          ],
         },
         {
           id: 'clarity',
@@ -316,7 +345,11 @@ const mockEvaluationTasks: EvaluationTask[] = [
           type: 'clarity',
           weight: 0.2,
           required: true,
-          guidelines: ['Check for proper grammar and syntax', 'Evaluate structure and organization', 'Assess technical terminology'],
+          guidelines: [
+            'Check for proper grammar and syntax',
+            'Evaluate structure and organization',
+            'Assess technical terminology',
+          ],
         },
         {
           id: 'completeness',
@@ -325,7 +358,11 @@ const mockEvaluationTasks: EvaluationTask[] = [
           type: 'completeness',
           weight: 0.1,
           required: false,
-          guidelines: ['Ensure all aspects of the question are addressed', 'Check for missing information', 'Evaluate depth of response'],
+          guidelines: [
+            'Ensure all aspects of the question are addressed',
+            'Check for missing information',
+            'Evaluate depth of response',
+          ],
         },
       ],
       scoring: 'scale_1_5',
@@ -360,7 +397,11 @@ const mockEvaluationTasks: EvaluationTask[] = [
       reminderSettings: {
         enabled: true,
         frequency: 'daily',
-        reminders: ['2 days before deadline', '1 day before deadline', '4 hours before deadline'],
+        reminders: [
+          '2 days before deadline',
+          '1 day before deadline',
+          '4 hours before deadline',
+        ],
       },
     },
     compensation: {
@@ -384,7 +425,8 @@ const mockEvaluationTasks: EvaluationTask[] = [
   {
     id: 'task-002',
     title: 'User Experience Feedback Collection',
-    description: 'Collect and analyze user feedback on the RAG system interface and functionality',
+    description:
+      'Collect and analyze user feedback on the RAG system interface and functionality',
     type: 'usability_test',
     priority: 'medium',
     status: 'in_progress',
@@ -405,7 +447,11 @@ const mockEvaluationTasks: EvaluationTask[] = [
           type: 'usability',
           weight: 0.4,
           required: true,
-          guidelines: ['Evaluate interface intuitiveness', 'Check navigation flow', 'Assess learning curve'],
+          guidelines: [
+            'Evaluate interface intuitiveness',
+            'Check navigation flow',
+            'Assess learning curve',
+          ],
         },
         {
           id: 'performance',
@@ -414,7 +460,11 @@ const mockEvaluationTasks: EvaluationTask[] = [
           type: 'performance',
           weight: 0.3,
           required: true,
-          guidelines: ['Test response times', 'Evaluate system stability', 'Check resource usage'],
+          guidelines: [
+            'Test response times',
+            'Evaluate system stability',
+            'Check resource usage',
+          ],
         },
         {
           id: 'satisfaction',
@@ -423,7 +473,11 @@ const mockEvaluationTasks: EvaluationTask[] = [
           type: 'usability',
           weight: 0.3,
           required: true,
-          guidelines: ['Gather overall impressions', 'Compare to alternatives', 'Assess value provided'],
+          guidelines: [
+            'Gather overall impressions',
+            'Compare to alternatives',
+            'Assess value provided',
+          ],
         },
       ],
       scoring: 'scale_1_5',
@@ -449,8 +503,14 @@ const mockEvaluationTasks: EvaluationTask[] = [
           id: 'tc-001',
           name: 'Document Upload Workflow',
           description: 'Test the document upload and processing workflow',
-          expectedOutcome: 'Users can easily upload documents and track processing status',
-          steps: ['Navigate to upload section', 'Select files', 'Monitor processing', 'Verify results'],
+          expectedOutcome:
+            'Users can easily upload documents and track processing status',
+          steps: [
+            'Navigate to upload section',
+            'Select files',
+            'Monitor processing',
+            'Verify results',
+          ],
         },
       ],
     },
@@ -461,7 +521,11 @@ const mockEvaluationTasks: EvaluationTask[] = [
       reminderSettings: {
         enabled: true,
         frequency: 'weekly',
-        reminders: ['1 week before deadline', '3 days before deadline', '1 day before deadline'],
+        reminders: [
+          '1 week before deadline',
+          '3 days before deadline',
+          '1 day before deadline',
+        ],
       },
     },
     compensation: {
@@ -483,7 +547,8 @@ const mockEvaluationTasks: EvaluationTask[] = [
   {
     id: 'task-003',
     title: 'Content Accuracy Verification',
-    description: 'Verify the accuracy and factual correctness of system-generated content',
+    description:
+      'Verify the accuracy and factual correctness of system-generated content',
     type: 'accuracy_check',
     priority: 'high',
     status: 'pending',
@@ -504,7 +569,11 @@ const mockEvaluationTasks: EvaluationTask[] = [
           type: 'accuracy',
           weight: 0.6,
           required: true,
-          guidelines: ['Cross-reference with source documents', 'Verify all statistical claims', 'Check for misinterpretations'],
+          guidelines: [
+            'Cross-reference with source documents',
+            'Verify all statistical claims',
+            'Check for misinterpretations',
+          ],
         },
         {
           id: 'source_citation',
@@ -513,7 +582,11 @@ const mockEvaluationTasks: EvaluationTask[] = [
           type: 'quality',
           weight: 0.4,
           required: true,
-          guidelines: ['Verify all claims are cited', 'Check citation formatting', 'Assess source relevance'],
+          guidelines: [
+            'Verify all claims are cited',
+            'Check citation formatting',
+            'Assess source relevance',
+          ],
         },
       ],
       scoring: 'scale_1_10',
@@ -579,10 +652,13 @@ const mockResponses: EvaluationResponse[] = [
         completeness: 4.5,
       },
       comments: {
-        accuracy: 'Generally accurate with minor factual errors. Most information aligns with source documents.',
-        relevance: 'Well-addressed the user query with relevant context from multiple sources.',
+        accuracy:
+          'Generally accurate with minor factual errors. Most information aligns with source documents.',
+        relevance:
+          'Well-addressed the user query with relevant context from multiple sources.',
         clarity: 'Clear and well-structured answer with proper terminology.',
-        completeness: 'Comprehensive response covering all aspects of the question.',
+        completeness:
+          'Comprehensive response covering all aspects of the question.',
       },
       confidence: 0.85,
       timeSpent: 42,
@@ -612,12 +688,13 @@ const mockResponses: EvaluationResponse[] = [
         completeness: 3.5,
       },
       comments: {
-        accuracy: 'Some minor factual discrepancies detected. Cross-referencing needed for certain claims.',
+        accuracy:
+          'Some minor factual discrepancies detected. Cross-referencing needed for certain claims.',
         relevance: 'Good relevance to query with appropriate source selection.',
         clarity: 'Well-written and easy to understand.',
         completeness: 'Could be more comprehensive in certain areas.',
       },
-      confidence: 0.80,
+      confidence: 0.8,
       timeSpent: 48,
     },
     status: 'submitted',
@@ -625,7 +702,8 @@ const mockResponses: EvaluationResponse[] = [
     reviewedAt: '2025-10-14T16:15:00Z',
     reviewedBy: 'qa-manager',
     metadata: {
-      userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+      userAgent:
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
       ipAddress: '192.168.1.101',
       deviceInfo: 'macOS, Safari 16.0',
     },
@@ -647,8 +725,10 @@ const mockResponses: EvaluationResponse[] = [
       comments: {
         accuracy: 'Excellent factual accuracy with proper source attribution.',
         relevance: 'Highly relevant answer that directly addresses user needs.',
-        clarity: 'Clear, concise communication with appropriate technical detail.',
-        completeness: 'Thorough and comprehensive response covering all query aspects.',
+        clarity:
+          'Clear, concise communication with appropriate technical detail.',
+        completeness:
+          'Thorough and comprehensive response covering all query aspects.',
       },
       confidence: 0.95,
       timeSpent: 38,
@@ -669,9 +749,13 @@ const mockDashboard: HumanEvaluationDashboard = {
   timeRange: '30d',
   summary: {
     totalTasks: mockEvaluationTasks.length,
-    pendingTasks: mockEvaluationTasks.filter(t => t.status === 'pending').length,
-    inProgressTasks: mockEvaluationTasks.filter(t => t.status === 'in_progress').length,
-    completedTasks: mockEvaluationTasks.filter(t => t.status === 'completed').length,
+    pendingTasks: mockEvaluationTasks.filter((t) => t.status === 'pending')
+      .length,
+    inProgressTasks: mockEvaluationTasks.filter(
+      (t) => t.status === 'in_progress'
+    ).length,
+    completedTasks: mockEvaluationTasks.filter((t) => t.status === 'completed')
+      .length,
     averageScore: 4.17,
     totalEvaluators: 8,
     activeEvaluators: 6,
@@ -752,22 +836,71 @@ const mockDashboard: HumanEvaluationDashboard = {
 };
 
 const taskTypes = [
-  { id: 'query_evaluation', name: 'Query Evaluation', description: 'Evaluate AI-generated answers' },
-  { id: 'response_quality', name: 'Response Quality', description: 'Assess overall response quality' },
-  { id: 'content_review', name: 'Content Review', description: 'Review content for accuracy and completeness' },
-  { id: 'usability_test', name: 'Usability Test', description: 'Test system usability and user experience' },
-  { id: 'accuracy_check', name: 'Accuracy Check', description: 'Verify factual accuracy' },
-  { id: 'compliance_review', name: 'Compliance Review', description: 'Review for compliance requirements' },
+  {
+    id: 'query_evaluation',
+    name: 'Query Evaluation',
+    description: 'Evaluate AI-generated answers',
+  },
+  {
+    id: 'response_quality',
+    name: 'Response Quality',
+    description: 'Assess overall response quality',
+  },
+  {
+    id: 'content_review',
+    name: 'Content Review',
+    description: 'Review content for accuracy and completeness',
+  },
+  {
+    id: 'usability_test',
+    name: 'Usability Test',
+    description: 'Test system usability and user experience',
+  },
+  {
+    id: 'accuracy_check',
+    name: 'Accuracy Check',
+    description: 'Verify factual accuracy',
+  },
+  {
+    id: 'compliance_review',
+    name: 'Compliance Review',
+    description: 'Review for compliance requirements',
+  },
 ];
 
 const workflowTypes = [
-  { id: 'individual', name: 'Individual Review', description: 'Single evaluator per task' },
-  { id: 'pairwise', name: 'Pairwise Review', description: 'Two evaluators per task' },
-  { id: 'panel', name: 'Panel Review', description: 'Multiple evaluators per task' },
-  { id: 'crowdsource', name: 'Crowdsourced Review', description: 'Open to all evaluators' },
+  {
+    id: 'individual',
+    name: 'Individual Review',
+    description: 'Single evaluator per task',
+  },
+  {
+    id: 'pairwise',
+    name: 'Pairwise Review',
+    description: 'Two evaluators per task',
+  },
+  {
+    id: 'panel',
+    name: 'Panel Review',
+    description: 'Multiple evaluators per task',
+  },
+  {
+    id: 'crowdsource',
+    name: 'Crowdsourced Review',
+    description: 'Open to all evaluators',
+  },
 ];
 
-const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16'];
+const COLORS = [
+  '#3b82f6',
+  '#10b981',
+  '#f59e0b',
+  '#ef4444',
+  '#8b5cf6',
+  '#ec4899',
+  '#06b6d4',
+  '#84cc16',
+];
 
 const HumanEvaluationWorkflows: React.FC<HumanEvaluationWorkflowsProps> = ({
   onTaskCreate,
@@ -777,11 +910,15 @@ const HumanEvaluationWorkflows: React.FC<HumanEvaluationWorkflowsProps> = ({
   onTaskAssign,
   className,
 }) => {
-  const [evaluationTasks, setEvaluationTasks] = useState<EvaluationTask[]>(mockEvaluationTasks);
-  const [evaluationResponses, setEvaluationResponses] = useState<EvaluationResponse[]>(mockResponses);
-  const [dashboard, setDashboard] = useState<HumanEvaluationDashboard>(mockDashboard);
+  const [evaluationTasks, setEvaluationTasks] =
+    useState<EvaluationTask[]>(mockEvaluationTasks);
+  const [evaluationResponses, setEvaluationResponses] =
+    useState<EvaluationResponse[]>(mockResponses);
+  const [dashboard, setDashboard] =
+    useState<HumanEvaluationDashboard>(mockDashboard);
   const [selectedTask, setSelectedTask] = useState<EvaluationTask | null>(null);
-  const [selectedResponse, setSelectedResponse] = useState<EvaluationResponse | null>(null);
+  const [selectedResponse, setSelectedResponse] =
+    useState<EvaluationResponse | null>(null);
   const [activeTab, setActiveTab] = useState('overview');
   const [timeRange, setTimeRange] = useState('30d');
   const [isCreateTaskDialogOpen, setIsCreateTaskDialogOpen] = useState(false);
@@ -793,7 +930,7 @@ const HumanEvaluationWorkflows: React.FC<HumanEvaluationWorkflowsProps> = ({
 
   // Update dashboard when time range changes
   React.useEffect(() => {
-    setDashboard(prev => ({
+    setDashboard((prev) => ({
       ...prev,
       timeRange: timeRange as HumanEvaluationDashboard['timeRange'],
     }));
@@ -801,12 +938,15 @@ const HumanEvaluationWorkflows: React.FC<HumanEvaluationWorkflowsProps> = ({
 
   // Filter tasks
   const filteredTasks = useMemo(() => {
-    return evaluationTasks.filter(task => {
-      const matchesSearch = task.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           task.description.toLowerCase().includes(searchTerm.toLowerCase());
+    return evaluationTasks.filter((task) => {
+      const matchesSearch =
+        task.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        task.description.toLowerCase().includes(searchTerm.toLowerCase());
       const matchesType = filterType === 'all' || task.type === filterType;
-      const matchesStatus = filterStatus === 'all' || task.status === filterStatus;
-      const matchesPriority = filterPriority === 'all' || task.priority === filterPriority;
+      const matchesStatus =
+        filterStatus === 'all' || task.status === filterStatus;
+      const matchesPriority =
+        filterPriority === 'all' || task.priority === filterPriority;
       return matchesSearch && matchesType && matchesStatus && matchesPriority;
     });
   }, [evaluationTasks, searchTerm, filterType, filterStatus, filterPriority]);
@@ -814,182 +954,235 @@ const HumanEvaluationWorkflows: React.FC<HumanEvaluationWorkflowsProps> = ({
   // Get status color
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'completed': return 'bg-green-100 text-green-800 border-green-200';
-      case 'in_progress': return 'bg-blue-100 text-blue-800 border-blue-200';
-      case 'assigned': return 'bg-purple-100 text-purple-800 border-purple-200';
-      case 'pending': return 'bg-gray-100 text-gray-800 border-gray-200';
-      case 'cancelled': return 'bg-red-100 text-red-800 border-red-200';
-      default: return 'bg-gray-100 text-gray-800 border-gray-200';
+      case 'completed':
+        return 'bg-green-100 text-green-800 border-green-200';
+      case 'in_progress':
+        return 'bg-blue-100 text-blue-800 border-blue-200';
+      case 'assigned':
+        return 'bg-purple-100 text-purple-800 border-purple-200';
+      case 'pending':
+        return 'bg-gray-100 text-foreground border-border';
+      case 'cancelled':
+        return 'bg-red-100 text-red-800 border-red-200';
+      default:
+        return 'bg-gray-100 text-foreground border-border';
     }
   };
 
   // Get status icon
   const getStatusIcon = (status: string) => {
     switch (status) {
-      case 'completed': return <CheckCircle className="h-4 w-4 text-green-500" />;
-      case 'in_progress': return <RefreshCw className="h-4 w-4 text-blue-500 animate-spin" />;
-      case 'assigned': return <Users className="h-4 w-4 text-purple-500" />;
-      case 'pending': return <Clock className="h-4 w-4 text-gray-500" />;
-      case 'cancelled': return <XCircle className="h-4 w-4 text-red-500" />;
-      default: return <Clock className="h-4 w-4 text-gray-500" />;
+      case 'completed':
+        return <CheckCircle className="h-4 w-4 text-green-500" />;
+      case 'in_progress':
+        return <RefreshCw className="h-4 w-4 text-blue-500 animate-spin" />;
+      case 'assigned':
+        return <Users className="h-4 w-4 text-purple-500" />;
+      case 'pending':
+        return <Clock className="h-4 w-4 text-muted-foreground" />;
+      case 'cancelled':
+        return <XCircle className="h-4 w-4 text-red-500" />;
+      default:
+        return <Clock className="h-4 w-4 text-muted-foreground" />;
     }
   };
 
   // Get priority color
   const getPriorityColor = (priority: string) => {
     switch (priority) {
-      case 'urgent': return 'bg-red-100 text-red-800 border-red-200';
-      case 'high': return 'bg-orange-100 text-orange-800 border-orange-200';
-      case 'medium': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
-      case 'low': return 'bg-blue-100 text-blue-800 border-blue-200';
-      default: return 'bg-gray-100 text-gray-800 border-gray-200';
+      case 'urgent':
+        return 'bg-red-100 text-red-800 border-red-200';
+      case 'high':
+        return 'bg-orange-100 text-orange-800 border-orange-200';
+      case 'medium':
+        return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+      case 'low':
+        return 'bg-blue-100 text-blue-800 border-blue-200';
+      default:
+        return 'bg-gray-100 text-foreground border-border';
     }
   };
 
   // Get type icon
   const getTypeIcon = (type: string) => {
     switch (type) {
-      case 'query_evaluation': return <Target className="h-4 w-4" />;
-      case 'response_quality': return <Star className="h-4 w-4" />;
-      case 'content_review': return <FileText className="h-4 w-4" />;
-      case 'usability_test': return <UserCheck className="h-4 w-4" />;
-      case 'accuracy_check': return <Shield className="h-4 w-4" />;
-      case 'compliance_review': return <Globe className="h-4 w-4" />;
-      default: return <CheckCircle className="h-4 w-4" />;
+      case 'query_evaluation':
+        return <Target className="h-4 w-4" />;
+      case 'response_quality':
+        return <Star className="h-4 w-4" />;
+      case 'content_review':
+        return <FileText className="h-4 w-4" />;
+      case 'usability_test':
+        return <UserCheck className="h-4 w-4" />;
+      case 'accuracy_check':
+        return <Shield className="h-4 w-4" />;
+      case 'compliance_review':
+        return <Globe className="h-4 w-4" />;
+      default:
+        return <CheckCircle className="h-4 w-4" />;
     }
   };
 
   // Get workflow icon
   const getWorkflowIcon = (type: string) => {
     switch (type) {
-      case 'individual': return <Users className="h-4 w-4" />;
-      case 'pairwise': return <Users className="h-4 w-4" />;
-      case 'panel': return <Users className="h-4 w-4" />;
-      case 'crowdsource': return <Users className="h-4 w-4" />;
-      default: return <Users className="h-4 w-4" />;
+      case 'individual':
+        return <Users className="h-4 w-4" />;
+      case 'pairwise':
+        return <Users className="h-4 w-4" />;
+      case 'panel':
+        return <Users className="h-4 w-4" />;
+      case 'crowdsource':
+        return <Users className="h-4 w-4" />;
+      default:
+        return <Users className="h-4 w-4" />;
     }
   };
 
   // Assign evaluators to task
-  const assignEvaluators = useCallback((taskId: string, evaluatorIds: string[]) => {
-    setEvaluationTasks(prev => prev.map(task =>
-      task.id === taskId
-        ? { ...task, assignedTo: evaluatorIds, updated: new Date().toISOString() }
-        : task
-    ));
-    onTaskAssign?.(taskId, evaluatorIds);
-  }, [onTaskAssign]);
+  const assignEvaluators = useCallback(
+    (taskId: string, evaluatorIds: string[]) => {
+      setEvaluationTasks((prev) =>
+        prev.map((task) =>
+          task.id === taskId
+            ? {
+                ...task,
+                assignedTo: evaluatorIds,
+                updated: new Date().toISOString(),
+              }
+            : task
+        )
+      );
+      onTaskAssign?.(taskId, evaluatorIds);
+    },
+    [onTaskAssign]
+  );
 
   // Submit evaluation response
-  const submitEvaluation = useCallback((responseData: Partial<EvaluationResponse>) => {
-    const newResponse: EvaluationResponse = {
-      id: `resp-${Date.now()}`,
-      taskId: responseData.taskId || '',
-      reviewerId: 'current-user',
-      reviewerName: 'Current User',
-      reviewerRole: 'Evaluator',
-      response: responseData.response || {
-        overallScore: 0,
-        dimensionScores: {},
-        comments: {},
-        confidence: 0.5,
-        timeSpent: 0,
-      },
-      status: 'draft',
-      submittedAt: new Date().toISOString(),
-      metadata: {
-        userAgent: navigator.userAgent,
-        ipAddress: '127.0.0.1',
-        deviceInfo: 'Unknown',
-      },
-    };
-    setEvaluationResponses(prev => [...prev, newResponse]);
-    onEvaluationSubmit?.(newResponse);
-  }, [onEvaluationSubmit]);
-
-  // Delete task
-  const handleDeleteTask = useCallback((taskId: string) => {
-    setEvaluationTasks(prev => prev.filter(task => task.id !== taskId));
-    onTaskDelete?.(taskId);
-  }, [onTaskDelete]);
-
-  // Save task
-  const handleSaveTask = useCallback((taskData: Partial<EvaluationTask>) => {
-    if (editingTask) {
-      // Update existing task
-      setEvaluationTasks(prev => prev.map(task =>
-        task.id === editingTask.id
-          ? { ...task, ...taskData, updated: new Date().toISOString() }
-          : task
-      ));
-      setEditingTask(null);
-    } else {
-      // Create new task
-      const newTask: EvaluationTask = {
-        id: `task-${Date.now()}`,
-        title: taskData.title || 'New Evaluation Task',
-        description: taskData.description || '',
-        type: taskData.type || 'query_evaluation',
-        priority: taskData.priority || 'medium',
-        status: 'pending',
-        workflow: {
-          type: 'individual',
-          reviewers: [],
-          minReviewers: 1,
-          maxReviewers: 1,
-          consensusRequired: false,
-          blindReview: false,
+  const submitEvaluation = useCallback(
+    (responseData: Partial<EvaluationResponse>) => {
+      const newResponse: EvaluationResponse = {
+        id: `resp-${Date.now()}`,
+        taskId: responseData.taskId || '',
+        reviewerId: 'current-user',
+        reviewerName: 'Current User',
+        reviewerRole: 'Evaluator',
+        response: responseData.response || {
+          overallScore: 0,
+          dimensionScores: {},
+          comments: {},
+          confidence: 0.5,
+          timeSpent: 0,
         },
-        criteria: {
-          dimensions: [],
-          scoring: 'scale_1_5',
-          weights: {},
-          passingScore: 3.0,
-          guidelines: [],
-        },
-        content: {
-          queries: [],
-          responses: [],
-          documents: [],
-          testCases: [],
-        },
-        scheduling: {
-          estimatedDuration: 30,
-          autoAssignment: true,
-          reminderSettings: {
-            enabled: true,
-            frequency: 'weekly',
-            reminders: [],
-          },
-        },
-        compensation: {
-          enabled: false,
-          method: 'fixed',
-          budget: 0,
-        },
-        created: new Date().toISOString(),
-        updated: new Date().toISOString(),
-        createdBy: 'current-user',
+        status: 'draft',
+        submittedAt: new Date().toISOString(),
         metadata: {
-          version: '1.0',
-          tags: [],
-          department: 'Quality Assurance',
-          project: 'RAG System Evaluation',
+          userAgent: navigator.userAgent,
+          ipAddress: '127.0.0.1',
+          deviceInfo: 'Unknown',
         },
       };
-      setEvaluationTasks(prev => [...prev, newTask]);
-      onTaskCreate?.(newTask);
-    }
-    setIsCreateTaskDialogOpen(false);
-  }, [editingTask, onTaskCreate]);
+      setEvaluationResponses((prev) => [...prev, newResponse]);
+      onEvaluationSubmit?.(newResponse);
+    },
+    [onEvaluationSubmit]
+  );
+
+  // Delete task
+  const handleDeleteTask = useCallback(
+    (taskId: string) => {
+      setEvaluationTasks((prev) => prev.filter((task) => task.id !== taskId));
+      onTaskDelete?.(taskId);
+    },
+    [onTaskDelete]
+  );
+
+  // Save task
+  const handleSaveTask = useCallback(
+    (taskData: Partial<EvaluationTask>) => {
+      if (editingTask) {
+        // Update existing task
+        setEvaluationTasks((prev) =>
+          prev.map((task) =>
+            task.id === editingTask.id
+              ? { ...task, ...taskData, updated: new Date().toISOString() }
+              : task
+          )
+        );
+        setEditingTask(null);
+      } else {
+        // Create new task
+        const newTask: EvaluationTask = {
+          id: `task-${Date.now()}`,
+          title: taskData.title || 'New Evaluation Task',
+          description: taskData.description || '',
+          type: taskData.type || 'query_evaluation',
+          priority: taskData.priority || 'medium',
+          status: 'pending',
+          workflow: {
+            type: 'individual',
+            reviewers: [],
+            minReviewers: 1,
+            maxReviewers: 1,
+            consensusRequired: false,
+            blindReview: false,
+          },
+          criteria: {
+            dimensions: [],
+            scoring: 'scale_1_5',
+            weights: {},
+            passingScore: 3.0,
+            guidelines: [],
+          },
+          content: {
+            queries: [],
+            responses: [],
+            documents: [],
+            testCases: [],
+          },
+          scheduling: {
+            estimatedDuration: 30,
+            autoAssignment: true,
+            reminderSettings: {
+              enabled: true,
+              frequency: 'weekly',
+              reminders: [],
+            },
+          },
+          compensation: {
+            enabled: false,
+            method: 'fixed',
+            budget: 0,
+          },
+          created: new Date().toISOString(),
+          updated: new Date().toISOString(),
+          createdBy: 'current-user',
+          metadata: {
+            version: '1.0',
+            tags: [],
+            department: 'Quality Assurance',
+            project: 'RAG System Evaluation',
+          },
+        };
+        setEvaluationTasks((prev) => [...prev, newTask]);
+        onTaskCreate?.(newTask);
+      }
+      setIsCreateTaskDialogOpen(false);
+    },
+    [editingTask, onTaskCreate]
+  );
 
   return (
     <div className={`space-y-6 ${className}`}>
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Human Evaluation Workflows</h2>
-          <p className="text-gray-600 dark:text-gray-400">Manage human evaluation tasks and workflows for quality assurance</p>
+          <h2 className="text-2xl font-bold text-foreground">
+            Human Evaluation Workflows
+          </h2>
+          <p className="text-foreground">
+            Manage human evaluation tasks and workflows for quality assurance
+          </p>
         </div>
         <div className="flex items-center space-x-2">
           <Select value={timeRange} onValueChange={setTimeRange}>
@@ -1003,7 +1196,10 @@ const HumanEvaluationWorkflows: React.FC<HumanEvaluationWorkflowsProps> = ({
               <SelectItem value="90d">Last 90 days</SelectItem>
             </SelectContent>
           </Select>
-          <Dialog open={isCreateTaskDialogOpen} onOpenChange={setIsCreateTaskDialogOpen}>
+          <Dialog
+            open={isCreateTaskDialogOpen}
+            onOpenChange={setIsCreateTaskDialogOpen}
+          >
             <DialogTrigger asChild>
               <Button>
                 <Plus className="h-4 w-4 mr-2" />
@@ -1012,7 +1208,11 @@ const HumanEvaluationWorkflows: React.FC<HumanEvaluationWorkflowsProps> = ({
             </DialogTrigger>
             <DialogContent className="max-w-4xl">
               <DialogHeader>
-                <DialogTitle>{editingTask ? 'Edit Evaluation Task' : 'Create Evaluation Task'}</DialogTitle>
+                <DialogTitle>
+                  {editingTask
+                    ? 'Edit Evaluation Task'
+                    : 'Create Evaluation Task'}
+                </DialogTitle>
                 <DialogDescription>
                   Configure human evaluation tasks and workflows
                 </DialogDescription>
@@ -1037,8 +1237,10 @@ const HumanEvaluationWorkflows: React.FC<HumanEvaluationWorkflowsProps> = ({
             <div className="flex items-center space-x-2">
               <Activity className="h-5 w-5 text-blue-500" />
               <div>
-                <div className="text-2xl font-bold">{dashboard.summary.totalTasks}</div>
-                <div className="text-sm text-gray-600 dark:text-gray-400">Total Tasks</div>
+                <div className="text-2xl font-bold">
+                  {dashboard.summary.totalTasks}
+                </div>
+                <div className="text-sm text-foreground">Total Tasks</div>
               </div>
             </div>
           </CardContent>
@@ -1048,8 +1250,10 @@ const HumanEvaluationWorkflows: React.FC<HumanEvaluationWorkflowsProps> = ({
             <div className="flex items-center space-x-2">
               <CheckCircle className="h-5 w-5 text-green-500" />
               <div>
-                <div className="text-2xl font-bold">{dashboard.summary.completedTasks}</div>
-                <div className="text-sm text-gray-600 dark:text-gray-400">Completed</div>
+                <div className="text-2xl font-bold">
+                  {dashboard.summary.completedTasks}
+                </div>
+                <div className="text-sm text-foreground">Completed</div>
               </div>
             </div>
           </CardContent>
@@ -1059,8 +1263,10 @@ const HumanEvaluationWorkflows: React.FC<HumanEvaluationWorkflowsProps> = ({
             <div className="flex items-center space-x-2">
               <Users className="h-5 w-5 text-purple-500" />
               <div>
-                <div className="text-2xl font-bold">{dashboard.summary.totalEvaluators}</div>
-                <div className="text-sm text-gray-600 dark:text-gray-400">Evaluators</div>
+                <div className="text-2xl font-bold">
+                  {dashboard.summary.totalEvaluators}
+                </div>
+                <div className="text-sm text-foreground">Evaluators</div>
               </div>
             </div>
           </CardContent>
@@ -1070,8 +1276,10 @@ const HumanEvaluationWorkflows: React.FC<HumanEvaluationWorkflowsProps> = ({
             <div className="flex items-center space-x-2">
               <TrendingUp className="h-5 w-5 text-green-500" />
               <div>
-                <div className="text-2xl font-bold">{dashboard.summary.averageScore.toFixed(1)}</div>
-                <div className="text-sm text-gray-600 dark:text-gray-400">Avg Score</div>
+                <div className="text-2xl font-bold">
+                  {dashboard.summary.averageScore.toFixed(1)}
+                </div>
+                <div className="text-sm text-foreground">Avg Score</div>
               </div>
             </div>
           </CardContent>
@@ -1081,8 +1289,10 @@ const HumanEvaluationWorkflows: React.FC<HumanEvaluationWorkflowsProps> = ({
             <div className="flex items-center space-x-2">
               <Clock className="h-5 w-5 text-orange-500" />
               <div>
-                <div className="text-2xl font-bold">{dashboard.summary.averageTimePerEvaluation.toFixed(0)}m</div>
-                <div className="text-sm text-gray-600 dark:text-gray-400">Avg Time</div>
+                <div className="text-2xl font-bold">
+                  {dashboard.summary.averageTimePerEvaluation.toFixed(0)}m
+                </div>
+                <div className="text-sm text-foreground">Avg Time</div>
               </div>
             </div>
           </CardContent>
@@ -1100,7 +1310,10 @@ const HumanEvaluationWorkflows: React.FC<HumanEvaluationWorkflowsProps> = ({
             <FileText className="h-4 w-4" />
             <span>Tasks</span>
           </TabsTrigger>
-          <TabsTrigger value="evaluators" className="flex items-center space-x-2">
+          <TabsTrigger
+            value="evaluators"
+            className="flex items-center space-x-2"
+          >
             <Users className="h-4 w-4" />
             <span>Evaluators</span>
           </TabsTrigger>
@@ -1116,7 +1329,9 @@ const HumanEvaluationWorkflows: React.FC<HumanEvaluationWorkflowsProps> = ({
             <Card>
               <CardHeader>
                 <CardTitle>Evaluation Trends</CardTitle>
-                <CardDescription>Number of evaluations and average scores over time</CardDescription>
+                <CardDescription>
+                  Number of evaluations and average scores over time
+                </CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="h-80">
@@ -1125,11 +1340,21 @@ const HumanEvaluationWorkflows: React.FC<HumanEvaluationWorkflowsProps> = ({
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="date" tick={{ fontSize: 12 }} />
                       <YAxis yAxisId="left" tick={{ fontSize: 12 }} />
-                      <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 12 }} />
+                      <YAxis
+                        yAxisId="right"
+                        orientation="right"
+                        tick={{ fontSize: 12 }}
+                      />
                       <Tooltip />
                       <Legend />
                       <Bar yAxisId="left" dataKey="count" fill="#3b82f6" />
-                      <Line yAxisId="right" type="monotone" dataKey="averageScore" stroke="#10b981" strokeWidth={2} />
+                      <Line
+                        yAxisId="right"
+                        type="monotone"
+                        dataKey="averageScore"
+                        stroke="#10b981"
+                        strokeWidth={2}
+                      />
                     </ComposedChart>
                   </ResponsiveContainer>
                 </div>
@@ -1139,7 +1364,9 @@ const HumanEvaluationWorkflows: React.FC<HumanEvaluationWorkflowsProps> = ({
             <Card>
               <CardHeader>
                 <CardTitle>Score Distribution</CardTitle>
-                <CardDescription>How evaluation scores are distributed</CardDescription>
+                <CardDescription>
+                  How evaluation scores are distributed
+                </CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="h-80">
@@ -1158,9 +1385,14 @@ const HumanEvaluationWorkflows: React.FC<HumanEvaluationWorkflowsProps> = ({
                         fill="#8884d8"
                         dataKey="count"
                       >
-                        {dashboard.trends.scoreDistribution.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                        ))}
+                        {dashboard.trends.scoreDistribution.map(
+                          (entry, index) => (
+                            <Cell
+                              key={`cell-${index}`}
+                              fill={COLORS[index % COLORS.length]}
+                            />
+                          )
+                        )}
                       </Pie>
                       <Tooltip />
                     </PieChart>
@@ -1173,37 +1405,66 @@ const HumanEvaluationWorkflows: React.FC<HumanEvaluationWorkflowsProps> = ({
           <Card>
             <CardHeader>
               <CardTitle>Quality Metrics</CardTitle>
-              <CardDescription>Key quality indicators for the evaluation system</CardDescription>
+              <CardDescription>
+                Key quality indicators for the evaluation system
+              </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
                 <div>
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-medium">Inter-Rater Reliability</span>
-                    <span className="text-sm font-bold">{(dashboard.quality.interRaterReliability * 100).toFixed(0)}%</span>
+                    <span className="text-sm font-medium">
+                      Inter-Rater Reliability
+                    </span>
+                    <span className="text-sm font-bold">
+                      {(dashboard.quality.interRaterReliability * 100).toFixed(
+                        0
+                      )}
+                      %
+                    </span>
                   </div>
-                  <Progress value={dashboard.quality.interRaterReliability * 100} className="h-2" />
+                  <Progress
+                    value={dashboard.quality.interRaterReliability * 100}
+                    className="h-2"
+                  />
                 </div>
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-sm font-medium">Consistency</span>
-                    <span className="text-sm font-bold">{(dashboard.quality.consistency * 100).toFixed(0)}%</span>
+                    <span className="text-sm font-bold">
+                      {(dashboard.quality.consistency * 100).toFixed(0)}%
+                    </span>
                   </div>
-                  <Progress value={dashboard.quality.consistency * 100} className="h-2" />
+                  <Progress
+                    value={dashboard.quality.consistency * 100}
+                    className="h-2"
+                  />
                 </div>
                 <div>
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-medium">Feedback Quality</span>
-                    <span className="text-sm font-bold">{(dashboard.quality.feedbackQuality * 100).toFixed(0)}%</span>
+                    <span className="text-sm font-medium">
+                      Feedback Quality
+                    </span>
+                    <span className="text-sm font-bold">
+                      {(dashboard.quality.feedbackQuality * 100).toFixed(0)}%
+                    </span>
                   </div>
-                  <Progress value={dashboard.quality.feedbackQuality * 100} className="h-2" />
+                  <Progress
+                    value={dashboard.quality.feedbackQuality * 100}
+                    className="h-2"
+                  />
                 </div>
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-sm font-medium">Completion Rate</span>
-                    <span className="text-sm font-bold">{(dashboard.quality.completionRate * 100).toFixed(0)}%</span>
+                    <span className="text-sm font-bold">
+                      {(dashboard.quality.completionRate * 100).toFixed(0)}%
+                    </span>
                   </div>
-                  <Progress value={dashboard.quality.completionRate * 100} className="h-2" />
+                  <Progress
+                    value={dashboard.quality.completionRate * 100}
+                    className="h-2"
+                  />
                 </div>
               </div>
             </CardContent>
@@ -1217,7 +1478,7 @@ const HumanEvaluationWorkflows: React.FC<HumanEvaluationWorkflowsProps> = ({
               <div className="flex items-center space-x-4 mb-4">
                 <div className="flex-1">
                   <div className="relative">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
                       placeholder="Search evaluation tasks..."
                       value={searchTerm}
@@ -1232,7 +1493,7 @@ const HumanEvaluationWorkflows: React.FC<HumanEvaluationWorkflowsProps> = ({
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Types</SelectItem>
-                    {taskTypes.map(type => (
+                    {taskTypes.map((type) => (
                       <SelectItem key={type.id} value={type.id}>
                         {type.name}
                       </SelectItem>
@@ -1252,7 +1513,10 @@ const HumanEvaluationWorkflows: React.FC<HumanEvaluationWorkflowsProps> = ({
                     <SelectItem value="cancelled">Cancelled</SelectItem>
                   </SelectContent>
                 </Select>
-                <Select value={filterPriority} onValueChange={setFilterPriority}>
+                <Select
+                  value={filterPriority}
+                  onValueChange={setFilterPriority}
+                >
                   <SelectTrigger className="w-32">
                     <SelectValue placeholder="Priority" />
                   </SelectTrigger>
@@ -1267,21 +1531,32 @@ const HumanEvaluationWorkflows: React.FC<HumanEvaluationWorkflowsProps> = ({
               </div>
 
               <div className="space-y-3">
-                {filteredTasks.map(task => {
-                  const taskType = taskTypes.find(t => t.id === task.type);
-                  const workflowType = workflowTypes.find(w => w.id === task.workflow.type);
-                  const lastResult = evaluationResponses.find(r => r.taskId === task.id);
+                {filteredTasks.map((task) => {
+                  const taskType = taskTypes.find((t) => t.id === task.type);
+                  const workflowType = workflowTypes.find(
+                    (w) => w.id === task.workflow.type
+                  );
+                  const lastResult = evaluationResponses.find(
+                    (r) => r.taskId === task.id
+                  );
                   const assignedEvaluators = task.assignedTo || [];
 
                   return (
-                    <Card key={task.id} className="hover:shadow-md transition-shadow">
+                    <Card
+                      key={task.id}
+                      className="hover:shadow-md transition-shadow"
+                    >
                       <CardHeader className="pb-3">
                         <div className="flex items-start justify-between">
                           <div className="flex items-start space-x-3">
                             {getStatusIcon(task.status)}
                             <div>
-                              <CardTitle className="text-lg">{task.title}</CardTitle>
-                              <CardDescription className="mt-1">{task.description}</CardDescription>
+                              <CardTitle className="text-lg">
+                                {task.title}
+                              </CardTitle>
+                              <CardDescription className="mt-1">
+                                {task.description}
+                              </CardDescription>
                             </div>
                           </div>
                           <div className="flex items-center space-x-2">
@@ -1289,30 +1564,46 @@ const HumanEvaluationWorkflows: React.FC<HumanEvaluationWorkflowsProps> = ({
                               {task.priority}
                             </Badge>
                             <Badge variant="outline">{taskType?.name}</Badge>
-                            <Badge variant="outline">{workflowType?.name}</Badge>
+                            <Badge variant="outline">
+                              {workflowType?.name}
+                            </Badge>
                           </div>
                         </div>
                       </CardHeader>
                       <CardContent className="space-y-4">
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                           <div>
-                            <div className="text-sm font-medium text-gray-600 dark:text-gray-400">Status</div>
+                            <div className="text-sm font-medium text-foreground">
+                              Status
+                            </div>
                             <div className="flex items-center space-x-2">
                               {getStatusIcon(task.status)}
-                              <span className="capitalize">{task.status.replace('_', ' ')}</span>
+                              <span className="capitalize">
+                                {task.status.replace('_', ' ')}
+                              </span>
                             </div>
                           </div>
                           <div>
-                            <div className="text-sm font-medium text-gray-600 dark:text-gray-400">Priority</div>
+                            <div className="text-sm font-medium text-foreground">
+                              Priority
+                            </div>
                             <div className="flex items-center space-x-2">
-                              <div className={`w-3 h-3 rounded-full ${getPriorityColor(task.priority)} opacity-50`}></div>
-                              <span className="capitalize">{task.priority}</span>
+                              <div
+                                className={`w-3 h-3 rounded-full ${getPriorityColor(task.priority)} opacity-50`}
+                              ></div>
+                              <span className="capitalize">
+                                {task.priority}
+                              </span>
                             </div>
                           </div>
                           <div>
-                            <div className="text-sm font-medium text-gray-600 dark:text-gray-400">Reviewers</div>
+                            <div className="text-sm font-medium text-foreground">
+                              Reviewers
+                            </div>
                             <div className="text-sm">
-                              {assignedEvaluators.length}/{task.workflow.minReviewers}-{task.workflow.maxReviewers}
+                              {assignedEvaluators.length}/
+                              {task.workflow.minReviewers}-
+                              {task.workflow.maxReviewers}
                             </div>
                           </div>
                         </div>
@@ -1320,7 +1611,12 @@ const HumanEvaluationWorkflows: React.FC<HumanEvaluationWorkflowsProps> = ({
                         {task.scheduling.deadline && (
                           <div className="flex items-center space-x-2 text-sm">
                             <Calendar className="h-4 w-4 text-orange-500" />
-                            <span>Deadline: {new Date(task.scheduling.deadline).toLocaleDateString()}</span>
+                            <span>
+                              Deadline:{' '}
+                              {new Date(
+                                task.scheduling.deadline
+                              ).toLocaleDateString()}
+                            </span>
                           </div>
                         )}
 
@@ -1328,9 +1624,11 @@ const HumanEvaluationWorkflows: React.FC<HumanEvaluationWorkflowsProps> = ({
                           <div className="flex items-center space-x-2 text-sm">
                             <Zap className="h-4 w-4 text-green-500" />
                             <span>
-                              {task.compensation.method === 'per_evaluation' ? `$${task.compensation.rate}/evaluation` :
-                               task.compensation.method === 'hourly' ? `$${task.compensation.rate}/hour` :
-                               `Fixed: $${task.compensation.budget}`}
+                              {task.compensation.method === 'per_evaluation'
+                                ? `$${task.compensation.rate}/evaluation`
+                                : task.compensation.method === 'hourly'
+                                  ? `$${task.compensation.rate}/hour`
+                                  : `Fixed: $${task.compensation.budget}`}
                             </span>
                           </div>
                         )}
@@ -1338,11 +1636,18 @@ const HumanEvaluationWorkflows: React.FC<HumanEvaluationWorkflowsProps> = ({
                         {lastResult && (
                           <div className="border rounded-lg p-3 bg-gray-50 dark:bg-gray-800">
                             <div className="flex items-center justify-between mb-2">
-                              <div className="text-sm font-medium">Latest Result</div>
-                              <div className="text-sm font-bold">{lastResult.response.overallScore.toFixed(1)}/5</div>
+                              <div className="text-sm font-medium">
+                                Latest Result
+                              </div>
+                              <div className="text-sm font-bold">
+                                {lastResult.response.overallScore.toFixed(1)}/5
+                              </div>
                             </div>
-                            <div className="text-xs text-gray-500">
-                              By {lastResult.reviewerName} • {new Date(lastResult.submittedAt).toLocaleDateString()}
+                            <div className="text-xs text-muted-foreground">
+                              By {lastResult.reviewerName} •{' '}
+                              {new Date(
+                                lastResult.submittedAt
+                              ).toLocaleDateString()}
                             </div>
                           </div>
                         )}
@@ -1350,8 +1655,12 @@ const HumanEvaluationWorkflows: React.FC<HumanEvaluationWorkflowsProps> = ({
 
                       <div className="flex items-center justify-between">
                         <div className="flex flex-wrap gap-1">
-                          {task.metadata.tags.map(tag => (
-                            <Badge key={tag} variant="outline" className="text-xs">
+                          {task.metadata.tags.map((tag) => (
+                            <Badge
+                              key={tag}
+                              variant="outline"
+                              className="text-xs"
+                            >
                               {tag}
                             </Badge>
                           ))}
@@ -1397,27 +1706,40 @@ const HumanEvaluationWorkflows: React.FC<HumanEvaluationWorkflowsProps> = ({
           <Card>
             <CardHeader>
               <CardTitle>Evaluator Performance</CardTitle>
-              <CardDescription>Individual evaluator performance and reliability metrics</CardDescription>
+              <CardDescription>
+                Individual evaluator performance and reliability metrics
+              </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {dashboard.performance.evaluatorPerformance.map(evaluator => (
-                  <div key={evaluator.evaluatorId} className="flex items-center justify-between p-3 border rounded-lg">
+                {dashboard.performance.evaluatorPerformance.map((evaluator) => (
+                  <div
+                    key={evaluator.evaluatorId}
+                    className="flex items-center justify-between p-3 border rounded-lg"
+                  >
                     <div className="flex items-center space-x-3">
                       <Users className="h-5 w-5 text-blue-500" />
                       <div>
-                        <div className="font-medium">{evaluator.evaluatorName}</div>
-                        <div className="text-sm text-gray-500">
-                          {evaluator.totalEvaluations} evaluations • {evaluator.averageScore.toFixed(1)}/5 avg score
+                        <div className="font-medium">
+                          {evaluator.evaluatorName}
                         </div>
-                        <div className="text-xs text-gray-400">
-                          Reliability: {(evaluator.reliability * 100).toFixed(0)}%
+                        <div className="text-sm text-muted-foreground">
+                          {evaluator.totalEvaluations} evaluations •{' '}
+                          {evaluator.averageScore.toFixed(1)}/5 avg score
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          Reliability:{' '}
+                          {(evaluator.reliability * 100).toFixed(0)}%
                         </div>
                       </div>
                     </div>
                     <div className="text-right">
-                      <div className="text-sm font-bold">{evaluator.averageScore.toFixed(1)}/5</div>
-                      <div className="text-xs text-gray-500">{evaluator.averageTime.toFixed(0)} min/eval</div>
+                      <div className="text-sm font-bold">
+                        {evaluator.averageScore.toFixed(1)}/5
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        {evaluator.averageTime.toFixed(0)} min/eval
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -1428,37 +1750,57 @@ const HumanEvaluationWorkflows: React.FC<HumanEvaluationWorkflowsProps> = ({
           <Card>
             <CardHeader>
               <CardTitle>Evaluation Insights</CardTitle>
-              <CardDescription>Key insights from human evaluations</CardDescription>
+              <CardDescription>
+                Key insights from human evaluations
+              </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
                 <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-                  <h5 className="font-medium text-blue-800 dark:text-blue-200 mb-2">Top Performing Evaluators</h5>
+                  <h5 className="font-medium text-blue-800 dark:text-blue-200 mb-2">
+                    Top Performing Evaluators
+                  </h5>
                   <div className="space-y-2">
                     {dashboard.performance.evaluatorPerformance
                       .sort((a, b) => b.averageScore - a.averageScore)
                       .slice(0, 3)
                       .map((evaluator, index) => (
-                        <div key={evaluator.evaluatorId} className="flex items-center justify-between text-sm">
+                        <div
+                          key={evaluator.evaluatorId}
+                          className="flex items-center justify-between text-sm"
+                        >
                           <div>
-                            <span className="font-medium">{index + 1}. {evaluator.evaluatorName}</span>
-                            <span className="text-gray-600">
-                              {evaluator.totalEvaluations} evaluations • {evaluator.averageScore.toFixed(1)}/5 avg
+                            <span className="font-medium">
+                              {index + 1}. {evaluator.evaluatorName}
+                            </span>
+                            <span className="text-foreground">
+                              {evaluator.totalEvaluations} evaluations •{' '}
+                              {evaluator.averageScore.toFixed(1)}/5 avg
                             </span>
                           </div>
-                          <div className="font-bold">{evaluator.reliability > 0.9 ? 'Excellent' : evaluator.reliability > 0.8 ? 'Good' : 'Needs Improvement'}</div>
+                          <div className="font-bold">
+                            {evaluator.reliability > 0.9
+                              ? 'Excellent'
+                              : evaluator.reliability > 0.8
+                                ? 'Good'
+                                : 'Needs Improvement'}
+                          </div>
                         </div>
                       ))}
                   </div>
                 </div>
 
                 <div className="p-4 bg-green-50 dark:bg-green-900/20 rounded-lg">
-                  <h5 className="font-medium text-green-800 dark:text-green-200 mb-2">Quality Improvements Needed</h5>
+                  <h5 className="font-medium text-green-800 dark:text-green-200 mb-2">
+                    Quality Improvements Needed
+                  </h5>
                   <div className="text-sm text-green-700">
-                    Consider additional training for evaluators with scores below 4.0
+                    Consider additional training for evaluators with scores
+                    below 4.0
                   </div>
                   <div className="text-sm text-green-600">
-                    Implement calibration sessions to improve inter-rater reliability
+                    Implement calibration sessions to improve inter-rater
+                    reliability
                   </div>
                 </div>
               </div>
@@ -1472,7 +1814,9 @@ const HumanEvaluationWorkflows: React.FC<HumanEvaluationWorkflowsProps> = ({
             <Card>
               <CardHeader>
                 <CardTitle>Evaluation Quality Trends</CardTitle>
-                <CardDescription>Quality metrics over time periods</CardDescription>
+                <CardDescription>
+                  Quality metrics over time periods
+                </CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="h-80">
@@ -1484,9 +1828,26 @@ const HumanEvaluationWorkflows: React.FC<HumanEvaluationWorkflowsProps> = ({
                       <YAxis yAxisId="right" tick={{ fontSize: 12 }} />
                       <Tooltip />
                       <Legend />
-                      <Line yAxisId="left" type="monotone" dataKey="count" stroke="#3b82f6" />
-                      <Line yAxisId="right" type="monotone" dataKey="averageScore" stroke="#10b981" strokeWidth={2} />
-                      <Line yAxisId="right" type="monotone" dataKey="completionTime" stroke="#f59e0b" strokeWidth={2} />
+                      <Line
+                        yAxisId="left"
+                        type="monotone"
+                        dataKey="count"
+                        stroke="#3b82f6"
+                      />
+                      <Line
+                        yAxisId="right"
+                        type="monotone"
+                        dataKey="averageScore"
+                        stroke="#10b981"
+                        strokeWidth={2}
+                      />
+                      <Line
+                        yAxisId="right"
+                        type="monotone"
+                        dataKey="completionTime"
+                        stroke="#f59e0b"
+                        strokeWidth={2}
+                      />
                     </LineChart>
                   </ResponsiveContainer>
                 </div>
@@ -1496,18 +1857,31 @@ const HumanEvaluationWorkflows: React.FC<HumanEvaluationWorkflowsProps> = ({
             <Card>
               <CardHeader>
                 <CardTitle>Dimension Analysis</CardTitle>
-                <CardDescription>Performance across evaluation dimensions</CardDescription>
+                <CardDescription>
+                  Performance across evaluation dimensions
+                </CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="h-80">
                   <ResponsiveContainer width="100%" height="100%">
-                    <RadarChart data={(mockEvaluationTasks[0]?.criteria.dimensions || []).map(dim => ({
-                      dimension: dim.name,
-                      score: 4.0 + Math.random() * 1.0, // Mock score data
-                    }))}>
+                    <RadarChart
+                      data={(
+                        mockEvaluationTasks[0]?.criteria.dimensions || []
+                      ).map((dim) => ({
+                        dimension: dim.name,
+                        score: 4.0 + Math.random() * 1.0, // Mock score data
+                      }))}
+                    >
                       <PolarGrid />
-                      <PolarAngleAxis dataKey="dimension" tick={{ fontSize: 10 }} />
-                      <PolarRadiusAxis angle={90} domain={[0, 5]} tick={{ fontSize: 10 }} />
+                      <PolarAngleAxis
+                        dataKey="dimension"
+                        tick={{ fontSize: 10 }}
+                      />
+                      <PolarRadiusAxis
+                        angle={90}
+                        domain={[0, 5]}
+                        tick={{ fontSize: 10 }}
+                      />
                       <Radar
                         name="Score"
                         dataKey="score"
@@ -1526,21 +1900,32 @@ const HumanEvaluationWorkflows: React.FC<HumanEvaluationWorkflowsProps> = ({
           <Card>
             <CardHeader>
               <CardTitle>Consistency Analysis</CardTitle>
-              <CardDescription>Inter-rater reliability and evaluation consistency</CardDescription>
+              <CardDescription>
+                Inter-rater reliability and evaluation consistency
+              </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="text-center p-4">
-                  <div className="text-3xl font-bold text-blue-600">{(dashboard.quality.interRaterReliability * 100).toFixed(0)}%</div>
-                  <div className="text-sm text-gray-600 dark:text-gray-400">Inter-Rater Reliability</div>
-                  <div className="text-xs text-gray-500">
+                  <div className="text-3xl font-bold text-blue-600">
+                    {(dashboard.quality.interRaterReliability * 100).toFixed(0)}
+                    %
+                  </div>
+                  <div className="text-sm text-foreground">
+                    Inter-Rater Reliability
+                  </div>
+                  <div className="text-xs text-muted-foreground">
                     Above 0.80 is considered good
                   </div>
                 </div>
                 <div className="text-center p-4">
-                  <div className="text-3xl font-bold text-green-600">{(dashboard.quality.consistency * 100).toFixed(0)}%</div>
-                  <div className="text-sm text-gray-600 dark:text-gray-400">Evaluation Consistency</div>
-                  <div className="text-xs text-gray-500">
+                  <div className="text-3xl font-bold text-green-600">
+                    {(dashboard.quality.consistency * 100).toFixed(0)}%
+                  </div>
+                  <div className="text-sm text-foreground">
+                    Evaluation Consistency
+                  </div>
+                  <div className="text-xs text-muted-foreground">
                     Above 0.75 is considered good
                   </div>
                 </div>
@@ -1554,7 +1939,11 @@ const HumanEvaluationWorkflows: React.FC<HumanEvaluationWorkflowsProps> = ({
 };
 
 // Evaluation Task Form Component
-const EvaluationTaskForm: React.FC<EvaluationTaskFormProps> = ({ task, onSubmit, onCancel }) => {
+const EvaluationTaskForm: React.FC<EvaluationTaskFormProps> = ({
+  task,
+  onSubmit,
+  onCancel,
+}) => {
   const [formData, setFormData] = useState({
     title: task?.title || '',
     description: task?.description || '',
@@ -1569,7 +1958,8 @@ const EvaluationTaskForm: React.FC<EvaluationTaskFormProps> = ({ task, onSubmit,
     estimatedDuration: task?.scheduling?.estimatedDuration || 30,
     autoAssignment: task?.scheduling?.autoAssignment ?? true,
     reminderEnabled: task?.scheduling?.reminderSettings?.enabled || false,
-    reminderFrequency: task?.scheduling?.reminderSettings?.frequency || 'weekly',
+    reminderFrequency:
+      task?.scheduling?.reminderSettings?.frequency || 'weekly',
     passThreshold: task?.criteria.passingScore || 3.0,
     failThreshold: 0, // Default value since this property doesn't exist in the interface
     scoring: task?.criteria.scoring || 'scale_1_5',
@@ -1612,7 +2002,9 @@ const EvaluationTaskForm: React.FC<EvaluationTaskFormProps> = ({ task, onSubmit,
         testCases: [],
       },
       scheduling: {
-        deadline: formData.deadline ? new Date(formData.deadline).toISOString() : undefined,
+        deadline: formData.deadline
+          ? new Date(formData.deadline).toISOString()
+          : undefined,
         estimatedDuration: formData.estimatedDuration,
         autoAssignment: formData.autoAssignment,
         reminderSettings: {
@@ -1629,7 +2021,10 @@ const EvaluationTaskForm: React.FC<EvaluationTaskFormProps> = ({ task, onSubmit,
       },
       metadata: {
         version: '1.0',
-        tags: formData.tags.split(',').map(t => t.trim()).filter(Boolean),
+        tags: formData.tags
+          .split(',')
+          .map((t) => t.trim())
+          .filter(Boolean),
         department: 'Quality Assurance',
         project: 'RAG System Evaluation',
       },
@@ -1646,14 +2041,24 @@ const EvaluationTaskForm: React.FC<EvaluationTaskFormProps> = ({ task, onSubmit,
           <Input
             id="task-title"
             value={formData.title}
-            onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
+            onChange={(e) =>
+              setFormData((prev) => ({ ...prev, title: e.target.value }))
+            }
             placeholder="Enter evaluation task title"
             required
           />
         </div>
         <div>
           <Label htmlFor="task-priority">Priority *</Label>
-          <Select value={formData.priority} onValueChange={(value) => setFormData(prev => ({ ...prev, priority: value as typeof formData.priority }))}>
+          <Select
+            value={formData.priority}
+            onValueChange={(value) =>
+              setFormData((prev) => ({
+                ...prev,
+                priority: value as typeof formData.priority,
+              }))
+            }
+          >
             <SelectTrigger>
               <SelectValue />
             </SelectTrigger>
@@ -1672,7 +2077,9 @@ const EvaluationTaskForm: React.FC<EvaluationTaskFormProps> = ({ task, onSubmit,
         <Textarea
           id="task-description"
           value={formData.description}
-          onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+          onChange={(e) =>
+            setFormData((prev) => ({ ...prev, description: e.target.value }))
+          }
           placeholder="Describe what this evaluation task accomplishes"
           rows={3}
         />
@@ -1681,12 +2088,20 @@ const EvaluationTaskForm: React.FC<EvaluationTaskFormProps> = ({ task, onSubmit,
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div>
           <Label htmlFor="task-type">Evaluation Type *</Label>
-          <Select value={formData.type} onValueChange={(value) => setFormData(prev => ({ ...prev, type: value as typeof formData.type }))}>
+          <Select
+            value={formData.type}
+            onValueChange={(value) =>
+              setFormData((prev) => ({
+                ...prev,
+                type: value as typeof formData.type,
+              }))
+            }
+          >
             <SelectTrigger>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {taskTypes.map(type => (
+              {taskTypes.map((type) => (
                 <SelectItem key={type.id} value={type.id}>
                   {type.name}
                 </SelectItem>
@@ -1696,12 +2111,20 @@ const EvaluationTaskForm: React.FC<EvaluationTaskFormProps> = ({ task, onSubmit,
         </div>
         <div>
           <Label htmlFor="workflow-type">Workflow Type *</Label>
-          <Select value={formData.workflowType} onValueChange={(value) => setFormData(prev => ({ ...prev, workflowType: value as typeof formData.workflowType }))}>
+          <Select
+            value={formData.workflowType}
+            onValueChange={(value) =>
+              setFormData((prev) => ({
+                ...prev,
+                workflowType: value as typeof formData.workflowType,
+              }))
+            }
+          >
             <SelectTrigger>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {workflowTypes.map(type => (
+              {workflowTypes.map((type) => (
                 <SelectItem key={type.id} value={type.id}>
                   {type.name}
                 </SelectItem>
@@ -1710,14 +2133,21 @@ const EvaluationTaskForm: React.FC<EvaluationTaskFormProps> = ({ task, onSubmit,
           </Select>
         </div>
         <div>
-          <Label htmlFor="estimated-duration">Estimated Duration (minutes)</Label>
+          <Label htmlFor="estimated-duration">
+            Estimated Duration (minutes)
+          </Label>
           <Input
             id="estimated-duration"
             type="number"
             min="5"
             max="120"
             value={formData.estimatedDuration}
-            onChange={(e) => setFormData(prev => ({ ...prev, estimatedDuration: parseInt(e.target.value) }))}
+            onChange={(e) =>
+              setFormData((prev) => ({
+                ...prev,
+                estimatedDuration: parseInt(e.target.value),
+              }))
+            }
           />
         </div>
       </div>
@@ -1732,7 +2162,12 @@ const EvaluationTaskForm: React.FC<EvaluationTaskFormProps> = ({ task, onSubmit,
               type="number"
               min="1"
               value={formData.minReviewers}
-              onChange={(e) => setFormData(prev => ({ ...prev, minReviewers: parseInt(e.target.value) }))}
+              onChange={(e) =>
+                setFormData((prev) => ({
+                  ...prev,
+                  minReviewers: parseInt(e.target.value),
+                }))
+              }
             />
           </div>
           <div>
@@ -1743,14 +2178,21 @@ const EvaluationTaskForm: React.FC<EvaluationTaskFormProps> = ({ task, onSubmit,
               min="1"
               max="10"
               value={formData.maxReviewers}
-              onChange={(e) => setFormData(prev => ({ ...prev, maxReviewers: parseInt(e.target.value) }))}
+              onChange={(e) =>
+                setFormData((prev) => ({
+                  ...prev,
+                  maxReviewers: parseInt(e.target.value),
+                }))
+              }
             />
           </div>
           <div className="flex items-center space-x-2 mt-6">
             <Switch
               id="consensus-required"
               checked={formData.consensusRequired}
-              onCheckedChange={(checked) => setFormData(prev => ({ ...prev, consensusRequired: checked }))}
+              onCheckedChange={(checked) =>
+                setFormData((prev) => ({ ...prev, consensusRequired: checked }))
+              }
             />
             <Label htmlFor="consensus-required">Consensus Required</Label>
           </div>
@@ -1758,7 +2200,9 @@ const EvaluationTaskForm: React.FC<EvaluationTaskFormProps> = ({ task, onSubmit,
             <Switch
               id="blind-review"
               checked={formData.blindReview}
-              onCheckedChange={(checked) => setFormData(prev => ({ ...prev, blindReview: checked }))}
+              onCheckedChange={(checked) =>
+                setFormData((prev) => ({ ...prev, blindReview: checked }))
+              }
             />
             <Label htmlFor="blind-review">Blind Review</Label>
           </div>
@@ -1770,7 +2214,15 @@ const EvaluationTaskForm: React.FC<EvaluationTaskFormProps> = ({ task, onSubmit,
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
             <Label htmlFor="scoring">Scoring Method</Label>
-            <Select value={formData.scoring} onValueChange={(value) => setFormData(prev => ({ ...prev, scoring: value as typeof formData.scoring }))}>
+            <Select
+              value={formData.scoring}
+              onValueChange={(value) =>
+                setFormData((prev) => ({
+                  ...prev,
+                  scoring: value as typeof formData.scoring,
+                }))
+              }
+            >
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
@@ -1791,7 +2243,12 @@ const EvaluationTaskForm: React.FC<EvaluationTaskFormProps> = ({ task, onSubmit,
               max="5"
               step="0.5"
               value={formData.passThreshold}
-              onChange={(e) => setFormData(prev => ({ ...prev, passThreshold: parseFloat(e.target.value) }))}
+              onChange={(e) =>
+                setFormData((prev) => ({
+                  ...prev,
+                  passThreshold: parseFloat(e.target.value),
+                }))
+              }
             />
           </div>
           <div>
@@ -1803,7 +2260,12 @@ const EvaluationTaskForm: React.FC<EvaluationTaskFormProps> = ({ task, onSubmit,
               max="5"
               step="0.5"
               value={formData.failThreshold}
-              onChange={(e) => setFormData(prev => ({ ...prev, failThreshold: parseFloat(e.target.value) }))}
+              onChange={(e) =>
+                setFormData((prev) => ({
+                  ...prev,
+                  failThreshold: parseFloat(e.target.value),
+                }))
+              }
             />
           </div>
         </div>
@@ -1818,7 +2280,9 @@ const EvaluationTaskForm: React.FC<EvaluationTaskFormProps> = ({ task, onSubmit,
               id="deadline"
               type="datetime-local"
               value={formData.deadline}
-              onChange={(e) => setFormData(prev => ({ ...prev, deadline: e.target.value }))}
+              onChange={(e) =>
+                setFormData((prev) => ({ ...prev, deadline: e.target.value }))
+              }
             />
           </div>
           <div>
@@ -1826,7 +2290,9 @@ const EvaluationTaskForm: React.FC<EvaluationTaskFormProps> = ({ task, onSubmit,
             <Switch
               id="auto-assignment"
               checked={formData.autoAssignment}
-              onCheckedChange={(checked) => setFormData(prev => ({ ...prev, autoAssignment: checked }))}
+              onCheckedChange={(checked) =>
+                setFormData((prev) => ({ ...prev, autoAssignment: checked }))
+              }
             />
           </div>
         </div>
@@ -1834,13 +2300,23 @@ const EvaluationTaskForm: React.FC<EvaluationTaskFormProps> = ({ task, onSubmit,
           <Switch
             id="reminder-enabled"
             checked={formData.reminderEnabled}
-            onCheckedChange={(checked) => setFormData(prev => ({ ...prev, reminderEnabled: checked }))}
+            onCheckedChange={(checked) =>
+              setFormData((prev) => ({ ...prev, reminderEnabled: checked }))
+            }
           />
           <Label htmlFor="reminder-enabled">Enable Reminders</Label>
         </div>
         {formData.reminderEnabled && (
           <div className="mt-2">
-            <Select value={formData.reminderFrequency} onValueChange={(value) => setFormData(prev => ({ ...prev, reminderFrequency: value as typeof formData.reminderFrequency }))}>
+            <Select
+              value={formData.reminderFrequency}
+              onValueChange={(value) =>
+                setFormData((prev) => ({
+                  ...prev,
+                  reminderFrequency: value as typeof formData.reminderFrequency,
+                }))
+              }
+            >
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
@@ -1861,7 +2337,9 @@ const EvaluationTaskForm: React.FC<EvaluationTaskFormProps> = ({ task, onSubmit,
           <Switch
             id="compensation-enabled"
             checked={formData.compensationEnabled}
-            onCheckedChange={(checked) => setFormData(prev => ({ ...prev, compensationEnabled: checked }))}
+            onCheckedChange={(checked) =>
+              setFormData((prev) => ({ ...prev, compensationEnabled: checked }))
+            }
           />
           <Label htmlFor="compensation-enabled">Enable Compensation</Label>
         </div>
@@ -1870,14 +2348,25 @@ const EvaluationTaskForm: React.FC<EvaluationTaskFormProps> = ({ task, onSubmit,
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <Label htmlFor="compensation-method">Method</Label>
-                <Select value={formData.compensationMethod} onValueChange={(value) => setFormData(prev => ({ ...prev, compensationMethod: value as typeof formData.compensationMethod }))}>
+                <Select
+                  value={formData.compensationMethod}
+                  onValueChange={(value) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      compensationMethod:
+                        value as typeof formData.compensationMethod,
+                    }))
+                  }
+                >
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="fixed">Fixed Rate</SelectItem>
                     <SelectItem value="hourly">Hourly Rate</SelectItem>
-                    <SelectItem value="per_evaluation">Per Evaluation</SelectItem>
+                    <SelectItem value="per_evaluation">
+                      Per Evaluation
+                    </SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -1890,7 +2379,12 @@ const EvaluationTaskForm: React.FC<EvaluationTaskFormProps> = ({ task, onSubmit,
                     min="1"
                     max="500"
                     value={formData.compensationRate || ''}
-                    onChange={(e) => setFormData(prev => ({ ...prev, compensationRate: parseFloat(e.target.value) }))}
+                    onChange={(e) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        compensationRate: parseFloat(e.target.value),
+                      }))
+                    }
                     placeholder="25"
                   />
                 ) : formData.compensationMethod === 'hourly' ? (
@@ -1900,7 +2394,12 @@ const EvaluationTaskForm: React.FC<EvaluationTaskFormProps> = ({ task, onSubmit,
                     min="10"
                     max="200"
                     value={formData.compensationRate || ''}
-                    onChange={(e) => setFormData(prev => ({ ...prev, compensationRate: parseFloat(e.target.value) }))}
+                    onChange={(e) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        compensationRate: parseFloat(e.target.value),
+                      }))
+                    }
                     placeholder="50"
                   />
                 ) : (
@@ -1910,7 +2409,12 @@ const EvaluationTaskForm: React.FC<EvaluationTaskFormProps> = ({ task, onSubmit,
                     min="50"
                     max="10000"
                     value={formData.compensationBudget || ''}
-                    onChange={(e) => setFormData(prev => ({ ...prev, compensationBudget: parseInt(e.target.value) }))}
+                    onChange={(e) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        compensationBudget: parseInt(e.target.value),
+                      }))
+                    }
                     placeholder="500"
                   />
                 )}
@@ -1925,7 +2429,9 @@ const EvaluationTaskForm: React.FC<EvaluationTaskFormProps> = ({ task, onSubmit,
         <Input
           id="tags"
           value={formData.tags}
-          onChange={(e) => setFormData(prev => ({ ...prev, tags: e.target.value }))}
+          onChange={(e) =>
+            setFormData((prev) => ({ ...prev, tags: e.target.value }))
+          }
           placeholder="e.g., quality, automated, expert-review"
         />
       </div>

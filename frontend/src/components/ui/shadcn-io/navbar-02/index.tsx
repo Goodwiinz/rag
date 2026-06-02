@@ -36,31 +36,41 @@ import { cn } from '@/lib/utils';
 // Simple logo component for the navbar
 const Logo = (props: React.SVGAttributes<SVGElement>) => {
   return (
-    <svg width='1em' height='1em' viewBox='0 0 324 323' fill='currentColor' xmlns='http://www.w3.org/2000/svg' {...props}>
+    <svg
+      width="1em"
+      height="1em"
+      viewBox="0 0 324 323"
+      fill="currentColor"
+      xmlns="http://www.w3.org/2000/svg"
+      {...props}
+    >
       <rect
-        x='88.1023'
-        y='144.792'
-        width='151.802'
-        height='36.5788'
-        rx='18.2894'
-        transform='rotate(-38.5799 88.1023 144.792)'
-        fill='currentColor'
+        x="88.1023"
+        y="144.792"
+        width="151.802"
+        height="36.5788"
+        rx="18.2894"
+        transform="rotate(-38.5799 88.1023 144.792)"
+        fill="currentColor"
       />
       <rect
-        x='85.3459'
-        y='244.537'
-        width='151.802'
-        height='36.5788'
-        rx='18.2894'
-        transform='rotate(-38.5799 85.3459 244.537)'
-        fill='currentColor'
+        x="85.3459"
+        y="244.537"
+        width="151.802"
+        height="36.5788"
+        rx="18.2894"
+        transform="rotate(-38.5799 85.3459 244.537)"
+        fill="currentColor"
       />
     </svg>
   );
 };
 
 // Hamburger icon component
-const HamburgerIcon = ({ className, ...props }: React.SVGAttributes<SVGElement>) => (
+const HamburgerIcon = ({
+  className,
+  ...props
+}: React.SVGAttributes<SVGElement>) => (
   <svg
     className={cn('pointer-events-none', className)}
     width={24}
@@ -152,14 +162,17 @@ export const Navbar02 = React.forwardRef<HTMLElement, Navbar02Props>(
     }, []);
 
     // Combine refs
-    const combinedRef = React.useCallback((node: HTMLElement | null) => {
-      containerRef.current = node;
-      if (typeof ref === 'function') {
-        ref(node);
-      } else if (ref) {
-        ref.current = node;
-      }
-    }, [ref]);
+    const combinedRef = React.useCallback(
+      (node: HTMLElement | null) => {
+        containerRef.current = node;
+        if (typeof ref === 'function') {
+          ref(node);
+        } else if (ref) {
+          ref.current = node;
+        }
+      },
+      [ref]
+    );
 
     return (
       <header
@@ -187,7 +200,10 @@ export const Navbar02 = React.forwardRef<HTMLElement, Navbar02Props>(
                     <span className="sr-only">Toggle navigation menu</span>
                   </Button>
                 </SheetTrigger>
-                <SheetContent side="left" className="w-[300px] sm:w-[400px] pr-0">
+                <SheetContent
+                  side="left"
+                  className="w-[300px] sm:w-[400px] pr-0"
+                >
                   <SheetHeader className="px-1 pb-4 text-left">
                     <SheetTitle className="flex items-center gap-2">
                       <div className="text-xl font-bold">{logo}</div>
@@ -231,7 +247,7 @@ export const Navbar02 = React.forwardRef<HTMLElement, Navbar02Props>(
                       ))}
                     </nav>
                     <div className="mt-auto border-t pt-6 flex flex-col gap-3">
-                       <Button
+                      <Button
                         variant="outline"
                         className="w-full justify-start"
                         onClick={(e) => {
@@ -281,7 +297,8 @@ export const Navbar02 = React.forwardRef<HTMLElement, Navbar02Props>(
                           </NavigationMenuTrigger>
                           <NavigationMenuContent>
                             {/* Mega Menu Layouts */}
-                            {link.type === 'description' && link.label === 'Features' ? (
+                            {link.type === 'description' &&
+                            link.label === 'Features' ? (
                               <ul className="grid gap-3 p-4 md:w-[400px] lg:w-[500px] lg:grid-cols-[.75fr_1fr]">
                                 <li className="row-span-3">
                                   <NavigationMenuLink asChild>
@@ -289,12 +306,16 @@ export const Navbar02 = React.forwardRef<HTMLElement, Navbar02Props>(
                                       href="/search"
                                       className="flex h-full w-full select-none flex-col justify-end rounded-md bg-gradient-to-b from-muted/50 to-muted p-6 no-underline outline-none focus:shadow-md cursor-pointer hover:bg-muted/80 transition-colors group"
                                     >
-                                      <BookOpen className="h-6 w-6 mb-2 opacity-70 group-hover:opacity-100 transition-opacity" aria-hidden={true} />
+                                      <BookOpen
+                                        className="h-6 w-6 mb-2 opacity-70 group-hover:opacity-100 transition-opacity"
+                                        aria-hidden={true}
+                                      />
                                       <div className="mb-2 text-lg font-medium">
                                         Enterprise RAG
                                       </div>
                                       <p className="text-sm leading-tight text-muted-foreground">
-                                        Advanced retrieval-augmented generation with multimodal support.
+                                        Advanced retrieval-augmented generation
+                                        with multimodal support.
                                       </p>
                                     </Link>
                                   </NavigationMenuLink>
@@ -379,27 +400,27 @@ export const Navbar02 = React.forwardRef<HTMLElement, Navbar02Props>(
           {/* Right side */}
           <div className="flex items-center gap-2 md:gap-4">
             <div className="hidden md:flex items-center gap-2">
-                <Button
+              <Button
                 variant="ghost"
                 size="sm"
                 className="text-sm font-medium hover:bg-accent hover:text-accent-foreground"
                 onClick={(e) => {
-                    e.preventDefault();
-                    if (onSignInClick) onSignInClick();
+                  e.preventDefault();
+                  if (onSignInClick) onSignInClick();
                 }}
-                >
+              >
                 {signInText}
-                </Button>
-                <Button
+              </Button>
+              <Button
                 size="sm"
                 className="text-sm font-medium px-5 h-9 rounded-md shadow-sm transition-all hover:shadow-md active:scale-95"
                 onClick={(e) => {
-                    e.preventDefault();
-                    if (onCtaClick) onCtaClick();
+                  e.preventDefault();
+                  if (onCtaClick) onCtaClick();
                 }}
-                >
+              >
                 {ctaText}
-                </Button>
+              </Button>
             </div>
           </div>
         </div>
@@ -424,16 +445,26 @@ const ListItem = React.forwardRef<
   const renderIconComponent = (iconName?: string) => {
     if (!iconName) return null;
     switch (iconName) {
-      case 'BookOpen': return <BookOpen className="h-5 w-5" />;
-      case 'LifeBuoy': return <LifeBuoy className="h-5 w-5" />;
-      case 'Info': return <Info className="h-5 w-5" />;
-      case 'Search': return <Search className="h-5 w-5" />;
-      case 'MessageSquare': return <MessageSquare className="h-5 w-5" />;
-      case 'FileText': return <FileText className="h-5 w-5" />;
-      case 'Upload': return <Upload className="h-5 w-5" />;
-      case 'LogIn': return <LogIn className="h-5 w-5" />;
-      case 'UserPlus': return <UserPlus className="h-5 w-5" />;
-      default: return null;
+      case 'BookOpen':
+        return <BookOpen className="h-5 w-5" />;
+      case 'LifeBuoy':
+        return <LifeBuoy className="h-5 w-5" />;
+      case 'Info':
+        return <Info className="h-5 w-5" />;
+      case 'Search':
+        return <Search className="h-5 w-5" />;
+      case 'MessageSquare':
+        return <MessageSquare className="h-5 w-5" />;
+      case 'FileText':
+        return <FileText className="h-5 w-5" />;
+      case 'Upload':
+        return <Upload className="h-5 w-5" />;
+      case 'LogIn':
+        return <LogIn className="h-5 w-5" />;
+      case 'UserPlus':
+        return <UserPlus className="h-5 w-5" />;
+      default:
+        return null;
     }
   };
 
@@ -455,9 +486,11 @@ const ListItem = React.forwardRef<
                 {renderIconComponent(icon)}
               </div>
               <div className="space-y-1">
-                <div className="text-sm font-medium leading-tight group-hover:text-primary transition-colors">{title}</div>
+                <div className="text-sm font-medium leading-tight group-hover:text-primary transition-colors">
+                  {title}
+                </div>
                 {children && (
-                  <p className="line-clamp-2 text-xs leading-snug text-muted-foreground/90 group-hover:text-muted-foreground">
+                  <p className="line-clamp-2 text-xs leading-snug text-muted-foreground/90 group-hover:text-foreground">
                     {children}
                   </p>
                 )}
@@ -465,9 +498,11 @@ const ListItem = React.forwardRef<
             </div>
           ) : (
             <>
-              <div className="text-sm font-medium leading-none group-hover:text-primary transition-colors">{title}</div>
+              <div className="text-sm font-medium leading-none group-hover:text-primary transition-colors">
+                {title}
+              </div>
               {children && (
-                <p className="line-clamp-2 text-xs leading-snug text-muted-foreground/90 group-hover:text-muted-foreground">
+                <p className="line-clamp-2 text-xs leading-snug text-muted-foreground/90 group-hover:text-foreground">
                   {children}
                 </p>
               )}

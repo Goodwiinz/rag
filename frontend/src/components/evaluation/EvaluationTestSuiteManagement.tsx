@@ -6,10 +6,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import {
-  Button,
-  ButtonProps,
-} from '@/components/ui/button';
+import { Button, ButtonProps } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -24,7 +21,14 @@ import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -174,9 +178,11 @@ const mockTestCases: TestCase[] = [
   {
     id: 'tc-001',
     name: 'Basic factual query about company revenue',
-    description: 'Test if the system can accurately retrieve and answer basic factual questions',
-    query: 'What was the company\'s revenue in the last fiscal year?',
-    expectedAnswer: 'Should provide specific revenue figures with proper context',
+    description:
+      'Test if the system can accurately retrieve and answer basic factual questions',
+    query: "What was the company's revenue in the last fiscal year?",
+    expectedAnswer:
+      'Should provide specific revenue figures with proper context',
     category: 'factual',
     difficulty: 'easy',
     priority: 'high',
@@ -193,8 +199,10 @@ const mockTestCases: TestCase[] = [
   {
     id: 'tc-002',
     name: 'Multi-step reasoning about market trends',
-    description: 'Test complex reasoning requiring synthesis of multiple information sources',
-    query: 'Based on recent market trends and our performance, what strategies should we consider for Q1?',
+    description:
+      'Test complex reasoning requiring synthesis of multiple information sources',
+    query:
+      'Based on recent market trends and our performance, what strategies should we consider for Q1?',
     category: 'reasoning',
     difficulty: 'hard',
     priority: 'high',
@@ -211,8 +219,10 @@ const mockTestCases: TestCase[] = [
   {
     id: 'tc-003',
     name: 'Document-specific content retrieval',
-    description: 'Test ability to retrieve and synthesize information from specific documents',
-    query: 'According to the Q3 financial report, what were the main drivers of revenue growth?',
+    description:
+      'Test ability to retrieve and synthesize information from specific documents',
+    query:
+      'According to the Q3 financial report, what were the main drivers of revenue growth?',
     category: 'document-specific',
     difficulty: 'medium',
     priority: 'medium',
@@ -298,7 +308,7 @@ const mockTestTemplates: TestTemplate[] = [
     testCases: [
       {
         name: 'Simple factual query',
-        query: 'What is the company\'s mission statement?',
+        query: "What is the company's mission statement?",
         category: 'factual',
         difficulty: 'easy',
         priority: 'high',
@@ -320,17 +330,16 @@ const mockTestTemplates: TestTemplate[] = [
   },
 ];
 
-const EvaluationTestSuiteManagement: React.FC<EvaluationTestSuiteManagementProps> = ({
-  onSuiteRun,
-  onSuiteEdit,
-  onTestCaseEdit,
-  className,
-}) => {
+const EvaluationTestSuiteManagement: React.FC<
+  EvaluationTestSuiteManagementProps
+> = ({ onSuiteRun, onSuiteEdit, onTestCaseEdit, className }) => {
   const [testSuites] = useState<TestSuite[]>(mockTestSuites);
   const [testCases] = useState<TestCase[]>(mockTestCases);
   const [testTemplates] = useState<TestTemplate[]>(mockTestTemplates);
   const [selectedSuite, setSelectedSuite] = useState<TestSuite | null>(null);
-  const [selectedTestCase, setSelectedTestCase] = useState<TestCase | null>(null);
+  const [selectedTestCase, setSelectedTestCase] = useState<TestCase | null>(
+    null
+  );
   const [activeTab, setActiveTab] = useState('suites');
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCategory, setFilterCategory] = useState('all');
@@ -341,35 +350,43 @@ const EvaluationTestSuiteManagement: React.FC<EvaluationTestSuiteManagementProps
 
   // Filter and search logic
   const filteredSuites = useMemo(() => {
-    return testSuites.filter(suite => {
-      const matchesSearch = suite.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           suite.description.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesCategory = filterCategory === 'all' || suite.category === filterCategory;
-      const matchesStatus = filterStatus === 'all' || suite.status === filterStatus;
+    return testSuites.filter((suite) => {
+      const matchesSearch =
+        suite.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        suite.description.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesCategory =
+        filterCategory === 'all' || suite.category === filterCategory;
+      const matchesStatus =
+        filterStatus === 'all' || suite.status === filterStatus;
       return matchesSearch && matchesCategory && matchesStatus;
     });
   }, [testSuites, searchTerm, filterCategory, filterStatus]);
 
   const filteredTestCases = useMemo(() => {
-    return testCases.filter(testCase => {
-      const matchesSearch = testCase.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           testCase.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           testCase.query.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesCategory = filterCategory === 'all' || testCase.category === filterCategory;
+    return testCases.filter((testCase) => {
+      const matchesSearch =
+        testCase.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        testCase.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        testCase.query.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesCategory =
+        filterCategory === 'all' || testCase.category === filterCategory;
       return matchesSearch && matchesCategory;
     });
   }, [testCases, searchTerm, filterCategory]);
 
   // Run test suite
-  const runTestSuite = useCallback(async (suite: TestSuite) => {
-    setIsRunningSuite(suite.id);
+  const runTestSuite = useCallback(
+    async (suite: TestSuite) => {
+      setIsRunningSuite(suite.id);
 
-    // Simulate test run
-    setTimeout(() => {
-      setIsRunningSuite(null);
-      onSuiteRun?.(suite);
-    }, 3000);
-  }, [onSuiteRun]);
+      // Simulate test run
+      setTimeout(() => {
+        setIsRunningSuite(null);
+        onSuiteRun?.(suite);
+      }, 3000);
+    },
+    [onSuiteRun]
+  );
 
   // Get status icon
   const getStatusIcon = (status: string) => {
@@ -381,7 +398,7 @@ const EvaluationTestSuiteManagement: React.FC<EvaluationTestSuiteManagementProps
       case 'running':
         return <RefreshCw className="h-4 w-4 text-blue-500 animate-spin" />;
       default:
-        return <Clock className="h-4 w-4 text-gray-500" />;
+        return <Clock className="h-4 w-4 text-muted-foreground" />;
     }
   };
 
@@ -395,13 +412,13 @@ const EvaluationTestSuiteManagement: React.FC<EvaluationTestSuiteManagementProps
       case 'running':
         return 'bg-blue-100 text-blue-800 border-blue-200';
       case 'draft':
-        return 'bg-gray-100 text-gray-800 border-gray-200';
+        return 'bg-gray-100 text-foreground border-border';
       case 'active':
         return 'bg-green-100 text-green-800 border-green-200';
       case 'archived':
         return 'bg-yellow-100 text-yellow-800 border-yellow-200';
       default:
-        return 'bg-gray-100 text-gray-800 border-gray-200';
+        return 'bg-gray-100 text-foreground border-border';
     }
   };
 
@@ -410,11 +427,18 @@ const EvaluationTestSuiteManagement: React.FC<EvaluationTestSuiteManagementProps
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Test Suite Management</h2>
-          <p className="text-gray-600 dark:text-gray-400">Manage evaluation test suites and test cases</p>
+          <h2 className="text-2xl font-bold text-foreground">
+            Test Suite Management
+          </h2>
+          <p className="text-foreground">
+            Manage evaluation test suites and test cases
+          </p>
         </div>
         <div className="flex items-center space-x-2">
-          <Dialog open={isCreateTestCaseOpen} onOpenChange={setIsCreateTestCaseOpen}>
+          <Dialog
+            open={isCreateTestCaseOpen}
+            onOpenChange={setIsCreateTestCaseOpen}
+          >
             <DialogTrigger asChild>
               <Button variant="outline">
                 <Plus className="h-4 w-4 mr-2" />
@@ -471,7 +495,7 @@ const EvaluationTestSuiteManagement: React.FC<EvaluationTestSuiteManagementProps
           <div className="flex items-center space-x-4">
             <div className="flex-1">
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   placeholder="Search test suites and cases..."
                   value={searchTerm}
@@ -490,7 +514,9 @@ const EvaluationTestSuiteManagement: React.FC<EvaluationTestSuiteManagementProps
                 <SelectItem value="advanced">Advanced</SelectItem>
                 <SelectItem value="factual">Factual</SelectItem>
                 <SelectItem value="reasoning">Reasoning</SelectItem>
-                <SelectItem value="document-specific">Document Specific</SelectItem>
+                <SelectItem value="document-specific">
+                  Document Specific
+                </SelectItem>
               </SelectContent>
             </Select>
             {activeTab === 'suites' && (
@@ -521,7 +547,10 @@ const EvaluationTestSuiteManagement: React.FC<EvaluationTestSuiteManagementProps
             <FileText className="h-4 w-4" />
             <span>Test Cases</span>
           </TabsTrigger>
-          <TabsTrigger value="templates" className="flex items-center space-x-2">
+          <TabsTrigger
+            value="templates"
+            className="flex items-center space-x-2"
+          >
             <Copy className="h-4 w-4" />
             <span>Templates</span>
           </TabsTrigger>
@@ -534,13 +563,18 @@ const EvaluationTestSuiteManagement: React.FC<EvaluationTestSuiteManagementProps
         {/* Test Suites Tab */}
         <TabsContent value="suites" className="space-y-4">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {filteredSuites.map(suite => (
-              <Card key={suite.id} className="hover:shadow-md transition-shadow">
+            {filteredSuites.map((suite) => (
+              <Card
+                key={suite.id}
+                className="hover:shadow-md transition-shadow"
+              >
                 <CardHeader className="pb-3">
                   <div className="flex items-start justify-between">
                     <div>
                       <CardTitle className="text-lg">{suite.name}</CardTitle>
-                      <CardDescription className="mt-1">{suite.description}</CardDescription>
+                      <CardDescription className="mt-1">
+                        {suite.description}
+                      </CardDescription>
                     </div>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
@@ -549,7 +583,9 @@ const EvaluationTestSuiteManagement: React.FC<EvaluationTestSuiteManagementProps
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => setSelectedSuite(suite)}>
+                        <DropdownMenuItem
+                          onClick={() => setSelectedSuite(suite)}
+                        >
                           <Eye className="h-4 w-4 mr-2" />
                           View Details
                         </DropdownMenuItem>
@@ -583,17 +619,20 @@ const EvaluationTestSuiteManagement: React.FC<EvaluationTestSuiteManagementProps
                       <Badge variant="outline">v{suite.version}</Badge>
                       <Badge variant="secondary">{suite.category}</Badge>
                     </div>
-                    <div className="flex items-center space-x-2 text-sm text-gray-500">
+                    <div className="flex items-center space-x-2 text-sm text-muted-foreground">
                       <FileText className="h-4 w-4" />
                       <span>{suite.testCases.length} tests</span>
                     </div>
                   </div>
 
                   {suite.schedule?.enabled && (
-                    <div className="flex items-center space-x-2 text-sm text-gray-600 dark:text-gray-400">
+                    <div className="flex items-center space-x-2 text-sm text-foreground">
                       <Calendar className="h-4 w-4" />
                       <span>Runs {suite.schedule.frequency}</span>
-                      <span>• Next: {new Date(suite.schedule.nextRun).toLocaleDateString()}</span>
+                      <span>
+                        • Next:{' '}
+                        {new Date(suite.schedule.nextRun).toLocaleDateString()}
+                      </span>
                     </div>
                   )}
 
@@ -601,8 +640,9 @@ const EvaluationTestSuiteManagement: React.FC<EvaluationTestSuiteManagementProps
                     <div className="flex items-center justify-between text-sm">
                       <div className="flex items-center space-x-2">
                         {getStatusIcon(suite.lastRunStatus || 'unknown')}
-                        <span className="text-gray-600 dark:text-gray-400">
-                          Last run: {new Date(suite.lastRun).toLocaleDateString()}
+                        <span className="text-foreground">
+                          Last run:{' '}
+                          {new Date(suite.lastRun).toLocaleDateString()}
                         </span>
                       </div>
                       <Button
@@ -646,12 +686,12 @@ const EvaluationTestSuiteManagement: React.FC<EvaluationTestSuiteManagementProps
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredTestCases.map(testCase => (
+                {filteredTestCases.map((testCase) => (
                   <TableRow key={testCase.id}>
                     <TableCell>
                       <div>
                         <div className="font-medium">{testCase.name}</div>
-                        <div className="text-sm text-gray-500 line-clamp-1">
+                        <div className="text-sm text-muted-foreground line-clamp-1">
                           {testCase.description}
                         </div>
                       </div>
@@ -661,16 +701,26 @@ const EvaluationTestSuiteManagement: React.FC<EvaluationTestSuiteManagementProps
                     </TableCell>
                     <TableCell>
                       <Badge
-                        variant={testCase.difficulty === 'easy' ? 'default' :
-                                testCase.difficulty === 'medium' ? 'secondary' : 'destructive'}
+                        variant={
+                          testCase.difficulty === 'easy'
+                            ? 'default'
+                            : testCase.difficulty === 'medium'
+                              ? 'secondary'
+                              : 'destructive'
+                        }
                       >
                         {testCase.difficulty}
                       </Badge>
                     </TableCell>
                     <TableCell>
                       <Badge
-                        variant={testCase.priority === 'high' ? 'destructive' :
-                                testCase.priority === 'medium' ? 'default' : 'secondary'}
+                        variant={
+                          testCase.priority === 'high'
+                            ? 'destructive'
+                            : testCase.priority === 'medium'
+                              ? 'default'
+                              : 'secondary'
+                        }
                       >
                         {testCase.priority}
                       </Badge>
@@ -708,8 +758,11 @@ const EvaluationTestSuiteManagement: React.FC<EvaluationTestSuiteManagementProps
         {/* Templates Tab */}
         <TabsContent value="templates" className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {testTemplates.map(template => (
-              <Card key={template.id} className="hover:shadow-md transition-shadow">
+            {testTemplates.map((template) => (
+              <Card
+                key={template.id}
+                className="hover:shadow-md transition-shadow"
+              >
                 <CardHeader>
                   <CardTitle className="text-lg">{template.name}</CardTitle>
                   <CardDescription>{template.description}</CardDescription>
@@ -717,7 +770,7 @@ const EvaluationTestSuiteManagement: React.FC<EvaluationTestSuiteManagementProps
                 <CardContent className="space-y-4">
                   <div className="flex items-center justify-between">
                     <Badge variant="outline">{template.category}</Badge>
-                    <div className="text-sm text-gray-500">
+                    <div className="text-sm text-muted-foreground">
                       {template.testCases.length} test cases
                     </div>
                   </div>
@@ -741,10 +794,12 @@ const EvaluationTestSuiteManagement: React.FC<EvaluationTestSuiteManagementProps
           <Card>
             <CardHeader>
               <CardTitle>Recent Test Results</CardTitle>
-              <CardDescription>View and analyze recent test execution results</CardDescription>
+              <CardDescription>
+                View and analyze recent test execution results
+              </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="text-center py-8 text-gray-500">
+              <div className="text-center py-8 text-muted-foreground">
                 <BarChart3 className="h-12 w-12 mx-auto mb-4 opacity-50" />
                 <p>No recent test results to display</p>
                 <p className="text-sm">Run a test suite to see results here</p>
@@ -756,11 +811,16 @@ const EvaluationTestSuiteManagement: React.FC<EvaluationTestSuiteManagementProps
 
       {/* Test Case Detail Dialog */}
       {selectedTestCase && (
-        <Dialog open={!!selectedTestCase} onOpenChange={() => setSelectedTestCase(null)}>
+        <Dialog
+          open={!!selectedTestCase}
+          onOpenChange={() => setSelectedTestCase(null)}
+        >
           <DialogContent className="max-w-3xl">
             <DialogHeader>
               <DialogTitle>{selectedTestCase.name}</DialogTitle>
-              <DialogDescription>{selectedTestCase.description}</DialogDescription>
+              <DialogDescription>
+                {selectedTestCase.description}
+              </DialogDescription>
             </DialogHeader>
             <ScrollArea className="max-h-96">
               <div className="space-y-4">
@@ -773,7 +833,9 @@ const EvaluationTestSuiteManagement: React.FC<EvaluationTestSuiteManagementProps
 
                 {selectedTestCase.expectedAnswer && (
                   <div>
-                    <Label className="text-sm font-medium">Expected Answer</Label>
+                    <Label className="text-sm font-medium">
+                      Expected Answer
+                    </Label>
                     <div className="mt-1 p-3 bg-gray-50 dark:bg-gray-800 rounded-md">
                       {selectedTestCase.expectedAnswer}
                     </div>
@@ -781,29 +843,52 @@ const EvaluationTestSuiteManagement: React.FC<EvaluationTestSuiteManagementProps
                 )}
 
                 <div>
-                  <Label className="text-sm font-medium">Metrics Configuration</Label>
+                  <Label className="text-sm font-medium">
+                    Metrics Configuration
+                  </Label>
                   <div className="mt-2 space-y-2">
-                    {Object.entries(selectedTestCase.metrics).map(([metric, config]) => (
-                      <div key={metric} className="flex items-center justify-between p-2 border rounded">
-                        <span className="font-medium capitalize">{metric.replace(/([A-Z])/g, ' $1').trim()}</span>
-                        <div className="flex items-center space-x-4 text-sm">
-                          <span>Min: {config.min}%</span>
-                          <span>Target: {config.target}%</span>
-                          <span>Weight: {config.weight}x</span>
+                    {Object.entries(selectedTestCase.metrics).map(
+                      ([metric, config]) => (
+                        <div
+                          key={metric}
+                          className="flex items-center justify-between p-2 border rounded"
+                        >
+                          <span className="font-medium capitalize">
+                            {metric.replace(/([A-Z])/g, ' $1').trim()}
+                          </span>
+                          <div className="flex items-center space-x-4 text-sm">
+                            <span>Min: {config.min}%</span>
+                            <span>Target: {config.target}%</span>
+                            <span>Weight: {config.weight}x</span>
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      )
+                    )}
                   </div>
                 </div>
 
                 <div className="flex items-center space-x-2">
                   <Badge variant="outline">{selectedTestCase.category}</Badge>
-                  <Badge variant={selectedTestCase.difficulty === 'easy' ? 'default' :
-                                  selectedTestCase.difficulty === 'medium' ? 'secondary' : 'destructive'}>
+                  <Badge
+                    variant={
+                      selectedTestCase.difficulty === 'easy'
+                        ? 'default'
+                        : selectedTestCase.difficulty === 'medium'
+                          ? 'secondary'
+                          : 'destructive'
+                    }
+                  >
                     {selectedTestCase.difficulty}
                   </Badge>
-                  <Badge variant={selectedTestCase.priority === 'high' ? 'destructive' :
-                                  selectedTestCase.priority === 'medium' ? 'default' : 'secondary'}>
+                  <Badge
+                    variant={
+                      selectedTestCase.priority === 'high'
+                        ? 'destructive'
+                        : selectedTestCase.priority === 'medium'
+                          ? 'default'
+                          : 'secondary'
+                    }
+                  >
                     {selectedTestCase.priority}
                   </Badge>
                 </div>
@@ -817,7 +902,11 @@ const EvaluationTestSuiteManagement: React.FC<EvaluationTestSuiteManagementProps
 };
 
 // Test Suite Form Component
-const TestSuiteForm: React.FC<TestSuiteFormProps> = ({ testCases, onSubmit, onCancel }) => {
+const TestSuiteForm: React.FC<TestSuiteFormProps> = ({
+  testCases,
+  onSubmit,
+  onCancel,
+}) => {
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -838,12 +927,14 @@ const TestSuiteForm: React.FC<TestSuiteFormProps> = ({ testCases, onSubmit, onCa
     onSubmit({
       ...formData,
       testCases: formData.selectedTestCases,
-      schedule: formData.scheduleEnabled ? {
-        enabled: true,
-        frequency: formData.frequency as any,
-        timezone: 'UTC',
-        nextRun: new Date().toISOString(),
-      } : undefined,
+      schedule: formData.scheduleEnabled
+        ? {
+            enabled: true,
+            frequency: formData.frequency as any,
+            timezone: 'UTC',
+            nextRun: new Date().toISOString(),
+          }
+        : undefined,
     } as any);
   };
 
@@ -854,7 +945,9 @@ const TestSuiteForm: React.FC<TestSuiteFormProps> = ({ testCases, onSubmit, onCa
         <Input
           id="suite-name"
           value={formData.name}
-          onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+          onChange={(e) =>
+            setFormData((prev) => ({ ...prev, name: e.target.value }))
+          }
           placeholder="Enter test suite name"
           required
         />
@@ -865,7 +958,9 @@ const TestSuiteForm: React.FC<TestSuiteFormProps> = ({ testCases, onSubmit, onCa
         <Textarea
           id="suite-description"
           value={formData.description}
-          onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+          onChange={(e) =>
+            setFormData((prev) => ({ ...prev, description: e.target.value }))
+          }
           placeholder="Describe the purpose of this test suite"
           rows={3}
         />
@@ -873,7 +968,12 @@ const TestSuiteForm: React.FC<TestSuiteFormProps> = ({ testCases, onSubmit, onCa
 
       <div>
         <Label htmlFor="suite-category">Category</Label>
-        <Select value={formData.category} onValueChange={(value) => setFormData(prev => ({ ...prev, category: value }))}>
+        <Select
+          value={formData.category}
+          onValueChange={(value) =>
+            setFormData((prev) => ({ ...prev, category: value }))
+          }
+        >
           <SelectTrigger>
             <SelectValue />
           </SelectTrigger>
@@ -890,7 +990,9 @@ const TestSuiteForm: React.FC<TestSuiteFormProps> = ({ testCases, onSubmit, onCa
         <Switch
           id="schedule-enabled"
           checked={formData.scheduleEnabled}
-          onCheckedChange={(checked) => setFormData(prev => ({ ...prev, scheduleEnabled: checked }))}
+          onCheckedChange={(checked) =>
+            setFormData((prev) => ({ ...prev, scheduleEnabled: checked }))
+          }
         />
         <Label htmlFor="schedule-enabled">Enable scheduled runs</Label>
       </div>
@@ -898,7 +1000,12 @@ const TestSuiteForm: React.FC<TestSuiteFormProps> = ({ testCases, onSubmit, onCa
       {formData.scheduleEnabled && (
         <div>
           <Label htmlFor="frequency">Frequency</Label>
-          <Select value={formData.frequency} onValueChange={(value) => setFormData(prev => ({ ...prev, frequency: value }))}>
+          <Select
+            value={formData.frequency}
+            onValueChange={(value) =>
+              setFormData((prev) => ({ ...prev, frequency: value }))
+            }
+          >
             <SelectTrigger>
               <SelectValue />
             </SelectTrigger>
@@ -951,7 +1058,10 @@ const TestCaseForm: React.FC<TestCaseFormProps> = ({ onSubmit, onCancel }) => {
     e.preventDefault();
     onSubmit({
       ...formData,
-      tags: formData.tags.split(',').map(tag => tag.trim()).filter(Boolean),
+      tags: formData.tags
+        .split(',')
+        .map((tag) => tag.trim())
+        .filter(Boolean),
       metrics: {
         answerRelevancy: {
           min: formData.answerRelevancyMin,
@@ -979,7 +1089,9 @@ const TestCaseForm: React.FC<TestCaseFormProps> = ({ onSubmit, onCancel }) => {
         <Input
           id="test-name"
           value={formData.name}
-          onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+          onChange={(e) =>
+            setFormData((prev) => ({ ...prev, name: e.target.value }))
+          }
           placeholder="Enter test case name"
           required
         />
@@ -990,7 +1102,9 @@ const TestCaseForm: React.FC<TestCaseFormProps> = ({ onSubmit, onCancel }) => {
         <Textarea
           id="test-description"
           value={formData.description}
-          onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+          onChange={(e) =>
+            setFormData((prev) => ({ ...prev, description: e.target.value }))
+          }
           placeholder="Describe what this test case validates"
           rows={2}
         />
@@ -1001,7 +1115,9 @@ const TestCaseForm: React.FC<TestCaseFormProps> = ({ onSubmit, onCancel }) => {
         <Textarea
           id="test-query"
           value={formData.query}
-          onChange={(e) => setFormData(prev => ({ ...prev, query: e.target.value }))}
+          onChange={(e) =>
+            setFormData((prev) => ({ ...prev, query: e.target.value }))
+          }
           placeholder="Enter the test query"
           rows={2}
           required
@@ -1013,7 +1129,9 @@ const TestCaseForm: React.FC<TestCaseFormProps> = ({ onSubmit, onCancel }) => {
         <Textarea
           id="expected-answer"
           value={formData.expectedAnswer}
-          onChange={(e) => setFormData(prev => ({ ...prev, expectedAnswer: e.target.value }))}
+          onChange={(e) =>
+            setFormData((prev) => ({ ...prev, expectedAnswer: e.target.value }))
+          }
           placeholder="Describe the expected answer"
           rows={2}
         />
@@ -1022,14 +1140,21 @@ const TestCaseForm: React.FC<TestCaseFormProps> = ({ onSubmit, onCancel }) => {
       <div className="grid grid-cols-2 gap-4">
         <div>
           <Label htmlFor="test-category">Category</Label>
-          <Select value={formData.category} onValueChange={(value) => setFormData(prev => ({ ...prev, category: value }))}>
+          <Select
+            value={formData.category}
+            onValueChange={(value) =>
+              setFormData((prev) => ({ ...prev, category: value }))
+            }
+          >
             <SelectTrigger>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="factual">Factual</SelectItem>
               <SelectItem value="reasoning">Reasoning</SelectItem>
-              <SelectItem value="document-specific">Document Specific</SelectItem>
+              <SelectItem value="document-specific">
+                Document Specific
+              </SelectItem>
               <SelectItem value="multimodal">Multimodal</SelectItem>
             </SelectContent>
           </Select>
@@ -1037,7 +1162,12 @@ const TestCaseForm: React.FC<TestCaseFormProps> = ({ onSubmit, onCancel }) => {
 
         <div>
           <Label htmlFor="test-difficulty">Difficulty</Label>
-          <Select value={formData.difficulty} onValueChange={(value: any) => setFormData(prev => ({ ...prev, difficulty: value }))}>
+          <Select
+            value={formData.difficulty}
+            onValueChange={(value: any) =>
+              setFormData((prev) => ({ ...prev, difficulty: value }))
+            }
+          >
             <SelectTrigger>
               <SelectValue />
             </SelectTrigger>

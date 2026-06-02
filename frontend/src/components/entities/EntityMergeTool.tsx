@@ -108,17 +108,17 @@ export const EntityMergeTool: React.FC = () => {
 
   if (!canBulkEdit) {
     return (
-      <Card className="border-[var(--terminal-border)] bg-[var(--terminal-surface)]">
+      <Card className="border-[var(--nous-border-1)] bg-[var(--nous-bg-2)]">
         <CardHeader>
-          <CardTitle className="text-xs font-mono font-bold uppercase tracking-widest text-[var(--terminal-text-dim)] flex items-center gap-2">
+          <CardTitle className="text-xs font-mono font-bold uppercase tracking-widest text-[var(--nous-fg-3)] flex items-center gap-2">
             <Lock className="w-4 h-4" />
             Entity Merge Tool
           </CardTitle>
         </CardHeader>
         <CardContent className="p-4">
           <div className="text-center py-12">
-            <Lock className="w-12 h-12 mx-auto mb-4 text-[var(--terminal-text-dim)]" />
-            <p className="text-sm font-mono text-[var(--terminal-text-dim)]">
+            <Lock className="w-12 h-12 mx-auto mb-4 text-[var(--nous-fg-3)]" />
+            <p className="text-sm font-mono text-[var(--nous-fg-3)]">
               Entity merging is restricted to administrators only.
             </p>
           </div>
@@ -366,16 +366,16 @@ export const EntityMergeTool: React.FC = () => {
 
   return (
     <div className="space-y-4">
-      <Card className="border-[var(--terminal-border)] bg-[var(--terminal-surface)]">
-        <CardHeader className="border-b border-[var(--terminal-border)] py-3">
-          <CardTitle className="text-xs font-mono font-bold uppercase tracking-widest text-[var(--terminal-text-dim)] flex items-center gap-2">
+      <Card className="border-[var(--nous-border-1)] bg-[var(--nous-bg-2)]">
+        <CardHeader className="border-b border-[var(--nous-border-1)] py-3">
+          <CardTitle className="text-xs font-mono font-bold uppercase tracking-widest text-[var(--nous-fg-3)] flex items-center gap-2">
             <GitMerge className="w-4 h-4" />
             Entity Merge Tool - Duplicate Detection
           </CardTitle>
         </CardHeader>
         <CardContent className="p-4 space-y-4">
           <div className="space-y-2">
-            <Label className="text-xs font-mono text-[var(--terminal-text-dim)]">
+            <Label className="text-xs font-mono text-[var(--nous-fg-3)]">
               Similarity Threshold: {(similarityThreshold * 100).toFixed(0)}%
             </Label>
             <Slider
@@ -390,20 +390,20 @@ export const EntityMergeTool: React.FC = () => {
 
           {duplicates.length > 0 && (
             <div className="space-y-2">
-              <Label className="text-xs font-mono text-[var(--terminal-text-dim)]">
+              <Label className="text-xs font-mono text-[var(--nous-fg-3)]">
                 Filter Duplicates
               </Label>
               <Input
                 placeholder="Search duplicate groups..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="font-mono text-xs bg-[var(--terminal-bg)] border-[var(--terminal-border)] text-[var(--terminal-text)]"
+                className="font-mono text-xs bg-[var(--nous-bg-1)] border-[var(--nous-border-1)] text-[var(--nous-fg-1)]"
               />
             </div>
           )}
 
           {activeJobId && (
-            <div className="text-xs font-mono text-[var(--terminal-text-dim)] border border-[var(--terminal-border)] rounded-md p-2">
+            <div className="text-xs font-mono text-[var(--nous-fg-3)] border border-[var(--nous-border-1)] rounded-md p-2">
               <p>MERGE_JOB: {activeJobId}</p>
               <p>STATUS: {jobStep || 'Running'}</p>
               <p>PROGRESS: {Math.round(jobProgress)}%</p>
@@ -414,7 +414,7 @@ export const EntityMergeTool: React.FC = () => {
             <Button
               onClick={findDuplicates}
               disabled={loading || !!activeJobId}
-              className="font-mono text-xs font-bold bg-[var(--phosphor-green)] text-[var(--terminal-bg)]"
+              className="font-mono text-xs font-bold bg-[var(--nous-sol)] text-[var(--nous-bg-1)]"
             >
               {loading ? (
                 <>
@@ -434,7 +434,7 @@ export const EntityMergeTool: React.FC = () => {
                 onClick={handleToggleSelectAllVisible}
                 variant="outline"
                 disabled={!!activeJobId}
-                className="font-mono text-xs font-bold border-[var(--terminal-border)]"
+                className="font-mono text-xs font-bold border-[var(--nous-border-1)]"
               >
                 {allVisibleSelected ? 'DESELECT_ALL' : 'SELECT_ALL'}
               </Button>
@@ -445,7 +445,7 @@ export const EntityMergeTool: React.FC = () => {
                 onClick={handleBatchMerge}
                 variant="outline"
                 disabled={!!activeJobId}
-                className="font-mono text-xs font-bold border-[var(--terminal-border)]"
+                className="font-mono text-xs font-bold border-[var(--nous-border-1)]"
               >
                 <GitMerge className="w-4 h-4 mr-2" />
                 MERGE_SELECTED ({selectedGroups.size})
@@ -498,14 +498,14 @@ export const EntityMergeTool: React.FC = () => {
       {filteredDuplicates.length > 0 && (
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <h3 className="text-sm font-mono font-bold text-[var(--terminal-text)]">
+            <h3 className="text-sm font-mono font-bold text-[var(--nous-fg-1)]">
               Found {filteredDuplicates.length} Duplicate Group
               {filteredDuplicates.length > 1 ? 's' : ''}
             </h3>
           </div>
 
           {filteredDuplicates.map(({ group, index }) => (
-            <Card key={index} className="border-[var(--terminal-border)] bg-[var(--terminal-surface)]">
+            <Card key={index} className="border-[var(--nous-border-1)] bg-[var(--nous-bg-2)]">
               <CardContent className="p-4">
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex items-center gap-2">
@@ -515,11 +515,11 @@ export const EntityMergeTool: React.FC = () => {
                       onChange={() => toggleGroupSelection(index)}
                       className="w-4 h-4"
                     />
-                    <AlertTriangle className="w-4 h-4 text-[var(--amber-gold)]" />
-                    <span className="text-xs font-mono text-[var(--terminal-text-dim)]">
+                    <AlertTriangle className="w-4 h-4 text-[var(--nous-helios)]" />
+                    <span className="text-xs font-mono text-[var(--nous-fg-3)]">
                       {group.entities.length} similar entities
                     </span>
-                    <Badge variant="outline" className="font-mono text-[10px] border-[var(--terminal-border)]">
+                    <Badge variant="outline" className="font-mono text-[10px] border-[var(--nous-border-1)]">
                       {(group.similarity * 100).toFixed(0)}% match
                     </Badge>
                   </div>
@@ -527,7 +527,7 @@ export const EntityMergeTool: React.FC = () => {
                     onClick={() => handleMergeGroup(group)}
                     size="sm"
                     disabled={!!activeJobId}
-                    className="font-mono text-[10px] bg-[var(--phosphor-green)] text-[var(--terminal-bg)]"
+                    className="font-mono text-[10px] bg-[var(--nous-sol)] text-[var(--nous-bg-1)]"
                   >
                     <GitMerge className="w-3 h-3 mr-1" />
                     MERGE
@@ -540,27 +540,27 @@ export const EntityMergeTool: React.FC = () => {
                       key={entity.id}
                       className={`p-2 rounded-md border ${
                         entity.id === group.suggested_primary
-                          ? 'border-[var(--phosphor-green)] bg-[var(--phosphor-green)]/10'
-                          : 'border-[var(--terminal-border)] bg-[var(--terminal-bg)]'
+                          ? 'border-[var(--nous-sol)] bg-[var(--nous-sol)]/10'
+                          : 'border-[var(--nous-border-1)] bg-[var(--nous-bg-1)]'
                       }`}
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex-1">
                           <div className="flex items-center gap-2">
-                            <span className="text-sm font-mono font-bold text-[var(--terminal-text)]">
+                            <span className="text-sm font-mono font-bold text-[var(--nous-fg-1)]">
                               {entity.name}
                             </span>
                             {entity.id === group.suggested_primary && (
                               <Badge
                                 variant="outline"
-                                className="font-mono text-[10px] bg-[var(--phosphor-green)] text-[var(--terminal-bg)] border-[var(--phosphor-green)]"
+                                className="font-mono text-[10px] bg-[var(--nous-sol)] text-[var(--nous-bg-1)] border-[var(--nous-sol)]"
                               >
                                 <CheckCircle2 className="w-3 h-3 mr-1" />
                                 PRIMARY
                               </Badge>
                             )}
                           </div>
-                          <div className="flex items-center gap-3 mt-1 text-xs font-mono text-[var(--terminal-text-dim)]">
+                          <div className="flex items-center gap-3 mt-1 text-xs font-mono text-[var(--nous-fg-3)]">
                             <span>{entity.type}</span>
                             <span>•</span>
                             <span>
@@ -581,11 +581,11 @@ export const EntityMergeTool: React.FC = () => {
       )}
 
       {!loading && duplicates.length === 0 && (
-        <Card className="border-[var(--terminal-border)] bg-[var(--terminal-surface)]">
+        <Card className="border-[var(--nous-border-1)] bg-[var(--nous-bg-2)]">
           <CardContent className="p-8 text-center">
-            <GitMerge className="w-12 h-12 mx-auto mb-4 text-[var(--terminal-text-dim)]" />
-            <p className="text-sm font-mono text-[var(--terminal-text)]">No duplicates found</p>
-            <p className="text-xs font-mono text-[var(--terminal-text-dim)] mt-2">
+            <GitMerge className="w-12 h-12 mx-auto mb-4 text-[var(--nous-fg-3)]" />
+            <p className="text-sm font-mono text-[var(--nous-fg-1)]">No duplicates found</p>
+            <p className="text-xs font-mono text-[var(--nous-fg-3)] mt-2">
               Click FIND_DUPLICATES to scan for similar entities
             </p>
           </CardContent>

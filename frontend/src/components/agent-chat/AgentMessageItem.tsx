@@ -121,7 +121,7 @@ export function AgentMessageItem({ message, onRetry }: AgentMessageItemProps) {
             <button
               onClick={handleCopy}
               aria-label={copied ? 'Copied' : 'Copy message'}
-              className="p-1 rounded-md text-muted-foreground/50 hover:text-muted-foreground hover:bg-muted transition-colors opacity-0 group-hover:opacity-100"
+              className="p-1 rounded-md text-muted-foreground/50 hover:text-foreground hover:bg-muted transition-colors opacity-0 group-hover:opacity-100"
             >
               {copied ? (
                 <Check className="h-3.5 w-3.5" />

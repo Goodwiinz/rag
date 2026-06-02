@@ -53,7 +53,7 @@ export const IntegrityBadge: React.FC<IntegrityBadgeProps> = ({
         variant="ghost"
         size="sm"
         onClick={onRequestCheck}
-        className="h-7 gap-1.5 px-2 text-xs text-gray-300 hover:text-white"
+        className="h-7 gap-1.5 px-2 text-xs text-muted-foreground hover:text-white"
         aria-label="Check AI integrity"
       >
         <ShieldQuestion className="h-3.5 w-3.5" />

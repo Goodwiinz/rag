@@ -127,22 +127,29 @@ const generateMockData = (days: number = 30): TrendData => {
 
   const now = new Date();
 
-  metrics.forEach(metric => {
+  metrics.forEach((metric) => {
     const metricData: DataPoint[] = [];
-    const baseValue = metric === 'latency' ? 1200 :
-                   metric === 'throughput' ? 45 :
-                   metric === 'successRate' ? 85 :
-                   metric === 'hallucinationRate' ? 15 :
-                   metric === 'userSatisfaction' ? 75 : 70;
+    const baseValue =
+      metric === 'latency'
+        ? 1200
+        : metric === 'throughput'
+          ? 45
+          : metric === 'successRate'
+            ? 85
+            : metric === 'hallucinationRate'
+              ? 15
+              : metric === 'userSatisfaction'
+                ? 75
+                : 70;
 
     for (let i = days; i >= 0; i--) {
       const date = new Date(now);
       date.setDate(date.getDate() - i);
 
       // Add realistic variations and trends
-      const trendFactor = (days - i) / days * 5; // Slight improvement trend
+      const trendFactor = ((days - i) / days) * 5; // Slight improvement trend
       const randomVariation = (Math.random() - 0.5) * 10;
-      const weeklyPattern = Math.sin((days - i) / 7 * Math.PI * 2) * 3;
+      const weeklyPattern = Math.sin(((days - i) / 7) * Math.PI * 2) * 3;
 
       let value = baseValue + trendFactor + randomVariation + weeklyPattern;
 
@@ -266,7 +273,9 @@ const metricConfigs: MetricConfig[] = [
   },
 ];
 
-const PerformanceTrendVisualization: React.FC<PerformanceTrendVisualizationProps> = ({
+const PerformanceTrendVisualization: React.FC<
+  PerformanceTrendVisualizationProps
+> = ({
   timeRange = '30d',
   data,
   onTimeRangeChange,
@@ -274,7 +283,11 @@ const PerformanceTrendVisualization: React.FC<PerformanceTrendVisualizationProps
   onAnomalyClick,
   className,
 }) => {
-  const [selectedMetrics, setSelectedMetrics] = useState<string[]>(['answerRelevancy', 'faithfulness', 'contextualRelevancy']);
+  const [selectedMetrics, setSelectedMetrics] = useState<string[]>([
+    'answerRelevancy',
+    'faithfulness',
+    'contextualRelevancy',
+  ]);
   const [chartType, setChartType] = useState<'line' | 'area' | 'bar'>('line');
   const [showTargets, setShowTargets] = useState(true);
   const [showForecast, setShowForecast] = useState(false);
@@ -292,7 +305,7 @@ const PerformanceTrendVisualization: React.FC<PerformanceTrendVisualizationProps
     const now = new Date();
 
     Object.entries(trendData).forEach(([metric, dataPoints]) => {
-      const config = metricConfigs.find(c => c.id === metric);
+      const config = metricConfigs.find((c) => c.id === metric);
       if (!config) return;
 
       dataPoints.forEach((point, index) => {
@@ -305,7 +318,10 @@ const PerformanceTrendVisualization: React.FC<PerformanceTrendVisualizationProps
         const changePercent = (change / prevPoint.value) * 100;
 
         // Detect significant changes
-        if (changePercent > 15 || (config.threshold && point.value > config.threshold.critical)) {
+        if (
+          changePercent > 15 ||
+          (config.threshold && point.value > config.threshold.critical)
+        ) {
           anomalies.push({
             id: `${metric}-${point.timestamp}`,
             timestamp: point.timestamp,
@@ -313,87 +329,104 @@ const PerformanceTrendVisualization: React.FC<PerformanceTrendVisualizationProps
             value: point.value,
             expected: prevPoint.value,
             deviation: changePercent,
-            severity: changePercent > 30 ? 'high' : changePercent > 20 ? 'medium' : 'low',
+            severity:
+              changePercent > 30
+                ? 'high'
+                : changePercent > 20
+                  ? 'medium'
+                  : 'low',
             description: `${metric === 'latency' ? 'Increased' : 'Changed'} ${config.name} from ${prevPoint.value.toFixed(1)} to ${point.value.toFixed(1)}${config.unit}`,
-            impact: changePercent > 25 ? 'High impact on user experience' : 'Moderate impact on performance',
+            impact:
+              changePercent > 25
+                ? 'High impact on user experience'
+                : 'Moderate impact on performance',
           });
         }
       });
     });
 
-    return anomalies.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+    return anomalies.sort(
+      (a, b) =>
+        new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+    );
   }, [trendData]);
 
   // Generate forecasts
   const forecasts = useMemo((): Forecast[] => {
     if (!showForecast) return [];
 
-    return selectedMetrics.map(metric => {
-      const dataPoints = trendData[metric] || [];
-      const config = metricConfigs.find(c => c.id === metric);
-      if (!config || dataPoints.length < 7) return null;
+    return selectedMetrics
+      .map((metric) => {
+        const dataPoints = trendData[metric] || [];
+        const config = metricConfigs.find((c) => c.id === metric);
+        if (!config || dataPoints.length < 7) return null;
 
-      // Simple linear regression for forecasting
-      const n = Math.min(dataPoints.length, 14);
-      const recentData = dataPoints.slice(-n);
-      if (recentData.length < 2) return null;
-      const avgValue = recentData.reduce((sum, p) => sum + p.value, 0) / n;
-      const trend = ((recentData[recentData.length - 1]?.value || 0) - (recentData[0]?.value || 0)) / n;
+        // Simple linear regression for forecasting
+        const n = Math.min(dataPoints.length, 14);
+        const recentData = dataPoints.slice(-n);
+        if (recentData.length < 2) return null;
+        const avgValue = recentData.reduce((sum, p) => sum + p.value, 0) / n;
+        const trend =
+          ((recentData[recentData.length - 1]?.value || 0) -
+            (recentData[0]?.value || 0)) /
+          n;
 
-      const predictions: DataPoint[] = [];
-      let lastValue = recentData[recentData.length - 1]?.value || 0;
+        const predictions: DataPoint[] = [];
+        let lastValue = recentData[recentData.length - 1]?.value || 0;
 
-      for (let i = 1; i <= 7; i++) {
-        const futureDate = new Date();
-        futureDate.setDate(futureDate.getDate() + i);
+        for (let i = 1; i <= 7; i++) {
+          const futureDate = new Date();
+          futureDate.setDate(futureDate.getDate() + i);
 
-        lastValue = lastValue + trend + (Math.random() - 0.5) * 2;
+          lastValue = lastValue + trend + (Math.random() - 0.5) * 2;
 
-        predictions.push({
-          timestamp: futureDate.toISOString(),
-          date: futureDate.toLocaleDateString(),
-          value: Math.round(lastValue * 100) / 100,
-          target: config.target,
-          category: metric,
-        });
-      }
+          predictions.push({
+            timestamp: futureDate.toISOString(),
+            date: futureDate.toLocaleDateString(),
+            value: Math.round(lastValue * 100) / 100,
+            target: config.target,
+            category: metric,
+          });
+        }
 
-      const trendDirection = trend > 0.5 ? 'improving' : trend < -0.5 ? 'declining' : 'stable';
+        const trendDirection =
+          trend > 0.5 ? 'improving' : trend < -0.5 ? 'declining' : 'stable';
 
-      return {
-        metric,
-        predictions,
-        confidence: 75 + Math.random() * 15,
-        accuracy: 80 + Math.random() * 10,
-        trend: trendDirection,
-        nextMilestone: {
-          date: predictions[predictions.length - 1]?.date || '',
-          expectedValue: predictions[predictions.length - 1]?.value || 0,
-          probability: 0.7 + Math.random() * 0.2,
-        },
-      };
-    }).filter(Boolean) as Forecast[];
+        return {
+          metric,
+          predictions,
+          confidence: 75 + Math.random() * 15,
+          accuracy: 80 + Math.random() * 10,
+          trend: trendDirection,
+          nextMilestone: {
+            date: predictions[predictions.length - 1]?.date || '',
+            expectedValue: predictions[predictions.length - 1]?.value || 0,
+            probability: 0.7 + Math.random() * 0.2,
+          },
+        };
+      })
+      .filter(Boolean) as Forecast[];
   }, [selectedMetrics, showForecast, trendData]);
 
   // Prepare chart data
   const chartData = useMemo(() => {
     const allTimestamps = new Set<string>();
-    selectedMetrics.forEach(metric => {
+    selectedMetrics.forEach((metric) => {
       const metricData = trendData[metric];
       if (metricData) {
-        metricData.forEach(point => allTimestamps.add(point.date));
+        metricData.forEach((point) => allTimestamps.add(point.date));
       }
     });
 
-    const sortedDates = Array.from(allTimestamps).sort((a, b) =>
-      new Date(a).getTime() - new Date(b).getTime()
+    const sortedDates = Array.from(allTimestamps).sort(
+      (a, b) => new Date(a).getTime() - new Date(b).getTime()
     );
 
-    return sortedDates.map(date => {
+    return sortedDates.map((date) => {
       const point: any = { date };
 
-      selectedMetrics.forEach(metric => {
-        const dataPoint = trendData[metric]?.find(p => p.date === date);
+      selectedMetrics.forEach((metric) => {
+        const dataPoint = trendData[metric]?.find((p) => p.date === date);
         if (dataPoint) {
           point[metric] = dataPoint.value;
           point[`${metric}_target`] = dataPoint.target;
@@ -402,8 +435,10 @@ const PerformanceTrendVisualization: React.FC<PerformanceTrendVisualizationProps
 
       // Add forecast data if enabled
       if (showForecast) {
-        forecasts.forEach(forecast => {
-          const forecastPoint = forecast.predictions.find(p => p.date === date);
+        forecasts.forEach((forecast) => {
+          const forecastPoint = forecast.predictions.find(
+            (p) => p.date === date
+          );
           if (forecastPoint) {
             point[`${forecast.metric}_forecast`] = forecastPoint.value;
           }
@@ -418,11 +453,11 @@ const PerformanceTrendVisualization: React.FC<PerformanceTrendVisualizationProps
   const statistics = useMemo(() => {
     const stats: any = {};
 
-    selectedMetrics.forEach(metric => {
+    selectedMetrics.forEach((metric) => {
       const dataPoints = trendData[metric] || [];
       if (dataPoints.length === 0) return;
 
-      const values = dataPoints.map(p => p.value);
+      const values = dataPoints.map((p) => p.value);
       const latest = values[values.length - 1] || 0;
       const previous = values[values.length - 2] || latest;
       const change = latest - previous;
@@ -440,7 +475,8 @@ const PerformanceTrendVisualization: React.FC<PerformanceTrendVisualizationProps
         average: avg,
         max,
         min,
-        trend: changePercent > 1 ? 'up' : changePercent < -1 ? 'down' : 'stable',
+        trend:
+          changePercent > 1 ? 'up' : changePercent < -1 ? 'down' : 'stable',
       };
     });
 
@@ -449,9 +485,9 @@ const PerformanceTrendVisualization: React.FC<PerformanceTrendVisualizationProps
 
   // Toggle metric selection
   const toggleMetric = useCallback((metricId: string) => {
-    setSelectedMetrics(prev => {
+    setSelectedMetrics((prev) => {
       if (prev.includes(metricId)) {
-        return prev.filter(id => id !== metricId);
+        return prev.filter((id) => id !== metricId);
       } else {
         return [...prev, metricId];
       }
@@ -470,7 +506,9 @@ const PerformanceTrendVisualization: React.FC<PerformanceTrendVisualizationProps
       exportedAt: new Date().toISOString(),
     };
 
-    const blob = new Blob([JSON.stringify(exportObj, null, 2)], { type: 'application/json' });
+    const blob = new Blob([JSON.stringify(exportObj, null, 2)], {
+      type: 'application/json',
+    });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -492,8 +530,12 @@ const PerformanceTrendVisualization: React.FC<PerformanceTrendVisualizationProps
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Performance Trends</h2>
-          <p className="text-gray-600 dark:text-gray-400">Historical performance analysis and forecasting</p>
+          <h2 className="text-2xl font-bold text-foreground">
+            Performance Trends
+          </h2>
+          <p className="text-foreground">
+            Historical performance analysis and forecasting
+          </p>
         </div>
         <div className="flex items-center space-x-2">
           <Button
@@ -502,14 +544,12 @@ const PerformanceTrendVisualization: React.FC<PerformanceTrendVisualizationProps
             onClick={refreshData}
             disabled={isLoading}
           >
-            <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+            <RefreshCw
+              className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`}
+            />
             Refresh
           </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={exportData}
-          >
+          <Button variant="outline" size="sm" onClick={exportData}>
             <Download className="h-4 w-4 mr-2" />
             Export
           </Button>
@@ -542,7 +582,10 @@ const PerformanceTrendVisualization: React.FC<PerformanceTrendVisualizationProps
             </div>
             <div>
               <Label>Chart Type</Label>
-              <Select value={chartType} onValueChange={(value: any) => setChartType(value)}>
+              <Select
+                value={chartType}
+                onValueChange={(value: any) => setChartType(value)}
+              >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -577,22 +620,30 @@ const PerformanceTrendVisualization: React.FC<PerformanceTrendVisualizationProps
       <Card>
         <CardHeader>
           <CardTitle>Select Metrics</CardTitle>
-          <CardDescription>Choose which metrics to display in the chart</CardDescription>
+          <CardDescription>
+            Choose which metrics to display in the chart
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-            {metricConfigs.map(config => (
+            {metricConfigs.map((config) => (
               <Button
                 key={config.id}
-                variant={selectedMetrics.includes(config.id) ? "default" : "outline"}
+                variant={
+                  selectedMetrics.includes(config.id) ? 'default' : 'outline'
+                }
                 size="sm"
                 onClick={() => toggleMetric(config.id)}
                 className="h-auto p-3 flex flex-col items-center space-y-1"
-                style={selectedMetrics.includes(config.id) ? {
-                  backgroundColor: config.color + '20',
-                  borderColor: config.color,
-                  color: config.color
-                } : {}}
+                style={
+                  selectedMetrics.includes(config.id)
+                    ? {
+                        backgroundColor: config.color + '20',
+                        borderColor: config.color,
+                        color: config.color,
+                      }
+                    : {}
+                }
               >
                 {config.icon}
                 <span className="text-xs font-medium">{config.name}</span>
@@ -641,8 +692,8 @@ const PerformanceTrendVisualization: React.FC<PerformanceTrendVisualizationProps
                     }}
                   />
                   <Legend />
-                  {selectedMetrics.map(metric => {
-                    const config = metricConfigs.find(c => c.id === metric);
+                  {selectedMetrics.map((metric) => {
+                    const config = metricConfigs.find((c) => c.id === metric);
                     if (!config) return null;
 
                     return (
@@ -668,21 +719,22 @@ const PerformanceTrendVisualization: React.FC<PerformanceTrendVisualizationProps
                             name={`${config.name} Target`}
                           />
                         )}
-                        {showForecast && forecasts.map(forecast =>
-                          forecast.metric === metric ? (
-                            <Line
-                              key="forecast"
-                              type="monotone"
-                              dataKey={`${metric}_forecast`}
-                              stroke={config.color}
-                              strokeWidth={2}
-                              strokeDasharray="3 3"
-                              dot={false}
-                              opacity={0.7}
-                              name={`${config.name} Forecast`}
-                            />
-                          ) : null
-                        )}
+                        {showForecast &&
+                          forecasts.map((forecast) =>
+                            forecast.metric === metric ? (
+                              <Line
+                                key="forecast"
+                                type="monotone"
+                                dataKey={`${metric}_forecast`}
+                                stroke={config.color}
+                                strokeWidth={2}
+                                strokeDasharray="3 3"
+                                dot={false}
+                                opacity={0.7}
+                                name={`${config.name} Forecast`}
+                              />
+                            ) : null
+                          )}
                       </React.Fragment>
                     );
                   })}
@@ -704,8 +756,8 @@ const PerformanceTrendVisualization: React.FC<PerformanceTrendVisualizationProps
                     }}
                   />
                   <Legend />
-                  {selectedMetrics.map(metric => {
-                    const config = metricConfigs.find(c => c.id === metric);
+                  {selectedMetrics.map((metric) => {
+                    const config = metricConfigs.find((c) => c.id === metric);
                     if (!config) return null;
 
                     return (
@@ -739,8 +791,8 @@ const PerformanceTrendVisualization: React.FC<PerformanceTrendVisualizationProps
                     }}
                   />
                   <Legend />
-                  {selectedMetrics.map(metric => {
-                    const config = metricConfigs.find(c => c.id === metric);
+                  {selectedMetrics.map((metric) => {
+                    const config = metricConfigs.find((c) => c.id === metric);
                     if (!config) return null;
 
                     return (
@@ -767,8 +819,8 @@ const PerformanceTrendVisualization: React.FC<PerformanceTrendVisualizationProps
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {selectedMetrics.map(metric => {
-              const config = metricConfigs.find(c => c.id === metric);
+            {selectedMetrics.map((metric) => {
+              const config = metricConfigs.find((c) => c.id === metric);
               const stats = statistics[metric];
               if (!config || !stats) return null;
 
@@ -780,30 +832,53 @@ const PerformanceTrendVisualization: React.FC<PerformanceTrendVisualizationProps
                       <span className="font-medium">{config.name}</span>
                     </div>
                     <Badge
-                      variant={stats.trend === 'up' ? 'default' : stats.trend === 'down' ? 'destructive' : 'secondary'}
+                      variant={
+                        stats.trend === 'up'
+                          ? 'default'
+                          : stats.trend === 'down'
+                            ? 'destructive'
+                            : 'secondary'
+                      }
                       className="flex items-center space-x-1"
                     >
-                      {stats.trend === 'up' ? <TrendingUp className="h-3 w-3" /> :
-                       stats.trend === 'down' ? <TrendingDown className="h-3 w-3" /> : null}
-                      <span>{stats.changePercent > 0 ? '+' : ''}{stats.changePercent.toFixed(1)}%</span>
+                      {stats.trend === 'up' ? (
+                        <TrendingUp className="h-3 w-3" />
+                      ) : stats.trend === 'down' ? (
+                        <TrendingDown className="h-3 w-3" />
+                      ) : null}
+                      <span>
+                        {stats.changePercent > 0 ? '+' : ''}
+                        {stats.changePercent.toFixed(1)}%
+                      </span>
                     </Badge>
                   </div>
                   <div className="space-y-1 text-sm">
                     <div className="flex justify-between">
-                      <span className="text-gray-600 dark:text-gray-400">Current:</span>
-                      <span className="font-medium">{stats.current.toFixed(1)}{config.unit}</span>
+                      <span className="text-foreground">Current:</span>
+                      <span className="font-medium">
+                        {stats.current.toFixed(1)}
+                        {config.unit}
+                      </span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-gray-600 dark:text-gray-400">Target:</span>
-                      <span>{config.target}{config.unit}</span>
+                      <span className="text-foreground">Target:</span>
+                      <span>
+                        {config.target}
+                        {config.unit}
+                      </span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-gray-600 dark:text-gray-400">Average:</span>
-                      <span>{stats.average.toFixed(1)}{config.unit}</span>
+                      <span className="text-foreground">Average:</span>
+                      <span>
+                        {stats.average.toFixed(1)}
+                        {config.unit}
+                      </span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-gray-600 dark:text-gray-400">Range:</span>
-                      <span>{stats.min.toFixed(1)} - {stats.max.toFixed(1)}</span>
+                      <span className="text-foreground">Range:</span>
+                      <span>
+                        {stats.min.toFixed(1)} - {stats.max.toFixed(1)}
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -824,26 +899,33 @@ const PerformanceTrendVisualization: React.FC<PerformanceTrendVisualizationProps
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {anomalies.slice(0, 5).map(anomaly => (
+              {anomalies.slice(0, 5).map((anomaly) => (
                 <div key={anomaly.id} className="border rounded-lg p-3">
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
                       <div className="flex items-center space-x-2 mb-1">
                         <Badge
-                          variant={anomaly.severity === 'high' ? 'destructive' :
-                                  anomaly.severity === 'medium' ? 'default' : 'secondary'}
+                          variant={
+                            anomaly.severity === 'high'
+                              ? 'destructive'
+                              : anomaly.severity === 'medium'
+                                ? 'default'
+                                : 'secondary'
+                          }
                         >
                           {anomaly.severity}
                         </Badge>
-                        <span className="font-medium text-sm">{anomaly.metric}</span>
-                        <span className="text-xs text-gray-500">
+                        <span className="font-medium text-sm">
+                          {anomaly.metric}
+                        </span>
+                        <span className="text-xs text-muted-foreground">
                           {new Date(anomaly.timestamp).toLocaleDateString()}
                         </span>
                       </div>
-                      <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">
+                      <p className="text-sm text-foreground mb-1">
                         {anomaly.description}
                       </p>
-                      <p className="text-xs text-gray-500">
+                      <p className="text-xs text-muted-foreground">
                         Impact: {anomaly.impact}
                       </p>
                     </div>
@@ -874,12 +956,16 @@ const PerformanceTrendVisualization: React.FC<PerformanceTrendVisualizationProps
         <Card>
           <CardHeader>
             <CardTitle>Forecast Insights</CardTitle>
-            <CardDescription>Predictive analysis based on historical trends</CardDescription>
+            <CardDescription>
+              Predictive analysis based on historical trends
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {forecasts.map(forecast => {
-                const config = metricConfigs.find(c => c.id === forecast.metric);
+              {forecasts.map((forecast) => {
+                const config = metricConfigs.find(
+                  (c) => c.id === forecast.metric
+                );
                 if (!config) return null;
 
                 return (
@@ -888,30 +974,41 @@ const PerformanceTrendVisualization: React.FC<PerformanceTrendVisualizationProps
                       {config.icon}
                       <span className="font-medium">{config.name}</span>
                       <Badge
-                        variant={forecast.trend === 'improving' ? 'default' :
-                                forecast.trend === 'declining' ? 'destructive' : 'secondary'}
+                        variant={
+                          forecast.trend === 'improving'
+                            ? 'default'
+                            : forecast.trend === 'declining'
+                              ? 'destructive'
+                              : 'secondary'
+                        }
                       >
                         {forecast.trend}
                       </Badge>
                     </div>
                     <div className="space-y-2 text-sm">
                       <div className="flex justify-between">
-                        <span className="text-gray-600 dark:text-gray-400">Confidence:</span>
+                        <span className="text-foreground">Confidence:</span>
                         <span>{forecast.confidence.toFixed(0)}%</span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-gray-600 dark:text-gray-400">Accuracy:</span>
+                        <span className="text-foreground">Accuracy:</span>
                         <span>{forecast.accuracy.toFixed(0)}%</span>
                       </div>
                       <Separator />
                       <div>
-                        <div className="text-xs text-gray-600 dark:text-gray-400 mb-1">Next milestone:</div>
-                        <div className="font-medium">{forecast.nextMilestone.date}</div>
-                        <div className="text-lg">
-                          {forecast.nextMilestone.expectedValue.toFixed(1)}{config.unit}
+                        <div className="text-xs text-foreground mb-1">
+                          Next milestone:
                         </div>
-                        <div className="text-xs text-gray-500">
-                          {forecast.nextMilestone.probability.toFixed(0)}% probability
+                        <div className="font-medium">
+                          {forecast.nextMilestone.date}
+                        </div>
+                        <div className="text-lg">
+                          {forecast.nextMilestone.expectedValue.toFixed(1)}
+                          {config.unit}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {forecast.nextMilestone.probability.toFixed(0)}%
+                          probability
                         </div>
                       </div>
                     </div>

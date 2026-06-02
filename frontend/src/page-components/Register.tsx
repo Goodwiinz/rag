@@ -24,7 +24,9 @@ export const Register: React.FC = () => {
     organization_name: '',
   });
   const [error, setError] = useState<string>('');
-  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
+  const [validationErrors, setValidationErrors] = useState<
+    Record<string, string>
+  >({});
 
   if (isLoading) {
     return (
@@ -68,7 +70,8 @@ export const Register: React.FC = () => {
     } else if (formData.password.length < 8) {
       errors.password = 'Password must be at least 8 characters';
     } else if (!/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(formData.password)) {
-      errors.password = 'Password must contain uppercase, lowercase, and number';
+      errors.password =
+        'Password must contain uppercase, lowercase, and number';
     }
 
     // Confirm password validation
@@ -94,7 +97,8 @@ export const Register: React.FC = () => {
     try {
       const { confirmPassword, ...registerData } = formData;
       // Transform firstName/lastName to backend format
-      const { firstName, lastName, organization_name, email, password } = registerData;
+      const { firstName, lastName, organization_name, email, password } =
+        registerData;
       const backendData = {
         first_name: firstName,
         last_name: lastName,
@@ -114,13 +118,13 @@ export const Register: React.FC = () => {
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
       [name]: value,
     }));
     // Clear validation error for this field when user starts typing
     if (validationErrors[name]) {
-      setValidationErrors(prev => {
+      setValidationErrors((prev) => {
         const newErrors = { ...prev };
         delete newErrors[name];
         return newErrors;
@@ -132,12 +136,15 @@ export const Register: React.FC = () => {
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
         <div>
-          <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
+          <h2 className="mt-6 text-center text-3xl font-extrabold text-foreground">
             Create your account
           </h2>
-          <p className="mt-2 text-center text-sm text-gray-600">
+          <p className="mt-2 text-center text-sm text-foreground">
             Already have an account?{' '}
-            <Link to="/login" className="font-medium text-blue-600 hover:text-blue-500">
+            <Link
+              to="/login"
+              className="font-medium text-blue-600 hover:text-blue-500"
+            >
               Sign in
             </Link>
           </p>
@@ -153,7 +160,10 @@ export const Register: React.FC = () => {
           <div className="space-y-4">
             {/* First Name Field */}
             <div>
-              <label htmlFor="firstName" className="block text-sm font-medium text-gray-700">
+              <label
+                htmlFor="firstName"
+                className="block text-sm font-medium text-foreground"
+              >
                 First Name *
               </label>
               <input
@@ -163,20 +173,27 @@ export const Register: React.FC = () => {
                 autoComplete="given-name"
                 required
                 className={`mt-1 appearance-none relative block w-full px-3 py-2 border ${
-                  validationErrors.firstName ? 'border-red-300' : 'border-gray-300'
-                } placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm`}
+                  validationErrors.firstName
+                    ? 'border-red-300'
+                    : 'border-border'
+                } placeholder-gray-500 text-foreground rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm`}
                 placeholder="John"
                 value={formData.firstName}
                 onChange={handleChange}
               />
               {validationErrors.firstName && (
-                <p className="mt-1 text-sm text-red-600">{validationErrors.firstName}</p>
+                <p className="mt-1 text-sm text-red-600">
+                  {validationErrors.firstName}
+                </p>
               )}
             </div>
 
             {/* Last Name Field */}
             <div>
-              <label htmlFor="lastName" className="block text-sm font-medium text-gray-700">
+              <label
+                htmlFor="lastName"
+                className="block text-sm font-medium text-foreground"
+              >
                 Last Name *
               </label>
               <input
@@ -186,20 +203,25 @@ export const Register: React.FC = () => {
                 autoComplete="family-name"
                 required
                 className={`mt-1 appearance-none relative block w-full px-3 py-2 border ${
-                  validationErrors.lastName ? 'border-red-300' : 'border-gray-300'
-                } placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm`}
+                  validationErrors.lastName ? 'border-red-300' : 'border-border'
+                } placeholder-gray-500 text-foreground rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm`}
                 placeholder="Doe"
                 value={formData.lastName}
                 onChange={handleChange}
               />
               {validationErrors.lastName && (
-                <p className="mt-1 text-sm text-red-600">{validationErrors.lastName}</p>
+                <p className="mt-1 text-sm text-red-600">
+                  {validationErrors.lastName}
+                </p>
               )}
             </div>
 
             {/* Email Field */}
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700">
+              <label
+                htmlFor="email"
+                className="block text-sm font-medium text-foreground"
+              >
                 Email Address *
               </label>
               <input
@@ -209,20 +231,25 @@ export const Register: React.FC = () => {
                 autoComplete="email"
                 required
                 className={`mt-1 appearance-none relative block w-full px-3 py-2 border ${
-                  validationErrors.email ? 'border-red-300' : 'border-gray-300'
-                } placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm`}
+                  validationErrors.email ? 'border-red-300' : 'border-border'
+                } placeholder-gray-500 text-foreground rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm`}
                 placeholder="john@example.com"
                 value={formData.email}
                 onChange={handleChange}
               />
               {validationErrors.email && (
-                <p className="mt-1 text-sm text-red-600">{validationErrors.email}</p>
+                <p className="mt-1 text-sm text-red-600">
+                  {validationErrors.email}
+                </p>
               )}
             </div>
 
             {/* Organization Name Field (Optional) */}
             <div>
-              <label htmlFor="organization_name" className="block text-sm font-medium text-gray-700">
+              <label
+                htmlFor="organization_name"
+                className="block text-sm font-medium text-foreground"
+              >
                 Organization Name (Optional)
               </label>
               <input
@@ -230,7 +257,7 @@ export const Register: React.FC = () => {
                 name="organization_name"
                 type="text"
                 autoComplete="organization"
-                className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
+                className="mt-1 appearance-none relative block w-full px-3 py-2 border border-border placeholder-gray-500 text-foreground rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
                 placeholder="Acme Corporation"
                 value={formData.organization_name}
                 onChange={handleChange}
@@ -239,7 +266,10 @@ export const Register: React.FC = () => {
 
             {/* Password Field */}
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+              <label
+                htmlFor="password"
+                className="block text-sm font-medium text-foreground"
+              >
                 Password *
               </label>
               <input
@@ -249,25 +279,31 @@ export const Register: React.FC = () => {
                 autoComplete="new-password"
                 required
                 className={`mt-1 appearance-none relative block w-full px-3 py-2 border ${
-                  validationErrors.password ? 'border-red-300' : 'border-gray-300'
-                } placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm`}
+                  validationErrors.password ? 'border-red-300' : 'border-border'
+                } placeholder-gray-500 text-foreground rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm`}
                 placeholder="••••••••"
                 value={formData.password}
                 onChange={handleChange}
               />
               {validationErrors.password && (
-                <p className="mt-1 text-sm text-red-600">{validationErrors.password}</p>
+                <p className="mt-1 text-sm text-red-600">
+                  {validationErrors.password}
+                </p>
               )}
               {!validationErrors.password && formData.password && (
-                <p className="mt-1 text-xs text-gray-500">
-                  Must be at least 8 characters with uppercase, lowercase, and number
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Must be at least 8 characters with uppercase, lowercase, and
+                  number
                 </p>
               )}
             </div>
 
             {/* Confirm Password Field */}
             <div>
-              <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700">
+              <label
+                htmlFor="confirmPassword"
+                className="block text-sm font-medium text-foreground"
+              >
                 Confirm Password *
               </label>
               <input
@@ -277,14 +313,18 @@ export const Register: React.FC = () => {
                 autoComplete="new-password"
                 required
                 className={`mt-1 appearance-none relative block w-full px-3 py-2 border ${
-                  validationErrors.confirmPassword ? 'border-red-300' : 'border-gray-300'
-                } placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm`}
+                  validationErrors.confirmPassword
+                    ? 'border-red-300'
+                    : 'border-border'
+                } placeholder-gray-500 text-foreground rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm`}
                 placeholder="••••••••"
                 value={formData.confirmPassword}
                 onChange={handleChange}
               />
               {validationErrors.confirmPassword && (
-                <p className="mt-1 text-sm text-red-600">{validationErrors.confirmPassword}</p>
+                <p className="mt-1 text-sm text-red-600">
+                  {validationErrors.confirmPassword}
+                </p>
               )}
             </div>
           </div>
@@ -299,7 +339,7 @@ export const Register: React.FC = () => {
             </button>
           </div>
 
-          <div className="text-xs text-center text-gray-500">
+          <div className="text-xs text-center text-muted-foreground">
             By creating an account, you agree to our{' '}
             <a href="#" className="text-blue-600 hover:text-blue-500">
               Terms of Service

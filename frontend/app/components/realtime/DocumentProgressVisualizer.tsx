@@ -30,11 +30,19 @@ import {
   Image,
   Film,
   Music,
-  Headphones
+  Headphones,
 } from 'lucide-react';
 
-import { DocumentProcessingState, ProcessingStage, EnhancedProcessingStage } from '@/types/realtime-processing';
-import { formatDuration, formatFileSize, formatRelativeTime } from '@/lib/format-utils';
+import {
+  DocumentProcessingState,
+  ProcessingStage,
+  EnhancedProcessingStage,
+} from '@/types/realtime-processing';
+import {
+  formatDuration,
+  formatFileSize,
+  formatRelativeTime,
+} from '@/lib/format-utils';
 
 interface DocumentProgressVisualizerProps {
   document: DocumentProcessingState;
@@ -44,18 +52,23 @@ interface DocumentProgressVisualizerProps {
   className?: string;
 }
 
-export const DocumentProgressVisualizer: React.FC<DocumentProgressVisualizerProps> = ({
+export const DocumentProgressVisualizer: React.FC<
+  DocumentProgressVisualizerProps
+> = ({
   document,
   showDetails = true,
   interactive = false,
   compact = false,
-  className = ''
+  className = '',
 }) => {
   const stages = useMemo((): ProcessingStage[] => {
     // Ensure stages are properly ordered
     return [...document.stages].sort((a, b) => {
       if ('stage_order' in a && 'stage_order' in b) {
-        return (a as EnhancedProcessingStage).stage_order - (b as EnhancedProcessingStage).stage_order;
+        return (
+          (a as EnhancedProcessingStage).stage_order -
+          (b as EnhancedProcessingStage).stage_order
+        );
       }
       return 0;
     });
@@ -70,11 +83,11 @@ export const DocumentProgressVisualizer: React.FC<DocumentProgressVisualizerProp
       case 'failed':
         return <XCircle className="h-4 w-4 text-red-500" />;
       case 'skipped':
-        return <Square className="h-4 w-4 text-gray-400" />;
+        return <Square className="h-4 w-4 text-muted-foreground" />;
       case 'cancelled':
         return <XCircle className="h-4 w-4 text-orange-500" />;
       default:
-        return <Clock className="h-4 w-4 text-gray-400" />;
+        return <Clock className="h-4 w-4 text-muted-foreground" />;
     }
   };
 
@@ -87,11 +100,11 @@ export const DocumentProgressVisualizer: React.FC<DocumentProgressVisualizerProp
       case 'failed':
         return 'border-red-500 bg-red-50';
       case 'skipped':
-        return 'border-gray-300 bg-gray-50';
+        return 'border-border bg-gray-50';
       case 'cancelled':
         return 'border-orange-500 bg-orange-50';
       default:
-        return 'border-gray-300 bg-gray-50';
+        return 'border-border bg-gray-50';
     }
   };
 
@@ -112,9 +125,9 @@ export const DocumentProgressVisualizer: React.FC<DocumentProgressVisualizerProp
         return <Music className="h-4 w-4 text-green-500" />;
       case 'txt':
       case 'md':
-        return <FileText className="h-4 w-4 text-gray-500" />;
+        return <FileText className="h-4 w-4 text-muted-foreground" />;
       default:
-        return <FileText className="h-4 w-4 text-gray-500" />;
+        return <FileText className="h-4 w-4 text-muted-foreground" />;
     }
   };
 
@@ -135,7 +148,9 @@ export const DocumentProgressVisualizer: React.FC<DocumentProgressVisualizerProp
     }
   };
 
-  const getDocumentStatusBadgeVariant = (status: DocumentProcessingState['status']) => {
+  const getDocumentStatusBadgeVariant = (
+    status: DocumentProcessingState['status']
+  ) => {
     switch (status) {
       case 'completed':
         return 'default';
@@ -156,7 +171,12 @@ export const DocumentProgressVisualizer: React.FC<DocumentProgressVisualizerProp
 
   const calculateStageProgress = (stage: ProcessingStage) => {
     if (stage.status === 'completed') return 100;
-    if (stage.status === 'failed' || stage.status === 'skipped' || stage.status === 'cancelled') return 0;
+    if (
+      stage.status === 'failed' ||
+      stage.status === 'skipped' ||
+      stage.status === 'cancelled'
+    )
+      return 0;
     return stage.progress || 0;
   };
 
@@ -165,15 +185,22 @@ export const DocumentProgressVisualizer: React.FC<DocumentProgressVisualizerProp
 
     // Weight stages by their progress weight or equal weighting if not specified
     const totalWeight = stages.reduce((sum: number, stage: ProcessingStage) => {
-      const weight = (stage as EnhancedProcessingStage & { progressWeight?: number }).progressWeight || 1;
+      const weight =
+        (stage as EnhancedProcessingStage & { progressWeight?: number })
+          .progressWeight || 1;
       return sum + weight;
     }, 0);
 
-    const weightedProgress = stages.reduce((sum: number, stage: ProcessingStage) => {
-      const weight = (stage as EnhancedProcessingStage & { progressWeight?: number }).progressWeight || 1;
-      const progress = calculateStageProgress(stage);
-      return sum + (progress * weight);
-    }, 0);
+    const weightedProgress = stages.reduce(
+      (sum: number, stage: ProcessingStage) => {
+        const weight =
+          (stage as EnhancedProcessingStage & { progressWeight?: number })
+            .progressWeight || 1;
+        const progress = calculateStageProgress(stage);
+        return sum + progress * weight;
+      },
+      0
+    );
 
     return Math.round(weightedProgress / totalWeight);
   };
@@ -192,17 +219,19 @@ export const DocumentProgressVisualizer: React.FC<DocumentProgressVisualizerProp
           >
             {/* Stage indicator */}
             <div
-              className={`w-8 h-8 rounded-full border-2 flex items-center justify-center transition-all duration-200 ${
-                getStageStatusColor(stage)
-              }`}
+              className={`w-8 h-8 rounded-full border-2 flex items-center justify-center transition-all duration-200 ${getStageStatusColor(
+                stage
+              )}`}
             >
               {getStageIcon(stage)}
             </div>
 
             {/* Stage name */}
-            <p className={`text-xs font-medium mt-2 text-center ${
-              compact ? 'hidden' : 'block'
-            }`}>
+            <p
+              className={`text-xs font-medium mt-2 text-center ${
+                compact ? 'hidden' : 'block'
+              }`}
+            >
               {stage.name}
             </p>
 
@@ -252,7 +281,9 @@ export const DocumentProgressVisualizer: React.FC<DocumentProgressVisualizerProp
                 <div className="flex items-center justify-between">
                   <div>
                     <h4 className="font-medium">{stage.name}</h4>
-                    <p className="text-sm text-muted-foreground">{stage.description}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {stage.description}
+                    </p>
                   </div>
                   <Badge variant={getStatusBadgeVariant(stage.status)}>
                     {stage.status.replace('_', ' ').toUpperCase()}
@@ -275,7 +306,9 @@ export const DocumentProgressVisualizer: React.FC<DocumentProgressVisualizerProp
                     <span>Started: {formatRelativeTime(stage.startedAt)}</span>
                   )}
                   {stage.completedAt && (
-                    <span>Completed: {formatRelativeTime(stage.completedAt)}</span>
+                    <span>
+                      Completed: {formatRelativeTime(stage.completedAt)}
+                    </span>
                   )}
                   {stage.duration && (
                     <span>Duration: {formatDuration(stage.duration)}</span>
@@ -290,19 +323,23 @@ export const DocumentProgressVisualizer: React.FC<DocumentProgressVisualizerProp
                 )}
 
                 {/* Stage metadata */}
-                {stage.stage_metadata && Object.keys(stage.stage_metadata).length > 0 && (
-                  <details className="text-xs">
-                    <summary className="cursor-pointer font-medium">Metadata</summary>
-                    <pre className="mt-2 text-xs bg-gray-50 p-2 rounded overflow-x-auto">
-                      {JSON.stringify(stage.stage_metadata, null, 2)}
-                    </pre>
-                  </details>
-                )}
+                {stage.stage_metadata &&
+                  Object.keys(stage.stage_metadata).length > 0 && (
+                    <details className="text-xs">
+                      <summary className="cursor-pointer font-medium">
+                        Metadata
+                      </summary>
+                      <pre className="mt-2 text-xs bg-gray-50 p-2 rounded overflow-x-auto">
+                        {JSON.stringify(stage.stage_metadata, null, 2)}
+                      </pre>
+                    </details>
+                  )}
 
                 {/* Retry information */}
                 {(stage as any).retry_count > 0 && (
                   <div className="text-xs text-orange-600">
-                    Retries: {(stage as any).retry_count}/{(stage as any).max_retries}
+                    Retries: {(stage as any).retry_count}/
+                    {(stage as any).max_retries}
                   </div>
                 )}
               </div>
@@ -362,9 +399,7 @@ export const DocumentProgressVisualizer: React.FC<DocumentProgressVisualizerProp
         </div>
 
         {/* Timeline */}
-        <div className="mt-4">
-          {renderTimeline()}
-        </div>
+        <div className="mt-4">{renderTimeline()}</div>
       </CardContent>
     </Card>
   );

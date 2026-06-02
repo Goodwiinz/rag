@@ -70,7 +70,7 @@ const FeedbackDialog: React.FC<FeedbackDialogProps> = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-md p-6 rounded-xl bg-terminal-surface border border-terminal-border shadow-[0_0_60px_var(--phosphor-green-muted)]">
+      <DialogContent className="max-w-md p-6 rounded-xl bg-terminal-surface border border-terminal-border shadow-[0_0_60px_var(--nous-sol-muted)]">
         <DialogHeader>
           <DialogTitle className="text-lg font-mono font-semibold text-white mb-4">
             Rate this answer
@@ -78,7 +78,7 @@ const FeedbackDialog: React.FC<FeedbackDialogProps> = ({
         </DialogHeader>
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-mono text-gray-400 mb-2">
+            <label className="block text-sm font-mono text-muted-foreground mb-2">
               How helpful was this answer?
             </label>
             <div className="flex space-x-1">
@@ -91,7 +91,7 @@ const FeedbackDialog: React.FC<FeedbackDialogProps> = ({
                         'h-6 w-6',
                         star <= rating
                           ? 'text-amber-400 fill-amber-400'
-                          : 'text-gray-600'
+                          : 'text-foreground'
                       )}
                     />
                   }
@@ -105,7 +105,7 @@ const FeedbackDialog: React.FC<FeedbackDialogProps> = ({
           <div>
             <label
               htmlFor="feedback-comment"
-              className="block text-sm font-mono text-gray-400 mb-2"
+              className="block text-sm font-mono text-muted-foreground mb-2"
             >
               Additional feedback (optional)
             </label>
@@ -122,14 +122,14 @@ const FeedbackDialog: React.FC<FeedbackDialogProps> = ({
             <button
               onClick={onClose}
               disabled={isSubmitting}
-              className="px-4 py-2 rounded-lg font-mono text-sm text-gray-400 hover:text-white transition-colors border border-terminal-border"
+              className="px-4 py-2 rounded-lg font-mono text-sm text-muted-foreground hover:text-white transition-colors border border-terminal-border"
             >
               Cancel
             </button>
             <button
               onClick={handleSubmit}
               disabled={rating === 0 || isSubmitting}
-              className="px-4 py-2 rounded-lg font-mono text-sm transition-all disabled:opacity-40 bg-[var(--phosphor-green-muted)] border border-[var(--phosphor-green-dim)] text-sol"
+              className="px-4 py-2 rounded-lg font-mono text-sm transition-all disabled:opacity-40 bg-[var(--nous-sol-muted)] border border-[var(--nous-helios)] text-sol"
             >
               {isSubmitting ? 'Submitting...' : 'Submit'}
             </button>
@@ -142,8 +142,8 @@ const FeedbackDialog: React.FC<FeedbackDialogProps> = ({
 
 const MetricsDisplay: React.FC<{ metrics: SearchMetrics }> = ({ metrics }) => {
   const getScoreColor = (score: number): string => {
-    if (score >= 90) return 'var(--phosphor-green)';
-    if (score >= 80) return 'var(--amber-gold)';
+    if (score >= 90) return 'var(--nous-sol)';
+    if (score >= 80) return 'var(--nous-helios)';
     if (score >= 70) return '#f97316';
     return '#ef4444';
   };
@@ -162,15 +162,17 @@ const MetricsDisplay: React.FC<{ metrics: SearchMetrics }> = ({ metrics }) => {
   return (
     <div className="rounded-xl p-4 bg-terminal-surface border border-terminal-border">
       <div className="flex items-center space-x-2 mb-4">
-        <ChartBarIcon className="h-4 w-4 text-gray-500" />
-        <span className="text-sm font-mono text-gray-400">Quality Metrics</span>
+        <ChartBarIcon className="h-4 w-4 text-muted-foreground" />
+        <span className="text-sm font-mono text-muted-foreground">
+          Quality Metrics
+        </span>
       </div>
 
       <div className="grid grid-cols-2 gap-4 mb-4">
         {metricItems.map((item) => (
           <div key={item.label} className="space-y-1.5">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-mono text-gray-500">
+              <span className="text-xs font-mono text-muted-foreground">
                 {item.label}
               </span>
               <span
@@ -208,7 +210,7 @@ const MetricsDisplay: React.FC<{ metrics: SearchMetrics }> = ({ metrics }) => {
             <span className="font-mono font-medium text-white">
               {stat.value}
             </span>
-            <span className="text-[10px] font-mono uppercase tracking-wider mt-0.5 text-gray-500">
+            <span className="text-[10px] font-mono uppercase tracking-wider mt-0.5 text-muted-foreground">
               {stat.label}
             </span>
           </div>
@@ -252,7 +254,7 @@ const TypewriterText: React.FC<TypewriterTextProps> = ({
   return (
     <span className={className}>
       {displayedText}
-      <span className="animate-pulse inline-block w-2 h-4 bg-[var(--phosphor-green)] align-middle ml-1" />
+      <span className="animate-pulse inline-block w-2 h-4 bg-[var(--nous-sol)] align-middle ml-1" />
     </span>
   );
 };
@@ -287,7 +289,11 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
       case 'mp4':
         return <VideoCameraIcon className={cn(iconClass, 'text-helios')} />;
       default:
-        return <DocumentTextIcon className={cn(iconClass, 'text-gray-500')} />;
+        return (
+          <DocumentTextIcon
+            className={cn(iconClass, 'text-muted-foreground')}
+          />
+        );
     }
   };
 
@@ -319,9 +325,9 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
         };
       default:
         return {
-          colorClass: 'text-gray-500',
+          colorClass: 'text-muted-foreground',
           bgClass: 'bg-gray-500/10',
-          borderClass: 'border-gray-500/20',
+          borderClass: 'border-border/20',
         };
     }
   };
@@ -361,9 +367,9 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
       default:
         return {
           label: 'UNKNOWN',
-          colorClass: 'text-gray-500',
+          colorClass: 'text-muted-foreground',
           bgClass: 'bg-gray-500/10',
-          borderClass: 'border-gray-500/20',
+          borderClass: 'border-border/20',
         };
     }
   };
@@ -440,7 +446,7 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
         <h3 className="text-lg font-mono font-medium text-white mb-2">
           Search failed
         </h3>
-        <p className="text-gray-400 font-mono text-sm">{error}</p>
+        <p className="text-muted-foreground font-mono text-sm">{error}</p>
       </div>
     );
   }
@@ -449,12 +455,12 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
     return (
       <div className={cn('text-center py-8', className)}>
         <div className="h-12 w-12 rounded-full mx-auto mb-4 flex items-center justify-center bg-terminal-bg border border-terminal-border">
-          <MagnifyingGlassIcon className="h-6 w-6 text-gray-500" />
+          <MagnifyingGlassIcon className="h-6 w-6 text-muted-foreground" />
         </div>
         <h3 className="text-lg font-mono font-medium text-white mb-2">
           Enter a search query
         </h3>
-        <p className="text-gray-500 font-mono text-sm">
+        <p className="text-muted-foreground font-mono text-sm">
           Search your documents using natural language queries
         </p>
       </div>
@@ -472,7 +478,7 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
       <div className="space-y-4">
         <div className="flex items-start justify-between">
           <div className="space-y-2">
-            <h1 className="text-xl font-mono font-semibold text-gray-300 tracking-tight">
+            <h1 className="text-xl font-mono font-semibold text-muted-foreground tracking-tight">
               {result.query}
             </h1>
             <div className="flex items-center flex-wrap gap-3 text-sm">
@@ -486,7 +492,7 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
               >
                 {result.answer.answer_type}
               </span>
-              <span className="flex items-center text-gray-500 font-mono text-xs">
+              <span className="flex items-center text-muted-foreground font-mono text-xs">
                 <ClockIcon className="h-3.5 w-3.5 mr-1" />
                 {result.created_at
                   ? formatDate(result.created_at)
@@ -497,7 +503,7 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
                 {Math.round(result.answer.confidence * 100)}% confidence
               </span>
               {typeof result.answer.coverage === 'number' && (
-                <span className="flex items-center font-mono text-xs text-gray-400">
+                <span className="flex items-center font-mono text-xs text-muted-foreground">
                   COVERAGE {Math.round(result.answer.coverage * 100)}%
                 </span>
               )}
@@ -512,7 +518,7 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
                 {deterministicStatusConfig.label}
               </span>
               {result.answer.decisionTraceId && (
-                <span className="text-[10px] font-mono text-gray-500">
+                <span className="text-[10px] font-mono text-muted-foreground">
                   trace: {result.answer.decisionTraceId}
                 </span>
               )}
@@ -550,14 +556,14 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
                 }
                 label={action.title}
                 onClick={action.onClick}
-                className="p-2 rounded-lg text-gray-500 hover:text-white hover:bg-white/5 transition-colors"
+                className="p-2 rounded-lg text-muted-foreground hover:text-white hover:bg-white/5 transition-colors"
               />
             ))}
           </div>
         </div>
 
         {/* Answer Text - Using Typewriter Effect */}
-        <div className="text-gray-300 font-mono text-sm leading-relaxed min-h-[60px]">
+        <div className="text-muted-foreground font-mono text-sm leading-relaxed min-h-[60px]">
           <TypewriterText text={result.answer.text} speed={10} />
         </div>
 
@@ -574,7 +580,7 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
               {result.deterministicMessage}
               {result.refinementSuggestions &&
                 result.refinementSuggestions.length > 0 && (
-                  <div className="mt-2 text-gray-300">
+                  <div className="mt-2 text-muted-foreground">
                     {result.refinementSuggestions
                       .slice(0, 2)
                       .map((suggestion, index) => (
@@ -594,11 +600,11 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
       {/* Sources Section */}
       <div className="space-y-4">
         <div className="flex items-center space-x-2">
-          <DocumentTextIcon className="h-5 w-5 text-gray-500" />
-          <h2 className="text-lg font-mono font-semibold text-gray-300">
+          <DocumentTextIcon className="h-5 w-5 text-muted-foreground" />
+          <h2 className="text-lg font-mono font-semibold text-muted-foreground">
             Sources
           </h2>
-          <span className="rounded-full px-2 py-0.5 text-xs font-mono bg-[var(--cyan-muted)] text-brand-cyan border border-[var(--cyan-dim)]">
+          <span className="rounded-full px-2 py-0.5 text-xs font-mono bg-[var(--nous-sol-muted)] text-brand-cyan border border-[var(--nous-helios-muted)]">
             {result.answer.sources.length}
           </span>
         </div>
@@ -610,12 +616,12 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
               className="group rounded-xl p-4 cursor-pointer transition-all duration-200 hover:scale-[1.02] bg-terminal-surface border border-terminal-border"
               onClick={() => handleSourceClick(source)}
               onMouseEnter={(e) => {
-                e.currentTarget.style.borderColor = 'var(--phosphor-green-dim)';
+                e.currentTarget.style.borderColor = 'var(--nous-helios)';
                 e.currentTarget.style.boxShadow =
-                  '0 0 20px var(--phosphor-green-muted)';
+                  '0 0 20px var(--nous-sol-muted)';
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.borderColor = 'var(--terminal-border)';
+                e.currentTarget.style.borderColor = 'var(--nous-border-1)';
                 e.currentTarget.style.boxShadow = 'none';
               }}
             >
@@ -626,7 +632,7 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
                   </div>
                   <div className="space-y-0.5 min-w-0">
                     <h4
-                      className="text-sm font-mono font-medium text-gray-300 truncate"
+                      className="text-sm font-mono font-medium text-muted-foreground truncate"
                       title={source.document_title}
                     >
                       {source.document_title}
@@ -635,7 +641,7 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
                       <span className="text-[10px] px-1.5 py-0.5 rounded uppercase font-mono bg-terminal-border-muted text-terminal-text-muted">
                         {source.file_type}
                       </span>
-                      <span className="text-[10px] font-mono text-gray-500">
+                      <span className="text-[10px] font-mono text-muted-foreground">
                         {Math.round(source.confidence * 100)}%
                       </span>
                     </div>
@@ -645,14 +651,14 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
 
               {/* Source Snippet */}
               <div className="p-2 rounded-lg mb-3 bg-terminal-bg border border-terminal-border">
-                <p className="text-xs font-mono text-gray-400 leading-relaxed line-clamp-3">
+                <p className="text-xs font-mono text-muted-foreground leading-relaxed line-clamp-3">
                   &quot;{source.snippet}&quot;
                 </p>
               </div>
 
               {/* Footer Actions */}
               <div className="flex items-center justify-between pt-2 border-t border-terminal-border">
-                <div className="flex items-center space-x-2 text-[10px] text-gray-500 font-mono">
+                <div className="flex items-center space-x-2 text-[10px] text-muted-foreground font-mono">
                   {source.page_number && (
                     <span className="px-1.5 py-0.5 rounded bg-terminal-border-muted">
                       Page {source.page_number}
@@ -667,7 +673,7 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
                       e.stopPropagation();
                       handleDocumentPreview(source);
                     }}
-                    className="p-1.5 rounded text-gray-500 hover:text-white hover:bg-white/5 transition-colors"
+                    className="p-1.5 rounded text-muted-foreground hover:text-white hover:bg-white/5 transition-colors"
                   />
                   <IconButtonSm
                     icon={<ClipboardDocumentIcon className="h-3.5 w-3.5" />}
@@ -676,7 +682,7 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
                       e.stopPropagation();
                       handleCopySource(source);
                     }}
-                    className="p-1.5 rounded text-gray-500 hover:text-white hover:bg-white/5 transition-colors"
+                    className="p-1.5 rounded text-muted-foreground hover:text-white hover:bg-white/5 transition-colors"
                   />
                 </div>
               </div>

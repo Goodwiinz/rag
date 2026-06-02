@@ -23,7 +23,10 @@ import {
   PlayIcon,
   XMarkIcon,
 } from '@heroicons/react/24/outline';
-import { DocumentProcessingState, ProcessingStage } from '@/types/realtime-processing';
+import {
+  DocumentProcessingState,
+  ProcessingStage,
+} from '@/types/realtime-processing';
 import { cn } from '@/lib/utils';
 import { formatDuration, formatFileSize } from '@/utils/formatUtils';
 
@@ -77,12 +80,36 @@ const fileTypeConfigs = {
     label: 'PDF Document',
     stages: [
       { id: 'upload', name: 'Upload', description: 'Uploading file to server' },
-      { id: 'validation', name: 'Validation', description: 'Validating PDF format' },
-      { id: 'ocr', name: 'OCR Processing', description: 'Extracting text from images' },
-      { id: 'parsing', name: 'Content Parsing', description: 'Parsing document structure' },
-      { id: 'embedding', name: 'Vector Embedding', description: 'Creating vector embeddings' },
-      { id: 'indexing', name: 'Indexing', description: 'Indexing in search engine' },
-      { id: 'completed', name: 'Completed', description: 'Processing complete' },
+      {
+        id: 'validation',
+        name: 'Validation',
+        description: 'Validating PDF format',
+      },
+      {
+        id: 'ocr',
+        name: 'OCR Processing',
+        description: 'Extracting text from images',
+      },
+      {
+        id: 'parsing',
+        name: 'Content Parsing',
+        description: 'Parsing document structure',
+      },
+      {
+        id: 'embedding',
+        name: 'Vector Embedding',
+        description: 'Creating vector embeddings',
+      },
+      {
+        id: 'indexing',
+        name: 'Indexing',
+        description: 'Indexing in search engine',
+      },
+      {
+        id: 'completed',
+        name: 'Completed',
+        description: 'Processing complete',
+      },
     ],
     color: 'text-red-500',
   },
@@ -91,12 +118,36 @@ const fileTypeConfigs = {
     label: 'Text Document',
     stages: [
       { id: 'upload', name: 'Upload', description: 'Uploading file to server' },
-      { id: 'validation', name: 'Validation', description: 'Validating text format' },
-      { id: 'parsing', name: 'Content Parsing', description: 'Parsing text content' },
-      { id: 'chunking', name: 'Text Chunking', description: 'Splitting into chunks' },
-      { id: 'embedding', name: 'Vector Embedding', description: 'Creating vector embeddings' },
-      { id: 'indexing', name: 'Indexing', description: 'Indexing in search engine' },
-      { id: 'completed', name: 'Completed', description: 'Processing complete' },
+      {
+        id: 'validation',
+        name: 'Validation',
+        description: 'Validating text format',
+      },
+      {
+        id: 'parsing',
+        name: 'Content Parsing',
+        description: 'Parsing text content',
+      },
+      {
+        id: 'chunking',
+        name: 'Text Chunking',
+        description: 'Splitting into chunks',
+      },
+      {
+        id: 'embedding',
+        name: 'Vector Embedding',
+        description: 'Creating vector embeddings',
+      },
+      {
+        id: 'indexing',
+        name: 'Indexing',
+        description: 'Indexing in search engine',
+      },
+      {
+        id: 'completed',
+        name: 'Completed',
+        description: 'Processing complete',
+      },
     ],
     color: 'text-blue-500',
   },
@@ -105,12 +156,36 @@ const fileTypeConfigs = {
     label: 'Image Document',
     stages: [
       { id: 'upload', name: 'Upload', description: 'Uploading file to server' },
-      { id: 'validation', name: 'Validation', description: 'Validating image format' },
-      { id: 'ocr', name: 'OCR Processing', description: 'Extracting text from image' },
-      { id: 'analysis', name: 'Image Analysis', description: 'Analyzing image content' },
-      { id: 'embedding', name: 'Vector Embedding', description: 'Creating vector embeddings' },
-      { id: 'indexing', name: 'Indexing', description: 'Indexing in search engine' },
-      { id: 'completed', name: 'Completed', description: 'Processing complete' },
+      {
+        id: 'validation',
+        name: 'Validation',
+        description: 'Validating image format',
+      },
+      {
+        id: 'ocr',
+        name: 'OCR Processing',
+        description: 'Extracting text from image',
+      },
+      {
+        id: 'analysis',
+        name: 'Image Analysis',
+        description: 'Analyzing image content',
+      },
+      {
+        id: 'embedding',
+        name: 'Vector Embedding',
+        description: 'Creating vector embeddings',
+      },
+      {
+        id: 'indexing',
+        name: 'Indexing',
+        description: 'Indexing in search engine',
+      },
+      {
+        id: 'completed',
+        name: 'Completed',
+        description: 'Processing complete',
+      },
     ],
     color: 'text-green-500',
   },
@@ -119,12 +194,36 @@ const fileTypeConfigs = {
     label: 'Image Document',
     stages: [
       { id: 'upload', name: 'Upload', description: 'Uploading file to server' },
-      { id: 'validation', name: 'Validation', description: 'Validating image format' },
-      { id: 'ocr', name: 'OCR Processing', description: 'Extracting text from image' },
-      { id: 'analysis', name: 'Image Analysis', description: 'Analyzing image content' },
-      { id: 'embedding', name: 'Vector Embedding', description: 'Creating vector embeddings' },
-      { id: 'indexing', name: 'Indexing', description: 'Indexing in search engine' },
-      { id: 'completed', name: 'Completed', description: 'Processing complete' },
+      {
+        id: 'validation',
+        name: 'Validation',
+        description: 'Validating image format',
+      },
+      {
+        id: 'ocr',
+        name: 'OCR Processing',
+        description: 'Extracting text from image',
+      },
+      {
+        id: 'analysis',
+        name: 'Image Analysis',
+        description: 'Analyzing image content',
+      },
+      {
+        id: 'embedding',
+        name: 'Vector Embedding',
+        description: 'Creating vector embeddings',
+      },
+      {
+        id: 'indexing',
+        name: 'Indexing',
+        description: 'Indexing in search engine',
+      },
+      {
+        id: 'completed',
+        name: 'Completed',
+        description: 'Processing complete',
+      },
     ],
     color: 'text-green-500',
   },
@@ -133,12 +232,36 @@ const fileTypeConfigs = {
     label: 'Audio Document',
     stages: [
       { id: 'upload', name: 'Upload', description: 'Uploading file to server' },
-      { id: 'validation', name: 'Validation', description: 'Validating audio format' },
-      { id: 'transcription', name: 'Transcription', description: 'Transcribing audio to text' },
-      { id: 'processing', name: 'Audio Processing', description: 'Processing audio features' },
-      { id: 'embedding', name: 'Vector Embedding', description: 'Creating vector embeddings' },
-      { id: 'indexing', name: 'Indexing', description: 'Indexing in search engine' },
-      { id: 'completed', name: 'Completed', description: 'Processing complete' },
+      {
+        id: 'validation',
+        name: 'Validation',
+        description: 'Validating audio format',
+      },
+      {
+        id: 'transcription',
+        name: 'Transcription',
+        description: 'Transcribing audio to text',
+      },
+      {
+        id: 'processing',
+        name: 'Audio Processing',
+        description: 'Processing audio features',
+      },
+      {
+        id: 'embedding',
+        name: 'Vector Embedding',
+        description: 'Creating vector embeddings',
+      },
+      {
+        id: 'indexing',
+        name: 'Indexing',
+        description: 'Indexing in search engine',
+      },
+      {
+        id: 'completed',
+        name: 'Completed',
+        description: 'Processing complete',
+      },
     ],
     color: 'text-purple-500',
   },
@@ -147,14 +270,46 @@ const fileTypeConfigs = {
     label: 'Video Document',
     stages: [
       { id: 'upload', name: 'Upload', description: 'Uploading file to server' },
-      { id: 'validation', name: 'Validation', description: 'Validating video format' },
-      { id: 'frame_extraction', name: 'Frame Extraction', description: 'Extracting video frames' },
-      { id: 'audio_extraction', name: 'Audio Extraction', description: 'Extracting audio track' },
-      { id: 'transcription', name: 'Transcription', description: 'Transcribing audio to text' },
-      { id: 'analysis', name: 'Content Analysis', description: 'Analyzing video content' },
-      { id: 'embedding', name: 'Vector Embedding', description: 'Creating vector embeddings' },
-      { id: 'indexing', name: 'Indexing', description: 'Indexing in search engine' },
-      { id: 'completed', name: 'Completed', description: 'Processing complete' },
+      {
+        id: 'validation',
+        name: 'Validation',
+        description: 'Validating video format',
+      },
+      {
+        id: 'frame_extraction',
+        name: 'Frame Extraction',
+        description: 'Extracting video frames',
+      },
+      {
+        id: 'audio_extraction',
+        name: 'Audio Extraction',
+        description: 'Extracting audio track',
+      },
+      {
+        id: 'transcription',
+        name: 'Transcription',
+        description: 'Transcribing audio to text',
+      },
+      {
+        id: 'analysis',
+        name: 'Content Analysis',
+        description: 'Analyzing video content',
+      },
+      {
+        id: 'embedding',
+        name: 'Vector Embedding',
+        description: 'Creating vector embeddings',
+      },
+      {
+        id: 'indexing',
+        name: 'Indexing',
+        description: 'Indexing in search engine',
+      },
+      {
+        id: 'completed',
+        name: 'Completed',
+        description: 'Processing complete',
+      },
     ],
     color: 'text-orange-500',
   },
@@ -166,7 +321,7 @@ const ProgressBar: React.FC<ProgressBarProps> = ({
   showPercentage = true,
   animated = true,
   size = 'md',
-  color = 'blue'
+  color = 'blue',
 }) => {
   const sizeClasses = {
     sm: 'h-1',
@@ -183,22 +338,21 @@ const ProgressBar: React.FC<ProgressBarProps> = ({
 
   return (
     <div className="w-full">
-      <div className={cn(
-        'bg-gray-200 rounded-full overflow-hidden',
-        sizeClasses[size]
-      )}>
+      <div
+        className={cn(
+          'bg-gray-200 rounded-full overflow-hidden',
+          sizeClasses[size]
+        )}
+      >
         <motion.div
-          className={cn(
-            'h-full rounded-full',
-            colorClasses[color]
-          )}
+          className={cn('h-full rounded-full', colorClasses[color])}
           initial={{ width: 0 }}
           animate={{ width: `${progress}%` }}
           transition={{ duration: animated ? 0.5 : 0 }}
         />
       </div>
       {showPercentage && (
-        <div className="mt-1 text-xs text-gray-600 text-right">
+        <div className="mt-1 text-xs text-foreground text-right">
           {Math.round(progress)}%
         </div>
       )}
@@ -211,7 +365,7 @@ const StageIcon: React.FC<StageIconProps> = ({
   isActive,
   isCompleted,
   hasError,
-  size = 'md'
+  size = 'md',
 }) => {
   const sizeClasses = {
     sm: 'w-6 h-6',
@@ -254,13 +408,19 @@ const StageIcon: React.FC<StageIconProps> = ({
   const Icon = getStageIcon(stage.id);
 
   return (
-    <div className={cn(
-      'relative flex items-center justify-center rounded-full border-2',
-      sizeClasses[size],
-      isCompleted ? 'border-green-500 bg-green-500' :
-      hasError ? 'border-red-500 bg-red-500' :
-      isActive ? 'border-blue-500 bg-blue-500' : 'border-gray-300 bg-white'
-    )}>
+    <div
+      className={cn(
+        'relative flex items-center justify-center rounded-full border-2',
+        sizeClasses[size],
+        isCompleted
+          ? 'border-green-500 bg-green-500'
+          : hasError
+            ? 'border-red-500 bg-red-500'
+            : isActive
+              ? 'border-blue-500 bg-blue-500'
+              : 'border-border bg-white'
+      )}
+    >
       <AnimatePresence mode="wait">
         {isCompleted ? (
           <motion.div
@@ -270,8 +430,16 @@ const StageIcon: React.FC<StageIconProps> = ({
             exit={{ scale: 0 }}
             className="text-white"
           >
-            <svg className={iconSizeClasses[size]} fill="currentColor" viewBox="0 0 20 20">
-              <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+            <svg
+              className={iconSizeClasses[size]}
+              fill="currentColor"
+              viewBox="0 0 20 20"
+            >
+              <path
+                fillRule="evenodd"
+                d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                clipRule="evenodd"
+              />
             </svg>
           </motion.div>
         ) : hasError ? (
@@ -293,7 +461,9 @@ const StageIcon: React.FC<StageIconProps> = ({
             <Icon className={cn(iconSizeClasses[size], 'text-white')} />
           </motion.div>
         ) : (
-          <Icon className={cn(iconSizeClasses[size], 'text-gray-400')} />
+          <Icon
+            className={cn(iconSizeClasses[size], 'text-muted-foreground')}
+          />
         )}
       </AnimatePresence>
 
@@ -308,8 +478,12 @@ const StageIcon: React.FC<StageIconProps> = ({
   );
 };
 
-const Timeline: React.FC<TimelineProps> = ({ stages, currentStage, compact = false }) => {
-  const currentIndex = stages.findIndex(s => s.id === currentStage.id);
+const Timeline: React.FC<TimelineProps> = ({
+  stages,
+  currentStage,
+  compact = false,
+}) => {
+  const currentIndex = stages.findIndex((s) => s.id === currentStage.id);
 
   return (
     <div className="relative">
@@ -335,7 +509,7 @@ const Timeline: React.FC<TimelineProps> = ({ stages, currentStage, compact = fal
 
               {!compact && (
                 <div className="mt-2 text-center">
-                  <div className="text-xs font-medium text-gray-900">
+                  <div className="text-xs font-medium text-foreground">
                     {stage.name}
                   </div>
                   {isActive && (
@@ -367,10 +541,10 @@ const FileTypeInfo: React.FC<FileTypeInfoProps> = ({ fileType, metadata }) => {
         <Icon className="w-5 h-5" />
       </div>
       <div>
-        <div className="text-sm font-medium text-gray-900">
+        <div className="text-sm font-medium text-foreground">
           {config.label}
         </div>
-        <div className="text-xs text-gray-500">
+        <div className="text-xs text-muted-foreground">
           {formatFileSize(metadata.fileSize)}
           {metadata.pageCount && ` • ${metadata.pageCount} pages`}
           {metadata.duration && ` • ${formatDuration(metadata.duration)}`}
@@ -384,7 +558,7 @@ const StageDetails: React.FC<StageDetailsProps> = ({
   stage,
   isActive,
   isCompleted,
-  showDuration = true
+  showDuration = true,
 }) => {
   return (
     <motion.div
@@ -392,15 +566,18 @@ const StageDetails: React.FC<StageDetailsProps> = ({
       animate={{ opacity: 1, x: 0 }}
       className={cn(
         'p-3 rounded-lg border',
-        'border-gray-200',
-        isActive ? 'bg-blue-50 border-blue-200' :
-        isCompleted ? 'bg-green-50 border-green-200' : 'bg-gray-50'
+        'border-border',
+        isActive
+          ? 'bg-blue-50 border-blue-200'
+          : isCompleted
+            ? 'bg-green-50 border-green-200'
+            : 'bg-gray-50'
       )}
     >
       <div className="flex items-center justify-between">
         <div className="flex-1">
           <div className="flex items-center space-x-2">
-            <h4 className="text-sm font-medium text-gray-900">
+            <h4 className="text-sm font-medium text-foreground">
               {stage.name}
             </h4>
             {isActive && (
@@ -411,21 +588,17 @@ const StageDetails: React.FC<StageDetailsProps> = ({
               />
             )}
           </div>
-          <p className="text-xs text-gray-600 mt-1">
-            {stage.description}
-          </p>
+          <p className="text-xs text-foreground mt-1">{stage.description}</p>
           {stage.error && (
-            <p className="text-xs text-red-600 mt-1">
-              Error: {stage.error}
-            </p>
+            <p className="text-xs text-red-600 mt-1">Error: {stage.error}</p>
           )}
         </div>
         <div className="text-right">
-          <div className="text-sm font-medium text-gray-900">
+          <div className="text-sm font-medium text-foreground">
             {stage.progress}%
           </div>
           {showDuration && stage.duration && (
-            <div className="text-xs text-gray-500">
+            <div className="text-xs text-muted-foreground">
               {formatDuration(stage.duration)}
             </div>
           )}
@@ -447,21 +620,23 @@ const StageDetails: React.FC<StageDetailsProps> = ({
 };
 
 // Main Component
-export const DocumentProgressVisualizer: React.FC<DocumentProgressVisualizerProps> = ({
+export const DocumentProgressVisualizer: React.FC<
+  DocumentProgressVisualizerProps
+> = ({
   document,
   compact = false,
   showDetails = true,
   showTimeline = true,
   animated = true,
-  className
+  className,
 }) => {
   const [expandedStage, setExpandedStage] = useState<string | null>(null);
   const config = fileTypeConfigs[document.fileType];
 
   // Get file type specific stages
   const fileTypeStages = useMemo(() => {
-    return config.stages.map(stageDef => {
-      const stage = document.stages.find(s => s.id === stageDef.id);
+    return config.stages.map((stageDef) => {
+      const stage = document.stages.find((s) => s.id === stageDef.id);
       return {
         id: stageDef.id,
         name: stageDef.name,
@@ -476,26 +651,30 @@ export const DocumentProgressVisualizer: React.FC<DocumentProgressVisualizerProp
     });
   }, [document.stages, document.fileType]);
 
-  const currentStageIndex = fileTypeStages.findIndex(s => s.id === document.currentStage.id);
+  const currentStageIndex = fileTypeStages.findIndex(
+    (s) => s.id === document.currentStage.id
+  );
   const overallProgress = document.overallProgress;
 
   return (
-    <div className={cn(
-      'bg-white rounded-lg border border-gray-200 shadow-sm',
-      className
-    )}>
+    <div
+      className={cn(
+        'bg-white rounded-lg border border-border shadow-sm',
+        className
+      )}
+    >
       {/* Header */}
-      <div className="p-4 border-b border-gray-200">
+      <div className="p-4 border-b border-border">
         <div className="flex items-center justify-between">
           <FileTypeInfo
             fileType={document.fileType}
             metadata={document.metadata}
           />
           <div className="text-right">
-            <div className="text-lg font-semibold text-gray-900">
+            <div className="text-lg font-semibold text-foreground">
               {overallProgress}%
             </div>
-            <div className="text-xs text-gray-500">
+            <div className="text-xs text-muted-foreground">
               {document.currentStage.name}
             </div>
           </div>
@@ -513,7 +692,7 @@ export const DocumentProgressVisualizer: React.FC<DocumentProgressVisualizerProp
 
       {/* Timeline */}
       {showTimeline && (
-        <div className="p-4 border-b border-gray-200">
+        <div className="p-4 border-b border-border">
           <Timeline
             stages={fileTypeStages}
             currentStage={document.currentStage}
@@ -525,7 +704,7 @@ export const DocumentProgressVisualizer: React.FC<DocumentProgressVisualizerProp
       {/* Stage Details */}
       {showDetails && (
         <div className="p-4">
-          <h3 className="text-sm font-semibold text-gray-900 mb-3">
+          <h3 className="text-sm font-semibold text-foreground mb-3">
             Processing Stages
           </h3>
           <div className="space-y-2">
@@ -538,7 +717,9 @@ export const DocumentProgressVisualizer: React.FC<DocumentProgressVisualizerProp
                 <div key={stage.id}>
                   <motion.div
                     className="cursor-pointer"
-                    onClick={() => setExpandedStage(isExpanded ? null : stage.id)}
+                    onClick={() =>
+                      setExpandedStage(isExpanded ? null : stage.id)
+                    }
                   >
                     <StageDetails
                       stage={stage}
@@ -554,14 +735,16 @@ export const DocumentProgressVisualizer: React.FC<DocumentProgressVisualizerProp
       )}
 
       {/* Footer */}
-      <div className="px-4 py-3 bg-gray-50 border-t border-gray-200">
-        <div className="flex items-center justify-between text-xs text-gray-500">
+      <div className="px-4 py-3 bg-gray-50 border-t border-border">
+        <div className="flex items-center justify-between text-xs text-muted-foreground">
           <div>
-            Started: {new Date(document.metadata.uploadStartedAt).toLocaleTimeString()}
+            Started:{' '}
+            {new Date(document.metadata.uploadStartedAt).toLocaleTimeString()}
           </div>
           {document.metadata.estimatedTimeRemaining && (
             <div>
-              Est. remaining: {formatDuration(document.metadata.estimatedTimeRemaining)}
+              Est. remaining:{' '}
+              {formatDuration(document.metadata.estimatedTimeRemaining)}
             </div>
           )}
         </div>

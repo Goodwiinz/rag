@@ -15,7 +15,7 @@ import {
   XCircleIcon,
   QuestionMarkCircleIcon,
   ArrowPathIcon,
-  InformationCircleIcon
+  InformationCircleIcon,
 } from '@heroicons/react/24/outline';
 
 export interface StatusGridProps {
@@ -43,7 +43,7 @@ const StatusGrid: React.FC<StatusGridProps> = ({
   columns = 3,
   onComponentClick,
   onRefresh,
-  className
+  className,
 }) => {
   // Get status configuration
   const getStatusConfig = (status: StatusType) => {
@@ -55,7 +55,7 @@ const StatusGrid: React.FC<StatusGridProps> = ({
           bgColor: 'bg-green-50',
           borderColor: 'border-green-200',
           badgeColor: 'bg-green-100 text-green-800',
-          label: 'Healthy'
+          label: 'Healthy',
         };
       case 'degraded':
         return {
@@ -64,7 +64,7 @@ const StatusGrid: React.FC<StatusGridProps> = ({
           bgColor: 'bg-yellow-50',
           borderColor: 'border-yellow-200',
           badgeColor: 'bg-yellow-100 text-yellow-800',
-          label: 'Degraded'
+          label: 'Degraded',
         };
       case 'unhealthy':
         return {
@@ -73,17 +73,17 @@ const StatusGrid: React.FC<StatusGridProps> = ({
           bgColor: 'bg-red-50',
           borderColor: 'border-red-200',
           badgeColor: 'bg-red-100 text-red-800',
-          label: 'Unhealthy'
+          label: 'Unhealthy',
         };
       case 'unknown':
       default:
         return {
           icon: QuestionMarkCircleIcon,
-          color: 'text-gray-500',
+          color: 'text-muted-foreground',
           bgColor: 'bg-gray-50',
-          borderColor: 'border-gray-200',
-          badgeColor: 'bg-gray-100 text-gray-800',
-          label: 'Unknown'
+          borderColor: 'border-border',
+          badgeColor: 'bg-gray-100 text-foreground',
+          label: 'Unknown',
         };
     }
   };
@@ -104,17 +104,22 @@ const StatusGrid: React.FC<StatusGridProps> = ({
       3: 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3',
       4: 'grid-cols-1 md:grid-cols-2 lg:grid-cols-4',
       5: 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5',
-      6: 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6'
+      6: 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6',
     };
     return gridMap[columns] || gridMap[3];
   };
 
   // Calculate overall health
   const overallHealth = React.useMemo(() => {
-    if (components.length === 0) return { status: 'unknown' as StatusType, score: 0 };
+    if (components.length === 0)
+      return { status: 'unknown' as StatusType, score: 0 };
 
-    const healthyCount = components.filter(c => c.status === 'healthy').length;
-    const unhealthyCount = components.filter(c => c.status === 'unhealthy').length;
+    const healthyCount = components.filter(
+      (c) => c.status === 'healthy'
+    ).length;
+    const unhealthyCount = components.filter(
+      (c) => c.status === 'unhealthy'
+    ).length;
     const totalScore = components.reduce((sum, c) => sum + c.score, 0);
     const avgScore = totalScore / components.length;
 
@@ -154,13 +159,15 @@ const StatusGrid: React.FC<StatusGridProps> = ({
         <CardContent className="p-4">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h3 className="font-semibold text-gray-900">{title}</h3>
+              <h3 className="font-semibold text-foreground">{title}</h3>
               {description && (
-                <p className="text-sm text-gray-600">{description}</p>
+                <p className="text-sm text-foreground">{description}</p>
               )}
             </div>
             <div className="flex items-center space-x-2">
-              <overallConfig.icon className={cn('h-5 w-5', overallConfig.color)} />
+              <overallConfig.icon
+                className={cn('h-5 w-5', overallConfig.color)}
+              />
               <span className="text-lg font-bold">{overallHealth.score}%</span>
             </div>
           </div>
@@ -178,12 +185,14 @@ const StatusGrid: React.FC<StatusGridProps> = ({
                   )}
                   onClick={() => onComponentClick?.(component)}
                 >
-                  <config.icon className={cn('h-4 w-4 flex-shrink-0', config.color)} />
+                  <config.icon
+                    className={cn('h-4 w-4 flex-shrink-0', config.color)}
+                  />
                   <div className="min-w-0 flex-1">
-                    <div className="text-sm font-medium text-gray-900 truncate">
+                    <div className="text-sm font-medium text-foreground truncate">
                       {component.name}
                     </div>
-                    <div className="text-xs text-gray-500">
+                    <div className="text-xs text-muted-foreground">
                       {formatLastCheck(component.last_check)}
                     </div>
                   </div>
@@ -202,14 +211,16 @@ const StatusGrid: React.FC<StatusGridProps> = ({
         <div className="flex items-center justify-between">
           <div>
             <CardTitle className="flex items-center space-x-2">
-              <overallConfig.icon className={cn('h-6 w-6', overallConfig.color)} />
+              <overallConfig.icon
+                className={cn('h-6 w-6', overallConfig.color)}
+              />
               <span>{title}</span>
               <Badge className={overallConfig.badgeColor}>
                 {overallConfig.label} ({overallHealth.score}%)
               </Badge>
             </CardTitle>
             {description && (
-              <p className="text-sm text-gray-600 mt-1">{description}</p>
+              <p className="text-sm text-foreground mt-1">{description}</p>
             )}
           </div>
           {showActions && (
@@ -218,7 +229,7 @@ const StatusGrid: React.FC<StatusGridProps> = ({
                 variant="ghost"
                 size="sm"
                 onClick={() => onRefresh?.('all')}
-                className="text-gray-500 hover:text-gray-700"
+                className="text-muted-foreground hover:text-foreground"
               >
                 <ArrowPathIcon className="h-4 w-4 mr-1" />
                 Refresh
@@ -251,8 +262,12 @@ const StatusGrid: React.FC<StatusGridProps> = ({
                 {/* Status Header */}
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex items-center space-x-2">
-                    <config.icon className={cn('h-5 w-5 flex-shrink-0', config.color)} />
-                    <h3 className="font-semibold text-gray-900">{component.name}</h3>
+                    <config.icon
+                      className={cn('h-5 w-5 flex-shrink-0', config.color)}
+                    />
+                    <h3 className="font-semibold text-foreground">
+                      {component.name}
+                    </h3>
                   </div>
                   <Badge variant="outline" className={config.badgeColor}>
                     {config.label}
@@ -262,10 +277,15 @@ const StatusGrid: React.FC<StatusGridProps> = ({
                 {/* Score Display */}
                 <div className="mb-3">
                   <div className="flex items-baseline justify-between">
-                    <span className={cn('text-2xl font-bold', getScoreColor(component.score))}>
+                    <span
+                      className={cn(
+                        'text-2xl font-bold',
+                        getScoreColor(component.score)
+                      )}
+                    >
                       {component.score}%
                     </span>
-                    <span className="text-sm text-gray-500">
+                    <span className="text-sm text-muted-foreground">
                       {formatLastCheck(component.last_check)}
                     </span>
                   </div>
@@ -273,9 +293,13 @@ const StatusGrid: React.FC<StatusGridProps> = ({
                     <div
                       className={cn(
                         'h-2 rounded-full transition-all duration-300',
-                        component.score >= 90 ? 'bg-green-500' :
-                        component.score >= 70 ? 'bg-yellow-500' :
-                        component.score >= 50 ? 'bg-orange-500' : 'bg-red-500'
+                        component.score >= 90
+                          ? 'bg-green-500'
+                          : component.score >= 70
+                            ? 'bg-yellow-500'
+                            : component.score >= 50
+                              ? 'bg-orange-500'
+                              : 'bg-red-500'
                       )}
                       style={{ width: `${component.score}%` }}
                     />
@@ -285,30 +309,42 @@ const StatusGrid: React.FC<StatusGridProps> = ({
                 {/* Additional Details */}
                 {showDetails && (
                   <div className="space-y-2">
-                    {component.metrics && Object.keys(component.metrics).length > 0 && (
-                      <div className="space-y-1">
-                        {Object.entries(component.metrics).slice(0, 3).map(([key, value]) => (
-                          <div key={key} className="flex justify-between text-sm">
-                            <span className="text-gray-600 capitalize">
-                              {key.replace(/_/g, ' ')}:
-                            </span>
-                            <span className="font-medium text-gray-900">
-                              {typeof value === 'number' ? value.toFixed(1) : value}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
+                    {component.metrics &&
+                      Object.keys(component.metrics).length > 0 && (
+                        <div className="space-y-1">
+                          {Object.entries(component.metrics)
+                            .slice(0, 3)
+                            .map(([key, value]) => (
+                              <div
+                                key={key}
+                                className="flex justify-between text-sm"
+                              >
+                                <span className="text-foreground capitalize">
+                                  {key.replace(/_/g, ' ')}:
+                                </span>
+                                <span className="font-medium text-foreground">
+                                  {typeof value === 'number'
+                                    ? value.toFixed(1)
+                                    : value}
+                                </span>
+                              </div>
+                            ))}
+                        </div>
+                      )}
 
-                    {component.dependencies && component.dependencies.length > 0 && (
-                      <div className="text-sm">
-                        <span className="text-gray-600">Dependencies: </span>
-                        <span className="text-gray-900">
-                          {component.dependencies.slice(0, 2).join(', ')}
-                          {component.dependencies.length > 2 && ` +${component.dependencies.length - 2}`}
-                        </span>
-                      </div>
-                    )}
+                    {component.dependencies &&
+                      component.dependencies.length > 0 && (
+                        <div className="text-sm">
+                          <span className="text-foreground">
+                            Dependencies:{' '}
+                          </span>
+                          <span className="text-foreground">
+                            {component.dependencies.slice(0, 2).join(', ')}
+                            {component.dependencies.length > 2 &&
+                              ` +${component.dependencies.length - 2}`}
+                          </span>
+                        </div>
+                      )}
                   </div>
                 )}
 
@@ -330,13 +366,19 @@ const StatusGrid: React.FC<StatusGridProps> = ({
                 )}
 
                 {/* Status Indicator */}
-                <div className={cn(
-                  'absolute top-2 right-2 h-3 w-3 rounded-full',
-                  component.status === 'healthy' ? 'bg-green-500' :
-                  component.status === 'degraded' ? 'bg-yellow-500' :
-                  component.status === 'unhealthy' ? 'bg-red-500' : 'bg-gray-500',
-                  'animate-pulse'
-                )} />
+                <div
+                  className={cn(
+                    'absolute top-2 right-2 h-3 w-3 rounded-full',
+                    component.status === 'healthy'
+                      ? 'bg-green-500'
+                      : component.status === 'degraded'
+                        ? 'bg-yellow-500'
+                        : component.status === 'unhealthy'
+                          ? 'bg-red-500'
+                          : 'bg-gray-500',
+                    'animate-pulse'
+                  )}
+                />
               </div>
             );
           })}
@@ -344,8 +386,10 @@ const StatusGrid: React.FC<StatusGridProps> = ({
 
         {components.length === 0 && (
           <div className="text-center py-8">
-            <QuestionMarkCircleIcon className="h-12 w-12 text-gray-400 mx-auto mb-2" />
-            <p className="text-gray-500">No component status data available</p>
+            <QuestionMarkCircleIcon className="h-12 w-12 text-muted-foreground mx-auto mb-2" />
+            <p className="text-muted-foreground">
+              No component status data available
+            </p>
           </div>
         )}
       </CardContent>

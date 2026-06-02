@@ -53,42 +53,42 @@ export function Pagination({
 
   return (
     <div className={cn("flex flex-col sm:flex-row items-center justify-between gap-4 py-4", className)}>
-      <div className="flex items-center gap-2 text-xs font-mono text-[var(--terminal-text-dim)]">
+      <div className="flex items-center gap-2 text-xs font-mono text-[var(--nous-fg-3)]">
         <span>SHOWING</span>
-        <span className="text-[var(--terminal-text)] font-bold">
+        <span className="text-[var(--nous-fg-1)] font-bold">
           {Math.min((currentPage - 1) * pageSize + 1, totalItems)}
         </span>
         <span>TO</span>
-        <span className="text-[var(--terminal-text)] font-bold">
+        <span className="text-[var(--nous-fg-1)] font-bold">
           {Math.min(currentPage * pageSize, totalItems)}
         </span>
         <span>OF</span>
-        <span className="text-[var(--terminal-text)] font-bold">{totalItems}</span>
+        <span className="text-[var(--nous-fg-1)] font-bold">{totalItems}</span>
       </div>
 
       <div className="flex items-center gap-2">
         <button
           onClick={() => onPageChange(1)}
           disabled={currentPage === 1}
-          className="p-2 rounded-lg border border-[var(--terminal-border)] hover:bg-[var(--terminal-surface)] disabled:opacity-30 disabled:hover:bg-transparent transition-all"
+          className="p-2 rounded-lg border border-[var(--nous-border-1)] hover:bg-[var(--nous-bg-2)] disabled:opacity-30 disabled:hover:bg-transparent transition-all"
           title="First Page"
         >
-          <ChevronsLeft className="w-4 h-4 text-[var(--terminal-text)]" />
+          <ChevronsLeft className="w-4 h-4 text-[var(--nous-fg-1)]" />
         </button>
         
         <button
           onClick={() => onPageChange(currentPage - 1)}
           disabled={currentPage === 1}
-          className="p-2 rounded-lg border border-[var(--terminal-border)] hover:bg-[var(--terminal-surface)] disabled:opacity-30 disabled:hover:bg-transparent transition-all"
+          className="p-2 rounded-lg border border-[var(--nous-border-1)] hover:bg-[var(--nous-bg-2)] disabled:opacity-30 disabled:hover:bg-transparent transition-all"
           title="Previous Page"
         >
-          <ChevronLeft className="w-4 h-4 text-[var(--terminal-text)]" />
+          <ChevronLeft className="w-4 h-4 text-[var(--nous-fg-1)]" />
         </button>
 
-        <div className="flex items-center gap-1 bg-[var(--terminal-surface)] rounded-lg border border-[var(--terminal-border)] p-1">
+        <div className="flex items-center gap-1 bg-[var(--nous-bg-2)] rounded-lg border border-[var(--nous-border-1)] p-1">
           {getPageNumbers().map((page, idx) => (
             page === '...' ? (
-              <span key={`ellipsis-${idx}`} className="px-2 text-[var(--terminal-text-dim)]">...</span>
+              <span key={`ellipsis-${idx}`} className="px-2 text-[var(--nous-fg-3)]">...</span>
             ) : (
               <button
                 key={page}
@@ -96,8 +96,8 @@ export function Pagination({
                 className={cn(
                   "min-w-[32px] h-8 rounded-md font-mono text-xs font-bold transition-all",
                   currentPage === page
-                    ? "bg-[var(--phosphor-green)] text-[var(--terminal-bg)] shadow-[0_0_10px_var(--phosphor-green-glow)]"
-                    : "text-[var(--terminal-text-dim)] hover:text-[var(--terminal-text)] hover:bg-[var(--terminal-elevated)]"
+                    ? "bg-[var(--nous-sol)] text-[var(--nous-bg-1)] shadow-[0_0_10px_var(--nous-sol-glow)]"
+                    : "text-[var(--nous-fg-3)] hover:text-[var(--nous-fg-1)] hover:bg-[var(--nous-bg-3)]"
                 )}
               >
                 {page}
@@ -109,19 +109,19 @@ export function Pagination({
         <button
           onClick={() => onPageChange(currentPage + 1)}
           disabled={currentPage === totalPages}
-          className="p-2 rounded-lg border border-[var(--terminal-border)] hover:bg-[var(--terminal-surface)] disabled:opacity-30 disabled:hover:bg-transparent transition-all"
+          className="p-2 rounded-lg border border-[var(--nous-border-1)] hover:bg-[var(--nous-bg-2)] disabled:opacity-30 disabled:hover:bg-transparent transition-all"
           title="Next Page"
         >
-          <ChevronRight className="w-4 h-4 text-[var(--terminal-text)]" />
+          <ChevronRight className="w-4 h-4 text-[var(--nous-fg-1)]" />
         </button>
 
         <button
           onClick={() => onPageChange(totalPages)}
           disabled={currentPage === totalPages}
-          className="p-2 rounded-lg border border-[var(--terminal-border)] hover:bg-[var(--terminal-surface)] disabled:opacity-30 disabled:hover:bg-transparent transition-all"
+          className="p-2 rounded-lg border border-[var(--nous-border-1)] hover:bg-[var(--nous-bg-2)] disabled:opacity-30 disabled:hover:bg-transparent transition-all"
           title="Last Page"
         >
-          <ChevronsRight className="w-4 h-4 text-[var(--terminal-text)]" />
+          <ChevronsRight className="w-4 h-4 text-[var(--nous-fg-1)]" />
         </button>
       </div>
     </div>

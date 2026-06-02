@@ -116,7 +116,7 @@ export const RewriteDiffView: React.FC<RewriteDiffViewProps> = ({
     <div className="overflow-hidden rounded-lg border border-[#1a1a1a] bg-[#0a0a0a]">
       <div className="flex items-center justify-between border-b border-[#1a1a1a] px-4 py-3">
         <div className="flex items-center gap-3">
-          <h3 className="font-mono text-sm font-bold text-gray-200">
+          <h3 className="font-mono text-sm font-bold text-muted-foreground">
             Tone Rewrite
           </h3>
           <Badge className={cn('border text-xs', tone.bg, tone.color)}>
@@ -124,7 +124,7 @@ export const RewriteDiffView: React.FC<RewriteDiffViewProps> = ({
           </Badge>
         </div>
         {citationsPreserved.length > 0 && (
-          <div className="flex items-center gap-1.5 text-xs text-gray-500">
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <Quote className="h-3 w-3" />
             <span>
               {citationsPreserved.length} citation
@@ -137,7 +137,7 @@ export const RewriteDiffView: React.FC<RewriteDiffViewProps> = ({
       <div className="grid grid-cols-1 divide-y divide-[#1a1a1a] md:grid-cols-2 md:divide-x md:divide-y-0">
         <div className="flex flex-col">
           <div className="border-b border-[#1a1a1a] px-4 py-2">
-            <span className="font-mono text-xs uppercase text-gray-500">
+            <span className="font-mono text-xs uppercase text-muted-foreground">
               Original
             </span>
           </div>
@@ -160,7 +160,7 @@ export const RewriteDiffView: React.FC<RewriteDiffViewProps> = ({
 
         <div className="flex flex-col">
           <div className="border-b border-[#1a1a1a] px-4 py-2">
-            <span className="font-mono text-xs uppercase text-gray-500">
+            <span className="font-mono text-xs uppercase text-muted-foreground">
               Rewritten
             </span>
           </div>
@@ -186,7 +186,7 @@ export const RewriteDiffView: React.FC<RewriteDiffViewProps> = ({
         <Button
           variant="ghost"
           size="sm"
-          className="gap-1.5 text-gray-400 hover:bg-[#1a1a1a] hover:text-gray-200"
+          className="gap-1.5 text-muted-foreground hover:bg-[#1a1a1a] hover:text-foreground"
           onClick={onReject}
           aria-label="Reject rewrite"
         >

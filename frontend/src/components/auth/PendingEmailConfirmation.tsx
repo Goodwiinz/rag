@@ -53,29 +53,29 @@ export default function PendingEmailConfirmation({
   }, [email, resendCooldown]);
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[var(--terminal-bg)]">
+    <div className="min-h-screen flex items-center justify-center bg-[var(--nous-bg-1)]">
       <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         className="max-w-md w-full mx-6"
       >
-        <div className="rounded-2xl border border-[var(--terminal-border)] bg-[var(--terminal-surface)] p-10 text-center">
+        <div className="rounded-2xl border border-[var(--nous-border-1)] bg-[var(--nous-bg-2)] p-10 text-center">
           {/* Animated mail icon */}
           <motion.div
             animate={{ scale: [1, 1.05, 1] }}
             transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
-            className="flex items-center justify-center w-16 h-16 rounded-full bg-[var(--phosphor-green)]/10 border border-[var(--phosphor-green)]/30 mx-auto mb-6"
+            className="flex items-center justify-center w-16 h-16 rounded-full bg-[var(--nous-sol)]/10 border border-[var(--nous-sol)]/30 mx-auto mb-6"
           >
-            <Mail className="w-8 h-8 text-[var(--phosphor-green)]" />
+            <Mail className="w-8 h-8 text-[var(--nous-sol)]" />
           </motion.div>
 
-          <h2 className="text-xl font-mono font-bold text-[var(--terminal-text)] uppercase tracking-[0.15em] mb-3">
+          <h2 className="text-xl font-mono font-bold text-[var(--nous-fg-1)] uppercase tracking-[0.15em] mb-3">
             Verify Your Identity
           </h2>
 
-          <p className="text-sm font-mono text-[var(--terminal-text-muted)] mb-8 leading-relaxed">
+          <p className="text-sm font-mono text-[var(--nous-fg-3)] mb-8 leading-relaxed">
             We sent a verification link to{' '}
-            <span className="text-[var(--phosphor-green)]">{email}</span>. Check
+            <span className="text-[var(--nous-sol)]">{email}</span>. Check
             your inbox and click the link to activate your account.
           </p>
 
@@ -83,7 +83,7 @@ export default function PendingEmailConfirmation({
           <button
             onClick={handleResend}
             disabled={resendCooldown > 0 || resendStatus === 'sending'}
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl border border-[var(--terminal-border)] bg-[var(--terminal-bg)] font-mono text-xs font-bold uppercase tracking-[0.15em] text-[var(--terminal-text-muted)] hover:border-[var(--phosphor-green)]/50 hover:text-[var(--phosphor-green)] disabled:opacity-40 disabled:cursor-not-allowed transition-all mb-4"
+            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl border border-[var(--nous-border-1)] bg-[var(--nous-bg-1)] font-mono text-xs font-bold uppercase tracking-[0.15em] text-[var(--nous-fg-3)] hover:border-[var(--nous-sol)]/50 hover:text-[var(--nous-sol)] disabled:opacity-40 disabled:cursor-not-allowed transition-all mb-4"
           >
             {resendStatus === 'sending' ? (
               <>
@@ -105,7 +105,7 @@ export default function PendingEmailConfirmation({
             <motion.p
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              className="text-[10px] font-mono text-[var(--phosphor-green)] mb-4"
+              className="text-[10px] font-mono text-[var(--nous-sol)] mb-4"
             >
               Verification email sent!
             </motion.p>
@@ -125,23 +125,23 @@ export default function PendingEmailConfirmation({
             <motion.p
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              className="text-[10px] font-mono text-[var(--terminal-text-dim)] mb-6"
+              className="text-[10px] font-mono text-[var(--nous-fg-3)] mb-6"
             >
               Not seeing it? Check your spam or junk folder.
             </motion.p>
           )}
 
           {/* Wrong email / back links */}
-          <div className="flex flex-col items-center gap-3 pt-4 border-t border-[var(--terminal-border)]">
+          <div className="flex flex-col items-center gap-3 pt-4 border-t border-[var(--nous-border-1)]">
             <button
               onClick={onReset}
-              className="text-[10px] font-mono text-[var(--terminal-text-dim)] uppercase tracking-widest hover:text-[var(--phosphor-green)] transition-colors"
+              className="text-[10px] font-mono text-[var(--nous-fg-3)] uppercase tracking-widest hover:text-[var(--nous-sol)] transition-colors"
             >
               Wrong email? Try again
             </button>
             <Link
               href="/login"
-              className="text-[10px] font-mono text-[var(--terminal-text-dim)] uppercase tracking-widest hover:text-[var(--phosphor-green)] transition-colors"
+              className="text-[10px] font-mono text-[var(--nous-fg-3)] uppercase tracking-widest hover:text-[var(--nous-sol)] transition-colors"
             >
               Return to Access Terminal
             </Link>
