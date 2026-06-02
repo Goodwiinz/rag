@@ -96,20 +96,20 @@ export default function ResetPasswordPage() {
 
   if (sessionExpired) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[var(--terminal-bg)]">
+      <div className="min-h-screen flex items-center justify-center bg-[var(--nous-bg-1)]">
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
           className="max-w-md w-full mx-6"
         >
-          <div className="rounded-2xl border border-[var(--terminal-border)] bg-[var(--terminal-surface)] p-10 text-center">
+          <div className="rounded-2xl border border-[var(--nous-border-1)] bg-[var(--nous-bg-2)] p-10 text-center">
             <div className="flex items-center justify-center w-16 h-16 rounded-full bg-red-500/10 border border-red-500/30 mx-auto mb-6">
               <AlertTriangle className="w-8 h-8 text-red-400" />
             </div>
-            <h2 className="text-xl font-mono font-bold text-[var(--terminal-text)] uppercase tracking-[0.15em] mb-3">
+            <h2 className="text-xl font-mono font-bold text-[var(--nous-fg-1)] uppercase tracking-[0.15em] mb-3">
               Link Expired
             </h2>
-            <p className="text-sm font-mono text-[var(--terminal-text-muted)] mb-6 leading-relaxed">
+            <p className="text-sm font-mono text-[var(--nous-fg-3)] mb-6 leading-relaxed">
               This reset link is expired or invalid. Request a new one to
               continue.
             </p>
@@ -117,8 +117,8 @@ export default function ResetPasswordPage() {
               href="/forgot-password"
               className={cn(
                 'inline-flex items-center gap-2 py-3 px-6 rounded-xl font-mono text-xs font-bold uppercase tracking-[0.2em]',
-                'bg-[var(--phosphor-green)] text-[var(--terminal-bg)]',
-                'hover:shadow-[0_0_25px_var(--phosphor-green-glow)] hover:scale-[1.02] active:scale-[0.98]',
+                'bg-[var(--nous-sol)] text-[var(--nous-bg-1)]',
+                'hover:shadow-[0_0_25px_var(--nous-sol-glow)] hover:scale-[1.02] active:scale-[0.98]',
                 'transition-all duration-300'
               )}
             >
@@ -133,14 +133,14 @@ export default function ResetPasswordPage() {
 
   if (!sessionReady) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[var(--terminal-bg)]">
+      <div className="min-h-screen flex items-center justify-center bg-[var(--nous-bg-1)]">
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           className="text-center"
         >
-          <RefreshCw className="w-6 h-6 text-[var(--phosphor-green)] animate-spin mx-auto mb-4" />
-          <p className="text-[10px] font-mono text-[var(--terminal-text-muted)] uppercase tracking-widest">
+          <RefreshCw className="w-6 h-6 text-[var(--nous-sol)] animate-spin mx-auto mb-4" />
+          <p className="text-[10px] font-mono text-[var(--nous-fg-3)] uppercase tracking-widest">
             Verifying recovery session...
           </p>
         </motion.div>
@@ -150,28 +150,28 @@ export default function ResetPasswordPage() {
 
   if (success) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[var(--terminal-bg)]">
+      <div className="min-h-screen flex items-center justify-center bg-[var(--nous-bg-1)]">
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
           className="max-w-md w-full mx-6"
         >
-          <div className="rounded-2xl border border-[var(--terminal-border)] bg-[var(--terminal-surface)] p-10 text-center">
-            <div className="flex items-center justify-center w-16 h-16 rounded-full bg-[var(--phosphor-green)]/10 border border-[var(--phosphor-green)]/30 mx-auto mb-6">
-              <CheckCircle className="w-8 h-8 text-[var(--phosphor-green)]" />
+          <div className="rounded-2xl border border-[var(--nous-border-1)] bg-[var(--nous-bg-2)] p-10 text-center">
+            <div className="flex items-center justify-center w-16 h-16 rounded-full bg-[var(--nous-sol)]/10 border border-[var(--nous-sol)]/30 mx-auto mb-6">
+              <CheckCircle className="w-8 h-8 text-[var(--nous-sol)]" />
             </div>
-            <h2 className="text-xl font-mono font-bold text-[var(--terminal-text)] uppercase tracking-[0.15em] mb-3">
+            <h2 className="text-xl font-mono font-bold text-[var(--nous-fg-1)] uppercase tracking-[0.15em] mb-3">
               Key Updated
             </h2>
-            <p className="text-sm font-mono text-[var(--terminal-text-muted)] mb-4 leading-relaxed">
+            <p className="text-sm font-mono text-[var(--nous-fg-3)] mb-4 leading-relaxed">
               Your security key has been reset. Redirecting to login...
             </p>
-            <div className="h-1 w-24 mx-auto rounded-full bg-[var(--terminal-border)] overflow-hidden">
+            <div className="h-1 w-24 mx-auto rounded-full bg-[var(--nous-border-1)] overflow-hidden">
               <motion.div
                 initial={{ width: 0 }}
                 animate={{ width: '100%' }}
                 transition={{ duration: 3 }}
-                className="h-full bg-[var(--phosphor-green)]"
+                className="h-full bg-[var(--nous-sol)]"
               />
             </div>
           </div>
@@ -181,7 +181,7 @@ export default function ResetPasswordPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[var(--terminal-bg)] relative overflow-hidden">
+    <div className="min-h-screen flex items-center justify-center bg-[var(--nous-bg-1)] relative overflow-hidden">
       <div className="absolute inset-0 opacity-[0.02] pointer-events-none">
         <div
           className="h-full w-full"
@@ -198,15 +198,15 @@ export default function ResetPasswordPage() {
         transition={{ duration: 0.5 }}
         className="w-full max-w-md mx-6"
       >
-        <div className="rounded-2xl border border-[var(--terminal-border)] bg-[var(--terminal-surface)] p-8 shadow-2xl shadow-black/50">
+        <div className="rounded-2xl border border-[var(--nous-border-1)] bg-[var(--nous-bg-2)] p-8 shadow-2xl shadow-black/50">
           <div className="text-center mb-8">
-            <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-[var(--terminal-elevated)] border border-[var(--terminal-border)] mb-4">
-              <Lock className="w-5 h-5 text-[var(--phosphor-green)]" />
+            <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-[var(--nous-bg-3)] border border-[var(--nous-border-1)] mb-4">
+              <Lock className="w-5 h-5 text-[var(--nous-sol)]" />
             </div>
-            <h2 className="text-xl font-mono font-bold text-[var(--terminal-text)] uppercase tracking-[0.2em]">
+            <h2 className="text-xl font-mono font-bold text-[var(--nous-fg-1)] uppercase tracking-[0.2em]">
               New Security Key
             </h2>
-            <p className="text-[10px] font-mono text-[var(--terminal-text-muted)] uppercase tracking-wider mt-2">
+            <p className="text-[10px] font-mono text-[var(--nous-fg-3)] uppercase tracking-wider mt-2">
               Enter your new access credentials
             </p>
           </div>
@@ -227,13 +227,13 @@ export default function ResetPasswordPage() {
             <div className="space-y-2">
               <label
                 htmlFor="password"
-                className="block text-[10px] font-mono text-[var(--terminal-text-dim)] uppercase tracking-[0.2em] font-bold pl-1"
+                className="block text-[10px] font-mono text-[var(--nous-fg-3)] uppercase tracking-[0.2em] font-bold pl-1"
               >
                 New Security Key
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none">
-                  <Lock className="w-4 h-4 text-[var(--terminal-text-muted)]" />
+                  <Lock className="w-4 h-4 text-[var(--nous-fg-3)]" />
                 </div>
                 <input
                   id="password"
@@ -241,13 +241,13 @@ export default function ResetPasswordPage() {
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full pl-11 pr-12 py-3 rounded-xl bg-[var(--terminal-bg)] border border-[var(--terminal-border)] font-mono text-sm text-[var(--terminal-text)] placeholder:text-[var(--terminal-text-muted)]/30 focus:border-[var(--phosphor-green)]/50 focus:ring-0 outline-none transition-all"
+                  className="w-full pl-11 pr-12 py-3 rounded-xl bg-[var(--nous-bg-1)] border border-[var(--nous-border-1)] font-mono text-sm text-[var(--nous-fg-1)] placeholder:text-[var(--nous-fg-3)]/30 focus:border-[var(--nous-sol)]/50 focus:ring-0 outline-none transition-all"
                   placeholder="NEW_KEY_BUFFER"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute inset-y-0 right-0 flex items-center pr-3.5 text-[var(--terminal-text-muted)] hover:text-[var(--phosphor-green)] transition-colors"
+                  className="absolute inset-y-0 right-0 flex items-center pr-3.5 text-[var(--nous-fg-3)] hover:text-[var(--nous-sol)] transition-colors"
                 >
                   {showPassword ? (
                     <EyeOff className="w-4 h-4" />
@@ -261,13 +261,13 @@ export default function ResetPasswordPage() {
             <div className="space-y-2">
               <label
                 htmlFor="confirmPassword"
-                className="block text-[10px] font-mono text-[var(--terminal-text-dim)] uppercase tracking-[0.2em] font-bold pl-1"
+                className="block text-[10px] font-mono text-[var(--nous-fg-3)] uppercase tracking-[0.2em] font-bold pl-1"
               >
                 Verify New Key
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none">
-                  <Lock className="w-4 h-4 text-[var(--terminal-text-muted)]" />
+                  <Lock className="w-4 h-4 text-[var(--nous-fg-3)]" />
                 </div>
                 <input
                   id="confirmPassword"
@@ -275,7 +275,7 @@ export default function ResetPasswordPage() {
                   required
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
-                  className="w-full pl-11 pr-4 py-3 rounded-xl bg-[var(--terminal-bg)] border border-[var(--terminal-border)] font-mono text-sm text-[var(--terminal-text)] placeholder:text-[var(--terminal-text-muted)]/30 focus:border-[var(--phosphor-green)]/50 focus:ring-0 outline-none transition-all"
+                  className="w-full pl-11 pr-4 py-3 rounded-xl bg-[var(--nous-bg-1)] border border-[var(--nous-border-1)] font-mono text-sm text-[var(--nous-fg-1)] placeholder:text-[var(--nous-fg-3)]/30 focus:border-[var(--nous-sol)]/50 focus:ring-0 outline-none transition-all"
                   placeholder="RE_ENTER_KEY"
                 />
               </div>
@@ -286,8 +286,8 @@ export default function ResetPasswordPage() {
               disabled={isSubmitting}
               className={cn(
                 'group w-full flex items-center justify-center gap-3 py-3.5 px-4 rounded-xl font-mono text-xs font-bold uppercase tracking-[0.2em]',
-                'bg-[var(--phosphor-green)] text-[var(--terminal-bg)]',
-                'hover:shadow-[0_0_25px_var(--phosphor-green-glow)] hover:scale-[1.02] active:scale-[0.98]',
+                'bg-[var(--nous-sol)] text-[var(--nous-bg-1)]',
+                'hover:shadow-[0_0_25px_var(--nous-sol-glow)] hover:scale-[1.02] active:scale-[0.98]',
                 'disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300'
               )}
             >
@@ -305,10 +305,10 @@ export default function ResetPasswordPage() {
             </button>
           </form>
 
-          <div className="mt-8 pt-6 border-t border-[var(--terminal-border)] text-center">
+          <div className="mt-8 pt-6 border-t border-[var(--nous-border-1)] text-center">
             <Link
               href="/login"
-              className="text-[10px] font-mono text-[var(--terminal-text-dim)] uppercase tracking-widest hover:text-[var(--phosphor-green)] transition-colors"
+              className="text-[10px] font-mono text-[var(--nous-fg-3)] uppercase tracking-widest hover:text-[var(--nous-sol)] transition-colors"
             >
               Return to Access Terminal
             </Link>

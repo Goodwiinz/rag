@@ -137,32 +137,32 @@ function VerifyEmailContent(): React.JSX.Element | null {
     const message =
       otpErrorMessage ?? describeError(errorCode, errorDescription);
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[var(--terminal-bg)]">
+      <div className="min-h-screen flex items-center justify-center bg-[var(--nous-bg-1)]">
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
           className="max-w-md w-full mx-6"
         >
-          <div className="rounded-2xl border border-red-500/30 bg-[var(--terminal-surface)] p-10 text-center">
+          <div className="rounded-2xl border border-red-500/30 bg-[var(--nous-bg-2)] p-10 text-center">
             <div className="flex items-center justify-center w-16 h-16 rounded-full bg-red-500/10 border border-red-500/30 mx-auto mb-6">
               <AlertTriangle className="w-8 h-8 text-red-400" />
             </div>
-            <h2 className="text-xl font-mono font-bold text-[var(--terminal-text)] uppercase tracking-[0.15em] mb-3">
+            <h2 className="text-xl font-mono font-bold text-[var(--nous-fg-1)] uppercase tracking-[0.15em] mb-3">
               Verification Failed
             </h2>
-            <p className="text-sm font-mono text-[var(--terminal-text-muted)] mb-8 leading-relaxed">
+            <p className="text-sm font-mono text-[var(--nous-fg-3)] mb-8 leading-relaxed">
               {message}
             </p>
             <div className="flex flex-col gap-3 items-center">
               <Link
                 href="/register"
-                className="text-[10px] font-mono text-[var(--phosphor-green)] uppercase tracking-widest hover:underline"
+                className="text-[10px] font-mono text-[var(--nous-sol)] uppercase tracking-widest hover:underline"
               >
                 Request a new confirmation link
               </Link>
               <Link
                 href="/login"
-                className="text-[10px] font-mono text-[var(--terminal-text-dim)] uppercase tracking-widest hover:text-[var(--phosphor-green)] transition-colors"
+                className="text-[10px] font-mono text-[var(--nous-fg-3)] uppercase tracking-widest hover:text-[var(--nous-sol)] transition-colors"
               >
                 Return to Access Terminal
               </Link>
@@ -175,20 +175,20 @@ function VerifyEmailContent(): React.JSX.Element | null {
 
   if (view === 'pending') {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[var(--terminal-bg)]">
+      <div className="min-h-screen flex items-center justify-center bg-[var(--nous-bg-1)]">
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
           className="max-w-md w-full mx-6"
         >
-          <div className="rounded-2xl border border-[var(--terminal-border)] bg-[var(--terminal-surface)] p-10 text-center">
-            <div className="flex items-center justify-center w-16 h-16 rounded-full bg-[var(--phosphor-green)]/10 border border-[var(--phosphor-green)]/30 mx-auto mb-6">
-              <RefreshCw className="w-8 h-8 text-[var(--phosphor-green)] animate-spin" />
+          <div className="rounded-2xl border border-[var(--nous-border-1)] bg-[var(--nous-bg-2)] p-10 text-center">
+            <div className="flex items-center justify-center w-16 h-16 rounded-full bg-[var(--nous-sol)]/10 border border-[var(--nous-sol)]/30 mx-auto mb-6">
+              <RefreshCw className="w-8 h-8 text-[var(--nous-sol)] animate-spin" />
             </div>
-            <h2 className="text-xl font-mono font-bold text-[var(--terminal-text)] uppercase tracking-[0.15em] mb-3">
+            <h2 className="text-xl font-mono font-bold text-[var(--nous-fg-1)] uppercase tracking-[0.15em] mb-3">
               Verifying Identity
             </h2>
-            <p className="text-sm font-mono text-[var(--terminal-text-muted)] mb-8 leading-relaxed">
+            <p className="text-sm font-mono text-[var(--nous-fg-3)] mb-8 leading-relaxed">
               Establishing your session. This only takes a moment...
             </p>
           </div>
@@ -198,33 +198,33 @@ function VerifyEmailContent(): React.JSX.Element | null {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[var(--terminal-bg)]">
+    <div className="min-h-screen flex items-center justify-center bg-[var(--nous-bg-1)]">
       <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         className="max-w-md w-full mx-6"
       >
-        <div className="rounded-2xl border border-[var(--terminal-border)] bg-[var(--terminal-surface)] p-10 text-center">
-          <div className="flex items-center justify-center w-16 h-16 rounded-full bg-[var(--phosphor-green)]/10 border border-[var(--phosphor-green)]/30 mx-auto mb-6">
-            <CheckCircle className="w-8 h-8 text-[var(--phosphor-green)]" />
+        <div className="rounded-2xl border border-[var(--nous-border-1)] bg-[var(--nous-bg-2)] p-10 text-center">
+          <div className="flex items-center justify-center w-16 h-16 rounded-full bg-[var(--nous-sol)]/10 border border-[var(--nous-sol)]/30 mx-auto mb-6">
+            <CheckCircle className="w-8 h-8 text-[var(--nous-sol)]" />
           </div>
-          <h2 className="text-xl font-mono font-bold text-[var(--terminal-text)] uppercase tracking-[0.15em] mb-3">
+          <h2 className="text-xl font-mono font-bold text-[var(--nous-fg-1)] uppercase tracking-[0.15em] mb-3">
             Identity Verified
           </h2>
-          <p className="text-sm font-mono text-[var(--terminal-text-muted)] mb-6 leading-relaxed">
+          <p className="text-sm font-mono text-[var(--nous-fg-3)] mb-6 leading-relaxed">
             Your account has been activated. Redirecting to your workspace...
           </p>
-          <div className="h-1 w-24 mx-auto rounded-full bg-[var(--terminal-border)] overflow-hidden mb-6">
+          <div className="h-1 w-24 mx-auto rounded-full bg-[var(--nous-border-1)] overflow-hidden mb-6">
             <motion.div
               initial={{ width: 0 }}
               animate={{ width: '100%' }}
               transition={{ duration: VERIFIED_REDIRECT_DELAY_MS / 1000 }}
-              className="h-full bg-[var(--phosphor-green)]"
+              className="h-full bg-[var(--nous-sol)]"
             />
           </div>
           <Link
             href={VERIFIED_REDIRECT_PATH}
-            className="text-[10px] font-mono text-[var(--terminal-text-dim)] uppercase tracking-widest hover:text-[var(--phosphor-green)] transition-colors"
+            className="text-[10px] font-mono text-[var(--nous-fg-3)] uppercase tracking-widest hover:text-[var(--nous-sol)] transition-colors"
           >
             Continue to Workspace
           </Link>
