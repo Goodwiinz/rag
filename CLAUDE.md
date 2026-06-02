@@ -29,12 +29,14 @@ LangGraph StateGraph with intent-based routing to specialized subgraphs.
 **Flow:** `rag_node → intent_classifier → memory_retrieval → [route by intent] → tool_node → memory_save → END`
 
 **Subgraphs:**
+
 - **Research**: arXiv search/ingest, document search, project management (max 8 tool loops)
 - **Writing**: drafts, notes, bibliography, summarization, document comparison
 - **Data**: entity extraction, knowledge graph queries
 - **General**: full tool set with LLM routing
 
 **Endpoints** (`/api/v1/agent/`):
+
 - `POST /execute` — Async job-based (returns job_id, poll via `GET /jobs/{job_id}`)
 - `POST /stream` — SSE streaming (token, tool_start, tool_end, rag_context, done)
 - `POST /confirm/{job_id}` — Resume human-in-the-loop interrupts
@@ -69,16 +71,26 @@ LangGraph StateGraph with intent-based routing to specialized subgraphs.
 
 ## Connections
 
-| Service    | Port | URL                        |
-| ---------- | ---- | -------------------------- |
+| Service    | Port | URL                         |
+| ---------- | ---- | --------------------------- |
 | PostgreSQL | 5432 | postgres:postgres@localhost |
-| Neo4j      | 7687 | bolt://localhost:7687      |
-| Qdrant     | 6333 | http://localhost:6333      |
-| Redis      | 6379 | redis://localhost:6379     |
-| Backend    | 8000 | http://localhost:8000      |
-| Frontend   | 3000 | http://localhost:3000      |
+| Neo4j      | 7687 | bolt://localhost:7687       |
+| Qdrant     | 6333 | http://localhost:6333       |
+| Redis      | 6379 | redis://localhost:6379      |
+| Backend    | 8000 | http://localhost:8000       |
+| Frontend   | 3000 | http://localhost:3000       |
 
 ## Branch Strategy
 
 - Feature branches from `develop`
 - PRs target `develop`
+
+## Design Context
+
+`PRODUCT.md` (strategic) + `DESIGN.md` (visual) at project root are the source of truth for the impeccable design skill. Register default: `product` (landing+auth are `brand` per-task).
+
+- **Users:** researchers/academics — lit review, arXiv ingest, KG exploration, drafting. Expert, deep-focus, attention on docs not chrome.
+- **Personality:** scholarly, warm, confident. Plain sentence-case voice, no hype/shouting/costume.
+- **Principles:** provenance over assertion; content over chrome; calm expert voice; honest loading/empty/error/HITL states; density with rhythm.
+- **Anti-refs:** cyberpunk/terminal costume (removed, don't reintroduce), SaaS-cream + hero-metric block, AI-slop (gradient text, decorative glass, side-stripe borders, uppercase-mono labels), cold enterprise.
+- **A11y:** WCAG 2.1 AA.
