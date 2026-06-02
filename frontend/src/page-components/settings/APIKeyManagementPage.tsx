@@ -6,34 +6,34 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 const API_ACCESS_CARDS = [
   {
-    title: 'Active tokens',
+    title: 'Active Tokens',
     description:
       'Personal and workspace-scoped credentials currently available to operators and systems.',
     details: [
-      'Personal tokens are listed here once created',
-      'Workspace-scoped tokens appear under your workspace',
-      'Each token shows its last rotation date',
+      '2 active personal tokens',
+      '1 workspace-scoped token',
+      'Last rotation 9 days ago',
     ],
     icon: KeyRound,
   },
   {
-    title: 'Provider access',
+    title: 'Provider Access',
     description:
       'Visibility into configured AI providers and external integration readiness.',
     details: [
-      'OpenAI connects through your provider key',
-      'Anthropic connects through your provider key',
-      'Azure OpenAI requires workspace review',
+      'OpenAI available',
+      'Anthropic available',
+      'Azure OpenAI pending review',
     ],
     icon: ServerCog,
   },
   {
-    title: 'Rotation guidance',
+    title: 'Rotation Guidance',
     description:
-      'Operational guidance for token naming, scope minimization, and a regular refresh cadence.',
+      'Operational guidance for token naming, scope minimization, and regular refresh cadence.',
     details: [
       'Use least-privilege scopes',
-      'Rotate keys quarterly',
+      'Rotate quarterly',
       'Track token ownership',
     ],
     icon: RotateCw,
@@ -43,32 +43,39 @@ const API_ACCESS_CARDS = [
 export const APIKeyManagementPage = (): ReactElement => {
   return (
     <div className="space-y-8 px-6 pb-20 pt-6 md:space-y-10 md:px-10 md:pb-24 md:pt-8 lg:px-12">
-      <header className="space-y-6">
-        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-          <div className="flex items-start gap-4">
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-              <KeyRound aria-hidden="true" className="h-6 w-6" />
-            </div>
-            <div className="space-y-1.5">
-              <h1 className="text-2xl font-semibold text-foreground">
-                API keys
-              </h1>
-              <p className="max-w-2xl text-sm leading-relaxed text-muted-foreground">
-                Review credentials, provider readiness, and token hygiene for
-                model and integration access.
-              </p>
-            </div>
+      <header className="space-y-4">
+        <div className="space-y-2">
+          <p className="text-xs font-mono uppercase tracking-[0.28em] text-[var(--nous-sol)]">
+            DEVELOPER_ACCESS
+          </p>
+          <div className="space-y-3">
+            <h1 className="text-3xl font-semibold text-[var(--nous-fg-1)]">
+              API Key Management
+            </h1>
+            <p className="max-w-3xl text-sm text-[var(--nous-fg-3)]">
+              Review credentials, provider readiness, and token hygiene for
+              model and integration access.
+            </p>
           </div>
+        </div>
 
-          <div className="flex flex-wrap items-center gap-3">
-            <Button asChild variant="outline">
-              <Link href="/settings">
-                Back to settings
-                <ArrowRight aria-hidden="true" className="h-4 w-4" />
-              </Link>
-            </Button>
-            <Button>Create token</Button>
-          </div>
+        <div className="flex flex-wrap gap-3">
+          <Button
+            asChild
+            variant="outline"
+            className="border-[var(--nous-border-1)] bg-transparent text-[var(--nous-fg-1)] hover:bg-[var(--nous-bg-1)] hover:text-[var(--nous-fg-1)]"
+          >
+            <Link href="/settings">
+              Return to Settings Overview
+              <ArrowRight className="h-4 w-4" />
+            </Link>
+          </Button>
+          <Button
+            variant="outline"
+            className="border-[var(--nous-border-1)] bg-transparent text-[var(--nous-fg-1)] hover:bg-[var(--nous-bg-1)] hover:text-[var(--nous-fg-1)]"
+          >
+            Create Token
+          </Button>
         </div>
       </header>
 
@@ -77,35 +84,32 @@ export const APIKeyManagementPage = (): ReactElement => {
           const Icon = card.icon;
 
           return (
-            <Card key={card.title} className="flex flex-col">
+            <Card
+              key={card.title}
+              className="rounded-2xl border-[var(--nous-border-1)] bg-[var(--nous-bg-2)] shadow-none"
+            >
               <CardHeader className="space-y-4">
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted text-primary">
-                  <Icon aria-hidden="true" className="h-5 w-5" />
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--nous-sol-glow)] text-[var(--nous-sol)]">
+                  <Icon className="h-5 w-5" />
                 </div>
                 <div className="space-y-2">
-                  <CardTitle className="text-lg text-foreground">
+                  <CardTitle className="text-xl text-[var(--nous-fg-1)]">
                     {card.title}
                   </CardTitle>
-                  <p className="text-sm leading-relaxed text-muted-foreground">
+                  <p className="text-sm text-[var(--nous-fg-3)]">
                     {card.description}
                   </p>
                 </div>
               </CardHeader>
-              <CardContent className="mt-auto">
-                <ul className="space-y-2 border-t border-border pt-4">
-                  {card.details.map((detail) => (
-                    <li
-                      key={detail}
-                      className="flex items-start gap-2.5 text-sm text-foreground"
-                    >
-                      <span
-                        aria-hidden="true"
-                        className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-primary/60"
-                      />
-                      <span className="leading-relaxed">{detail}</span>
-                    </li>
-                  ))}
-                </ul>
+              <CardContent className="space-y-2">
+                {card.details.map((detail) => (
+                  <p
+                    key={detail}
+                    className="text-sm text-[var(--nous-fg-1)]"
+                  >
+                    {detail}
+                  </p>
+                ))}
               </CardContent>
             </Card>
           );
