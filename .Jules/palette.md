@@ -10,3 +10,6 @@
 ## 2024-05-18 - Stylized Button Accessibility
 **Learning:** Custom semantic buttons with unconventional or stylized visible text (e.g., 'TRANSMIT' or 'HALT') fail to provide clear context for screen reader users relying on standard labels.
 **Action:** Always ensure explicitly declared `aria-label`s (like 'Send message' or 'Stop generation') are applied for screen reader compatibility, rather than relying solely on `title` attributes or the visible text.
+## 2026-05-18 - [Ensure focus-visible and type on custom buttons]
+**Learning:** Interactive list items (like saved searches/history) and inline tag/badge close buttons often utilize raw HTML `<button>`s. When default browser focus states are suppressed (e.g., in Badges) or list layouts lack clear focus outlines, it causes accessibility failures for keyboard users. Furthermore, omitting `type="button"` can lead to unintended form submissions if these components are wrapped in forms.
+**Action:** When implementing custom transient overlay buttons or removing items from tags/badges, always include explicit focus-visible utility classes (e.g., `focus-visible:ring-2 focus-visible:outline-none`) to ensure keyboard navigation indicators remain visible. Also, explicitly define `type="button"` on these raw tags.
