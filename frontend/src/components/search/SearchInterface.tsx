@@ -557,7 +557,7 @@ export const SearchInterface: React.FC<SearchInterfaceProps> = ({
             type="button"
             onClick={() => toggleQuickFilter('file_type', 'pdf')}
             className={cn(
-              'px-3 py-1.5 rounded-full text-xs font-medium border transition-all duration-200 flex items-center space-x-1.5 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+              'px-3 py-1.5 rounded-full text-xs font-medium border transition-all duration-200 flex items-center space-x-1.5 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none',
               filters.file_types?.includes('pdf')
                 ? 'bg-primary/10 border-primary/20 text-primary'
                 : 'bg-background border-border hover:border-primary/50 hover:bg-accent text-muted-foreground hover:text-foreground'
@@ -570,7 +570,7 @@ export const SearchInterface: React.FC<SearchInterfaceProps> = ({
             type="button"
             onClick={() => toggleQuickFilter('date', 'week')}
             className={cn(
-              'px-3 py-1.5 rounded-full text-xs font-medium border transition-all duration-200 flex items-center space-x-1.5 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+              'px-3 py-1.5 rounded-full text-xs font-medium border transition-all duration-200 flex items-center space-x-1.5 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none',
               filters.date_range
                 ? 'bg-primary/10 border-primary/20 text-primary'
                 : 'bg-background border-border hover:border-primary/50 hover:bg-accent text-muted-foreground hover:text-foreground'
@@ -583,7 +583,7 @@ export const SearchInterface: React.FC<SearchInterfaceProps> = ({
             type="button"
             onClick={() => toggleQuickFilter('confidence', 0.8)}
             className={cn(
-              'px-3 py-1.5 rounded-full text-xs font-medium border transition-all duration-200 flex items-center space-x-1.5 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+              'px-3 py-1.5 rounded-full text-xs font-medium border transition-all duration-200 flex items-center space-x-1.5 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none',
               filters.min_confidence === 0.8
                 ? 'bg-primary/10 border-primary/20 text-primary'
                 : 'bg-background border-border hover:border-primary/50 hover:bg-accent text-muted-foreground hover:text-foreground'
