@@ -132,7 +132,7 @@ export function QuickActionsGrid({ className }: QuickActionsGridProps) {
           }}
         />
         <motion.div
-          className="absolute bottom-0 left-0 w-24 h-24 rounded-full bg-gradient-to-tr from-purple-400/10 to-pink-400/10"
+          className="absolute bottom-0 left-0 w-24 h-24 rounded-full bg-[var(--nous-sol)]/10"
           animate={{
             scale: [1, 1.3, 1],
             rotate: [360, 0, -360],

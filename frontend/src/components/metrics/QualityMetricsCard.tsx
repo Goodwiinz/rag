@@ -234,7 +234,7 @@ export const QualityMetricsCard: React.FC<QualityMetricsCardProps> = ({
                 {metrics.contextualRelevancy.toFixed(0)}%
               </Badge>
             </div>
-            <div className="text-2xl font-bold text-purple-600">
+            <div className="text-2xl font-bold text-[var(--nous-fg-accent)]">
               {metrics.contextualRelevancy.toFixed(1)}%
             </div>
           </div>

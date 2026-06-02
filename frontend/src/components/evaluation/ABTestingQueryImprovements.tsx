@@ -677,7 +677,7 @@ export default function ABTestingQueryImprovements() {
                   .map((test) => (
                     <Card
                       key={test.id}
-                      className="border-l-4 border-l-blue-500"
+                      className="border border-[var(--nous-sol)]/40"
                     >
                       <CardHeader>
                         <div className="flex items-start justify-between">

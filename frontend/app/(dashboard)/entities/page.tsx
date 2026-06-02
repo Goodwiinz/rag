@@ -590,24 +590,24 @@ function EntityManagementContent() {
   if (!mounted) return null;
 
   return (
-    <div className="min-h-screen bg-[var(--terminal-bg)] flex flex-col">
-      <div className="p-6 space-y-4 flex-1 overflow-y-auto terminal-scrollbar">
+    <div className="min-h-screen bg-[var(--nous-bg-1)] flex flex-col">
+      <div className="p-6 space-y-4 flex-1 overflow-y-auto nous-scrollbar">
         {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="rounded-xl border border-[var(--terminal-border)] bg-[var(--terminal-surface)] p-6 shadow-xl"
+          className="rounded-xl border border-[var(--nous-border-1)] bg-[var(--nous-bg-2)] p-6 shadow-xl"
         >
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-lg bg-[var(--phosphor-green)]/10 border border-[var(--phosphor-green)]/20 flex items-center justify-center">
-                <Network className="w-6 h-6 text-[var(--phosphor-green)]" />
+              <div className="w-12 h-12 rounded-lg bg-[var(--nous-sol)]/10 border border-[var(--nous-sol)]/20 flex items-center justify-center">
+                <Network className="w-6 h-6 text-[var(--nous-sol)]" />
               </div>
               <div>
-                <h1 className="text-2xl font-mono font-bold text-[var(--terminal-text)] tracking-wider">
+                <h1 className="text-2xl font-mono font-bold text-[var(--nous-fg-1)] tracking-wider">
                   NEURAL_ENTITY_REGISTRY
                 </h1>
-                <p className="text-xs font-mono text-[var(--terminal-text-dim)] mt-0.5 uppercase tracking-widest">
+                <p className="text-xs font-mono text-[var(--nous-fg-3)] mt-0.5 uppercase tracking-widest">
                   Knowledge Graph Nodes Management
                 </p>
               </div>
@@ -622,7 +622,7 @@ function EntityManagementContent() {
                   if (activeTab === 'graph') fetchRelationships();
                 }}
                 disabled={loading}
-                className="font-mono text-[10px] font-bold border-[var(--terminal-border)] hover:bg-[var(--terminal-elevated)]"
+                className="font-mono text-[10px] font-bold border-[var(--nous-border-1)] hover:bg-[var(--nous-bg-3)]"
               >
                 <RefreshCw
                   className={cn(
@@ -636,7 +636,7 @@ function EntityManagementContent() {
                 variant="outline"
                 size="sm"
                 onClick={exportEntities}
-                className="font-mono text-[10px] font-bold border-[var(--terminal-border)] hover:bg-[var(--terminal-elevated)]"
+                className="font-mono text-[10px] font-bold border-[var(--nous-border-1)] hover:bg-[var(--nous-bg-3)]"
               >
                 <Download className="h-3.5 w-3.5 mr-1.5" />
                 EXPORT
@@ -648,7 +648,7 @@ function EntityManagementContent() {
                   setEditDialogOpen(true);
                 }}
                 disabled={!canCreate}
-                className="font-mono text-[10px] font-bold bg-[var(--phosphor-green)] text-[var(--terminal-bg)] hover:shadow-[0_0_15px_var(--phosphor-green-glow)] disabled:opacity-50 disabled:cursor-not-allowed"
+                className="font-mono text-[10px] font-bold bg-[var(--nous-sol)] text-[var(--nous-bg-1)] hover:shadow-[0_0_15px_var(--nous-sol-glow)] disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Plus className="h-3.5 w-3.5 mr-1.5" />
                 NEW_NODE {!canCreate && '(ADMIN)'}
@@ -666,7 +666,7 @@ function EntityManagementContent() {
                 <p className="font-mono text-sm text-amber-400 font-bold">
                   Knowledge Graph Unavailable
                 </p>
-                <p className="font-mono text-xs text-[var(--terminal-text-dim)] mt-1">
+                <p className="font-mono text-xs text-[var(--nous-fg-3)] mt-1">
                   The graph database is currently unreachable. Entity data
                   cannot be loaded.
                 </p>
@@ -689,7 +689,7 @@ function EntityManagementContent() {
         )}
 
         {/* Filters */}
-        <Card className="border-[var(--terminal-border)] bg-[var(--terminal-surface)] shadow-lg">
+        <Card className="border-[var(--nous-border-1)] bg-[var(--nous-bg-2)] shadow-lg">
           <CardContent className="p-4">
             <EntityFilters
               searchQuery={searchQuery}
@@ -722,7 +722,7 @@ function EntityManagementContent() {
               <span className="font-mono text-[9px] text-primary uppercase tracking-wider w-14 shrink-0">
                 {'// View'}
               </span>
-              <TabsList className="bg-[var(--terminal-bg)] border border-[var(--terminal-border)] p-1 rounded-lg">
+              <TabsList className="bg-[var(--nous-bg-1)] border border-[var(--nous-border-1)] p-1 rounded-lg">
                 <TabsTrigger
                   value="list"
                   className="rounded-md data-[state=active]:bg-primary/15 data-[state=active]:text-primary font-mono text-xs gap-1.5"
@@ -757,7 +757,7 @@ function EntityManagementContent() {
               <span className="font-mono text-[9px] text-primary uppercase tracking-wider w-14 shrink-0 ml-2">
                 {'// Actions'}
               </span>
-              <TabsList className="bg-[var(--terminal-bg)] border border-[var(--terminal-border)] p-1 rounded-lg">
+              <TabsList className="bg-[var(--nous-bg-1)] border border-[var(--nous-border-1)] p-1 rounded-lg">
                 <TabsTrigger
                   value="bulk"
                   className="rounded-md data-[state=active]:bg-primary/15 data-[state=active]:text-primary font-mono text-xs gap-1.5"
@@ -787,7 +787,7 @@ function EntityManagementContent() {
               <span className="font-mono text-[9px] text-primary uppercase tracking-wider w-14 shrink-0">
                 {'// Monitor'}
               </span>
-              <TabsList className="bg-[var(--terminal-bg)] border border-[var(--terminal-border)] p-1 rounded-lg">
+              <TabsList className="bg-[var(--nous-bg-1)] border border-[var(--nous-border-1)] p-1 rounded-lg">
                 <TabsTrigger
                   value="statistics"
                   className="rounded-md data-[state=active]:bg-primary/15 data-[state=active]:text-primary font-mono text-xs gap-1.5"
@@ -814,7 +814,7 @@ function EntityManagementContent() {
           </div>
 
           <TabsContent value="list" className="mt-0 outline-none">
-            <div className="rounded-xl border border-[var(--terminal-border)] bg-[var(--terminal-surface)] overflow-hidden shadow-xl">
+            <div className="rounded-xl border border-[var(--nous-border-1)] bg-[var(--nous-bg-2)] overflow-hidden shadow-xl">
               <EntityList
                 entities={filteredEntities}
                 loading={loading}
@@ -840,39 +840,39 @@ function EntityManagementContent() {
           </TabsContent>
 
           <TabsContent value="graph" className="mt-0 outline-none">
-            <div className="rounded-xl border border-[var(--terminal-border)] bg-[var(--terminal-surface)] overflow-hidden shadow-xl p-4">
+            <div className="rounded-xl border border-[var(--nous-border-1)] bg-[var(--nous-bg-2)] overflow-hidden shadow-xl p-4">
               {relationshipsLoading ? (
                 <div className="flex items-center justify-center h-[600px]">
                   <div className="flex flex-col items-center gap-6">
                     {/* Animated network visualization skeleton */}
                     <div className="relative">
-                      <div className="w-20 h-20 rounded-full border-2 border-[var(--terminal-border)] bg-[var(--terminal-bg)] flex items-center justify-center">
-                        <Network className="w-8 h-8 text-[var(--phosphor-green)] animate-pulse" />
+                      <div className="w-20 h-20 rounded-full border-2 border-[var(--nous-border-1)] bg-[var(--nous-bg-1)] flex items-center justify-center">
+                        <Network className="w-8 h-8 text-[var(--nous-sol)] animate-pulse" />
                       </div>
                       {/* Orbiting nodes */}
-                      <div className="absolute -top-2 -right-2 w-4 h-4 rounded-full bg-[var(--terminal-border)] animate-pulse" />
-                      <div className="absolute -bottom-1 -left-3 w-3 h-3 rounded-full bg-[var(--terminal-border)] animate-pulse delay-150" />
-                      <div className="absolute top-1/2 -right-6 w-3 h-3 rounded-full bg-[var(--terminal-border)] animate-pulse delay-300" />
-                      <div className="absolute -top-4 left-1/2 w-2 h-2 rounded-full bg-[var(--terminal-border)] animate-pulse delay-500" />
+                      <div className="absolute -top-2 -right-2 w-4 h-4 rounded-full bg-[var(--nous-border-1)] animate-pulse" />
+                      <div className="absolute -bottom-1 -left-3 w-3 h-3 rounded-full bg-[var(--nous-border-1)] animate-pulse delay-150" />
+                      <div className="absolute top-1/2 -right-6 w-3 h-3 rounded-full bg-[var(--nous-border-1)] animate-pulse delay-300" />
+                      <div className="absolute -top-4 left-1/2 w-2 h-2 rounded-full bg-[var(--nous-border-1)] animate-pulse delay-500" />
                     </div>
 
                     {/* Loading spinner */}
-                    <Loader2 className="w-6 h-6 text-[var(--phosphor-green)] animate-spin" />
+                    <Loader2 className="w-6 h-6 text-[var(--nous-sol)] animate-spin" />
 
                     {/* Status text */}
                     <div className="text-center space-y-2">
-                      <p className="font-mono text-sm text-[var(--terminal-text)]">
+                      <p className="font-mono text-sm text-[var(--nous-fg-1)]">
                         LOADING_GRAPH_DATA...
                       </p>
-                      <p className="font-mono text-xs text-[var(--terminal-text-dim)]">
+                      <p className="font-mono text-xs text-[var(--nous-fg-3)]">
                         Fetching connected nodes and relationships
                       </p>
                     </div>
 
                     {/* Progress skeleton bars */}
                     <div className="w-48 space-y-2">
-                      <div className="h-1 bg-[var(--terminal-bg)] rounded-full overflow-hidden border border-[var(--terminal-border)]">
-                        <div className="h-full w-2/3 bg-[var(--phosphor-green)]/50 rounded-full animate-pulse" />
+                      <div className="h-1 bg-[var(--nous-bg-1)] rounded-full overflow-hidden border border-[var(--nous-border-1)]">
+                        <div className="h-full w-2/3 bg-[var(--nous-sol)]/50 rounded-full animate-pulse" />
                       </div>
                     </div>
                   </div>
@@ -902,19 +902,19 @@ function EntityManagementContent() {
                   label: 'Total Entities',
                   value: statistics.totalEntities.toLocaleString(),
                   icon: Database,
-                  color: 'var(--phosphor-green)',
+                  color: 'var(--nous-sol)',
                 },
                 {
                   label: 'Unique Types',
                   value: statistics.uniqueTypes,
                   icon: Filter,
-                  color: 'var(--cyan)',
+                  color: 'var(--nous-helios)',
                 },
                 {
                   label: 'Avg Confidence',
                   value: `${(statistics.averageConfidence * 100).toFixed(1)}%`,
                   icon: TrendingUp,
-                  color: 'var(--amber-gold)',
+                  color: 'var(--nous-helios)',
                 },
                 {
                   label: 'Relationships',
@@ -925,14 +925,14 @@ function EntityManagementContent() {
               ].map((stat) => (
                 <Card
                   key={stat.label}
-                  className="border-[var(--terminal-border)] bg-[var(--terminal-surface)] shadow-lg overflow-hidden relative group"
+                  className="border-[var(--nous-border-1)] bg-[var(--nous-bg-2)] shadow-lg overflow-hidden relative group"
                 >
                   <div
                     className="absolute top-0 left-0 w-1 h-full opacity-20 group-hover:opacity-100 transition-opacity"
                     style={{ backgroundColor: stat.color }}
                   />
                   <CardHeader className="p-4 pb-1">
-                    <CardTitle className="text-[10px] font-mono text-[var(--terminal-text-dim)] uppercase tracking-widest flex items-center gap-2">
+                    <CardTitle className="text-[10px] font-mono text-[var(--nous-fg-3)] uppercase tracking-widest flex items-center gap-2">
                       <stat.icon
                         className="w-3 h-3"
                         style={{ color: stat.color }}
@@ -941,7 +941,7 @@ function EntityManagementContent() {
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="p-4 pt-0">
-                    <p className="text-2xl font-mono font-bold text-[var(--terminal-text)]">
+                    <p className="text-2xl font-mono font-bold text-[var(--nous-fg-1)]">
                       {stat.value}
                     </p>
                   </CardContent>
@@ -950,9 +950,9 @@ function EntityManagementContent() {
             </div>
 
             {/* Type Distribution */}
-            <Card className="border-[var(--terminal-border)] bg-[var(--terminal-surface)] shadow-lg">
-              <CardHeader className="border-b border-[var(--terminal-border)] py-3">
-                <CardTitle className="text-xs font-mono font-bold uppercase tracking-widest text-[var(--terminal-text-dim)] flex items-center gap-2">
+            <Card className="border-[var(--nous-border-1)] bg-[var(--nous-bg-2)] shadow-lg">
+              <CardHeader className="border-b border-[var(--nous-border-1)] py-3">
+                <CardTitle className="text-xs font-mono font-bold uppercase tracking-widest text-[var(--nous-fg-3)] flex items-center gap-2">
                   <BarChart3 className="w-4 h-4" />
                   Type Distribution
                 </CardTitle>
@@ -966,16 +966,16 @@ function EntityManagementContent() {
                       return (
                         <div key={type} className="space-y-1">
                           <div className="flex justify-between text-xs font-mono">
-                            <span className="text-[var(--terminal-text)]">
+                            <span className="text-[var(--nous-fg-1)]">
                               {type}
                             </span>
-                            <span className="text-[var(--terminal-text-dim)]">
+                            <span className="text-[var(--nous-fg-3)]">
                               {count} ({percentage.toFixed(1)}%)
                             </span>
                           </div>
-                          <div className="h-2 bg-[var(--terminal-bg)] rounded-full overflow-hidden border border-[var(--terminal-border)]">
+                          <div className="h-2 bg-[var(--nous-bg-1)] rounded-full overflow-hidden border border-[var(--nous-border-1)]">
                             <div
-                              className="h-full bg-[var(--phosphor-green)] rounded-full transition-all duration-500"
+                              className="h-full bg-[var(--nous-sol)] rounded-full transition-all duration-500"
                               style={{ width: `${percentage}%` }}
                             />
                           </div>
@@ -1052,8 +1052,8 @@ function EntityManagementContent() {
 
       {/* Edit/Create Dialog */}
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-        <DialogContent className="max-w-2xl bg-[var(--terminal-surface)] border-[var(--terminal-border)] text-[var(--terminal-text)] font-mono">
-          <DialogHeader className="border-b border-[var(--terminal-border)] pb-4">
+        <DialogContent className="max-w-2xl bg-[var(--nous-bg-2)] border-[var(--nous-border-1)] text-[var(--nous-fg-1)] font-mono">
+          <DialogHeader className="border-b border-[var(--nous-border-1)] pb-4">
             <DialogTitle className="text-lg font-bold tracking-tight">
               {selectedEntity ? 'EDIT_NODE_PARAMETERS' : 'PROVISION_NEW_NODE'}
             </DialogTitle>
@@ -1092,8 +1092,8 @@ function EntityManagementContent() {
 
       {/* Detail Dialog */}
       <Dialog open={detailDialogOpen} onOpenChange={setDetailDialogOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto bg-[var(--terminal-surface)] border-[var(--terminal-border)] text-[var(--terminal-text)] font-mono">
-          <DialogHeader className="border-b border-[var(--terminal-border)] pb-4">
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto bg-[var(--nous-bg-2)] border-[var(--nous-border-1)] text-[var(--nous-fg-1)] font-mono">
+          <DialogHeader className="border-b border-[var(--nous-border-1)] pb-4">
             <DialogTitle className="text-lg font-bold tracking-tight uppercase">
               Node_Analysis_Dump
             </DialogTitle>
@@ -1125,8 +1125,8 @@ function EntityManagementContent() {
           if (!open) setSourceEntityId(null);
         }}
       >
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto bg-[var(--terminal-surface)] border-[var(--terminal-border)] text-[var(--terminal-text)] font-mono">
-          <DialogHeader className="border-b border-[var(--terminal-border)] pb-4">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto bg-[var(--nous-bg-2)] border-[var(--nous-border-1)] text-[var(--nous-fg-1)] font-mono">
+          <DialogHeader className="border-b border-[var(--nous-border-1)] pb-4">
             <DialogTitle className="text-lg font-bold tracking-tight uppercase">
               ESTABLISH_NEW_LINK
             </DialogTitle>
@@ -1156,10 +1156,10 @@ function EntityManagementContent() {
 // Loading fallback component
 function EntityPageLoading() {
   return (
-    <div className="min-h-screen bg-[var(--terminal-bg)] flex items-center justify-center">
+    <div className="min-h-screen bg-[var(--nous-bg-1)] flex items-center justify-center">
       <div className="flex flex-col items-center gap-4">
-        <Loader2 className="w-8 h-8 text-[var(--phosphor-green)] animate-spin" />
-        <p className="font-mono text-sm text-[var(--terminal-text-dim)]">
+        <Loader2 className="w-8 h-8 text-[var(--nous-sol)] animate-spin" />
+        <p className="font-mono text-sm text-[var(--nous-fg-3)]">
           LOADING_ENTITY_REGISTRY...
         </p>
       </div>

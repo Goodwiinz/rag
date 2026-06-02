@@ -185,7 +185,7 @@ export default function ProjectsPage() {
           </h1>
           {currentWorkspace && (
             <span className="inline-flex items-center gap-1.5 text-[10px] font-mono text-muted-foreground uppercase tracking-wider mt-1">
-              <Network className="w-3 h-3 text-[var(--phosphor-green)]" />
+              <Network className="w-3 h-3 text-[var(--nous-sol)]" />
               {currentWorkspace.name}
             </span>
           )}

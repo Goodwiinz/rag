@@ -168,20 +168,22 @@ const PerformanceDetail: React.FC<PerformanceDetailProps> = ({
                   <div className="text-sm text-green-700">Answer Relevancy</div>
                 </div>
 
-                <div className="p-4 bg-purple-50 rounded-lg">
+                <div className="p-4 bg-[var(--nous-sol)]/10 rounded-lg">
                   <div className="flex items-center justify-between mb-2">
-                    <CircleStackIcon className="h-5 w-5 text-purple-600" />
-                    <span className="text-sm font-medium text-purple-900">
+                    <CircleStackIcon className="h-5 w-5 text-[var(--nous-fg-accent-safe)]" />
+                    <span className="text-sm font-medium text-[var(--nous-fg-accent-safe)]">
                       {metrics.cache_performance.cache_hit_rate >= 0.5
                         ? 'Good'
                         : 'Poor'}
                     </span>
                   </div>
-                  <div className="text-2xl font-bold text-purple-900">
+                  <div className="text-2xl font-bold text-[var(--nous-fg-accent-safe)]">
                     {Math.round(metrics.cache_performance.cache_hit_rate * 100)}
                     %
                   </div>
-                  <div className="text-sm text-purple-700">Cache Hit Rate</div>
+                  <div className="text-sm text-muted-foreground">
+                    Cache Hit Rate
+                  </div>
                 </div>
 
                 <div className="p-4 bg-orange-50 rounded-lg">
@@ -588,15 +590,17 @@ const PerformanceDetail: React.FC<PerformanceDetailProps> = ({
                   </div>
                 </div>
 
-                <div className="p-4 bg-purple-50 rounded-lg">
+                <div className="p-4 bg-[var(--nous-sol)]/10 rounded-lg">
                   <div className="flex items-center space-x-2 mb-3">
-                    <ServerIcon className="h-5 w-5 text-purple-600" />
-                    <h4 className="font-medium text-purple-900">Network</h4>
+                    <ServerIcon className="h-5 w-5 text-[var(--nous-fg-accent-safe)]" />
+                    <h4 className="font-medium text-[var(--nous-fg-accent-safe)]">
+                      Network
+                    </h4>
                   </div>
-                  <div className="text-2xl font-bold text-purple-900 mb-2">
+                  <div className="text-2xl font-bold text-[var(--nous-fg-accent-safe)] mb-2">
                     {metrics.resource_usage.network_requests}
                   </div>
-                  <div className="text-sm text-purple-700">Requests</div>
+                  <div className="text-sm text-muted-foreground">Requests</div>
                 </div>
               </div>
 
@@ -915,13 +919,13 @@ export const QueryPerformanceMonitor: React.FC<
           </div>
         </div>
 
-        <div className="flex items-center space-x-2 p-3 bg-purple-50 rounded-lg">
-          <CircleStackIcon className="h-4 w-4 text-purple-600" />
+        <div className="flex items-center space-x-2 p-3 bg-[var(--nous-sol)]/10 rounded-lg">
+          <CircleStackIcon className="h-4 w-4 text-[var(--nous-fg-accent-safe)]" />
           <div>
-            <div className="text-sm font-medium text-purple-900">
+            <div className="text-sm font-medium text-[var(--nous-fg-accent-safe)]">
               {Math.round(metrics.cache_performance.cache_hit_rate * 100)}%
             </div>
-            <div className="text-xs text-purple-700">Cache Hit</div>
+            <div className="text-xs text-muted-foreground">Cache Hit</div>
           </div>
         </div>
 

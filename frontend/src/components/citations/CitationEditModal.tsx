@@ -131,12 +131,12 @@ export function CitationEditModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl bg-[var(--terminal-bg)] border-[var(--terminal-border)] max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-2xl bg-[var(--nous-bg-1)] border-[var(--nous-border-1)] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="font-mono text-lg text-[var(--terminal-text)]">
+          <DialogTitle className="font-mono text-lg text-[var(--nous-fg-1)]">
             Edit Citation
           </DialogTitle>
-          <DialogDescription className="font-mono text-sm text-[var(--terminal-text-muted)]">
+          <DialogDescription className="font-mono text-sm text-[var(--nous-fg-3)]">
             Manually edit citation metadata or auto-lookup by ArXiv ID/DOI
           </DialogDescription>
         </DialogHeader>
@@ -151,8 +151,8 @@ export function CitationEditModal({
           )}
 
           {/* Auto-Lookup Section */}
-          <div className="p-4 rounded-lg border border-[var(--terminal-border)] bg-[var(--terminal-surface)]">
-            <Label className="text-xs font-mono font-medium text-[var(--terminal-text)] uppercase tracking-wider mb-3 block">
+          <div className="p-4 rounded-lg border border-[var(--nous-border-1)] bg-[var(--nous-bg-2)]">
+            <Label className="text-xs font-mono font-medium text-[var(--nous-fg-1)] uppercase tracking-wider mb-3 block">
               Auto-Lookup
             </Label>
 
@@ -161,7 +161,7 @@ export function CitationEditModal({
                 <select
                   value={lookupType}
                   onChange={(e) => setLookupType(e.target.value as 'arxiv' | 'doi')}
-                  className="px-3 py-2 rounded-lg bg-[var(--terminal-elevated)] border border-[var(--terminal-border)] text-sm font-mono text-[var(--terminal-text)] focus:outline-none focus:ring-2 focus:ring-[var(--phosphor-green)]/50"
+                  className="px-3 py-2 rounded-lg bg-[var(--nous-bg-3)] border border-[var(--nous-border-1)] text-sm font-mono text-[var(--nous-fg-1)] focus:outline-none focus:ring-2 focus:ring-[var(--nous-sol)]/50"
                 >
                   <option value="arxiv">ArXiv ID</option>
                   <option value="doi">DOI</option>
@@ -172,7 +172,7 @@ export function CitationEditModal({
                   value={lookupId}
                   onChange={(e) => setLookupId(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleLookup()}
-                  className="flex-1 bg-[var(--terminal-elevated)] border-[var(--terminal-border)] font-mono text-sm"
+                  className="flex-1 bg-[var(--nous-bg-3)] border-[var(--nous-border-1)] font-mono text-sm"
                   disabled={loading}
                 />
               </div>
@@ -180,7 +180,7 @@ export function CitationEditModal({
               <Button
                 onClick={handleLookup}
                 disabled={loading || !lookupId.trim()}
-                className="bg-[var(--phosphor-green)] text-[var(--terminal-bg)] hover:shadow-[0_0_20px_var(--phosphor-green-glow)] font-mono text-xs font-bold"
+                className="bg-[var(--nous-sol)] text-[var(--nous-bg-1)] hover:shadow-[0_0_20px_var(--nous-sol-glow)] font-mono text-xs font-bold"
               >
                 {loading ? (
                   <>
@@ -203,7 +203,7 @@ export function CitationEditModal({
             <div className="space-y-2">
               <Label
                 htmlFor="title"
-                className="text-xs font-mono font-medium text-[var(--terminal-text)] uppercase tracking-wider"
+                className="text-xs font-mono font-medium text-[var(--nous-fg-1)] uppercase tracking-wider"
               >
                 Title *
               </Label>
@@ -211,7 +211,7 @@ export function CitationEditModal({
                 id="title"
                 value={formData.documentTitle || ''}
                 onChange={(e) => handleFieldChange('documentTitle', e.target.value)}
-                className="bg-[var(--terminal-elevated)] border-[var(--terminal-border)] font-mono text-sm"
+                className="bg-[var(--nous-bg-3)] border-[var(--nous-border-1)] font-mono text-sm"
                 placeholder="Paper title"
               />
             </div>
@@ -220,7 +220,7 @@ export function CitationEditModal({
             <div className="space-y-2">
               <Label
                 htmlFor="authors"
-                className="text-xs font-mono font-medium text-[var(--terminal-text)] uppercase tracking-wider"
+                className="text-xs font-mono font-medium text-[var(--nous-fg-1)] uppercase tracking-wider"
               >
                 Authors (comma-separated)
               </Label>
@@ -228,7 +228,7 @@ export function CitationEditModal({
                 id="authors"
                 value={formData.authors?.join(', ') || ''}
                 onChange={(e) => handleAuthorsChange(e.target.value)}
-                className="bg-[var(--terminal-elevated)] border-[var(--terminal-border)] font-mono text-sm"
+                className="bg-[var(--nous-bg-3)] border-[var(--nous-border-1)] font-mono text-sm"
                 placeholder="John Doe, Jane Smith"
               />
             </div>
@@ -238,7 +238,7 @@ export function CitationEditModal({
               <div className="space-y-2">
                 <Label
                   htmlFor="year"
-                  className="text-xs font-mono font-medium text-[var(--terminal-text)] uppercase tracking-wider"
+                  className="text-xs font-mono font-medium text-[var(--nous-fg-1)] uppercase tracking-wider"
                 >
                   Year
                 </Label>
@@ -247,7 +247,7 @@ export function CitationEditModal({
                   type="number"
                   value={formData.year || ''}
                   onChange={(e) => handleFieldChange('year', parseInt(e.target.value) || null)}
-                  className="bg-[var(--terminal-elevated)] border-[var(--terminal-border)] font-mono text-sm"
+                  className="bg-[var(--nous-bg-3)] border-[var(--nous-border-1)] font-mono text-sm"
                   placeholder="2024"
                 />
               </div>
@@ -255,7 +255,7 @@ export function CitationEditModal({
               <div className="space-y-2">
                 <Label
                   htmlFor="venue"
-                  className="text-xs font-mono font-medium text-[var(--terminal-text)] uppercase tracking-wider"
+                  className="text-xs font-mono font-medium text-[var(--nous-fg-1)] uppercase tracking-wider"
                 >
                   Venue
                 </Label>
@@ -263,7 +263,7 @@ export function CitationEditModal({
                   id="venue"
                   value={formData.venue || ''}
                   onChange={(e) => handleFieldChange('venue', e.target.value)}
-                  className="bg-[var(--terminal-elevated)] border-[var(--terminal-border)] font-mono text-sm"
+                  className="bg-[var(--nous-bg-3)] border-[var(--nous-border-1)] font-mono text-sm"
                   placeholder="Journal/Conference"
                 />
               </div>
@@ -274,7 +274,7 @@ export function CitationEditModal({
               <div className="space-y-2">
                 <Label
                   htmlFor="arxiv"
-                  className="text-xs font-mono font-medium text-[var(--terminal-text)] uppercase tracking-wider"
+                  className="text-xs font-mono font-medium text-[var(--nous-fg-1)] uppercase tracking-wider"
                 >
                   ArXiv ID
                 </Label>
@@ -282,7 +282,7 @@ export function CitationEditModal({
                   id="arxiv"
                   value={formData.arxivId || ''}
                   onChange={(e) => handleFieldChange('arxivId', e.target.value)}
-                  className="bg-[var(--terminal-elevated)] border-[var(--terminal-border)] font-mono text-sm"
+                  className="bg-[var(--nous-bg-3)] border-[var(--nous-border-1)] font-mono text-sm"
                   placeholder="2101.00001"
                 />
               </div>
@@ -290,7 +290,7 @@ export function CitationEditModal({
               <div className="space-y-2">
                 <Label
                   htmlFor="doi"
-                  className="text-xs font-mono font-medium text-[var(--terminal-text)] uppercase tracking-wider"
+                  className="text-xs font-mono font-medium text-[var(--nous-fg-1)] uppercase tracking-wider"
                 >
                   DOI
                 </Label>
@@ -298,7 +298,7 @@ export function CitationEditModal({
                   id="doi"
                   value={formData.doi || ''}
                   onChange={(e) => handleFieldChange('doi', e.target.value)}
-                  className="bg-[var(--terminal-elevated)] border-[var(--terminal-border)] font-mono text-sm"
+                  className="bg-[var(--nous-bg-3)] border-[var(--nous-border-1)] font-mono text-sm"
                   placeholder="10.1000/xyz123"
                 />
               </div>
@@ -308,7 +308,7 @@ export function CitationEditModal({
             <div className="space-y-2">
               <Label
                 htmlFor="abstract"
-                className="text-xs font-mono font-medium text-[var(--terminal-text)] uppercase tracking-wider"
+                className="text-xs font-mono font-medium text-[var(--nous-fg-1)] uppercase tracking-wider"
               >
                 Abstract
               </Label>
@@ -316,7 +316,7 @@ export function CitationEditModal({
                 id="abstract"
                 value={formData.abstract || ''}
                 onChange={(e) => handleFieldChange('abstract', e.target.value)}
-                className="bg-[var(--terminal-elevated)] border-[var(--terminal-border)] font-mono text-sm min-h-[120px]"
+                className="bg-[var(--nous-bg-3)] border-[var(--nous-border-1)] font-mono text-sm min-h-[120px]"
                 placeholder="Paper abstract..."
               />
             </div>
@@ -327,14 +327,14 @@ export function CitationEditModal({
           <Button
             variant="outline"
             onClick={() => onOpenChange(false)}
-            className="font-mono text-xs border-[var(--terminal-border)] text-[var(--terminal-text-muted)]"
+            className="font-mono text-xs border-[var(--nous-border-1)] text-[var(--nous-fg-3)]"
           >
             Cancel
           </Button>
           <Button
             onClick={handleSave}
             disabled={!formData.documentTitle?.trim()}
-            className="bg-[var(--phosphor-green)] text-[var(--terminal-bg)] hover:shadow-[0_0_20px_var(--phosphor-green-glow)] font-mono text-xs font-bold"
+            className="bg-[var(--nous-sol)] text-[var(--nous-bg-1)] hover:shadow-[0_0_20px_var(--nous-sol-glow)] font-mono text-xs font-bold"
           >
             Save Changes
           </Button>

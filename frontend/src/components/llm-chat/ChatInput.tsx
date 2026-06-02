@@ -83,7 +83,7 @@ export function ChatInput({
                 aria-label="Send message"
                 className={`h-10 w-10 rounded-xl transition-all shadow-lg \${
                   value.trim() && selectedModel
-                    ? 'bg-gradient-to-br from-purple-600 to-purple-700 hover:from-purple-500 hover:to-purple-600 text-white shadow-purple-600/30 hover:shadow-purple-600/50'
+                    ? 'bg-[var(--nous-sol)] hover:bg-[var(--nous-helios)] text-[var(--nous-erebus)] shadow-[var(--nous-sol)]/30 hover:shadow-[var(--nous-sol)]/50'
                     : 'bg-[#1A1A1A] text-foreground hover:bg-[#252525] shadow-black/20'
                 }`}
               >

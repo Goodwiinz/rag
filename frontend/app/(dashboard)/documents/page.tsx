@@ -113,23 +113,23 @@ export default function DocumentsPage() {
   if (!mounted) return null;
 
   return (
-    <div className="flex flex-col min-h-full bg-[var(--terminal-bg)]">
+    <div className="flex flex-col min-h-full bg-[var(--nous-bg-1)]">
       <div className="p-4 md:p-6 space-y-6 flex-1">
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-lg bg-[var(--phosphor-green)]/10 border border-[var(--phosphor-green)]/20 flex items-center justify-center relative overflow-hidden group">
-              <div className="absolute inset-0 bg-[var(--phosphor-green)]/10 translate-y-full group-hover:translate-y-0 transition-transform duration-300" />
-              <Folder className="w-6 h-6 text-[var(--phosphor-green)] relative z-10" />
+            <div className="w-12 h-12 rounded-lg bg-[var(--nous-sol)]/10 border border-[var(--nous-sol)]/20 flex items-center justify-center relative overflow-hidden group">
+              <div className="absolute inset-0 bg-[var(--nous-sol)]/10 translate-y-full group-hover:translate-y-0 transition-transform duration-300" />
+              <Folder className="w-6 h-6 text-[var(--nous-sol)] relative z-10" />
             </div>
             <div>
-              <h1 className="text-2xl font-mono font-bold text-[var(--terminal-text)] tracking-wider flex items-center gap-2">
+              <h1 className="text-2xl font-mono font-bold text-[var(--nous-fg-1)] tracking-wider flex items-center gap-2">
                 DOCUMENT_REPOSITORY
-                <span className="text-xs px-2 py-0.5 rounded-full bg-[var(--terminal-elevated)] text-[var(--terminal-text-dim)] border border-[var(--terminal-border)]">
+                <span className="text-xs px-2 py-0.5 rounded-full bg-[var(--nous-bg-3)] text-[var(--nous-fg-3)] border border-[var(--nous-border-1)]">
                   v2.0
                 </span>
               </h1>
-              <p className="text-xs font-mono text-[var(--terminal-text-dim)] mt-0.5 uppercase tracking-widest">
+              <p className="text-xs font-mono text-[var(--nous-fg-3)] mt-0.5 uppercase tracking-widest">
                 Knowledge Base Management System
               </p>
             </div>
@@ -140,13 +140,13 @@ export default function DocumentsPage() {
               variant="outline"
               size="icon"
               onClick={() => refreshDocuments()}
-              className="border-[var(--terminal-border)] bg-[var(--terminal-surface)] text-[var(--terminal-text-dim)] hover:text-[var(--phosphor-green)] hover:border-[var(--phosphor-green)]/30"
+              className="border-[var(--nous-border-1)] bg-[var(--nous-bg-2)] text-[var(--nous-fg-3)] hover:text-[var(--nous-sol)] hover:border-[var(--nous-sol)]/30"
               title="Refresh Documents"
             >
               <RefreshCw className={cn('w-4 h-4', loading && 'animate-spin')} />
             </Button>
             <Link href="/documents/upload">
-              <Button className="gap-2 bg-[var(--phosphor-green)] text-[var(--terminal-bg)] font-mono text-xs font-bold hover:shadow-[0_0_20px_var(--phosphor-green-glow)] hover:bg-[var(--phosphor-green)]/90">
+              <Button className="gap-2 bg-[var(--nous-sol)] text-[var(--nous-bg-1)] font-mono text-xs font-bold hover:shadow-[0_0_20px_var(--nous-sol-glow)] hover:bg-[var(--nous-sol)]/90">
                 <Upload className="w-3.5 h-3.5" />
                 UPLOAD_FILES
               </Button>
@@ -196,7 +196,7 @@ export default function DocumentsPage() {
 
         {/* Pagination */}
         {!loading && pagination.total > 0 && (
-          <div className="mt-6 border-t border-[var(--terminal-border)]/50 pt-4">
+          <div className="mt-6 border-t border-[var(--nous-border-1)]/50 pt-4">
             <Pagination
               currentPage={pagination.page}
               totalPages={pagination.totalPages}

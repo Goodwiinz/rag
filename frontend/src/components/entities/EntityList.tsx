@@ -58,9 +58,9 @@ const typeColors: Record<string, string> = {
 };
 
 const getConfidenceColor = (confidence: number): string => {
-  if (confidence >= 0.8) return 'text-[var(--phosphor-green)]';
-  if (confidence >= 0.6) return 'text-[var(--amber-gold)]';
-  return 'text-[var(--terminal-text-muted)]';
+  if (confidence >= 0.8) return 'text-[var(--nous-sol)]';
+  if (confidence >= 0.6) return 'text-[var(--nous-helios)]';
+  return 'text-[var(--nous-fg-3)]';
 };
 
 const formatMetadata = (metadata: Record<string, any>): string => {
@@ -100,48 +100,48 @@ export const EntityList: React.FC<EntityListProps> = ({
 
   if (loading) {
     return (
-      <div className="flex flex-col h-full bg-[var(--terminal-surface)]">
+      <div className="flex flex-col h-full bg-[var(--nous-bg-2)]">
         {/* Skeleton header bar */}
-        <div className="px-6 py-3 border-b border-[var(--terminal-border)] bg-[var(--terminal-bg)]/50 flex items-center justify-between">
+        <div className="px-6 py-3 border-b border-[var(--nous-border-1)] bg-[var(--nous-bg-1)]/50 flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <div className="w-4 h-4 rounded bg-[var(--terminal-border)] animate-pulse" />
-            <div className="w-20 h-3 rounded bg-[var(--terminal-border)] animate-pulse" />
+            <div className="w-4 h-4 rounded bg-[var(--nous-border-1)] animate-pulse" />
+            <div className="w-20 h-3 rounded bg-[var(--nous-border-1)] animate-pulse" />
           </div>
-          <div className="w-32 h-3 rounded bg-[var(--terminal-border)] animate-pulse" />
+          <div className="w-32 h-3 rounded bg-[var(--nous-border-1)] animate-pulse" />
         </div>
 
         {/* Skeleton table header */}
-        <div className="px-6 py-2.5 border-b border-[var(--terminal-border)] bg-[var(--terminal-bg)]/30 grid grid-cols-[3rem_1fr_8rem_5rem_1fr_7rem_7rem] gap-4 items-center">
-          <div className="w-4 h-3 rounded bg-[var(--terminal-border)] animate-pulse" />
-          <div className="w-24 h-3 rounded bg-[var(--terminal-border)] animate-pulse" />
-          <div className="w-20 h-3 rounded bg-[var(--terminal-border)] animate-pulse" />
-          <div className="w-16 h-3 rounded bg-[var(--terminal-border)] animate-pulse" />
-          <div className="w-28 h-3 rounded bg-[var(--terminal-border)] animate-pulse" />
-          <div className="w-20 h-3 rounded bg-[var(--terminal-border)] animate-pulse" />
-          <div className="w-20 h-3 rounded bg-[var(--terminal-border)] animate-pulse ml-auto" />
+        <div className="px-6 py-2.5 border-b border-[var(--nous-border-1)] bg-[var(--nous-bg-1)]/30 grid grid-cols-[3rem_1fr_8rem_5rem_1fr_7rem_7rem] gap-4 items-center">
+          <div className="w-4 h-3 rounded bg-[var(--nous-border-1)] animate-pulse" />
+          <div className="w-24 h-3 rounded bg-[var(--nous-border-1)] animate-pulse" />
+          <div className="w-20 h-3 rounded bg-[var(--nous-border-1)] animate-pulse" />
+          <div className="w-16 h-3 rounded bg-[var(--nous-border-1)] animate-pulse" />
+          <div className="w-28 h-3 rounded bg-[var(--nous-border-1)] animate-pulse" />
+          <div className="w-20 h-3 rounded bg-[var(--nous-border-1)] animate-pulse" />
+          <div className="w-20 h-3 rounded bg-[var(--nous-border-1)] animate-pulse ml-auto" />
         </div>
 
         {/* Skeleton rows */}
         {Array.from({ length: 6 }).map((_, i) => (
           <div
             key={i}
-            className="px-6 py-3.5 border-b border-[var(--terminal-border)] grid grid-cols-[3rem_1fr_8rem_5rem_1fr_7rem_7rem] gap-4 items-center"
+            className="px-6 py-3.5 border-b border-[var(--nous-border-1)] grid grid-cols-[3rem_1fr_8rem_5rem_1fr_7rem_7rem] gap-4 items-center"
             style={{ animationDelay: `${i * 75}ms` }}
           >
             <div
-              className="w-4 h-4 rounded bg-[var(--terminal-border)] animate-pulse"
+              className="w-4 h-4 rounded bg-[var(--nous-border-1)] animate-pulse"
               style={{ animationDelay: `${i * 75}ms` }}
             />
             <div className="space-y-1.5">
               <div
-                className="h-4 rounded bg-[var(--terminal-border)] animate-pulse"
+                className="h-4 rounded bg-[var(--nous-border-1)] animate-pulse"
                 style={{
                   width: `${60 + (i % 3) * 15}%`,
                   animationDelay: `${i * 75}ms`,
                 }}
               />
               <div
-                className="h-2.5 rounded bg-[var(--terminal-border)]/50 animate-pulse"
+                className="h-2.5 rounded bg-[var(--nous-border-1)]/50 animate-pulse"
                 style={{
                   width: `${30 + (i % 2) * 20}%`,
                   animationDelay: `${i * 75}ms`,
@@ -149,7 +149,7 @@ export const EntityList: React.FC<EntityListProps> = ({
               />
             </div>
             <div
-              className="h-5 rounded-full bg-[var(--terminal-border)] animate-pulse"
+              className="h-5 rounded-full bg-[var(--nous-border-1)] animate-pulse"
               style={{
                 width: `${50 + (i % 4) * 10}%`,
                 animationDelay: `${i * 75}ms`,
@@ -157,36 +157,36 @@ export const EntityList: React.FC<EntityListProps> = ({
             />
             <div className="space-y-1">
               <div
-                className="h-1.5 rounded-full bg-[var(--terminal-border)] animate-pulse"
+                className="h-1.5 rounded-full bg-[var(--nous-border-1)] animate-pulse"
                 style={{ animationDelay: `${i * 75}ms` }}
               />
               <div
-                className="h-3 w-10 rounded bg-[var(--terminal-border)]/50 animate-pulse"
+                className="h-3 w-10 rounded bg-[var(--nous-border-1)]/50 animate-pulse"
                 style={{ animationDelay: `${i * 75}ms` }}
               />
             </div>
             <div
-              className="h-3 rounded bg-[var(--terminal-border)]/50 animate-pulse"
+              className="h-3 rounded bg-[var(--nous-border-1)]/50 animate-pulse"
               style={{
                 width: `${40 + (i % 3) * 20}%`,
                 animationDelay: `${i * 75}ms`,
               }}
             />
             <div
-              className="h-3 w-16 rounded bg-[var(--terminal-border)]/50 animate-pulse"
+              className="h-3 w-16 rounded bg-[var(--nous-border-1)]/50 animate-pulse"
               style={{ animationDelay: `${i * 75}ms` }}
             />
             <div className="flex items-center justify-end gap-1.5">
               <div
-                className="w-7 h-7 rounded bg-[var(--terminal-border)] animate-pulse"
+                className="w-7 h-7 rounded bg-[var(--nous-border-1)] animate-pulse"
                 style={{ animationDelay: `${i * 75}ms` }}
               />
               <div
-                className="w-7 h-7 rounded bg-[var(--terminal-border)] animate-pulse"
+                className="w-7 h-7 rounded bg-[var(--nous-border-1)] animate-pulse"
                 style={{ animationDelay: `${i * 75 + 25}ms` }}
               />
               <div
-                className="w-7 h-7 rounded bg-[var(--terminal-border)] animate-pulse"
+                className="w-7 h-7 rounded bg-[var(--nous-border-1)] animate-pulse"
                 style={{ animationDelay: `${i * 75 + 50}ms` }}
               />
             </div>
@@ -197,9 +197,9 @@ export const EntityList: React.FC<EntityListProps> = ({
   }
 
   return (
-    <div className="flex flex-col h-full bg-[var(--terminal-surface)]">
+    <div className="flex flex-col h-full bg-[var(--nous-bg-2)]">
       {/* Header with selection controls */}
-      <div className="px-6 py-3 border-b border-[var(--terminal-border)] bg-[var(--terminal-bg)]/50 flex items-center justify-between">
+      <div className="px-6 py-3 border-b border-[var(--nous-border-1)] bg-[var(--nous-bg-1)]/50 flex items-center justify-between">
         <div className="flex items-center gap-4">
           <input
             type="checkbox"
@@ -207,16 +207,16 @@ export const EntityList: React.FC<EntityListProps> = ({
               selectedItems.length === entities.length && entities.length > 0
             }
             onChange={handleSelectAll}
-            className="rounded border-[var(--terminal-border)] bg-[var(--terminal-bg)] text-[var(--phosphor-green)] focus:ring-0 focus:ring-offset-0"
+            className="rounded border-[var(--nous-border-1)] bg-[var(--nous-bg-1)] text-[var(--nous-sol)] focus:ring-0 focus:ring-offset-0"
           />
-          <span className="text-[10px] font-mono text-[var(--terminal-text-dim)] uppercase tracking-widest">
+          <span className="text-[10px] font-mono text-[var(--nous-fg-3)] uppercase tracking-widest">
             Select All
           </span>
           {selectedItems.length > 0 && (
-            <div className="flex items-center gap-3 ml-4 pl-4 border-l border-[var(--terminal-border)]">
+            <div className="flex items-center gap-3 ml-4 pl-4 border-l border-[var(--nous-border-1)]">
               <Badge
                 variant="outline"
-                className="font-mono text-[10px] border-[var(--phosphor-green)]/30 text-[var(--phosphor-green)] bg-[var(--phosphor-green)]/5"
+                className="font-mono text-[10px] border-[var(--nous-sol)]/30 text-[var(--nous-sol)] bg-[var(--nous-sol)]/5"
               >
                 {selectedItems.length} SELECTED
               </Badge>
@@ -224,14 +224,14 @@ export const EntityList: React.FC<EntityListProps> = ({
                 variant="ghost"
                 size="sm"
                 onClick={() => setSelectedItems([])}
-                className="h-7 text-[10px] font-mono text-[var(--terminal-text-dim)] hover:text-[var(--phosphor-green)]"
+                className="h-7 text-[10px] font-mono text-[var(--nous-fg-3)] hover:text-[var(--nous-sol)]"
               >
                 CLEAR_SELECTION
               </Button>
             </div>
           )}
         </div>
-        <div className="flex items-center gap-2 text-[10px] font-mono text-[var(--terminal-text-muted)]">
+        <div className="flex items-center gap-2 text-[10px] font-mono text-[var(--nous-fg-3)]">
           <span>{entities.length} ENTITIES_LOADED</span>
         </div>
       </div>
@@ -251,27 +251,27 @@ export const EntityList: React.FC<EntityListProps> = ({
           </p>
         </div>
       ) : (
-        <div className="overflow-x-auto terminal-scrollbar">
+        <div className="overflow-x-auto nous-scrollbar">
           <Table>
-            <TableHeader className="bg-[var(--terminal-bg)]/30 sticky top-0 z-10">
-              <TableRow className="border-[var(--terminal-border)] hover:bg-transparent">
+            <TableHeader className="bg-[var(--nous-bg-1)]/30 sticky top-0 z-10">
+              <TableRow className="border-[var(--nous-border-1)] hover:bg-transparent">
                 <TableHead className="w-12"></TableHead>
-                <TableHead className="font-mono text-[10px] uppercase tracking-widest text-[var(--terminal-text-dim)]">
+                <TableHead className="font-mono text-[10px] uppercase tracking-widest text-[var(--nous-fg-3)]">
                   Node_Identity
                 </TableHead>
-                <TableHead className="font-mono text-[10px] uppercase tracking-widest text-[var(--terminal-text-dim)]">
+                <TableHead className="font-mono text-[10px] uppercase tracking-widest text-[var(--nous-fg-3)]">
                   Classification
                 </TableHead>
-                <TableHead className="font-mono text-[10px] uppercase tracking-widest text-[var(--terminal-text-dim)]">
+                <TableHead className="font-mono text-[10px] uppercase tracking-widest text-[var(--nous-fg-3)]">
                   Confidence
                 </TableHead>
-                <TableHead className="font-mono text-[10px] uppercase tracking-widest text-[var(--terminal-text-dim)]">
+                <TableHead className="font-mono text-[10px] uppercase tracking-widest text-[var(--nous-fg-3)]">
                   Attributes_Dump
                 </TableHead>
-                <TableHead className="font-mono text-[10px] uppercase tracking-widest text-[var(--terminal-text-dim)]">
+                <TableHead className="font-mono text-[10px] uppercase tracking-widest text-[var(--nous-fg-3)]">
                   Timestamp
                 </TableHead>
-                <TableHead className="text-right font-mono text-[10px] uppercase tracking-widest text-[var(--terminal-text-dim)] pr-6">
+                <TableHead className="text-right font-mono text-[10px] uppercase tracking-widest text-[var(--nous-fg-3)] pr-6">
                   Direct_Access
                 </TableHead>
               </TableRow>
@@ -281,10 +281,10 @@ export const EntityList: React.FC<EntityListProps> = ({
                 <TableRow
                   key={entity.id}
                   className={cn(
-                    'border-[var(--terminal-border)] transition-colors group',
+                    'border-[var(--nous-border-1)] transition-colors group',
                     selectedItems.includes(entity.id)
-                      ? 'bg-[var(--phosphor-green)]/5'
-                      : 'hover:bg-[var(--terminal-elevated)]'
+                      ? 'bg-[var(--nous-sol)]/5'
+                      : 'hover:bg-[var(--nous-bg-3)]'
                   )}
                 >
                   <TableCell className="w-12">
@@ -292,17 +292,17 @@ export const EntityList: React.FC<EntityListProps> = ({
                       type="checkbox"
                       checked={selectedItems.includes(entity.id)}
                       onChange={() => handleSelectItem(entity.id)}
-                      className="rounded border-[var(--terminal-border)] bg-[var(--terminal-bg)] text-[var(--phosphor-green)] focus:ring-0 focus:ring-offset-0"
+                      className="rounded border-[var(--nous-border-1)] bg-[var(--nous-bg-1)] text-[var(--nous-sol)] focus:ring-0 focus:ring-offset-0"
                     />
                   </TableCell>
                   <TableCell>
                     <div className="flex flex-col gap-0.5">
-                      <span className="font-mono text-sm font-bold text-[var(--terminal-text)] group-hover:text-[var(--phosphor-green)] transition-colors">
+                      <span className="font-mono text-sm font-bold text-[var(--nous-fg-1)] group-hover:text-[var(--nous-sol)] transition-colors">
                         {entity.name}
                       </span>
                       {entity.metadata?.aliases &&
                         entity.metadata.aliases.length > 0 && (
-                          <span className="text-[9px] font-mono text-[var(--terminal-text-muted)] uppercase mt-0.5">
+                          <span className="text-[9px] font-mono text-[var(--nous-fg-3)] uppercase mt-0.5">
                             AKA:{' '}
                             {entity.metadata.aliases.slice(0, 2).join(', ')}
                           </span>
@@ -323,13 +323,13 @@ export const EntityList: React.FC<EntityListProps> = ({
                   </TableCell>
                   <TableCell>
                     <div className="flex flex-col gap-1">
-                      <div className="w-16 h-1.5 bg-[var(--terminal-bg)] rounded-full overflow-hidden border border-[var(--terminal-border)]">
+                      <div className="w-16 h-1.5 bg-[var(--nous-bg-1)] rounded-full overflow-hidden border border-[var(--nous-border-1)]">
                         <div
                           className={cn(
                             'h-full transition-all duration-500',
                             entity.confidence && entity.confidence >= 0.8
-                              ? 'bg-[var(--phosphor-green)]'
-                              : 'bg-[var(--amber-gold)]'
+                              ? 'bg-[var(--nous-sol)]'
+                              : 'bg-[var(--nous-helios)]'
                           )}
                           style={{
                             width: `${(entity.confidence || 0) * 100}%`,
@@ -348,14 +348,14 @@ export const EntityList: React.FC<EntityListProps> = ({
                   </TableCell>
                   <TableCell>
                     <div
-                      className="text-[10px] font-mono text-[var(--terminal-text-dim)] max-w-xs truncate"
+                      className="text-[10px] font-mono text-[var(--nous-fg-3)] max-w-xs truncate"
                       title={formatMetadata(entity.metadata ?? {})}
                     >
                       {formatMetadata(entity.metadata ?? {}) || 'NO_METADATA'}
                     </div>
                   </TableCell>
                   <TableCell>
-                    <div className="flex items-center gap-1.5 text-[10px] font-mono text-[var(--terminal-text-muted)]">
+                    <div className="flex items-center gap-1.5 text-[10px] font-mono text-[var(--nous-fg-3)]">
                       <Clock className="w-3 h-3" />
                       {entity.created_at
                         ? new Date(entity.created_at).toLocaleDateString()
@@ -370,7 +370,7 @@ export const EntityList: React.FC<EntityListProps> = ({
                           size="icon"
                           label="View entity details"
                           onClick={() => onView(entity)}
-                          className="h-8 w-8 text-[var(--terminal-text-dim)] hover:text-[var(--phosphor-green)] hover:bg-[var(--phosphor-green)]/10"
+                          className="h-8 w-8 text-[var(--nous-fg-3)] hover:text-[var(--nous-sol)] hover:bg-[var(--nous-sol)]/10"
                           icon={<Eye className="h-4 w-4" />}
                         />
                       )}
@@ -385,7 +385,7 @@ export const EntityList: React.FC<EntityListProps> = ({
                           }
                           onClick={() => onEdit(entity)}
                           disabled={!canEdit}
-                          className="h-8 w-8 text-[var(--terminal-text-dim)] hover:text-[var(--cyan)] hover:bg-[var(--cyan)]/10 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+                          className="h-8 w-8 text-[var(--nous-fg-3)] hover:text-[var(--nous-helios)] hover:bg-[var(--nous-helios)]/10 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent"
                           icon={<Edit className="h-4 w-4" />}
                         />
                       )}
@@ -400,7 +400,7 @@ export const EntityList: React.FC<EntityListProps> = ({
                               '_blank'
                             )
                           }
-                          className="h-8 w-8 text-[var(--terminal-text-dim)] hover:text-[var(--amber-gold)] hover:bg-[var(--amber-gold)]/10"
+                          className="h-8 w-8 text-[var(--nous-fg-3)] hover:text-[var(--nous-helios)] hover:bg-[var(--nous-helios)]/10"
                           icon={<ExternalLink className="h-4 w-4" />}
                         />
                       )}
@@ -415,7 +415,7 @@ export const EntityList: React.FC<EntityListProps> = ({
                           }
                           onClick={() => onDelete(entity.id)}
                           disabled={!canDelete}
-                          className="h-8 w-8 text-[var(--terminal-text-dim)] hover:text-red-400 hover:bg-red-400/10 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+                          className="h-8 w-8 text-[var(--nous-fg-3)] hover:text-red-400 hover:bg-red-400/10 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent"
                           icon={<Trash2 className="h-4 w-4" />}
                         />
                       )}

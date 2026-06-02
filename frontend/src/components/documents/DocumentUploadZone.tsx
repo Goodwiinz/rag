@@ -1008,10 +1008,10 @@ export const DocumentUploadZone: React.FC<DocumentUploadZoneProps> = ({
 
                     {/* Error Display */}
                     {file.error && (
-                      <div className="px-4 py-3 bg-red-50 border-l-4 border-red-400">
+                      <div className="px-4 py-3 rounded-[var(--nous-radius-md)] border border-[var(--nous-mars)]/30 bg-[var(--nous-mars)]/10">
                         <div className="flex items-start space-x-2">
-                          <ExclamationTriangleIcon className="h-5 w-5 text-red-400 mt-0.5" />
-                          <div className="text-sm text-red-700">
+                          <ExclamationTriangleIcon className="h-5 w-5 text-[var(--nous-mars)] mt-0.5" />
+                          <div className="text-sm text-[var(--nous-mars)]">
                             {file.error}
                           </div>
                         </div>
@@ -1020,10 +1020,10 @@ export const DocumentUploadZone: React.FC<DocumentUploadZoneProps> = ({
 
                     {/* Success Display */}
                     {file.result && (
-                      <div className="px-4 py-3 bg-green-50 border-l-4 border-green-400">
+                      <div className="px-4 py-3 rounded-[var(--nous-radius-md)] border border-[var(--nous-terra)]/30 bg-[var(--nous-terra)]/10">
                         <div className="flex items-start space-x-2">
-                          <CheckCircleIcon className="h-5 w-5 text-green-400 mt-0.5" />
-                          <div className="text-sm text-green-700">
+                          <CheckCircleIcon className="h-5 w-5 text-[var(--nous-terra)] mt-0.5" />
+                          <div className="text-sm text-[var(--nous-terra)]">
                             <div className="font-medium">
                               Processing completed successfully
                             </div>
@@ -1039,8 +1039,8 @@ export const DocumentUploadZone: React.FC<DocumentUploadZoneProps> = ({
 
                     {/* Quality Score */}
                     {file.qualityScore && (
-                      <div className="px-4 py-2 bg-yellow-50 border-l-4 border-yellow-400">
-                        <div className="flex items-center space-x-2 text-sm text-yellow-700">
+                      <div className="px-4 py-2 rounded-[var(--nous-radius-md)] border border-[var(--nous-corona)]/30 bg-[var(--nous-corona)]/10">
+                        <div className="flex items-center space-x-2 text-sm text-[var(--nous-corona)]">
                           <SparklesIcon className="h-4 w-4" />
                           <span>
                             Quality Score: {Math.round(file.qualityScore * 100)}
@@ -1054,10 +1054,10 @@ export const DocumentUploadZone: React.FC<DocumentUploadZoneProps> = ({
                     {file.securityScan && (
                       <div
                         className={cn(
-                          'px-4 py-2 border-l-4',
+                          'px-4 py-2 rounded-[var(--nous-radius-md)] border',
                           file.securityScan.scan_status === 'passed'
-                            ? 'bg-green-50 border-green-400 text-green-700'
-                            : 'bg-red-50 border-red-400 text-red-700'
+                            ? 'border-[var(--nous-terra)]/30 bg-[var(--nous-terra)]/10 text-[var(--nous-terra)]'
+                            : 'border-[var(--nous-mars)]/30 bg-[var(--nous-mars)]/10 text-[var(--nous-mars)]'
                         )}
                       >
                         <div className="flex items-center space-x-2 text-sm">

@@ -1,7 +1,17 @@
 'use client';
 
 import React from 'react';
-import { Folder, Settings, Users, CreditCard, Key, MessageSquare, LayoutDashboard, FileText, Search } from 'lucide-react';
+import {
+  Folder,
+  Settings,
+  Users,
+  CreditCard,
+  Key,
+  MessageSquare,
+  LayoutDashboard,
+  FileText,
+  Search,
+} from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
@@ -28,10 +38,12 @@ export function DashboardSidebar() {
       {/* Logo Header */}
       <div className="p-4 border-b border-border h-16 flex items-center">
         <Link href="/dashboard" className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
-            <Folder className="w-4 h-4 text-white" />
+          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[var(--nous-sol)] to-[var(--nous-helios)] flex items-center justify-center">
+            <Folder className="w-4 h-4 text-[var(--nous-erebus)]" />
           </div>
-          <span className="text-base font-semibold text-foreground">RAG System</span>
+          <span className="text-base font-semibold text-foreground">
+            RAG System
+          </span>
         </Link>
       </div>
 
@@ -43,19 +55,27 @@ export function DashboardSidebar() {
           </h3>
           <nav className="space-y-0.5">
             {projectItems.map((item) => {
-              const isActive = pathname === item.href || pathname?.startsWith(item.href + '/');
+              const isActive =
+                pathname === item.href || pathname?.startsWith(item.href + '/');
               return (
                 <Link
                   key={item.href}
                   href={item.href}
                   className={cn(
-                    "flex items-center px-3 py-2 text-sm font-medium rounded-md transition-all duration-200 group",
+                    'flex items-center px-3 py-2 text-sm font-medium rounded-md transition-all duration-200 group',
                     isActive
-                      ? "bg-accent text-accent-foreground"
-                      : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
+                      ? 'bg-accent text-accent-foreground'
+                      : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'
                   )}
                 >
-                  <item.icon className={cn("w-4 h-4 mr-3 transition-colors", isActive ? "text-foreground" : "text-muted-foreground group-hover:text-foreground")} />
+                  <item.icon
+                    className={cn(
+                      'w-4 h-4 mr-3 transition-colors',
+                      isActive
+                        ? 'text-foreground'
+                        : 'text-muted-foreground group-hover:text-foreground'
+                    )}
+                  />
                   {item.label}
                 </Link>
               );
@@ -75,13 +95,20 @@ export function DashboardSidebar() {
                   key={item.href}
                   href={item.href}
                   className={cn(
-                    "flex items-center px-3 py-2 text-sm font-medium rounded-md transition-all duration-200 group",
+                    'flex items-center px-3 py-2 text-sm font-medium rounded-md transition-all duration-200 group',
                     isActive
-                      ? "bg-accent text-accent-foreground"
-                      : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
+                      ? 'bg-accent text-accent-foreground'
+                      : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'
                   )}
                 >
-                  <item.icon className={cn("w-4 h-4 mr-3 transition-colors", isActive ? "text-foreground" : "text-muted-foreground group-hover:text-foreground")} />
+                  <item.icon
+                    className={cn(
+                      'w-4 h-4 mr-3 transition-colors',
+                      isActive
+                        ? 'text-foreground'
+                        : 'text-muted-foreground group-hover:text-foreground'
+                    )}
+                  />
                   {item.label}
                 </Link>
               );

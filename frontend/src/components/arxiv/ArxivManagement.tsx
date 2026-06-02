@@ -382,16 +382,16 @@ export default function ArxivManagement() {
   return (
     <div className="mx-auto max-w-7xl space-y-6 p-6">
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.4fr)_minmax(320px,0.9fr)]">
-        <section className="overflow-hidden rounded-2xl border border-[var(--terminal-border)] bg-[linear-gradient(135deg,rgba(212,160,57,0.08),rgba(17,24,39,0.18)_45%,rgba(10,10,10,0.92)_100%)] p-5 sm:p-6">
+        <section className="overflow-hidden rounded-2xl border border-[var(--nous-border-1)] bg-[linear-gradient(135deg,rgba(212,160,57,0.08),rgba(17,24,39,0.18)_45%,rgba(10,10,10,0.92)_100%)] p-5 sm:p-6">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div className="space-y-4">
               <div className="flex items-start gap-4">
-                <div className="rounded-xl border border-[var(--terminal-border)] bg-[var(--terminal-bg)]/80 p-3">
+                <div className="rounded-xl border border-[var(--nous-border-1)] bg-[var(--nous-bg-1)]/80 p-3">
                   <Activity className="h-6 w-6 text-primary" />
                 </div>
                 <div className="space-y-3">
                   <div>
-                    <h1 className="text-2xl font-mono font-bold tracking-[0.16em] text-[var(--terminal-text)] sm:text-3xl">
+                    <h1 className="text-2xl font-mono font-bold tracking-[0.16em] text-[var(--nous-fg-1)] sm:text-3xl">
                       ARXIV_RESEARCH_HUB
                     </h1>
                     <p className="mt-2 max-w-2xl text-sm font-mono leading-relaxed text-muted-foreground">
@@ -402,16 +402,16 @@ export default function ArxivManagement() {
                   </div>
 
                   <div className="flex flex-wrap gap-2">
-                    <span className="inline-flex items-center gap-2 rounded-full border border-[var(--terminal-border)] bg-[var(--terminal-bg)]/60 px-3 py-1 text-[10px] font-mono font-bold uppercase tracking-[0.18em] text-foreground">
-                      <Search className="h-3.5 w-3.5 text-[var(--cyan)]" />
+                    <span className="inline-flex items-center gap-2 rounded-full border border-[var(--nous-border-1)] bg-[var(--nous-bg-1)]/60 px-3 py-1 text-[10px] font-mono font-bold uppercase tracking-[0.18em] text-foreground">
+                      <Search className="h-3.5 w-3.5 text-[var(--nous-helios)]" />
                       Public Search
                     </span>
-                    <span className="inline-flex items-center gap-2 rounded-full border border-[var(--terminal-border)] bg-[var(--terminal-bg)]/60 px-3 py-1 text-[10px] font-mono font-bold uppercase tracking-[0.18em] text-foreground">
+                    <span className="inline-flex items-center gap-2 rounded-full border border-[var(--nous-border-1)] bg-[var(--nous-bg-1)]/60 px-3 py-1 text-[10px] font-mono font-bold uppercase tracking-[0.18em] text-foreground">
                       <BarChart3 className="h-3.5 w-3.5 text-primary" />
                       Live Stats
                     </span>
-                    <span className="inline-flex items-center gap-2 rounded-full border border-[var(--terminal-border)] bg-[var(--terminal-bg)]/60 px-3 py-1 text-[10px] font-mono font-bold uppercase tracking-[0.18em] text-foreground">
-                      <ShieldCheck className="h-3.5 w-3.5 text-[var(--amber-gold)]" />
+                    <span className="inline-flex items-center gap-2 rounded-full border border-[var(--nous-border-1)] bg-[var(--nous-bg-1)]/60 px-3 py-1 text-[10px] font-mono font-bold uppercase tracking-[0.18em] text-foreground">
+                      <ShieldCheck className="h-3.5 w-3.5 text-[var(--nous-helios)]" />
                       {isGuest
                         ? 'Workspace Actions Locked'
                         : 'Workspace Actions Ready'}
@@ -429,7 +429,7 @@ export default function ArxivManagement() {
                     description:
                       'Explore papers, compare abstracts, and build a shortlist.',
                     state: 'Ready',
-                    stateTone: 'text-[var(--cyan)]',
+                    stateTone: 'text-[var(--nous-helios)]',
                   },
                   {
                     key: 'ingest',
@@ -439,7 +439,7 @@ export default function ArxivManagement() {
                       'Push selected papers into background ingestion jobs.',
                     state: isGuest ? 'Sign in' : 'Ready',
                     stateTone: isGuest
-                      ? 'text-[var(--amber-gold)]'
+                      ? 'text-[var(--nous-helios)]'
                       : 'text-primary',
                   },
                   {
@@ -450,7 +450,7 @@ export default function ArxivManagement() {
                       'Generate entities, topics, keyphrases, citations, and summaries.',
                     state: isGuest ? 'Sign in' : 'Ready',
                     stateTone: isGuest
-                      ? 'text-[var(--amber-gold)]'
+                      ? 'text-[var(--nous-helios)]'
                       : 'text-primary',
                   },
                 ].map((step) => {
@@ -459,10 +459,10 @@ export default function ArxivManagement() {
                   return (
                     <div
                       key={step.key}
-                      className="rounded-xl border border-[var(--terminal-border)] bg-[var(--terminal-bg)]/65 p-4"
+                      className="rounded-xl border border-[var(--nous-border-1)] bg-[var(--nous-bg-1)]/65 p-4"
                     >
                       <div className="flex items-center justify-between gap-3">
-                        <div className="rounded-lg border border-[var(--terminal-border)] bg-[var(--terminal-surface)] p-2">
+                        <div className="rounded-lg border border-[var(--nous-border-1)] bg-[var(--nous-bg-2)] p-2">
                           <StepIcon
                             className="h-4 w-4 text-foreground"
                             aria-hidden="true"
@@ -494,7 +494,7 @@ export default function ArxivManagement() {
         </section>
 
         <aside className="space-y-4">
-          <div className="rounded-2xl border border-[var(--terminal-border)] bg-[var(--terminal-bg)]/75 p-5">
+          <div className="rounded-2xl border border-[var(--nous-border-1)] bg-[var(--nous-bg-1)]/75 p-5">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-[10px] font-mono font-bold uppercase tracking-[0.22em] text-muted-foreground">
@@ -504,7 +504,7 @@ export default function ArxivManagement() {
                   {isGuest ? 'Discovery Mode' : 'Workspace Mode'}
                 </p>
               </div>
-              <div className="rounded-full border border-[var(--terminal-border)] bg-[var(--terminal-surface)] px-3 py-1 text-[10px] font-mono font-bold uppercase tracking-[0.18em] text-primary">
+              <div className="rounded-full border border-[var(--nous-border-1)] bg-[var(--nous-bg-2)] px-3 py-1 text-[10px] font-mono font-bold uppercase tracking-[0.18em] text-primary">
                 {isGuest ? 'Guest' : 'Authenticated'}
               </div>
             </div>
@@ -537,7 +537,7 @@ export default function ArxivManagement() {
                   <button
                     type="button"
                     onClick={() => setActiveTab('ingest')}
-                    className="inline-flex items-center gap-2 rounded-lg border border-[var(--terminal-border)] px-4 py-2.5 text-[11px] font-mono font-bold uppercase tracking-[0.14em] text-muted-foreground transition-colors hover:bg-[var(--terminal-surface)]"
+                    className="inline-flex items-center gap-2 rounded-lg border border-[var(--nous-border-1)] px-4 py-2.5 text-[11px] font-mono font-bold uppercase tracking-[0.14em] text-muted-foreground transition-colors hover:bg-[var(--nous-bg-2)]"
                   >
                     Review Search Results
                   </button>
@@ -547,7 +547,7 @@ export default function ArxivManagement() {
           </div>
 
           {isStatsLoading && !stats && (
-            <div className="inline-flex items-center gap-2 rounded-2xl border border-[var(--terminal-border)] bg-[var(--terminal-bg)]/75 px-4 py-3 text-[11px] font-mono text-muted-foreground">
+            <div className="inline-flex items-center gap-2 rounded-2xl border border-[var(--nous-border-1)] bg-[var(--nous-bg-1)]/75 px-4 py-3 text-[11px] font-mono text-muted-foreground">
               <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
               Loading metrics…
             </div>
@@ -570,7 +570,7 @@ export default function ArxivManagement() {
                 {
                   label: 'Active',
                   value: stats.statistics.active_papers,
-                  color: 'text-[var(--cyan)]',
+                  color: 'text-[var(--nous-helios)]',
                 },
                 {
                   label: 'Categories',
@@ -580,12 +580,12 @@ export default function ArxivManagement() {
                 {
                   label: 'Deleted',
                   value: stats.statistics.deleted_papers,
-                  color: 'text-[var(--amber-gold)]',
+                  color: 'text-[var(--nous-helios)]',
                 },
               ].map((item) => (
                 <div
                   key={item.label}
-                  className="min-w-[110px] rounded-2xl border border-[var(--terminal-border)] bg-[var(--terminal-bg)]/75 px-4 py-3"
+                  className="min-w-[110px] rounded-2xl border border-[var(--nous-border-1)] bg-[var(--nous-bg-1)]/75 px-4 py-3"
                 >
                   <div className="text-[10px] font-mono uppercase tracking-[0.18em] text-muted-foreground">
                     {item.label}
@@ -605,8 +605,8 @@ export default function ArxivManagement() {
         </aside>
       </div>
 
-      <div className="rounded-lg border border-[var(--terminal-border)] bg-[var(--terminal-bg)]">
-        <div className="border-b border-[var(--terminal-border)] bg-[var(--terminal-bg)] px-3 py-2 sm:px-4">
+      <div className="rounded-lg border border-[var(--nous-border-1)] bg-[var(--nous-bg-1)]">
+        <div className="border-b border-[var(--nous-border-1)] bg-[var(--nous-bg-1)] px-3 py-2 sm:px-4">
           <div className="overflow-x-auto">
             <div
               className="flex min-w-max items-center gap-1"
@@ -647,7 +647,7 @@ export default function ArxivManagement() {
             isIngesting ||
             isExtracting ||
             message) && (
-            <div className="mt-3 space-y-2 rounded-lg border border-[var(--terminal-border)] bg-[var(--terminal-bg)]/60 p-3">
+            <div className="mt-3 space-y-2 rounded-lg border border-[var(--nous-border-1)] bg-[var(--nous-bg-1)]/60 p-3">
               {(isTracking || isSearching || isIngesting || isExtracting) && (
                 <ProgressBar
                   value={progress}
@@ -668,7 +668,7 @@ export default function ArxivManagement() {
                     'rounded-md border px-3 py-2 text-[11px] font-mono leading-relaxed',
                     hasMessageError
                       ? 'border-red-900 bg-red-950 text-red-300'
-                      : 'border-[var(--terminal-border)] bg-[var(--terminal-surface)] text-muted-foreground'
+                      : 'border-[var(--nous-border-1)] bg-[var(--nous-bg-2)] text-muted-foreground'
                   )}
                 >
                   {message}

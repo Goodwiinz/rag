@@ -70,7 +70,7 @@ const FeedbackDialog: React.FC<FeedbackDialogProps> = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-md p-6 rounded-xl bg-terminal-surface border border-terminal-border shadow-[0_0_60px_var(--phosphor-green-muted)]">
+      <DialogContent className="max-w-md p-6 rounded-xl bg-terminal-surface border border-terminal-border shadow-[0_0_60px_var(--nous-sol-muted)]">
         <DialogHeader>
           <DialogTitle className="text-lg font-mono font-semibold text-white mb-4">
             Rate this answer
@@ -129,7 +129,7 @@ const FeedbackDialog: React.FC<FeedbackDialogProps> = ({
             <button
               onClick={handleSubmit}
               disabled={rating === 0 || isSubmitting}
-              className="px-4 py-2 rounded-lg font-mono text-sm transition-all disabled:opacity-40 bg-[var(--phosphor-green-muted)] border border-[var(--phosphor-green-dim)] text-sol"
+              className="px-4 py-2 rounded-lg font-mono text-sm transition-all disabled:opacity-40 bg-[var(--nous-sol-muted)] border border-[var(--nous-helios)] text-sol"
             >
               {isSubmitting ? 'Submitting...' : 'Submit'}
             </button>
@@ -142,8 +142,8 @@ const FeedbackDialog: React.FC<FeedbackDialogProps> = ({
 
 const MetricsDisplay: React.FC<{ metrics: SearchMetrics }> = ({ metrics }) => {
   const getScoreColor = (score: number): string => {
-    if (score >= 90) return 'var(--phosphor-green)';
-    if (score >= 80) return 'var(--amber-gold)';
+    if (score >= 90) return 'var(--nous-sol)';
+    if (score >= 80) return 'var(--nous-helios)';
     if (score >= 70) return '#f97316';
     return '#ef4444';
   };
@@ -254,7 +254,7 @@ const TypewriterText: React.FC<TypewriterTextProps> = ({
   return (
     <span className={className}>
       {displayedText}
-      <span className="animate-pulse inline-block w-2 h-4 bg-[var(--phosphor-green)] align-middle ml-1" />
+      <span className="animate-pulse inline-block w-2 h-4 bg-[var(--nous-sol)] align-middle ml-1" />
     </span>
   );
 };
@@ -604,7 +604,7 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
           <h2 className="text-lg font-mono font-semibold text-muted-foreground">
             Sources
           </h2>
-          <span className="rounded-full px-2 py-0.5 text-xs font-mono bg-[var(--cyan-muted)] text-brand-cyan border border-[var(--cyan-dim)]">
+          <span className="rounded-full px-2 py-0.5 text-xs font-mono bg-[var(--nous-sol-muted)] text-brand-cyan border border-[var(--nous-helios-muted)]">
             {result.answer.sources.length}
           </span>
         </div>
@@ -616,12 +616,12 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
               className="group rounded-xl p-4 cursor-pointer transition-all duration-200 hover:scale-[1.02] bg-terminal-surface border border-terminal-border"
               onClick={() => handleSourceClick(source)}
               onMouseEnter={(e) => {
-                e.currentTarget.style.borderColor = 'var(--phosphor-green-dim)';
+                e.currentTarget.style.borderColor = 'var(--nous-helios)';
                 e.currentTarget.style.boxShadow =
-                  '0 0 20px var(--phosphor-green-muted)';
+                  '0 0 20px var(--nous-sol-muted)';
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.borderColor = 'var(--terminal-border)';
+                e.currentTarget.style.borderColor = 'var(--nous-border-1)';
                 e.currentTarget.style.boxShadow = 'none';
               }}
             >

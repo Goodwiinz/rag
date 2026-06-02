@@ -20,6 +20,16 @@
   --nous-mars: #ef4444;
   --nous-sol-safe: #996d1a;
 
+  /* Sol alpha steps (replace legacy --phosphor-green-{subtle,muted,glow}) */
+  --nous-sol-subtle: rgba(212, 160, 57, 0.08);
+  --nous-sol-muted: rgba(212, 160, 57, 0.05);
+  --nous-sol-glow: rgba(212, 160, 57, 0.12);
+  --nous-sol-intense: rgba(212, 160, 57, 0.3);
+
+  /* Helios alpha steps (replace legacy --amber-gold-{muted,glow}) */
+  --nous-helios-muted: rgba(232, 184, 74, 0.2);
+  --nous-helios-glow: rgba(232, 184, 74, 0.12);
+
   /* Semantic fg/bg */
   --nous-fg-1: var(--nous-erebus);
   --nous-fg-2: var(--nous-titan);
