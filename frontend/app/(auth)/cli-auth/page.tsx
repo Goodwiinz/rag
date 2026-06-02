@@ -53,14 +53,14 @@ function CliAuthPageContent(): React.JSX.Element {
   };
 
   return (
-    <main className="min-h-screen bg-[var(--terminal-bg)] text-[var(--terminal-text)] flex items-center justify-center px-6 py-12">
-      <section className="w-full max-w-xl rounded-3xl border border-[var(--terminal-border)] bg-[var(--terminal-surface)]/95 p-8 shadow-2xl shadow-black/30">
+    <main className="min-h-screen bg-[var(--nous-bg-1)] text-[var(--nous-fg-1)] flex items-center justify-center px-6 py-12">
+      <section className="w-full max-w-xl rounded-3xl border border-[var(--nous-border-1)] bg-[var(--nous-bg-2)]/95 p-8 shadow-2xl shadow-black/30">
         <div className="mb-8 flex items-center gap-4">
-          <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-[var(--phosphor-green)]/30 bg-[var(--terminal-elevated)]">
-            <Shield className="h-6 w-6 text-[var(--phosphor-green)]" />
+          <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-[var(--nous-sol)]/30 bg-[var(--nous-bg-3)]">
+            <Shield className="h-6 w-6 text-[var(--nous-sol)]" />
           </div>
           <div>
-            <p className="text-[10px] font-mono uppercase tracking-[0.35em] text-[var(--terminal-text-muted)]">
+            <p className="text-[10px] font-mono uppercase tracking-[0.35em] text-[var(--nous-fg-3)]">
               NOUS CLI
             </p>
             <h1 className="text-2xl font-mono font-bold uppercase tracking-[0.18em]">
@@ -69,34 +69,34 @@ function CliAuthPageContent(): React.JSX.Element {
           </div>
         </div>
 
-        <div className="mb-8 space-y-4 rounded-2xl border border-[var(--terminal-border)] bg-[var(--terminal-bg)]/70 p-5 font-mono">
+        <div className="mb-8 space-y-4 rounded-2xl border border-[var(--nous-border-1)] bg-[var(--nous-bg-1)]/70 p-5 font-mono">
           <div>
-            <p className="text-[10px] uppercase tracking-[0.3em] text-[var(--terminal-text-muted)]">
+            <p className="text-[10px] uppercase tracking-[0.3em] text-[var(--nous-fg-3)]">
               Session ID
             </p>
             <p className="mt-2 break-all text-sm">{sessionId || 'missing-session-id'}</p>
           </div>
           <div>
-            <p className="text-[10px] uppercase tracking-[0.3em] text-[var(--terminal-text-muted)]">
+            <p className="text-[10px] uppercase tracking-[0.3em] text-[var(--nous-fg-3)]">
               Verification Code
             </p>
-            <p className="mt-2 text-lg tracking-[0.35em] text-[var(--phosphor-green)]">
+            <p className="mt-2 text-lg tracking-[0.35em] text-[var(--nous-sol)]">
               {verificationCode || 'MISSING'}
             </p>
           </div>
         </div>
 
-        <p className="mb-8 max-w-lg text-sm leading-7 text-[var(--terminal-text-muted)]">
+        <p className="mb-8 max-w-lg text-sm leading-7 text-[var(--nous-fg-3)]">
           Approve this request to let the NOUS command line connect to your current account and
           organization.
         </p>
 
         {isConnected ? (
-          <div className="rounded-2xl border border-[var(--phosphor-green)]/30 bg-[var(--phosphor-green)]/10 p-5 font-mono">
-            <p className="text-sm font-bold uppercase tracking-[0.22em] text-[var(--phosphor-green)]">
+          <div className="rounded-2xl border border-[var(--nous-sol)]/30 bg-[var(--nous-sol)]/10 p-5 font-mono">
+            <p className="text-sm font-bold uppercase tracking-[0.22em] text-[var(--nous-sol)]">
               CLI connected, return to terminal.
             </p>
-            <p className="mt-3 text-sm leading-7 text-[var(--terminal-text-muted)]">
+            <p className="mt-3 text-sm leading-7 text-[var(--nous-fg-3)]">
               The pending NOUS terminal session can finish sign-in automatically now.
             </p>
           </div>
@@ -114,9 +114,9 @@ function CliAuthPageContent(): React.JSX.Element {
             onClick={handleApprove}
             disabled={!sessionId || !verificationCode || isSubmitting || isConnected}
             className={cn(
-              'inline-flex min-h-12 flex-1 items-center justify-center gap-3 rounded-2xl border border-[var(--phosphor-green)]/30',
-              'bg-[var(--phosphor-green)]/90 px-5 font-mono text-sm font-bold uppercase tracking-[0.22em] text-[var(--terminal-bg)]',
-              'transition hover:bg-[var(--phosphor-green)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--phosphor-green)]',
+              'inline-flex min-h-12 flex-1 items-center justify-center gap-3 rounded-2xl border border-[var(--nous-sol)]/30',
+              'bg-[var(--nous-sol)]/90 px-5 font-mono text-sm font-bold uppercase tracking-[0.22em] text-[var(--nous-bg-1)]',
+              'transition hover:bg-[var(--nous-sol)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]',
               'disabled:cursor-not-allowed disabled:opacity-60'
             )}
           >
@@ -126,9 +126,9 @@ function CliAuthPageContent(): React.JSX.Element {
           <Link
             href="/login"
             className={cn(
-              'inline-flex min-h-12 flex-1 items-center justify-center gap-3 rounded-2xl border border-[var(--terminal-border)]',
-              'bg-transparent px-5 font-mono text-sm font-bold uppercase tracking-[0.22em] text-[var(--terminal-text-muted)]',
-              'transition hover:border-[var(--terminal-text-muted)] hover:text-[var(--terminal-text)]'
+              'inline-flex min-h-12 flex-1 items-center justify-center gap-3 rounded-2xl border border-[var(--nous-border-1)]',
+              'bg-transparent px-5 font-mono text-sm font-bold uppercase tracking-[0.22em] text-[var(--nous-fg-3)]',
+              'transition hover:border-[var(--nous-fg-3)] hover:text-[var(--nous-fg-1)]'
             )}
           >
             <ArrowLeft className="h-4 w-4" />
