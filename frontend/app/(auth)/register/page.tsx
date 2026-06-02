@@ -12,7 +12,6 @@ import {
   EyeOff,
   Lock,
   Mail,
-  RefreshCw,
   Shield,
   Sparkles,
   Terminal,
@@ -499,10 +498,7 @@ export default function RegisterPage() {
                 )}
               >
                 {isSubmitting ? (
-                  <>
-                    <RefreshCw className="w-4 h-4" aria-hidden="true" />
-                    <span>Creating account...</span>
-                  </>
+                  <span>Creating account…</span>
                 ) : (
                   <>
                     <span>Create account</span>
