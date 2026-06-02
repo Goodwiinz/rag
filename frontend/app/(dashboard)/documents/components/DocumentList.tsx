@@ -3,15 +3,16 @@ import {
   FileText,
   CheckSquare,
   Square,
-  Search,
   Sparkles,
-  CheckCircle,
-  RefreshCw,
+  CheckCircle2,
+  Loader,
   AlertTriangle,
   Clock,
   RotateCcw,
   Eye,
   Trash2,
+  FolderOpen,
+  LucideIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
@@ -43,6 +44,13 @@ interface DocumentListProps {
 
 const ROW_HEIGHT = 72;
 
+interface StatusConfig {
+  className: string;
+  label: string;
+  icon: LucideIcon;
+  canRetry: boolean;
+}
+
 export function DocumentList({
   documents,
   loading,
@@ -73,119 +81,127 @@ export function DocumentList({
     });
   };
 
-  const getFileTypeIcon = (type: string) => {
-    if (!type)
-      return { icon: <FileText className="w-4 h-4" />, color: '#6b7280' };
-    const t = type.toLowerCase();
-    if (t.includes('pdf'))
-      return { icon: <FileText className="w-4 h-4" />, color: '#ff4757' };
-    if (t.includes('document') || t.includes('docx'))
-      return { icon: <FileText className="w-4 h-4" />, color: '#3b82f6' };
-    if (t.includes('text'))
-      return { icon: <FileText className="w-4 h-4" />, color: '#6b7280' };
-    return { icon: <FileText className="w-4 h-4" />, color: '#6b7280' };
-  };
-
-  const getStatusConfig = (status: string) => {
+  const getStatusConfig = (status: string): StatusConfig => {
     switch (status) {
       case 'indexed':
       case 'completed':
         return {
-          color: 'var(--nous-sol)',
-          label: 'INDEXED',
-          icon: CheckCircle,
+          className:
+            'text-[var(--nous-terra)] bg-[var(--nous-terra)]/10 border-[var(--nous-terra)]/20',
+          label: 'Indexed',
+          icon: CheckCircle2,
           canRetry: false,
         };
       case 'processing':
         return {
-          color: 'var(--nous-helios)',
-          label: 'PROCESSING',
-          icon: RefreshCw,
+          className:
+            'text-[var(--nous-helios)] bg-[var(--nous-helios)]/10 border-[var(--nous-helios)]/20',
+          label: 'Processing',
+          icon: Loader,
           canRetry: false,
         };
       case 'failed':
         return {
-          color: '#ff4757',
-          label: 'FAILED',
+          className:
+            'text-[var(--nous-mars)] bg-[var(--nous-mars)]/10 border-[var(--nous-mars)]/20',
+          label: 'Failed',
           icon: AlertTriangle,
           canRetry: true,
         };
       case 'queued':
       case 'pending':
         return {
-          color: 'var(--nous-helios)',
-          label: 'QUEUED',
+          className: 'text-primary bg-primary/10 border-primary/20',
+          label: 'Queued',
           icon: Clock,
           canRetry: false,
         };
       default:
         return {
-          color: '#6b7280',
-          label: status.toUpperCase(),
+          className: 'text-muted-foreground bg-muted border-border',
+          label: status.charAt(0).toUpperCase() + status.slice(1),
           icon: Clock,
           canRetry: false,
         };
     }
   };
 
+  const allSelected =
+    selectedDocuments.size > 0 && selectedDocuments.size === documents.length;
+
   return (
     <div className="space-y-2 overflow-x-auto pb-4">
       <div className="min-w-[600px]">
-        {/* List Header */}
-        <div className="px-4 py-2 grid grid-cols-[20px_40px_1fr_128px_112px_96px] items-center gap-4 text-[10px] font-mono text-[var(--nous-fg-3)] uppercase tracking-widest">
+        {/* List header */}
+        <div className="px-4 py-2 grid grid-cols-[20px_40px_1fr_128px_112px_96px] items-center gap-4 text-xs text-muted-foreground">
           <div className="w-5 flex justify-center">
             <button
+              type="button"
               onClick={onSelectAll}
-              className="hover:text-[var(--nous-fg-1)] transition-colors"
+              aria-label={
+                allSelected ? 'Deselect all documents' : 'Select all documents'
+              }
+              className="text-muted-foreground hover:text-foreground transition-colors rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             >
-              {selectedDocuments.size > 0 &&
-              selectedDocuments.size === documents.length ? (
-                <CheckSquare className="w-4 h-4 text-[var(--nous-sol)]" />
+              {allSelected ? (
+                <CheckSquare
+                  aria-hidden="true"
+                  className="w-4 h-4 text-primary"
+                />
               ) : (
-                <Square className="w-4 h-4" />
+                <Square aria-hidden="true" className="w-4 h-4" />
               )}
             </button>
           </div>
           <div className="w-10 text-center">Type</div>
-          <div className="">Name / Info</div>
-          <div className="w-32 hidden md:block">Date</div>
+          <div>Name</div>
+          <div className="w-32 hidden md:block">Uploaded</div>
           <div className="w-28">Status</div>
           <div className="w-24 text-right">Actions</div>
         </div>
 
         {loading && documents.length === 0 ? (
-          <div className="space-y-3">
+          <div
+            className="space-y-2"
+            role="status"
+            aria-label="Loading documents"
+          >
             {[1, 2, 3, 4].map((i) => (
               <div
                 key={i}
-                className="h-20 rounded-xl border border-[var(--nous-border-1)] bg-[var(--nous-bg-2)] animate-pulse"
+                className="h-16 rounded-xl border border-border bg-card animate-pulse"
               />
             ))}
           </div>
         ) : documents.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 border border-dashed border-[var(--nous-border-1)] rounded-b-xl bg-[var(--nous-bg-2)]/30 group">
-            <div className="w-16 h-16 rounded-2xl bg-[var(--nous-bg-3)] flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300">
-              <Search className="w-8 h-8 text-[var(--nous-fg-3)]" />
+          <div className="flex flex-col items-center justify-center py-20 border border-dashed border-border rounded-xl bg-card">
+            <div className="w-14 h-14 rounded-xl bg-muted flex items-center justify-center mb-4">
+              <FolderOpen
+                aria-hidden="true"
+                className="w-7 h-7 text-muted-foreground"
+              />
             </div>
-            <h3 className="text-[var(--nous-fg-1)] font-mono font-bold mb-2">
-              NO_DOCUMENTS_INDEXED
+            <h3 className="text-base font-medium text-foreground mb-1.5">
+              No documents yet
             </h3>
-            <p className="text-[var(--nous-fg-3)] font-mono text-xs max-w-sm text-center mb-6">
-              Upload your first document to initialize the knowledge base.
-              Supported formats: PDF, DOCX, TXT, images, audio, and video.
+            <p className="text-sm text-muted-foreground max-w-sm text-center mb-6">
+              Upload your first document to build your knowledge base. PDF,
+              DOCX, TXT, images, audio, and video are supported.
             </p>
-            <Link
-              href="/documents/upload"
-              className="px-4 py-2 rounded-lg bg-[var(--nous-bg-3)] border border-[var(--nous-border-1)] text-[var(--nous-fg-1)] font-mono text-xs hover:border-[var(--nous-sol)] hover:text-[var(--nous-sol)] transition-all"
-            >
-              UPLOAD NEW FILE
-            </Link>
+            <Button asChild className="gap-2">
+              <Link href="/documents/upload">Upload a document</Link>
+            </Button>
           </div>
         ) : (
           (() => {
-            const Row = ({ index, style }: { index: number; style: React.CSSProperties }) => {
+            const Row = ({
+              index,
+              style,
+            }: {
+              index: number;
+              style: React.CSSProperties;
+            }) => {
               const doc = documents[index];
-              const fileType = getFileTypeIcon(doc.file_type);
               const status = getStatusConfig(doc.processing_status);
               const StatusIcon = status.icon;
               const isSelected = selectedDocuments.has(doc.id);
@@ -195,10 +211,10 @@ export function DocumentList({
                   <div
                     onClick={() => onSelect(doc.id)}
                     className={cn(
-                      'group relative rounded-xl border bg-[var(--nous-bg-2)] px-4 py-3 transition-all cursor-pointer mb-2 grid grid-cols-[20px_40px_1fr_128px_112px_96px] items-center gap-4',
+                      'group relative rounded-xl border bg-card px-4 py-3 transition-all duration-200 cursor-pointer mb-2 grid grid-cols-[20px_40px_1fr_128px_112px_96px] items-center gap-4 shadow-sm',
                       isSelected
-                        ? 'border-[var(--nous-sol)] bg-[var(--nous-sol)]/5'
-                        : 'border-[var(--nous-border-1)] hover:border-[var(--nous-border-1)] hover:shadow-lg hover:shadow-[var(--nous-border-1)]/10'
+                        ? 'border-primary bg-primary/5'
+                        : 'border-border hover:border-[var(--nous-helios)] hover:shadow-md'
                     )}
                   >
                     {/* Checkbox */}
@@ -207,71 +223,75 @@ export function DocumentList({
                       onClick={(e) => e.stopPropagation()}
                     >
                       <button
+                        type="button"
                         onClick={() => onSelect(doc.id)}
+                        aria-label={
+                          isSelected ? 'Deselect document' : 'Select document'
+                        }
                         className={cn(
-                          'transition-colors',
+                          'transition-colors rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
                           isSelected
-                            ? 'text-[var(--nous-sol)]'
-                            : 'text-[var(--nous-fg-3)] hover:text-[var(--nous-fg-1)]'
+                            ? 'text-primary'
+                            : 'text-muted-foreground hover:text-foreground'
                         )}
                       >
                         {isSelected ? (
-                          <CheckSquare className="w-4 h-4" />
+                          <CheckSquare aria-hidden="true" className="w-4 h-4" />
                         ) : (
-                          <Square className="w-4 h-4" />
+                          <Square aria-hidden="true" className="w-4 h-4" />
                         )}
                       </button>
                     </div>
 
                     {/* Icon */}
-                    <div className="w-10 h-10 rounded-lg bg-[var(--nous-bg-1)] border border-[var(--nous-border-1)] flex items-center justify-center flex-shrink-0 text-[var(--nous-fg-3)] group-hover:text-[var(--nous-sol)] transition-colors">
-                      {fileType.icon}
+                    <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center flex-shrink-0 text-muted-foreground group-hover:text-primary transition-colors">
+                      <FileText aria-hidden="true" className="w-4 h-4" />
                     </div>
 
-                    {/* Main Info */}
+                    {/* Main info */}
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
-                        <h3 className="font-mono text-sm font-bold text-[var(--nous-fg-1)] truncate group-hover:text-[var(--nous-sol)] transition-colors">
+                        <h3 className="text-sm font-medium text-foreground truncate">
                           {doc.title || doc.filename}
                         </h3>
-                        {doc.metadata?.entities_count && (
-                          <span className="hidden sm:flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-[var(--nous-helios)]/10 border border-[var(--nous-helios)]/20 text-[9px] font-mono text-[var(--nous-helios)]">
-                            <Sparkles className="w-2.5 h-2.5" />
+                        {doc.metadata?.entities_count ? (
+                          <span className="hidden sm:flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-primary/10 border border-primary/20 text-[10px] text-primary tabular-nums">
+                            <Sparkles
+                              aria-hidden="true"
+                              className="w-2.5 h-2.5"
+                            />
                             {doc.metadata.entities_count}
                           </span>
-                        )}
+                        ) : null}
                       </div>
-                      <div className="flex items-center gap-2 mt-1 text-[10px] font-mono text-[var(--nous-fg-3)]">
-                        <span className="uppercase tracking-tighter">
+                      <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
+                        <span className="uppercase">
                           {doc.file_type || 'Unknown'}
                         </span>
-                        <span className="w-1 h-1 rounded-full bg-[var(--nous-border-1)]" />
+                        <span
+                          aria-hidden="true"
+                          className="w-1 h-1 rounded-full bg-border"
+                        />
                         <span>{formatFileSize(doc.file_size)}</span>
                       </div>
                     </div>
 
-                    {/* Date (Desktop) */}
-                    <div className="hidden md:block w-32 text-[10px] font-mono text-[var(--nous-fg-3)]">
+                    {/* Date (desktop) */}
+                    <div className="hidden md:block w-32 text-xs text-muted-foreground">
                       {formatDate(doc.upload_timestamp)}
                     </div>
 
                     {/* Status */}
                     <div className="w-28 flex-shrink-0">
-                      <div
-                        className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md border border-transparent font-mono text-[9px] font-bold"
-                        style={{
-                          color: status.color,
-                          backgroundColor: `${status.color}10`,
-                        }}
+                      <span
+                        className={cn(
+                          'inline-flex items-center gap-1.5 px-2 py-1 rounded-md border text-[11px] font-medium',
+                          status.className
+                        )}
                       >
-                        <StatusIcon
-                          className={cn(
-                            'w-3 h-3',
-                            doc.processing_status === 'processing' && 'animate-spin'
-                          )}
-                        />
+                        <StatusIcon aria-hidden="true" className="w-3 h-3" />
                         {status.label}
-                      </div>
+                      </span>
                     </div>
 
                     {/* Actions */}
@@ -284,32 +304,32 @@ export function DocumentList({
                           variant="ghost"
                           size="icon"
                           onClick={(e) => onRetry(doc.id, e)}
-                          className="h-8 w-8 hover:bg-[var(--nous-bg-3)] text-[var(--nous-fg-3)] hover:text-[var(--nous-helios)]"
-                          title="Retry Processing"
+                          className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                          aria-label="Retry processing"
                         >
-                          <RotateCcw className="w-3.5 h-3.5" />
+                          <RotateCcw aria-hidden="true" className="w-4 h-4" />
                         </Button>
                       )}
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-8 w-8 hover:bg-[var(--nous-bg-3)] text-[var(--nous-fg-3)] hover:text-[var(--nous-sol)]"
-                        title="View Details"
+                        className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                        aria-label="View details"
                         onClick={(e) => {
                           e.stopPropagation();
                           router.push(`/documents/${doc.id}`);
                         }}
                       >
-                        <Eye className="w-3.5 h-3.5" />
+                        <Eye aria-hidden="true" className="w-4 h-4" />
                       </Button>
                       <Button
                         variant="ghost"
                         size="icon"
                         onClick={(e) => onDelete(doc.id, e)}
-                        className="h-8 w-8 hover:bg-red-500/10 text-[var(--nous-fg-3)] hover:text-red-400"
-                        title="Delete"
+                        className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                        aria-label="Delete document"
                       >
-                        <Trash2 className="w-3.5 h-3.5" />
+                        <Trash2 aria-hidden="true" className="w-4 h-4" />
                       </Button>
                     </div>
                   </div>

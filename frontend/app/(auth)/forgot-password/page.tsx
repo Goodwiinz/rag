@@ -1,8 +1,9 @@
 'use client';
 
 import { createClient } from '@/lib/supabase/client';
+import { cn } from '@/lib/utils';
 import { motion } from 'framer-motion';
-import { ArrowLeft, ArrowRight, Lock, Mail, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Mail } from 'lucide-react';
 import Link from 'next/link';
 import React, { useEffect, useState } from 'react';
 
@@ -47,40 +48,37 @@ export default function ForgotPasswordPage() {
 
   if (sent) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[var(--nous-bg-1)] px-6">
+      <div className="min-h-screen flex items-center justify-center bg-background px-6 py-12">
         <motion.div
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
           className="w-full max-w-md"
         >
-          <div className="rounded-2xl border border-[var(--nous-border-1)] bg-[var(--nous-bg-2)] p-10 text-center">
-            <div className="mx-auto mb-6 flex h-14 w-14 items-center justify-center rounded-full border border-[var(--nous-sol)]/30 bg-[var(--nous-sol)]/10">
-              <Mail
-                className="h-6 w-6 text-[var(--nous-sol)]"
-                strokeWidth={1.8}
-              />
-            </div>
-            <h1
-              className="mb-3 text-2xl font-semibold tracking-tight text-[var(--nous-fg-1)]"
-              style={{ fontFamily: 'var(--nous-font-heading)' }}
+          <div className="rounded-xl border border-border bg-card p-8 text-center shadow-sm">
+            <div
+              className="mx-auto mb-6 flex h-14 w-14 items-center justify-center rounded-full bg-primary/10 text-primary"
+              aria-hidden="true"
             >
-              Check your email
+              <Mail className="h-6 w-6" />
+            </div>
+            <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+              Check your inbox
             </h1>
             <p
-              className="mx-auto mb-8 max-w-xs text-[0.9375rem] leading-relaxed text-[var(--nous-fg-2)]"
+              className="mt-3 text-[15px] leading-relaxed text-muted-foreground"
               style={{ fontFamily: 'var(--nous-font-body)' }}
             >
-              We sent a reset link to{' '}
-              <span className="text-[var(--nous-fg-1)]">{email}</span>. Follow
-              the link to choose a new password.
+              If an account exists for{' '}
+              <span className="font-medium text-foreground">{email}</span>, a
+              password reset link is on its way. Follow it to choose a new
+              password.
             </p>
             <Link
               href="/login"
-              className="inline-flex items-center gap-2 text-sm text-[var(--nous-fg-3)] transition-colors hover:text-[var(--nous-fg-1)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/40 rounded"
-              style={{ fontFamily: 'var(--nous-font-ui)' }}
+              className="mt-8 inline-flex items-center gap-2 rounded-md text-sm font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
             >
-              <ArrowLeft className="h-4 w-4" strokeWidth={1.8} />
+              <ArrowLeft className="h-4 w-4" aria-hidden="true" />
               Back to sign in
             </Link>
           </div>
@@ -90,115 +88,97 @@ export default function ForgotPasswordPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[var(--nous-bg-1)] px-6">
+    <div className="min-h-screen flex items-center justify-center bg-background px-6 py-12">
       <motion.div
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
         className="w-full max-w-md"
       >
-        <div className="rounded-2xl border border-[var(--nous-border-1)] bg-[var(--nous-bg-2)] p-8">
-          <div className="mb-7">
-            <div className="mb-5 inline-flex h-11 w-11 items-center justify-center rounded-full border border-[var(--nous-border-1)] bg-[var(--nous-bg-3)]">
-              <Lock
-                className="h-5 w-5 text-[var(--nous-sol)]"
-                strokeWidth={1.8}
-              />
-            </div>
-            <h1
-              className="text-2xl font-semibold tracking-tight text-[var(--nous-fg-1)]"
-              style={{ fontFamily: 'var(--nous-font-heading)' }}
+        <div className="rounded-xl border border-border bg-card p-8 shadow-sm">
+          <div className="mb-8">
+            <div
+              className="mb-5 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary"
+              aria-hidden="true"
             >
+              <Mail className="h-5 w-5" />
+            </div>
+            <h1 className="text-2xl font-semibold tracking-tight text-foreground">
               Reset your password
             </h1>
             <p
-              className="mt-2 text-[0.9375rem] leading-relaxed text-[var(--nous-fg-2)]"
+              className="mt-2 text-[15px] leading-relaxed text-muted-foreground"
               style={{ fontFamily: 'var(--nous-font-body)' }}
             >
-              Enter your email and we&apos;ll send a reset link.
+              Enter the email address linked to your account and we will send
+              you a link to set a new password.
             </p>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-5" noValidate>
+          <form onSubmit={handleSubmit} className="space-y-5">
             {error && (
               <motion.div
-                role="alert"
                 initial={{ opacity: 0, y: -4 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="rounded-lg border border-[var(--nous-mars)]/30 bg-[var(--nous-mars)]/5 p-3"
+                role="alert"
+                className="rounded-md border border-destructive/30 bg-destructive/5 px-3.5 py-2.5"
               >
-                <p
-                  className="text-sm text-[var(--nous-mars)]"
-                  style={{ fontFamily: 'var(--nous-font-ui)' }}
-                >
-                  {error}
-                </p>
+                <p className="text-sm text-destructive">{error}</p>
               </motion.div>
             )}
 
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <label
                 htmlFor="email"
-                className="block text-sm font-medium text-[var(--nous-fg-2)]"
-                style={{ fontFamily: 'var(--nous-font-ui)' }}
+                className="block text-sm font-medium text-foreground"
               >
-                Email
+                Email address
               </label>
               <div className="relative">
-                <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5">
-                  <Mail
-                    className="h-4 w-4 text-[var(--nous-fg-3)]"
-                    strokeWidth={1.8}
-                  />
+                <div
+                  className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-muted-foreground"
+                  aria-hidden="true"
+                >
+                  <Mail className="h-4 w-4" />
                 </div>
                 <input
                   id="email"
                   name="email"
                   type="email"
                   required
-                  autoComplete="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
+                  aria-describedby="email-hint"
+                  className="w-full rounded-md border border-input bg-background py-2.5 pl-10 pr-4 text-sm text-foreground placeholder:text-muted-foreground/70 transition-colors focus-visible:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background"
                   placeholder="you@example.com"
-                  className="w-full rounded-xl border border-[var(--nous-border-1)] bg-[var(--nous-bg-1)] py-3 pl-11 pr-4 text-sm text-[var(--nous-fg-1)] placeholder:text-[var(--nous-fg-3)]/50 outline-none transition-colors focus-visible:border-[var(--nous-sol)]/50 focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/30"
-                  style={{ fontFamily: 'var(--nous-font-ui)' }}
+                  autoComplete="email"
                 />
               </div>
+              <p id="email-hint" className="text-xs text-muted-foreground">
+                We will only use this to send your reset link.
+              </p>
             </div>
 
             <button
               type="submit"
               disabled={isSubmitting}
-              className="group flex w-full items-center justify-center gap-2 rounded-xl bg-[var(--nous-sol)] px-4 py-3 text-sm font-medium text-[var(--nous-erebus)] transition-colors hover:bg-[var(--nous-helios)] disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/50"
-              style={{ fontFamily: 'var(--nous-font-ui)' }}
-            >
-              {isSubmitting ? (
-                <>
-                  <RefreshCw
-                    className="h-4 w-4 animate-spin"
-                    strokeWidth={1.8}
-                  />
-                  <span>Sending…</span>
-                </>
-              ) : (
-                <>
-                  <span>Send reset link</span>
-                  <ArrowRight
-                    className="h-4 w-4 transition-transform group-hover:translate-x-0.5"
-                    strokeWidth={1.8}
-                  />
-                </>
+              className={cn(
+                'w-full rounded-md bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground',
+                'transition-colors hover:bg-primary/90',
+                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
+                'disabled:cursor-not-allowed disabled:opacity-60'
               )}
+            >
+              {isSubmitting ? 'Sending...' : 'Send reset link'}
             </button>
           </form>
 
-          <div className="mt-7 border-t border-[var(--nous-border-1)] pt-5 text-center">
+          <div className="mt-8 border-t border-border pt-6 text-center">
             <Link
               href="/login"
-              className="inline-flex items-center gap-2 text-sm text-[var(--nous-fg-3)] transition-colors hover:text-[var(--nous-fg-1)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/40 rounded"
-              style={{ fontFamily: 'var(--nous-font-ui)' }}
+              className="inline-flex items-center gap-2 rounded-md text-sm font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
             >
-              <ArrowLeft className="h-4 w-4" strokeWidth={1.8} />
+              <ArrowLeft className="h-4 w-4" aria-hidden="true" />
               Back to sign in
             </Link>
           </div>

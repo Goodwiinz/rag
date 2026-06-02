@@ -1532,3 +1532,18 @@ input:-webkit-autofill ~ button svg {
     box-shadow: 0 0 10px var(--nous-sol);
   }
 }
+
+/* ─── Global reduced-motion guard ───────────────────────────────────────────
+   Honors the OS "reduce motion" setting across the whole app. Individual
+   components may still provide richer reduced-motion alternatives; this is the
+   safety net so no surface ships unguarded animation (WCAG 2.3.3 / 2.2.2). */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

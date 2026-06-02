@@ -53,39 +53,44 @@ export function ResearchDashboard() {
   return (
     <div>
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-mono font-bold text-[var(--nous-fg-1)] tracking-wider">
-            RESEARCH_ENGINE
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between mb-6">
+        <div className="max-w-2xl">
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+            Research engine
           </h1>
-          <p className="text-xs font-mono text-muted-foreground mt-0.5 uppercase tracking-widest">
+          <p className="text-sm text-muted-foreground mt-1 leading-relaxed">
             Create and manage reproducible research workflows with
             blueprint-driven pipelines.
           </p>
         </div>
         <button
+          type="button"
           onClick={() => setShowCreateModal(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-primary/10 text-primary border border-primary/30 rounded font-mono text-sm hover:bg-primary/20 transition-colors"
+          className="inline-flex shrink-0 items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium shadow-sm transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
         >
-          <Plus className="h-4 w-4" />
-          New Project
+          <Plus aria-hidden="true" className="h-4 w-4" />
+          New project
         </button>
       </div>
 
       {/* Quick-start templates */}
       {templates.length > 0 && (
         <div className="mb-8">
-          <h2 className="text-sm font-mono text-muted-foreground uppercase tracking-wide mb-3">
-            Quick-start Templates
+          <h2 className="text-sm font-medium text-foreground mb-3">
+            Quick-start templates
           </h2>
           <div className="flex flex-wrap gap-2">
             {templates.map((tpl) => (
               <button
                 key={tpl.id}
+                type="button"
                 title={tpl.description}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-[var(--nous-helios)]/5 text-[var(--nous-helios)] border border-[var(--nous-helios)]/20 rounded font-mono text-xs hover:bg-[var(--nous-helios)]/10 transition-colors"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border bg-card text-sm text-foreground transition-colors hover:border-primary/40 hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               >
-                <Sparkles className="h-3 w-3" />
+                <Sparkles
+                  aria-hidden="true"
+                  className="h-3.5 w-3.5 text-primary"
+                />
                 {tpl.name}
               </button>
             ))}
@@ -93,27 +98,43 @@ export function ResearchDashboard() {
         </div>
       )}
 
-      {/* Loading state */}
+      {/* Loading state — skeletons, not a spinner */}
       {isLoading && (
-        <div className="flex items-center justify-center py-20">
-          <Loader2 className="h-6 w-6 animate-spin text-primary" />
-          <span className="ml-2 font-mono text-sm text-muted-foreground">
-            Loading projects...
-          </span>
+        <div
+          role="status"
+          aria-label="Loading projects"
+          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
+        >
+          {[0, 1, 2, 3, 4, 5].map((i) => (
+            <div
+              key={i}
+              className="rounded-lg border border-border bg-card p-4"
+            >
+              <div className="flex items-center gap-2">
+                <div className="h-5 w-5 rounded bg-muted animate-pulse" />
+                <div className="h-4 w-2/3 rounded bg-muted animate-pulse" />
+              </div>
+              <div className="mt-3 h-5 w-16 rounded bg-muted animate-pulse" />
+              <div className="mt-4 h-3 w-full rounded bg-muted animate-pulse" />
+              <div className="mt-2 h-3 w-4/5 rounded bg-muted animate-pulse" />
+            </div>
+          ))}
         </div>
       )}
 
-      {/* Error state — graceful fallback instead of alarming red banner */}
+      {/* Error state — graceful fallback with retry */}
       {error && !isLoading && (
-        <EmptyState
-          icon={AlertCircle}
-          title="SERVICE_UNAVAILABLE"
-          description="The Research Engine service is not responding. This may be a temporary issue."
-          action={{
-            label: 'RETRY_CONNECTION',
-            onClick: () => window.location.reload(),
-          }}
-        />
+        <div role="alert">
+          <EmptyState
+            icon={AlertCircle}
+            title="Service unavailable"
+            description="The research engine service is not responding. This may be a temporary issue."
+            action={{
+              label: 'Retry connection',
+              onClick: () => window.location.reload(),
+            }}
+          />
+        </div>
       )}
 
       {/* Project list */}
@@ -122,8 +143,12 @@ export function ResearchDashboard() {
           {projects.length === 0 ? (
             <EmptyState
               icon={FolderOpen}
-              title="NO_PROJECTS_FOUND"
+              title="No projects yet"
               description="Create your first research project to start organizing documents and workflows."
+              action={{
+                label: 'New project',
+                onClick: () => setShowCreateModal(true),
+              }}
             />
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
