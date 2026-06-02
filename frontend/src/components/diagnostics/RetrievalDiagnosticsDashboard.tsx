@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Slider } from '@/components/ui/slider';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
-import { Activity, Gauge } from 'lucide-react';
+import { Activity } from 'lucide-react';
 import { EmptyState } from '@/components/ui/EmptyState';
 import {
   AggregateStats,
@@ -43,34 +43,15 @@ function HealthBadge({ health }: { health: string }) {
 function StageHealth({ stage, health }: { stage: string; health: string }) {
   const color =
     health === 'green'
-      ? 'bg-[var(--nous-terra)]'
+      ? 'bg-primary'
       : health === 'yellow'
         ? 'bg-[var(--nous-helios)]'
-        : 'bg-[var(--nous-mars)]';
-  const label =
-    health === 'green'
-      ? 'healthy'
-      : health === 'yellow'
-        ? 'warning'
-        : 'critical';
+        : 'bg-red-500';
   return (
     <div className="flex items-center gap-2">
-      <span
-        aria-hidden="true"
-        className={cn('h-2.5 w-2.5 rounded-full', color)}
-      />
-      <span className="text-sm capitalize text-foreground">{stage}</span>
-      <span className="text-xs text-muted-foreground">{label}</span>
+      <div className={cn('h-3 w-3 rounded-full', color)} />
+      <span className="text-sm capitalize">{stage}</span>
     </div>
-  );
-}
-
-// --- Section label ---
-function SectionLabel({ children }: { children: React.ReactNode }) {
-  return (
-    <h4 className="mb-2 text-xs font-medium text-muted-foreground">
-      {children}
-    </h4>
   );
 }
 
@@ -114,55 +95,40 @@ function QueryExplorer() {
       {/* Trace list */}
       <Card className="lg:col-span-1">
         <CardHeader className="flex flex-row items-center justify-between pb-2">
-          <CardTitle className="text-sm font-medium">Recent queries</CardTitle>
+          <CardTitle className="text-sm font-medium">Recent Queries</CardTitle>
           <Button
             variant="ghost"
             size="sm"
             onClick={loadTraces}
             disabled={loading}
           >
-            {loading ? 'Refreshing…' : 'Refresh'}
+            {loading ? 'Loading...' : 'Refresh'}
           </Button>
         </CardHeader>
         <CardContent className="max-h-[600px] space-y-1 overflow-y-auto">
-          {loading && traces.length === 0 && (
-            <div role="status" className="space-y-2">
-              {[0, 1, 2, 3].map((i) => (
-                <div
-                  key={i}
-                  aria-hidden="true"
-                  className="rounded-md border border-border p-2"
-                >
-                  <div className="h-4 w-3/4 rounded bg-muted" />
-                  <div className="mt-2 h-3 w-1/2 rounded bg-muted/60" />
-                </div>
-              ))}
-              <span className="sr-only">Loading recent queries…</span>
-            </div>
-          )}
-          {!loading && traces.length === 0 && (
+          {traces.length === 0 && (
             <EmptyState
               icon={Activity}
-              title="No traces yet"
-              description="Run a search to start recording pipeline diagnostics and performance traces."
-              action={{ label: 'Open search', href: '/search' }}
+              title="NO_TRACES_CAPTURED"
+              description="Send a RAG query to start recording pipeline diagnostics and performance traces."
+              action={{ label: 'OPEN_SEARCH', href: '/search' }}
             />
           )}
           {traces.map((t) => (
             <button
               key={t.trace_id}
               className={cn(
-                'w-full rounded-md border p-2 text-left text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+                'w-full rounded-md border p-2 text-left text-sm transition-colors',
                 selectedTrace?.trace_id === t.trace_id
                   ? 'border-primary/50 bg-primary/10'
-                  : 'border-border hover:bg-muted/50'
+                  : 'hover:bg-muted/50'
               )}
               onClick={() => selectTrace(t.trace_id)}
             >
-              <div className="truncate font-medium text-foreground">
+              <div className="truncate font-medium">
                 {t.query || '(empty query)'}
               </div>
-              <div className="text-muted-foreground mt-1 flex gap-3 text-xs tabular-nums">
+              <div className="text-muted-foreground mt-1 flex gap-3 text-xs">
                 <span>{t.total_time_ms.toFixed(0)}ms</span>
                 <span>{t.final_result_count} results</span>
                 <span>{t.source_count} sources</span>
@@ -175,7 +141,7 @@ function QueryExplorer() {
       {/* Trace detail */}
       <Card className="lg:col-span-2">
         <CardHeader>
-          <CardTitle className="text-sm font-medium">Pipeline detail</CardTitle>
+          <CardTitle className="text-sm font-medium">Pipeline Detail</CardTitle>
         </CardHeader>
         <CardContent>
           {!selectedTrace ? (
@@ -185,31 +151,29 @@ function QueryExplorer() {
           ) : (
             <div className="space-y-4">
               <div className="flex items-center gap-2">
-                <span className="text-sm font-medium text-foreground">
-                  Overall
-                </span>
+                <span className="text-sm font-medium">Overall:</span>
                 {report && <HealthBadge health={report.overall_health} />}
-                <span className="text-muted-foreground text-xs tabular-nums">
+                <span className="text-muted-foreground text-xs">
                   {selectedTrace.total_time_ms.toFixed(0)}ms total
                 </span>
               </div>
 
               {/* Sources */}
               <div>
-                <SectionLabel>Sources</SectionLabel>
+                <h4 className="mb-2 text-xs font-semibold uppercase tracking-wider">
+                  Sources
+                </h4>
                 <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
                   {selectedTrace.sources.map((src) => (
                     <div
                       key={src.source_type}
                       className={cn(
                         'rounded-md border p-3',
-                        src.success
-                          ? 'border-border'
-                          : 'border-[var(--nous-mars)]/50'
+                        src.success ? 'border-border' : 'border-red-500/50'
                       )}
                     >
                       <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium capitalize text-foreground">
+                        <span className="text-sm font-medium capitalize">
                           {src.source_type}
                         </span>
                         <Badge
@@ -221,12 +185,12 @@ function QueryExplorer() {
                             : 'Failed'}
                         </Badge>
                       </div>
-                      <div className="text-muted-foreground mt-1 text-xs tabular-nums">
-                        {src.search_time_ms.toFixed(0)}ms · avg score{' '}
+                      <div className="text-muted-foreground mt-1 text-xs">
+                        {src.search_time_ms.toFixed(0)}ms | avg score:{' '}
                         {src.avg_score.toFixed(3)}
                       </div>
                       {src.error && (
-                        <div className="mt-1 text-xs text-[var(--nous-mars)]">
+                        <div className="mt-1 text-xs text-red-400">
                           {src.error}
                         </div>
                       )}
@@ -238,9 +202,11 @@ function QueryExplorer() {
               {/* Fusion */}
               {selectedTrace.fusion && (
                 <div>
-                  <SectionLabel>Fusion</SectionLabel>
-                  <div className="rounded-md border border-border p-3 text-sm text-foreground">
-                    <div className="flex flex-wrap gap-4 tabular-nums">
+                  <h4 className="mb-2 text-xs font-semibold uppercase tracking-wider">
+                    Fusion
+                  </h4>
+                  <div className="rounded-md border p-3 text-sm">
+                    <div className="flex flex-wrap gap-4">
                       <span>
                         {selectedTrace.fusion.input_count} raw &rarr;{' '}
                         {selectedTrace.fusion.output_count} unique
@@ -265,9 +231,11 @@ function QueryExplorer() {
               {/* Reranking */}
               {selectedTrace.rerank?.enabled && (
                 <div>
-                  <SectionLabel>Reranking</SectionLabel>
-                  <div className="rounded-md border border-border p-3 text-sm text-foreground">
-                    <div className="flex flex-wrap items-center gap-4 tabular-nums">
+                  <h4 className="mb-2 text-xs font-semibold uppercase tracking-wider">
+                    Reranking
+                  </h4>
+                  <div className="rounded-md border p-3 text-sm">
+                    <div className="flex flex-wrap gap-4">
                       <span>
                         {selectedTrace.rerank.input_count} &rarr;{' '}
                         {selectedTrace.rerank.output_count} results
@@ -281,13 +249,13 @@ function QueryExplorer() {
                     </div>
                     {selectedTrace.rerank.score_deltas.length > 0 && (
                       <div className="mt-2 max-h-32 overflow-y-auto">
-                        <table className="w-full text-xs tabular-nums">
+                        <table className="w-full text-xs">
                           <thead>
                             <tr className="text-muted-foreground">
-                              <th className="text-left font-medium">Doc</th>
-                              <th className="text-right font-medium">Before</th>
-                              <th className="text-right font-medium">After</th>
-                              <th className="text-right font-medium">Delta</th>
+                              <th className="text-left">Doc</th>
+                              <th className="text-right">Before</th>
+                              <th className="text-right">After</th>
+                              <th className="text-right">Delta</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -295,21 +263,21 @@ function QueryExplorer() {
                               .slice(0, 10)
                               .map((d) => (
                                 <tr key={d.doc_id}>
-                                  <td className="truncate pr-2 text-muted-foreground">
-                                    {d.doc_id.slice(0, 8)}…
+                                  <td className="truncate pr-2">
+                                    {d.doc_id.slice(0, 8)}...
                                   </td>
-                                  <td className="text-right text-foreground">
+                                  <td className="text-right">
                                     {d.before.toFixed(3)}
                                   </td>
-                                  <td className="text-right text-foreground">
+                                  <td className="text-right">
                                     {d.after.toFixed(3)}
                                   </td>
                                   <td
                                     className={cn(
                                       'text-right',
                                       d.delta > 0
-                                        ? 'text-[var(--nous-terra)]'
-                                        : 'text-[var(--nous-mars)]'
+                                        ? 'text-primary'
+                                        : 'text-red-400'
                                     )}
                                   >
                                     {d.delta > 0 ? '+' : ''}
@@ -328,9 +296,11 @@ function QueryExplorer() {
               {/* Context truncation */}
               {selectedTrace.context && (
                 <div>
-                  <SectionLabel>Context assembly</SectionLabel>
-                  <div className="rounded-md border border-border p-3 text-sm text-foreground">
-                    <div className="flex flex-wrap items-center gap-4 tabular-nums">
+                  <h4 className="mb-2 text-xs font-semibold uppercase tracking-wider">
+                    Context Assembly
+                  </h4>
+                  <div className="rounded-md border p-3 text-sm">
+                    <div className="flex flex-wrap gap-4">
                       <span>
                         {selectedTrace.context.docs_with_content}/
                         {selectedTrace.context.docs_retrieved} docs with content
@@ -363,7 +333,9 @@ function QueryExplorer() {
               {/* Findings */}
               {report && report.findings.length > 0 && (
                 <div>
-                  <SectionLabel>Issues found</SectionLabel>
+                  <h4 className="mb-2 text-xs font-semibold uppercase tracking-wider">
+                    Issues Found
+                  </h4>
                   <div className="space-y-2">
                     {report.findings.map((f, i) => (
                       <FindingCard key={i} finding={f} />
@@ -382,7 +354,7 @@ function QueryExplorer() {
 function FindingCard({ finding }: { finding: Finding }) {
   const severityColor =
     finding.severity === 'high'
-      ? 'border-[var(--nous-mars)]/50'
+      ? 'border-red-500/50'
       : finding.severity === 'medium'
         ? 'border-[var(--nous-helios)]/50'
         : 'border-border';
@@ -402,12 +374,10 @@ function FindingCard({ finding }: { finding: Finding }) {
         >
           {finding.severity}
         </Badge>
-        <span className="text-sm font-medium text-foreground">
-          {finding.title}
-        </span>
+        <span className="text-sm font-medium">{finding.title}</span>
       </div>
       <p className="text-muted-foreground mt-1 text-xs">{finding.detail}</p>
-      <p className="mt-1 text-xs text-primary">{finding.recommendation}</p>
+      <p className="mt-1 text-xs text-brand-cyan">{finding.recommendation}</p>
     </div>
   );
 }
@@ -435,25 +405,10 @@ function QualityOverview() {
   }, [loadStats]);
 
   if (!stats) {
-    return loading ? (
-      <div role="status" className="space-y-4">
-        <div
-          aria-hidden="true"
-          className="grid grid-cols-1 gap-4 md:grid-cols-4"
-        >
-          {[0, 1, 2, 3].map((i) => (
-            <Card key={i}>
-              <CardContent className="p-4">
-                <div className="h-3 w-2/3 rounded bg-muted/60" />
-                <div className="mt-2 h-7 w-1/2 rounded bg-muted" />
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-        <span className="sr-only">Loading statistics…</span>
+    return (
+      <div className="text-muted-foreground text-sm">
+        {loading ? 'Loading statistics...' : 'No data available.'}
       </div>
-    ) : (
-      <div className="text-muted-foreground text-sm">No data available.</div>
     );
   }
 
@@ -461,8 +416,7 @@ function QualityOverview() {
     <div className="space-y-4">
       <div className="flex items-center gap-4">
         <select
-          aria-label="Time window"
-          className="bg-background text-foreground rounded border border-border px-2 py-1 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          className="bg-background rounded border px-2 py-1 text-sm"
           value={hours}
           onChange={(e) => setHours(Number(e.target.value))}
         >
@@ -478,25 +432,25 @@ function QualityOverview() {
           onClick={loadStats}
           disabled={loading}
         >
-          {loading ? 'Refreshing…' : 'Refresh'}
+          Refresh
         </Button>
       </div>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
         <StatCard
-          label="Total queries"
+          label="Total Queries"
           value={(stats.total_traces ?? 0).toString()}
         />
         <StatCard
-          label="Avg response time"
+          label="Avg Response Time"
           value={`${(stats.avg_time_ms ?? 0).toFixed(0)}ms`}
         />
         <StatCard
-          label="Avg results"
+          label="Avg Results"
           value={(stats.avg_result_count ?? 0).toFixed(1)}
         />
         <StatCard
-          label="Source failures"
+          label="Source Failures"
           value={(stats.source_failure_count ?? 0).toString()}
           alert={(stats.source_failure_count ?? 0) > 0}
         />
@@ -506,7 +460,7 @@ function QualityOverview() {
       <Card>
         <CardHeader>
           <CardTitle className="text-sm font-medium">
-            Source performance
+            Source Performance
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -518,17 +472,14 @@ function QualityOverview() {
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               {Object.entries(stats.source_stats ?? {}).map(
                 ([source, data]) => (
-                  <div
-                    key={source}
-                    className="rounded-md border border-border p-3"
-                  >
-                    <div className="text-sm font-medium capitalize text-foreground">
+                  <div key={source} className="rounded-md border p-3">
+                    <div className="text-sm font-medium capitalize">
                       {source}
                     </div>
-                    <div className="text-muted-foreground mt-1 text-xs tabular-nums">
-                      Avg {data.avg_time_ms.toFixed(0)}ms · max{' '}
-                      {data.max_time_ms.toFixed(0)}ms · {data.query_count}{' '}
-                      queries
+                    <div className="text-muted-foreground mt-1 text-xs">
+                      Avg: {data.avg_time_ms.toFixed(0)}ms | Max:{' '}
+                      {data.max_time_ms.toFixed(0)}ms | Queries:{' '}
+                      {data.query_count}
                     </div>
                   </div>
                 )
@@ -542,23 +493,23 @@ function QualityOverview() {
       <Card>
         <CardHeader>
           <CardTitle className="text-sm font-medium">
-            Context truncation
+            Context Truncation
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <StatCard
-              label="Avg truncation"
+              label="Avg Truncation"
               value={`${((stats.truncation_stats?.avg_ratio ?? 0) * 100).toFixed(1)}%`}
               alert={(stats.truncation_stats?.avg_ratio ?? 0) > 0.3}
             />
             <StatCard
-              label="Max truncation"
+              label="Max Truncation"
               value={`${((stats.truncation_stats?.max_ratio ?? 0) * 100).toFixed(1)}%`}
               alert={(stats.truncation_stats?.max_ratio ?? 0) > 0.3}
             />
             <StatCard
-              label="Queries with truncation"
+              label="Queries with Truncation"
               value={(
                 stats.truncation_stats?.traces_with_truncation ?? 0
               ).toString()}
@@ -585,8 +536,8 @@ function StatCard({
         <div className="text-muted-foreground text-xs">{label}</div>
         <div
           className={cn(
-            'mt-1 text-2xl font-semibold tabular-nums',
-            alert ? 'text-[var(--nous-mars)]' : 'text-foreground'
+            'mt-1 text-2xl font-bold',
+            alert ? 'text-red-400' : 'text-foreground'
           )}
         >
           {value}
@@ -654,12 +605,12 @@ function WeightTuner() {
       <Card>
         <CardHeader>
           <CardTitle className="text-sm font-medium">
-            Weight configuration
+            Weight Configuration
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div>
-            <label className="mb-1 block text-xs text-muted-foreground">
+            <label className="mb-1 block text-xs">
               Fulltext: {(fulltext * 100).toFixed(0)}%
             </label>
             <Slider
@@ -671,7 +622,7 @@ function WeightTuner() {
             />
           </div>
           <div>
-            <label className="mb-1 block text-xs text-muted-foreground">
+            <label className="mb-1 block text-xs">
               Vector: {(vector * 100).toFixed(0)}%
             </label>
             <Slider
@@ -683,8 +634,8 @@ function WeightTuner() {
             />
           </div>
           <div>
-            <label className="mb-1 block text-xs text-muted-foreground">
-              Knowledge graph: {(kg * 100).toFixed(0)}%
+            <label className="mb-1 block text-xs">
+              Knowledge Graph: {(kg * 100).toFixed(0)}%
             </label>
             <Slider
               value={[kg]}
@@ -699,13 +650,13 @@ function WeightTuner() {
 
       <div className="flex gap-2">
         <Input
-          placeholder="Enter a test query…"
+          placeholder="Enter a test query..."
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && runExperiment()}
         />
         <Button onClick={runExperiment} disabled={loading || !query.trim()}>
-          {loading ? 'Comparing…' : 'Compare'}
+          {loading ? 'Running...' : 'Compare'}
         </Button>
       </div>
 
@@ -716,22 +667,22 @@ function WeightTuner() {
             <Card key={i}>
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-medium">
-                  {i === 0 ? 'Default weights' : 'Custom weights'}
+                  {i === 0 ? 'Default Weights' : 'Custom Weights'}
                 </CardTitle>
               </CardHeader>
               <CardContent className="text-sm">
                 <div className="text-muted-foreground text-xs">
                   {Object.entries(r.weights)
                     .map(([k, v]) => `${k}: ${(v * 100).toFixed(0)}%`)
-                    .join(' · ')}
+                    .join(' | ')}
                 </div>
-                <div className="mt-2 flex flex-wrap gap-3 text-foreground tabular-nums">
+                <div className="mt-2 flex flex-wrap gap-3">
                   <span>{r.result_count} results</span>
                   <span>{r.total_time_ms.toFixed(0)}ms</span>
                 </div>
                 {r.top_scores.length > 0 && (
                   <div className="mt-2">
-                    <span className="text-muted-foreground text-xs tabular-nums">
+                    <span className="text-muted-foreground text-xs">
                       Top scores:{' '}
                       {r.top_scores.map((s) => s.toFixed(3)).join(', ')}
                     </span>
@@ -835,14 +786,14 @@ function BottleneckAnalysis() {
           onClick={loadAnalysis}
           disabled={loading}
         >
-          {loading ? 'Analyzing…' : 'Refresh'}
+          {loading ? 'Analyzing...' : 'Refresh'}
         </Button>
       </div>
 
       {/* Pipeline health overview */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-sm font-medium">Pipeline health</CardTitle>
+          <CardTitle className="text-sm font-medium">Pipeline Health</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="flex flex-wrap gap-6">
@@ -857,7 +808,7 @@ function BottleneckAnalysis() {
       <Card>
         <CardHeader>
           <CardTitle className="text-sm font-medium">
-            Top issues ({allFindings.length})
+            Top Issues ({allFindings.length})
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-2">
@@ -869,7 +820,7 @@ function BottleneckAnalysis() {
           {allFindings.map(({ finding, count }, i) => (
             <div
               key={i}
-              className="flex items-start gap-3 rounded-md border border-border p-3"
+              className="flex items-start gap-3 rounded-md border p-3"
             >
               <Badge
                 variant={
@@ -885,11 +836,9 @@ function BottleneckAnalysis() {
               </Badge>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium text-foreground">
-                    {finding.title}
-                  </span>
+                  <span className="text-sm font-medium">{finding.title}</span>
                   {count > 1 && (
-                    <span className="text-muted-foreground text-xs tabular-nums">
+                    <span className="text-muted-foreground text-xs">
                       ({count}x)
                     </span>
                   )}
@@ -897,7 +846,7 @@ function BottleneckAnalysis() {
                 <p className="text-muted-foreground text-xs">
                   {finding.detail}
                 </p>
-                <p className="mt-1 text-xs text-primary">
+                <p className="mt-1 text-xs text-brand-cyan">
                   {finding.recommendation}
                 </p>
               </div>
@@ -920,27 +869,22 @@ export function RetrievalDiagnosticsDashboard({
 }: RetrievalDiagnosticsDashboardProps) {
   return (
     <div className={cn('space-y-6', className)}>
-      <div className="flex items-center gap-4">
-        <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10">
-          <Gauge aria-hidden="true" className="h-6 w-6 text-primary" />
-        </div>
-        <div>
-          <h1 className="text-xl font-semibold text-foreground">
-            Retrieval diagnostics
-          </h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            Inspect the retrieval pipeline, find bottlenecks, and tune search
-            weights.
-          </p>
-        </div>
+      <div>
+        <h1 className="text-2xl font-mono font-bold text-[var(--nous-fg-1)] tracking-wider">
+          RETRIEVAL_DIAGNOSTICS
+        </h1>
+        <p className="text-xs font-mono text-muted-foreground mt-0.5 uppercase tracking-widest">
+          Inspect the RAG retrieval pipeline, identify bottlenecks, and tune
+          search weights.
+        </p>
       </div>
 
       <Tabs defaultValue="explorer" className="w-full">
         <TabsList>
-          <TabsTrigger value="explorer">Query explorer</TabsTrigger>
-          <TabsTrigger value="quality">Quality overview</TabsTrigger>
-          <TabsTrigger value="weights">Weight tuner</TabsTrigger>
-          <TabsTrigger value="bottleneck">Bottleneck analysis</TabsTrigger>
+          <TabsTrigger value="explorer">Query Explorer</TabsTrigger>
+          <TabsTrigger value="quality">Quality Overview</TabsTrigger>
+          <TabsTrigger value="weights">Weight Tuner</TabsTrigger>
+          <TabsTrigger value="bottleneck">Bottleneck Analysis</TabsTrigger>
         </TabsList>
 
         <TabsContent value="explorer" className="mt-4">

@@ -250,7 +250,7 @@ export default function ProjectsPage() {
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search projects"
+            placeholder="Search projects..."
             aria-label="Search projects"
             className="w-full pl-10 pr-4 py-2 bg-card border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:border-primary transition-colors"
           />

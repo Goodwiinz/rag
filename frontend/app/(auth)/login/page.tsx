@@ -351,7 +351,7 @@ function LoginPageContent(): React.JSX.Element | null {
                     className="mt-0.5 h-4 w-4 rounded border-[var(--nous-border-1)] bg-[var(--nous-nyx)] accent-[var(--nous-sol)] focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/40"
                   />
                   <span className="text-sm leading-snug text-[var(--nous-fg-2)]">
-                    Download NOUS CLI credentials after sign in
+                    Download NOUS CLI credentials after signing in
                     <span className="mt-0.5 block text-xs text-[var(--nous-fg-3)]">
                       Optional
                     </span>
