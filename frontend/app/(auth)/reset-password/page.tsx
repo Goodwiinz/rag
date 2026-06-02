@@ -1,7 +1,6 @@
 'use client';
 
 import { createClient } from '@/lib/supabase/client';
-import { cn } from '@/lib/utils';
 import { motion } from 'framer-motion';
 import {
   AlertTriangle,
@@ -17,6 +16,7 @@ import { useRouter } from 'next/navigation';
 import React, { useEffect, useRef, useState } from 'react';
 
 const SESSION_TIMEOUT_MS = 5000;
+const NOUS_EASE: [number, number, number, number] = [0.16, 1, 0.3, 1];
 
 export default function ResetPasswordPage() {
   const router = useRouter();
@@ -62,12 +62,12 @@ export default function ResetPasswordPage() {
     setError('');
 
     if (password !== confirmPassword) {
-      setError('Security keys do not match');
+      setError("Passwords don't match");
       return;
     }
 
     if (password.length < 8) {
-      setError('Security key must be at least 8 characters');
+      setError('Password must be at least 8 characters');
       return;
     }
 
@@ -96,34 +96,40 @@ export default function ResetPasswordPage() {
 
   if (sessionExpired) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[var(--nous-bg-1)]">
+      <div className="flex min-h-screen items-center justify-center bg-[var(--nous-bg-1)] px-6">
         <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="max-w-md w-full mx-6"
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, ease: NOUS_EASE }}
+          className="w-full max-w-md"
         >
           <div className="rounded-2xl border border-[var(--nous-border-1)] bg-[var(--nous-bg-2)] p-10 text-center">
-            <div className="flex items-center justify-center w-16 h-16 rounded-full bg-red-500/10 border border-red-500/30 mx-auto mb-6">
-              <AlertTriangle className="w-8 h-8 text-red-400" />
+            <div className="mx-auto mb-6 flex h-14 w-14 items-center justify-center rounded-full border border-[var(--nous-mars)]/30 bg-[var(--nous-mars)]/10">
+              <AlertTriangle
+                className="h-6 w-6 text-[var(--nous-mars)]"
+                strokeWidth={1.8}
+              />
             </div>
-            <h2 className="text-xl font-mono font-bold text-[var(--nous-fg-1)] uppercase tracking-[0.15em] mb-3">
-              Link Expired
-            </h2>
-            <p className="text-sm font-mono text-[var(--nous-fg-3)] mb-6 leading-relaxed">
-              This reset link is expired or invalid. Request a new one to
+            <h1
+              className="mb-3 text-2xl font-semibold tracking-tight text-[var(--nous-fg-1)]"
+              style={{ fontFamily: 'var(--nous-font-heading)' }}
+            >
+              This link has expired
+            </h1>
+            <p
+              className="mx-auto mb-7 max-w-xs text-[0.9375rem] leading-relaxed text-[var(--nous-fg-2)]"
+              style={{ fontFamily: 'var(--nous-font-body)' }}
+            >
+              The reset link is expired or invalid. Request a new one to
               continue.
             </p>
             <Link
               href="/forgot-password"
-              className={cn(
-                'inline-flex items-center gap-2 py-3 px-6 rounded-xl font-mono text-xs font-bold uppercase tracking-[0.2em]',
-                'bg-[var(--nous-sol)] text-[var(--nous-bg-1)]',
-                'hover:shadow-[0_0_25px_var(--nous-sol-glow)] hover:scale-[1.02] active:scale-[0.98]',
-                'transition-all duration-300'
-              )}
+              className="inline-flex items-center gap-2 rounded-xl bg-[var(--nous-sol)] px-5 py-3 text-sm font-medium text-[var(--nous-erebus)] transition-colors hover:bg-[var(--nous-helios)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/50"
+              style={{ fontFamily: 'var(--nous-font-ui)' }}
             >
-              <span>Request New Link</span>
-              <ArrowRight className="w-4 h-4" />
+              <span>Request a new link</span>
+              <ArrowRight className="h-4 w-4" strokeWidth={1.8} />
             </Link>
           </div>
         </motion.div>
@@ -133,15 +139,18 @@ export default function ResetPasswordPage() {
 
   if (!sessionReady) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[var(--nous-bg-1)]">
+      <div className="flex min-h-screen items-center justify-center bg-[var(--nous-bg-1)] px-6">
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           className="text-center"
         >
-          <RefreshCw className="w-6 h-6 text-[var(--nous-sol)] animate-spin mx-auto mb-4" />
-          <p className="text-[10px] font-mono text-[var(--nous-fg-3)] uppercase tracking-widest">
-            Verifying recovery session...
+          <RefreshCw className="mx-auto mb-4 h-6 w-6 animate-spin text-[var(--nous-sol)]" />
+          <p
+            className="text-sm text-[var(--nous-fg-3)]"
+            style={{ fontFamily: 'var(--nous-font-ui)' }}
+          >
+            Verifying recovery link…
           </p>
         </motion.div>
       </div>
@@ -150,27 +159,37 @@ export default function ResetPasswordPage() {
 
   if (success) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[var(--nous-bg-1)]">
+      <div className="flex min-h-screen items-center justify-center bg-[var(--nous-bg-1)] px-6">
         <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="max-w-md w-full mx-6"
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, ease: NOUS_EASE }}
+          className="w-full max-w-md"
         >
           <div className="rounded-2xl border border-[var(--nous-border-1)] bg-[var(--nous-bg-2)] p-10 text-center">
-            <div className="flex items-center justify-center w-16 h-16 rounded-full bg-[var(--nous-sol)]/10 border border-[var(--nous-sol)]/30 mx-auto mb-6">
-              <CheckCircle className="w-8 h-8 text-[var(--nous-sol)]" />
+            <div className="mx-auto mb-6 flex h-14 w-14 items-center justify-center rounded-full border border-[var(--nous-sol)]/30 bg-[var(--nous-sol)]/10">
+              <CheckCircle
+                className="h-6 w-6 text-[var(--nous-sol)]"
+                strokeWidth={1.8}
+              />
             </div>
-            <h2 className="text-xl font-mono font-bold text-[var(--nous-fg-1)] uppercase tracking-[0.15em] mb-3">
-              Key Updated
-            </h2>
-            <p className="text-sm font-mono text-[var(--nous-fg-3)] mb-4 leading-relaxed">
-              Your security key has been reset. Redirecting to login...
+            <h1
+              className="mb-3 text-2xl font-semibold tracking-tight text-[var(--nous-fg-1)]"
+              style={{ fontFamily: 'var(--nous-font-heading)' }}
+            >
+              Password updated
+            </h1>
+            <p
+              className="mb-5 text-[0.9375rem] leading-relaxed text-[var(--nous-fg-2)]"
+              style={{ fontFamily: 'var(--nous-font-body)' }}
+            >
+              Redirecting to sign in…
             </p>
-            <div className="h-1 w-24 mx-auto rounded-full bg-[var(--nous-border-1)] overflow-hidden">
+            <div className="mx-auto h-1 w-24 overflow-hidden rounded-full bg-[var(--nous-border-1)]">
               <motion.div
                 initial={{ width: 0 }}
                 animate={{ width: '100%' }}
-                transition={{ duration: 3 }}
+                transition={{ duration: 3, ease: 'linear' }}
                 className="h-full bg-[var(--nous-sol)]"
               />
             </div>
@@ -181,102 +200,118 @@ export default function ResetPasswordPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[var(--nous-bg-1)] relative overflow-hidden">
-      <div className="absolute inset-0 opacity-[0.02] pointer-events-none">
-        <div
-          className="h-full w-full"
-          style={{
-            backgroundImage: `linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)`,
-            backgroundSize: '40px 40px',
-          }}
-        />
-      </div>
-
+    <div className="flex min-h-screen items-center justify-center bg-[var(--nous-bg-1)] px-6">
       <motion.div
-        initial={{ opacity: 0, scale: 0.98 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ duration: 0.5 }}
-        className="w-full max-w-md mx-6"
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, ease: NOUS_EASE }}
+        className="w-full max-w-md"
       >
-        <div className="rounded-2xl border border-[var(--nous-border-1)] bg-[var(--nous-bg-2)] p-8 shadow-2xl shadow-black/50">
-          <div className="text-center mb-8">
-            <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-[var(--nous-bg-3)] border border-[var(--nous-border-1)] mb-4">
-              <Lock className="w-5 h-5 text-[var(--nous-sol)]" />
+        <div className="rounded-2xl border border-[var(--nous-border-1)] bg-[var(--nous-bg-2)] p-8">
+          <div className="mb-7">
+            <div className="mb-5 inline-flex h-11 w-11 items-center justify-center rounded-full border border-[var(--nous-border-1)] bg-[var(--nous-bg-3)]">
+              <Lock
+                className="h-5 w-5 text-[var(--nous-sol)]"
+                strokeWidth={1.8}
+              />
             </div>
-            <h2 className="text-xl font-mono font-bold text-[var(--nous-fg-1)] uppercase tracking-[0.2em]">
-              New Security Key
-            </h2>
-            <p className="text-[10px] font-mono text-[var(--nous-fg-3)] uppercase tracking-wider mt-2">
-              Enter your new access credentials
+            <h1
+              className="text-2xl font-semibold tracking-tight text-[var(--nous-fg-1)]"
+              style={{ fontFamily: 'var(--nous-font-heading)' }}
+            >
+              Set a new password
+            </h1>
+            <p
+              className="mt-2 text-[0.9375rem] leading-relaxed text-[var(--nous-fg-2)]"
+              style={{ fontFamily: 'var(--nous-font-body)' }}
+            >
+              At least 8 characters.
             </p>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-5">
+          <form onSubmit={handleSubmit} className="space-y-5" noValidate>
             {error && (
               <motion.div
-                initial={{ opacity: 0, y: -5 }}
+                role="alert"
+                initial={{ opacity: 0, y: -4 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="rounded-lg border border-red-500/30 bg-red-500/5 p-3"
+                className="rounded-lg border border-[var(--nous-mars)]/30 bg-[var(--nous-mars)]/5 p-3"
               >
-                <p className="text-[10px] font-mono text-red-400 font-bold uppercase tracking-tighter">
-                  Reset Error: {error}
+                <p
+                  className="text-sm text-[var(--nous-mars)]"
+                  style={{ fontFamily: 'var(--nous-font-ui)' }}
+                >
+                  {error}
                 </p>
               </motion.div>
             )}
 
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               <label
                 htmlFor="password"
-                className="block text-[10px] font-mono text-[var(--nous-fg-3)] uppercase tracking-[0.2em] font-bold pl-1"
+                className="block text-sm font-medium text-[var(--nous-fg-2)]"
+                style={{ fontFamily: 'var(--nous-font-ui)' }}
               >
-                New Security Key
+                New password
               </label>
               <div className="relative">
-                <div className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none">
-                  <Lock className="w-4 h-4 text-[var(--nous-fg-3)]" />
+                <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5">
+                  <Lock
+                    className="h-4 w-4 text-[var(--nous-fg-3)]"
+                    strokeWidth={1.8}
+                  />
                 </div>
                 <input
                   id="password"
                   type={showPassword ? 'text' : 'password'}
                   required
+                  autoComplete="new-password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full pl-11 pr-12 py-3 rounded-xl bg-[var(--nous-bg-1)] border border-[var(--nous-border-1)] font-mono text-sm text-[var(--nous-fg-1)] placeholder:text-[var(--nous-fg-3)]/30 focus:border-[var(--nous-sol)]/50 focus:ring-0 outline-none transition-all"
-                  placeholder="NEW_KEY_BUFFER"
+                  placeholder="At least 8 characters"
+                  className="w-full rounded-xl border border-[var(--nous-border-1)] bg-[var(--nous-bg-1)] py-3 pl-11 pr-12 text-sm text-[var(--nous-fg-1)] placeholder:text-[var(--nous-fg-3)]/50 outline-none transition-colors focus-visible:border-[var(--nous-sol)]/50 focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/30"
+                  style={{ fontFamily: 'var(--nous-font-ui)' }}
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute inset-y-0 right-0 flex items-center pr-3.5 text-[var(--nous-fg-3)] hover:text-[var(--nous-sol)] transition-colors"
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  className="absolute inset-y-0 right-0 flex items-center pr-3.5 text-[var(--nous-fg-3)] transition-colors hover:text-[var(--nous-fg-1)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/40"
                 >
                   {showPassword ? (
-                    <EyeOff className="w-4 h-4" />
+                    <EyeOff className="h-4 w-4" strokeWidth={1.8} />
                   ) : (
-                    <Eye className="w-4 h-4" />
+                    <Eye className="h-4 w-4" strokeWidth={1.8} />
                   )}
                 </button>
               </div>
             </div>
 
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               <label
                 htmlFor="confirmPassword"
-                className="block text-[10px] font-mono text-[var(--nous-fg-3)] uppercase tracking-[0.2em] font-bold pl-1"
+                className="block text-sm font-medium text-[var(--nous-fg-2)]"
+                style={{ fontFamily: 'var(--nous-font-ui)' }}
               >
-                Verify New Key
+                Confirm password
               </label>
               <div className="relative">
-                <div className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none">
-                  <Lock className="w-4 h-4 text-[var(--nous-fg-3)]" />
+                <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5">
+                  <Lock
+                    className="h-4 w-4 text-[var(--nous-fg-3)]"
+                    strokeWidth={1.8}
+                  />
                 </div>
                 <input
                   id="confirmPassword"
                   type="password"
                   required
+                  autoComplete="new-password"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
-                  className="w-full pl-11 pr-4 py-3 rounded-xl bg-[var(--nous-bg-1)] border border-[var(--nous-border-1)] font-mono text-sm text-[var(--nous-fg-1)] placeholder:text-[var(--nous-fg-3)]/30 focus:border-[var(--nous-sol)]/50 focus:ring-0 outline-none transition-all"
-                  placeholder="RE_ENTER_KEY"
+                  placeholder="Repeat the password"
+                  className="w-full rounded-xl border border-[var(--nous-border-1)] bg-[var(--nous-bg-1)] py-3 pl-11 pr-4 text-sm text-[var(--nous-fg-1)] placeholder:text-[var(--nous-fg-3)]/50 outline-none transition-colors focus-visible:border-[var(--nous-sol)]/50 focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/30"
+                  style={{ fontFamily: 'var(--nous-font-ui)' }}
                 />
               </div>
             </div>
@@ -284,33 +319,36 @@ export default function ResetPasswordPage() {
             <button
               type="submit"
               disabled={isSubmitting}
-              className={cn(
-                'group w-full flex items-center justify-center gap-3 py-3.5 px-4 rounded-xl font-mono text-xs font-bold uppercase tracking-[0.2em]',
-                'bg-[var(--nous-sol)] text-[var(--nous-bg-1)]',
-                'hover:shadow-[0_0_25px_var(--nous-sol-glow)] hover:scale-[1.02] active:scale-[0.98]',
-                'disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300'
-              )}
+              className="group flex w-full items-center justify-center gap-2 rounded-xl bg-[var(--nous-sol)] px-4 py-3 text-sm font-medium text-[var(--nous-erebus)] transition-colors hover:bg-[var(--nous-helios)] disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/50"
+              style={{ fontFamily: 'var(--nous-font-ui)' }}
             >
               {isSubmitting ? (
                 <>
-                  <RefreshCw className="w-4 h-4 animate-spin" />
-                  <span>Updating...</span>
+                  <RefreshCw
+                    className="h-4 w-4 animate-spin"
+                    strokeWidth={1.8}
+                  />
+                  <span>Updating…</span>
                 </>
               ) : (
                 <>
-                  <span>Update Security Key</span>
-                  <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                  <span>Update password</span>
+                  <ArrowRight
+                    className="h-4 w-4 transition-transform group-hover:translate-x-0.5"
+                    strokeWidth={1.8}
+                  />
                 </>
               )}
             </button>
           </form>
 
-          <div className="mt-8 pt-6 border-t border-[var(--nous-border-1)] text-center">
+          <div className="mt-7 border-t border-[var(--nous-border-1)] pt-5 text-center">
             <Link
               href="/login"
-              className="text-[10px] font-mono text-[var(--nous-fg-3)] uppercase tracking-widest hover:text-[var(--nous-sol)] transition-colors"
+              className="inline-flex items-center gap-2 text-sm text-[var(--nous-fg-3)] transition-colors hover:text-[var(--nous-fg-1)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/40 rounded"
+              style={{ fontFamily: 'var(--nous-font-ui)' }}
             >
-              Return to Access Terminal
+              Back to sign in
             </Link>
           </div>
         </div>
