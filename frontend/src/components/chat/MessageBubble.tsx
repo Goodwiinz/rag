@@ -221,13 +221,13 @@ export function MessageBubble({
         >
           {isTyping ? (
             <div className="flex items-center gap-1">
-              <span className="w-2 h-2 bg-current rounded-full animate-bounce opacity-60" />
+              <span className="w-2 h-2 bg-current rounded-full animate-pulse opacity-60" />
               <span
-                className="w-2 h-2 bg-current rounded-full animate-bounce opacity-60"
+                className="w-2 h-2 bg-current rounded-full animate-pulse opacity-60"
                 style={{ animationDelay: '0.2s' }}
               />
               <span
-                className="w-2 h-2 bg-current rounded-full animate-bounce opacity-60"
+                className="w-2 h-2 bg-current rounded-full animate-pulse opacity-60"
                 style={{ animationDelay: '0.4s' }}
               />
               <span className="text-xs ml-2 opacity-70">
@@ -309,7 +309,7 @@ export function MessageBubble({
                       </a>
                     ),
                     blockquote: ({ children }) => (
-                      <blockquote className="border-l-4 border-sol/30 pl-4 italic text-[#a1a1aa]">
+                      <blockquote className="rounded-[var(--nous-radius-md)] bg-[var(--nous-bg-2)] px-4 py-2 italic text-[var(--nous-fg-2)]">
                         {children}
                       </blockquote>
                     ),

@@ -1,4 +1,10 @@
-import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
+import React, {
+  useState,
+  useCallback,
+  useEffect,
+  useRef,
+  useMemo,
+} from 'react';
 import {
   ShareIcon,
   ArrowDownTrayIcon,
@@ -16,8 +22,18 @@ import { Button } from '@/components/ui/button';
 import { IconButton } from '@/components/ui/icon-button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { createLayout, LayoutBounds, GraphNode, GraphEdge } from './GraphLayout';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
+  createLayout,
+  LayoutBounds,
+  GraphNode,
+  GraphEdge,
+} from './GraphLayout';
 
 interface KnowledgeGraphProps {
   queryId?: string;
@@ -72,7 +88,7 @@ const GraphNodeComponent: React.FC<GraphNodeComponentProps> = ({
 }) => {
   const getNodeSize = useCallback(() => {
     const baseSize = 8;
-    const confidenceFactor = 0.5 + (node.confidence * 0.5);
+    const confidenceFactor = 0.5 + node.confidence * 0.5;
     const mentionsFactor = Math.log(1 + node.mentions) / Math.log(10);
     return baseSize * confidenceFactor * mentionsFactor;
   }, [node.confidence, node.mentions]);
@@ -87,10 +103,10 @@ const GraphNodeComponent: React.FC<GraphNodeComponentProps> = ({
   return (
     <g
       className={cn(
-        "cursor-pointer transition-all duration-200",
-        isHovered && "opacity-100",
-        !isHovered && "opacity-80",
-        isSelected && "opacity-100"
+        'cursor-pointer transition-all duration-200',
+        isHovered && 'opacity-100',
+        !isHovered && 'opacity-80',
+        isSelected && 'opacity-100'
       )}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
@@ -104,8 +120,8 @@ const GraphNodeComponent: React.FC<GraphNodeComponentProps> = ({
         fill="black"
         fillOpacity={0.1}
         className={cn(
-          isHovered && "fill-opacity-0.2",
-          isSelected && "fill-opacity-0.3"
+          isHovered && 'fill-opacity-0.2',
+          isSelected && 'fill-opacity-0.3'
         )}
       />
 
@@ -118,8 +134,8 @@ const GraphNodeComponent: React.FC<GraphNodeComponentProps> = ({
         stroke="white"
         strokeWidth={2}
         className={cn(
-          isHovered && "stroke-width-3",
-          isSelected && "stroke-width-4"
+          isHovered && 'stroke-width-3',
+          isSelected && 'stroke-width-4'
         )}
       />
 
@@ -160,7 +176,9 @@ const GraphNodeComponent: React.FC<GraphNodeComponentProps> = ({
             fontWeight="medium"
             pointerEvents="none"
           >
-            {node.name.length > 12 ? node.name.substring(0, 12) + '...' : node.name}
+            {node.name.length > 12
+              ? node.name.substring(0, 12) + '...'
+              : node.name}
           </text>
         </g>
       )}
@@ -175,7 +193,7 @@ const GraphEdgeComponent: React.FC<GraphEdgeComponentProps> = ({
 }) => {
   const getEdgeWidth = useCallback(() => {
     const baseWidth = 1;
-    return baseWidth + (edge.confidence * edge.weight * 2);
+    return baseWidth + edge.confidence * edge.weight * 2;
   }, [edge.confidence, edge.weight]);
 
   const getEdgeColor = useCallback(() => {
@@ -192,8 +210,8 @@ const GraphEdgeComponent: React.FC<GraphEdgeComponentProps> = ({
   return (
     <g
       className={cn(
-        "cursor-pointer transition-all duration-200",
-        isHighlighted ? "opacity-100" : "opacity-60"
+        'cursor-pointer transition-all duration-200',
+        isHighlighted ? 'opacity-100' : 'opacity-60'
       )}
       onClick={onClick}
     >
@@ -205,9 +223,7 @@ const GraphEdgeComponent: React.FC<GraphEdgeComponentProps> = ({
         y2={edge.target.y}
         stroke={color}
         strokeWidth={width}
-        className={cn(
-          isHighlighted && "stroke-2"
-        )}
+        className={cn(isHighlighted && 'stroke-2')}
       />
 
       {/* Relationship label on hover/highlight */}
@@ -233,7 +249,9 @@ const GraphEdgeComponent: React.FC<GraphEdgeComponentProps> = ({
             fontWeight="medium"
             pointerEvents="none"
           >
-            {edge.relationship_type.length > 10 ? edge.relationship_type.substring(0, 10) + '...' : edge.relationship_type}
+            {edge.relationship_type.length > 10
+              ? edge.relationship_type.substring(0, 10) + '...'
+              : edge.relationship_type}
           </text>
         </g>
       )}
@@ -256,8 +274,12 @@ export const KnowledgeGraph: React.FC<KnowledgeGraphProps> = ({
   const [selectedNode, setSelectedNode] = useState<string | null>(null);
   const [hoveredNode, setHoveredNode] = useState<string | null>(null);
   const [selectedEdge, setSelectedEdge] = useState<string | null>(null);
-  const [highlightedEdges, setHighlightedEdges] = useState<Set<string>>(new Set());
-  const [layout, setLayout] = useState<'force' | 'hierarchical' | 'circular'>('force');
+  const [highlightedEdges, setHighlightedEdges] = useState<Set<string>>(
+    new Set()
+  );
+  const [layout, setLayout] = useState<'force' | 'hierarchical' | 'circular'>(
+    'force'
+  );
   const [isAnimating, setIsAnimating] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
   const [zoom, setZoom] = useState(1);
@@ -269,11 +291,14 @@ export const KnowledgeGraph: React.FC<KnowledgeGraphProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Calculate bounds for layout
-  const bounds: LayoutBounds = useMemo(() => ({
-    width: 800,
-    height: 600,
-    padding: 50,
-  }), []);
+  const bounds: LayoutBounds = useMemo(
+    () => ({
+      width: 800,
+      height: 600,
+      padding: 50,
+    }),
+    []
+  );
 
   // Load graph data
   const loadGraphData = useCallback(async () => {
@@ -282,7 +307,7 @@ export const KnowledgeGraph: React.FC<KnowledgeGraphProps> = ({
 
     try {
       // Simulate API call - in real implementation, use the actual API
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise((resolve) => setTimeout(resolve, 1000));
 
       // Mock data for demonstration
       const mockEntities: Entity[] = [
@@ -342,7 +367,7 @@ export const KnowledgeGraph: React.FC<KnowledgeGraphProps> = ({
           id: '5',
           name: 'OpenAI',
           type: 'organization',
-          confidence: 0.90,
+          confidence: 0.9,
           description: 'AI research company',
           aliases: [],
           mentions: 18,
@@ -372,7 +397,7 @@ export const KnowledgeGraph: React.FC<KnowledgeGraphProps> = ({
           source_entity_id: '1',
           target_entity_id: '3',
           relationship_type: 'includes',
-          confidence: 0.90,
+          confidence: 0.9,
           context: 'Machine learning includes deep learning',
           document_ids: ['doc2'],
           first_seen: '2024-01-01T00:00:00Z',
@@ -434,9 +459,10 @@ export const KnowledgeGraph: React.FC<KnowledgeGraphProps> = ({
 
       setGraphData(newGraphData);
       onGraphChange?.(newGraphData);
-
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load graph data');
+      setError(
+        err instanceof Error ? err.message : 'Failed to load graph data'
+      );
     } finally {
       setIsLoading(false);
     }
@@ -447,10 +473,15 @@ export const KnowledgeGraph: React.FC<KnowledgeGraphProps> = ({
     if (!graphData) return null;
 
     try {
-      const layoutAlgorithm = createLayout(layout, graphData.nodes, graphData.edges, {
-        bounds,
-        iterations: layout === 'force' ? 300 : 0,
-      });
+      const layoutAlgorithm = createLayout(
+        layout,
+        graphData.nodes,
+        graphData.edges,
+        {
+          bounds,
+          iterations: layout === 'force' ? 300 : 0,
+        }
+      );
 
       return layoutAlgorithm.layout();
     } catch (err) {
@@ -467,7 +498,7 @@ export const KnowledgeGraph: React.FC<KnowledgeGraphProps> = ({
     }
 
     const highlighted = new Set<string>();
-    layoutData.edges.forEach(edge => {
+    layoutData.edges.forEach((edge) => {
       if (edge.source.id === selectedNode || edge.target.id === selectedNode) {
         highlighted.add(edge.id);
       }
@@ -476,27 +507,33 @@ export const KnowledgeGraph: React.FC<KnowledgeGraphProps> = ({
   }, [selectedNode, layoutData]);
 
   // Handle node interactions
-  const handleNodeClick = useCallback((node: GraphNode) => {
-    setSelectedNode(node.id === selectedNode ? null : node.id);
-    const entity = graphData?.nodes.find(n => n.id === node.id);
-    if (entity) {
-      onEntityClick?.(entity);
-    }
-  }, [selectedNode, graphData, onEntityClick]);
+  const handleNodeClick = useCallback(
+    (node: GraphNode) => {
+      setSelectedNode(node.id === selectedNode ? null : node.id);
+      const entity = graphData?.nodes.find((n) => n.id === node.id);
+      if (entity) {
+        onEntityClick?.(entity);
+      }
+    },
+    [selectedNode, graphData, onEntityClick]
+  );
 
   // Handle edge interactions
-  const handleEdgeClick = useCallback((edge: GraphEdge) => {
-    setSelectedEdge(edge.id === selectedEdge ? null : edge.id);
-    onRelationshipClick?.(edge);
-  }, [selectedEdge, onRelationshipClick]);
+  const handleEdgeClick = useCallback(
+    (edge: GraphEdge) => {
+      setSelectedEdge(edge.id === selectedEdge ? null : edge.id);
+      onRelationshipClick?.(edge);
+    },
+    [selectedEdge, onRelationshipClick]
+  );
 
   // Handle zoom
   const handleZoomIn = useCallback(() => {
-    setZoom(prev => Math.min(prev * 1.2, 3));
+    setZoom((prev) => Math.min(prev * 1.2, 3));
   }, []);
 
   const handleZoomOut = useCallback(() => {
-    setZoom(prev => Math.max(prev / 1.2, 0.3));
+    setZoom((prev) => Math.max(prev / 1.2, 0.3));
   }, []);
 
   const handleResetZoom = useCallback(() => {
@@ -505,58 +542,67 @@ export const KnowledgeGraph: React.FC<KnowledgeGraphProps> = ({
   }, []);
 
   // Handle pan
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    setIsDragging(true);
-    setDragStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
-  }, [pan]);
+  const handleMouseDown = useCallback(
+    (e: React.MouseEvent) => {
+      setIsDragging(true);
+      setDragStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
+    },
+    [pan]
+  );
 
-  const handleMouseMove = useCallback((e: React.MouseEvent) => {
-    if (!isDragging) return;
-    setPan({
-      x: e.clientX - dragStart.x,
-      y: e.clientY - dragStart.y,
-    });
-  }, [isDragging, dragStart]);
+  const handleMouseMove = useCallback(
+    (e: React.MouseEvent) => {
+      if (!isDragging) return;
+      setPan({
+        x: e.clientX - dragStart.x,
+        y: e.clientY - dragStart.y,
+      });
+    },
+    [isDragging, dragStart]
+  );
 
   const handleMouseUp = useCallback(() => {
     setIsDragging(false);
   }, []);
 
   // Export graph
-  const exportGraph = useCallback((format: 'png' | 'svg' | 'json') => {
-    if (!svgRef.current) return;
+  const exportGraph = useCallback(
+    (format: 'png' | 'svg' | 'json') => {
+      if (!svgRef.current) return;
 
-    switch (format) {
-      case 'svg':
-        const svgData = new XMLSerializer().serializeToString(svgRef.current);
-        const blob = new Blob([svgData], { type: 'image/svg+xml' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'knowledge-graph.svg';
-        a.click();
-        URL.revokeObjectURL(url);
-        break;
+      switch (format) {
+        case 'svg':
+          const svgData = new XMLSerializer().serializeToString(svgRef.current);
+          const blob = new Blob([svgData], { type: 'image/svg+xml' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = 'knowledge-graph.svg';
+          a.click();
+          URL.revokeObjectURL(url);
+          break;
 
-      case 'json':
-        if (graphData) {
-          const jsonData = JSON.stringify(graphData, null, 2);
-          const jsonBlob = new Blob([jsonData], { type: 'application/json' });
-          const jsonUrl = URL.createObjectURL(jsonBlob);
-          const jsonA = document.createElement('a');
-          jsonA.href = jsonUrl;
-          jsonA.download = 'knowledge-graph.json';
-          jsonA.click();
-          URL.revokeObjectURL(jsonUrl);
-        }
-        break;
+        case 'json':
+          if (graphData) {
+            const jsonData = JSON.stringify(graphData, null, 2);
+            const jsonBlob = new Blob([jsonData], { type: 'application/json' });
+            const jsonUrl = URL.createObjectURL(jsonBlob);
+            const jsonA = document.createElement('a');
+            jsonA.href = jsonUrl;
+            jsonA.download = 'knowledge-graph.json';
+            jsonA.click();
+            URL.revokeObjectURL(jsonUrl);
+          }
+          break;
 
-      case 'png':
-        // Canvas-based PNG export would require additional implementation
-        console.log('PNG export not implemented');
-        break;
-    }
-  }, [graphData]);
+        case 'png':
+          // Canvas-based PNG export would require additional implementation
+          console.log('PNG export not implemented');
+          break;
+      }
+    },
+    [graphData]
+  );
 
   // Load data on mount
   useEffect(() => {
@@ -565,10 +611,10 @@ export const KnowledgeGraph: React.FC<KnowledgeGraphProps> = ({
 
   if (isLoading) {
     return (
-      <div className={cn("flex items-center justify-center h-96", className)}>
+      <div className={cn('flex items-center justify-center h-96', className)}>
         <div className="text-center">
           <div className="h-8 w-8 animate-spin rounded-full border-2 border-blue-600 border-t-transparent mx-auto mb-4" />
-          <p className="text-gray-600">Loading knowledge graph...</p>
+          <p className="text-foreground">Loading knowledge graph...</p>
         </div>
       </div>
     );
@@ -576,13 +622,13 @@ export const KnowledgeGraph: React.FC<KnowledgeGraphProps> = ({
 
   if (error) {
     return (
-      <div className={cn("flex items-center justify-center h-96", className)}>
+      <div className={cn('flex items-center justify-center h-96', className)}>
         <div className="text-center">
           <div className="text-red-500 mb-4">
             <InformationCircleIcon className="h-12 w-12 mx-auto" />
           </div>
-          <p className="text-gray-600">Failed to load knowledge graph</p>
-          <p className="text-sm text-gray-500 mt-2">{error}</p>
+          <p className="text-foreground">Failed to load knowledge graph</p>
+          <p className="text-sm text-muted-foreground mt-2">{error}</p>
           <Button onClick={loadGraphData} className="mt-4">
             Try Again
           </Button>
@@ -593,28 +639,24 @@ export const KnowledgeGraph: React.FC<KnowledgeGraphProps> = ({
 
   if (!layoutData) {
     return (
-      <div className={cn("flex items-center justify-center h-96", className)}>
+      <div className={cn('flex items-center justify-center h-96', className)}>
         <div className="text-center">
-          <p className="text-gray-600">No graph data available</p>
+          <p className="text-foreground">No graph data available</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className={cn("space-y-4", className)}>
+    <div className={cn('space-y-4', className)}>
       {/* Controls */}
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle className="text-lg">Knowledge Graph</CardTitle>
             <div className="flex items-center space-x-2">
-              <Badge variant="outline">
-                {layoutData.nodes.length} nodes
-              </Badge>
-              <Badge variant="outline">
-                {layoutData.edges.length} edges
-              </Badge>
+              <Badge variant="outline">{layoutData.nodes.length} nodes</Badge>
+              <Badge variant="outline">{layoutData.edges.length} edges</Badge>
             </div>
           </div>
         </CardHeader>
@@ -622,11 +664,11 @@ export const KnowledgeGraph: React.FC<KnowledgeGraphProps> = ({
           <div className="flex flex-wrap gap-2">
             {/* Layout selector */}
             <div className="flex items-center space-x-2">
-              <AdjustmentsHorizontalIcon className="h-4 w-4 text-gray-500" />
+              <AdjustmentsHorizontalIcon className="h-4 w-4 text-muted-foreground" />
               <select
                 value={layout}
                 onChange={(e) => setLayout(e.target.value as any)}
-                className="text-sm border border-gray-300 rounded px-2 py-1"
+                className="text-sm border border-border rounded px-2 py-1"
               >
                 <option value="force">Force Layout</option>
                 <option value="hierarchical">Hierarchical</option>
@@ -657,11 +699,19 @@ export const KnowledgeGraph: React.FC<KnowledgeGraphProps> = ({
 
             {/* Export controls */}
             <div className="flex items-center space-x-1">
-              <Button variant="outline" size="sm" onClick={() => exportGraph('svg')}>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => exportGraph('svg')}
+              >
                 <ArrowDownTrayIcon className="h-4 w-4 mr-1" />
                 SVG
               </Button>
-              <Button variant="outline" size="sm" onClick={() => exportGraph('json')}>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => exportGraph('json')}
+              >
                 <ArrowDownTrayIcon className="h-4 w-4 mr-1" />
                 JSON
               </Button>
@@ -744,7 +794,9 @@ export const KnowledgeGraph: React.FC<KnowledgeGraphProps> = ({
               <DialogTitle>Entity Details</DialogTitle>
             </DialogHeader>
             {(() => {
-              const entity = graphData?.nodes.find(n => n.id === selectedNode);
+              const entity = graphData?.nodes.find(
+                (n) => n.id === selectedNode
+              );
               return entity ? (
                 <div className="space-y-4">
                   <div>
@@ -753,7 +805,9 @@ export const KnowledgeGraph: React.FC<KnowledgeGraphProps> = ({
                   </div>
 
                   {entity.description && (
-                    <p className="text-sm text-gray-600">{entity.description}</p>
+                    <p className="text-sm text-foreground">
+                      {entity.description}
+                    </p>
                   )}
 
                   <div className="grid grid-cols-2 gap-4 text-sm">
@@ -766,7 +820,9 @@ export const KnowledgeGraph: React.FC<KnowledgeGraphProps> = ({
                             style={{ width: `${entity.confidence * 100}%` }}
                           />
                         </div>
-                        <span className="ml-2">{Math.round(entity.confidence * 100)}%</span>
+                        <span className="ml-2">
+                          {Math.round(entity.confidence * 100)}%
+                        </span>
                       </div>
                     </div>
 
@@ -781,7 +837,11 @@ export const KnowledgeGraph: React.FC<KnowledgeGraphProps> = ({
                       <span className="font-medium text-sm">Aliases:</span>
                       <div className="flex flex-wrap gap-1 mt-1">
                         {entity.aliases.map((alias, index) => (
-                          <Badge key={index} variant="outline" className="text-xs">
+                          <Badge
+                            key={index}
+                            variant="outline"
+                            className="text-xs"
+                          >
                             {alias}
                           </Badge>
                         ))}
@@ -791,8 +851,9 @@ export const KnowledgeGraph: React.FC<KnowledgeGraphProps> = ({
 
                   <div>
                     <span className="font-medium text-sm">Documents:</span>
-                    <p className="text-sm text-gray-600 mt-1">
-                      Found in {entity.document_ids.length} document{entity.document_ids.length !== 1 ? 's' : ''}
+                    <p className="text-sm text-foreground mt-1">
+                      Found in {entity.document_ids.length} document
+                      {entity.document_ids.length !== 1 ? 's' : ''}
                     </p>
                   </div>
                 </div>

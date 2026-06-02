@@ -37,7 +37,7 @@ export function CellCitation({
     <Popover>
       <PopoverTrigger asChild>
         <button
-          className="inline-flex items-center justify-center h-5 w-5 rounded text-gray-500 hover:text-brand-cyan hover:bg-brand-cyan/10 transition-colors"
+          className="inline-flex items-center justify-center h-5 w-5 rounded text-muted-foreground hover:text-brand-cyan hover:bg-brand-cyan/10 transition-colors"
           aria-label="View citation"
         >
           <Quote className="h-3 w-3" />
@@ -48,13 +48,13 @@ export function CellCitation({
         side="top"
         align="start"
       >
-        <p className="text-xs font-mono text-gray-400 italic leading-relaxed mb-3">
+        <p className="text-xs font-mono text-muted-foreground italic leading-relaxed mb-3">
           {citation_snippet}
         </p>
         {confidence !== null && (
           <div className="space-y-1">
             <div className="flex items-center justify-between">
-              <span className="text-[10px] font-mono text-gray-500 uppercase tracking-wide">
+              <span className="text-[10px] font-mono text-muted-foreground uppercase tracking-wide">
                 Confidence
               </span>
               <span

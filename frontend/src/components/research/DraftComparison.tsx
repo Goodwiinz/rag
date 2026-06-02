@@ -55,7 +55,7 @@ export const DraftComparison: React.FC<DraftComparisonProps> = ({
   const getTrendIcon = (diff: number) => {
     if (diff > 0) return <TrendingUp className="h-4 w-4 text-sol" />;
     if (diff < 0) return <TrendingDown className="h-4 w-4 text-red-400" />;
-    return <Minus className="h-4 w-4 text-gray-500" />;
+    return <Minus className="h-4 w-4 text-muted-foreground" />;
   };
 
   const formatDiff = (diff: number) => {
@@ -73,58 +73,58 @@ export const DraftComparison: React.FC<DraftComparisonProps> = ({
   const lineClass = (type: 'added' | 'removed' | 'unchanged') => {
     if (type === 'added') return 'bg-sol/10 text-[#8ef9d0]';
     if (type === 'removed') return 'bg-red-500/10 text-red-300';
-    return 'text-gray-400';
+    return 'text-muted-foreground';
   };
 
   return (
-    <div className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg overflow-hidden">
+    <div className="bg-[#0a0a0a] border border-border rounded-lg overflow-hidden">
       {/* Header */}
-      <div className="p-4 border-b border-[#1a1a1a]">
-        <h3 className="font-mono font-bold text-gray-200">
+      <div className="p-4 border-b border-border">
+        <h3 className="font-mono font-bold text-muted-foreground">
           Version Comparison
         </h3>
       </div>
 
       {/* Stats Comparison */}
-      <div className="grid grid-cols-3 gap-4 p-4 border-b border-[#1a1a1a]">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 p-4 border-b border-border">
         {/* Version A */}
         <div className="text-center">
-          <div className="text-xs text-gray-500 font-mono uppercase mb-2">
+          <div className="text-xs text-muted-foreground font-mono uppercase mb-2">
             Version {comparison.version_a.version}
           </div>
           <div className="space-y-2">
             <div className="p-2 bg-[#1a1a1a] rounded">
-              <div className="text-lg font-mono text-gray-300">
+              <div className="text-lg font-mono text-muted-foreground">
                 {comparison.version_a.word_count}
               </div>
-              <div className="text-xs text-gray-500">words</div>
+              <div className="text-xs text-muted-foreground">words</div>
             </div>
             <div className="p-2 bg-[#1a1a1a] rounded">
-              <div className="text-lg font-mono text-gray-300">
+              <div className="text-lg font-mono text-muted-foreground">
                 {comparison.version_a.citation_count}
               </div>
-              <div className="text-xs text-gray-500">citations</div>
+              <div className="text-xs text-muted-foreground">citations</div>
             </div>
           </div>
-          <div className="text-xs text-gray-500 font-mono mt-2">
+          <div className="text-xs text-muted-foreground font-mono mt-2">
             {new Date(comparison.version_a.created_at).toLocaleDateString()}
           </div>
         </div>
 
         {/* Comparison Arrow & Stats */}
         <div className="flex flex-col items-center justify-center">
-          <ArrowRight className="h-6 w-6 text-gray-500 mb-4" />
+          <ArrowRight className="h-6 w-6 text-muted-foreground mb-4" />
 
           <div className="space-y-3 w-full">
             <div className="flex items-center justify-center gap-2">
               {getTrendIcon(comparison.word_count_diff)}
-              <span className="text-sm font-mono text-gray-300">
+              <span className="text-sm font-mono text-muted-foreground">
                 {formatDiff(comparison.word_count_diff)} words
               </span>
             </div>
             <div className="flex items-center justify-center gap-2">
               {getTrendIcon(comparison.citation_count_diff)}
-              <span className="text-sm font-mono text-gray-300">
+              <span className="text-sm font-mono text-muted-foreground">
                 {formatDiff(comparison.citation_count_diff)} citations
               </span>
             </div>
@@ -132,31 +132,31 @@ export const DraftComparison: React.FC<DraftComparisonProps> = ({
               <div className={`text-lg font-mono ${similarityColor}`}>
                 {(comparison.similarity_score * 100).toFixed(1)}%
               </div>
-              <div className="text-xs text-gray-500">similarity</div>
+              <div className="text-xs text-muted-foreground">similarity</div>
             </div>
           </div>
         </div>
 
         {/* Version B */}
         <div className="text-center">
-          <div className="text-xs text-gray-500 font-mono uppercase mb-2">
+          <div className="text-xs text-muted-foreground font-mono uppercase mb-2">
             Version {comparison.version_b.version}
           </div>
           <div className="space-y-2">
             <div className="p-2 bg-[#1a1a1a] rounded">
-              <div className="text-lg font-mono text-gray-300">
+              <div className="text-lg font-mono text-muted-foreground">
                 {comparison.version_b.word_count}
               </div>
-              <div className="text-xs text-gray-500">words</div>
+              <div className="text-xs text-muted-foreground">words</div>
             </div>
             <div className="p-2 bg-[#1a1a1a] rounded">
-              <div className="text-lg font-mono text-gray-300">
+              <div className="text-lg font-mono text-muted-foreground">
                 {comparison.version_b.citation_count}
               </div>
-              <div className="text-xs text-gray-500">citations</div>
+              <div className="text-xs text-muted-foreground">citations</div>
             </div>
           </div>
-          <div className="text-xs text-gray-500 font-mono mt-2">
+          <div className="text-xs text-muted-foreground font-mono mt-2">
             {new Date(comparison.version_b.created_at).toLocaleDateString()}
           </div>
         </div>
@@ -166,7 +166,7 @@ export const DraftComparison: React.FC<DraftComparisonProps> = ({
       {diffView && (
         <div className="grid grid-cols-2 divide-x divide-[#1a1a1a]">
           <div className="p-4 max-h-[400px] overflow-y-auto">
-            <div className="text-xs text-gray-500 font-mono uppercase mb-2">
+            <div className="text-xs text-muted-foreground font-mono uppercase mb-2">
               Version {comparison.version_a.version}
             </div>
             <div className="text-sm font-mono whitespace-pre-wrap space-y-1">
@@ -181,7 +181,7 @@ export const DraftComparison: React.FC<DraftComparisonProps> = ({
             </div>
           </div>
           <div className="p-4 max-h-[400px] overflow-y-auto">
-            <div className="text-xs text-gray-500 font-mono uppercase mb-2">
+            <div className="text-xs text-muted-foreground font-mono uppercase mb-2">
               Version {comparison.version_b.version}
             </div>
             <div className="text-sm font-mono whitespace-pre-wrap space-y-1">

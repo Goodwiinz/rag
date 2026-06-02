@@ -13,10 +13,14 @@ export const CreateEvaluationPage: React.FC = () => {
         >
           &larr; Back to Evaluations
         </button>
-        <h1 className="text-2xl font-bold text-gray-900">Create New Evaluation</h1>
+        <h1 className="text-2xl font-bold text-foreground">
+          Create New Evaluation
+        </h1>
       </div>
       <div className="bg-white rounded-lg shadow p-6">
-        <p className="text-gray-600">Configure and create a new RAG evaluation.</p>
+        <p className="text-foreground">
+          Configure and create a new RAG evaluation.
+        </p>
       </div>
     </div>
   );

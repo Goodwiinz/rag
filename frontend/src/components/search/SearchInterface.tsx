@@ -735,7 +735,7 @@ export const SearchInterface: React.FC<SearchInterfaceProps> = ({
                               );
                             }
                           }}
-                          className="peer h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary/20"
+                          className="peer h-4 w-4 rounded border-border text-primary focus:ring-primary/20"
                         />
                       </div>
                       <span className="text-sm text-foreground group-hover:text-primary transition-colors">
@@ -777,7 +777,7 @@ export const SearchInterface: React.FC<SearchInterfaceProps> = ({
                             );
                           }
                         }}
-                        className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary/20"
+                        className="h-4 w-4 rounded border-border text-primary focus:ring-primary/20"
                       />
                       <span className="text-sm text-foreground group-hover:text-primary transition-colors">
                         {option.label}
@@ -924,8 +924,8 @@ export const SearchInterface: React.FC<SearchInterfaceProps> = ({
           <div className="space-y-2 max-h-96 overflow-y-auto">
             {history.length === 0 ? (
               <div className="text-center py-8">
-                <DocumentTextIcon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                <p className="text-gray-500">No search history yet</p>
+                <DocumentTextIcon className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                <p className="text-muted-foreground">No search history yet</p>
               </div>
             ) : (
               history.map((item) => (
@@ -936,18 +936,18 @@ export const SearchInterface: React.FC<SearchInterfaceProps> = ({
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-900 truncate">
+                      <p className="text-sm font-medium text-foreground truncate">
                         {item.query}
                       </p>
-                      <p className="text-xs text-gray-500 mt-1">
+                      <p className="text-xs text-muted-foreground mt-1">
                         {item.answer_preview}
                       </p>
                     </div>
                     <div className="ml-4 text-right">
-                      <p className="text-xs text-gray-500">
+                      <p className="text-xs text-muted-foreground">
                         {new Date(item.created_at).toLocaleDateString()}
                       </p>
-                      <p className="text-xs text-gray-400">
+                      <p className="text-xs text-muted-foreground">
                         {item.metrics.latency_ms}ms
                       </p>
                     </div>
@@ -972,9 +972,9 @@ export const SearchInterface: React.FC<SearchInterfaceProps> = ({
           <div className="space-y-2 max-h-96 overflow-y-auto">
             {savedSearches.length === 0 ? (
               <div className="text-center py-8">
-                <BookmarkIcon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                <p className="text-gray-500">No saved searches yet</p>
-                <p className="text-xs text-gray-400 mt-2">
+                <BookmarkIcon className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                <p className="text-muted-foreground">No saved searches yet</p>
+                <p className="text-xs text-muted-foreground mt-2">
                   Save a search to quickly access it later
                 </p>
               </div>
@@ -987,14 +987,14 @@ export const SearchInterface: React.FC<SearchInterfaceProps> = ({
                 >
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-sm font-medium text-gray-900">
+                      <p className="text-sm font-medium text-foreground">
                         {saved.name}
                       </p>
-                      <p className="text-xs text-gray-500 mt-1 truncate">
+                      <p className="text-xs text-muted-foreground mt-1 truncate">
                         {saved.query}
                       </p>
                     </div>
-                    <ChevronDownIcon className="h-4 w-4 text-gray-400" />
+                    <ChevronDownIcon className="h-4 w-4 text-muted-foreground" />
                   </div>
                 </button>
               ))

@@ -85,9 +85,9 @@ export const NeighborhoodExplorer: React.FC<NeighborhoodExplorerProps> = ({
   return (
     <div className="space-y-4">
       {/* Controls */}
-      <Card className="border-[var(--terminal-border)] bg-[var(--terminal-surface)]">
-        <CardHeader className="border-b border-[var(--terminal-border)] py-3">
-          <CardTitle className="text-xs font-mono font-bold uppercase tracking-widest text-[var(--terminal-text-dim)] flex items-center gap-2">
+      <Card className="border-[var(--nous-border-1)] bg-[var(--nous-bg-2)]">
+        <CardHeader className="border-b border-[var(--nous-border-1)] py-3">
+          <CardTitle className="text-xs font-mono font-bold uppercase tracking-widest text-[var(--nous-fg-3)] flex items-center gap-2">
             <Layers className="w-4 h-4" />
             Neighborhood of: {centralEntity.name}
           </CardTitle>
@@ -96,7 +96,7 @@ export const NeighborhoodExplorer: React.FC<NeighborhoodExplorerProps> = ({
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {/* Depth Control */}
             <div className="space-y-2">
-              <Label className="text-xs font-mono text-[var(--terminal-text-dim)]">
+              <Label className="text-xs font-mono text-[var(--nous-fg-3)]">
                 Depth: {depth} hop{depth > 1 ? 's' : ''}
               </Label>
               <Slider
@@ -111,7 +111,7 @@ export const NeighborhoodExplorer: React.FC<NeighborhoodExplorerProps> = ({
 
             {/* Min Strength */}
             <div className="space-y-2">
-              <Label className="text-xs font-mono text-[var(--terminal-text-dim)]">
+              <Label className="text-xs font-mono text-[var(--nous-fg-3)]">
                 Min Strength: {minStrength.toFixed(2)}
               </Label>
               <Slider
@@ -126,7 +126,7 @@ export const NeighborhoodExplorer: React.FC<NeighborhoodExplorerProps> = ({
 
             {/* Max Nodes */}
             <div className="space-y-2">
-              <Label className="text-xs font-mono text-[var(--terminal-text-dim)]">
+              <Label className="text-xs font-mono text-[var(--nous-fg-3)]">
                 Max Nodes: {maxNodes}
               </Label>
               <Slider
@@ -143,7 +143,7 @@ export const NeighborhoodExplorer: React.FC<NeighborhoodExplorerProps> = ({
           <Button
             onClick={fetchNeighborhood}
             disabled={loading}
-            className="w-full font-mono text-xs font-bold bg-[var(--phosphor-green)] text-[var(--terminal-bg)] hover:shadow-[0_0_15px_var(--phosphor-green-glow)]"
+            className="w-full font-mono text-xs font-bold bg-[var(--nous-sol)] text-[var(--nous-bg-1)] hover:shadow-[0_0_15px_var(--nous-sol-glow)]"
           >
             {loading ? (
               <>
@@ -162,32 +162,32 @@ export const NeighborhoodExplorer: React.FC<NeighborhoodExplorerProps> = ({
 
       {/* Statistics */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card className="border-[var(--terminal-border)] bg-[var(--terminal-surface)]">
+        <Card className="border-[var(--nous-border-1)] bg-[var(--nous-bg-2)]">
           <CardContent className="p-4">
-            <div className="text-xs font-mono text-[var(--terminal-text-dim)] mb-1">
+            <div className="text-xs font-mono text-[var(--nous-fg-3)] mb-1">
               ENTITIES
             </div>
-            <div className="text-2xl font-mono font-bold text-[var(--phosphor-green)]">
+            <div className="text-2xl font-mono font-bold text-[var(--nous-sol)]">
               {entities.length}
             </div>
           </CardContent>
         </Card>
-        <Card className="border-[var(--terminal-border)] bg-[var(--terminal-surface)]">
+        <Card className="border-[var(--nous-border-1)] bg-[var(--nous-bg-2)]">
           <CardContent className="p-4">
-            <div className="text-xs font-mono text-[var(--terminal-text-dim)] mb-1">
+            <div className="text-xs font-mono text-[var(--nous-fg-3)] mb-1">
               RELATIONSHIPS
             </div>
-            <div className="text-2xl font-mono font-bold text-[var(--cyan)]">
+            <div className="text-2xl font-mono font-bold text-[var(--nous-helios)]">
               {relationships.length}
             </div>
           </CardContent>
         </Card>
-        <Card className="border-[var(--terminal-border)] bg-[var(--terminal-surface)]">
+        <Card className="border-[var(--nous-border-1)] bg-[var(--nous-bg-2)]">
           <CardContent className="p-4">
-            <div className="text-xs font-mono text-[var(--terminal-text-dim)] mb-1">
+            <div className="text-xs font-mono text-[var(--nous-fg-3)] mb-1">
               DEPTH
             </div>
-            <div className="text-2xl font-mono font-bold text-[var(--amber-gold)]">
+            <div className="text-2xl font-mono font-bold text-[var(--nous-helios)]">
               {depth}
             </div>
           </CardContent>
@@ -196,7 +196,7 @@ export const NeighborhoodExplorer: React.FC<NeighborhoodExplorerProps> = ({
 
       {/* Graph Visualization */}
       {!loading && entities.length > 0 && (
-        <Card className="border-[var(--terminal-border)] bg-[var(--terminal-surface)]">
+        <Card className="border-[var(--nous-border-1)] bg-[var(--nous-bg-2)]">
           <CardContent className="p-4">
             <EntityGraph
               entities={entities}

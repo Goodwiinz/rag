@@ -65,7 +65,7 @@ const defaultAssistants: Assistant[] = [
       'Code review',
       'Documentation',
     ],
-    color: 'from-purple-500 to-pink-500',
+    color: 'from-[var(--nous-sol)] to-[var(--nous-helios)]',
   },
   {
     id: 'writing',

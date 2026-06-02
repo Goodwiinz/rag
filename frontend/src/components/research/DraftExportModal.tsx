@@ -61,25 +61,29 @@ export const DraftExportModal: React.FC<DraftExportModalProps> = ({
         <div className="flex items-center justify-between p-4 border-b border-[#1a1a1a]">
           <div className="flex items-center gap-2">
             <Download className="h-5 w-5 text-sol" />
-            <h2 className="font-mono font-bold text-gray-200">Export Draft</h2>
+            <h2 className="font-mono font-bold text-muted-foreground">
+              Export Draft
+            </h2>
           </div>
           <button
+            aria-label="Close"
             onClick={onClose}
-            className="p-1 text-gray-500 hover:text-gray-300 transition-colors"
+            className="p-1 text-muted-foreground hover:text-foreground transition-colors"
           >
-            <X className="h-5 w-5" />
+            <X className="h-5 w-5" aria-hidden="true" />
           </button>
         </div>
 
         {/* Content */}
         <div className="p-4 space-y-4">
-          <p className="text-sm text-gray-400 font-mono">
-            Exporting: <span className="text-gray-200">{draftTitle}</span>
+          <p className="text-sm text-muted-foreground font-mono">
+            Exporting:{' '}
+            <span className="text-muted-foreground">{draftTitle}</span>
           </p>
 
           {/* Format Selection */}
           <div>
-            <label className="block text-xs text-gray-500 font-mono uppercase tracking-wide mb-2">
+            <label className="block text-xs text-muted-foreground font-mono uppercase tracking-wide mb-2">
               Export Format
             </label>
             <div className="grid grid-cols-2 gap-3">
@@ -88,24 +92,26 @@ export const DraftExportModal: React.FC<DraftExportModalProps> = ({
                 className={`flex flex-col items-center gap-2 p-4 rounded border transition-colors ${
                   format === 'markdown'
                     ? 'bg-sol/10 border-sol/50 text-sol'
-                    : 'bg-[#1a1a1a] border-[#333] text-gray-400 hover:border-[#555]'
+                    : 'bg-[#1a1a1a] border-[#333] text-muted-foreground hover:border-[#555]'
                 }`}
               >
                 <FileText className="h-6 w-6" />
                 <span className="text-sm font-mono">Markdown</span>
-                <span className="text-xs text-gray-500">.md</span>
+                <span className="text-xs text-muted-foreground">.md</span>
               </button>
               <button
                 onClick={() => setFormat('latex')}
                 className={`flex flex-col items-center gap-2 p-4 rounded border transition-colors ${
                   format === 'latex'
                     ? 'bg-sol/10 border-sol/50 text-sol'
-                    : 'bg-[#1a1a1a] border-[#333] text-gray-400 hover:border-[#555]'
+                    : 'bg-[#1a1a1a] border-[#333] text-muted-foreground hover:border-[#555]'
                 }`}
               >
                 <Code className="h-6 w-6" />
                 <span className="text-sm font-mono">LaTeX</span>
-                <span className="text-xs text-gray-500">.tex + .bib</span>
+                <span className="text-xs text-muted-foreground">
+                  .tex + .bib
+                </span>
               </button>
             </div>
           </div>
@@ -113,10 +119,10 @@ export const DraftExportModal: React.FC<DraftExportModalProps> = ({
           {/* Include Bibliography Toggle */}
           <div className="flex items-center justify-between p-3 bg-[#1a1a1a] rounded">
             <div>
-              <span className="text-sm text-gray-300 font-mono">
+              <span className="text-sm text-muted-foreground font-mono">
                 Include Bibliography
               </span>
-              <p className="text-xs text-gray-500 mt-0.5">
+              <p className="text-xs text-muted-foreground mt-0.5">
                 {format === 'latex'
                   ? 'Export references.bib file'
                   : 'Add references section'}
@@ -143,7 +149,7 @@ export const DraftExportModal: React.FC<DraftExportModalProps> = ({
           {/* Bibliography Format */}
           {includeBibliography && (
             <div>
-              <label className="block text-xs text-gray-500 font-mono uppercase tracking-wide mb-2">
+              <label className="block text-xs text-muted-foreground font-mono uppercase tracking-wide mb-2">
                 Bibliography Format
               </label>
               <select
@@ -151,7 +157,7 @@ export const DraftExportModal: React.FC<DraftExportModalProps> = ({
                 onChange={(e) =>
                   setBibliographyFormat(e.target.value as 'bibtex' | 'biblatex')
                 }
-                className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#333] rounded text-sm font-mono text-gray-300 focus:outline-none focus:border-sol"
+                className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#333] rounded text-sm font-mono text-muted-foreground focus:outline-none focus:border-sol"
               >
                 <option value="bibtex">BibTeX</option>
                 <option value="biblatex">BibLaTeX</option>
@@ -172,7 +178,7 @@ export const DraftExportModal: React.FC<DraftExportModalProps> = ({
         <div className="flex justify-end gap-3 p-4 border-t border-[#1a1a1a]">
           <button
             onClick={onClose}
-            className="px-4 py-2 text-sm font-mono text-gray-400 hover:text-gray-300 transition-colors"
+            className="px-4 py-2 text-sm font-mono text-muted-foreground hover:text-foreground transition-colors"
           >
             Cancel
           </button>

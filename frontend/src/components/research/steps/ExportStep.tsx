@@ -74,7 +74,7 @@ export const ExportStep: React.FC<ExportStepProps> = ({
         <h3 className="text-lg font-mono font-semibold text-white">
           Export Your Research
         </h3>
-        <p className="text-sm text-gray-400 mt-1">
+        <p className="text-sm text-muted-foreground mt-1">
           Export your draft, bibliography, and extraction data in various
           formats.
         </p>
@@ -85,7 +85,7 @@ export const ExportStep: React.FC<ExportStepProps> = ({
         <CheckCircle className="h-5 w-5 text-sol flex-shrink-0" />
         <div>
           <p className="text-sm font-mono text-sol">Pipeline Complete</p>
-          <p className="text-xs text-gray-400 mt-0.5">
+          <p className="text-xs text-muted-foreground mt-0.5">
             Your research workflow is finished. Choose your export format below.
           </p>
         </div>
@@ -107,7 +107,7 @@ export const ExportStep: React.FC<ExportStepProps> = ({
           </div>
           <div>
             <p className="font-mono text-sm text-white">Export Draft</p>
-            <p className="text-xs text-gray-500 mt-1">
+            <p className="text-xs text-muted-foreground mt-1">
               Markdown or LaTeX with optional bibliography
             </p>
           </div>
@@ -127,7 +127,7 @@ export const ExportStep: React.FC<ExportStepProps> = ({
           </div>
           <div>
             <p className="font-mono text-sm text-white">Export as LaTeX</p>
-            <p className="text-xs text-gray-500 mt-1">
+            <p className="text-xs text-muted-foreground mt-1">
               Full LaTeX document with BibTeX references
             </p>
           </div>
@@ -138,14 +138,14 @@ export const ExportStep: React.FC<ExportStepProps> = ({
       <div className="flex items-center justify-between pt-4 border-t border-[#1a1a1a]">
         <button
           onClick={onBack}
-          className="flex items-center gap-2 px-4 py-2 text-gray-400 hover:text-white font-mono text-sm transition-colors"
+          className="flex items-center gap-2 px-4 py-2 text-muted-foreground hover:text-white font-mono text-sm transition-colors"
         >
           <ArrowLeft className="h-4 w-4" />
           Back
         </button>
         <button
           onClick={onReset}
-          className="flex items-center gap-2 px-4 py-2 text-gray-400 border border-gray-700 rounded font-mono text-sm hover:text-white hover:border-gray-500 transition-colors"
+          className="flex items-center gap-2 px-4 py-2 text-muted-foreground border border-border rounded font-mono text-sm hover:text-white hover:border-border transition-colors"
         >
           <RotateCcw className="h-4 w-4" />
           Start New Pipeline

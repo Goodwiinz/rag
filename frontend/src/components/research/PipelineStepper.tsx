@@ -83,10 +83,10 @@ export const PipelineStepper: React.FC<PipelineStepperProps> = ({
                       : status === 'active'
                         ? 'bg-secondary/10 border-2 border-secondary text-white animate-pulse'
                         : status === 'skipped'
-                          ? 'bg-gray-800/50 border-2 border-gray-600 border-dashed text-gray-500 cursor-pointer hover:border-gray-400'
+                          ? 'bg-gray-800/50 border-2 border-border border-dashed text-muted-foreground cursor-pointer hover:border-border'
                           : status === 'invalidated'
                             ? 'bg-helios/10 border-2 border-helios text-helios cursor-pointer hover:bg-helios/20'
-                            : 'bg-gray-800/30 border-2 border-gray-700 text-gray-600'
+                            : 'bg-gray-800/30 border-2 border-border text-foreground'
                   }
                 `}
                 aria-label={`Step ${index + 1}: ${step.label} (${status})`}
@@ -108,16 +108,16 @@ export const PipelineStepper: React.FC<PipelineStepperProps> = ({
                     : status === 'active'
                       ? 'text-white'
                       : status === 'skipped'
-                        ? 'text-gray-500'
+                        ? 'text-muted-foreground'
                         : status === 'invalidated'
                           ? 'text-helios'
-                          : 'text-gray-600'
+                          : 'text-foreground'
                 }`}
               >
                 {step.label}
               </span>
               {status === 'skipped' && (
-                <span className="text-[9px] text-gray-600 font-mono">
+                <span className="text-[9px] text-foreground font-mono">
                   skipped
                 </span>
               )}
@@ -130,7 +130,7 @@ export const PipelineStepper: React.FC<PipelineStepperProps> = ({
                   status === 'completed'
                     ? 'bg-sol/40'
                     : status === 'skipped'
-                      ? 'border-t-2 border-dashed border-gray-700 bg-transparent'
+                      ? 'border-t-2 border-dashed border-border bg-transparent'
                       : status === 'invalidated'
                         ? 'bg-helios/30'
                         : 'bg-gray-800'
