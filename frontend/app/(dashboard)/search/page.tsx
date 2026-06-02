@@ -53,7 +53,7 @@ export default function SearchPage() {
     },
     {
       icon: Zap,
-      label: 'Optimization metrics',
+      label: 'Performance metrics',
       cmd: 'system performance metrics',
     },
   ];
@@ -198,23 +198,30 @@ export default function SearchPage() {
     [input, isLoading]
   );
 
+  // Run an initial query passed via ?q= (e.g. from the dashboard quick search).
+  // Read from window to avoid a useSearchParams Suspense boundary on this page.
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search).get('q');
+    if (q && q.trim()) {
+      setInput(q);
+      void runSearch(q);
+    }
+    // Mount-only: consume the param once.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   return (
-    <div className="relative flex h-full flex-col overflow-hidden">
+    <div className="relative flex h-full flex-col overflow-hidden bg-background">
       <div className="min-h-0 flex-1 overflow-y-auto">
         {messages.length === 0 && !isLoading ? (
           <div className="mx-auto flex h-full w-full max-w-4xl flex-col items-center justify-center p-8">
             <div className="mb-8 text-center">
-              <h1
-                className="mb-2 text-2xl font-semibold tracking-tight text-[var(--nous-fg-1)]"
-                style={{ fontFamily: 'var(--nous-font-ui)' }}
-              >
-                Semantic Search
+              <h1 className="mb-2 text-2xl font-semibold tracking-tight text-foreground">
+                Search your knowledge base
               </h1>
-              <p
-                className="text-sm text-[var(--nous-fg-3)]"
-                style={{ fontFamily: 'var(--nous-font-body)' }}
-              >
-                Ask questions and get synthesized answers with source citations.
+              <p className="text-sm text-muted-foreground">
+                Ask a question and get an answer drawn from your documents, with
+                sources you can open.
               </p>
             </div>
 
@@ -226,15 +233,12 @@ export default function SearchPage() {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: idx * 0.05 }}
                   onClick={() => runSearch(suggestion.cmd)}
-                  className="group flex items-center gap-3 rounded-xl border border-[var(--nous-border-1)] bg-[var(--nous-bg-2)] p-3 text-left transition-all hover:border-[var(--nous-sol)]/30"
+                  className="group flex items-center gap-3 rounded-xl border border-border bg-card p-3 text-left shadow-sm transition-colors hover:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                 >
-                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[var(--nous-bg-1)]">
-                    <suggestion.icon className="h-4 w-4 text-[var(--nous-fg-3)] transition-colors group-hover:text-[var(--nous-sol)]" />
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground transition-colors group-hover:bg-primary/10 group-hover:text-primary">
+                    <suggestion.icon aria-hidden="true" className="h-4 w-4" />
                   </div>
-                  <span
-                    className="truncate text-xs text-[var(--nous-fg-3)] transition-colors group-hover:text-[var(--nous-fg-1)]"
-                    style={{ fontFamily: 'var(--nous-font-ui)' }}
-                  >
+                  <span className="truncate text-sm text-foreground">
                     {suggestion.label}
                   </span>
                 </motion.button>
@@ -259,7 +263,7 @@ export default function SearchPage() {
                     message={message}
                     index={idx}
                     modelName={
-                      message.role === 'assistant' ? 'SEMANTIC-RAG' : undefined
+                      message.role === 'assistant' ? 'NOUS' : undefined
                     }
                     onCitationClick={(citations, clickedCitation) => {
                       setCitationPanelCitations(citations);
@@ -286,7 +290,7 @@ export default function SearchPage() {
                     }}
                     index={messages.length}
                     isTyping={true}
-                    modelName="SEMANTIC-RAG"
+                    modelName="NOUS"
                   />
                 </motion.div>
               )}

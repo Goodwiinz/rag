@@ -1,6 +1,7 @@
 'use client';
 
 import { createClient } from '@/lib/supabase/client';
+import { cn } from '@/lib/utils';
 import { motion } from 'framer-motion';
 import {
   AlertTriangle,
@@ -9,14 +10,12 @@ import {
   Eye,
   EyeOff,
   Lock,
-  RefreshCw,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import React, { useEffect, useRef, useState } from 'react';
 
 const SESSION_TIMEOUT_MS = 5000;
-const NOUS_EASE: [number, number, number, number] = [0.16, 1, 0.3, 1];
 
 export default function ResetPasswordPage() {
   const router = useRouter();
@@ -62,12 +61,12 @@ export default function ResetPasswordPage() {
     setError('');
 
     if (password !== confirmPassword) {
-      setError("Passwords don't match");
+      setError('Security keys do not match');
       return;
     }
 
     if (password.length < 8) {
-      setError('Password must be at least 8 characters');
+      setError('Security key must be at least 8 characters');
       return;
     }
 
@@ -96,40 +95,65 @@ export default function ResetPasswordPage() {
 
   if (sessionExpired) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[var(--nous-bg-1)] px-6">
+      <div
+        className="min-h-screen flex items-center justify-center px-6"
+        style={{ background: 'var(--nous-nyx)' }}
+      >
         <motion.div
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, ease: NOUS_EASE }}
+          transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
           className="w-full max-w-md"
         >
-          <div className="rounded-2xl border border-[var(--nous-border-1)] bg-[var(--nous-bg-2)] p-10 text-center">
-            <div className="mx-auto mb-6 flex h-14 w-14 items-center justify-center rounded-full border border-[var(--nous-mars)]/30 bg-[var(--nous-mars)]/10">
+          <div
+            className="rounded-2xl border p-10 text-center"
+            style={{
+              background: 'var(--nous-obsidian)',
+              borderColor: 'var(--nous-shade)',
+              boxShadow: 'var(--nous-shadow-xl)',
+            }}
+          >
+            <div
+              className="flex items-center justify-center w-14 h-14 rounded-full mx-auto mb-6"
+              style={{
+                background: 'rgba(239, 68, 68, 0.12)',
+                border: '1px solid rgba(239, 68, 68, 0.3)',
+              }}
+            >
               <AlertTriangle
-                className="h-6 w-6 text-[var(--nous-mars)]"
-                strokeWidth={1.8}
+                aria-hidden="true"
+                className="w-6 h-6"
+                style={{ color: 'var(--nous-mars)' }}
               />
             </div>
             <h1
-              className="mb-3 text-2xl font-semibold tracking-tight text-[var(--nous-fg-1)]"
-              style={{ fontFamily: 'var(--nous-font-heading)' }}
+              className="text-xl font-semibold mb-2"
+              style={{ color: 'var(--nous-ivory)' }}
             >
               This link has expired
             </h1>
             <p
-              className="mx-auto mb-7 max-w-xs text-[0.9375rem] leading-relaxed text-[var(--nous-fg-2)]"
-              style={{ fontFamily: 'var(--nous-font-body)' }}
+              className="text-sm mb-7 leading-relaxed"
+              style={{
+                color: 'var(--nous-parchment)',
+                fontFamily: 'var(--nous-font-body)',
+              }}
             >
-              The reset link is expired or invalid. Request a new one to
-              continue.
+              The reset link is no longer valid. Request a new one and we will
+              email you a fresh link.
             </p>
             <Link
               href="/forgot-password"
-              className="inline-flex items-center gap-2 rounded-xl bg-[var(--nous-sol)] px-5 py-3 text-sm font-medium text-[var(--nous-erebus)] transition-colors hover:bg-[var(--nous-helios)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/50"
-              style={{ fontFamily: 'var(--nous-font-ui)' }}
+              className="inline-flex items-center gap-2 py-2.5 px-5 rounded-lg text-sm font-medium transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+              style={{
+                background: 'var(--nous-sol)',
+                color: 'var(--nous-erebus)',
+                ['--tw-ring-color' as string]: 'var(--nous-sol)',
+                ['--tw-ring-offset-color' as string]: 'var(--nous-obsidian)',
+              }}
             >
               <span>Request a new link</span>
-              <ArrowRight className="h-4 w-4" strokeWidth={1.8} />
+              <ArrowRight aria-hidden="true" className="w-4 h-4" />
             </Link>
           </div>
         </motion.div>
@@ -139,18 +163,24 @@ export default function ResetPasswordPage() {
 
   if (!sessionReady) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[var(--nous-bg-1)] px-6">
+      <div
+        className="min-h-screen flex items-center justify-center px-6"
+        style={{ background: 'var(--nous-nyx)' }}
+      >
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
+          transition={{ duration: 0.4 }}
           className="text-center"
         >
-          <RefreshCw className="mx-auto mb-4 h-6 w-6 animate-spin text-[var(--nous-sol)]" />
           <p
-            className="text-sm text-[var(--nous-fg-3)]"
-            style={{ fontFamily: 'var(--nous-font-ui)' }}
+            className="text-sm"
+            style={{
+              color: 'var(--nous-parchment)',
+              fontFamily: 'var(--nous-font-body)',
+            }}
           >
-            Verifying recovery link…
+            Verifying your recovery session…
           </p>
         </motion.div>
       </div>
@@ -159,38 +189,63 @@ export default function ResetPasswordPage() {
 
   if (success) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[var(--nous-bg-1)] px-6">
+      <div
+        className="min-h-screen flex items-center justify-center px-6"
+        style={{ background: 'var(--nous-nyx)' }}
+      >
         <motion.div
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, ease: NOUS_EASE }}
+          transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
           className="w-full max-w-md"
         >
-          <div className="rounded-2xl border border-[var(--nous-border-1)] bg-[var(--nous-bg-2)] p-10 text-center">
-            <div className="mx-auto mb-6 flex h-14 w-14 items-center justify-center rounded-full border border-[var(--nous-sol)]/30 bg-[var(--nous-sol)]/10">
+          <div
+            className="rounded-2xl border p-10 text-center"
+            style={{
+              background: 'var(--nous-obsidian)',
+              borderColor: 'var(--nous-shade)',
+              boxShadow: 'var(--nous-shadow-xl)',
+            }}
+          >
+            <div
+              className="flex items-center justify-center w-14 h-14 rounded-full mx-auto mb-6"
+              style={{
+                background: 'var(--nous-ember)',
+                border: '1px solid rgba(212, 160, 57, 0.3)',
+              }}
+            >
               <CheckCircle
-                className="h-6 w-6 text-[var(--nous-sol)]"
-                strokeWidth={1.8}
+                aria-hidden="true"
+                className="w-6 h-6"
+                style={{ color: 'var(--nous-sol)' }}
               />
             </div>
             <h1
-              className="mb-3 text-2xl font-semibold tracking-tight text-[var(--nous-fg-1)]"
-              style={{ fontFamily: 'var(--nous-font-heading)' }}
+              className="text-xl font-semibold mb-2"
+              style={{ color: 'var(--nous-ivory)' }}
             >
-              Password updated
+              Your password has been updated
             </h1>
             <p
-              className="mb-5 text-[0.9375rem] leading-relaxed text-[var(--nous-fg-2)]"
-              style={{ fontFamily: 'var(--nous-font-body)' }}
+              className="text-sm mb-5 leading-relaxed"
+              style={{
+                color: 'var(--nous-parchment)',
+                fontFamily: 'var(--nous-font-body)',
+              }}
             >
-              Redirecting to sign in…
+              You can now sign in with your new password. Taking you to the sign
+              in page…
             </p>
-            <div className="mx-auto h-1 w-24 overflow-hidden rounded-full bg-[var(--nous-border-1)]">
+            <div
+              className="h-1 w-24 mx-auto rounded-full overflow-hidden"
+              style={{ background: 'var(--nous-shade)' }}
+            >
               <motion.div
                 initial={{ width: 0 }}
                 animate={{ width: '100%' }}
-                transition={{ duration: 3, ease: 'linear' }}
-                className="h-full bg-[var(--nous-sol)]"
+                transition={{ duration: 3 }}
+                className="h-full"
+                style={{ background: 'var(--nous-sol)' }}
               />
             </div>
           </div>
@@ -200,118 +255,154 @@ export default function ResetPasswordPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[var(--nous-bg-1)] px-6">
+    <div
+      className="min-h-screen flex items-center justify-center px-6"
+      style={{ background: 'var(--nous-nyx)' }}
+    >
       <motion.div
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4, ease: NOUS_EASE }}
+        transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
         className="w-full max-w-md"
       >
-        <div className="rounded-2xl border border-[var(--nous-border-1)] bg-[var(--nous-bg-2)] p-8">
+        <div
+          className="rounded-2xl border p-8"
+          style={{
+            background: 'var(--nous-obsidian)',
+            borderColor: 'var(--nous-shade)',
+            boxShadow: 'var(--nous-shadow-xl)',
+          }}
+        >
           <div className="mb-7">
-            <div className="mb-5 inline-flex h-11 w-11 items-center justify-center rounded-full border border-[var(--nous-border-1)] bg-[var(--nous-bg-3)]">
+            <div
+              className="inline-flex items-center justify-center w-11 h-11 rounded-full mb-4"
+              style={{
+                background: 'var(--nous-ember)',
+                border: '1px solid rgba(212, 160, 57, 0.3)',
+              }}
+            >
               <Lock
-                className="h-5 w-5 text-[var(--nous-sol)]"
-                strokeWidth={1.8}
+                aria-hidden="true"
+                className="w-5 h-5"
+                style={{ color: 'var(--nous-sol)' }}
               />
             </div>
             <h1
-              className="text-2xl font-semibold tracking-tight text-[var(--nous-fg-1)]"
-              style={{ fontFamily: 'var(--nous-font-heading)' }}
+              className="text-xl font-semibold"
+              style={{ color: 'var(--nous-ivory)' }}
             >
               Set a new password
             </h1>
             <p
-              className="mt-2 text-[0.9375rem] leading-relaxed text-[var(--nous-fg-2)]"
-              style={{ fontFamily: 'var(--nous-font-body)' }}
+              className="text-sm mt-1.5 leading-relaxed"
+              style={{
+                color: 'var(--nous-parchment)',
+                fontFamily: 'var(--nous-font-body)',
+              }}
             >
-              At least 8 characters.
+              Choose a password with at least 8 characters.
             </p>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-5" noValidate>
+          <form onSubmit={handleSubmit} className="space-y-5">
             {error && (
               <motion.div
                 role="alert"
                 initial={{ opacity: 0, y: -4 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="rounded-lg border border-[var(--nous-mars)]/30 bg-[var(--nous-mars)]/5 p-3"
+                className="rounded-lg border p-3"
+                style={{
+                  background: 'rgba(239, 68, 68, 0.08)',
+                  borderColor: 'rgba(239, 68, 68, 0.3)',
+                }}
               >
-                <p
-                  className="text-sm text-[var(--nous-mars)]"
-                  style={{ fontFamily: 'var(--nous-font-ui)' }}
-                >
+                <p className="text-sm" style={{ color: 'var(--nous-mars)' }}>
                   {error}
                 </p>
               </motion.div>
             )}
 
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <label
                 htmlFor="password"
-                className="block text-sm font-medium text-[var(--nous-fg-2)]"
-                style={{ fontFamily: 'var(--nous-font-ui)' }}
+                className="block text-sm font-medium"
+                style={{ color: 'var(--nous-parchment)' }}
               >
                 New password
               </label>
               <div className="relative">
-                <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5">
+                <div className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none">
                   <Lock
-                    className="h-4 w-4 text-[var(--nous-fg-3)]"
-                    strokeWidth={1.8}
+                    aria-hidden="true"
+                    className="w-4 h-4"
+                    style={{ color: 'var(--nous-dust)' }}
                   />
                 </div>
                 <input
                   id="password"
                   type={showPassword ? 'text' : 'password'}
                   required
-                  autoComplete="new-password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="At least 8 characters"
-                  className="w-full rounded-xl border border-[var(--nous-border-1)] bg-[var(--nous-bg-1)] py-3 pl-11 pr-12 text-sm text-[var(--nous-fg-1)] placeholder:text-[var(--nous-fg-3)]/50 outline-none transition-colors focus-visible:border-[var(--nous-sol)]/50 focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/30"
-                  style={{ fontFamily: 'var(--nous-font-ui)' }}
+                  className="w-full pl-11 pr-12 py-2.5 rounded-lg text-sm outline-none transition-colors duration-200 focus-visible:ring-2"
+                  style={{
+                    background: 'var(--nous-nyx)',
+                    border: '1px solid var(--nous-shade)',
+                    color: 'var(--nous-ivory)',
+                    ['--tw-ring-color' as string]: 'var(--nous-sol)',
+                  }}
+                  placeholder="Enter a new password"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
                   aria-label={showPassword ? 'Hide password' : 'Show password'}
-                  className="absolute inset-y-0 right-0 flex items-center pr-3.5 text-[var(--nous-fg-3)] transition-colors hover:text-[var(--nous-fg-1)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/40"
+                  aria-pressed={showPassword}
+                  className="absolute inset-y-0 right-0 flex items-center pr-3.5 transition-colors duration-200 rounded-r-lg focus-visible:outline-none focus-visible:ring-2"
+                  style={{
+                    color: 'var(--nous-dust)',
+                    ['--tw-ring-color' as string]: 'var(--nous-sol)',
+                  }}
                 >
                   {showPassword ? (
-                    <EyeOff className="h-4 w-4" strokeWidth={1.8} />
+                    <EyeOff aria-hidden="true" className="w-4 h-4" />
                   ) : (
-                    <Eye className="h-4 w-4" strokeWidth={1.8} />
+                    <Eye aria-hidden="true" className="w-4 h-4" />
                   )}
                 </button>
               </div>
             </div>
 
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <label
                 htmlFor="confirmPassword"
-                className="block text-sm font-medium text-[var(--nous-fg-2)]"
-                style={{ fontFamily: 'var(--nous-font-ui)' }}
+                className="block text-sm font-medium"
+                style={{ color: 'var(--nous-parchment)' }}
               >
-                Confirm password
+                Confirm new password
               </label>
               <div className="relative">
-                <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5">
+                <div className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none">
                   <Lock
-                    className="h-4 w-4 text-[var(--nous-fg-3)]"
-                    strokeWidth={1.8}
+                    aria-hidden="true"
+                    className="w-4 h-4"
+                    style={{ color: 'var(--nous-dust)' }}
                   />
                 </div>
                 <input
                   id="confirmPassword"
                   type="password"
                   required
-                  autoComplete="new-password"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
-                  placeholder="Repeat the password"
-                  className="w-full rounded-xl border border-[var(--nous-border-1)] bg-[var(--nous-bg-1)] py-3 pl-11 pr-4 text-sm text-[var(--nous-fg-1)] placeholder:text-[var(--nous-fg-3)]/50 outline-none transition-colors focus-visible:border-[var(--nous-sol)]/50 focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/30"
-                  style={{ fontFamily: 'var(--nous-font-ui)' }}
+                  className="w-full pl-11 pr-4 py-2.5 rounded-lg text-sm outline-none transition-colors duration-200 focus-visible:ring-2"
+                  style={{
+                    background: 'var(--nous-nyx)',
+                    border: '1px solid var(--nous-shade)',
+                    color: 'var(--nous-ivory)',
+                    ['--tw-ring-color' as string]: 'var(--nous-sol)',
+                  }}
+                  placeholder="Re-enter your new password"
                 />
               </div>
             </div>
@@ -319,34 +410,40 @@ export default function ResetPasswordPage() {
             <button
               type="submit"
               disabled={isSubmitting}
-              className="group flex w-full items-center justify-center gap-2 rounded-xl bg-[var(--nous-sol)] px-4 py-3 text-sm font-medium text-[var(--nous-erebus)] transition-colors hover:bg-[var(--nous-helios)] disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/50"
-              style={{ fontFamily: 'var(--nous-font-ui)' }}
+              className={cn(
+                'w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg text-sm font-medium',
+                'transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2',
+                'disabled:opacity-50 disabled:cursor-not-allowed'
+              )}
+              style={{
+                background: 'var(--nous-sol)',
+                color: 'var(--nous-erebus)',
+                ['--tw-ring-color' as string]: 'var(--nous-sol)',
+                ['--tw-ring-offset-color' as string]: 'var(--nous-obsidian)',
+              }}
             >
               {isSubmitting ? (
-                <>
-                  <RefreshCw
-                    className="h-4 w-4 animate-spin"
-                    strokeWidth={1.8}
-                  />
-                  <span>Updating…</span>
-                </>
+                <span>Updating…</span>
               ) : (
                 <>
                   <span>Update password</span>
-                  <ArrowRight
-                    className="h-4 w-4 transition-transform group-hover:translate-x-0.5"
-                    strokeWidth={1.8}
-                  />
+                  <ArrowRight aria-hidden="true" className="w-4 h-4" />
                 </>
               )}
             </button>
           </form>
 
-          <div className="mt-7 border-t border-[var(--nous-border-1)] pt-5 text-center">
+          <div
+            className="mt-7 pt-6 border-t text-center"
+            style={{ borderColor: 'var(--nous-shade)' }}
+          >
             <Link
               href="/login"
-              className="inline-flex items-center gap-2 text-sm text-[var(--nous-fg-3)] transition-colors hover:text-[var(--nous-fg-1)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/40 rounded"
-              style={{ fontFamily: 'var(--nous-font-ui)' }}
+              className="text-sm transition-colors duration-200 rounded focus-visible:outline-none focus-visible:ring-2"
+              style={{
+                color: 'var(--nous-sol)',
+                ['--tw-ring-color' as string]: 'var(--nous-sol)',
+              }}
             >
               Back to sign in
             </Link>
