@@ -93,6 +93,15 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/agent", tags=["agent"])
 
 
+def _validate_confirmable_job(job: dict, current_user: User) -> None:
+    """Raise the public API error for jobs the caller cannot confirm."""
+    job_user_id = job.get("user_id")
+    if not job_user_id or job_user_id != str(current_user.id):
+        raise HTTPException(status_code=404, detail="Job not found")
+    if job.get("status") != "awaiting_confirmation":
+        raise HTTPException(status_code=400, detail="Job is not awaiting confirmation")
+
+
 # ---------------------------------------------------------------------------
 # Schemas
 # ---------------------------------------------------------------------------
@@ -307,16 +316,40 @@ async def confirm_agent_action(
     db: AsyncSession = Depends(get_db),
 ):
     """Confirm or deny a pending agent action (human-in-the-loop)."""
-    # Atomic check-and-update to prevent TOCTOU race
+    job = None
+
+    # Atomic check-and-update to prevent TOCTOU race on the local hot cache.
     with _jobs_lock:
         job = _jobs.get(job_id)
-        if not job:
+        if job is not None:
+            _validate_confirmable_job(job, current_user)
+            job["status"] = "running"
+
+    # L1 can evict old entries before Redis does (max 500 entries), so fall
+    # back to the shared async store and then re-check under the lock.
+    if job is None:
+        from src.services.agent.job_store import get_job as _get_job_async_local
+        from src.services.agent.job_store import set_job as _set_job_async_local
+
+        redis_job = await _get_job_async_local(job_id)
+        if not redis_job:
             raise HTTPException(status_code=404, detail="Job not found")
-        if job.get("user_id") and job["user_id"] != str(current_user.id):
-            raise HTTPException(status_code=404, detail="Job not found")
-        if job.get("status") != "awaiting_confirmation":
-            raise HTTPException(status_code=400, detail="Job is not awaiting confirmation")
-        job["status"] = "running"
+
+        persist_after_lock = False
+        with _jobs_lock:
+            job = _jobs.get(job_id)
+            if job is None:
+                _validate_confirmable_job(redis_job, current_user)
+                redis_job["status"] = "running"
+                _jobs[job_id] = redis_job
+                job = redis_job
+                persist_after_lock = True
+            else:
+                _validate_confirmable_job(job, current_user)
+                job["status"] = "running"
+
+        if persist_after_lock:
+            await _set_job_async_local(job_id, job)
 
     # Resume the graph with the user's decision
     background_tasks.add_task(
