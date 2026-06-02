@@ -56,7 +56,7 @@ describe('CliAuthPage', () => {
     render(<CliAuthPage />);
 
     expect(
-      await screen.findByRole('button', { name: /approve cli login/i })
+      await screen.findByRole('button', { name: /approve/i })
     ).toBeInTheDocument();
   });
 
@@ -67,7 +67,7 @@ describe('CliAuthPage', () => {
     render(<CliAuthPage />);
 
     fireEvent.click(
-      await screen.findByRole('button', { name: /approve cli login/i })
+      await screen.findByRole('button', { name: /approve/i })
     );
 
     await waitFor(() =>
@@ -77,7 +77,7 @@ describe('CliAuthPage', () => {
       })
     );
     expect(
-      await screen.findByText(/cli connected, return to terminal/i)
+      await screen.findByText(/CLI connected\. You can return to your terminal\./i)
     ).toBeInTheDocument();
   });
 });
