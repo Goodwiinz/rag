@@ -778,11 +778,12 @@ async def _resume_agent_graph(
                 }
             }
 
-            # Verify thread ownership before resuming
+            # Verify thread ownership before resuming. Checkpoints without an
+            # owner predate the ownership field and cannot be safely resumed.
             snapshot = await graph.aget_state(config)
             if snapshot and snapshot.values:
-                snapshot_user_id = snapshot.values.get("user_id", "")
-                if snapshot_user_id and snapshot_user_id != str(current_user.id):
+                snapshot_user_id = snapshot.values.get("user_id")
+                if not snapshot_user_id or snapshot_user_id != str(current_user.id):
                     logger.warning(
                         "HITL ownership mismatch: job %s thread owned by %s, requested by %s",
                         job_id,

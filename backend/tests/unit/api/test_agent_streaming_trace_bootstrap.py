@@ -83,7 +83,7 @@ async def test_stream_confirm_event_generator_bootstraps_langsmith_before_compil
     current_user = Mock(id="user-1", organization_id="org-1")
 
     current_snapshot = SimpleNamespace(
-        values={"page_context": {"type": "general"}},
+        values={"page_context": {"type": "general"}, "user_id": "user-1"},
         tasks=(),
     )
 
