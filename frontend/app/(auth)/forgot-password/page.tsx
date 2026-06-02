@@ -1,7 +1,6 @@
 'use client';
 
 import { createClient } from '@/lib/supabase/client';
-import { cn } from '@/lib/utils';
 import { motion } from 'framer-motion';
 import { ArrowLeft, ArrowRight, Lock, Mail, RefreshCw } from 'lucide-react';
 import Link from 'next/link';
@@ -48,30 +47,41 @@ export default function ForgotPasswordPage() {
 
   if (sent) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[var(--nous-bg-1)]">
+      <div className="flex min-h-screen items-center justify-center bg-[var(--nous-bg-1)] px-6">
         <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="max-w-md w-full mx-6"
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+          className="w-full max-w-md"
         >
           <div className="rounded-2xl border border-[var(--nous-border-1)] bg-[var(--nous-bg-2)] p-10 text-center">
-            <div className="flex items-center justify-center w-16 h-16 rounded-full bg-[var(--nous-sol)]/10 border border-[var(--nous-sol)]/30 mx-auto mb-6">
-              <Mail className="w-8 h-8 text-[var(--nous-sol)]" />
+            <div className="mx-auto mb-6 flex h-14 w-14 items-center justify-center rounded-full border border-[var(--nous-sol)]/30 bg-[var(--nous-sol)]/10">
+              <Mail
+                className="h-6 w-6 text-[var(--nous-sol)]"
+                strokeWidth={1.8}
+              />
             </div>
-            <h2 className="text-xl font-mono font-bold text-[var(--nous-fg-1)] uppercase tracking-[0.15em] mb-3">
-              Reset Link Sent
-            </h2>
-            <p className="text-sm font-mono text-[var(--nous-fg-3)] mb-8 leading-relaxed">
-              We sent a password reset link to{' '}
-              <span className="text-[var(--nous-sol)]">{email}</span>.
-              Check your inbox and follow the instructions.
+            <h1
+              className="mb-3 text-2xl font-semibold tracking-tight text-[var(--nous-fg-1)]"
+              style={{ fontFamily: 'var(--nous-font-heading)' }}
+            >
+              Check your email
+            </h1>
+            <p
+              className="mx-auto mb-8 max-w-xs text-[0.9375rem] leading-relaxed text-[var(--nous-fg-2)]"
+              style={{ fontFamily: 'var(--nous-font-body)' }}
+            >
+              We sent a reset link to{' '}
+              <span className="text-[var(--nous-fg-1)]">{email}</span>. Follow
+              the link to choose a new password.
             </p>
             <Link
               href="/login"
-              className="inline-flex items-center gap-2 text-[10px] font-mono text-[var(--nous-fg-3)] uppercase tracking-widest hover:text-[var(--nous-sol)] transition-colors"
+              className="inline-flex items-center gap-2 text-sm text-[var(--nous-fg-3)] transition-colors hover:text-[var(--nous-fg-1)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/40 rounded"
+              style={{ fontFamily: 'var(--nous-font-ui)' }}
             >
-              <ArrowLeft className="w-3 h-3" />
-              Return to Access Terminal
+              <ArrowLeft className="h-4 w-4" strokeWidth={1.8} />
+              Back to sign in
             </Link>
           </div>
         </motion.div>
@@ -80,69 +90,78 @@ export default function ForgotPasswordPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[var(--nous-bg-1)] relative overflow-hidden">
-      <div className="absolute inset-0 opacity-[0.02] pointer-events-none">
-        <div
-          className="h-full w-full"
-          style={{
-            backgroundImage: `linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)`,
-            backgroundSize: '40px 40px',
-          }}
-        />
-      </div>
-
+    <div className="flex min-h-screen items-center justify-center bg-[var(--nous-bg-1)] px-6">
       <motion.div
-        initial={{ opacity: 0, scale: 0.98 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ duration: 0.5 }}
-        className="w-full max-w-md mx-6"
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+        className="w-full max-w-md"
       >
-        <div className="rounded-2xl border border-[var(--nous-border-1)] bg-[var(--nous-bg-2)] p-8 shadow-2xl shadow-black/50">
-          <div className="text-center mb-8">
-            <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-[var(--nous-bg-3)] border border-[var(--nous-border-1)] mb-4">
-              <Lock className="w-5 h-5 text-[var(--nous-sol)]" />
+        <div className="rounded-2xl border border-[var(--nous-border-1)] bg-[var(--nous-bg-2)] p-8">
+          <div className="mb-7">
+            <div className="mb-5 inline-flex h-11 w-11 items-center justify-center rounded-full border border-[var(--nous-border-1)] bg-[var(--nous-bg-3)]">
+              <Lock
+                className="h-5 w-5 text-[var(--nous-sol)]"
+                strokeWidth={1.8}
+              />
             </div>
-            <h2 className="text-xl font-mono font-bold text-[var(--nous-fg-1)] uppercase tracking-[0.2em]">
-              Key Recovery
-            </h2>
-            <p className="text-[10px] font-mono text-[var(--nous-fg-3)] uppercase tracking-wider mt-2">
-              Enter your identity protocol to receive a reset link
+            <h1
+              className="text-2xl font-semibold tracking-tight text-[var(--nous-fg-1)]"
+              style={{ fontFamily: 'var(--nous-font-heading)' }}
+            >
+              Reset your password
+            </h1>
+            <p
+              className="mt-2 text-[0.9375rem] leading-relaxed text-[var(--nous-fg-2)]"
+              style={{ fontFamily: 'var(--nous-font-body)' }}
+            >
+              Enter your email and we&apos;ll send a reset link.
             </p>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-5">
+          <form onSubmit={handleSubmit} className="space-y-5" noValidate>
             {error && (
               <motion.div
-                initial={{ opacity: 0, y: -5 }}
+                role="alert"
+                initial={{ opacity: 0, y: -4 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="rounded-lg border border-red-500/30 bg-red-500/5 p-3"
+                className="rounded-lg border border-[var(--nous-mars)]/30 bg-[var(--nous-mars)]/5 p-3"
               >
-                <p className="text-[10px] font-mono text-red-400 font-bold uppercase tracking-tighter">
-                  Recovery Error: {error}
+                <p
+                  className="text-sm text-[var(--nous-mars)]"
+                  style={{ fontFamily: 'var(--nous-font-ui)' }}
+                >
+                  {error}
                 </p>
               </motion.div>
             )}
 
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               <label
                 htmlFor="email"
-                className="block text-[10px] font-mono text-[var(--nous-fg-3)] uppercase tracking-[0.2em] font-bold pl-1"
+                className="block text-sm font-medium text-[var(--nous-fg-2)]"
+                style={{ fontFamily: 'var(--nous-font-ui)' }}
               >
-                Identity Protocol
+                Email
               </label>
               <div className="relative">
-                <div className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none">
-                  <Mail className="w-4 h-4 text-[var(--nous-fg-3)]" />
+                <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5">
+                  <Mail
+                    className="h-4 w-4 text-[var(--nous-fg-3)]"
+                    strokeWidth={1.8}
+                  />
                 </div>
                 <input
                   id="email"
                   name="email"
                   type="email"
                   required
+                  autoComplete="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full pl-11 pr-4 py-3 rounded-xl bg-[var(--nous-bg-1)] border border-[var(--nous-border-1)] font-mono text-sm text-[var(--nous-fg-1)] placeholder:text-[var(--nous-fg-3)]/30 focus:border-[var(--nous-sol)]/50 focus:ring-0 outline-none transition-all"
-                  placeholder="UID@DOMAIN.COM"
+                  placeholder="you@example.com"
+                  className="w-full rounded-xl border border-[var(--nous-border-1)] bg-[var(--nous-bg-1)] py-3 pl-11 pr-4 text-sm text-[var(--nous-fg-1)] placeholder:text-[var(--nous-fg-3)]/50 outline-none transition-colors focus-visible:border-[var(--nous-sol)]/50 focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/30"
+                  style={{ fontFamily: 'var(--nous-font-ui)' }}
                 />
               </div>
             </div>
@@ -150,34 +169,37 @@ export default function ForgotPasswordPage() {
             <button
               type="submit"
               disabled={isSubmitting}
-              className={cn(
-                'group w-full flex items-center justify-center gap-3 py-3.5 px-4 rounded-xl font-mono text-xs font-bold uppercase tracking-[0.2em]',
-                'bg-[var(--nous-sol)] text-[var(--nous-bg-1)]',
-                'hover:shadow-[0_0_25px_var(--nous-sol-glow)] hover:scale-[1.02] active:scale-[0.98]',
-                'disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300'
-              )}
+              className="group flex w-full items-center justify-center gap-2 rounded-xl bg-[var(--nous-sol)] px-4 py-3 text-sm font-medium text-[var(--nous-erebus)] transition-colors hover:bg-[var(--nous-helios)] disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/50"
+              style={{ fontFamily: 'var(--nous-font-ui)' }}
             >
               {isSubmitting ? (
                 <>
-                  <RefreshCw className="w-4 h-4 animate-spin" />
-                  <span>Transmitting...</span>
+                  <RefreshCw
+                    className="h-4 w-4 animate-spin"
+                    strokeWidth={1.8}
+                  />
+                  <span>Sending…</span>
                 </>
               ) : (
                 <>
-                  <span>Send Reset Link</span>
-                  <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                  <span>Send reset link</span>
+                  <ArrowRight
+                    className="h-4 w-4 transition-transform group-hover:translate-x-0.5"
+                    strokeWidth={1.8}
+                  />
                 </>
               )}
             </button>
           </form>
 
-          <div className="mt-8 pt-6 border-t border-[var(--nous-border-1)] text-center">
+          <div className="mt-7 border-t border-[var(--nous-border-1)] pt-5 text-center">
             <Link
               href="/login"
-              className="inline-flex items-center gap-2 text-[10px] font-mono text-[var(--nous-fg-3)] uppercase tracking-widest hover:text-[var(--nous-sol)] transition-colors"
+              className="inline-flex items-center gap-2 text-sm text-[var(--nous-fg-3)] transition-colors hover:text-[var(--nous-fg-1)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/40 rounded"
+              style={{ fontFamily: 'var(--nous-font-ui)' }}
             >
-              <ArrowLeft className="w-3 h-3" />
-              Return to Access Terminal
+              <ArrowLeft className="h-4 w-4" strokeWidth={1.8} />
+              Back to sign in
             </Link>
           </div>
         </div>
