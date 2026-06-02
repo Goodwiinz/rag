@@ -16,9 +16,9 @@ export default function ChatConversationPage() {
   return (
     <div className="flex-1 flex items-center justify-center">
       <div className="text-center">
-        <div className="w-8 h-8 border-2 border-[var(--phosphor-green)] border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+        <div className="w-8 h-8 border-2 border-[var(--nous-sol)] border-t-transparent rounded-full animate-spin mx-auto mb-4" />
         <p
-          className="text-sm text-[var(--terminal-text-muted)]"
+          className="text-sm text-[var(--nous-fg-3)]"
           style={{ fontFamily: "'JetBrains Mono', monospace" }}
         >
           Loading conversation...

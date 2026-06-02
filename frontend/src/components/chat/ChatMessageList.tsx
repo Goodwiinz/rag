@@ -85,7 +85,7 @@ export const ChatMessageList = React.memo(function ChatMessageList({
       <div
         ref={scrollContainerRef}
         onScroll={handleScroll}
-        className="h-full overflow-y-auto overflow-x-hidden terminal-scrollbar"
+        className="h-full overflow-y-auto overflow-x-hidden nous-scrollbar"
       >
         <div className="max-w-4xl mx-auto pt-3 sm:pt-4 px-2 sm:px-4 pb-4 sm:pb-6">
           {messages.map((message, index) => {

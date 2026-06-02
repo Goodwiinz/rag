@@ -45,14 +45,14 @@ export const APIKeyManagementPage = (): ReactElement => {
     <div className="space-y-8 px-6 pb-20 pt-6 md:space-y-10 md:px-10 md:pb-24 md:pt-8 lg:px-12">
       <header className="space-y-4">
         <div className="space-y-2">
-          <p className="text-xs font-mono uppercase tracking-[0.28em] text-[var(--phosphor-green)]">
+          <p className="text-xs font-mono uppercase tracking-[0.28em] text-[var(--nous-sol)]">
             DEVELOPER_ACCESS
           </p>
           <div className="space-y-3">
-            <h1 className="text-3xl font-semibold text-[var(--terminal-text)]">
+            <h1 className="text-3xl font-semibold text-[var(--nous-fg-1)]">
               API Key Management
             </h1>
-            <p className="max-w-3xl text-sm text-[var(--terminal-text-dim)]">
+            <p className="max-w-3xl text-sm text-[var(--nous-fg-3)]">
               Review credentials, provider readiness, and token hygiene for
               model and integration access.
             </p>
@@ -63,7 +63,7 @@ export const APIKeyManagementPage = (): ReactElement => {
           <Button
             asChild
             variant="outline"
-            className="border-[var(--terminal-border)] bg-transparent text-[var(--terminal-text)] hover:bg-[var(--terminal-bg)] hover:text-[var(--terminal-text)]"
+            className="border-[var(--nous-border-1)] bg-transparent text-[var(--nous-fg-1)] hover:bg-[var(--nous-bg-1)] hover:text-[var(--nous-fg-1)]"
           >
             <Link href="/settings">
               Return to Settings Overview
@@ -72,7 +72,7 @@ export const APIKeyManagementPage = (): ReactElement => {
           </Button>
           <Button
             variant="outline"
-            className="border-[var(--terminal-border)] bg-transparent text-[var(--terminal-text)] hover:bg-[var(--terminal-bg)] hover:text-[var(--terminal-text)]"
+            className="border-[var(--nous-border-1)] bg-transparent text-[var(--nous-fg-1)] hover:bg-[var(--nous-bg-1)] hover:text-[var(--nous-fg-1)]"
           >
             Create Token
           </Button>
@@ -86,17 +86,17 @@ export const APIKeyManagementPage = (): ReactElement => {
           return (
             <Card
               key={card.title}
-              className="rounded-2xl border-[var(--terminal-border)] bg-[var(--terminal-surface)] shadow-none"
+              className="rounded-2xl border-[var(--nous-border-1)] bg-[var(--nous-bg-2)] shadow-none"
             >
               <CardHeader className="space-y-4">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--phosphor-green-glow)] text-[var(--phosphor-green)]">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--nous-sol-glow)] text-[var(--nous-sol)]">
                   <Icon className="h-5 w-5" />
                 </div>
                 <div className="space-y-2">
-                  <CardTitle className="text-xl text-[var(--terminal-text)]">
+                  <CardTitle className="text-xl text-[var(--nous-fg-1)]">
                     {card.title}
                   </CardTitle>
-                  <p className="text-sm text-[var(--terminal-text-dim)]">
+                  <p className="text-sm text-[var(--nous-fg-3)]">
                     {card.description}
                   </p>
                 </div>
@@ -105,7 +105,7 @@ export const APIKeyManagementPage = (): ReactElement => {
                 {card.details.map((detail) => (
                   <p
                     key={detail}
-                    className="text-sm text-[var(--terminal-text)]"
+                    className="text-sm text-[var(--nous-fg-1)]"
                   >
                     {detail}
                   </p>

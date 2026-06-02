@@ -38,10 +38,10 @@ interface EvidenceMapProps {
 // --------------------------------------------------------------------------
 
 const NODE_COLORS: Record<EvidenceNode['type'], string> = {
-  research_question: 'var(--cyan)',
-  sub_question: 'var(--cyan)',
-  evidence: 'var(--phosphor-green)',
-  source: 'var(--amber-gold)',
+  research_question: 'var(--nous-helios)',
+  sub_question: 'var(--nous-helios)',
+  evidence: 'var(--nous-sol)',
+  source: 'var(--nous-helios)',
 };
 
 const NODE_RADII: Record<EvidenceNode['type'], number> = {

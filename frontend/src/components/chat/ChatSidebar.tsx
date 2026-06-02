@@ -301,10 +301,11 @@ export const ChatSidebar = memo(function ChatSidebar({
         ) : (
           <button
             onClick={() => setSelectMode(true)}
+            aria-label="Select conversations"
             className="ml-auto inline-flex items-center gap-1 px-[9px] py-[3px] rounded-full border border-[var(--nous-border-1)] dark:border-[var(--nous-shade)] text-[10px] text-[var(--nous-fg-3)] hover:border-[var(--nous-fg-3)] transition-all shrink-0"
             style={{ fontFamily: 'var(--nous-font-mono)' }}
           >
-            <CheckSquare className="w-2.5 h-2.5" />
+            <CheckSquare className="w-2.5 h-2.5" aria-hidden="true" />
           </button>
         )}
       </div>

@@ -98,7 +98,7 @@ const SETTINGS_CARDS: SettingsCardItem[] = [
     href: '#personal-preferences',
     cta: 'Jump to personal controls',
     icon: UserCircle2,
-    accent: 'bg-[var(--phosphor-green-glow)] text-[var(--phosphor-green)]',
+    accent: 'bg-[var(--nous-sol-glow)] text-[var(--nous-sol)]',
   },
   {
     title: 'Workspace & Access',
@@ -199,55 +199,55 @@ export default function SettingsPage(): ReactElement {
     <div className="space-y-8 px-6 pb-20 pt-6 md:space-y-10 md:px-10 md:pb-24 md:pt-8 lg:px-12">
       <header className="space-y-3">
         <div className="space-y-3">
-          <h1 className="text-3xl font-semibold text-[var(--terminal-text)]">
+          <h1 className="text-3xl font-semibold text-[var(--nous-fg-1)]">
             Settings
           </h1>
-          <p className="max-w-3xl text-sm text-[var(--terminal-text-dim)]">
+          <p className="max-w-3xl text-sm text-[var(--nous-fg-3)]">
             Manage your account, workspace governance, model access, and
             platform controls.
           </p>
         </div>
 
-        <Card className="overflow-hidden rounded-2xl border-[var(--terminal-border)] bg-[var(--terminal-surface)] shadow-none">
+        <Card className="overflow-hidden rounded-2xl border-[var(--nous-border-1)] bg-[var(--nous-bg-2)] shadow-none">
           <CardContent className="grid gap-4 p-5 sm:p-6 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
             <div className="flex items-start gap-3">
-              <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-[var(--terminal-border)] bg-[linear-gradient(180deg,rgba(212,160,57,0.16),rgba(212,160,57,0.04))] text-lg font-semibold text-[var(--terminal-text)]">
+              <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-[var(--nous-border-1)] bg-[linear-gradient(180deg,rgba(212,160,57,0.16),rgba(212,160,57,0.04))] text-lg font-semibold text-[var(--nous-fg-1)]">
                 {operatorInitial}
               </div>
               <div className="space-y-2">
                 <div className="space-y-1.5">
                   <div className="flex flex-wrap items-center gap-2">
-                    <p className="text-lg font-semibold text-[var(--terminal-text)]">
+                    <p className="text-lg font-semibold text-[var(--nous-fg-1)]">
                       {operatorName}
                     </p>
-                    <span className="inline-flex items-center rounded-full border border-[var(--terminal-border)] bg-[var(--terminal-bg)] px-2.5 py-1 text-xs font-medium text-[var(--terminal-text)]">
+                    <span className="inline-flex items-center rounded-full border border-[var(--nous-border-1)] bg-[var(--nous-bg-1)] px-2.5 py-1 text-xs font-medium text-[var(--nous-fg-1)]">
                       Administrator
                     </span>
                   </div>
-                  <p className="text-sm text-[var(--terminal-text-dim)]">
+                  <p className="text-sm text-[var(--nous-fg-3)]">
                     {primaryEmail}
                   </p>
                 </div>
               </div>
             </div>
 
-            <div className="grid gap-3 rounded-2xl border border-[var(--terminal-border)] bg-[var(--terminal-bg)] p-3.5 sm:p-4">
+            <div className="grid gap-3 rounded-2xl border border-[var(--nous-border-1)] bg-[var(--nous-bg-1)] p-3.5 sm:p-4">
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="space-y-1">
-                  <p className="text-xs font-mono uppercase tracking-[0.2em] text-[var(--terminal-text-dim)]">
+                  <p className="text-xs font-mono uppercase tracking-[0.2em] text-[var(--nous-fg-3)]">
                     Last sign-in
                   </p>
-                  <div className="flex items-center gap-2 text-sm text-[var(--terminal-text)]">
-                    <Clock3 className="h-4 w-4 text-[var(--phosphor-green)]" />
+                  <div className="flex items-center gap-2 text-sm text-[var(--nous-fg-1)]">
+                    <Clock3 className="h-4 w-4 text-[var(--nous-sol)]" />
                     Today at 09:10
                   </div>
                 </div>
                 <div className="space-y-1">
-                  <p className="text-xs font-mono uppercase tracking-[0.2em] text-[var(--terminal-text-dim)]">
+                  <p className="text-xs font-mono uppercase tracking-[0.2em] text-[var(--nous-fg-3)]">
                     Session trust
                   </p>
-                  <div className="flex items-center gap-2 text-sm text-[var(--terminal-text)]">
-                    <BadgeCheck className="h-4 w-4 text-[var(--phosphor-green)]" />
+                  <div className="flex items-center gap-2 text-sm text-[var(--nous-fg-1)]">
+                    <BadgeCheck className="h-4 w-4 text-[var(--nous-sol)]" />
                     Verified operator context
                   </div>
                 </div>
@@ -257,7 +257,7 @@ export default function SettingsPage(): ReactElement {
                 {TRUST_ITEMS.map((item) => (
                   <span
                     key={item}
-                    className="inline-flex items-center rounded-full border border-[var(--terminal-border)] bg-[var(--terminal-surface)] px-3 py-1 text-xs font-medium text-[var(--terminal-text)]"
+                    className="inline-flex items-center rounded-full border border-[var(--nous-border-1)] bg-[var(--nous-bg-2)] px-3 py-1 text-xs font-medium text-[var(--nous-fg-1)]"
                   >
                     {item}
                   </span>
@@ -270,10 +270,10 @@ export default function SettingsPage(): ReactElement {
 
       <section className="space-y-3" aria-labelledby="settings-status-title">
         <div className="flex items-center gap-2">
-          <Sparkles className="h-4 w-4 text-[var(--phosphor-green)]" />
+          <Sparkles className="h-4 w-4 text-[var(--nous-sol)]" />
           <h2
             id="settings-status-title"
-            className="text-sm font-mono uppercase tracking-[0.24em] text-[var(--phosphor-green)]"
+            className="text-sm font-mono uppercase tracking-[0.24em] text-[var(--nous-sol)]"
           >
             OPERATING_STATUS
           </h2>
@@ -285,24 +285,24 @@ export default function SettingsPage(): ReactElement {
             return (
               <Card
                 key={item.label}
-                className="rounded-2xl border-[var(--terminal-border)] bg-[var(--terminal-surface)] shadow-none"
+                className="rounded-2xl border-[var(--nous-border-1)] bg-[var(--nous-bg-2)] shadow-none"
               >
                 <CardContent className="space-y-2 p-4">
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-2">
-                      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--terminal-bg)] text-[var(--phosphor-green)]">
+                      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--nous-bg-1)] text-[var(--nous-sol)]">
                         <Icon className="h-4 w-4" />
                       </div>
-                      <p className="text-xs font-mono uppercase tracking-[0.24em] text-[var(--terminal-text-dim)]">
+                      <p className="text-xs font-mono uppercase tracking-[0.24em] text-[var(--nous-fg-3)]">
                         {item.label}
                       </p>
                     </div>
-                    <span className="h-2 w-2 rounded-full bg-[var(--phosphor-green)]" />
+                    <span className="h-2 w-2 rounded-full bg-[var(--nous-sol)]" />
                   </div>
-                  <p className="text-xl font-semibold leading-tight text-[var(--terminal-text)]">
+                  <p className="text-xl font-semibold leading-tight text-[var(--nous-fg-1)]">
                     {item.value}
                   </p>
-                  <p className="text-sm text-[var(--terminal-text-dim)]">
+                  <p className="text-sm text-[var(--nous-fg-3)]">
                     {item.hint}
                   </p>
                 </CardContent>
@@ -314,10 +314,10 @@ export default function SettingsPage(): ReactElement {
 
       <section className="space-y-3" aria-labelledby="settings-areas-title">
         <div className="flex items-center gap-2">
-          <SlidersHorizontal className="h-4 w-4 text-[var(--phosphor-green)]" />
+          <SlidersHorizontal className="h-4 w-4 text-[var(--nous-sol)]" />
           <h2
             id="settings-areas-title"
-            className="text-sm font-mono uppercase tracking-[0.24em] text-[var(--phosphor-green)]"
+            className="text-sm font-mono uppercase tracking-[0.24em] text-[var(--nous-sol)]"
           >
             SETTINGS_AREAS
           </h2>
@@ -326,7 +326,7 @@ export default function SettingsPage(): ReactElement {
           {SETTINGS_CARDS.map((item) => {
             const Icon = item.icon;
             const actionClassName =
-              'inline-flex items-center gap-2 text-sm font-medium text-[var(--terminal-text)] transition-colors hover:text-[var(--phosphor-green)]';
+              'inline-flex items-center gap-2 text-sm font-medium text-[var(--nous-fg-1)] transition-colors hover:text-[var(--nous-sol)]';
             const actionContent = (
               <>
                 {item.cta}
@@ -337,7 +337,7 @@ export default function SettingsPage(): ReactElement {
             return (
               <Card
                 key={item.title}
-                className="rounded-2xl border-[var(--terminal-border)] bg-[var(--terminal-surface)] shadow-none"
+                className="rounded-2xl border-[var(--nous-border-1)] bg-[var(--nous-bg-2)] shadow-none"
               >
                 <CardHeader className="space-y-3 p-5 pb-2">
                   <div className="flex items-center justify-between gap-3">
@@ -348,19 +348,19 @@ export default function SettingsPage(): ReactElement {
                     </div>
                   </div>
                   <div className="space-y-2">
-                    <CardTitle className="text-xl text-[var(--terminal-text)]">
+                    <CardTitle className="text-xl text-[var(--nous-fg-1)]">
                       {item.title}
                     </CardTitle>
-                    <p className="text-sm leading-6 text-[var(--terminal-text-dim)]">
+                    <p className="text-sm leading-6 text-[var(--nous-fg-3)]">
                       {item.description}
                     </p>
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-3 p-5 pt-0">
-                  <p className="text-sm leading-6 text-[var(--terminal-text)]">
+                  <p className="text-sm leading-6 text-[var(--nous-fg-1)]">
                     {item.summary}
                   </p>
-                  <div className="border-t border-[var(--terminal-border)] pt-2">
+                  <div className="border-t border-[var(--nous-border-1)] pt-2">
                     {item.href.startsWith('#') ? (
                       <a href={item.href} className={actionClassName}>
                         {actionContent}
@@ -383,22 +383,22 @@ export default function SettingsPage(): ReactElement {
         className="scroll-mt-24"
         aria-labelledby="personal-preferences-title"
       >
-        <Card className="rounded-2xl border-[var(--terminal-border)] bg-[var(--terminal-surface)] shadow-none">
+        <Card className="rounded-2xl border-[var(--nous-border-1)] bg-[var(--nous-bg-2)] shadow-none">
           <CardHeader className="space-y-2 p-5 pb-2">
             <div className="flex items-center gap-2">
-              <Bell className="h-4 w-4 text-[var(--phosphor-green)]" />
-              <p className="text-xs font-mono uppercase tracking-[0.24em] text-[var(--phosphor-green)]">
+              <Bell className="h-4 w-4 text-[var(--nous-sol)]" />
+              <p className="text-xs font-mono uppercase tracking-[0.24em] text-[var(--nous-sol)]">
                 PERSONAL_CONTROLS
               </p>
             </div>
             <div className="space-y-2">
               <CardTitle
                 id="personal-preferences-title"
-                className="text-2xl text-[var(--terminal-text)]"
+                className="text-2xl text-[var(--nous-fg-1)]"
               >
                 Personal Preferences
               </CardTitle>
-              <p className="max-w-3xl text-sm text-[var(--terminal-text-dim)]">
+              <p className="max-w-3xl text-sm text-[var(--nous-fg-3)]">
                 Keep quick personal defaults on the overview page. These
                 controls stay local in this pass and do not write to backend
                 settings yet.
@@ -409,17 +409,17 @@ export default function SettingsPage(): ReactElement {
             {PREFERENCE_ITEMS.map((item, index) => (
               <div key={item.key} className="space-y-4">
                 {index > 0 && (
-                  <Separator className="bg-[var(--terminal-border)]" />
+                  <Separator className="bg-[var(--nous-border-1)]" />
                 )}
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                   <div className="space-y-1">
                     <Label
                       htmlFor={item.key}
-                      className="text-sm font-medium text-[var(--terminal-text)]"
+                      className="text-sm font-medium text-[var(--nous-fg-1)]"
                     >
                       {item.label}
                     </Label>
-                    <p className="text-sm text-[var(--terminal-text-dim)]">
+                    <p className="text-sm text-[var(--nous-fg-3)]">
                       {item.description}
                     </p>
                   </div>

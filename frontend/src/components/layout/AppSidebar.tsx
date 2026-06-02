@@ -147,11 +147,11 @@ export function AppSidebar() {
           isActive={active}
           tooltip={item.title}
           className={cn(
-            'group/nav font-mono text-xs transition-all duration-200 h-10 rounded-none border-l-2',
-            'group-data-[collapsible=icon]:!h-9 group-data-[collapsible=icon]:!w-9 group-data-[collapsible=icon]:!p-0 group-data-[collapsible=icon]:rounded-md group-data-[collapsible=icon]:border-l-0',
+            'group/nav font-mono text-xs transition-all duration-200 h-10 rounded-[var(--nous-radius-md)]',
+            'group-data-[collapsible=icon]:!h-9 group-data-[collapsible=icon]:!w-9 group-data-[collapsible=icon]:!p-0 group-data-[collapsible=icon]:rounded-md',
             active
-              ? 'bg-primary/10 text-sidebar-foreground border-l-primary group-data-[collapsible=icon]:bg-primary/15'
-              : 'text-muted-foreground border-l-transparent hover:text-sidebar-foreground hover:bg-sidebar-accent hover:border-l-primary/50 group-data-[collapsible=icon]:hover:bg-sidebar-accent'
+              ? 'bg-primary/10 text-sidebar-foreground group-data-[collapsible=icon]:bg-primary/15'
+              : 'text-muted-foreground hover:text-sidebar-foreground hover:bg-sidebar-accent group-data-[collapsible=icon]:hover:bg-sidebar-accent'
           )}
         >
           <Link
@@ -288,7 +288,7 @@ export function AppSidebar() {
                 <span className="font-mono text-[10px] text-muted-foreground">
                   MEMORY
                 </span>
-                <span className="font-mono text-[10px] font-medium text-[var(--amber-gold)]">
+                <span className="font-mono text-[10px] font-medium text-[var(--nous-helios)]">
                   {metrics.memory}
                 </span>
               </div>
@@ -296,7 +296,7 @@ export function AppSidebar() {
                 <span className="font-mono text-[10px] text-muted-foreground">
                   QUERIES
                 </span>
-                <span className="font-mono text-[10px] font-medium text-[var(--cyan)]">
+                <span className="font-mono text-[10px] font-medium text-[var(--nous-helios)]">
                   {metrics.queries}
                 </span>
               </div>

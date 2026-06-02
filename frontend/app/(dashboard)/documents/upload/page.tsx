@@ -1,6 +1,6 @@
 /**
  * Document Upload Page
- * Terminal Observatory themed document upload interface
+ * Document upload interface
  */
 
 'use client';
@@ -112,7 +112,7 @@ export default function DocumentUploadPage() {
         rejectedFiles.forEach(({ file, errors }) => {
           errors.forEach((error: any) => {
             toast({
-              title: 'Transmission Error',
+              title: 'Upload error',
               description: `${file.name}: ${error.message}`,
               variant: 'destructive',
             });
@@ -123,7 +123,7 @@ export default function DocumentUploadPage() {
 
       if (uploadedFiles.length + acceptedFiles.length > 10) {
         toast({
-          title: 'Queue Overload',
+          title: 'Too many files',
           description: 'Maximum 10 files allowed per upload session',
           variant: 'destructive',
         });
@@ -137,7 +137,7 @@ export default function DocumentUploadPage() {
 
         if (!validation.isValid) {
           toast({
-            title: 'Incompatible Payload',
+            title: 'Unsupported file',
             description: validation.errors.join(', '),
             variant: 'destructive',
           });
@@ -147,17 +147,14 @@ export default function DocumentUploadPage() {
         // Pre-upload duplicate check via content hash
         try {
           const sha256 = await computeSHA256(file);
-          const response: any = await api.post(
-            '/documents/check-duplicate',
-            {
-              sha256,
-            }
-          );
+          const response: any = await api.post('/documents/check-duplicate', {
+            sha256,
+          });
           const data = response?.data ?? response;
           if (data?.exists) {
             const existing = data.document;
             toast({
-              title: 'Duplicate Detected',
+              title: 'Duplicate file',
               description: `"${file.name}" matches existing document "${existing?.title || existing?.filename}" — skipped.`,
               variant: 'destructive',
             });
@@ -173,7 +170,7 @@ export default function DocumentUploadPage() {
           request: getDefaultRequest(file),
           status: 'pending' as const,
           progress: 0,
-          currentStep: 'Ready for ingestion',
+          currentStep: 'Ready to upload',
         });
       }
 
@@ -224,10 +221,10 @@ export default function DocumentUploadPage() {
           documentId: update.result.document_id,
           jobId: update.result.job_id,
           progress: 100,
-          currentStep: 'Synchronized',
+          currentStep: 'Complete',
         });
         toast({
-          title: 'Node Ingested',
+          title: 'Document processed',
           description: `${update.result.title} processed successfully`,
         });
       }
@@ -238,7 +235,7 @@ export default function DocumentUploadPage() {
           error: update.error_message || 'Processing failed',
         });
         toast({
-          title: 'Protocol Breach',
+          title: 'Processing failed',
           description:
             update.error_message || 'An error occurred during ingestion',
           variant: 'destructive',
@@ -251,7 +248,7 @@ export default function DocumentUploadPage() {
       updateFileStatus(uploadedFile.id, {
         status: 'uploading',
         progress: 0,
-        currentStep: 'Establishing uplink',
+        currentStep: 'Uploading',
       });
 
       const result = await enhancedDocumentService.uploadDocument(
@@ -333,33 +330,33 @@ export default function DocumentUploadPage() {
   const getStatusColor = (status: UploadedFile['status']) => {
     switch (status) {
       case 'completed':
-        return 'var(--phosphor-green)';
+        return 'var(--nous-sol)';
       case 'queued':
       case 'processing':
       case 'uploading':
-        return 'var(--cyan)';
+        return 'var(--nous-helios)';
       case 'failed':
         return 'var(--error-red)';
       default:
-        return 'var(--terminal-text-muted)';
+        return 'var(--nous-fg-3)';
     }
   };
 
   const fileTypes = [
     { ext: 'PDF', color: 'var(--error-red)' },
-    { ext: 'DOCX', color: 'var(--cyan)' },
-    { ext: 'TXT', color: 'var(--terminal-text-dim)' },
-    { ext: 'JPG', color: 'var(--amber-gold)' },
-    { ext: 'PNG', color: 'var(--phosphor-green)' },
+    { ext: 'DOCX', color: 'var(--nous-helios)' },
+    { ext: 'TXT', color: 'var(--nous-fg-3)' },
+    { ext: 'JPG', color: 'var(--nous-helios)' },
+    { ext: 'PNG', color: 'var(--nous-sol)' },
     { ext: 'MP3', color: '#a855f7' },
-    { ext: 'MP4', color: 'var(--cyan)' },
+    { ext: 'MP4', color: 'var(--nous-helios)' },
   ];
 
   if (!mounted) return null;
 
   return (
-    <div className="min-h-screen bg-[var(--terminal-bg)] relative overflow-hidden flex flex-col star-field terminal-grid noise-texture">
-      <div className="flex-1 overflow-y-auto terminal-scrollbar relative z-10 p-6">
+    <div className="min-h-screen bg-[var(--nous-bg-1)] relative overflow-hidden flex flex-col">
+      <div className="flex-1 overflow-y-auto nous-scrollbar relative z-10 p-6">
         <div className="max-w-5xl mx-auto space-y-8">
           {/* Page Title */}
           <motion.div
@@ -367,14 +364,14 @@ export default function DocumentUploadPage() {
             animate={{ opacity: 1, y: 0 }}
             className="flex items-center gap-4 px-2"
           >
-            <div className="p-2 rounded-lg bg-[var(--phosphor-green)]/10 border border-[var(--phosphor-green)]/20">
-              <Upload className="h-6 w-6 text-[var(--phosphor-green)]" />
+            <div className="p-2 rounded-lg bg-[var(--nous-sol)]/10 border border-[var(--nous-sol)]/20">
+              <Upload className="h-6 w-6 text-[var(--nous-sol)]" />
             </div>
             <div>
-              <h1 className="text-xl font-mono font-bold text-[var(--terminal-text)] tracking-tighter uppercase">
+              <h1 className="text-xl font-mono font-bold text-[var(--nous-fg-1)] tracking-tighter uppercase">
                 Upload Documents
               </h1>
-              <p className="text-[9px] font-mono text-[var(--terminal-text-dim)] uppercase tracking-[0.2em] mt-0.5">
+              <p className="text-[9px] font-mono text-[var(--nous-fg-3)] uppercase tracking-[0.2em] mt-0.5">
                 Supported formats: PDF, DOCX, TXT, Images, Audio, Video
               </p>
             </div>
@@ -385,10 +382,10 @@ export default function DocumentUploadPage() {
             initial={{ opacity: 0, scale: 0.98 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ delay: 0.2 }}
-            className="rounded-2xl border border-[var(--terminal-border)] bg-[var(--terminal-surface)]/80 backdrop-blur-xl overflow-hidden shadow-2xl relative"
+            className="rounded-2xl border border-[var(--nous-border-1)] bg-[var(--nous-bg-2)]/80 backdrop-blur-xl overflow-hidden shadow-2xl relative"
           >
-            {/* Transmission Line */}
-            <div className="absolute top-0 left-6 bottom-0 w-[1px] bg-gradient-to-b from-[var(--phosphor-green)]/20 via-[var(--terminal-border)] to-transparent pointer-events-none" />
+            {/* Upload queue */}
+            <div className="absolute top-0 left-6 bottom-0 w-[1px] bg-gradient-to-b from-[var(--nous-sol)]/20 via-[var(--nous-border-1)] to-transparent pointer-events-none" />
 
             <div className="p-8 pl-14">
               <div
@@ -396,8 +393,8 @@ export default function DocumentUploadPage() {
                 className={cn(
                   'relative border-2 border-dashed rounded-xl p-12 text-center cursor-pointer transition-all duration-300',
                   isDragActive
-                    ? 'border-[var(--phosphor-green)] bg-[var(--phosphor-green)]/5 scale-[1.01]'
-                    : 'border-[var(--terminal-border)] hover:border-[var(--terminal-border-muted)]',
+                    ? 'border-[var(--nous-sol)] bg-[var(--nous-sol)]/5 scale-[1.01]'
+                    : 'border-[var(--nous-border-1)] hover:border-[var(--nous-border-2)]',
                   isUploading && 'opacity-50 cursor-not-allowed'
                 )}
               >
@@ -407,25 +404,25 @@ export default function DocumentUploadPage() {
                   animate={{ y: isDragActive ? -5 : 0 }}
                   className="space-y-6"
                 >
-                  <div className="mx-auto w-20 h-20 rounded-2xl flex items-center justify-center bg-[var(--terminal-bg)] border border-[var(--terminal-border)] relative group">
+                  <div className="mx-auto w-20 h-20 rounded-2xl flex items-center justify-center bg-[var(--nous-bg-1)] border border-[var(--nous-border-1)] relative group">
                     <UploadCloud
                       className={cn(
                         'w-10 h-10 transition-colors duration-300',
                         isDragActive
-                          ? 'text-[var(--phosphor-green)]'
-                          : 'text-[var(--terminal-text-dim)]'
+                          ? 'text-[var(--nous-sol)]'
+                          : 'text-[var(--nous-fg-3)]'
                       )}
                     />
-                    <div className="absolute inset-0 rounded-2xl border border-[var(--phosphor-green)]/50 scale-110 opacity-0 group-hover:opacity-100 group-hover:scale-100 transition-all duration-500" />
+                    <div className="absolute inset-0 rounded-2xl border border-[var(--nous-sol)]/50 scale-110 opacity-0 group-hover:opacity-100 group-hover:scale-100 transition-all duration-500" />
                   </div>
 
                   <div className="space-y-2">
-                    <p className="text-sm font-mono font-bold tracking-widest text-[var(--terminal-text)] uppercase">
+                    <p className="text-sm font-mono font-bold tracking-widest text-[var(--nous-fg-1)] uppercase">
                       {isDragActive
                         ? 'Drop files now'
                         : 'Drag & drop files or click to browse'}
                     </p>
-                    <p className="text-[10px] text-[var(--terminal-text-muted)] font-mono uppercase tracking-widest">
+                    <p className="text-[10px] text-[var(--nous-fg-3)] font-mono uppercase tracking-widest">
                       Max file size: 50MB • Up to 10 files at once
                     </p>
                   </div>
@@ -435,7 +432,7 @@ export default function DocumentUploadPage() {
                     {fileTypes.map((type) => (
                       <span
                         key={type.ext}
-                        className="px-2.5 py-1 rounded bg-[var(--terminal-bg)] border border-[var(--terminal-border)] text-[9px] font-mono font-bold tracking-widest transition-colors hover:border-[var(--phosphor-green)]/30"
+                        className="px-2.5 py-1 rounded bg-[var(--nous-bg-1)] border border-[var(--nous-border-1)] text-[9px] font-mono font-bold tracking-widest transition-colors hover:border-[var(--nous-sol)]/30"
                         style={{ color: type.color }}
                       >
                         {type.ext}
@@ -454,11 +451,11 @@ export default function DocumentUploadPage() {
                     exit={{ opacity: 0, height: 0 }}
                     className="mt-10 space-y-4"
                   >
-                    <div className="flex items-center justify-between border-b border-[var(--terminal-border)] pb-4">
+                    <div className="flex items-center justify-between border-b border-[var(--nous-border-1)] pb-4">
                       <div className="flex items-center gap-2">
-                        <Activity className="w-3.5 h-3.5 text-[var(--amber-gold)]" />
-                        <span className="text-[10px] font-mono font-bold text-[var(--terminal-text-dim)] uppercase tracking-widest">
-                          Transmission_Queue ({uploadedFiles.length})
+                        <Activity className="w-3.5 h-3.5 text-[var(--nous-helios)]" />
+                        <span className="text-[10px] font-mono font-bold text-[var(--nous-fg-3)] uppercase tracking-widest">
+                          Queue ({uploadedFiles.length})
                         </span>
                       </div>
 
@@ -466,7 +463,7 @@ export default function DocumentUploadPage() {
                         <button
                           onClick={uploadAllFiles}
                           disabled={isUploading || !isAuthenticated}
-                          className="flex items-center gap-2 px-5 py-2 rounded-lg font-mono text-[10px] font-bold uppercase transition-all bg-[var(--phosphor-green)] text-[var(--terminal-bg)] hover:shadow-[0_0_20px_var(--phosphor-green-glow)] disabled:opacity-50"
+                          className="flex items-center gap-2 px-5 py-2 rounded-lg font-mono text-[10px] font-bold uppercase transition-all bg-[var(--nous-sol)] text-[var(--nous-bg-1)] hover:shadow-[0_0_20px_var(--nous-sol-glow)] disabled:opacity-50"
                         >
                           {isUploading ? (
                             <>
@@ -491,23 +488,23 @@ export default function DocumentUploadPage() {
                           animate={{ opacity: 1, x: 0 }}
                           exit={{ opacity: 0, x: 10 }}
                           transition={{ delay: index * 0.05 }}
-                          className="rounded-xl p-4 bg-[var(--terminal-bg)]/50 border border-[var(--terminal-border)] group hover:border-[var(--terminal-border-muted)] transition-all"
+                          className="rounded-xl p-4 bg-[var(--nous-bg-1)]/50 border border-[var(--nous-border-1)] group hover:border-[var(--nous-border-2)] transition-all"
                         >
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-4 min-w-0 flex-1">
                               <div
-                                className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 bg-[var(--terminal-surface)] border border-[var(--terminal-border)] transition-colors group-hover:border-[var(--phosphor-green)]/30"
+                                className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 bg-[var(--nous-bg-2)] border border-[var(--nous-border-1)] transition-colors group-hover:border-[var(--nous-sol)]/30"
                                 style={{ color: getStatusColor(file.status) }}
                               >
                                 {getFileIcon(file.file.type)}
                               </div>
                               <div className="min-w-0 flex-1">
-                                <p className="text-[13px] font-mono font-bold text-[var(--terminal-text)] truncate uppercase tracking-tight">
+                                <p className="text-[13px] font-mono font-bold text-[var(--nous-fg-1)] truncate uppercase tracking-tight">
                                   {file.file.name}
                                 </p>
-                                <div className="flex items-center gap-3 mt-1 text-[9px] font-mono uppercase tracking-widest text-[var(--terminal-text-muted)]">
+                                <div className="flex items-center gap-3 mt-1 text-[9px] font-mono uppercase tracking-widest text-[var(--nous-fg-3)]">
                                   <span>{formatFileSize(file.file.size)}</span>
-                                  <span className="w-1 h-1 rounded-full bg-[var(--terminal-border)]" />
+                                  <span className="w-1 h-1 rounded-full bg-[var(--nous-border-1)]" />
                                   <span
                                     className="flex items-center gap-1.5"
                                     style={{
@@ -536,7 +533,7 @@ export default function DocumentUploadPage() {
 
                             <div className="flex items-center gap-3">
                               {file.status === 'completed' && (
-                                <CheckCircle className="w-4 h-4 text-[var(--phosphor-green)]" />
+                                <CheckCircle className="w-4 h-4 text-[var(--nous-sol)]" />
                               )}
                               {file.status === 'failed' && (
                                 <AlertTriangle className="w-4 h-4 text-[var(--error-red)]" />
@@ -545,17 +542,17 @@ export default function DocumentUploadPage() {
                                 file.status === 'queued' ||
                                 file.status === 'processing') && (
                                 <div className="flex items-center gap-2">
-                                  <span className="text-[9px] font-mono text-[var(--cyan)] font-bold">
+                                  <span className="text-[9px] font-mono text-[var(--nous-helios)] font-bold">
                                     {Math.round(file.progress)}%
                                   </span>
-                                  <Loader2 className="w-4 h-4 text-[var(--cyan)] animate-spin" />
+                                  <Loader2 className="w-4 h-4 text-[var(--nous-helios)] animate-spin" />
                                 </div>
                               )}
                               {(file.status === 'pending' ||
                                 file.status === 'failed') && (
                                 <button
                                   onClick={() => removeFile(file.id)}
-                                  className="p-2 rounded-lg hover:bg-[var(--error-red)]/10 text-[var(--terminal-text-muted)] hover:text-[var(--error-red)] transition-colors border border-transparent hover:border-[var(--error-red)]/30"
+                                  className="p-2 rounded-lg hover:bg-[var(--error-red)]/10 text-[var(--nous-fg-3)] hover:text-[var(--error-red)] transition-colors border border-transparent hover:border-[var(--error-red)]/30"
                                 >
                                   <Trash2 className="w-4 h-4" />
                                 </button>
@@ -568,9 +565,9 @@ export default function DocumentUploadPage() {
                             file.status === 'queued' ||
                             file.status === 'processing') && (
                             <div className="mt-4">
-                              <div className="h-0.5 w-full bg-[var(--terminal-border)] rounded-full overflow-hidden">
+                              <div className="h-0.5 w-full bg-[var(--nous-border-1)] rounded-full overflow-hidden">
                                 <motion.div
-                                  className="h-full bg-gradient-to-r from-[var(--cyan)] to-[var(--phosphor-green)] shadow-[0_0_10px_var(--cyan)]"
+                                  className="h-full bg-gradient-to-r from-[var(--nous-helios)] to-[var(--nous-sol)] shadow-[0_0_10px_var(--nous-helios)]"
                                   initial={{ width: 0 }}
                                   animate={{ width: `${file.progress}%` }}
                                   transition={{ duration: 0.3 }}
@@ -582,14 +579,14 @@ export default function DocumentUploadPage() {
                           {/* Detail Panels (Success/Failure/Quality) */}
                           <div className="mt-3 flex flex-wrap gap-2">
                             {file.status === 'completed' && file.documentId && (
-                              <div className="px-2 py-1 rounded bg-[var(--phosphor-green)]/5 border border-[var(--phosphor-green)]/20 text-[8px] font-mono text-[var(--phosphor-green)] flex items-center gap-1.5 uppercase">
+                              <div className="px-2 py-1 rounded bg-[var(--nous-sol)]/5 border border-[var(--nous-sol)]/20 text-[8px] font-mono text-[var(--nous-sol)] flex items-center gap-1.5 uppercase">
                                 <Database className="w-3 h-3" />
                                 NODE_ID: {file.documentId}
                               </div>
                             )}
 
                             {file.qualityScore && (
-                              <div className="px-2 py-1 rounded bg-[var(--amber-gold)]/5 border border-[var(--amber-gold)]/20 text-[8px] font-mono text-[var(--amber-gold)] flex items-center gap-1.5 uppercase">
+                              <div className="px-2 py-1 rounded bg-[var(--nous-helios)]/5 border border-[var(--nous-helios)]/20 text-[8px] font-mono text-[var(--nous-helios)] flex items-center gap-1.5 uppercase">
                                 <Sparkles className="w-3 h-3" />
                                 SCORE: {Math.round(file.qualityScore * 100)}%
                               </div>
@@ -600,7 +597,7 @@ export default function DocumentUploadPage() {
                                 className={cn(
                                   'px-2 py-1 rounded border text-[8px] font-mono flex items-center gap-1.5 uppercase',
                                   file.securityScan.scan_status === 'passed'
-                                    ? 'bg-[var(--phosphor-green)]/5 border-[var(--phosphor-green)]/20 text-[var(--phosphor-green)]'
+                                    ? 'bg-[var(--nous-sol)]/5 border-[var(--nous-sol)]/20 text-[var(--nous-sol)]'
                                     : 'bg-[var(--error-red)]/5 border-[var(--error-red)]/20 text-[var(--error-red)]'
                                 )}
                               >

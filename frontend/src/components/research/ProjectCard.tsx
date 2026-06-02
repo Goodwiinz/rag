@@ -30,8 +30,8 @@ export interface ProjectCardProps {
 const statusStyles: Record<string, string> = {
   active: 'bg-primary/10 text-primary border-primary/30',
   paused:
-    'bg-[var(--amber-gold)]/10 text-[var(--amber-gold)] border-[var(--amber-gold)]/30',
-  completed: 'bg-[var(--cyan)]/10 text-[var(--cyan)] border-[var(--cyan)]/30',
+    'bg-[var(--nous-helios)]/10 text-[var(--nous-helios)] border-[var(--nous-helios)]/30',
+  completed: 'bg-[var(--nous-helios)]/10 text-[var(--nous-helios)] border-[var(--nous-helios)]/30',
   archived: 'bg-gray-500/10 text-muted-foreground border-border/30',
 };
 

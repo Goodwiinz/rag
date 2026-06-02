@@ -55,7 +55,7 @@ export function ResearchDashboard() {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-mono font-bold text-[var(--terminal-text)] tracking-wider">
+          <h1 className="text-2xl font-mono font-bold text-[var(--nous-fg-1)] tracking-wider">
             RESEARCH_ENGINE
           </h1>
           <p className="text-xs font-mono text-muted-foreground mt-0.5 uppercase tracking-widest">
@@ -83,7 +83,7 @@ export function ResearchDashboard() {
               <button
                 key={tpl.id}
                 title={tpl.description}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-[var(--cyan)]/5 text-[var(--cyan)] border border-[var(--cyan)]/20 rounded font-mono text-xs hover:bg-[var(--cyan)]/10 transition-colors"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-[var(--nous-helios)]/5 text-[var(--nous-helios)] border border-[var(--nous-helios)]/20 rounded font-mono text-xs hover:bg-[var(--nous-helios)]/10 transition-colors"
               >
                 <Sparkles className="h-3 w-3" />
                 {tpl.name}

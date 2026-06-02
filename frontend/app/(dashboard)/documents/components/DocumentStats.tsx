@@ -19,9 +19,9 @@ interface DocumentStatsProps {
 
 export function DocumentStats({ stats }: DocumentStatsProps) {
   const statItems: StatItem[] = [
-    { label: 'TOTAL_DOCS', value: stats.total, color: 'var(--terminal-text)', icon: Folder },
-    { label: 'INDEXED', value: stats.visible_indexed, color: 'var(--phosphor-green)', icon: CheckCircle },
-    { label: 'PROCESSING', value: stats.visible_processing, color: 'var(--cyan)', icon: RefreshCw },
+    { label: 'TOTAL_DOCS', value: stats.total, color: 'var(--nous-fg-1)', icon: Folder },
+    { label: 'INDEXED', value: stats.visible_indexed, color: 'var(--nous-sol)', icon: CheckCircle },
+    { label: 'PROCESSING', value: stats.visible_processing, color: 'var(--nous-helios)', icon: RefreshCw },
     { label: 'FAILED', value: stats.visible_failed, color: '#ff4757', icon: AlertTriangle },
   ];
 
@@ -30,7 +30,7 @@ export function DocumentStats({ stats }: DocumentStatsProps) {
       {statItems.map((stat) => (
         <Card 
           key={stat.label} 
-          className="border-[var(--terminal-border)] bg-[var(--terminal-surface)]/50 backdrop-blur-sm relative overflow-hidden group hover:border-[var(--terminal-border-glow)] transition-colors shadow-none"
+          className="border-[var(--nous-border-1)] bg-[var(--nous-bg-2)]/50 backdrop-blur-sm relative overflow-hidden group hover:border-[var(--nous-border-1)] transition-colors shadow-none"
         >
           <div 
             className="absolute top-0 left-0 w-0.5 h-full opacity-50 group-hover:opacity-100 transition-all duration-500" 
@@ -39,13 +39,13 @@ export function DocumentStats({ stats }: DocumentStatsProps) {
           <CardHeader className="p-4 pb-2">
             <div className="flex justify-between items-start">
               <stat.icon className="w-4 h-4 opacity-50" style={{ color: stat.color }} />
-              <div className="text-[10px] font-mono text-[var(--terminal-text-dim)] uppercase tracking-widest">
+              <div className="text-[10px] font-mono text-[var(--nous-fg-3)] uppercase tracking-widest">
                 {stat.label}
               </div>
             </div>
           </CardHeader>
           <CardContent className="p-4 pt-0">
-            <div className="text-2xl font-mono font-bold text-[var(--terminal-text)]">
+            <div className="text-2xl font-mono font-bold text-[var(--nous-fg-1)]">
               {stat.value}
             </div>
           </CardContent>

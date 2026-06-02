@@ -374,10 +374,10 @@ export function AnalyticsDashboard({ className }: AnalyticsDashboardProps) {
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-purple-500/10 to-pink-500/10 border-purple-500/20">
+        <Card className="bg-[var(--nous-sol)]/10 border-[var(--nous-sol)]/20">
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
-              <Search className="h-8 w-8 text-purple-500" />
+              <Search className="h-8 w-8 text-[var(--nous-sol)]" />
               <div>
                 <p className="text-2xl font-bold">
                   {data.overview?.searchesPerformed}

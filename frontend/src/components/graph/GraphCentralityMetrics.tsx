@@ -771,8 +771,8 @@ export const GraphCentralityMetrics: React.FC<GraphCentralityMetricsProps> = ({
                     Percentile
                   </div>
                 </div>
-                <div className="text-center p-4 bg-gray-50 rounded-lg">
-                  <div className="text-2xl font-bold text-purple-600">
+                <div className="text-center p-4 bg-[var(--nous-bg-2)] rounded-lg">
+                  <div className="text-2xl font-bold text-[var(--nous-fg-accent)]">
                     {metricDetail.relatedEntities.length}
                   </div>
                   <div className="text-sm text-muted-foreground">

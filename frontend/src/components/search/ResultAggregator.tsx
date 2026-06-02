@@ -196,11 +196,13 @@ const AggregationDetail: React.FC<AggregationDetailProps> = ({
                     Duplicates Removed
                   </div>
                 </div>
-                <div className="p-4 bg-purple-50 rounded-lg">
-                  <div className="text-2xl font-bold text-purple-900">
+                <div className="p-4 bg-[var(--nous-sol)]/10 rounded-lg">
+                  <div className="text-2xl font-bold text-[var(--nous-fg-accent-safe)]">
                     {Math.round(aggregation.diversity_score * 100)}%
                   </div>
-                  <div className="text-sm text-purple-700">Diversity Score</div>
+                  <div className="text-sm text-muted-foreground">
+                    Diversity Score
+                  </div>
                 </div>
                 <div className="p-4 bg-orange-50 rounded-lg">
                   <div className="text-2xl font-bold text-orange-900">
@@ -788,9 +790,9 @@ export const ResultAggregator: React.FC<ResultAggregatorProps> = ({
       <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
         <div className="flex items-center space-x-3">
           {isAggregating ? (
-            <div className="h-5 w-5 animate-spin rounded-full border-2 border-purple-600 border-t-transparent" />
+            <div className="h-5 w-5 animate-spin rounded-full border-2 border-[var(--nous-sol)] border-t-transparent" />
           ) : (
-            <ArrowsRightLeftIcon className="h-5 w-5 text-purple-600" />
+            <ArrowsRightLeftIcon className="h-5 w-5 text-[var(--nous-fg-accent-safe)]" />
           )}
           <div>
             <h3 className="font-medium text-foreground">Result Aggregation</h3>
@@ -855,9 +857,9 @@ export const ResultAggregator: React.FC<ResultAggregatorProps> = ({
       {/* Aggregation Progress */}
       {isAggregating && (
         <div className="space-y-3">
-          <div className="flex items-center space-x-2 p-3 bg-purple-50 rounded-lg">
-            <div className="h-4 w-4 animate-spin rounded-full border-2 border-purple-600 border-t-transparent" />
-            <span className="text-sm text-purple-800">
+          <div className="flex items-center space-x-2 p-3 bg-[var(--nous-sol)]/10 rounded-lg">
+            <div className="h-4 w-4 animate-spin rounded-full border-2 border-[var(--nous-sol)] border-t-transparent" />
+            <span className="text-sm text-[var(--nous-fg-accent-safe)]">
               Aggregating results...
             </span>
           </div>
@@ -869,7 +871,7 @@ export const ResultAggregator: React.FC<ResultAggregatorProps> = ({
             </div>
             <div className="w-full bg-gray-200 rounded-full h-2">
               <div
-                className="bg-purple-600 h-2 rounded-full transition-all duration-500"
+                className="bg-[var(--nous-sol)] h-2 rounded-full transition-all duration-500"
                 style={{ width: '50%' }}
               />
             </div>
@@ -902,14 +904,16 @@ export const ResultAggregator: React.FC<ResultAggregatorProps> = ({
               </div>
             </div>
 
-            <div className="flex items-center space-x-2 p-3 bg-purple-50 rounded-lg">
-              <ChartBarIcon className="h-4 w-4 text-purple-600" />
+            <div className="flex items-center space-x-2 p-3 bg-[var(--nous-sol)]/10 rounded-lg">
+              <ChartBarIcon className="h-4 w-4 text-[var(--nous-fg-accent-safe)]" />
               <div>
-                <div className="text-sm font-medium text-purple-900">
+                <div className="text-sm font-medium text-[var(--nous-fg-accent-safe)]">
                   {Math.round(aggregation.aggregation_confidence * 100)}%
                   Confidence
                 </div>
-                <div className="text-xs text-purple-700">Quality score</div>
+                <div className="text-xs text-muted-foreground">
+                  Quality score
+                </div>
               </div>
             </div>
           </div>
