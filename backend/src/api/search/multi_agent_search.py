@@ -343,7 +343,7 @@ async def run_agent_benchmark(
 
     except Exception as e:
         logger.error(f"Agent benchmark failed: {e}")
-        raise HTTPException(status_code=500, detail=f"Benchmark failed: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/agents/types")
