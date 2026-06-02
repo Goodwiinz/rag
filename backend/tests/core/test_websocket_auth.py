@@ -6,6 +6,8 @@ import pytest
 from src.core.security import TokenData
 from src.core.websocket_auth import WebSocketAuthenticator, WebSocketAuthError
 
+pytestmark = pytest.mark.unit
+
 
 class DummyWebSocket:
     def __init__(self, *, headers=None, cookies=None):
@@ -58,7 +60,10 @@ async def test_authenticate_rejects_invalid_token_from_shared_verifier():
     )
 
     with patch("src.core.websocket_auth.verify_token", return_value=None, create=True):
-        with pytest.raises(WebSocketAuthError, match="Invalid authentication token") as exc:
+        with pytest.raises(
+            WebSocketAuthError,
+            match="Invalid authentication token",
+        ) as exc:
             await WebSocketAuthenticator.authenticate(websocket)
 
     assert exc.value.code == 4003
