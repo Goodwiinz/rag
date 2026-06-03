@@ -21,9 +21,21 @@ def _generate_dev_secret() -> str:
 
 def _longest_literal_hostname_run(pattern: str) -> int:
     """Longest contiguous literal hostname segment (project slug specificity)."""
-    pattern_without_character_classes = re.sub(r"\[[^\]]*\]", "", pattern)
-    runs = re.findall(r"[A-Za-z0-9-]+", pattern_without_character_classes)
+    pattern = re.sub(r"\[[^\]]+\](?:[+*?]|\{[^}]+\})?", "", pattern)
+    pattern = re.sub(r"\([^)]*\)(?:[+*?]|\{[^}]+\})?", "", pattern)
+    runs = re.findall(r"[A-Za-z0-9-]+", pattern)
     return max((len(run) for run in runs), default=0)
+
+
+def _first_hostname_label(pattern: str) -> str:
+    """Return the first hostname label from an anchored origin regex."""
+    origin_pattern = pattern.removeprefix("^").removesuffix("$")
+    for scheme in ("https://", "http://", "https?://"):
+        if origin_pattern.startswith(scheme):
+            origin_pattern = origin_pattern[len(scheme) :]
+            break
+    hostname_pattern = origin_pattern.split("/", 1)[0].split(":", 1)[0]
+    return re.split(r"\\\.|\.", hostname_pattern, maxsplit=1)[0]
 
 
 def _cors_origin_regex_is_overbroad(pattern: str) -> bool:
@@ -131,7 +143,7 @@ class Settings(BaseSettings):
                 "CORS_ORIGIN_REGEX is too permissive for credentialed CORS"
             )
 
-        if _longest_literal_hostname_run(pattern) < 6:
+        if _longest_literal_hostname_run(_first_hostname_label(pattern)) < 6:
             raise ValueError(
                 "CORS_ORIGIN_REGEX must include a project-specific literal "
                 "hostname segment (at least 6 characters, e.g. nous-platform)"

@@ -48,7 +48,7 @@ export class CitationErrorBoundary extends Component<Props, State> {
           <h3 className="font-mono font-medium text-red-400 mb-2">
             Citation Component Error
           </h3>
-          <p className="text-sm text-gray-500 font-mono mb-4">
+          <p className="text-sm text-muted-foreground font-mono mb-4">
             {this.state.error?.message || 'An unexpected error occurred'}
           </p>
           <button

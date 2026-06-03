@@ -291,13 +291,13 @@ export function ChatInput({
                 }}
               >
                 <span
-                  className="block h-full rounded-sm"
+                  className="block h-full w-full origin-left rounded-sm"
                   style={{
-                    width: `${fillPct}%`,
+                    transform: `scaleX(${fillPct / 100})`,
                     background: isNearLimit
                       ? 'var(--nous-corona)'
                       : 'var(--nous-sol)',
-                    transition: 'width 200ms ease-out',
+                    transition: 'transform 200ms ease-out',
                   }}
                 />
               </span>

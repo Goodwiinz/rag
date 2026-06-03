@@ -127,7 +127,7 @@ describe('ProjectsPage workspace behavior', () => {
     const { user } = render(<ProjectsPage />);
 
     await user.click(
-      screen.getAllByRole('button', { name: /create project/i })[0]
+      screen.getAllByRole('button', { name: /new project/i })[0]
     );
     await user.click(screen.getByRole('button', { name: /submit project/i }));
 

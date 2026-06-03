@@ -80,7 +80,7 @@ export function ColumnEditor({
 
   return (
     <div className="space-y-3">
-      <Label className="text-xs text-gray-500 font-mono uppercase tracking-wide">
+      <Label className="text-xs text-muted-foreground font-mono uppercase tracking-wide">
         Extraction Columns
       </Label>
 
@@ -94,7 +94,7 @@ export function ColumnEditor({
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-6 w-6 text-gray-500 hover:text-brand-cyan"
+                className="h-6 w-6 text-muted-foreground hover:text-brand-cyan"
                 disabled={index === 0}
                 onClick={() => moveColumn(index, -1)}
                 aria-label="Move column up"
@@ -104,7 +104,7 @@ export function ColumnEditor({
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-6 w-6 text-gray-500 hover:text-brand-cyan"
+                className="h-6 w-6 text-muted-foreground hover:text-brand-cyan"
                 disabled={index === columns.length - 1}
                 onClick={() => moveColumn(index, 1)}
                 aria-label="Move column down"
@@ -118,7 +118,7 @@ export function ColumnEditor({
                 value={col.name}
                 onChange={(e) => updateColumn(index, 'name', e.target.value)}
                 placeholder="Column name"
-                className="h-8 bg-[#1a1a1a] border-[#333] text-sm font-mono text-gray-300 placeholder-gray-600 focus:border-brand-cyan"
+                className="h-8 bg-[#1a1a1a] border-[#333] text-sm font-mono text-muted-foreground placeholder-gray-600 focus:border-brand-cyan"
               />
               <Input
                 value={col.description ?? ''}
@@ -126,14 +126,14 @@ export function ColumnEditor({
                   updateColumn(index, 'description', e.target.value)
                 }
                 placeholder="Description (optional)"
-                className="h-8 bg-[#1a1a1a] border-[#333] text-xs font-mono text-gray-400 placeholder-gray-600 focus:border-brand-cyan"
+                className="h-8 bg-[#1a1a1a] border-[#333] text-xs font-mono text-muted-foreground placeholder-gray-600 focus:border-brand-cyan"
               />
             </div>
 
             <Button
               variant="ghost"
               size="icon"
-              className="h-6 w-6 text-gray-500 hover:text-red-400"
+              className="h-6 w-6 text-muted-foreground hover:text-red-400"
               disabled={columns.length <= 1}
               onClick={() => removeColumn(index)}
               aria-label="Remove column"
@@ -182,12 +182,12 @@ export function ColumnEditor({
                   onClick={() => addPreset(preset)}
                   className={cn(
                     'font-mono text-xs cursor-pointer',
-                    exists ? 'text-gray-600' : 'text-gray-300'
+                    exists ? 'text-foreground' : 'text-muted-foreground'
                   )}
                 >
                   {preset.name}
                   {exists && (
-                    <span className="ml-auto text-[10px] text-gray-600">
+                    <span className="ml-auto text-[10px] text-foreground">
                       added
                     </span>
                   )}
@@ -197,7 +197,7 @@ export function ColumnEditor({
           </DropdownMenuContent>
         </DropdownMenu>
 
-        <span className="ml-auto text-[10px] font-mono text-gray-600">
+        <span className="ml-auto text-[10px] font-mono text-foreground">
           {columns.length}/{maxColumns}
         </span>
       </div>

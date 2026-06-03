@@ -10,7 +10,6 @@ import {
   Eye,
   EyeOff,
   Lock,
-  RefreshCw,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -96,34 +95,65 @@ export default function ResetPasswordPage() {
 
   if (sessionExpired) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[var(--terminal-bg)]">
+      <div
+        className="min-h-screen flex items-center justify-center px-6"
+        style={{ background: 'var(--nous-nyx)' }}
+      >
         <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="max-w-md w-full mx-6"
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+          className="w-full max-w-md"
         >
-          <div className="rounded-2xl border border-[var(--terminal-border)] bg-[var(--terminal-surface)] p-10 text-center">
-            <div className="flex items-center justify-center w-16 h-16 rounded-full bg-red-500/10 border border-red-500/30 mx-auto mb-6">
-              <AlertTriangle className="w-8 h-8 text-red-400" />
+          <div
+            className="rounded-2xl border p-10 text-center"
+            style={{
+              background: 'var(--nous-obsidian)',
+              borderColor: 'var(--nous-shade)',
+              boxShadow: 'var(--nous-shadow-xl)',
+            }}
+          >
+            <div
+              className="flex items-center justify-center w-14 h-14 rounded-full mx-auto mb-6"
+              style={{
+                background: 'rgba(239, 68, 68, 0.12)',
+                border: '1px solid rgba(239, 68, 68, 0.3)',
+              }}
+            >
+              <AlertTriangle
+                aria-hidden="true"
+                className="w-6 h-6"
+                style={{ color: 'var(--nous-mars)' }}
+              />
             </div>
-            <h2 className="text-xl font-mono font-bold text-[var(--terminal-text)] uppercase tracking-[0.15em] mb-3">
-              Link Expired
-            </h2>
-            <p className="text-sm font-mono text-[var(--terminal-text-muted)] mb-6 leading-relaxed">
-              This reset link is expired or invalid. Request a new one to
-              continue.
+            <h1
+              className="text-xl font-semibold mb-2"
+              style={{ color: 'var(--nous-ivory)' }}
+            >
+              This link has expired
+            </h1>
+            <p
+              className="text-sm mb-7 leading-relaxed"
+              style={{
+                color: 'var(--nous-parchment)',
+                fontFamily: 'var(--nous-font-body)',
+              }}
+            >
+              The reset link is no longer valid. Request a new one and we will
+              email you a fresh link.
             </p>
             <Link
               href="/forgot-password"
-              className={cn(
-                'inline-flex items-center gap-2 py-3 px-6 rounded-xl font-mono text-xs font-bold uppercase tracking-[0.2em]',
-                'bg-[var(--phosphor-green)] text-[var(--terminal-bg)]',
-                'hover:shadow-[0_0_25px_var(--phosphor-green-glow)] hover:scale-[1.02] active:scale-[0.98]',
-                'transition-all duration-300'
-              )}
+              className="inline-flex items-center gap-2 py-2.5 px-5 rounded-lg text-sm font-medium transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+              style={{
+                background: 'var(--nous-sol)',
+                color: 'var(--nous-erebus)',
+                ['--tw-ring-color' as string]: 'var(--nous-sol)',
+                ['--tw-ring-offset-color' as string]: 'var(--nous-obsidian)',
+              }}
             >
-              <span>Request New Link</span>
-              <ArrowRight className="w-4 h-4" />
+              <span>Request a new link</span>
+              <ArrowRight aria-hidden="true" className="w-4 h-4" />
             </Link>
           </div>
         </motion.div>
@@ -133,15 +163,24 @@ export default function ResetPasswordPage() {
 
   if (!sessionReady) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[var(--terminal-bg)]">
+      <div
+        className="min-h-screen flex items-center justify-center px-6"
+        style={{ background: 'var(--nous-nyx)' }}
+      >
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
+          transition={{ duration: 0.4 }}
           className="text-center"
         >
-          <RefreshCw className="w-6 h-6 text-[var(--phosphor-green)] animate-spin mx-auto mb-4" />
-          <p className="text-[10px] font-mono text-[var(--terminal-text-muted)] uppercase tracking-widest">
-            Verifying recovery session...
+          <p
+            className="text-sm"
+            style={{
+              color: 'var(--nous-parchment)',
+              fontFamily: 'var(--nous-font-body)',
+            }}
+          >
+            Verifying your recovery session…
           </p>
         </motion.div>
       </div>
@@ -150,28 +189,63 @@ export default function ResetPasswordPage() {
 
   if (success) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[var(--terminal-bg)]">
+      <div
+        className="min-h-screen flex items-center justify-center px-6"
+        style={{ background: 'var(--nous-nyx)' }}
+      >
         <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="max-w-md w-full mx-6"
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+          className="w-full max-w-md"
         >
-          <div className="rounded-2xl border border-[var(--terminal-border)] bg-[var(--terminal-surface)] p-10 text-center">
-            <div className="flex items-center justify-center w-16 h-16 rounded-full bg-[var(--phosphor-green)]/10 border border-[var(--phosphor-green)]/30 mx-auto mb-6">
-              <CheckCircle className="w-8 h-8 text-[var(--phosphor-green)]" />
+          <div
+            className="rounded-2xl border p-10 text-center"
+            style={{
+              background: 'var(--nous-obsidian)',
+              borderColor: 'var(--nous-shade)',
+              boxShadow: 'var(--nous-shadow-xl)',
+            }}
+          >
+            <div
+              className="flex items-center justify-center w-14 h-14 rounded-full mx-auto mb-6"
+              style={{
+                background: 'var(--nous-ember)',
+                border: '1px solid rgba(212, 160, 57, 0.3)',
+              }}
+            >
+              <CheckCircle
+                aria-hidden="true"
+                className="w-6 h-6"
+                style={{ color: 'var(--nous-sol)' }}
+              />
             </div>
-            <h2 className="text-xl font-mono font-bold text-[var(--terminal-text)] uppercase tracking-[0.15em] mb-3">
-              Key Updated
-            </h2>
-            <p className="text-sm font-mono text-[var(--terminal-text-muted)] mb-4 leading-relaxed">
-              Your security key has been reset. Redirecting to login...
+            <h1
+              className="text-xl font-semibold mb-2"
+              style={{ color: 'var(--nous-ivory)' }}
+            >
+              Your password has been updated
+            </h1>
+            <p
+              className="text-sm mb-5 leading-relaxed"
+              style={{
+                color: 'var(--nous-parchment)',
+                fontFamily: 'var(--nous-font-body)',
+              }}
+            >
+              You can now sign in with your new password. Taking you to the sign
+              in page…
             </p>
-            <div className="h-1 w-24 mx-auto rounded-full bg-[var(--terminal-border)] overflow-hidden">
+            <div
+              className="h-1 w-24 mx-auto rounded-full overflow-hidden"
+              style={{ background: 'var(--nous-shade)' }}
+            >
               <motion.div
                 initial={{ width: 0 }}
                 animate={{ width: '100%' }}
                 transition={{ duration: 3 }}
-                className="h-full bg-[var(--phosphor-green)]"
+                className="h-full"
+                style={{ background: 'var(--nous-sol)' }}
               />
             </div>
           </div>
@@ -181,45 +255,69 @@ export default function ResetPasswordPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[var(--terminal-bg)] relative overflow-hidden">
-      <div className="absolute inset-0 opacity-[0.02] pointer-events-none">
-        <div
-          className="h-full w-full"
-          style={{
-            backgroundImage: `linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)`,
-            backgroundSize: '40px 40px',
-          }}
-        />
-      </div>
-
+    <div
+      className="min-h-screen flex items-center justify-center px-6"
+      style={{ background: 'var(--nous-nyx)' }}
+    >
       <motion.div
-        initial={{ opacity: 0, scale: 0.98 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ duration: 0.5 }}
-        className="w-full max-w-md mx-6"
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
+        className="w-full max-w-md"
       >
-        <div className="rounded-2xl border border-[var(--terminal-border)] bg-[var(--terminal-surface)] p-8 shadow-2xl shadow-black/50">
-          <div className="text-center mb-8">
-            <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-[var(--terminal-elevated)] border border-[var(--terminal-border)] mb-4">
-              <Lock className="w-5 h-5 text-[var(--phosphor-green)]" />
+        <div
+          className="rounded-2xl border p-8"
+          style={{
+            background: 'var(--nous-obsidian)',
+            borderColor: 'var(--nous-shade)',
+            boxShadow: 'var(--nous-shadow-xl)',
+          }}
+        >
+          <div className="mb-7">
+            <div
+              className="inline-flex items-center justify-center w-11 h-11 rounded-full mb-4"
+              style={{
+                background: 'var(--nous-ember)',
+                border: '1px solid rgba(212, 160, 57, 0.3)',
+              }}
+            >
+              <Lock
+                aria-hidden="true"
+                className="w-5 h-5"
+                style={{ color: 'var(--nous-sol)' }}
+              />
             </div>
-            <h2 className="text-xl font-mono font-bold text-[var(--terminal-text)] uppercase tracking-[0.2em]">
-              New Security Key
-            </h2>
-            <p className="text-[10px] font-mono text-[var(--terminal-text-muted)] uppercase tracking-wider mt-2">
-              Enter your new access credentials
+            <h1
+              className="text-xl font-semibold"
+              style={{ color: 'var(--nous-ivory)' }}
+            >
+              Set a new password
+            </h1>
+            <p
+              className="text-sm mt-1.5 leading-relaxed"
+              style={{
+                color: 'var(--nous-parchment)',
+                fontFamily: 'var(--nous-font-body)',
+              }}
+            >
+              Choose a password with at least 8 characters.
             </p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-5">
             {error && (
               <motion.div
-                initial={{ opacity: 0, y: -5 }}
+                role="alert"
+                initial={{ opacity: 0, y: -4 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="rounded-lg border border-red-500/30 bg-red-500/5 p-3"
+                className="rounded-lg border p-3"
+                style={{
+                  background: 'rgba(239, 68, 68, 0.08)',
+                  borderColor: 'rgba(239, 68, 68, 0.3)',
+                }}
               >
-                <p className="text-[10px] font-mono text-red-400 font-bold uppercase tracking-tighter">
-                  Reset Error: {error}
+                <p className="text-sm" style={{ color: 'var(--nous-mars)' }}>
+                  {error}
                 </p>
               </motion.div>
             )}
@@ -227,13 +325,18 @@ export default function ResetPasswordPage() {
             <div className="space-y-2">
               <label
                 htmlFor="password"
-                className="block text-[10px] font-mono text-[var(--terminal-text-dim)] uppercase tracking-[0.2em] font-bold pl-1"
+                className="block text-sm font-medium"
+                style={{ color: 'var(--nous-parchment)' }}
               >
-                New Security Key
+                New password
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none">
-                  <Lock className="w-4 h-4 text-[var(--terminal-text-muted)]" />
+                  <Lock
+                    aria-hidden="true"
+                    className="w-4 h-4"
+                    style={{ color: 'var(--nous-dust)' }}
+                  />
                 </div>
                 <input
                   id="password"
@@ -241,18 +344,30 @@ export default function ResetPasswordPage() {
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full pl-11 pr-12 py-3 rounded-xl bg-[var(--terminal-bg)] border border-[var(--terminal-border)] font-mono text-sm text-[var(--terminal-text)] placeholder:text-[var(--terminal-text-muted)]/30 focus:border-[var(--phosphor-green)]/50 focus:ring-0 outline-none transition-all"
-                  placeholder="NEW_KEY_BUFFER"
+                  className="w-full pl-11 pr-12 py-2.5 rounded-lg text-sm outline-none transition-colors duration-200 focus-visible:ring-2"
+                  style={{
+                    background: 'var(--nous-nyx)',
+                    border: '1px solid var(--nous-shade)',
+                    color: 'var(--nous-ivory)',
+                    ['--tw-ring-color' as string]: 'var(--nous-sol)',
+                  }}
+                  placeholder="Enter a new password"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute inset-y-0 right-0 flex items-center pr-3.5 text-[var(--terminal-text-muted)] hover:text-[var(--phosphor-green)] transition-colors"
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  aria-pressed={showPassword}
+                  className="absolute inset-y-0 right-0 flex items-center pr-3.5 transition-colors duration-200 rounded-r-lg focus-visible:outline-none focus-visible:ring-2"
+                  style={{
+                    color: 'var(--nous-dust)',
+                    ['--tw-ring-color' as string]: 'var(--nous-sol)',
+                  }}
                 >
                   {showPassword ? (
-                    <EyeOff className="w-4 h-4" />
+                    <EyeOff aria-hidden="true" className="w-4 h-4" />
                   ) : (
-                    <Eye className="w-4 h-4" />
+                    <Eye aria-hidden="true" className="w-4 h-4" />
                   )}
                 </button>
               </div>
@@ -261,13 +376,18 @@ export default function ResetPasswordPage() {
             <div className="space-y-2">
               <label
                 htmlFor="confirmPassword"
-                className="block text-[10px] font-mono text-[var(--terminal-text-dim)] uppercase tracking-[0.2em] font-bold pl-1"
+                className="block text-sm font-medium"
+                style={{ color: 'var(--nous-parchment)' }}
               >
-                Verify New Key
+                Confirm new password
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none">
-                  <Lock className="w-4 h-4 text-[var(--terminal-text-muted)]" />
+                  <Lock
+                    aria-hidden="true"
+                    className="w-4 h-4"
+                    style={{ color: 'var(--nous-dust)' }}
+                  />
                 </div>
                 <input
                   id="confirmPassword"
@@ -275,8 +395,14 @@ export default function ResetPasswordPage() {
                   required
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
-                  className="w-full pl-11 pr-4 py-3 rounded-xl bg-[var(--terminal-bg)] border border-[var(--terminal-border)] font-mono text-sm text-[var(--terminal-text)] placeholder:text-[var(--terminal-text-muted)]/30 focus:border-[var(--phosphor-green)]/50 focus:ring-0 outline-none transition-all"
-                  placeholder="RE_ENTER_KEY"
+                  className="w-full pl-11 pr-4 py-2.5 rounded-lg text-sm outline-none transition-colors duration-200 focus-visible:ring-2"
+                  style={{
+                    background: 'var(--nous-nyx)',
+                    border: '1px solid var(--nous-shade)',
+                    color: 'var(--nous-ivory)',
+                    ['--tw-ring-color' as string]: 'var(--nous-sol)',
+                  }}
+                  placeholder="Re-enter your new password"
                 />
               </div>
             </div>
@@ -285,32 +411,41 @@ export default function ResetPasswordPage() {
               type="submit"
               disabled={isSubmitting}
               className={cn(
-                'group w-full flex items-center justify-center gap-3 py-3.5 px-4 rounded-xl font-mono text-xs font-bold uppercase tracking-[0.2em]',
-                'bg-[var(--phosphor-green)] text-[var(--terminal-bg)]',
-                'hover:shadow-[0_0_25px_var(--phosphor-green-glow)] hover:scale-[1.02] active:scale-[0.98]',
-                'disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300'
+                'w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg text-sm font-medium',
+                'transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2',
+                'disabled:opacity-50 disabled:cursor-not-allowed'
               )}
+              style={{
+                background: 'var(--nous-sol)',
+                color: 'var(--nous-erebus)',
+                ['--tw-ring-color' as string]: 'var(--nous-sol)',
+                ['--tw-ring-offset-color' as string]: 'var(--nous-obsidian)',
+              }}
             >
               {isSubmitting ? (
-                <>
-                  <RefreshCw className="w-4 h-4 animate-spin" />
-                  <span>Updating...</span>
-                </>
+                <span>Updating…</span>
               ) : (
                 <>
-                  <span>Update Security Key</span>
-                  <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                  <span>Update password</span>
+                  <ArrowRight aria-hidden="true" className="w-4 h-4" />
                 </>
               )}
             </button>
           </form>
 
-          <div className="mt-8 pt-6 border-t border-[var(--terminal-border)] text-center">
+          <div
+            className="mt-7 pt-6 border-t text-center"
+            style={{ borderColor: 'var(--nous-shade)' }}
+          >
             <Link
               href="/login"
-              className="text-[10px] font-mono text-[var(--terminal-text-dim)] uppercase tracking-widest hover:text-[var(--phosphor-green)] transition-colors"
+              className="text-sm transition-colors duration-200 rounded focus-visible:outline-none focus-visible:ring-2"
+              style={{
+                color: 'var(--nous-sol)',
+                ['--tw-ring-color' as string]: 'var(--nous-sol)',
+              }}
             >
-              Return to Access Terminal
+              Back to sign in
             </Link>
           </div>
         </div>

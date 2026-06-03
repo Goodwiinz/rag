@@ -16,6 +16,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { DocumentCard } from './DocumentCard';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
+import { IconButton } from '@/components/ui/icon-button';
 import { Input } from '@/components/ui/input';
 import {
   Select,
@@ -402,7 +403,7 @@ export const DocumentLibrary: React.FC<DocumentLibraryProps> = ({
 
               {showBulkActionsMenu && (
                 <div
-                  className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg border border-gray-200 z-10"
+                  className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg border border-border z-10"
                   role="menu"
                   aria-labelledby="bulk-actions-button"
                 >
@@ -413,7 +414,7 @@ export const DocumentLibrary: React.FC<DocumentLibraryProps> = ({
                         handleExportSelected();
                         setShowBulkActionsMenu(false);
                       }}
-                      className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                      className="flex items-center w-full px-4 py-2 text-sm text-foreground hover:bg-gray-100"
                     >
                       <FolderArrowDownIcon
                         className="h-4 w-4 mr-2"
@@ -428,7 +429,7 @@ export const DocumentLibrary: React.FC<DocumentLibraryProps> = ({
                         handleTagSelected('important');
                         setShowBulkActionsMenu(false);
                       }}
-                      className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                      className="flex items-center w-full px-4 py-2 text-sm text-foreground hover:bg-gray-100"
                     >
                       <TagIcon className="h-4 w-4 mr-2" aria-hidden="true" />
                       Add Tags
@@ -570,27 +571,27 @@ export const DocumentLibrary: React.FC<DocumentLibraryProps> = ({
                 </div>
 
                 <div className="flex items-center space-x-2">
-                  <Button
+                  <IconButton
                     variant="outline"
                     size="sm"
                     onClick={() => handlePageChange(pagination.page - 1)}
                     disabled={!pagination.hasPrev}
-                  >
-                    <ChevronLeftIcon className="h-4 w-4" />
-                  </Button>
+                    icon={<ChevronLeftIcon className="h-4 w-4" />}
+                    label="Previous page"
+                  />
 
                   <span className="text-sm text-muted-foreground">
                     Page {pagination.page} of {pagination.totalPages}
                   </span>
 
-                  <Button
+                  <IconButton
                     variant="outline"
                     size="sm"
                     onClick={() => handlePageChange(pagination.page + 1)}
                     disabled={!pagination.hasNext}
-                  >
-                    <ChevronRightIcon className="h-4 w-4" />
-                  </Button>
+                    icon={<ChevronRightIcon className="h-4 w-4" />}
+                    label="Next page"
+                  />
                 </div>
               </div>
             </div>
@@ -620,11 +621,11 @@ export const DocumentLibrary: React.FC<DocumentLibraryProps> = ({
               </div>
 
               <div className="space-y-2">
-                <p className="text-sm text-gray-600">
+                <p className="text-sm text-foreground">
                   This action <strong>cannot be undone</strong>. The document
                   will be permanently deleted from:
                 </p>
-                <ul className="text-sm text-gray-600 space-y-1 ml-4">
+                <ul className="text-sm text-foreground space-y-1 ml-4">
                   <li>• Document library</li>
                   <li>• Search index</li>
                   <li>• Knowledge graph</li>
@@ -697,7 +698,7 @@ export const DocumentLibrary: React.FC<DocumentLibraryProps> = ({
                     style={{ width: `${deleteProgress}%` }}
                   />
                 </div>
-                <p className="text-xs text-gray-500">
+                <p className="text-xs text-muted-foreground">
                   {Math.round((deleteProgress / 100) * selectedCount)} of{' '}
                   {selectedCount} documents deleted
                 </p>
@@ -705,10 +706,10 @@ export const DocumentLibrary: React.FC<DocumentLibraryProps> = ({
             )}
 
             <div className="space-y-2">
-              <p className="text-sm text-gray-600">
+              <p className="text-sm text-foreground">
                 All selected documents will be permanently deleted from:
               </p>
-              <ul className="text-sm text-gray-600 space-y-1 ml-4">
+              <ul className="text-sm text-foreground space-y-1 ml-4">
                 <li>• Document library</li>
                 <li>• Search index</li>
                 <li>• Knowledge graph</li>

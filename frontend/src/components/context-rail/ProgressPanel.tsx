@@ -60,9 +60,9 @@ export function ProgressPanel({ threadId }: ProgressPanelProps) {
             <span
               className={cn(
                 'mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full transition-colors',
-                row.done && 'bg-[var(--phosphor-green)]',
+                row.done && 'bg-[var(--nous-sol)]',
                 row.active &&
-                  'border-2 border-[var(--phosphor-green)] animate-pulse',
+                  'border-2 border-[var(--nous-sol)] animate-pulse',
                 row.error && 'bg-[var(--error-red)]',
                 !row.done &&
                   !row.active &&

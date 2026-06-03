@@ -289,7 +289,7 @@ export function ThreadMessageSearch({
       case 'tool':
         return 'bg-orange-500/20 text-orange-400';
       default:
-        return 'bg-gray-500/20 text-gray-400';
+        return 'bg-gray-500/20 text-muted-foreground';
     }
   };
 
@@ -301,9 +301,9 @@ export function ThreadMessageSearch({
       case 'resolved':
         return 'bg-blue-500/20 text-blue-400';
       case 'archived':
-        return 'bg-gray-500/20 text-gray-400';
+        return 'bg-gray-500/20 text-muted-foreground';
       default:
-        return 'bg-gray-500/20 text-gray-400';
+        return 'bg-gray-500/20 text-muted-foreground';
     }
   };
 
@@ -325,14 +325,14 @@ export function ThreadMessageSearch({
               onFocus={() => query.length >= 2 && setShowSuggestions(true)}
               onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
               placeholder="Search threads and messages..."
-              className="pl-10 pr-10 bg-black/40 border-gray-700 focus:border-green-500 text-gray-100 placeholder:text-gray-500"
+              className="pl-10 pr-10 bg-black/40 border-border focus:border-green-500 text-muted-foreground placeholder:text-muted-foreground"
             />
             {query && (
               <button
                 onClick={handleClear}
                 aria-label="Clear search"
                 title="Clear search"
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -344,7 +344,7 @@ export function ThreadMessageSearch({
             value={searchMode}
             onValueChange={(v) => setSearchMode(v as SearchMode)}
           >
-            <SelectTrigger className="w-32 bg-black/40 border-gray-700">
+            <SelectTrigger className="w-32 bg-black/40 border-border">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -361,19 +361,21 @@ export function ThreadMessageSearch({
                 variant="outline"
                 size="icon"
                 aria-label="Toggle filters"
-                className="bg-black/40 border-gray-700 hover:bg-gray-800"
+                className="bg-black/40 border-border hover:bg-gray-800"
               >
                 <Filter className="h-4 w-4" />
               </Button>
             </PopoverTrigger>
-            <PopoverContent className="w-64 bg-gray-900 border-gray-700">
+            <PopoverContent className="w-64 bg-gray-900 border-border">
               <div className="space-y-4">
-                <h4 className="font-medium text-sm text-gray-300">Filters</h4>
+                <h4 className="font-medium text-sm text-muted-foreground">
+                  Filters
+                </h4>
 
                 {searchMode === 'threads' && (
                   <>
                     <div>
-                      <label className="text-xs text-gray-500 mb-1 block">
+                      <label className="text-xs text-muted-foreground mb-1 block">
                         Sort By
                       </label>
                       <Select
@@ -382,7 +384,7 @@ export function ThreadMessageSearch({
                           setThreadSortOrder(v as ThreadSearchSortOrder)
                         }
                       >
-                        <SelectTrigger className="bg-black/40 border-gray-700">
+                        <SelectTrigger className="bg-black/40 border-border">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -402,7 +404,7 @@ export function ThreadMessageSearch({
                     </div>
 
                     <div>
-                      <label className="text-xs text-gray-500 mb-1 block">
+                      <label className="text-xs text-muted-foreground mb-1 block">
                         Status
                       </label>
                       <div className="flex flex-wrap gap-1">
@@ -416,7 +418,7 @@ export function ThreadMessageSearch({
                               'cursor-pointer',
                               statusFilter.includes(status)
                                 ? getStatusBadgeColor(status)
-                                : 'bg-gray-800 text-gray-500'
+                                : 'bg-gray-800 text-muted-foreground'
                             )}
                             onClick={() => {
                               setStatusFilter((prev) =>
@@ -436,7 +438,7 @@ export function ThreadMessageSearch({
 
                 {searchMode === 'messages' && (
                   <div>
-                    <label className="text-xs text-gray-500 mb-1 block">
+                    <label className="text-xs text-muted-foreground mb-1 block">
                       Sort By
                     </label>
                     <Select
@@ -445,7 +447,7 @@ export function ThreadMessageSearch({
                         setMessageSortOrder(v as MessageSearchSortOrder)
                       }
                     >
-                      <SelectTrigger className="bg-black/40 border-gray-700">
+                      <SelectTrigger className="bg-black/40 border-border">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -463,11 +465,11 @@ export function ThreadMessageSearch({
 
         {/* Suggestions Dropdown */}
         {showSuggestions && suggestions.length > 0 && (
-          <div className="absolute top-full left-0 right-0 mt-1 bg-gray-900 border border-gray-700 rounded-md shadow-lg z-10">
+          <div className="absolute top-full left-0 right-0 mt-1 bg-gray-900 border border-border rounded-md shadow-lg z-10">
             {suggestions.map((suggestion, i) => (
               <button
                 key={i}
-                className="w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-gray-800 first:rounded-t-md last:rounded-b-md"
+                className="w-full px-4 py-2 text-left text-sm text-muted-foreground hover:bg-gray-800 first:rounded-t-md last:rounded-b-md"
                 onClick={() => {
                   setQuery(suggestion);
                   performSearch(suggestion, 0);
@@ -483,7 +485,7 @@ export function ThreadMessageSearch({
 
       {/* Search Stats */}
       {totalResults > 0 && (
-        <div className="flex items-center gap-4 text-xs text-gray-500">
+        <div className="flex items-center gap-4 text-xs text-muted-foreground">
           <span>{totalResults} results</span>
           <span className="flex items-center gap-1">
             <Clock className="h-3 w-3" />
@@ -517,7 +519,7 @@ export function ThreadMessageSearch({
             combinedResults.map((result) => (
               <div
                 key={`${result.result_type}-${result.id}`}
-                className="p-3 bg-black/40 border border-gray-700 rounded-md hover:border-gray-600 cursor-pointer transition-colors"
+                className="p-3 bg-black/40 border border-border rounded-md hover:border-border cursor-pointer transition-colors"
                 onClick={() => {
                   if (result.result_type === 'thread') {
                     onSelectThread?.(result.id);
@@ -531,27 +533,27 @@ export function ThreadMessageSearch({
                     {result.result_type === 'thread' ? (
                       <MessageSquare className="h-4 w-4 text-cyan-400" />
                     ) : (
-                      <MessageSquare className="h-4 w-4 text-gray-500" />
+                      <MessageSquare className="h-4 w-4 text-muted-foreground" />
                     )}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
                       <Badge
                         variant="outline"
-                        className="text-xs bg-gray-800 text-gray-400"
+                        className="text-xs bg-gray-800 text-muted-foreground"
                       >
                         {result.result_type}
                       </Badge>
                       {result.title && (
-                        <span className="text-sm font-medium text-gray-200 truncate">
+                        <span className="text-sm font-medium text-muted-foreground truncate">
                           {result.title}
                         </span>
                       )}
                     </div>
-                    <p className="text-sm text-gray-400 line-clamp-2">
+                    <p className="text-sm text-muted-foreground line-clamp-2">
                       {result.snippet}
                     </p>
-                    <div className="flex items-center gap-2 mt-1 text-xs text-gray-500">
+                    <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
                       <span>
                         Score: {(result.relevance_score * 100).toFixed(0)}%
                       </span>
@@ -569,7 +571,7 @@ export function ThreadMessageSearch({
             threadResults.map((result) => (
               <div
                 key={result.thread_id}
-                className="p-3 bg-black/40 border border-gray-700 rounded-md hover:border-gray-600 cursor-pointer transition-colors"
+                className="p-3 bg-black/40 border border-border rounded-md hover:border-border cursor-pointer transition-colors"
                 onClick={() => onSelectThread?.(result.thread_id)}
               >
                 <div className="flex items-start gap-3">
@@ -579,7 +581,7 @@ export function ThreadMessageSearch({
                   />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
-                      <span className="text-sm font-medium text-gray-200">
+                      <span className="text-sm font-medium text-muted-foreground">
                         {result.highlighted_title
                           ? renderHighlighted(result.highlighted_title)
                           : result.title || 'Untitled Thread'}
@@ -595,11 +597,11 @@ export function ThreadMessageSearch({
                       </Badge>
                     </div>
                     {result.highlighted_summary && (
-                      <p className="text-sm text-gray-400 line-clamp-2 mb-1">
+                      <p className="text-sm text-muted-foreground line-clamp-2 mb-1">
                         {renderHighlighted(result.highlighted_summary)}
                       </p>
                     )}
-                    <div className="flex items-center gap-3 text-xs text-gray-500">
+                    <div className="flex items-center gap-3 text-xs text-muted-foreground">
                       <span className="flex items-center gap-1">
                         <MessageSquare className="h-3 w-3" />
                         {result.message_count} messages
@@ -624,7 +626,7 @@ export function ThreadMessageSearch({
             messageResults.map((result) => (
               <div
                 key={result.message_id}
-                className="p-3 bg-black/40 border border-gray-700 rounded-md hover:border-gray-600 cursor-pointer transition-colors"
+                className="p-3 bg-black/40 border border-border rounded-md hover:border-border cursor-pointer transition-colors"
                 onClick={() =>
                   onSelectMessage?.(result.message_id, result.thread_id)
                 }
@@ -640,19 +642,19 @@ export function ThreadMessageSearch({
                   </div>
                   <div className="flex-1 min-w-0">
                     {result.thread_title && (
-                      <div className="text-xs text-gray-500 mb-1">
+                      <div className="text-xs text-muted-foreground mb-1">
                         in{' '}
-                        <span className="text-gray-400">
+                        <span className="text-muted-foreground">
                           {result.thread_title}
                         </span>
                       </div>
                     )}
-                    <p className="text-sm text-gray-300 line-clamp-3">
+                    <p className="text-sm text-muted-foreground line-clamp-3">
                       {result.highlighted_content
                         ? renderHighlighted(result.highlighted_content)
                         : result.content}
                     </p>
-                    <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
+                    <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
                       <span>
                         Score: {(result.relevance_score * 10).toFixed(0)}%
                       </span>
@@ -672,7 +674,7 @@ export function ThreadMessageSearch({
 
           {/* Empty State */}
           {query.length >= 2 && !isLoading && totalResults === 0 && (
-            <div className="text-center py-8 text-gray-500">
+            <div className="text-center py-8 text-muted-foreground">
               No results found for "{query}"
             </div>
           )}
@@ -681,7 +683,7 @@ export function ThreadMessageSearch({
           {hasMore && !isLoading && (
             <Button
               variant="outline"
-              className="w-full bg-black/40 border-gray-700 hover:bg-gray-800"
+              className="w-full bg-black/40 border-border hover:bg-gray-800"
               onClick={handleLoadMore}
             >
               <ChevronDown className="h-4 w-4 mr-2" />

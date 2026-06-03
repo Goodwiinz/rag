@@ -18,14 +18,29 @@ import {
   SignalIcon,
   ServerIcon,
   CpuChipIcon,
-  CircleStackIcon
+  CircleStackIcon,
 } from '@heroicons/react/24/outline';
 import { cn } from '@/lib/utils';
-import { useRealtimeProcessingStore, useConnectionStatus, useProcessingQueue, useSystemMetrics, useUIState, useNotifications } from '@/store/realtimeProcessingStore';
-import { DocumentProcessingState, ProcessingStage } from '@/types/realtime-processing';
+import {
+  useRealtimeProcessingStore,
+  useConnectionStatus,
+  useProcessingQueue,
+  useSystemMetrics,
+  useUIState,
+  useNotifications,
+} from '@/store/realtimeProcessingStore';
+import {
+  DocumentProcessingState,
+  ProcessingStage,
+} from '@/types/realtime-processing';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Progress } from '@/components/ui/progress';
 import { toast } from 'react-hot-toast';
@@ -62,7 +77,7 @@ export const RealtimeProcessingDashboard: React.FC<RealtimeDashboardProps> = ({
   maxHeight = '600px',
   enableSounds = true,
   theme = 'auto',
-  compactView = false
+  compactView = false,
 }) => {
   // State
   const [showDetails, setShowDetails] = useState<string | null>(null);
@@ -88,7 +103,7 @@ export const RealtimeProcessingDashboard: React.FC<RealtimeDashboardProps> = ({
     toggleSidebar,
     setAutoScroll,
     setCompactView,
-    updatePreferences
+    updatePreferences,
   } = useRealtimeProcessingStore();
 
   // Calculate processing statistics
@@ -105,7 +120,7 @@ export const RealtimeProcessingDashboard: React.FC<RealtimeDashboardProps> = ({
       averageProcessingTime: metrics.averageProcessingTime,
       throughputPerMinute: metrics.throughput,
       successRate: metrics.successRate,
-      errorRate: metrics.errorRate
+      errorRate: metrics.errorRate,
     };
   }, [queue]);
 
@@ -115,71 +130,94 @@ export const RealtimeProcessingDashboard: React.FC<RealtimeDashboardProps> = ({
       refreshInterval: refreshInterval * 1000,
       soundEnabled: enableSounds,
       theme,
-      compactView
+      compactView,
     });
   }, [refreshInterval, enableSounds, theme, compactView, updatePreferences]);
 
   // Status helpers
-  const getStatusColor = useCallback((status: DocumentProcessingState['status']) => {
-    switch (status) {
-      case 'completed':
-        return 'text-green-600 bg-green-50 border-green-200';
-      case 'processing':
-        return 'text-blue-600 bg-blue-50 border-blue-200';
-      case 'queued':
-        return 'text-gray-600 bg-gray-50 border-gray-200';
-      case 'uploading':
-        return 'text-yellow-600 bg-yellow-50 border-yellow-200';
-      case 'paused':
-        return 'text-orange-600 bg-orange-50 border-orange-200';
-      case 'cancelled':
-        return 'text-purple-600 bg-purple-50 border-purple-200';
-      case 'failed':
-        return 'text-red-600 bg-red-50 border-red-200';
-      default:
-        return 'text-gray-600 bg-gray-50 border-gray-200';
-    }
-  }, []);
+  const getStatusColor = useCallback(
+    (status: DocumentProcessingState['status']) => {
+      switch (status) {
+        case 'completed':
+          return 'text-green-600 bg-green-50 border-green-200';
+        case 'processing':
+          return 'text-blue-600 bg-blue-50 border-blue-200';
+        case 'queued':
+          return 'text-foreground bg-gray-50 border-border';
+        case 'uploading':
+          return 'text-yellow-600 bg-yellow-50 border-yellow-200';
+        case 'paused':
+          return 'text-orange-600 bg-orange-50 border-orange-200';
+        case 'cancelled':
+          return 'text-purple-600 bg-purple-50 border-purple-200';
+        case 'failed':
+          return 'text-red-600 bg-red-50 border-red-200';
+        default:
+          return 'text-foreground bg-gray-50 border-border';
+      }
+    },
+    []
+  );
 
-  const getStatusIcon = useCallback((status: DocumentProcessingState['status']) => {
-    const iconClass = "h-5 w-5";
-    switch (status) {
-      case 'completed':
-        return <CheckCircleIcon className={cn(iconClass, "text-green-600")} />;
-      case 'processing':
-        return <ArrowPathIcon className={cn(iconClass, "text-blue-600 animate-spin")} />;
-      case 'queued':
-        return <ClockIcon className={cn(iconClass, "text-gray-600")} />;
-      case 'uploading':
-        return <ArrowPathIcon className={cn(iconClass, "text-yellow-600 animate-spin")} />;
-      case 'paused':
-        return <PauseIcon className={cn(iconClass, "text-orange-600")} />;
-      case 'cancelled':
-        return <XMarkIcon className={cn(iconClass, "text-purple-600")} />;
-      case 'failed':
-        return <ExclamationTriangleIcon className={cn(iconClass, "text-red-600")} />;
-      default:
-        return <DocumentIcon className={cn(iconClass, "text-gray-600")} />;
-    }
-  }, []);
+  const getStatusIcon = useCallback(
+    (status: DocumentProcessingState['status']) => {
+      const iconClass = 'h-5 w-5';
+      switch (status) {
+        case 'completed':
+          return (
+            <CheckCircleIcon className={cn(iconClass, 'text-green-600')} />
+          );
+        case 'processing':
+          return (
+            <ArrowPathIcon
+              className={cn(iconClass, 'text-blue-600 animate-spin')}
+            />
+          );
+        case 'queued':
+          return <ClockIcon className={cn(iconClass, 'text-foreground')} />;
+        case 'uploading':
+          return (
+            <ArrowPathIcon
+              className={cn(iconClass, 'text-yellow-600 animate-spin')}
+            />
+          );
+        case 'paused':
+          return <PauseIcon className={cn(iconClass, 'text-orange-600')} />;
+        case 'cancelled':
+          return <XMarkIcon className={cn(iconClass, 'text-purple-600')} />;
+        case 'failed':
+          return (
+            <ExclamationTriangleIcon
+              className={cn(iconClass, 'text-red-600')}
+            />
+          );
+        default:
+          return <DocumentIcon className={cn(iconClass, 'text-foreground')} />;
+      }
+    },
+    []
+  );
 
-  const getFileTypeIcon = useCallback((fileType: DocumentProcessingState['fileType']) => {
-    switch (fileType) {
-      case 'pdf':
-        return <DocumentIcon className="h-5 w-5 text-red-600" />;
-      case 'txt':
-        return <DocumentIcon className="h-5 w-5 text-blue-600" />;
-      case 'jpg':
-      case 'png':
-        return <DocumentIcon className="h-5 w-5 text-green-600" />;
-      case 'mp3':
-        return <DocumentIcon className="h-5 w-5 text-purple-600" />;
-      case 'mp4':
-        return <DocumentIcon className="h-5 w-5 text-orange-600" />;
-      default:
-        return <DocumentIcon className="h-5 w-5 text-gray-600" />;
-    }
-  }, []);
+  const getFileTypeIcon = useCallback(
+    (fileType: DocumentProcessingState['fileType']) => {
+      switch (fileType) {
+        case 'pdf':
+          return <DocumentIcon className="h-5 w-5 text-red-600" />;
+        case 'txt':
+          return <DocumentIcon className="h-5 w-5 text-blue-600" />;
+        case 'jpg':
+        case 'png':
+          return <DocumentIcon className="h-5 w-5 text-green-600" />;
+        case 'mp3':
+          return <DocumentIcon className="h-5 w-5 text-purple-600" />;
+        case 'mp4':
+          return <DocumentIcon className="h-5 w-5 text-orange-600" />;
+        default:
+          return <DocumentIcon className="h-5 w-5 text-foreground" />;
+      }
+    },
+    []
+  );
 
   // Action handlers
   const handlePauseSelected = useCallback(() => {
@@ -222,12 +260,16 @@ export const RealtimeProcessingDashboard: React.FC<RealtimeDashboardProps> = ({
 
   const formatTime = useCallback((seconds: number): string => {
     if (seconds < 60) return `${Math.round(seconds)}s`;
-    if (seconds < 3600) return `${Math.round(seconds / 60)}m ${Math.round(seconds % 60)}s`;
+    if (seconds < 3600)
+      return `${Math.round(seconds / 60)}m ${Math.round(seconds % 60)}s`;
     return `${Math.floor(seconds / 3600)}h ${Math.round((seconds % 3600) / 60)}m`;
   }, []);
 
   return (
-    <div className={cn("space-y-6", className)} data-testid="realtime-processing-dashboard">
+    <div
+      className={cn('space-y-6', className)}
+      data-testid="realtime-processing-dashboard"
+    >
       {/* Header with Connection Status */}
       <div className="flex items-center justify-between p-4 bg-card border rounded-lg">
         <div className="flex items-center space-x-4">
@@ -246,7 +288,9 @@ export const RealtimeProcessingDashboard: React.FC<RealtimeDashboardProps> = ({
               <>
                 <SignalSlashIcon className="h-4 w-4 text-red-600" />
                 <span className="text-sm text-red-600">
-                  {connection.status === 'connecting' ? 'Connecting...' : 'Disconnected'}
+                  {connection.status === 'connecting'
+                    ? 'Connecting...'
+                    : 'Disconnected'}
                 </span>
               </>
             )}
@@ -385,7 +429,11 @@ export const RealtimeProcessingDashboard: React.FC<RealtimeDashboardProps> = ({
                 <span className="text-sm text-muted-foreground">
                   {ui.selectedDocuments.length} selected
                 </span>
-                <Button variant="outline" size="sm" onClick={handleClearSelection}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleClearSelection}
+                >
                   Clear Selection
                 </Button>
               </>
@@ -464,7 +512,7 @@ export const RealtimeProcessingDashboard: React.FC<RealtimeDashboardProps> = ({
           </h3>
         </div>
 
-        <ScrollArea className={cn("h-[600px]")} style={{ maxHeight }}>
+        <ScrollArea className={cn('h-[600px]')} style={{ maxHeight }}>
           {queue.documents.length === 0 ? (
             <div className="p-8 text-center text-muted-foreground">
               <DocumentIcon className="h-12 w-12 mx-auto mb-4 opacity-50" />
@@ -502,7 +550,9 @@ export const RealtimeProcessingDashboard: React.FC<RealtimeDashboardProps> = ({
             </DialogHeader>
             <div className="mt-4">
               {(() => {
-                const document = queue.documents.find(d => d.id === showDetails);
+                const document = queue.documents.find(
+                  (d) => d.id === showDetails
+                );
                 return document ? (
                   <DocumentDetails document={document} />
                 ) : null;
@@ -547,7 +597,9 @@ interface DocumentCardProps {
   onShowDetails: () => void;
   getStatusColor: (status: DocumentProcessingState['status']) => string;
   getStatusIcon: (status: DocumentProcessingState['status']) => React.ReactNode;
-  getFileTypeIcon: (fileType: DocumentProcessingState['fileType']) => React.ReactNode;
+  getFileTypeIcon: (
+    fileType: DocumentProcessingState['fileType']
+  ) => React.ReactNode;
   formatFileSize: (bytes: number) => string;
   formatTime: (seconds: number) => string;
   compact?: boolean;
@@ -563,7 +615,7 @@ const DocumentCard: React.FC<DocumentCardProps> = ({
   getFileTypeIcon,
   formatFileSize,
   formatTime,
-  compact = false
+  compact = false,
 }) => {
   const getElapsedTime = (): string => {
     if (!document.metadata.uploadStartedAt) return 'N/A';
@@ -580,9 +632,9 @@ const DocumentCard: React.FC<DocumentCardProps> = ({
   return (
     <div
       className={cn(
-        "p-4 hover:bg-accent/50 transition-colors cursor-pointer",
-        isSelected && "bg-accent/50 border-l-4 border-l-primary",
-        compact && "p-3"
+        'p-4 hover:bg-accent/50 transition-colors cursor-pointer',
+        isSelected && 'bg-accent/50 ring-1 ring-inset ring-primary/40',
+        compact && 'p-3'
       )}
       onClick={onSelect}
       role="article"
@@ -595,7 +647,7 @@ const DocumentCard: React.FC<DocumentCardProps> = ({
             type="checkbox"
             checked={isSelected}
             onChange={onSelect}
-            className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+            className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
             onClick={(e) => e.stopPropagation()}
             aria-label={`Select ${document.filename}`}
           />
@@ -607,10 +659,12 @@ const DocumentCard: React.FC<DocumentCardProps> = ({
 
           {/* Document info */}
           <div className="flex-1 min-w-0">
-            <p className={cn(
-              "text-sm font-medium text-foreground truncate",
-              compact && "text-xs"
-            )}>
+            <p
+              className={cn(
+                'text-sm font-medium text-foreground truncate',
+                compact && 'text-xs'
+              )}
+            >
               {document.filename}
             </p>
             <div className="flex items-center space-x-2 mt-1">
@@ -632,12 +686,14 @@ const DocumentCard: React.FC<DocumentCardProps> = ({
         <div className="flex items-center space-x-2 flex-shrink-0">
           {/* Status badge */}
           <Badge
-            className={cn("text-xs", getStatusColor(document.status))}
+            className={cn('text-xs', getStatusColor(document.status))}
             variant="outline"
           >
             <div className="flex items-center space-x-1">
               {getStatusIcon(document.status)}
-              <span className="capitalize">{document.status.replace('_', ' ')}</span>
+              <span className="capitalize">
+                {document.status.replace('_', ' ')}
+              </span>
             </div>
           </Badge>
 
@@ -657,32 +713,36 @@ const DocumentCard: React.FC<DocumentCardProps> = ({
       </div>
 
       {/* Progress bar */}
-      {document.status !== 'completed' && document.status !== 'failed' && document.status !== 'cancelled' && (
-        <div className="mt-3">
-          <div className="flex items-center justify-between mb-1">
-            <span className="text-xs text-muted-foreground">
-              {document.currentStage.name} - {document.overallProgress}% complete
-            </span>
-            {document.metadata.estimatedTimeRemaining && (
+      {document.status !== 'completed' &&
+        document.status !== 'failed' &&
+        document.status !== 'cancelled' && (
+          <div className="mt-3">
+            <div className="flex items-center justify-between mb-1">
               <span className="text-xs text-muted-foreground">
-                ~{formatTime(document.metadata.estimatedTimeRemaining)} remaining
+                {document.currentStage.name} - {document.overallProgress}%
+                complete
               </span>
+              {document.metadata.estimatedTimeRemaining && (
+                <span className="text-xs text-muted-foreground">
+                  ~{formatTime(document.metadata.estimatedTimeRemaining)}{' '}
+                  remaining
+                </span>
+              )}
+            </div>
+            <Progress value={document.overallProgress} className="h-2" />
+
+            {/* Stage progress */}
+            {!compact && document.stages.length > 1 && (
+              <div className="mt-2">
+                <StageIndicator
+                  stages={document.stages}
+                  currentStage={document.currentStage}
+                  compact={true}
+                />
+              </div>
             )}
           </div>
-          <Progress value={document.overallProgress} className="h-2" />
-
-          {/* Stage progress */}
-          {!compact && document.stages.length > 1 && (
-            <div className="mt-2">
-              <StageIndicator
-                stages={document.stages}
-                currentStage={document.currentStage}
-                compact={true}
-              />
-            </div>
-          )}
-        </div>
-      )}
+        )}
 
       {/* Error message */}
       {document.error && (
@@ -701,7 +761,11 @@ interface StageIndicatorProps {
   compact?: boolean;
 }
 
-const StageIndicator: React.FC<StageIndicatorProps> = ({ stages, currentStage, compact = false }) => {
+const StageIndicator: React.FC<StageIndicatorProps> = ({
+  stages,
+  currentStage,
+  compact = false,
+}) => {
   const getStageStatus = (stage: ProcessingStage) => {
     if (stage.status === 'completed') return 'completed';
     if (stage.status === 'failed') return 'error';
@@ -730,10 +794,12 @@ const StageIndicator: React.FC<StageIndicatorProps> = ({ stages, currentStage, c
           <div key={stage.id} className="flex items-center space-x-1">
             {getStageIcon(stage)}
             {index < stages.length - 1 && (
-              <div className={cn(
-                "h-0.5 w-4",
-                stage.status === 'completed' ? "bg-green-600" : "bg-gray-300"
-              )} />
+              <div
+                className={cn(
+                  'h-0.5 w-4',
+                  stage.status === 'completed' ? 'bg-green-600' : 'bg-gray-300'
+                )}
+              />
             )}
           </div>
         ))}
@@ -747,11 +813,13 @@ const StageIndicator: React.FC<StageIndicatorProps> = ({ stages, currentStage, c
         <div
           key={stage.id}
           className={cn(
-            "p-2 rounded border text-xs",
-            getStageStatus(stage) === 'completed' && "bg-green-50 border-green-200",
-            getStageStatus(stage) === 'processing' && "bg-blue-50 border-blue-200",
-            getStageStatus(stage) === 'error' && "bg-red-50 border-red-200",
-            getStageStatus(stage) === 'pending' && "bg-gray-50 border-gray-200"
+            'p-2 rounded border text-xs',
+            getStageStatus(stage) === 'completed' &&
+              'bg-green-50 border-green-200',
+            getStageStatus(stage) === 'processing' &&
+              'bg-blue-50 border-blue-200',
+            getStageStatus(stage) === 'error' && 'bg-red-50 border-red-200',
+            getStageStatus(stage) === 'pending' && 'bg-gray-50 border-border'
           )}
         >
           <div className="flex items-center space-x-2 mb-1">
@@ -790,27 +858,47 @@ const DocumentDetails: React.FC<DocumentDetailsProps> = ({ document }) => {
           <h3 className="text-lg font-semibold mb-3">Basic Information</h3>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="text-sm font-medium text-muted-foreground">File Name</label>
+              <label className="text-sm font-medium text-muted-foreground">
+                File Name
+              </label>
               <p className="text-sm text-foreground">{document.filename}</p>
             </div>
             <div>
-              <label className="text-sm font-medium text-muted-foreground">File Type</label>
-              <p className="text-sm text-foreground uppercase">{document.fileType}</p>
+              <label className="text-sm font-medium text-muted-foreground">
+                File Type
+              </label>
+              <p className="text-sm text-foreground uppercase">
+                {document.fileType}
+              </p>
             </div>
             <div>
-              <label className="text-sm font-medium text-muted-foreground">File Size</label>
-              <p className="text-sm text-foreground">{(document.metadata.fileSize / 1024 / 1024).toFixed(2)} MB</p>
+              <label className="text-sm font-medium text-muted-foreground">
+                File Size
+              </label>
+              <p className="text-sm text-foreground">
+                {(document.metadata.fileSize / 1024 / 1024).toFixed(2)} MB
+              </p>
             </div>
             <div>
-              <label className="text-sm font-medium text-muted-foreground">Status</label>
-              <p className="text-sm text-foreground capitalize">{document.status.replace('_', ' ')}</p>
+              <label className="text-sm font-medium text-muted-foreground">
+                Status
+              </label>
+              <p className="text-sm text-foreground capitalize">
+                {document.status.replace('_', ' ')}
+              </p>
             </div>
             <div>
-              <label className="text-sm font-medium text-muted-foreground">Progress</label>
-              <p className="text-sm text-foreground">{document.overallProgress}%</p>
+              <label className="text-sm font-medium text-muted-foreground">
+                Progress
+              </label>
+              <p className="text-sm text-foreground">
+                {document.overallProgress}%
+              </p>
             </div>
             <div>
-              <label className="text-sm font-medium text-muted-foreground">Retry Count</label>
+              <label className="text-sm font-medium text-muted-foreground">
+                Retry Count
+              </label>
               <p className="text-sm text-foreground">{document.retryCount}</p>
             </div>
           </div>
@@ -876,18 +964,26 @@ const DocumentDetails: React.FC<DocumentDetailsProps> = ({ document }) => {
           <div className="space-y-2">
             <div className="flex items-center space-x-3 text-sm">
               <div className="w-3 h-3 rounded-full bg-blue-600" />
-              <span>Upload Started: {formatTimestamp(document.metadata.uploadStartedAt)}</span>
+              <span>
+                Upload Started:{' '}
+                {formatTimestamp(document.metadata.uploadStartedAt)}
+              </span>
             </div>
             {document.metadata.processingStartedAt && (
               <div className="flex items-center space-x-3 text-sm">
                 <div className="w-3 h-3 rounded-full bg-yellow-600" />
-                <span>Processing Started: {formatTimestamp(document.metadata.processingStartedAt)}</span>
+                <span>
+                  Processing Started:{' '}
+                  {formatTimestamp(document.metadata.processingStartedAt)}
+                </span>
               </div>
             )}
             {document.metadata.completedAt && (
               <div className="flex items-center space-x-3 text-sm">
                 <div className="w-3 h-3 rounded-full bg-green-600" />
-                <span>Completed: {formatTimestamp(document.metadata.completedAt)}</span>
+                <span>
+                  Completed: {formatTimestamp(document.metadata.completedAt)}
+                </span>
               </div>
             )}
           </div>
@@ -919,13 +1015,15 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose }) => {
     updatePreferences,
     setAutoScroll,
     toggleSidebar,
-    setTheme
+    setTheme,
   } = useRealtimeProcessingStore();
 
   return (
     <div className="space-y-4">
       <div>
-        <label className="text-sm font-medium text-muted-foreground">Theme</label>
+        <label className="text-sm font-medium text-muted-foreground">
+          Theme
+        </label>
         <select
           value={ui.theme}
           onChange={(e) => setTheme(e.target.value as any)}
@@ -938,10 +1036,14 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose }) => {
       </div>
 
       <div>
-        <label className="text-sm font-medium text-muted-foreground">Refresh Interval</label>
+        <label className="text-sm font-medium text-muted-foreground">
+          Refresh Interval
+        </label>
         <select
           value={preferences.refreshInterval}
-          onChange={(e) => updatePreferences({ refreshInterval: parseInt(e.target.value) })}
+          onChange={(e) =>
+            updatePreferences({ refreshInterval: parseInt(e.target.value) })
+          }
           className="w-full mt-1 p-2 border rounded"
         >
           <option value={500}>500ms</option>
@@ -952,10 +1054,14 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose }) => {
       </div>
 
       <div>
-        <label className="text-sm font-medium text-muted-foreground">Max Notifications</label>
+        <label className="text-sm font-medium text-muted-foreground">
+          Max Notifications
+        </label>
         <select
           value={preferences.maxNotifications}
-          onChange={(e) => updatePreferences({ maxNotifications: parseInt(e.target.value) })}
+          onChange={(e) =>
+            updatePreferences({ maxNotifications: parseInt(e.target.value) })
+          }
           className="w-full mt-1 p-2 border rounded"
         >
           <option value={5}>5</option>
@@ -966,27 +1072,37 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose }) => {
       </div>
 
       <div className="flex items-center justify-between">
-        <label className="text-sm font-medium text-muted-foreground">Sound Notifications</label>
+        <label className="text-sm font-medium text-muted-foreground">
+          Sound Notifications
+        </label>
         <input
           type="checkbox"
           checked={preferences.soundEnabled}
-          onChange={(e) => updatePreferences({ soundEnabled: e.target.checked })}
+          onChange={(e) =>
+            updatePreferences({ soundEnabled: e.target.checked })
+          }
           className="rounded"
         />
       </div>
 
       <div className="flex items-center justify-between">
-        <label className="text-sm font-medium text-muted-foreground">Desktop Notifications</label>
+        <label className="text-sm font-medium text-muted-foreground">
+          Desktop Notifications
+        </label>
         <input
           type="checkbox"
           checked={preferences.desktopNotifications}
-          onChange={(e) => updatePreferences({ desktopNotifications: e.target.checked })}
+          onChange={(e) =>
+            updatePreferences({ desktopNotifications: e.target.checked })
+          }
           className="rounded"
         />
       </div>
 
       <div className="flex items-center justify-between">
-        <label className="text-sm font-medium text-muted-foreground">Auto-scroll</label>
+        <label className="text-sm font-medium text-muted-foreground">
+          Auto-scroll
+        </label>
         <input
           type="checkbox"
           checked={ui.autoScrollEnabled}
@@ -996,7 +1112,9 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose }) => {
       </div>
 
       <div className="flex items-center justify-between">
-        <label className="text-sm font-medium text-muted-foreground">Compact View</label>
+        <label className="text-sm font-medium text-muted-foreground">
+          Compact View
+        </label>
         <input
           type="checkbox"
           checked={ui.compactView}
@@ -1009,9 +1127,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose }) => {
         <Button variant="outline" onClick={onClose}>
           Cancel
         </Button>
-        <Button onClick={onClose}>
-          Save Settings
-        </Button>
+        <Button onClick={onClose}>Save Settings</Button>
       </div>
     </div>
   );
@@ -1019,7 +1135,8 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose }) => {
 
 // Notifications Panel Component
 const NotificationsPanel: React.FC = () => {
-  const { notifications, clearNotifications, removeNotification } = useRealtimeProcessingStore();
+  const { notifications, clearNotifications, removeNotification } =
+    useRealtimeProcessingStore();
 
   if (notifications.length === 0) {
     return (
@@ -1044,17 +1161,20 @@ const NotificationsPanel: React.FC = () => {
           <div
             key={notification.id}
             className={cn(
-              "p-3 rounded-lg border",
-              notification.type === 'success' && "bg-green-50 border-green-200",
-              notification.type === 'error' && "bg-red-50 border-red-200",
-              notification.type === 'warning' && "bg-yellow-50 border-yellow-200",
-              notification.type === 'info' && "bg-blue-50 border-blue-200"
+              'p-3 rounded-lg border',
+              notification.type === 'success' && 'bg-green-50 border-green-200',
+              notification.type === 'error' && 'bg-red-50 border-red-200',
+              notification.type === 'warning' &&
+                'bg-yellow-50 border-yellow-200',
+              notification.type === 'info' && 'bg-blue-50 border-blue-200'
             )}
           >
             <div className="flex items-start justify-between">
               <div className="flex-1">
                 <h5 className="font-medium text-sm">{notification.title}</h5>
-                <p className="text-xs text-muted-foreground mt-1">{notification.message}</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {notification.message}
+                </p>
                 <p className="text-xs text-muted-foreground mt-1">
                   {new Date(notification.timestamp).toLocaleTimeString()}
                 </p>

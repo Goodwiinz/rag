@@ -9,7 +9,7 @@ import {
   MusicalNoteIcon,
   VideoCameraIcon,
   ArrowPathIcon,
-  InformationCircleIcon
+  InformationCircleIcon,
 } from '@heroicons/react/24/outline';
 import { cn } from '@/lib/utils';
 import { Document, UploadProgress } from '@/types';
@@ -64,7 +64,11 @@ const getProcessingSteps = (document: Document): ProcessingStep[] => {
   ];
 
   // Add OCR step for PDF and images
-  if (document.file_type === 'pdf' || document.file_type === 'jpg' || document.file_type === 'png') {
+  if (
+    document.file_type === 'pdf' ||
+    document.file_type === 'jpg' ||
+    document.file_type === 'png'
+  ) {
     steps.push({
       id: 'ocr',
       name: 'Text Extraction',
@@ -125,18 +129,29 @@ const getProcessingSteps = (document: Document): ProcessingStep[] => {
 };
 
 const getStepIcon = (step: ProcessingStep) => {
-  const iconClass = "h-5 w-5";
+  const iconClass = 'h-5 w-5';
   switch (step.status) {
     case 'in_progress':
-      return <div className={cn(iconClass, "animate-spin rounded-full border-2 border-primary border-t-transparent")} />;
+      return (
+        <div
+          className={cn(
+            iconClass,
+            'animate-spin rounded-full border-2 border-primary border-t-transparent'
+          )}
+        />
+      );
     case 'completed':
-      return <CheckCircleIcon className={cn(iconClass, "text-green-600")} />;
+      return <CheckCircleIcon className={cn(iconClass, 'text-green-600')} />;
     case 'error':
-      return <XCircleIcon className={cn(iconClass, "text-destructive")} />;
+      return <XCircleIcon className={cn(iconClass, 'text-destructive')} />;
     case 'skipped':
-      return <div className={cn(iconClass, "text-muted-foreground")} />;
+      return <div className={cn(iconClass, 'text-muted-foreground')} />;
     default:
-      return step.icon ? <step.icon className={cn(iconClass, "text-muted-foreground")} /> : <ClockIcon className={cn(iconClass, "text-muted-foreground")} />;
+      return step.icon ? (
+        <step.icon className={cn(iconClass, 'text-muted-foreground')} />
+      ) : (
+        <ClockIcon className={cn(iconClass, 'text-muted-foreground')} />
+      );
   }
 };
 
@@ -152,7 +167,9 @@ const formatDuration = (startTime: string, endTime?: string): string => {
 };
 
 const getStepProgress = (steps: ProcessingStep[]): number => {
-  const completedSteps = steps.filter(step => step.status === 'completed').length;
+  const completedSteps = steps.filter(
+    (step) => step.status === 'completed'
+  ).length;
   return Math.round((completedSteps / steps.length) * 100);
 };
 
@@ -184,38 +201,53 @@ export const ProcessingStatus: React.FC<ProcessingStatusProps> = ({
   className,
   compact = false,
 }) => {
-  const [steps, setSteps] = useState<ProcessingStep[]>(() => getProcessingSteps(document));
+  const [steps, setSteps] = useState<ProcessingStep[]>(() =>
+    getProcessingSteps(document)
+  );
   const [expanded, setExpanded] = useState(false);
 
   // Subscribe to WebSocket updates when enableRealtime is true
   const realtime = useDocumentProcessingStatus({
     documentId: document.id,
     jobId,
-    enabled: enableRealtime && (
-      document.processing_status === 'processing' ||
-      document.processing_status === 'queued'
-    ),
+    enabled:
+      enableRealtime &&
+      (document.processing_status === 'processing' ||
+        document.processing_status === 'queued'),
   });
 
   // Merge realtime data with props (priority: realtime > props > defaults)
   const useRealtimeData = enableRealtime && realtime.isConnected;
   const currentStep = useRealtimeData ? realtime.currentStep : propCurrentStep;
   const progress = useRealtimeData ? realtime.progress : propProgress;
-  const estimatedRemainingSeconds = useRealtimeData ? realtime.estimatedRemainingSeconds : propEstimatedTime;
+  const estimatedRemainingSeconds = useRealtimeData
+    ? realtime.estimatedRemainingSeconds
+    : propEstimatedTime;
   const error = useRealtimeData ? realtime.error : propError;
 
   // Notify parent when status changes (from WebSocket)
   useEffect(() => {
-    if (useRealtimeData && onStatusChange && realtime.status !== document.processing_status) {
+    if (
+      useRealtimeData &&
+      onStatusChange &&
+      realtime.status !== document.processing_status
+    ) {
       onStatusChange(realtime.status);
     }
-  }, [useRealtimeData, realtime.status, document.processing_status, onStatusChange]);
+  }, [
+    useRealtimeData,
+    realtime.status,
+    document.processing_status,
+    onStatusChange,
+  ]);
 
   useEffect(() => {
     if (currentStep && progress > 0) {
-      setSteps(prevSteps => {
+      setSteps((prevSteps) => {
         const newSteps = [...prevSteps];
-        const currentStepIndex = newSteps.findIndex(step => step.id === currentStep);
+        const currentStepIndex = newSteps.findIndex(
+          (step) => step.id === currentStep
+        );
 
         if (currentStepIndex !== -1) {
           // Mark steps before current as completed
@@ -246,9 +278,11 @@ export const ProcessingStatus: React.FC<ProcessingStatusProps> = ({
     }
 
     if (error && error.length > 0) {
-      setSteps(prevSteps => {
+      setSteps((prevSteps) => {
         const newSteps = [...prevSteps];
-        const lastInProgressStep = newSteps.findIndex((step: ProcessingStep) => step.status === 'in_progress');
+        const lastInProgressStep = newSteps.findIndex(
+          (step: ProcessingStep) => step.status === 'in_progress'
+        );
 
         if (lastInProgressStep !== -1) {
           const stepData = newSteps[lastInProgressStep];
@@ -267,9 +301,12 @@ export const ProcessingStatus: React.FC<ProcessingStatusProps> = ({
     }
 
     // Mark all steps as completed when document is indexed (regardless of progress prop)
-    if (document.processing_status === 'indexed' || document.processing_status === 'completed') {
-      setSteps(prevSteps =>
-        prevSteps.map(step => ({
+    if (
+      document.processing_status === 'indexed' ||
+      document.processing_status === 'completed'
+    ) {
+      setSteps((prevSteps) =>
+        prevSteps.map((step) => ({
           ...step,
           status: 'completed' as const,
           endTime: new Date().toISOString(),
@@ -282,7 +319,11 @@ export const ProcessingStatus: React.FC<ProcessingStatusProps> = ({
   const isCompleted = status === 'indexed' || status === 'completed';
   const hasError = status === 'failed' || error;
   // If completed, always show 100%; otherwise use progress or step-based calculation
-  const overallProgress = error ? 0 : (isCompleted ? 100 : (progress || getStepProgress(steps)));
+  const overallProgress = error
+    ? 0
+    : isCompleted
+      ? 100
+      : progress || getStepProgress(steps);
 
   const formatTimeRemaining = (seconds?: number): string => {
     if (!seconds) return 'Calculating...';
@@ -292,37 +333,49 @@ export const ProcessingStatus: React.FC<ProcessingStatusProps> = ({
   };
 
   const getStatusIcon = () => {
-    if (isCompleted) return <CheckCircleIcon className="h-6 w-6 text-green-600" />;
+    if (isCompleted)
+      return <CheckCircleIcon className="h-6 w-6 text-green-600" />;
     if (hasError) return <XCircleIcon className="h-6 w-6 text-destructive" />;
-    return <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />;
+    return (
+      <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+    );
   };
 
   const getStatusText = () => {
     if (isCompleted) return 'Processing completed';
     if (hasError) return 'Processing failed';
-    if (status === 'queued' || status === 'pending') return 'Queued for processing';
+    if (status === 'queued' || status === 'pending')
+      return 'Queued for processing';
     if (status === 'processing') return currentStep || 'Processing...';
     return 'Preparing to process';
   };
 
   const getFileIcon = () => {
     switch (document.file_type) {
-      case 'pdf': return <DocumentTextIcon className="h-8 w-8 text-red-600" />;
-      case 'txt': return <DocumentTextIcon className="h-8 w-8 text-blue-600" />;
+      case 'pdf':
+        return <DocumentTextIcon className="h-8 w-8 text-red-600" />;
+      case 'txt':
+        return <DocumentTextIcon className="h-8 w-8 text-blue-600" />;
       case 'jpg':
-      case 'png': return <PhotoIcon className="h-8 w-8 text-green-600" />;
-      case 'mp3': return <MusicalNoteIcon className="h-8 w-8 text-purple-600" />;
-      case 'mp4': return <VideoCameraIcon className="h-8 w-8 text-orange-600" />;
-      default: return <DocumentTextIcon className="h-8 w-8 text-gray-600" />;
+      case 'png':
+        return <PhotoIcon className="h-8 w-8 text-green-600" />;
+      case 'mp3':
+        return <MusicalNoteIcon className="h-8 w-8 text-purple-600" />;
+      case 'mp4':
+        return <VideoCameraIcon className="h-8 w-8 text-orange-600" />;
+      default:
+        return <DocumentTextIcon className="h-8 w-8 text-foreground" />;
     }
   };
 
   if (compact) {
     return (
-      <div className={cn("flex items-center space-x-2 text-sm", className)}>
+      <div className={cn('flex items-center space-x-2 text-sm', className)}>
         <div className="flex items-center space-x-2 flex-1 min-w-0">
           {getStatusIcon()}
-          <span className="text-muted-foreground truncate">{getStatusText()}</span>
+          <span className="text-muted-foreground truncate">
+            {getStatusText()}
+          </span>
           {enableRealtime && realtime.isConnected && (
             <Badge variant="default" className="text-xs px-1.5 py-0">
               <span className="inline-block w-1.5 h-1.5 bg-green-500 rounded-full mr-1 animate-pulse" />
@@ -330,22 +383,26 @@ export const ProcessingStatus: React.FC<ProcessingStatusProps> = ({
             </Badge>
           )}
           {document.processing_error && (
-            <span className="text-destructive truncate">• {document.processing_error}</span>
+            <span className="text-destructive truncate">
+              • {document.processing_error}
+            </span>
           )}
         </div>
         <div className="flex items-center space-x-2 flex-shrink-0">
           <div className="relative w-16 h-2 bg-muted rounded-full overflow-hidden">
             <div
               className={cn(
-                "h-full transition-all duration-500 ease-out rounded-full",
-                isCompleted && "bg-green-600",
-                hasError && "bg-destructive",
-                !isCompleted && !hasError && "bg-primary"
+                'h-full transition-all duration-500 ease-out rounded-full',
+                isCompleted && 'bg-green-600',
+                hasError && 'bg-destructive',
+                !isCompleted && !hasError && 'bg-primary'
               )}
               style={{ width: `${overallProgress}%` }}
             />
           </div>
-          <span className="text-xs text-muted-foreground w-8 text-right">{overallProgress}%</span>
+          <span className="text-xs text-muted-foreground w-8 text-right">
+            {overallProgress}%
+          </span>
           {hasError && onRetry && (
             <button
               onClick={onRetry}
@@ -361,7 +418,7 @@ export const ProcessingStatus: React.FC<ProcessingStatusProps> = ({
   }
 
   return (
-    <div className={cn("bg-card border rounded-lg p-6 space-y-4", className)}>
+    <div className={cn('bg-card border rounded-lg p-6 space-y-4', className)}>
       {/* Header */}
       <div className="flex items-start justify-between">
         <div className="flex items-center space-x-4">
@@ -372,7 +429,7 @@ export const ProcessingStatus: React.FC<ProcessingStatusProps> = ({
               {getStatusIcon()}
               {enableRealtime && (
                 <Badge
-                  variant={realtime.isConnected ? "default" : "secondary"}
+                  variant={realtime.isConnected ? 'default' : 'secondary'}
                   className="text-xs"
                 >
                   {realtime.isConnected ? (
@@ -403,7 +460,9 @@ export const ProcessingStatus: React.FC<ProcessingStatusProps> = ({
 
         <div className="flex items-center space-x-2">
           <div className="text-right">
-            <div className="text-lg font-medium text-foreground">{overallProgress}%</div>
+            <div className="text-lg font-medium text-foreground">
+              {overallProgress}%
+            </div>
             <div className="text-sm text-muted-foreground">
               {status === 'processing' && estimatedRemainingSeconds && (
                 <span>{formatTimeRemaining(estimatedRemainingSeconds)}</span>
@@ -414,7 +473,7 @@ export const ProcessingStatus: React.FC<ProcessingStatusProps> = ({
           <button
             onClick={() => setExpanded(!expanded)}
             className="p-2 text-muted-foreground hover:text-foreground hover:bg-accent rounded transition-colors"
-            aria-label={expanded ? "Collapse details" : "Expand details"}
+            aria-label={expanded ? 'Collapse details' : 'Expand details'}
           >
             <InformationCircleIcon className="h-5 w-5" />
           </button>
@@ -426,10 +485,10 @@ export const ProcessingStatus: React.FC<ProcessingStatusProps> = ({
         <div className="relative w-full h-3 bg-muted rounded-full overflow-hidden">
           <div
             className={cn(
-              "h-full transition-all duration-500 ease-out rounded-full",
-              isCompleted && "bg-green-600",
-              hasError && "bg-destructive",
-              !isCompleted && !hasError && "bg-primary"
+              'h-full transition-all duration-500 ease-out rounded-full',
+              isCompleted && 'bg-green-600',
+              hasError && 'bg-destructive',
+              !isCompleted && !hasError && 'bg-primary'
             )}
             style={{ width: `${overallProgress}%` }}
           />
@@ -444,15 +503,17 @@ export const ProcessingStatus: React.FC<ProcessingStatusProps> = ({
       {/* Processing Steps */}
       {expanded && (
         <div className="space-y-3 pt-4 border-t">
-          <h4 className="text-sm font-medium text-foreground">Processing Steps</h4>
+          <h4 className="text-sm font-medium text-foreground">
+            Processing Steps
+          </h4>
           <div className="space-y-2">
             {steps.map((step, index) => (
               <div
                 key={step.id}
                 className={cn(
-                  "flex items-center justify-between p-3 rounded-md transition-colors",
-                  step.status === 'in_progress' && "bg-primary/5",
-                  step.status === 'error' && "bg-destructive/5"
+                  'flex items-center justify-between p-3 rounded-md transition-colors',
+                  step.status === 'in_progress' && 'bg-primary/5',
+                  step.status === 'error' && 'bg-destructive/5'
                 )}
               >
                 <div className="flex items-center space-x-3">
@@ -461,10 +522,14 @@ export const ProcessingStatus: React.FC<ProcessingStatusProps> = ({
                   </div>
                   <div className="flex-1">
                     <div className="flex items-center space-x-2">
-                      <p className={cn(
-                        "text-sm font-medium",
-                        step.status === 'in_progress' ? "text-foreground" : "text-muted-foreground"
-                      )}>
+                      <p
+                        className={cn(
+                          'text-sm font-medium',
+                          step.status === 'in_progress'
+                            ? 'text-foreground'
+                            : 'text-muted-foreground'
+                        )}
+                      >
                         {step.name}
                       </p>
                       {step.duration && step.startTime && (
@@ -473,9 +538,13 @@ export const ProcessingStatus: React.FC<ProcessingStatusProps> = ({
                         </span>
                       )}
                     </div>
-                    <p className="text-xs text-muted-foreground">{step.description}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {step.description}
+                    </p>
                     {step.error && (
-                      <p className="text-xs text-destructive mt-1">{step.error}</p>
+                      <p className="text-xs text-destructive mt-1">
+                        {step.error}
+                      </p>
                     )}
                   </div>
                 </div>
@@ -506,10 +575,12 @@ export const ProcessingStatus: React.FC<ProcessingStatusProps> = ({
       {/* Actions */}
       <div className="flex justify-between items-center pt-4 border-t">
         <div className="text-xs text-muted-foreground">
-          {status === 'processing' && "Processing may take several minutes for large files"}
-          {isCompleted && "Document is ready for search and retrieval"}
-          {hasError && "Please try processing the file again"}
-          {status === 'queued' && "Your file is in the queue and will be processed shortly"}
+          {status === 'processing' &&
+            'Processing may take several minutes for large files'}
+          {isCompleted && 'Document is ready for search and retrieval'}
+          {hasError && 'Please try processing the file again'}
+          {status === 'queued' &&
+            'Your file is in the queue and will be processed shortly'}
         </div>
 
         <div className="flex items-center space-x-2">

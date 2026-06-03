@@ -117,16 +117,16 @@ export const EntityForm: React.FC<EntityFormProps> = ({
   // Show locked state when user lacks permission
   if (!hasPermission) {
     return (
-      <Card className="bg-[var(--terminal-surface)] border-[var(--terminal-border)]">
+      <Card className="bg-[var(--nous-bg-2)] border-[var(--nous-border-1)]">
         <CardContent className="flex flex-col items-center justify-center py-12 gap-4">
-          <div className="w-16 h-16 rounded-full bg-[var(--terminal-bg)] border border-[var(--terminal-border)] flex items-center justify-center">
-            <Lock className="w-8 h-8 text-[var(--terminal-text-muted)] opacity-50" />
+          <div className="w-16 h-16 rounded-full bg-[var(--nous-bg-1)] border border-[var(--nous-border-1)] flex items-center justify-center">
+            <Lock className="w-8 h-8 text-[var(--nous-fg-3)] opacity-50" />
           </div>
           <div className="text-center space-y-2">
-            <h3 className="font-mono text-sm font-bold text-[var(--terminal-text)] uppercase tracking-wider">
+            <h3 className="font-mono text-sm font-bold text-[var(--nous-fg-1)] uppercase tracking-wider">
               {isEditing ? 'EDIT_ACCESS_RESTRICTED' : 'CREATE_ACCESS_RESTRICTED'}
             </h3>
-            <p className="font-mono text-xs text-[var(--terminal-text-muted)] max-w-sm leading-relaxed">
+            <p className="font-mono text-xs text-[var(--nous-fg-3)] max-w-sm leading-relaxed">
               {isEditing
                 ? 'You do not have permission to edit entities. Contact an administrator to request edit access.'
                 : 'You do not have permission to create entities. Contact an administrator to request create access.'}
@@ -136,7 +136,7 @@ export const EntityForm: React.FC<EntityFormProps> = ({
             type="button"
             variant="outline"
             onClick={onCancel}
-            className="font-mono text-xs border-[var(--terminal-border)] hover:bg-[var(--terminal-elevated)] text-[var(--terminal-text)] mt-2"
+            className="font-mono text-xs border-[var(--nous-border-1)] hover:bg-[var(--nous-bg-3)] text-[var(--nous-fg-1)] mt-2"
           >
             DISMISS
           </Button>
@@ -284,32 +284,32 @@ export const EntityForm: React.FC<EntityFormProps> = ({
 
   return (
     <>
-    <form onSubmit={handleSubmit} className="space-y-6 text-[var(--terminal-text)]">
+    <form onSubmit={handleSubmit} className="space-y-6 text-[var(--nous-fg-1)]">
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
-          <Label htmlFor="name" className="text-xs font-mono text-[var(--terminal-text-dim)] uppercase tracking-widest">Entity_Name *</Label>
+          <Label htmlFor="name" className="text-xs font-mono text-[var(--nous-fg-3)] uppercase tracking-widest">Entity_Name *</Label>
           <Input
             id="name"
             value={formData.name}
             onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
             placeholder="ENTER_ENTITY_ID"
             required
-            className="bg-[var(--terminal-bg)] border-[var(--terminal-border)] font-mono text-sm text-[var(--terminal-text)] placeholder:text-[var(--terminal-text-muted)] focus:border-[var(--phosphor-green)] focus:ring-[var(--phosphor-green)]/20"
+            className="bg-[var(--nous-bg-1)] border-[var(--nous-border-1)] font-mono text-sm text-[var(--nous-fg-1)] placeholder:text-[var(--nous-fg-3)] focus:border-[var(--nous-sol)] focus:ring-[var(--nous-sol)]/20"
           />
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="type" className="text-xs font-mono text-[var(--terminal-text-dim)] uppercase tracking-widest">Classification *</Label>
+          <Label htmlFor="type" className="text-xs font-mono text-[var(--nous-fg-3)] uppercase tracking-widest">Classification *</Label>
           <Select
             value={formData.type}
             onValueChange={(value: EntityType) => setFormData(prev => ({ ...prev, type: value }))}
           >
-            <SelectTrigger className="bg-[var(--terminal-bg)] border-[var(--terminal-border)] font-mono text-sm text-[var(--terminal-text)] focus:border-[var(--phosphor-green)]">
+            <SelectTrigger className="bg-[var(--nous-bg-1)] border-[var(--nous-border-1)] font-mono text-sm text-[var(--nous-fg-1)] focus:border-[var(--nous-sol)]">
               <SelectValue />
             </SelectTrigger>
-            <SelectContent className="bg-[var(--terminal-surface)] border-[var(--terminal-border)]">
+            <SelectContent className="bg-[var(--nous-bg-2)] border-[var(--nous-border-1)]">
               {entityTypes.map((type: EntityType) => (
-                <SelectItem key={type} value={type} className="font-mono text-xs focus:bg-[var(--terminal-elevated)] focus:text-[var(--phosphor-green)]">
+                <SelectItem key={type} value={type} className="font-mono text-xs focus:bg-[var(--nous-bg-3)] focus:text-[var(--nous-sol)]">
                   {type}
                 </SelectItem>
               ))}
@@ -320,8 +320,8 @@ export const EntityForm: React.FC<EntityFormProps> = ({
 
       <div className="space-y-2">
         <div className="flex justify-between items-center">
-          <Label htmlFor="confidence" className="text-xs font-mono text-[var(--terminal-text-dim)] uppercase tracking-widest">Confidence_Metric</Label>
-          <span className="text-xs font-mono font-bold text-[var(--phosphor-green)]">{(formData.confidence * 100).toFixed(1)}%</span>
+          <Label htmlFor="confidence" className="text-xs font-mono text-[var(--nous-fg-3)] uppercase tracking-widest">Confidence_Metric</Label>
+          <span className="text-xs font-mono font-bold text-[var(--nous-sol)]">{(formData.confidence * 100).toFixed(1)}%</span>
         </div>
         <div className="py-2">
           <Slider
@@ -335,16 +335,16 @@ export const EntityForm: React.FC<EntityFormProps> = ({
         </div>
       </div>
 
-      <Card className="bg-[var(--terminal-surface)] border-[var(--terminal-border)]">
-        <CardHeader className="border-b border-[var(--terminal-border)] py-3">
-          <CardTitle className="text-xs font-mono font-bold uppercase tracking-widest text-[var(--terminal-text-dim)] flex items-center gap-2">
+      <Card className="bg-[var(--nous-bg-2)] border-[var(--nous-border-1)]">
+        <CardHeader className="border-b border-[var(--nous-border-1)] py-3">
+          <CardTitle className="text-xs font-mono font-bold uppercase tracking-widest text-[var(--nous-fg-3)] flex items-center gap-2">
             <Terminal className="w-4 h-4" />
             Core_Attributes
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4 p-4">
           <div className="space-y-2">
-            <Label htmlFor="description" className="text-xs font-mono text-[var(--terminal-text-dim)] uppercase tracking-widest">Description_Buffer</Label>
+            <Label htmlFor="description" className="text-xs font-mono text-[var(--nous-fg-3)] uppercase tracking-widest">Description_Buffer</Label>
             <Textarea
               id="description"
               value={formData.metadata.description}
@@ -354,12 +354,12 @@ export const EntityForm: React.FC<EntityFormProps> = ({
               }))}
               placeholder="ENTER_DESCRIPTION_TEXT"
               rows={3}
-              className="bg-[var(--terminal-bg)] border-[var(--terminal-border)] font-mono text-sm text-[var(--terminal-text)] placeholder:text-[var(--terminal-text-muted)] focus:border-[var(--phosphor-green)] resize-none"
+              className="bg-[var(--nous-bg-1)] border-[var(--nous-border-1)] font-mono text-sm text-[var(--nous-fg-1)] placeholder:text-[var(--nous-fg-3)] focus:border-[var(--nous-sol)] resize-none"
             />
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="category" className="text-xs font-mono text-[var(--terminal-text-dim)] uppercase tracking-widest">Category_Tag</Label>
+            <Label htmlFor="category" className="text-xs font-mono text-[var(--nous-fg-3)] uppercase tracking-widest">Category_Tag</Label>
             <Input
               id="category"
               value={formData.metadata.category}
@@ -368,21 +368,21 @@ export const EntityForm: React.FC<EntityFormProps> = ({
                 metadata: { ...prev.metadata, category: e.target.value }
               }))}
               placeholder="ENTER_CATEGORY"
-              className="bg-[var(--terminal-bg)] border-[var(--terminal-border)] font-mono text-sm text-[var(--terminal-text)] placeholder:text-[var(--terminal-text-muted)] focus:border-[var(--phosphor-green)]"
+              className="bg-[var(--nous-bg-1)] border-[var(--nous-border-1)] font-mono text-sm text-[var(--nous-fg-1)] placeholder:text-[var(--nous-fg-3)] focus:border-[var(--nous-sol)]"
             />
           </div>
 
           <div className="space-y-2">
-            <Label className="text-xs font-mono text-[var(--terminal-text-dim)] uppercase tracking-widest">Known_Aliases</Label>
+            <Label className="text-xs font-mono text-[var(--nous-fg-3)] uppercase tracking-widest">Known_Aliases</Label>
             <div className="space-y-2">
               <div className="flex flex-wrap gap-2 mb-2">
                 {formData.metadata.aliases?.map((alias, index) => (
-                  <div key={index} className="flex items-center gap-1 pl-2 pr-1 py-1 bg-[var(--terminal-elevated)] border border-[var(--terminal-border)] rounded">
-                    <span className="text-xs font-mono text-[var(--terminal-text)]">{alias}</span>
+                  <div key={index} className="flex items-center gap-1 pl-2 pr-1 py-1 bg-[var(--nous-bg-3)] border border-[var(--nous-border-1)] rounded">
+                    <span className="text-xs font-mono text-[var(--nous-fg-1)]">{alias}</span>
                     <button
                       type="button"
                       onClick={() => removeAlias(index)}
-                      className="text-[var(--terminal-text-dim)] hover:text-red-400 p-0.5 rounded transition-colors"
+                      className="text-[var(--nous-fg-3)] hover:text-red-400 p-0.5 rounded transition-colors"
                     >
                       <X className="h-3 w-3" />
                     </button>
@@ -399,7 +399,7 @@ export const EntityForm: React.FC<EntityFormProps> = ({
                       (e.target as HTMLInputElement).value = '';
                     }
                   }}
-                  className="bg-[var(--terminal-bg)] border-[var(--terminal-border)] font-mono text-sm text-[var(--terminal-text)] placeholder:text-[var(--terminal-text-muted)] focus:border-[var(--phosphor-green)]"
+                  className="bg-[var(--nous-bg-1)] border-[var(--nous-border-1)] font-mono text-sm text-[var(--nous-fg-1)] placeholder:text-[var(--nous-fg-3)] focus:border-[var(--nous-sol)]"
                 />
                 <Button
                   type="button"
@@ -411,7 +411,7 @@ export const EntityForm: React.FC<EntityFormProps> = ({
                       input.value = '';
                     }
                   }}
-                  className="border-[var(--terminal-border)] bg-[var(--terminal-elevated)] text-[var(--terminal-text)] hover:text-[var(--phosphor-green)] hover:border-[var(--phosphor-green)]"
+                  className="border-[var(--nous-border-1)] bg-[var(--nous-bg-3)] text-[var(--nous-fg-1)] hover:text-[var(--nous-sol)] hover:border-[var(--nous-sol)]"
                 >
                   <Plus className="h-4 w-4" />
                 </Button>
@@ -421,9 +421,9 @@ export const EntityForm: React.FC<EntityFormProps> = ({
         </CardContent>
       </Card>
 
-      <Card className="bg-[var(--terminal-surface)] border-[var(--terminal-border)]">
-        <CardHeader className="border-b border-[var(--terminal-border)] py-3 flex flex-row items-center justify-between">
-          <CardTitle className="text-xs font-mono font-bold uppercase tracking-widest text-[var(--terminal-text-dim)] flex items-center gap-2">
+      <Card className="bg-[var(--nous-bg-2)] border-[var(--nous-border-1)]">
+        <CardHeader className="border-b border-[var(--nous-border-1)] py-3 flex flex-row items-center justify-between">
+          <CardTitle className="text-xs font-mono font-bold uppercase tracking-widest text-[var(--nous-fg-3)] flex items-center gap-2">
             <Database className="w-4 h-4" />
             Extended_Properties
           </CardTitle>
@@ -432,7 +432,7 @@ export const EntityForm: React.FC<EntityFormProps> = ({
             variant="ghost"
             size="sm"
             onClick={addMetadataField}
-            className="h-6 text-[10px] font-mono hover:text-[var(--phosphor-green)] hover:bg-[var(--phosphor-green)]/10"
+            className="h-6 text-[10px] font-mono hover:text-[var(--nous-sol)] hover:bg-[var(--nous-sol)]/10"
           >
             <Plus className="h-3 w-3 mr-1.5" />
             ADD_FIELD
@@ -440,7 +440,7 @@ export const EntityForm: React.FC<EntityFormProps> = ({
         </CardHeader>
         <CardContent className="space-y-3 p-4">
           {metadataFields.length === 0 ? (
-            <div className="text-center py-4 flex flex-col items-center gap-2 text-[var(--terminal-text-dim)] opacity-50">
+            <div className="text-center py-4 flex flex-col items-center gap-2 text-[var(--nous-fg-3)] opacity-50">
               <Shield className="w-6 h-6" />
               <p className="text-xs font-mono">NO_CUSTOM_FIELDS</p>
             </div>
@@ -451,16 +451,16 @@ export const EntityForm: React.FC<EntityFormProps> = ({
                   placeholder="KEY"
                   value={field.key}
                   onChange={(e) => updateMetadataField(index, { key: e.target.value })}
-                  className="w-1/3 bg-[var(--terminal-bg)] border-[var(--terminal-border)] font-mono text-xs text-[var(--terminal-text)] h-8"
+                  className="w-1/3 bg-[var(--nous-bg-1)] border-[var(--nous-border-1)] font-mono text-xs text-[var(--nous-fg-1)] h-8"
                 />
                 <Select
                   value={field.type}
                   onValueChange={(value: MetadataField['type']) => updateMetadataField(index, { type: value })}
                 >
-                  <SelectTrigger className="w-28 bg-[var(--terminal-bg)] border-[var(--terminal-border)] font-mono text-xs text-[var(--terminal-text-dim)] h-8">
+                  <SelectTrigger className="w-28 bg-[var(--nous-bg-1)] border-[var(--nous-border-1)] font-mono text-xs text-[var(--nous-fg-3)] h-8">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent className="bg-[var(--terminal-surface)] border-[var(--terminal-border)]">
+                  <SelectContent className="bg-[var(--nous-bg-2)] border-[var(--nous-border-1)]">
                     <SelectItem value="string" className="font-mono text-xs">STRING</SelectItem>
                     <SelectItem value="number" className="font-mono text-xs">NUMBER</SelectItem>
                     <SelectItem value="boolean" className="font-mono text-xs">BOOL</SelectItem>
@@ -472,7 +472,7 @@ export const EntityForm: React.FC<EntityFormProps> = ({
                   placeholder="VALUE"
                   value={field.value}
                   onChange={(e) => updateMetadataField(index, { value: e.target.value })}
-                  className="flex-1 bg-[var(--terminal-bg)] border-[var(--terminal-border)] font-mono text-xs text-[var(--terminal-text)] h-8"
+                  className="flex-1 bg-[var(--nous-bg-1)] border-[var(--nous-border-1)] font-mono text-xs text-[var(--nous-fg-1)] h-8"
                 />
                 <Button
                   type="button"
@@ -489,21 +489,21 @@ export const EntityForm: React.FC<EntityFormProps> = ({
         </CardContent>
       </Card>
 
-      <Separator className="bg-[var(--terminal-border)]" />
+      <Separator className="bg-[var(--nous-border-1)]" />
 
       <div className="flex justify-end space-x-3">
         <Button
           type="button"
           variant="outline"
           onClick={onCancel}
-          className="font-mono text-xs border-[var(--terminal-border)] hover:bg-[var(--terminal-elevated)] text-[var(--terminal-text)]"
+          className="font-mono text-xs border-[var(--nous-border-1)] hover:bg-[var(--nous-bg-3)] text-[var(--nous-fg-1)]"
         >
           ABORT_OP
         </Button>
         <Button
           type="submit"
           disabled={isCheckingDuplicate}
-          className="font-mono text-xs bg-[var(--phosphor-green)] text-[var(--terminal-bg)] hover:shadow-[0_0_15px_var(--phosphor-green-glow)]"
+          className="font-mono text-xs bg-[var(--nous-sol)] text-[var(--nous-bg-1)] hover:shadow-[0_0_15px_var(--nous-sol-glow)]"
         >
           {isCheckingDuplicate ? (
             <>
@@ -523,44 +523,44 @@ export const EntityForm: React.FC<EntityFormProps> = ({
       {/* Duplicate Warning Dialog */}
       {duplicateWarning && (
         <Dialog open={duplicateWarning.show} onOpenChange={() => setDuplicateWarning(null)}>
-          <DialogContent className="bg-[var(--terminal-surface)] border-[var(--terminal-border)] text-[var(--terminal-text)]">
+          <DialogContent className="bg-[var(--nous-bg-2)] border-[var(--nous-border-1)] text-[var(--nous-fg-1)]">
             <DialogHeader>
-              <DialogTitle className="flex items-center gap-2 text-[var(--amber-gold)] font-mono text-sm uppercase tracking-widest">
+              <DialogTitle className="flex items-center gap-2 text-[var(--nous-helios)] font-mono text-sm uppercase tracking-widest">
                 <AlertTriangle className="h-5 w-5" />
                 Duplicate_Entity_Warning
               </DialogTitle>
             </DialogHeader>
             <div className="space-y-4">
-              <p className="text-xs font-mono text-[var(--terminal-text-muted)]">
-                An entity with the name <span className="text-[var(--terminal-text)] font-bold">{formData.name}</span> and type <span className="text-[var(--terminal-text)] font-bold">{formData.type}</span> already exists:
+              <p className="text-xs font-mono text-[var(--nous-fg-3)]">
+                An entity with the name <span className="text-[var(--nous-fg-1)] font-bold">{formData.name}</span> and type <span className="text-[var(--nous-fg-1)] font-bold">{formData.type}</span> already exists:
               </p>
               <div className="space-y-2">
                 {duplicateWarning.entities.map((dup) => (
-                  <Card key={dup.id} className="p-3 bg-[var(--terminal-elevated)] border-[var(--terminal-border)]">
+                  <Card key={dup.id} className="p-3 bg-[var(--nous-bg-3)] border-[var(--nous-border-1)]">
                     <div className="text-xs font-mono">
-                      <div className="font-bold text-[var(--terminal-text)]">{dup.name}</div>
-                      <div className="text-[var(--terminal-text-muted)]">
+                      <div className="font-bold text-[var(--nous-fg-1)]">{dup.name}</div>
+                      <div className="text-[var(--nous-fg-3)]">
                         Type: {dup.type} • Created: {new Date(dup.created_at).toLocaleDateString()}
                       </div>
                     </div>
                   </Card>
                 ))}
               </div>
-              <p className="text-xs font-mono text-[var(--terminal-text-muted)]">
-                Would you like to create anyway with the name <span className="text-[var(--phosphor-green)] font-bold">{duplicateWarning.suggestedName}</span>?
+              <p className="text-xs font-mono text-[var(--nous-fg-3)]">
+                Would you like to create anyway with the name <span className="text-[var(--nous-sol)] font-bold">{duplicateWarning.suggestedName}</span>?
               </p>
             </div>
             <DialogFooter className="gap-2">
               <Button
                 variant="outline"
                 onClick={handleCancelDuplicate}
-                className="font-mono text-xs border-[var(--terminal-border)] hover:bg-[var(--terminal-elevated)] text-[var(--terminal-text)]"
+                className="font-mono text-xs border-[var(--nous-border-1)] hover:bg-[var(--nous-bg-3)] text-[var(--nous-fg-1)]"
               >
                 CANCEL
               </Button>
               <Button
                 onClick={handleForceCreate}
-                className="font-mono text-xs bg-[var(--phosphor-green)] text-[var(--terminal-bg)]"
+                className="font-mono text-xs bg-[var(--nous-sol)] text-[var(--nous-bg-1)]"
               >
                 CREATE_AS "{duplicateWarning.suggestedName}"
               </Button>
