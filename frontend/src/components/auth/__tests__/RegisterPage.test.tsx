@@ -47,20 +47,20 @@ describe('RegisterPage', () => {
     fireEvent.change(screen.getByLabelText(/last name/i), {
       target: { value: 'Lovelace' },
     });
-    fireEvent.change(screen.getByLabelText(/identity protocol/i), {
+    fireEvent.change(screen.getByLabelText(/^email$/i), {
       target: { value: 'ada@example.com' },
     });
     fireEvent.change(screen.getByLabelText(/organization/i), {
       target: { value: 'Analytical Engine' },
     });
-    fireEvent.change(screen.getByLabelText(/security key/i), {
+    fireEvent.change(screen.getByLabelText(/^password$/i), {
       target: { value: 'SecurePass123!' },
     });
-    fireEvent.change(screen.getByLabelText(/verify key/i), {
+    fireEvent.change(screen.getByLabelText(/confirm password/i), {
       target: { value: 'SecurePass123!' },
     });
 
-    fireEvent.click(screen.getByRole('button', { name: /commit identity/i }));
+    fireEvent.click(screen.getByRole('button', { name: /create account/i }));
 
     await waitFor(() => {
       expect(mockRegister).toHaveBeenCalledTimes(1);

@@ -47,14 +47,14 @@ export const OrganizationSettingsPage = (): ReactElement => {
     <div className="space-y-8 px-6 pb-20 pt-6 md:space-y-10 md:px-10 md:pb-24 md:pt-8 lg:px-12">
       <header className="space-y-4">
         <div className="space-y-2">
-          <p className="text-xs font-mono uppercase tracking-[0.28em] text-[var(--phosphor-green)]">
+          <p className="text-xs font-mono uppercase tracking-[0.28em] text-[var(--nous-sol)]">
             WORKSPACE_GOVERNANCE
           </p>
           <div className="space-y-3">
-            <h1 className="text-3xl font-semibold text-[var(--terminal-text)]">
+            <h1 className="text-3xl font-semibold text-[var(--nous-fg-1)]">
               Organization Settings
             </h1>
-            <p className="max-w-3xl text-sm text-[var(--terminal-text-dim)]">
+            <p className="max-w-3xl text-sm text-[var(--nous-fg-3)]">
               Configure workspace identity, access governance, and operating
               controls for the NOUS platform.
             </p>
@@ -65,7 +65,7 @@ export const OrganizationSettingsPage = (): ReactElement => {
           <Button
             asChild
             variant="outline"
-            className="border-[var(--terminal-border)] bg-transparent text-[var(--terminal-text)] hover:bg-[var(--terminal-bg)] hover:text-[var(--terminal-text)]"
+            className="border-[var(--nous-border-1)] bg-transparent text-[var(--nous-fg-1)] hover:bg-[var(--nous-bg-1)] hover:text-[var(--nous-fg-1)]"
           >
             <Link href="/settings">
               Return to Settings Overview
@@ -81,18 +81,18 @@ export const OrganizationSettingsPage = (): ReactElement => {
         </div>
       </header>
 
-      <Card className="rounded-2xl border-[var(--terminal-border)] bg-[var(--terminal-surface)] shadow-none">
+      <Card className="rounded-2xl border-[var(--nous-border-1)] bg-[var(--nous-bg-2)] shadow-none">
         <CardContent className="flex flex-col gap-4 p-6 md:flex-row md:items-center md:justify-between">
           <div className="space-y-1">
-            <p className="text-sm font-medium text-[var(--terminal-text)]">
+            <p className="text-sm font-medium text-[var(--nous-fg-1)]">
               Default Research Workspace
             </p>
-            <p className="text-sm text-[var(--terminal-text-dim)]">
+            <p className="text-sm text-[var(--nous-fg-3)]">
               Tenant-aligned workspace for research, ingestion, and governance.
             </p>
           </div>
-          <div className="flex items-center gap-2 rounded-full border border-[var(--terminal-border)] bg-[var(--terminal-bg)] px-4 py-2 text-sm text-[var(--terminal-text)]">
-            <BriefcaseBusiness className="h-4 w-4 text-[var(--phosphor-green)]" />
+          <div className="flex items-center gap-2 rounded-full border border-[var(--nous-border-1)] bg-[var(--nous-bg-1)] px-4 py-2 text-sm text-[var(--nous-fg-1)]">
+            <BriefcaseBusiness className="h-4 w-4 text-[var(--nous-sol)]" />
             Workspace policy posture: Stable
           </div>
         </CardContent>
@@ -105,17 +105,17 @@ export const OrganizationSettingsPage = (): ReactElement => {
           return (
             <Card
               key={card.title}
-              className="rounded-2xl border-[var(--terminal-border)] bg-[var(--terminal-surface)] shadow-none"
+              className="rounded-2xl border-[var(--nous-border-1)] bg-[var(--nous-bg-2)] shadow-none"
             >
               <CardHeader className="space-y-4">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--phosphor-green-glow)] text-[var(--phosphor-green)]">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--nous-sol-glow)] text-[var(--nous-sol)]">
                   <Icon className="h-5 w-5" />
                 </div>
                 <div className="space-y-2">
-                  <CardTitle className="text-xl text-[var(--terminal-text)]">
+                  <CardTitle className="text-xl text-[var(--nous-fg-1)]">
                     {card.title}
                   </CardTitle>
-                  <p className="text-sm text-[var(--terminal-text-dim)]">
+                  <p className="text-sm text-[var(--nous-fg-3)]">
                     {card.description}
                   </p>
                 </div>
@@ -124,7 +124,7 @@ export const OrganizationSettingsPage = (): ReactElement => {
                 {card.details.map((detail) => (
                   <p
                     key={detail}
-                    className="text-sm text-[var(--terminal-text)]"
+                    className="text-sm text-[var(--nous-fg-1)]"
                   >
                     {detail}
                   </p>

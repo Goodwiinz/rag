@@ -8,7 +8,13 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 import { Alert, AlertAction } from '@/types/monitoring';
@@ -26,7 +32,7 @@ import {
   FunnelIcon,
   MagnifyingGlassIcon,
   ChevronDownIcon,
-  ChevronRightIcon
+  ChevronRightIcon,
 } from '@heroicons/react/24/outline';
 
 export interface AlertListProps {
@@ -60,14 +66,18 @@ const AlertList: React.FC<AlertListProps> = ({
   allowExpansion = true,
   onAlertClick,
   onFilterChange,
-  className
+  className,
 }) => {
   // Store integration
   const storeAlerts = useMonitoringStore((state) => state.activeAlerts);
-  const acknowledgeAlert = useMonitoringStore((state) => state.acknowledgeAlert);
+  const acknowledgeAlert = useMonitoringStore(
+    (state) => state.acknowledgeAlert
+  );
   const resolveAlert = useMonitoringStore((state) => state.resolveAlert);
   const suppressAlert = useMonitoringStore((state) => state.suppressAlert);
-  const acknowledgedAlerts = useMonitoringStore((state) => state.acknowledgedAlerts);
+  const acknowledgedAlerts = useMonitoringStore(
+    (state) => state.acknowledgedAlerts
+  );
 
   // Use props alerts or fall back to store
   const alerts = propAlerts || storeAlerts;
@@ -79,7 +89,7 @@ const AlertList: React.FC<AlertListProps> = ({
 
   // Derived state
   const filteredAlerts = useMemo(() => {
-    return alerts.filter(alert => {
+    return alerts.filter((alert) => {
       // Status filter
       if (filters.status && filters.status.length > 0) {
         if (!filters.status.includes(alert.status)) return false;
@@ -111,19 +121,21 @@ const AlertList: React.FC<AlertListProps> = ({
   }, [alerts, filters]);
 
   const uniqueSources = useMemo(() => {
-    return Array.from(new Set(alerts.map(alert => alert.source))).sort();
+    return Array.from(new Set(alerts.map((alert) => alert.source))).sort();
   }, [alerts]);
 
   const alertStats = useMemo(() => {
     const stats = {
       total: filteredAlerts.length,
-      active: filteredAlerts.filter(a => a.status === 'active').length,
-      acknowledged: filteredAlerts.filter(a => a.status === 'acknowledged').length,
-      resolved: filteredAlerts.filter(a => a.status === 'resolved').length,
-      suppressed: filteredAlerts.filter(a => a.status === 'suppressed').length,
-      critical: filteredAlerts.filter(a => a.severity === 'critical').length,
-      warning: filteredAlerts.filter(a => a.severity === 'warning').length,
-      info: filteredAlerts.filter(a => a.severity === 'info').length
+      active: filteredAlerts.filter((a) => a.status === 'active').length,
+      acknowledged: filteredAlerts.filter((a) => a.status === 'acknowledged')
+        .length,
+      resolved: filteredAlerts.filter((a) => a.status === 'resolved').length,
+      suppressed: filteredAlerts.filter((a) => a.status === 'suppressed')
+        .length,
+      critical: filteredAlerts.filter((a) => a.severity === 'critical').length,
+      warning: filteredAlerts.filter((a) => a.severity === 'warning').length,
+      info: filteredAlerts.filter((a) => a.severity === 'info').length,
     };
     return stats;
   }, [filteredAlerts]);
@@ -137,7 +149,7 @@ const AlertList: React.FC<AlertListProps> = ({
           color: 'text-red-600',
           bgColor: 'bg-red-50',
           borderColor: 'border-red-200',
-          badgeColor: 'bg-red-100 text-red-800'
+          badgeColor: 'bg-red-100 text-red-800',
         };
       case 'warning':
         return {
@@ -145,7 +157,7 @@ const AlertList: React.FC<AlertListProps> = ({
           color: 'text-yellow-600',
           bgColor: 'bg-yellow-50',
           borderColor: 'border-yellow-200',
-          badgeColor: 'bg-yellow-100 text-yellow-800'
+          badgeColor: 'bg-yellow-100 text-yellow-800',
         };
       case 'info':
         return {
@@ -153,15 +165,15 @@ const AlertList: React.FC<AlertListProps> = ({
           color: 'text-blue-600',
           bgColor: 'bg-blue-50',
           borderColor: 'border-blue-200',
-          badgeColor: 'bg-blue-100 text-blue-800'
+          badgeColor: 'bg-blue-100 text-blue-800',
         };
       default:
         return {
           icon: BellIcon,
-          color: 'text-gray-600',
+          color: 'text-foreground',
           bgColor: 'bg-gray-50',
-          borderColor: 'border-gray-200',
-          badgeColor: 'bg-gray-100 text-gray-800'
+          borderColor: 'border-border',
+          badgeColor: 'bg-gray-100 text-foreground',
         };
     }
   };
@@ -172,31 +184,31 @@ const AlertList: React.FC<AlertListProps> = ({
         return {
           icon: BellIcon,
           color: 'text-green-600',
-          label: 'Active'
+          label: 'Active',
         };
       case 'acknowledged':
         return {
           icon: CheckCircleIcon,
           color: 'text-blue-600',
-          label: 'Acknowledged'
+          label: 'Acknowledged',
         };
       case 'resolved':
         return {
           icon: CheckCircleIcon,
-          color: 'text-gray-600',
-          label: 'Resolved'
+          color: 'text-foreground',
+          label: 'Resolved',
         };
       case 'suppressed':
         return {
           icon: BellSlashIcon,
-          color: 'text-gray-500',
-          label: 'Suppressed'
+          color: 'text-muted-foreground',
+          label: 'Suppressed',
         };
       default:
         return {
           icon: BellIcon,
-          color: 'text-gray-600',
-          label: status
+          color: 'text-foreground',
+          label: status,
         };
     }
   };
@@ -281,22 +293,34 @@ const AlertList: React.FC<AlertListProps> = ({
         {/* Alert Header */}
         <div className="flex items-start justify-between">
           <div className="flex items-start space-x-3 flex-1">
-            <severityConfig.icon className={cn('h-5 w-5 mt-0.5 flex-shrink-0', severityConfig.color)} />
+            <severityConfig.icon
+              className={cn(
+                'h-5 w-5 mt-0.5 flex-shrink-0',
+                severityConfig.color
+              )}
+            />
             <div className="flex-1 min-w-0">
               <div className="flex items-center space-x-2 mb-1">
-                <h3 className="font-semibold text-gray-900 truncate">{alert.name}</h3>
+                <h3 className="font-semibold text-foreground truncate">
+                  {alert.name}
+                </h3>
                 <Badge variant="outline" className={severityConfig.badgeColor}>
                   {alert.severity}
                 </Badge>
-                <Badge variant="outline" className="bg-gray-100 text-gray-800">
+                <Badge
+                  variant="outline"
+                  className="bg-gray-100 text-foreground"
+                >
                   <statusConfig.icon className="h-3 w-3 mr-1" />
                   {statusConfig.label}
                 </Badge>
               </div>
-              <p className="text-sm text-gray-600 mb-2">{alert.description}</p>
+              <p className="text-sm text-foreground mb-2">
+                {alert.description}
+              </p>
 
               {/* Alert Metadata */}
-              <div className="flex items-center space-x-4 text-xs text-gray-500">
+              <div className="flex items-center space-x-4 text-xs text-muted-foreground">
                 <div className="flex items-center space-x-1">
                   <ClockIcon className="h-3 w-3" />
                   <span>{formatRelativeTime(alert.triggered_at)}</span>
@@ -339,11 +363,13 @@ const AlertList: React.FC<AlertListProps> = ({
 
         {/* Expanded Content */}
         {isExpanded && (
-          <div className="mt-4 pt-4 border-t border-gray-200">
+          <div className="mt-4 pt-4 border-t border-border">
             {/* Labels */}
             {Object.keys(alert.labels).length > 0 && (
               <div className="mb-3">
-                <h4 className="text-sm font-medium text-gray-700 mb-2">Labels</h4>
+                <h4 className="text-sm font-medium text-foreground mb-2">
+                  Labels
+                </h4>
                 <div className="flex flex-wrap gap-1">
                   {Object.entries(alert.labels).map(([key, value]) => (
                     <Badge key={key} variant="outline" className="text-xs">
@@ -357,12 +383,16 @@ const AlertList: React.FC<AlertListProps> = ({
             {/* Annotations */}
             {Object.keys(alert.annotations).length > 0 && (
               <div className="mb-3">
-                <h4 className="text-sm font-medium text-gray-700 mb-2">Annotations</h4>
+                <h4 className="text-sm font-medium text-foreground mb-2">
+                  Annotations
+                </h4>
                 <div className="space-y-1">
                   {Object.entries(alert.annotations).map(([key, value]) => (
                     <div key={key} className="text-sm">
-                      <span className="font-medium text-gray-700">{key}:</span>
-                      <span className="ml-2 text-gray-600">{value}</span>
+                      <span className="font-medium text-foreground">
+                        {key}:
+                      </span>
+                      <span className="ml-2 text-foreground">{value}</span>
                     </div>
                   ))}
                 </div>
@@ -420,12 +450,10 @@ const AlertList: React.FC<AlertListProps> = ({
             <CardTitle className="flex items-center space-x-2">
               <BellIcon className="h-5 w-5" />
               <span>{title}</span>
-              <Badge variant="outline">
-                {alertStats.active} active
-              </Badge>
+              <Badge variant="outline">{alertStats.active} active</Badge>
             </CardTitle>
             {alertStats.total > 0 && (
-              <div className="flex items-center space-x-4 mt-2 text-sm text-gray-600">
+              <div className="flex items-center space-x-4 mt-2 text-sm text-foreground">
                 <span>Critical: {alertStats.critical}</span>
                 <span>Warning: {alertStats.warning}</span>
                 <span>Info: {alertStats.info}</span>
@@ -437,7 +465,7 @@ const AlertList: React.FC<AlertListProps> = ({
               variant="ghost"
               size="sm"
               onClick={() => setShowFiltersPanel(!showFiltersPanel)}
-              className="text-gray-500"
+              className="text-muted-foreground"
             >
               <FunnelIcon className="h-4 w-4 mr-1" />
               Filters
@@ -451,7 +479,7 @@ const AlertList: React.FC<AlertListProps> = ({
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
               {/* Search */}
               <div className="relative">
-                <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   placeholder="Search alerts..."
                   value={filters.search || ''}
@@ -463,7 +491,9 @@ const AlertList: React.FC<AlertListProps> = ({
               {/* Severity Filter */}
               <Select
                 value={filters.severity?.[0] || ''}
-                onValueChange={(value) => updateFilters({ severity: value ? [value] : [] })}
+                onValueChange={(value) =>
+                  updateFilters({ severity: value ? [value] : [] })
+                }
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Severity" />
@@ -479,7 +509,9 @@ const AlertList: React.FC<AlertListProps> = ({
               {/* Status Filter */}
               <Select
                 value={filters.status?.[0] || ''}
-                onValueChange={(value) => updateFilters({ status: value ? [value] : [] })}
+                onValueChange={(value) =>
+                  updateFilters({ status: value ? [value] : [] })
+                }
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Status" />
@@ -496,15 +528,19 @@ const AlertList: React.FC<AlertListProps> = ({
               {/* Source Filter */}
               <Select
                 value={filters.source?.[0] || ''}
-                onValueChange={(value) => updateFilters({ source: value ? [value] : [] })}
+                onValueChange={(value) =>
+                  updateFilters({ source: value ? [value] : [] })
+                }
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Source" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="">All Sources</SelectItem>
-                  {uniqueSources.map(source => (
-                    <SelectItem key={source} value={source}>{source}</SelectItem>
+                  {uniqueSources.map((source) => (
+                    <SelectItem key={source} value={source}>
+                      {source}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -535,9 +571,11 @@ const AlertList: React.FC<AlertListProps> = ({
             </div>
           ) : (
             <div className="text-center py-8">
-              <BellIcon className="h-12 w-12 text-gray-400 mx-auto mb-2" />
-              <p className="text-gray-500">
-                {alerts.length === 0 ? 'No alerts' : 'No alerts match your filters'}
+              <BellIcon className="h-12 w-12 text-muted-foreground mx-auto mb-2" />
+              <p className="text-muted-foreground">
+                {alerts.length === 0
+                  ? 'No alerts'
+                  : 'No alerts match your filters'}
               </p>
             </div>
           )}

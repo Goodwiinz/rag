@@ -86,16 +86,17 @@ export function CreateProjectModal({
             Create Research Project
           </h2>
           <button
+            aria-label="Close"
             onClick={handleClose}
-            className="p-1 text-gray-500 hover:text-gray-300"
+            className="p-1 text-muted-foreground hover:text-foreground"
           >
-            <X className="h-5 w-5" />
+            <X className="h-5 w-5" aria-hidden="true" />
           </button>
         </div>
 
         <div className="space-y-4">
           <div>
-            <label className="block text-xs text-gray-500 font-mono uppercase tracking-wide mb-1">
+            <label className="block text-xs text-muted-foreground font-mono uppercase tracking-wide mb-1">
               Project Name *
             </label>
             <input
@@ -106,13 +107,13 @@ export function CreateProjectModal({
                 setSubmitError(null);
               }}
               placeholder="e.g., ML Healthcare"
-              className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#333] rounded text-sm font-mono text-gray-300 placeholder-gray-600 focus:outline-none focus:border-sol"
+              className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#333] rounded text-sm font-mono text-muted-foreground placeholder-gray-600 focus:outline-none focus:border-sol"
               autoFocus
             />
           </div>
 
           <div>
-            <label className="block text-xs text-gray-500 font-mono uppercase tracking-wide mb-1">
+            <label className="block text-xs text-muted-foreground font-mono uppercase tracking-wide mb-1">
               Description
             </label>
             <textarea
@@ -120,13 +121,13 @@ export function CreateProjectModal({
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Short project summary"
               rows={3}
-              className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#333] rounded text-sm font-mono text-gray-300 placeholder-gray-600 focus:outline-none focus:border-sol resize-none"
+              className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#333] rounded text-sm font-mono text-muted-foreground placeholder-gray-600 focus:outline-none focus:border-sol resize-none"
             />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs text-gray-500 font-mono uppercase tracking-wide mb-1">
+              <label className="block text-xs text-muted-foreground font-mono uppercase tracking-wide mb-1">
                 Project Type
               </label>
               <select
@@ -136,7 +137,7 @@ export function CreateProjectModal({
                     e.target.value as CreateProjectPayload['project_type']
                   )
                 }
-                className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#333] rounded text-sm font-mono text-gray-300 focus:outline-none focus:border-sol"
+                className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#333] rounded text-sm font-mono text-muted-foreground focus:outline-none focus:border-sol"
               >
                 <option value="research">Research</option>
                 <option value="literature_review">Literature Review</option>
@@ -145,20 +146,20 @@ export function CreateProjectModal({
               </select>
             </div>
             <div>
-              <label className="block text-xs text-gray-500 font-mono uppercase tracking-wide mb-1">
+              <label className="block text-xs text-muted-foreground font-mono uppercase tracking-wide mb-1">
                 Deadline
               </label>
               <input
                 type="date"
                 value={deadline}
                 onChange={(e) => setDeadline(e.target.value)}
-                className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#333] rounded text-sm font-mono text-gray-300 focus:outline-none focus:border-sol"
+                className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#333] rounded text-sm font-mono text-muted-foreground focus:outline-none focus:border-sol"
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-xs text-gray-500 font-mono uppercase tracking-wide mb-1">
+            <label className="block text-xs text-muted-foreground font-mono uppercase tracking-wide mb-1">
               Tags
             </label>
             <div className="flex gap-2">
@@ -173,7 +174,7 @@ export function CreateProjectModal({
                   }
                 }}
                 placeholder="Add tag and press Enter"
-                className="flex-1 px-3 py-2 bg-[#1a1a1a] border border-[#333] rounded text-sm font-mono text-gray-300 placeholder-gray-600 focus:outline-none focus:border-sol"
+                className="flex-1 px-3 py-2 bg-[#1a1a1a] border border-[#333] rounded text-sm font-mono text-muted-foreground placeholder-gray-600 focus:outline-none focus:border-sol"
               />
               <button
                 onClick={handleAddTag}
@@ -191,7 +192,7 @@ export function CreateProjectModal({
                     type="button"
                     key={tag}
                     onClick={() => handleRemoveTag(tag)}
-                    className="px-2 py-1 bg-[#1a1a1a] border border-[#333] rounded text-xs font-mono text-gray-300 hover:border-red-400 hover:text-red-300"
+                    className="px-2 py-1 bg-[#1a1a1a] border border-[#333] rounded text-xs font-mono text-muted-foreground hover:border-red-400 hover:text-red-300"
                   >
                     {tag}
                   </button>
@@ -202,13 +203,15 @@ export function CreateProjectModal({
         </div>
 
         {submitError && (
-          <p className="mt-4 text-sm font-mono text-red-400">{submitError}</p>
+          <p role="alert" className="mt-4 text-sm font-mono text-red-400">
+            {submitError}
+          </p>
         )}
 
         <div className="flex justify-end gap-3 mt-6">
           <button
             onClick={handleClose}
-            className="px-4 py-2 text-sm font-mono text-gray-400 hover:text-gray-300 transition-colors"
+            className="px-4 py-2 text-sm font-mono text-muted-foreground hover:text-foreground transition-colors"
           >
             Cancel
           </button>

@@ -14,12 +14,12 @@ const stanceBadgeVariants = cva(
   {
     variants: {
       stance: {
-        supporting: 
+        supporting:
           'border-transparent bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400 hover:bg-green-200 dark:hover:bg-green-900/50',
-        opposing: 
+        opposing:
           'border-transparent bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/50',
-        neutral: 
-          'border-transparent bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700',
+        neutral:
+          'border-transparent bg-gray-100 text-foreground dark:bg-gray-800 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700',
         not_addressed:
           'border-transparent bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700',
       },
@@ -74,10 +74,10 @@ function getStanceEmoji(stance: Stance): string {
 
 /**
  * StanceBadge Component
- * 
+ *
  * Color-coded pill badge indicating source stance on a claim.
  * Shows confidence percentage when below 85% threshold.
- * 
+ *
  * @example
  * <StanceBadge stance="supporting" />
  * <StanceBadge stance="opposing" confidence={0.72} showConfidence />
@@ -91,9 +91,11 @@ export function StanceBadge({
 }: StanceBadgeProps) {
   const label = getStanceLabel(stance);
   const emoji = getStanceEmoji(stance);
-  const showConfidenceValue = showConfidence && confidence !== undefined && confidence < 0.85;
-  const confidencePercent = confidence !== undefined ? Math.round(confidence * 100) : null;
-  
+  const showConfidenceValue =
+    showConfidence && confidence !== undefined && confidence < 0.85;
+  const confidencePercent =
+    confidence !== undefined ? Math.round(confidence * 100) : null;
+
   return (
     <span
       className={cn(stanceBadgeVariants({ stance, size }), className)}
@@ -101,12 +103,12 @@ export function StanceBadge({
       role="status"
       aria-label={`Stance: ${label}${confidencePercent !== null && showConfidenceValue ? `, Confidence: ${confidencePercent}%` : ''}`}
     >
-      <span className="mr-1" aria-hidden="true">{emoji}</span>
+      <span className="mr-1" aria-hidden="true">
+        {emoji}
+      </span>
       <span>{label}</span>
       {showConfidenceValue && confidencePercent !== null && (
-        <span className="ml-1 opacity-75">
-          ({confidencePercent}%)
-        </span>
+        <span className="ml-1 opacity-75">({confidencePercent}%)</span>
       )}
     </span>
   );

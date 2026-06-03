@@ -73,7 +73,7 @@ export const ChatHeader = memo(function ChatHeader({
   };
 
   return (
-    <div className="nous-glass flex h-12 sm:h-14 shrink-0 items-center gap-2 sm:gap-3 border-b border-[var(--nous-border-1)] px-3 sm:px-4 z-40">
+    <div className="bg-[var(--nous-bg-1)] flex h-12 sm:h-14 shrink-0 items-center gap-2 sm:gap-3 border-b border-[var(--nous-border-1)] px-3 sm:px-4 z-40">
       {/* Left: sidebar trigger + mobile menu + breadcrumb */}
       <div className="flex items-center gap-2 sm:gap-3 shrink-0 min-w-0">
         {onMobileSidebarToggle && (

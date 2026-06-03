@@ -54,7 +54,7 @@ export function SearchComposer({
       <div className="mx-auto max-w-5xl 2xl:max-w-6xl">
         <div
           className={cn(
-            'nous-glass nous-composer-glow overflow-visible rounded-xl border border-[var(--nous-border-1)] shadow-2xl shadow-black/50'
+            'overflow-visible rounded-xl border border-[var(--nous-border-1)] bg-[var(--nous-bg-2)] shadow-[var(--nous-shadow-md)] transition-colors focus-within:border-[var(--nous-sol)]/40'
           )}
         >
           <div className="p-3 sm:p-4">

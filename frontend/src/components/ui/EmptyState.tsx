@@ -50,7 +50,7 @@ export function EmptyState({
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.15, duration: 0.3 }}
-        className="text-sm font-mono font-semibold text-[var(--terminal-text)] tracking-wider mb-1.5"
+        className="text-sm font-mono font-semibold text-[var(--nous-fg-1)] tracking-wider mb-1.5"
       >
         {title}
       </motion.h3>

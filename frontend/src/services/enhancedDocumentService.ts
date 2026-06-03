@@ -6,6 +6,7 @@
 
 import { api } from '@/services/api-client';
 import { APIResponse } from '@/types/api';
+import { getPublicWebSocketOrigin } from '@/utils/publicEndpoints';
 
 // Enhanced types for the new API
 export interface DocumentUploadRequest {
@@ -425,9 +426,7 @@ export class EnhancedDocumentService {
    * Get WebSocket URL for progress updates
    */
   private getWebSocketUrl(path: string): string {
-    const baseURL = 'http://localhost:8000';
-    const wsProtocol = baseURL.startsWith('https://') ? 'wss://' : 'ws://';
-    const wsBaseURL = baseURL.replace(/^https?:\/\//, wsProtocol);
+    const wsBaseURL = getPublicWebSocketOrigin().replace(/\/$/, '');
     return `${wsBaseURL}${path}`;
   }
 

@@ -95,7 +95,7 @@ export const ToneToolbar: React.FC<ToneToolbarProps> = ({
             variant="ghost"
             size="sm"
             className={cn(
-              'h-8 gap-1.5 px-2.5 text-xs text-gray-300 hover:bg-[#1a1a1a] hover:text-gray-100',
+              'h-8 gap-1.5 px-2.5 text-xs text-muted-foreground hover:bg-[#1a1a1a] hover:text-foreground',
               isLoading && 'pointer-events-none opacity-70'
             )}
             disabled={loadingTone !== null}
@@ -118,9 +118,11 @@ export const ToneToolbar: React.FC<ToneToolbarProps> = ({
         <Checkbox
           checked={preserveCitations}
           onCheckedChange={(checked) => setPreserveCitations(checked === true)}
-          className="h-3.5 w-3.5 border-gray-600 data-[state=checked]:border-brand-cyan data-[state=checked]:bg-brand-cyan"
+          className="h-3.5 w-3.5 border-border data-[state=checked]:border-brand-cyan data-[state=checked]:bg-brand-cyan"
         />
-        <span className="select-none text-[10px] text-gray-500">Citations</span>
+        <span className="select-none text-[10px] text-muted-foreground">
+          Citations
+        </span>
       </label>
 
       <div className="mx-1 h-5 w-px bg-[#1a1a1a]" />
@@ -128,7 +130,7 @@ export const ToneToolbar: React.FC<ToneToolbarProps> = ({
       <Button
         variant="ghost"
         size="sm"
-        className="h-7 w-7 p-0 text-gray-500 hover:bg-[#1a1a1a] hover:text-gray-300"
+        className="h-7 w-7 p-0 text-muted-foreground hover:bg-[#1a1a1a] hover:text-foreground"
         onClick={onClose}
         aria-label="Close toolbar"
       >

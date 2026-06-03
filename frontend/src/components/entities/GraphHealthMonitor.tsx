@@ -151,13 +151,13 @@ export const GraphHealthMonitor: React.FC = () => {
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'healthy':
-        return 'var(--phosphor-green)';
+        return 'var(--nous-sol)';
       case 'degraded':
-        return 'var(--amber-gold)';
+        return 'var(--nous-helios)';
       case 'critical':
         return '#ff6b6b';
       default:
-        return 'var(--terminal-text-dim)';
+        return 'var(--nous-fg-3)';
     }
   };
 
@@ -179,9 +179,9 @@ export const GraphHealthMonitor: React.FC = () => {
       case 'error':
         return <XCircle className="w-4 h-4 text-[#ff6b6b]" />;
       case 'warning':
-        return <AlertTriangle className="w-4 h-4 text-[var(--amber-gold)]" />;
+        return <AlertTriangle className="w-4 h-4 text-[var(--nous-helios)]" />;
       case 'info':
-        return <Activity className="w-4 h-4 text-[var(--cyan)]" />;
+        return <Activity className="w-4 h-4 text-[var(--nous-helios)]" />;
       default:
         return <Activity className="w-4 h-4" />;
     }
@@ -191,8 +191,8 @@ export const GraphHealthMonitor: React.FC = () => {
     return (
       <div className="flex items-center justify-center h-96">
         <div className="flex flex-col items-center gap-4">
-          <Activity className="w-8 h-8 text-[var(--phosphor-green)] animate-pulse" />
-          <p className="font-mono text-sm text-[var(--terminal-text)]">
+          <Activity className="w-8 h-8 text-[var(--nous-sol)] animate-pulse" />
+          <p className="font-mono text-sm text-[var(--nous-fg-1)]">
             CHECKING_GRAPH_HEALTH...
           </p>
         </div>
@@ -203,7 +203,7 @@ export const GraphHealthMonitor: React.FC = () => {
   if (!health) {
     return (
       <div className="flex items-center justify-center h-96">
-        <p className="font-mono text-sm text-[var(--terminal-text-dim)]">
+        <p className="font-mono text-sm text-[var(--nous-fg-3)]">
           No health data available
         </p>
       </div>
@@ -220,10 +220,10 @@ export const GraphHealthMonitor: React.FC = () => {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-lg font-mono font-bold text-[var(--terminal-text)] uppercase tracking-wider">
+          <h2 className="text-lg font-mono font-bold text-[var(--nous-fg-1)] uppercase tracking-wider">
             Graph Health Monitor
           </h2>
-          <p className="text-xs font-mono text-[var(--terminal-text-dim)] mt-1">
+          <p className="text-xs font-mono text-[var(--nous-fg-3)] mt-1">
             Last check: {new Date(health.last_check).toLocaleString()}
           </p>
         </div>
@@ -252,7 +252,7 @@ export const GraphHealthMonitor: React.FC = () => {
       </div>
 
       {/* Overall Status */}
-      <Card className="border-[var(--terminal-border)] bg-[var(--terminal-surface)] shadow-lg">
+      <Card className="border-[var(--nous-border-1)] bg-[var(--nous-bg-2)] shadow-lg">
         <CardContent className="p-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
@@ -267,7 +267,7 @@ export const GraphHealthMonitor: React.FC = () => {
                 </div>
               </div>
               <div>
-                <p className="text-xs font-mono text-[var(--terminal-text-dim)] uppercase tracking-widest">
+                <p className="text-xs font-mono text-[var(--nous-fg-3)] uppercase tracking-widest">
                   Overall Status
                 </p>
                 <p
@@ -279,12 +279,12 @@ export const GraphHealthMonitor: React.FC = () => {
               </div>
             </div>
             <div className="text-right">
-              <p className="text-xs font-mono text-[var(--terminal-text-dim)] uppercase tracking-widest">
+              <p className="text-xs font-mono text-[var(--nous-fg-3)] uppercase tracking-widest">
                 Health Score
               </p>
-              <p className="text-5xl font-mono font-bold text-[var(--terminal-text)] mt-1">
+              <p className="text-5xl font-mono font-bold text-[var(--nous-fg-1)] mt-1">
                 {health.health_score}
-                <span className="text-2xl text-[var(--terminal-text-dim)]">
+                <span className="text-2xl text-[var(--nous-fg-3)]">
                   /100
                 </span>
               </p>
@@ -296,57 +296,57 @@ export const GraphHealthMonitor: React.FC = () => {
 
       {/* Metrics Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="border-[var(--terminal-border)] bg-[var(--terminal-surface)]">
+        <Card className="border-[var(--nous-border-1)] bg-[var(--nous-bg-2)]">
           <CardContent className="p-4">
             <div className="flex items-center gap-2 mb-2">
-              <Database className="w-4 h-4 text-[var(--phosphor-green)]" />
-              <span className="text-xs font-mono text-[var(--terminal-text-dim)]">
+              <Database className="w-4 h-4 text-[var(--nous-sol)]" />
+              <span className="text-xs font-mono text-[var(--nous-fg-3)]">
                 TOTAL ENTITIES
               </span>
             </div>
-            <p className="text-2xl font-mono font-bold text-[var(--terminal-text)]">
+            <p className="text-2xl font-mono font-bold text-[var(--nous-fg-1)]">
               {health.total_entities.toLocaleString()}
             </p>
           </CardContent>
         </Card>
 
-        <Card className="border-[var(--terminal-border)] bg-[var(--terminal-surface)]">
+        <Card className="border-[var(--nous-border-1)] bg-[var(--nous-bg-2)]">
           <CardContent className="p-4">
             <div className="flex items-center gap-2 mb-2">
-              <Zap className="w-4 h-4 text-[var(--cyan)]" />
-              <span className="text-xs font-mono text-[var(--terminal-text-dim)]">
+              <Zap className="w-4 h-4 text-[var(--nous-helios)]" />
+              <span className="text-xs font-mono text-[var(--nous-fg-3)]">
                 RELATIONSHIPS
               </span>
             </div>
-            <p className="text-2xl font-mono font-bold text-[var(--terminal-text)]">
+            <p className="text-2xl font-mono font-bold text-[var(--nous-fg-1)]">
               {health.total_relationships.toLocaleString()}
             </p>
           </CardContent>
         </Card>
 
-        <Card className="border-[var(--terminal-border)] bg-[var(--terminal-surface)]">
+        <Card className="border-[var(--nous-border-1)] bg-[var(--nous-bg-2)]">
           <CardContent className="p-4">
             <div className="flex items-center gap-2 mb-2">
-              <AlertTriangle className="w-4 h-4 text-[var(--amber-gold)]" />
-              <span className="text-xs font-mono text-[var(--terminal-text-dim)]">
+              <AlertTriangle className="w-4 h-4 text-[var(--nous-helios)]" />
+              <span className="text-xs font-mono text-[var(--nous-fg-3)]">
                 ISOLATED
               </span>
             </div>
-            <p className="text-2xl font-mono font-bold text-[var(--amber-gold)]">
+            <p className="text-2xl font-mono font-bold text-[var(--nous-helios)]">
               {health.metrics.isolated_entities.toLocaleString()}
             </p>
           </CardContent>
         </Card>
 
-        <Card className="border-[var(--terminal-border)] bg-[var(--terminal-surface)]">
+        <Card className="border-[var(--nous-border-1)] bg-[var(--nous-bg-2)]">
           <CardContent className="p-4">
             <div className="flex items-center gap-2 mb-2">
               <TrendingUp className="w-4 h-4 text-[var(--purple)]" />
-              <span className="text-xs font-mono text-[var(--terminal-text-dim)]">
+              <span className="text-xs font-mono text-[var(--nous-fg-3)]">
                 AVG STRENGTH
               </span>
             </div>
-            <p className="text-2xl font-mono font-bold text-[var(--terminal-text)]">
+            <p className="text-2xl font-mono font-bold text-[var(--nous-fg-1)]">
               {(health.metrics.avg_relationship_strength * 100).toFixed(0)}%
             </p>
           </CardContent>
@@ -354,62 +354,62 @@ export const GraphHealthMonitor: React.FC = () => {
       </div>
 
       {/* Detailed Metrics */}
-      <Card className="border-[var(--terminal-border)] bg-[var(--terminal-surface)]">
-        <CardHeader className="border-b border-[var(--terminal-border)]">
-          <CardTitle className="text-sm font-mono font-bold uppercase tracking-wider text-[var(--terminal-text)]">
+      <Card className="border-[var(--nous-border-1)] bg-[var(--nous-bg-2)]">
+        <CardHeader className="border-b border-[var(--nous-border-1)]">
+          <CardTitle className="text-sm font-mono font-bold uppercase tracking-wider text-[var(--nous-fg-1)]">
             Detailed Metrics
           </CardTitle>
         </CardHeader>
         <CardContent className="p-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-3">
-              <div className="flex items-center justify-between p-2 rounded bg-[var(--terminal-bg)]">
-                <span className="text-xs font-mono text-[var(--terminal-text-dim)]">
+              <div className="flex items-center justify-between p-2 rounded bg-[var(--nous-bg-1)]">
+                <span className="text-xs font-mono text-[var(--nous-fg-3)]">
                   Low Confidence Entities
                 </span>
-                <span className="text-sm font-mono font-bold text-[var(--terminal-text)]">
+                <span className="text-sm font-mono font-bold text-[var(--nous-fg-1)]">
                   {health.metrics.low_confidence_entities}
                 </span>
               </div>
-              <div className="flex items-center justify-between p-2 rounded bg-[var(--terminal-bg)]">
-                <span className="text-xs font-mono text-[var(--terminal-text-dim)]">
+              <div className="flex items-center justify-between p-2 rounded bg-[var(--nous-bg-1)]">
+                <span className="text-xs font-mono text-[var(--nous-fg-3)]">
                   Missing Confidence Scores
                 </span>
-                <span className="text-sm font-mono font-bold text-[var(--terminal-text)]">
+                <span className="text-sm font-mono font-bold text-[var(--nous-fg-1)]">
                   {health.metrics.entities_without_confidence}
                 </span>
               </div>
-              <div className="flex items-center justify-between p-2 rounded bg-[var(--terminal-bg)]">
-                <span className="text-xs font-mono text-[var(--terminal-text-dim)]">
+              <div className="flex items-center justify-between p-2 rounded bg-[var(--nous-bg-1)]">
+                <span className="text-xs font-mono text-[var(--nous-fg-3)]">
                   Weakly Connected Components
                 </span>
-                <span className="text-sm font-mono font-bold text-[var(--terminal-text)]">
+                <span className="text-sm font-mono font-bold text-[var(--nous-fg-1)]">
                   {health.metrics.weakly_connected_components}
                 </span>
               </div>
             </div>
             <div className="space-y-3">
-              <div className="flex items-center justify-between p-2 rounded bg-[var(--terminal-bg)]">
-                <span className="text-xs font-mono text-[var(--terminal-text-dim)]">
+              <div className="flex items-center justify-between p-2 rounded bg-[var(--nous-bg-1)]">
+                <span className="text-xs font-mono text-[var(--nous-fg-3)]">
                   Orphaned Relationships
                 </span>
-                <span className="text-sm font-mono font-bold text-[var(--terminal-text)]">
+                <span className="text-sm font-mono font-bold text-[var(--nous-fg-1)]">
                   {health.metrics.orphaned_relationships}
                 </span>
               </div>
-              <div className="flex items-center justify-between p-2 rounded bg-[var(--terminal-bg)]">
-                <span className="text-xs font-mono text-[var(--terminal-text-dim)]">
+              <div className="flex items-center justify-between p-2 rounded bg-[var(--nous-bg-1)]">
+                <span className="text-xs font-mono text-[var(--nous-fg-3)]">
                   Duplicate Relationships
                 </span>
-                <span className="text-sm font-mono font-bold text-[var(--terminal-text)]">
+                <span className="text-sm font-mono font-bold text-[var(--nous-fg-1)]">
                   {health.metrics.duplicate_relationships}
                 </span>
               </div>
-              <div className="flex items-center justify-between p-2 rounded bg-[var(--terminal-bg)]">
-                <span className="text-xs font-mono text-[var(--terminal-text-dim)]">
+              <div className="flex items-center justify-between p-2 rounded bg-[var(--nous-bg-1)]">
+                <span className="text-xs font-mono text-[var(--nous-fg-3)]">
                   Isolated Entities
                 </span>
-                <span className="text-sm font-mono font-bold text-[var(--terminal-text)]">
+                <span className="text-sm font-mono font-bold text-[var(--nous-fg-1)]">
                   {health.metrics.isolated_entities}
                 </span>
               </div>
@@ -420,9 +420,9 @@ export const GraphHealthMonitor: React.FC = () => {
 
       {/* Issues */}
       {health.issues.length > 0 && (
-        <Card className="border-[var(--terminal-border)] bg-[var(--terminal-surface)]">
-          <CardHeader className="border-b border-[var(--terminal-border)]">
-            <CardTitle className="text-sm font-mono font-bold uppercase tracking-wider text-[var(--terminal-text)]">
+        <Card className="border-[var(--nous-border-1)] bg-[var(--nous-bg-2)]">
+          <CardHeader className="border-b border-[var(--nous-border-1)]">
+            <CardTitle className="text-sm font-mono font-bold uppercase tracking-wider text-[var(--nous-fg-1)]">
               Health Issues ({health.issues.length})
             </CardTitle>
           </CardHeader>
@@ -431,28 +431,28 @@ export const GraphHealthMonitor: React.FC = () => {
               {health.issues.map((issue, index) => (
                 <div
                   key={index}
-                  className="flex items-start gap-3 p-3 rounded-lg border border-[var(--terminal-border)] bg-[var(--terminal-bg)]"
+                  className="flex items-start gap-3 p-3 rounded-lg border border-[var(--nous-border-1)] bg-[var(--nous-bg-1)]"
                 >
                   {getIssueIcon(issue.type)}
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-1">
                       <Badge
                         variant="outline"
-                        className="font-mono text-[10px] border-[var(--terminal-border)]"
+                        className="font-mono text-[10px] border-[var(--nous-border-1)]"
                       >
                         {issue.category}
                       </Badge>
                       {issue.count && (
-                        <span className="text-xs font-mono text-[var(--terminal-text-dim)]">
+                        <span className="text-xs font-mono text-[var(--nous-fg-3)]">
                           ({issue.count})
                         </span>
                       )}
                     </div>
-                    <p className="text-xs font-mono text-[var(--terminal-text)]">
+                    <p className="text-xs font-mono text-[var(--nous-fg-1)]">
                       {issue.message}
                     </p>
                     {issue.action && (
-                      <p className="text-xs font-mono text-[var(--terminal-text-dim)] mt-1">
+                      <p className="text-xs font-mono text-[var(--nous-fg-3)] mt-1">
                         → {issue.action}
                       </p>
                     )}
@@ -465,9 +465,9 @@ export const GraphHealthMonitor: React.FC = () => {
       )}
 
       {/* Health Score Breakdown */}
-      <Card className="border-[var(--terminal-border)] bg-[var(--terminal-surface)]">
-        <CardHeader className="border-b border-[var(--terminal-border)]">
-          <CardTitle className="text-sm font-mono font-bold uppercase tracking-wider text-[var(--terminal-text)]">
+      <Card className="border-[var(--nous-border-1)] bg-[var(--nous-bg-2)]">
+        <CardHeader className="border-b border-[var(--nous-border-1)]">
+          <CardTitle className="text-sm font-mono font-bold uppercase tracking-wider text-[var(--nous-fg-1)]">
             Health Score Breakdown
           </CardTitle>
         </CardHeader>
@@ -475,10 +475,10 @@ export const GraphHealthMonitor: React.FC = () => {
           <div className="space-y-3">
             <div className="space-y-1">
               <div className="flex items-center justify-between text-xs font-mono">
-                <span className="text-[var(--terminal-text)]">
+                <span className="text-[var(--nous-fg-1)]">
                   Data Quality
                 </span>
-                <span className="text-[var(--terminal-text-dim)]">
+                <span className="text-[var(--nous-fg-3)]">
                   {Math.max(
                     0,
                     100 - health.metrics.entities_without_confidence * 2
@@ -496,10 +496,10 @@ export const GraphHealthMonitor: React.FC = () => {
             </div>
             <div className="space-y-1">
               <div className="flex items-center justify-between text-xs font-mono">
-                <span className="text-[var(--terminal-text)]">
+                <span className="text-[var(--nous-fg-1)]">
                   Connectivity
                 </span>
-                <span className="text-[var(--terminal-text-dim)]">
+                <span className="text-[var(--nous-fg-3)]">
                   {connectivityScore.toFixed(0)}
                   %
                 </span>
@@ -511,10 +511,10 @@ export const GraphHealthMonitor: React.FC = () => {
             </div>
             <div className="space-y-1">
               <div className="flex items-center justify-between text-xs font-mono">
-                <span className="text-[var(--terminal-text)]">
+                <span className="text-[var(--nous-fg-1)]">
                   Relationship Quality
                 </span>
-                <span className="text-[var(--terminal-text-dim)]">
+                <span className="text-[var(--nous-fg-3)]">
                   {(health.metrics.avg_relationship_strength * 100).toFixed(0)}%
                 </span>
               </div>

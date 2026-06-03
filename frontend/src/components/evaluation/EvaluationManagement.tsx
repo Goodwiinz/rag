@@ -17,15 +17,34 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
-import { useEvaluations, useCreateEvaluation, useRunEvaluation, useDeleteEvaluation } from '@/hooks/useEvaluation';
+import {
+  useEvaluations,
+  useCreateEvaluation,
+  useRunEvaluation,
+  useDeleteEvaluation,
+} from '@/hooks/useEvaluation';
 import type { Evaluation as EvaluationType } from '@/types';
 
 export const EvaluationManagement: React.FC = () => {
-  const [selectedEvaluation, setSelectedEvaluation] = useState<string | null>(null);
+  const [selectedEvaluation, setSelectedEvaluation] = useState<string | null>(
+    null
+  );
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [filterType, setFilterType] = useState<string>('all');
@@ -103,7 +122,7 @@ export const EvaluationManagement: React.FC = () => {
       case 'failed':
         return 'text-red-600 bg-red-50';
       default:
-        return 'text-gray-600 bg-gray-50';
+        return 'text-foreground bg-gray-50';
     }
   };
 
@@ -120,19 +139,25 @@ export const EvaluationManagement: React.FC = () => {
     }
   };
 
-  const filteredEvaluations = evaluations?.filter(evaluation => {
-    const matchesStatus = filterStatus === 'all' || evaluation.status === filterStatus;
-    const matchesType = filterType === 'all' || evaluation.evaluation_type === filterType;
-    const matchesSearch = evaluation.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         (evaluation.description?.toLowerCase().includes(searchQuery.toLowerCase()));
-    return matchesStatus && matchesType && matchesSearch;
-  }) || [];
+  const filteredEvaluations =
+    evaluations?.filter((evaluation) => {
+      const matchesStatus =
+        filterStatus === 'all' || evaluation.status === filterStatus;
+      const matchesType =
+        filterType === 'all' || evaluation.evaluation_type === filterType;
+      const matchesSearch =
+        evaluation.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        evaluation.description
+          ?.toLowerCase()
+          .includes(searchQuery.toLowerCase());
+      return matchesStatus && matchesType && matchesSearch;
+    }) || [];
 
   const evaluationStats = {
     total: evaluations?.length || 0,
-    completed: evaluations?.filter(e => e.status === 'completed').length || 0,
-    running: evaluations?.filter(e => e.status === 'running').length || 0,
-    failed: evaluations?.filter(e => e.status === 'failed').length || 0,
+    completed: evaluations?.filter((e) => e.status === 'completed').length || 0,
+    running: evaluations?.filter((e) => e.status === 'running').length || 0,
+    failed: evaluations?.filter((e) => e.status === 'failed').length || 0,
   };
 
   if (error) {
@@ -141,8 +166,12 @@ export const EvaluationManagement: React.FC = () => {
         <CardContent className="p-6">
           <div className="text-center text-red-600">
             <ExclamationTriangleIcon className="h-12 w-12 mx-auto mb-4" />
-            <h3 className="text-lg font-medium mb-2">Error Loading Evaluations</h3>
-            <p className="text-sm">Failed to load evaluations. Please try again.</p>
+            <h3 className="text-lg font-medium mb-2">
+              Error Loading Evaluations
+            </h3>
+            <p className="text-sm">
+              Failed to load evaluations. Please try again.
+            </p>
             <Button
               variant="outline"
               className="mt-4"
@@ -161,8 +190,12 @@ export const EvaluationManagement: React.FC = () => {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Evaluation Management</h1>
-          <p className="text-gray-600 mt-1">Create, manage, and run system evaluations</p>
+          <h1 className="text-2xl font-bold text-foreground">
+            Evaluation Management
+          </h1>
+          <p className="text-foreground mt-1">
+            Create, manage, and run system evaluations
+          </p>
         </div>
         <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
           <DialogTrigger asChild>
@@ -175,7 +208,10 @@ export const EvaluationManagement: React.FC = () => {
             <DialogHeader>
               <DialogTitle>Create New Evaluation</DialogTitle>
             </DialogHeader>
-            <CreateEvaluationForm onSubmit={handleCreateEvaluation} onCancel={() => setShowCreateDialog(false)} />
+            <CreateEvaluationForm
+              onSubmit={handleCreateEvaluation}
+              onCancel={() => setShowCreateDialog(false)}
+            />
           </DialogContent>
         </Dialog>
       </div>
@@ -186,10 +222,12 @@ export const EvaluationManagement: React.FC = () => {
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-600">Total Evaluations</p>
+                <p className="text-sm font-medium text-foreground">
+                  Total Evaluations
+                </p>
                 <p className="text-2xl font-bold">{evaluationStats.total}</p>
               </div>
-              <DocumentTextIcon className="h-8 w-8 text-gray-400" />
+              <DocumentTextIcon className="h-8 w-8 text-muted-foreground" />
             </div>
           </CardContent>
         </Card>
@@ -197,8 +235,10 @@ export const EvaluationManagement: React.FC = () => {
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-600">Completed</p>
-                <p className="text-2xl font-bold text-green-600">{evaluationStats.completed}</p>
+                <p className="text-sm font-medium text-foreground">Completed</p>
+                <p className="text-2xl font-bold text-green-600">
+                  {evaluationStats.completed}
+                </p>
               </div>
               <CheckCircleIcon className="h-8 w-8 text-green-400" />
             </div>
@@ -208,8 +248,10 @@ export const EvaluationManagement: React.FC = () => {
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-600">Running</p>
-                <p className="text-2xl font-bold text-blue-600">{evaluationStats.running}</p>
+                <p className="text-sm font-medium text-foreground">Running</p>
+                <p className="text-2xl font-bold text-blue-600">
+                  {evaluationStats.running}
+                </p>
               </div>
               <ArrowPathIcon className="h-8 w-8 text-blue-400" />
             </div>
@@ -219,8 +261,10 @@ export const EvaluationManagement: React.FC = () => {
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-600">Failed</p>
-                <p className="text-2xl font-bold text-red-600">{evaluationStats.failed}</p>
+                <p className="text-sm font-medium text-foreground">Failed</p>
+                <p className="text-2xl font-bold text-red-600">
+                  {evaluationStats.failed}
+                </p>
               </div>
               <ExclamationTriangleIcon className="h-8 w-8 text-red-400" />
             </div>
@@ -280,19 +324,23 @@ export const EvaluationManagement: React.FC = () => {
             </div>
           ) : filteredEvaluations.length === 0 ? (
             <div className="text-center py-12">
-              <DocumentTextIcon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">No evaluations found</h3>
-              <p className="text-gray-600 mb-4">
+              <DocumentTextIcon className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-foreground mb-2">
+                No evaluations found
+              </h3>
+              <p className="text-foreground mb-4">
                 {searchQuery || filterStatus !== 'all' || filterType !== 'all'
                   ? 'Try adjusting your filters or search query'
                   : 'Get started by creating your first evaluation'}
               </p>
-              {!searchQuery && filterStatus === 'all' && filterType === 'all' && (
-                <Button onClick={() => setShowCreateDialog(true)}>
-                  <PlusIcon className="h-4 w-4 mr-2" />
-                  Create Evaluation
-                </Button>
-              )}
+              {!searchQuery &&
+                filterStatus === 'all' &&
+                filterType === 'all' && (
+                  <Button onClick={() => setShowCreateDialog(true)}>
+                    <PlusIcon className="h-4 w-4 mr-2" />
+                    Create Evaluation
+                  </Button>
+                )}
             </div>
           ) : (
             <div className="space-y-4">
@@ -304,17 +352,24 @@ export const EvaluationManagement: React.FC = () => {
                   <div
                     key={evaluation.id}
                     className={cn(
-                      "border rounded-lg p-4 hover:bg-gray-50 transition-colors",
-                      selectedEvaluation === evaluation.id && "border-blue-500 bg-blue-50"
+                      'border rounded-lg p-4 hover:bg-gray-50 transition-colors',
+                      selectedEvaluation === evaluation.id &&
+                        'border-blue-500 bg-blue-50'
                     )}
                   >
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
                         <div className="flex items-center space-x-3 mb-2">
-                          {React.createElement(TypeIcon, { className: "h-5 w-5 text-gray-500" })}
-                          <h3 className="text-lg font-medium text-gray-900">{evaluation.name}</h3>
+                          {React.createElement(TypeIcon, {
+                            className: 'h-5 w-5 text-muted-foreground',
+                          })}
+                          <h3 className="text-lg font-medium text-foreground">
+                            {evaluation.name}
+                          </h3>
                           <Badge className={getStatusColor(evaluation.status)}>
-                            {React.createElement(StatusIcon, { className: "h-3 w-3 mr-1" })}
+                            {React.createElement(StatusIcon, {
+                              className: 'h-3 w-3 mr-1',
+                            })}
                             {evaluation.status}
                           </Badge>
                           <Badge variant="outline" className="capitalize">
@@ -322,24 +377,36 @@ export const EvaluationManagement: React.FC = () => {
                           </Badge>
                         </div>
                         {evaluation.description && (
-                          <p className="text-gray-600 mb-3">{evaluation.description}</p>
+                          <p className="text-foreground mb-3">
+                            {evaluation.description}
+                          </p>
                         )}
-                        <div className="flex items-center space-x-6 text-sm text-gray-500">
+                        <div className="flex items-center space-x-6 text-sm text-muted-foreground">
                           <div className="flex items-center">
                             <CalendarIcon className="h-4 w-4 mr-1" />
-                            Created {new Date(evaluation.created_at).toLocaleDateString()}
+                            Created{' '}
+                            {new Date(
+                              evaluation.created_at
+                            ).toLocaleDateString()}
                           </div>
                           {evaluation.last_run && (
                             <div className="flex items-center">
                               <ClockIcon className="h-4 w-4 mr-1" />
-                              Last run {new Date(evaluation.last_run.started_at).toLocaleDateString()}
+                              Last run{' '}
+                              {new Date(
+                                evaluation.last_run.started_at
+                              ).toLocaleDateString()}
                             </div>
                           )}
                           {evaluation.last_run?.results_summary && (
                             <div className="flex items-center">
                               <ChartBarIcon className="h-4 w-4 mr-1" />
-                              Score: {evaluation.last_run.results_summary.average_score.toFixed(1)}%
-                              ({evaluation.last_run.results_summary.pass_rate}% pass rate)
+                              Score:{' '}
+                              {evaluation.last_run.results_summary.average_score.toFixed(
+                                1
+                              )}
+                              % ({evaluation.last_run.results_summary.pass_rate}
+                              % pass rate)
                             </div>
                           )}
                         </div>
@@ -394,7 +461,10 @@ interface CreateEvaluationFormProps {
   onCancel: () => void;
 }
 
-const CreateEvaluationForm: React.FC<CreateEvaluationFormProps> = ({ onSubmit, onCancel }) => {
+const CreateEvaluationForm: React.FC<CreateEvaluationFormProps> = ({
+  onSubmit,
+  onCancel,
+}) => {
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -412,7 +482,7 @@ const CreateEvaluationForm: React.FC<CreateEvaluationFormProps> = ({ onSubmit, o
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
+        <label className="block text-sm font-medium text-foreground mb-1">
           Name *
         </label>
         <Input
@@ -423,20 +493,27 @@ const CreateEvaluationForm: React.FC<CreateEvaluationFormProps> = ({ onSubmit, o
         />
       </div>
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
+        <label className="block text-sm font-medium text-foreground mb-1">
           Description
         </label>
         <Input
           value={formData.description}
-          onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+          onChange={(e) =>
+            setFormData({ ...formData, description: e.target.value })
+          }
           placeholder="Enter evaluation description"
         />
       </div>
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
+        <label className="block text-sm font-medium text-foreground mb-1">
           Dataset *
         </label>
-        <Select value={formData.dataset_id} onValueChange={(value) => setFormData({ ...formData, dataset_id: value })}>
+        <Select
+          value={formData.dataset_id}
+          onValueChange={(value) =>
+            setFormData({ ...formData, dataset_id: value })
+          }
+        >
           <SelectTrigger>
             <SelectValue placeholder="Select dataset" />
           </SelectTrigger>
@@ -448,10 +525,15 @@ const CreateEvaluationForm: React.FC<CreateEvaluationFormProps> = ({ onSubmit, o
         </Select>
       </div>
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
+        <label className="block text-sm font-medium text-foreground mb-1">
           Evaluation Type *
         </label>
-        <Select value={formData.evaluation_type} onValueChange={(value) => setFormData({ ...formData, evaluation_type: value })}>
+        <Select
+          value={formData.evaluation_type}
+          onValueChange={(value) =>
+            setFormData({ ...formData, evaluation_type: value })
+          }
+        >
           <SelectTrigger>
             <SelectValue placeholder="Select evaluation type" />
           </SelectTrigger>
@@ -467,9 +549,7 @@ const CreateEvaluationForm: React.FC<CreateEvaluationFormProps> = ({ onSubmit, o
         <Button type="button" variant="outline" onClick={onCancel}>
           Cancel
         </Button>
-        <Button type="submit">
-          Create Evaluation
-        </Button>
+        <Button type="submit">Create Evaluation</Button>
       </div>
     </form>
   );

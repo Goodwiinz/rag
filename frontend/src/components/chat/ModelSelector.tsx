@@ -117,7 +117,7 @@ export function ModelSelector({
               transform: 'translateY(-100%)',
             }}
           >
-            <div className="p-2 max-h-80 overflow-y-auto terminal-scrollbar">
+            <div className="p-2 max-h-80 overflow-y-auto nous-scrollbar">
               {models.map((model) => (
                 <button
                   key={model.id || model.name}

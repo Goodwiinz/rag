@@ -19,7 +19,13 @@ import { Entity, Relationship } from '@/types/search';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 
 interface GraphRecommendationsProps {
@@ -105,21 +111,25 @@ export const GraphRecommendations: React.FC<GraphRecommendationsProps> = ({
     showAccepted: false,
     showDismissed: false,
   });
-  const [selectedRecommendation, setSelectedRecommendation] = useState<Recommendation | null>(null);
+  const [selectedRecommendation, setSelectedRecommendation] =
+    useState<Recommendation | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [lastRefresh, setLastRefresh] = useState<number>(Date.now());
 
   // Generate recommendations based on graph analysis
-  const generateRecommendations = useCallback(async (): Promise<Recommendation[]> => {
+  const generateRecommendations = useCallback(async (): Promise<
+    Recommendation[]
+  > => {
     const recommendations: Recommendation[] = [];
     const now = Date.now();
 
     // Entity-based recommendations
     // 1. High-value entities with few connections
     const highValueEntities = entities
-      .filter(entity => {
-        const connections = relationships.filter(r =>
-          r.source_entity_id === entity.id || r.target_entity_id === entity.id
+      .filter((entity) => {
+        const connections = relationships.filter(
+          (r) =>
+            r.source_entity_id === entity.id || r.target_entity_id === entity.id
         ).length;
         return entity.confidence > 0.8 && connections < 3;
       })
@@ -132,7 +142,7 @@ export const GraphRecommendations: React.FC<GraphRecommendationsProps> = ({
         title: `Explore ${entity.name}`,
         description: `This ${entity.type} entity has high confidence (${Math.round(entity.confidence * 100)}%) but few connections. It might be a key node in your knowledge graph.`,
         confidence: entity.confidence,
-        relevanceScore: 0.9 - (index * 0.1),
+        relevanceScore: 0.9 - index * 0.1,
         reasoning: [
           'High confidence entity with limited connections',
           'Potential central node in the knowledge graph',
@@ -158,12 +168,20 @@ export const GraphRecommendations: React.FC<GraphRecommendationsProps> = ({
         if (!entity1 || !entity2) continue;
 
         // Skip if already connected
-        const isConnected = relationships.some(r =>
-          (r.source_entity_id === entity1.id && r.target_entity_id === entity2.id) ||
-          (r.source_entity_id === entity2.id && r.target_entity_id === entity1.id)
+        const isConnected = relationships.some(
+          (r) =>
+            (r.source_entity_id === entity1.id &&
+              r.target_entity_id === entity2.id) ||
+            (r.source_entity_id === entity2.id &&
+              r.target_entity_id === entity1.id)
         );
 
-        if (!isConnected && entity1.type === entity2.type && entity1.confidence > 0.7 && entity2.confidence > 0.7) {
+        if (
+          !isConnected &&
+          entity1.type === entity2.type &&
+          entity1.confidence > 0.7 &&
+          entity2.confidence > 0.7
+        ) {
           entityPairs.push({ entity1, entity2 });
         }
       }
@@ -176,7 +194,7 @@ export const GraphRecommendations: React.FC<GraphRecommendationsProps> = ({
         title: `Connect ${pair.entity1.name} and ${pair.entity2.name}`,
         description: `Both are ${pair.entity1.type} entities with high confidence but no known relationship. Consider investigating potential connections.`,
         confidence: (pair.entity1.confidence + pair.entity2.confidence) / 2,
-        relevanceScore: 0.8 - (index * 0.1),
+        relevanceScore: 0.8 - index * 0.1,
         reasoning: [
           'Same entity type with high confidence',
           'No existing relationship found',
@@ -207,7 +225,11 @@ export const GraphRecommendations: React.FC<GraphRecommendationsProps> = ({
         // Skip if entities are undefined
         if (!entity1 || !entity2) continue;
 
-        if (entity1.type !== entity2.type && entity1.confidence > 0.6 && entity2.confidence > 0.6) {
+        if (
+          entity1.type !== entity2.type &&
+          entity1.confidence > 0.6 &&
+          entity2.confidence > 0.6
+        ) {
           distantPairs.push({ entity1, entity2 });
         }
       }
@@ -220,7 +242,7 @@ export const GraphRecommendations: React.FC<GraphRecommendationsProps> = ({
         title: `Explore connection between ${pair.entity1.name} and ${pair.entity2.name}`,
         description: `Find paths between this ${pair.entity1.type} and ${pair.entity2.type}. They might have interesting indirect relationships.`,
         confidence: (pair.entity1.confidence + pair.entity2.confidence) / 2,
-        relevanceScore: 0.7 - (index * 0.1),
+        relevanceScore: 0.7 - index * 0.1,
         reasoning: [
           'Different entity types suggest potential relationships',
           'May uncover hidden connections',
@@ -243,8 +265,8 @@ export const GraphRecommendations: React.FC<GraphRecommendationsProps> = ({
     // 4. Document recommendations based on entities
     if (documents && documents.length > 0) {
       const underrepresentedEntities = entities
-        .filter(entity => {
-          const docCount = documents.filter(doc =>
+        .filter((entity) => {
+          const docCount = documents.filter((doc) =>
             doc.entities?.some((e: any) => e.id === entity.id)
           ).length;
           return entity.mentions > 5 && docCount < 2;
@@ -258,7 +280,7 @@ export const GraphRecommendations: React.FC<GraphRecommendationsProps> = ({
           title: `Review documents containing ${entity.name}`,
           description: `This entity is mentioned ${entity.mentions} times but appears in few documents. Review for completeness.`,
           confidence: 0.7,
-          relevanceScore: 0.6 - (index * 0.1),
+          relevanceScore: 0.6 - index * 0.1,
           reasoning: [
             'High mention count but low document coverage',
             'May indicate incomplete document processing',
@@ -318,7 +340,10 @@ export const GraphRecommendations: React.FC<GraphRecommendationsProps> = ({
       });
     });
 
-    return recommendations.sort((a, b) => (b.confidence * b.relevanceScore) - (a.confidence * a.relevanceScore));
+    return recommendations.sort(
+      (a, b) =>
+        b.confidence * b.relevanceScore - a.confidence * a.relevanceScore
+    );
   }, [entities, relationships, documents]);
 
   // Load recommendations
@@ -341,69 +366,91 @@ export const GraphRecommendations: React.FC<GraphRecommendationsProps> = ({
 
     // Filter by type
     if (filters.types.length > 0) {
-      filtered = filtered.filter(rec => filters.types.includes(rec.type));
+      filtered = filtered.filter((rec) => filters.types.includes(rec.type));
     }
 
     // Filter by category
     if (filters.categories.length > 0) {
-      filtered = filtered.filter(rec => filters.categories.includes(rec.category));
+      filtered = filtered.filter((rec) =>
+        filters.categories.includes(rec.category)
+      );
     }
 
     // Filter by priority
     if (filters.priorities.length > 0) {
-      filtered = filtered.filter(rec => filters.priorities.includes(rec.priority));
+      filtered = filtered.filter((rec) =>
+        filters.priorities.includes(rec.priority)
+      );
     }
 
     // Filter by confidence
-    filtered = filtered.filter(rec => rec.confidence >= filters.minConfidence);
+    filtered = filtered.filter(
+      (rec) => rec.confidence >= filters.minConfidence
+    );
 
     return filtered.slice(0, maxRecommendations);
   }, [recommendations, filters, maxRecommendations]);
 
   // Handle recommendation action
-  const handleRecommendationAction = useCallback((action: RecommendationAction) => {
-    // In a real implementation, this would send the action to a backend
-    console.log('Recommendation action:', action);
-    onRecommendationAction?.(action);
+  const handleRecommendationAction = useCallback(
+    (action: RecommendationAction) => {
+      // In a real implementation, this would send the action to a backend
+      console.log('Recommendation action:', action);
+      onRecommendationAction?.(action);
 
-    // Update local state (mock implementation)
-    if (action.type === 'dismiss') {
-      setRecommendations(prev => prev.filter(rec => rec.id !== action.recommendationId));
-    }
-  }, [onRecommendationAction]);
+      // Update local state (mock implementation)
+      if (action.type === 'dismiss') {
+        setRecommendations((prev) =>
+          prev.filter((rec) => rec.id !== action.recommendationId)
+        );
+      }
+    },
+    [onRecommendationAction]
+  );
 
   // Execute recommendation
-  const executeRecommendation = useCallback((recommendation: Recommendation) => {
-    switch (recommendation.actionType) {
-      case 'explore':
-        if (recommendation.metadata.entityId) {
-          const entity = entities.find(e => e.id === recommendation.metadata.entityId);
-          if (entity) onEntityClick?.(entity);
-        }
-        break;
-      case 'connect':
-        // This would open a relationship creation dialog
-        console.log('Would open connection dialog for:', recommendation.metadata.path);
-        break;
-      case 'analyze':
-        if (recommendation.metadata.documentIds) {
-          recommendation.metadata.documentIds.forEach(docId => {
-            onDocumentClick?.(docId);
-          });
-        }
-        break;
-      case 'discover':
-        if (recommendation.metadata.suggestedQuery) {
-          console.log('Would execute query:', recommendation.metadata.suggestedQuery);
-        }
-        break;
-    }
+  const executeRecommendation = useCallback(
+    (recommendation: Recommendation) => {
+      switch (recommendation.actionType) {
+        case 'explore':
+          if (recommendation.metadata.entityId) {
+            const entity = entities.find(
+              (e) => e.id === recommendation.metadata.entityId
+            );
+            if (entity) onEntityClick?.(entity);
+          }
+          break;
+        case 'connect':
+          // This would open a relationship creation dialog
+          console.log(
+            'Would open connection dialog for:',
+            recommendation.metadata.path
+          );
+          break;
+        case 'analyze':
+          if (recommendation.metadata.documentIds) {
+            recommendation.metadata.documentIds.forEach((docId) => {
+              onDocumentClick?.(docId);
+            });
+          }
+          break;
+        case 'discover':
+          if (recommendation.metadata.suggestedQuery) {
+            console.log(
+              'Would execute query:',
+              recommendation.metadata.suggestedQuery
+            );
+          }
+          break;
+      }
 
-    handleRecommendationAction({
-      type: 'accept',
-      recommendationId: recommendation.id,
-    });
-  }, [entities, onEntityClick, onDocumentClick, handleRecommendationAction]);
+      handleRecommendationAction({
+        type: 'accept',
+        recommendationId: recommendation.id,
+      });
+    },
+    [entities, onEntityClick, onDocumentClick, handleRecommendationAction]
+  );
 
   // Get recommendation icon
   const getRecommendationIcon = (type: Recommendation['type']) => {
@@ -447,7 +494,7 @@ export const GraphRecommendations: React.FC<GraphRecommendationsProps> = ({
       case 'medium':
         return 'border-yellow-200 bg-yellow-50';
       case 'low':
-        return 'border-gray-200 bg-gray-50';
+        return 'border-border bg-gray-50';
     }
   };
 
@@ -464,7 +511,7 @@ export const GraphRecommendations: React.FC<GraphRecommendationsProps> = ({
   }, [loadRecommendations]);
 
   return (
-    <div className={cn("space-y-6", className)}>
+    <div className={cn('space-y-6', className)}>
       {/* Header */}
       <Card>
         <CardHeader>
@@ -480,10 +527,12 @@ export const GraphRecommendations: React.FC<GraphRecommendationsProps> = ({
                 onClick={loadRecommendations}
                 disabled={isLoading}
               >
-                <ArrowPathIcon className={cn("h-4 w-4 mr-2", isLoading && "animate-spin")} />
+                <ArrowPathIcon
+                  className={cn('h-4 w-4 mr-2', isLoading && 'animate-spin')}
+                />
                 Refresh
               </Button>
-              <span className="text-sm text-gray-500">
+              <span className="text-sm text-muted-foreground">
                 Last updated: {new Date(lastRefresh).toLocaleTimeString()}
               </span>
             </div>
@@ -493,55 +542,62 @@ export const GraphRecommendations: React.FC<GraphRecommendationsProps> = ({
           {/* Filters */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-foreground mb-2">
                 Types
               </label>
               <div className="space-y-1">
-                {['entity', 'relationship', 'path', 'document', 'query'].map(type => (
-                  <label key={type} className="flex items-center">
-                    <input
-                      type="checkbox"
-                      checked={filters.types.includes(type as any)}
-                      onChange={(e) => {
-                        const newTypes = e.target.checked
-                          ? [...filters.types, type as any]
-                          : filters.types.filter(t => t !== type);
-                        setFilters(prev => ({ ...prev, types: newTypes }));
-                      }}
-                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 mr-2"
-                    />
-                    <span className="text-sm capitalize">{type}</span>
-                  </label>
-                ))}
+                {['entity', 'relationship', 'path', 'document', 'query'].map(
+                  (type) => (
+                    <label key={type} className="flex items-center">
+                      <input
+                        type="checkbox"
+                        checked={filters.types.includes(type as any)}
+                        onChange={(e) => {
+                          const newTypes = e.target.checked
+                            ? [...filters.types, type as any]
+                            : filters.types.filter((t) => t !== type);
+                          setFilters((prev) => ({ ...prev, types: newTypes }));
+                        }}
+                        className="rounded border-border text-blue-600 focus:ring-blue-500 mr-2"
+                      />
+                      <span className="text-sm capitalize">{type}</span>
+                    </label>
+                  )
+                )}
               </div>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-foreground mb-2">
                 Categories
               </label>
               <div className="space-y-1">
-                {['discovery', 'analysis', 'connection', 'exploration'].map(category => (
-                  <label key={category} className="flex items-center">
-                    <input
-                      type="checkbox"
-                      checked={filters.categories.includes(category as any)}
-                      onChange={(e) => {
-                        const newCategories = e.target.checked
-                          ? [...filters.categories, category as any]
-                          : filters.categories.filter(c => c !== category);
-                        setFilters(prev => ({ ...prev, categories: newCategories }));
-                      }}
-                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 mr-2"
-                    />
-                    <span className="text-sm capitalize">{category}</span>
-                  </label>
-                ))}
+                {['discovery', 'analysis', 'connection', 'exploration'].map(
+                  (category) => (
+                    <label key={category} className="flex items-center">
+                      <input
+                        type="checkbox"
+                        checked={filters.categories.includes(category as any)}
+                        onChange={(e) => {
+                          const newCategories = e.target.checked
+                            ? [...filters.categories, category as any]
+                            : filters.categories.filter((c) => c !== category);
+                          setFilters((prev) => ({
+                            ...prev,
+                            categories: newCategories,
+                          }));
+                        }}
+                        className="rounded border-border text-blue-600 focus:ring-blue-500 mr-2"
+                      />
+                      <span className="text-sm capitalize">{category}</span>
+                    </label>
+                  )
+                )}
               </div>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-foreground mb-2">
                 Min Confidence: {Math.round(filters.minConfidence * 100)}%
               </label>
               <input
@@ -550,18 +606,25 @@ export const GraphRecommendations: React.FC<GraphRecommendationsProps> = ({
                 max="1"
                 step="0.1"
                 value={filters.minConfidence}
-                onChange={(e) => setFilters(prev => ({ ...prev, minConfidence: parseFloat(e.target.value) }))}
+                onChange={(e) =>
+                  setFilters((prev) => ({
+                    ...prev,
+                    minConfidence: parseFloat(e.target.value),
+                  }))
+                }
                 className="w-full"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-foreground mb-2">
                 Max Recommendations
               </label>
               <Select
                 value={maxRecommendations.toString()}
-                onValueChange={(value) => {/* Would update maxRecommendations */}}
+                onValueChange={(value) => {
+                  /* Would update maxRecommendations */
+                }}
               >
                 <SelectTrigger>
                   <SelectValue />
@@ -583,15 +646,24 @@ export const GraphRecommendations: React.FC<GraphRecommendationsProps> = ({
         <Card>
           <CardContent className="text-center py-8">
             <div className="animate-spin rounded-full h-8 w-8 border-2 border-blue-600 border-t-transparent mx-auto mb-4"></div>
-            <p className="text-gray-500">Generating recommendations...</p>
+            <p className="text-muted-foreground">
+              Generating recommendations...
+            </p>
           </CardContent>
         </Card>
       ) : filteredRecommendations.length === 0 ? (
         <Card>
           <CardContent className="text-center py-8">
-            <SparklesIcon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-            <p className="text-gray-500">No recommendations available.</p>
-            <Button variant="outline" size="sm" onClick={loadRecommendations} className="mt-4">
+            <SparklesIcon className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+            <p className="text-muted-foreground">
+              No recommendations available.
+            </p>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={loadRecommendations}
+              className="mt-4"
+            >
               Generate New Recommendations
             </Button>
           </CardContent>
@@ -599,14 +671,16 @@ export const GraphRecommendations: React.FC<GraphRecommendationsProps> = ({
       ) : (
         <div className="space-y-4">
           {filteredRecommendations.map((recommendation) => {
-            const RecommendationIcon = getRecommendationIcon(recommendation.type);
+            const RecommendationIcon = getRecommendationIcon(
+              recommendation.type
+            );
             const ActionTypeIcon = getActionTypeIcon(recommendation.actionType);
 
             return (
               <div
                 key={recommendation.id}
                 className={cn(
-                  "border rounded-lg p-4 hover:shadow-md transition-shadow cursor-pointer",
+                  'border rounded-lg p-4 hover:shadow-md transition-shadow cursor-pointer',
                   getPriorityColor(recommendation.priority)
                 )}
               >
@@ -621,7 +695,7 @@ export const GraphRecommendations: React.FC<GraphRecommendationsProps> = ({
                   {/* Content */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between mb-2">
-                      <h3 className="text-lg font-medium text-gray-900">
+                      <h3 className="text-lg font-medium text-foreground">
                         {recommendation.title}
                       </h3>
                       <div className="flex items-center space-x-2">
@@ -631,22 +705,32 @@ export const GraphRecommendations: React.FC<GraphRecommendationsProps> = ({
                         <Badge variant="outline" className="capitalize">
                           {recommendation.category}
                         </Badge>
-                        <span className={cn("text-sm font-medium", getConfidenceColor(recommendation.confidence))}>
+                        <span
+                          className={cn(
+                            'text-sm font-medium',
+                            getConfidenceColor(recommendation.confidence)
+                          )}
+                        >
                           {Math.round(recommendation.confidence * 100)}%
                         </span>
                       </div>
                     </div>
 
-                    <p className="text-sm text-gray-700 mb-3">
+                    <p className="text-sm text-foreground mb-3">
                       {recommendation.description}
                     </p>
 
                     {/* Reasoning */}
                     <div className="mb-3">
-                      <h4 className="text-sm font-medium text-gray-900 mb-1">Why this recommendation:</h4>
-                      <ul className="text-sm text-gray-600 space-y-1">
+                      <h4 className="text-sm font-medium text-foreground mb-1">
+                        Why this recommendation:
+                      </h4>
+                      <ul className="text-sm text-foreground space-y-1">
                         {recommendation.reasoning.map((reason, index) => (
-                          <li key={index} className="flex items-start space-x-2">
+                          <li
+                            key={index}
+                            className="flex items-start space-x-2"
+                          >
                             <StarIcon className="h-3 w-3 text-yellow-500 mt-0.5 flex-shrink-0" />
                             <span>{reason}</span>
                           </li>
@@ -663,12 +747,16 @@ export const GraphRecommendations: React.FC<GraphRecommendationsProps> = ({
                           className="flex items-center space-x-1"
                         >
                           <ActionTypeIcon className="h-4 w-4" />
-                          <span className="capitalize">{recommendation.actionType}</span>
+                          <span className="capitalize">
+                            {recommendation.actionType}
+                          </span>
                         </Button>
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => setSelectedRecommendation(recommendation)}
+                          onClick={() =>
+                            setSelectedRecommendation(recommendation)
+                          }
                         >
                           <EyeIcon className="h-4 w-4 mr-1" />
                           Details
@@ -676,19 +764,24 @@ export const GraphRecommendations: React.FC<GraphRecommendationsProps> = ({
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => handleRecommendationAction({
-                            type: 'snooze',
-                            recommendationId: recommendation.id,
-                          })}
+                          onClick={() =>
+                            handleRecommendationAction({
+                              type: 'snooze',
+                              recommendationId: recommendation.id,
+                            })
+                          }
                         >
                           <ClockIcon className="h-4 w-4" />
                         </Button>
                       </div>
 
-                      <div className="flex items-center space-x-2 text-xs text-gray-500">
+                      <div className="flex items-center space-x-2 text-xs text-muted-foreground">
                         <span>Priority: {recommendation.priority}</span>
                         <span>•</span>
-                        <span>Relevance: {Math.round(recommendation.relevanceScore * 100)}%</span>
+                        <span>
+                          Relevance:{' '}
+                          {Math.round(recommendation.relevanceScore * 100)}%
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -698,10 +791,12 @@ export const GraphRecommendations: React.FC<GraphRecommendationsProps> = ({
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => handleRecommendationAction({
-                        type: 'dismiss',
-                        recommendationId: recommendation.id,
-                      })}
+                      onClick={() =>
+                        handleRecommendationAction({
+                          type: 'dismiss',
+                          recommendationId: recommendation.id,
+                        })
+                      }
                     >
                       ×
                     </Button>
@@ -734,31 +829,47 @@ export const GraphRecommendations: React.FC<GraphRecommendationsProps> = ({
           <CardContent>
             <div className="space-y-4">
               <div>
-                <h3 className="font-medium text-gray-900 mb-2">{selectedRecommendation.title}</h3>
-                <p className="text-sm text-gray-700">{selectedRecommendation.description}</p>
+                <h3 className="font-medium text-foreground mb-2">
+                  {selectedRecommendation.title}
+                </h3>
+                <p className="text-sm text-foreground">
+                  {selectedRecommendation.description}
+                </p>
               </div>
 
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="text-center p-3 bg-gray-50 rounded">
-                  <div className="text-lg font-bold">{Math.round(selectedRecommendation.confidence * 100)}%</div>
-                  <div className="text-sm text-gray-500">Confidence</div>
+                  <div className="text-lg font-bold">
+                    {Math.round(selectedRecommendation.confidence * 100)}%
+                  </div>
+                  <div className="text-sm text-muted-foreground">
+                    Confidence
+                  </div>
                 </div>
                 <div className="text-center p-3 bg-gray-50 rounded">
-                  <div className="text-lg font-bold">{Math.round(selectedRecommendation.relevanceScore * 100)}%</div>
-                  <div className="text-sm text-gray-500">Relevance</div>
+                  <div className="text-lg font-bold">
+                    {Math.round(selectedRecommendation.relevanceScore * 100)}%
+                  </div>
+                  <div className="text-sm text-muted-foreground">Relevance</div>
                 </div>
                 <div className="text-center p-3 bg-gray-50 rounded">
-                  <div className="text-lg font-bold capitalize">{selectedRecommendation.priority}</div>
-                  <div className="text-sm text-gray-500">Priority</div>
+                  <div className="text-lg font-bold capitalize">
+                    {selectedRecommendation.priority}
+                  </div>
+                  <div className="text-sm text-muted-foreground">Priority</div>
                 </div>
                 <div className="text-center p-3 bg-gray-50 rounded">
-                  <div className="text-lg font-bold capitalize">{selectedRecommendation.category}</div>
-                  <div className="text-sm text-gray-500">Category</div>
+                  <div className="text-lg font-bold capitalize">
+                    {selectedRecommendation.category}
+                  </div>
+                  <div className="text-sm text-muted-foreground">Category</div>
                 </div>
               </div>
 
               <div>
-                <h4 className="font-medium text-gray-900 mb-2">Detailed Reasoning:</h4>
+                <h4 className="font-medium text-foreground mb-2">
+                  Detailed Reasoning:
+                </h4>
                 <ul className="space-y-2">
                   {selectedRecommendation.reasoning.map((reason, index) => (
                     <li key={index} className="flex items-start space-x-2">
@@ -770,30 +881,38 @@ export const GraphRecommendations: React.FC<GraphRecommendationsProps> = ({
               </div>
 
               <div className="flex items-center space-x-3">
-                <Button onClick={() => {
-                  executeRecommendation(selectedRecommendation);
-                  setSelectedRecommendation(null);
-                }}>
+                <Button
+                  onClick={() => {
+                    executeRecommendation(selectedRecommendation);
+                    setSelectedRecommendation(null);
+                  }}
+                >
                   Execute Recommendation
                 </Button>
-                <Button variant="outline" onClick={() => {
-                  handleRecommendationAction({
-                    type: 'snooze',
-                    recommendationId: selectedRecommendation.id,
-                  });
-                  setSelectedRecommendation(null);
-                }}>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    handleRecommendationAction({
+                      type: 'snooze',
+                      recommendationId: selectedRecommendation.id,
+                    });
+                    setSelectedRecommendation(null);
+                  }}
+                >
                   <ClockIcon className="h-4 w-4 mr-2" />
                   Snooze
                 </Button>
-                <Button variant="outline" onClick={() => {
-                  handleRecommendationAction({
-                    type: 'feedback',
-                    recommendationId: selectedRecommendation.id,
-                    feedback: { helpful: false },
-                  });
-                  setSelectedRecommendation(null);
-                }}>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    handleRecommendationAction({
+                      type: 'feedback',
+                      recommendationId: selectedRecommendation.id,
+                      feedback: { helpful: false },
+                    });
+                    setSelectedRecommendation(null);
+                  }}
+                >
                   Not Helpful
                 </Button>
               </div>

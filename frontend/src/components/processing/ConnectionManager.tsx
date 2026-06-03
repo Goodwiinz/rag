@@ -22,9 +22,15 @@ import {
   CheckCircleIcon,
   XCircleIcon,
 } from '@heroicons/react/24/outline';
-import { useRealtimeProcessing, useConnectionStatus } from '@/hooks/useRealtimeProcessing';
+import {
+  useRealtimeProcessing,
+  useConnectionStatus,
+} from '@/hooks/useRealtimeProcessing';
 import { getRealtimeWebSocketService } from '@/services/realtimeWebSocketService';
-import { WebSocketConnectionState, PerformanceMetrics } from '@/types/realtime-processing';
+import {
+  WebSocketConnectionState,
+  PerformanceMetrics,
+} from '@/types/realtime-processing';
 import { cn } from '@/lib/utils';
 import { formatDuration, formatBytes } from '@/utils/formatUtils';
 
@@ -79,9 +85,9 @@ const statusConfigs = {
   },
   disconnected: {
     icon: XCircleIcon,
-    color: 'text-gray-500',
+    color: 'text-muted-foreground',
     bgColor: 'bg-gray-100',
-    borderColor: 'border-gray-200',
+    borderColor: 'border-border',
     label: 'Disconnected',
     description: 'No active connection',
   },
@@ -111,17 +117,19 @@ const ConnectionStatus: React.FC<ConnectionStatusProps> = ({
   maxReconnectionAttempts,
   lastError,
   onReconnect,
-  onDisconnect
+  onDisconnect,
 }) => {
   const config = statusConfigs[status];
   const Icon = config.icon;
 
   return (
-    <div className={cn(
-      'flex items-center space-x-3 p-3 rounded-lg border',
-      config.bgColor,
-      config.borderColor
-    )}>
+    <div
+      className={cn(
+        'flex items-center space-x-3 p-3 rounded-lg border',
+        config.bgColor,
+        config.borderColor
+      )}
+    >
       <div className="flex-shrink-0">
         {status === 'connecting' || status === 'reconnecting' ? (
           <motion.div
@@ -141,20 +149,16 @@ const ConnectionStatus: React.FC<ConnectionStatusProps> = ({
             <h3 className={cn('text-sm font-medium', config.color)}>
               {config.label}
             </h3>
-            <p className="text-xs text-gray-600 mt-1">
-              {config.description}
-            </p>
+            <p className="text-xs text-foreground mt-1">{config.description}</p>
             {lastError && (
-              <p className="text-xs text-red-600 mt-1">
-                {lastError}
-              </p>
+              <p className="text-xs text-red-600 mt-1">{lastError}</p>
             )}
           </div>
 
           <div className="flex items-center space-x-2">
             {/* Reconnection progress */}
             {reconnectionAttempts > 0 && (
-              <div className="text-xs text-gray-500">
+              <div className="text-xs text-muted-foreground">
                 {reconnectionAttempts}/{maxReconnectionAttempts}
               </div>
             )}
@@ -198,7 +202,10 @@ const ConnectionStatus: React.FC<ConnectionStatusProps> = ({
   );
 };
 
-const ConnectionMetrics: React.FC<ConnectionMetricsProps> = ({ metrics, compact = false }) => {
+const ConnectionMetrics: React.FC<ConnectionMetricsProps> = ({
+  metrics,
+  compact = false,
+}) => {
   const formatLatency = (latency: number) => {
     if (latency < 1) return '< 1ms';
     return `${Math.round(latency)}ms`;
@@ -211,7 +218,7 @@ const ConnectionMetrics: React.FC<ConnectionMetricsProps> = ({ metrics, compact 
 
   if (compact) {
     return (
-      <div className="flex items-center space-x-4 text-xs text-gray-600">
+      <div className="flex items-center space-x-4 text-xs text-foreground">
         <div className="flex items-center space-x-1">
           <SignalIcon className="w-3 h-3" />
           <span>{formatLatency(metrics.connectionLatency)}</span>
@@ -232,48 +239,48 @@ const ConnectionMetrics: React.FC<ConnectionMetricsProps> = ({ metrics, compact 
 
   return (
     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-      <div className="bg-white p-3 rounded-lg border border-gray-200">
+      <div className="bg-white p-3 rounded-lg border border-border">
         <div className="flex items-center space-x-2">
           <SignalIcon className="w-4 h-4 text-blue-500" />
           <div>
-            <p className="text-xs text-gray-500">Latency</p>
-            <p className="text-sm font-semibold text-gray-900">
+            <p className="text-xs text-muted-foreground">Latency</p>
+            <p className="text-sm font-semibold text-foreground">
               {formatLatency(metrics.connectionLatency)}
             </p>
           </div>
         </div>
       </div>
 
-      <div className="bg-white p-3 rounded-lg border border-gray-200">
+      <div className="bg-white p-3 rounded-lg border border-border">
         <div className="flex items-center space-x-2">
           <ChartBarIcon className="w-4 h-4 text-green-500" />
           <div>
-            <p className="text-xs text-gray-500">Message Rate</p>
-            <p className="text-sm font-semibold text-gray-900">
+            <p className="text-xs text-muted-foreground">Message Rate</p>
+            <p className="text-sm font-semibold text-foreground">
               {formatRate(metrics.messageRate)}
             </p>
           </div>
         </div>
       </div>
 
-      <div className="bg-white p-3 rounded-lg border border-gray-200">
+      <div className="bg-white p-3 rounded-lg border border-border">
         <div className="flex items-center space-x-2">
           <ExclamationTriangleIcon className="w-4 h-4 text-red-500" />
           <div>
-            <p className="text-xs text-gray-500">Error Rate</p>
-            <p className="text-sm font-semibold text-gray-900">
+            <p className="text-xs text-muted-foreground">Error Rate</p>
+            <p className="text-sm font-semibold text-foreground">
               {metrics.errorRate.toFixed(1)}%
             </p>
           </div>
         </div>
       </div>
 
-      <div className="bg-white p-3 rounded-lg border border-gray-200">
+      <div className="bg-white p-3 rounded-lg border border-border">
         <div className="flex items-center space-x-2">
           <ClockIcon className="w-4 h-4 text-purple-500" />
           <div>
-            <p className="text-xs text-gray-500">Uptime</p>
-            <p className="text-sm font-semibold text-gray-900">
+            <p className="text-xs text-muted-foreground">Uptime</p>
+            <p className="text-sm font-semibold text-foreground">
               {formatDuration(metrics.uptime)}
             </p>
           </div>
@@ -287,7 +294,7 @@ const NetworkDiagnostics: React.FC<NetworkDiagnosticsProps> = ({
   connectionState,
   metrics,
   onTestConnection,
-  onResetConnection
+  onResetConnection,
 }) => {
   const [isTestingConnection, setIsTestingConnection] = useState(false);
   const [testResults, setTestResults] = useState<{
@@ -311,7 +318,8 @@ const NetworkDiagnostics: React.FC<NetworkDiagnosticsProps> = ({
     } catch (error) {
       setTestResults({
         success: false,
-        error: error instanceof Error ? error.message : 'Connection test failed'
+        error:
+          error instanceof Error ? error.message : 'Connection test failed',
       });
     } finally {
       setIsTestingConnection(false);
@@ -319,41 +327,49 @@ const NetworkDiagnostics: React.FC<NetworkDiagnosticsProps> = ({
   }, [onTestConnection]);
 
   return (
-    <div className="bg-white rounded-lg border border-gray-200 p-4">
-      <h3 className="text-sm font-semibold text-gray-900 mb-4">Network Diagnostics</h3>
+    <div className="bg-white rounded-lg border border-border p-4">
+      <h3 className="text-sm font-semibold text-foreground mb-4">
+        Network Diagnostics
+      </h3>
 
       <div className="space-y-4">
         {/* Connection State Info */}
         <div>
-          <h4 className="text-xs font-medium text-gray-700 mb-2">Connection Status</h4>
+          <h4 className="text-xs font-medium text-foreground mb-2">
+            Connection Status
+          </h4>
           <dl className="grid grid-cols-1 gap-2 text-xs">
             <div className="flex justify-between">
-              <dt className="text-gray-500">Status:</dt>
-              <dd className={cn(
-                'font-medium',
-                statusConfigs[connectionState.status].color
-              )}>
+              <dt className="text-muted-foreground">Status:</dt>
+              <dd
+                className={cn(
+                  'font-medium',
+                  statusConfigs[connectionState.status].color
+                )}
+              >
                 {statusConfigs[connectionState.status].label}
               </dd>
             </div>
             <div className="flex justify-between">
-              <dt className="text-gray-500">Last Connected:</dt>
+              <dt className="text-muted-foreground">Last Connected:</dt>
               <dd className="font-medium">
                 {connectionState.lastConnectedAt
-                  ? new Date(connectionState.lastConnectedAt).toLocaleTimeString()
-                  : 'Never'
-                }
+                  ? new Date(
+                      connectionState.lastConnectedAt
+                    ).toLocaleTimeString()
+                  : 'Never'}
               </dd>
             </div>
             <div className="flex justify-between">
-              <dt className="text-gray-500">Reconnection Attempts:</dt>
+              <dt className="text-muted-foreground">Reconnection Attempts:</dt>
               <dd className="font-medium">
-                {connectionState.reconnectionAttempts}/{connectionState.maxReconnectionAttempts}
+                {connectionState.reconnectionAttempts}/
+                {connectionState.maxReconnectionAttempts}
               </dd>
             </div>
             {connectionState.lastError && (
               <div className="flex justify-between">
-                <dt className="text-gray-500">Last Error:</dt>
+                <dt className="text-muted-foreground">Last Error:</dt>
                 <dd className="font-medium text-red-600 truncate max-w-xs">
                   {connectionState.lastError}
                 </dd>
@@ -364,13 +380,17 @@ const NetworkDiagnostics: React.FC<NetworkDiagnosticsProps> = ({
 
         {/* Performance Metrics */}
         <div>
-          <h4 className="text-xs font-medium text-gray-700 mb-2">Performance Metrics</h4>
+          <h4 className="text-xs font-medium text-foreground mb-2">
+            Performance Metrics
+          </h4>
           <ConnectionMetrics metrics={metrics} />
         </div>
 
         {/* Connection Test */}
         <div>
-          <h4 className="text-xs font-medium text-gray-700 mb-2">Connection Test</h4>
+          <h4 className="text-xs font-medium text-foreground mb-2">
+            Connection Test
+          </h4>
           <div className="space-y-2">
             <button
               onClick={handleTestConnection}
@@ -381,12 +401,14 @@ const NetworkDiagnostics: React.FC<NetworkDiagnosticsProps> = ({
             </button>
 
             {testResults && (
-              <div className={cn(
-                'p-2 rounded text-xs',
-                testResults.success
-                  ? 'bg-green-100 text-green-800'
-                  : 'bg-red-100 text-red-800'
-              )}>
+              <div
+                className={cn(
+                  'p-2 rounded text-xs',
+                  testResults.success
+                    ? 'bg-green-100 text-green-800'
+                    : 'bg-red-100 text-red-800'
+                )}
+              >
                 {testResults.success ? (
                   <div className="flex items-center space-x-2">
                     <CheckCircleIcon className="w-4 h-4" />
@@ -426,7 +448,7 @@ export const ConnectionManager: React.FC<ConnectionManagerProps> = ({
   showControls = true,
   showNetworkInfo = true,
   position = 'static',
-  className
+  className,
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [showDiagnosticsModal, setShowDiagnosticsModal] = useState(false);
@@ -480,32 +502,31 @@ export const ConnectionManager: React.FC<ConnectionManagerProps> = ({
   }, [disconnect, reconnect]);
 
   if (compact) {
-    return (
-      <ConnectionMetrics
-        metrics={metrics}
-        compact={true}
-      />
-    );
+    return <ConnectionMetrics metrics={metrics} compact={true} />;
   }
 
   return (
-    <div className={cn(
-      position === 'floating' && 'fixed top-4 right-4 z-40 w-80',
-      className
-    )}>
-      <div className="bg-white rounded-lg border border-gray-200 shadow-lg">
+    <div
+      className={cn(
+        position === 'floating' && 'fixed top-4 right-4 z-40 w-80',
+        className
+      )}
+    >
+      <div className="bg-white rounded-lg border border-border shadow-lg">
         {/* Header */}
-        <div className="p-4 border-b border-gray-200">
+        <div className="p-4 border-b border-border">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-2">
-              <SignalIcon className="w-5 h-5 text-gray-600" />
-              <h3 className="text-sm font-semibold text-gray-900">Connection Status</h3>
+              <SignalIcon className="w-5 h-5 text-foreground" />
+              <h3 className="text-sm font-semibold text-foreground">
+                Connection Status
+              </h3>
             </div>
             <div className="flex items-center space-x-2">
               {showDiagnostics && (
                 <button
                   onClick={() => setShowDiagnosticsModal(true)}
-                  className="text-gray-400 hover:text-gray-600 transition-colors"
+                  className="text-muted-foreground hover:text-foreground transition-colors"
                   title="Connection Diagnostics"
                 >
                   <InformationCircleIcon className="w-4 h-4" />
@@ -514,7 +535,7 @@ export const ConnectionManager: React.FC<ConnectionManagerProps> = ({
               {position === 'floating' && (
                 <button
                   onClick={() => setIsExpanded(!isExpanded)}
-                  className="text-gray-400 hover:text-gray-600 transition-colors"
+                  className="text-muted-foreground hover:text-foreground transition-colors"
                 >
                   {isExpanded ? (
                     <XMarkIcon className="w-4 h-4" />
@@ -533,7 +554,9 @@ export const ConnectionManager: React.FC<ConnectionManagerProps> = ({
             status={connectionStatusData.status}
             isConnected={connectionStatusData.isConnected}
             reconnectionAttempts={connectionStatusData.reconnectionAttempts}
-            maxReconnectionAttempts={connectionStatusData.maxReconnectionAttempts}
+            maxReconnectionAttempts={
+              connectionStatusData.maxReconnectionAttempts
+            }
             lastError={connectionStatusData.lastError}
             onReconnect={reconnect}
             onDisconnect={isConnected ? disconnect : undefined}
@@ -547,13 +570,15 @@ export const ConnectionManager: React.FC<ConnectionManagerProps> = ({
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: 'auto', opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
-              className="border-t border-gray-200 overflow-hidden"
+              className="border-t border-border overflow-hidden"
             >
               <div className="p-4 space-y-4">
                 {/* Network Info */}
                 {showNetworkInfo && (
                   <div>
-                    <h4 className="text-xs font-medium text-gray-700 mb-3">Network Information</h4>
+                    <h4 className="text-xs font-medium text-foreground mb-3">
+                      Network Information
+                    </h4>
                     <ConnectionMetrics metrics={metrics} />
                   </div>
                 )}
@@ -561,7 +586,9 @@ export const ConnectionManager: React.FC<ConnectionManagerProps> = ({
                 {/* Controls */}
                 {showControls && (
                   <div>
-                    <h4 className="text-xs font-medium text-gray-700 mb-3">Connection Controls</h4>
+                    <h4 className="text-xs font-medium text-foreground mb-3">
+                      Connection Controls
+                    </h4>
                     <div className="flex space-x-2">
                       {!isConnected && (
                         <button
@@ -581,7 +608,7 @@ export const ConnectionManager: React.FC<ConnectionManagerProps> = ({
                       )}
                       <button
                         onClick={handleResetConnection}
-                        className="px-3 py-2 text-xs font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded transition-colors"
+                        className="px-3 py-2 text-xs font-medium text-foreground bg-gray-100 hover:bg-gray-200 rounded transition-colors"
                       >
                         Reset
                       </button>
@@ -592,14 +619,14 @@ export const ConnectionManager: React.FC<ConnectionManagerProps> = ({
                 {/* Quick Stats */}
                 <div className="grid grid-cols-2 gap-3 text-xs">
                   <div className="bg-gray-50 p-2 rounded">
-                    <div className="text-gray-500">Documents</div>
-                    <div className="font-semibold text-gray-900">
+                    <div className="text-muted-foreground">Documents</div>
+                    <div className="font-semibold text-foreground">
                       {systemMetrics.activeJobs} active
                     </div>
                   </div>
                   <div className="bg-gray-50 p-2 rounded">
-                    <div className="text-gray-500">System Load</div>
-                    <div className="font-semibold text-gray-900">
+                    <div className="text-muted-foreground">System Load</div>
+                    <div className="font-semibold text-foreground">
                       {systemMetrics.cpuUsage.toFixed(1)}% CPU
                     </div>
                   </div>
@@ -625,11 +652,13 @@ export const ConnectionManager: React.FC<ConnectionManagerProps> = ({
                 exit={{ opacity: 0, scale: 0.95 }}
                 className="bg-white rounded-lg shadow-xl"
               >
-                <div className="p-4 border-b border-gray-200 flex items-center justify-between">
-                  <h3 className="text-lg font-semibold text-gray-900">Connection Diagnostics</h3>
+                <div className="p-4 border-b border-border flex items-center justify-between">
+                  <h3 className="text-lg font-semibold text-foreground">
+                    Connection Diagnostics
+                  </h3>
                   <button
                     onClick={() => setShowDiagnosticsModal(false)}
-                    className="text-gray-400 hover:text-gray-600 transition-colors"
+                    className="text-muted-foreground hover:text-foreground transition-colors"
                   >
                     <XMarkIcon className="w-5 h-5" />
                   </button>

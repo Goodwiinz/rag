@@ -97,8 +97,8 @@ export const GraphAnalyticsDashboard: React.FC<GraphAnalyticsDashboardProps> = (
     return (
       <div className="flex items-center justify-center h-96">
         <div className="flex flex-col items-center gap-4">
-          <Loader2 className="w-8 h-8 text-[var(--phosphor-green)] animate-spin" />
-          <p className="font-mono text-sm text-[var(--terminal-text)]">
+          <Loader2 className="w-8 h-8 text-[var(--nous-sol)] animate-spin" />
+          <p className="font-mono text-sm text-[var(--nous-fg-1)]">
             COMPUTING_ANALYTICS...
           </p>
         </div>
@@ -109,7 +109,7 @@ export const GraphAnalyticsDashboard: React.FC<GraphAnalyticsDashboardProps> = (
   if (!analytics) {
     return (
       <div className="flex items-center justify-center h-96">
-        <p className="font-mono text-sm text-[var(--terminal-text-dim)]">
+        <p className="font-mono text-sm text-[var(--nous-fg-3)]">
           No analytics data available
         </p>
       </div>
@@ -129,10 +129,10 @@ export const GraphAnalyticsDashboard: React.FC<GraphAnalyticsDashboardProps> = (
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-lg font-mono font-bold text-[var(--terminal-text)] uppercase tracking-wider">
+          <h2 className="text-lg font-mono font-bold text-[var(--nous-fg-1)] uppercase tracking-wider">
             Graph Analytics Dashboard
           </h2>
-          <p className="text-xs font-mono text-[var(--terminal-text-dim)] mt-1">
+          <p className="text-xs font-mono text-[var(--nous-fg-3)] mt-1">
             Last updated: {new Date(analytics.timestamp).toLocaleString()}
           </p>
         </div>
@@ -150,51 +150,51 @@ export const GraphAnalyticsDashboard: React.FC<GraphAnalyticsDashboardProps> = (
 
       {/* Key Metrics */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="border-[var(--terminal-border)] bg-[var(--terminal-surface)] shadow-lg">
+        <Card className="border-[var(--nous-border-1)] bg-[var(--nous-bg-2)] shadow-lg">
           <CardHeader className="pb-2">
-            <CardTitle className="text-xs font-mono text-[var(--terminal-text-dim)] flex items-center gap-2">
-              <Database className="w-4 h-4 text-[var(--phosphor-green)]" />
+            <CardTitle className="text-xs font-mono text-[var(--nous-fg-3)] flex items-center gap-2">
+              <Database className="w-4 h-4 text-[var(--nous-sol)]" />
               TOTAL ENTITIES
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-3xl font-mono font-bold text-[var(--phosphor-green)]">
+            <p className="text-3xl font-mono font-bold text-[var(--nous-sol)]">
               {analytics.total_entities.toLocaleString()}
             </p>
           </CardContent>
         </Card>
 
-        <Card className="border-[var(--terminal-border)] bg-[var(--terminal-surface)] shadow-lg">
+        <Card className="border-[var(--nous-border-1)] bg-[var(--nous-bg-2)] shadow-lg">
           <CardHeader className="pb-2">
-            <CardTitle className="text-xs font-mono text-[var(--terminal-text-dim)] flex items-center gap-2">
-              <Network className="w-4 h-4 text-[var(--cyan)]" />
+            <CardTitle className="text-xs font-mono text-[var(--nous-fg-3)] flex items-center gap-2">
+              <Network className="w-4 h-4 text-[var(--nous-helios)]" />
               RELATIONSHIPS
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-3xl font-mono font-bold text-[var(--cyan)]">
+            <p className="text-3xl font-mono font-bold text-[var(--nous-helios)]">
               {analytics.total_relationships.toLocaleString()}
             </p>
           </CardContent>
         </Card>
 
-        <Card className="border-[var(--terminal-border)] bg-[var(--terminal-surface)] shadow-lg">
+        <Card className="border-[var(--nous-border-1)] bg-[var(--nous-bg-2)] shadow-lg">
           <CardHeader className="pb-2">
-            <CardTitle className="text-xs font-mono text-[var(--terminal-text-dim)] flex items-center gap-2">
-              <TrendingUp className="w-4 h-4 text-[var(--amber-gold)]" />
+            <CardTitle className="text-xs font-mono text-[var(--nous-fg-3)] flex items-center gap-2">
+              <TrendingUp className="w-4 h-4 text-[var(--nous-helios)]" />
               AVG DEGREE
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-3xl font-mono font-bold text-[var(--amber-gold)]">
+            <p className="text-3xl font-mono font-bold text-[var(--nous-helios)]">
               {analytics.average_degree.toFixed(2)}
             </p>
           </CardContent>
         </Card>
 
-        <Card className="border-[var(--terminal-border)] bg-[var(--terminal-surface)] shadow-lg">
+        <Card className="border-[var(--nous-border-1)] bg-[var(--nous-bg-2)] shadow-lg">
           <CardHeader className="pb-2">
-            <CardTitle className="text-xs font-mono text-[var(--terminal-text-dim)] flex items-center gap-2">
+            <CardTitle className="text-xs font-mono text-[var(--nous-fg-3)] flex items-center gap-2">
               <Activity className="w-4 h-4 text-[var(--purple)]" />
               GRAPH DENSITY
             </CardTitle>
@@ -211,35 +211,35 @@ export const GraphAnalyticsDashboard: React.FC<GraphAnalyticsDashboardProps> = (
 
       {/* Secondary Metrics */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Card className="border-[var(--terminal-border)] bg-[var(--terminal-surface)] shadow-lg">
+        <Card className="border-[var(--nous-border-1)] bg-[var(--nous-bg-2)] shadow-lg">
           <CardHeader className="pb-2">
-            <CardTitle className="text-xs font-mono text-[var(--terminal-text-dim)]">
+            <CardTitle className="text-xs font-mono text-[var(--nous-fg-3)]">
               ISOLATED ENTITIES
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-mono font-bold text-[var(--terminal-text)]">
+            <p className="text-2xl font-mono font-bold text-[var(--nous-fg-1)]">
               {analytics.isolated_entities_count.toLocaleString()}
             </p>
-            <p className="text-xs font-mono text-[var(--terminal-text-dim)] mt-1">
+            <p className="text-xs font-mono text-[var(--nous-fg-3)] mt-1">
               Entities with no relationships
             </p>
           </CardContent>
         </Card>
 
-        <Card className="border-[var(--terminal-border)] bg-[var(--terminal-surface)] shadow-lg">
+        <Card className="border-[var(--nous-border-1)] bg-[var(--nous-bg-2)] shadow-lg">
           <CardHeader className="pb-2">
-            <CardTitle className="text-xs font-mono text-[var(--terminal-text-dim)]">
+            <CardTitle className="text-xs font-mono text-[var(--nous-fg-3)]">
               AVG CONFIDENCE
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-mono font-bold text-[var(--terminal-text)]">
+            <p className="text-2xl font-mono font-bold text-[var(--nous-fg-1)]">
               {analytics.avg_confidence_score !== null
                 ? `${(analytics.avg_confidence_score * 100).toFixed(1)}%`
                 : 'N/A'}
             </p>
-            <p className="text-xs font-mono text-[var(--terminal-text-dim)] mt-1">
+            <p className="text-xs font-mono text-[var(--nous-fg-3)] mt-1">
               Average entity confidence score
             </p>
           </CardContent>
@@ -247,9 +247,9 @@ export const GraphAnalyticsDashboard: React.FC<GraphAnalyticsDashboardProps> = (
       </div>
 
       {/* Entity Type Distribution */}
-      <Card className="border-[var(--terminal-border)] bg-[var(--terminal-surface)] shadow-lg">
-        <CardHeader className="border-b border-[var(--terminal-border)]">
-          <CardTitle className="text-sm font-mono font-bold uppercase tracking-wider text-[var(--terminal-text)] flex items-center gap-2">
+      <Card className="border-[var(--nous-border-1)] bg-[var(--nous-bg-2)] shadow-lg">
+        <CardHeader className="border-b border-[var(--nous-border-1)]">
+          <CardTitle className="text-sm font-mono font-bold uppercase tracking-wider text-[var(--nous-fg-1)] flex items-center gap-2">
             <BarChart3 className="w-4 h-4" />
             Entity Type Distribution
           </CardTitle>
@@ -262,18 +262,18 @@ export const GraphAnalyticsDashboard: React.FC<GraphAnalyticsDashboardProps> = (
                 <button
                   key={item.entity_type}
                   onClick={() => onTypeClick?.(item.entity_type as EntityType)}
-                  className="w-full space-y-1 text-left hover:bg-[var(--terminal-elevated)] p-2 rounded-md transition-colors cursor-pointer"
+                  className="w-full space-y-1 text-left hover:bg-[var(--nous-bg-3)] p-2 rounded-md transition-colors cursor-pointer"
                   title={`Click to filter by ${item.entity_type}`}
                 >
                   <div className="flex justify-between text-xs font-mono">
-                    <span className="text-[var(--terminal-text)] font-medium">{item.entity_type}</span>
-                    <span className="text-[var(--terminal-text-dim)]">
+                    <span className="text-[var(--nous-fg-1)] font-medium">{item.entity_type}</span>
+                    <span className="text-[var(--nous-fg-3)]">
                       {item.count.toLocaleString()} ({percentage.toFixed(1)}%)
                     </span>
                   </div>
-                  <div className="h-2 bg-[var(--terminal-bg)] rounded-full overflow-hidden border border-[var(--terminal-border)]">
+                  <div className="h-2 bg-[var(--nous-bg-1)] rounded-full overflow-hidden border border-[var(--nous-border-1)]">
                     <div
-                      className="h-full bg-[var(--phosphor-green)] rounded-full transition-all duration-500"
+                      className="h-full bg-[var(--nous-sol)] rounded-full transition-all duration-500"
                       style={{ width: `${percentage}%` }}
                     />
                   </div>
@@ -285,9 +285,9 @@ export const GraphAnalyticsDashboard: React.FC<GraphAnalyticsDashboardProps> = (
       </Card>
 
       {/* Relationship Type Distribution */}
-      <Card className="border-[var(--terminal-border)] bg-[var(--terminal-surface)] shadow-lg">
-        <CardHeader className="border-b border-[var(--terminal-border)]">
-          <CardTitle className="text-sm font-mono font-bold uppercase tracking-wider text-[var(--terminal-text)] flex items-center gap-2">
+      <Card className="border-[var(--nous-border-1)] bg-[var(--nous-bg-2)] shadow-lg">
+        <CardHeader className="border-b border-[var(--nous-border-1)]">
+          <CardTitle className="text-sm font-mono font-bold uppercase tracking-wider text-[var(--nous-fg-1)] flex items-center gap-2">
             <PieChart className="w-4 h-4" />
             Relationship Type Distribution
           </CardTitle>
@@ -299,14 +299,14 @@ export const GraphAnalyticsDashboard: React.FC<GraphAnalyticsDashboardProps> = (
               return (
                 <div key={item.relationship_type} className="space-y-1">
                   <div className="flex justify-between text-xs font-mono">
-                    <span className="text-[var(--terminal-text)]">{item.relationship_type}</span>
-                    <span className="text-[var(--terminal-text-dim)]">
+                    <span className="text-[var(--nous-fg-1)]">{item.relationship_type}</span>
+                    <span className="text-[var(--nous-fg-3)]">
                       {item.count.toLocaleString()} ({percentage.toFixed(1)}%)
                     </span>
                   </div>
-                  <div className="h-2 bg-[var(--terminal-bg)] rounded-full overflow-hidden border border-[var(--terminal-border)]">
+                  <div className="h-2 bg-[var(--nous-bg-1)] rounded-full overflow-hidden border border-[var(--nous-border-1)]">
                     <div
-                      className="h-full bg-[var(--cyan)] rounded-full transition-all duration-500"
+                      className="h-full bg-[var(--nous-helios)] rounded-full transition-all duration-500"
                       style={{ width: `${percentage}%` }}
                     />
                   </div>
@@ -318,9 +318,9 @@ export const GraphAnalyticsDashboard: React.FC<GraphAnalyticsDashboardProps> = (
       </Card>
 
       {/* Top Entities by Degree */}
-      <Card className="border-[var(--terminal-border)] bg-[var(--terminal-surface)] shadow-lg">
-        <CardHeader className="border-b border-[var(--terminal-border)]">
-          <CardTitle className="text-sm font-mono font-bold uppercase tracking-wider text-[var(--terminal-text)] flex items-center gap-2">
+      <Card className="border-[var(--nous-border-1)] bg-[var(--nous-bg-2)] shadow-lg">
+        <CardHeader className="border-b border-[var(--nous-border-1)]">
+          <CardTitle className="text-sm font-mono font-bold uppercase tracking-wider text-[var(--nous-fg-1)] flex items-center gap-2">
             <Network className="w-4 h-4" />
             Most Connected Entities
           </CardTitle>
@@ -330,21 +330,21 @@ export const GraphAnalyticsDashboard: React.FC<GraphAnalyticsDashboardProps> = (
             {analytics.top_entities_by_degree.map((item, index) => (
               <div
                 key={item.entity_id}
-                className="flex items-center justify-between p-2 rounded-md bg-[var(--terminal-bg)] border border-[var(--terminal-border)]"
+                className="flex items-center justify-between p-2 rounded-md bg-[var(--nous-bg-1)] border border-[var(--nous-border-1)]"
               >
                 <div className="flex items-center gap-3">
-                  <span className="text-xs font-mono font-bold text-[var(--terminal-text-dim)] w-6">
+                  <span className="text-xs font-mono font-bold text-[var(--nous-fg-3)] w-6">
                     #{index + 1}
                   </span>
-                  <span className="text-sm font-mono text-[var(--terminal-text)]">
+                  <span className="text-sm font-mono text-[var(--nous-fg-1)]">
                     {item.entity_name}
                   </span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-xs font-mono text-[var(--terminal-text-dim)]">
+                  <span className="text-xs font-mono text-[var(--nous-fg-3)]">
                     Connections:
                   </span>
-                  <span className="text-sm font-mono font-bold text-[var(--amber-gold)]">
+                  <span className="text-sm font-mono font-bold text-[var(--nous-helios)]">
                     {Math.round(item.score)}
                   </span>
                 </div>
