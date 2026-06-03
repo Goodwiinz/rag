@@ -142,7 +142,9 @@ describe('App login page', () => {
         'secret-password'
       )
     );
-    expect(mockPush).toHaveBeenCalledWith('/cli-auth?session_id=session-1&code=ABCD-1234');
+    expect(mockPush).toHaveBeenCalledWith(
+      '/cli-auth?session_id=session-1&code=ABCD-1234'
+    );
   });
 
   it.each([
@@ -153,7 +155,9 @@ describe('App login page', () => {
     'blocks open redirect for next=%s and falls back to /dashboard',
     async (maliciousNext, expectedPath) => {
       mockLogin.mockResolvedValue(undefined);
-      mockSearchParams = new URLSearchParams(`next=${encodeURIComponent(maliciousNext)}`);
+      mockSearchParams = new URLSearchParams(
+        `next=${encodeURIComponent(maliciousNext)}`
+      );
 
       render(<LoginPage />);
 
