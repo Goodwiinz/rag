@@ -29,7 +29,9 @@ import {
   Search,
   TrendingUp,
   Users,
+  XCircle,
 } from 'lucide-react';
+import { motion, MotionConfig } from 'framer-motion';
 import { useEffect, useMemo, useState } from 'react';
 import { AnalyticsChart } from './AnalyticsChart';
 import { AnalyticsOverview } from './AnalyticsOverview';
@@ -81,12 +83,13 @@ const transformFileTypeForChart = (stats: FileTypeStats[]) =>
     value: item.count,
   }));
 
-// Transform processing stats for display
+// Transform processing stats for display. Each status pairs an icon with its
+// label, so color is never the only signal.
 const transformProcessingStats = (stats: ProcessingStats[]) => {
   const statusConfig: Record<string, { icon: any; color: string }> = {
-    completed: { icon: CheckCircle, color: 'text-emerald-500' },
-    processing: { icon: Clock, color: 'text-blue-500' },
-    failed: { icon: AlertTriangle, color: 'text-rose-500' },
+    completed: { icon: CheckCircle, color: 'text-[var(--nous-terra)]' },
+    processing: { icon: Clock, color: 'text-primary' },
+    failed: { icon: XCircle, color: 'text-[var(--nous-mars)]' },
     pending: { icon: Clock, color: 'text-muted-foreground' },
   };
 
@@ -283,26 +286,98 @@ export function AnalyticsDashboard({ className }: AnalyticsDashboardProps) {
   const documentTableConfig = useMemo(() => createDocumentAnalyticsTable(), []);
   const searchTableConfig = useMemo(() => createSearchAnalyticsTable(), []);
 
+  // Summary stats shown in the top row. Consistent neutral cards with a single
+  // warm-gold accent on the icon, matching the dashboard vocabulary.
+  const summaryStats = [
+    {
+      label: 'Active users',
+      value: data.overview?.totalUsers ?? 0,
+      icon: Users,
+    },
+    {
+      label: 'Documents',
+      value: data.overview?.documentsUploaded ?? 0,
+      icon: FileText,
+    },
+    {
+      label: 'Searches',
+      value: data.overview?.searchesPerformed ?? 0,
+      icon: Search,
+    },
+    {
+      label: 'Conversations',
+      value: data.overview?.chatsInitiated ?? 0,
+      icon: MessageSquare,
+    },
+  ];
+
   if (loading && !data.overview) {
     return (
-      <div className="flex items-center justify-center h-96">
-        <div className="flex flex-col items-center gap-2">
-          <RefreshCw className="h-8 w-8 animate-spin text-muted-foreground" />
-          <p className="text-sm text-muted-foreground">Loading analytics...</p>
+      <div className={cn('w-full space-y-6', className)}>
+        {/* Header skeleton */}
+        <div className="flex items-center justify-between">
+          <div className="space-y-2">
+            <div className="h-7 w-40 rounded-md bg-muted animate-pulse" />
+            <div className="h-4 w-72 rounded-md bg-muted/60 animate-pulse" />
+          </div>
+          <div className="h-9 w-44 rounded-md bg-muted animate-pulse" />
         </div>
+
+        {/* Stat card skeletons */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {[0, 1, 2, 3].map((i) => (
+            <div
+              key={i}
+              className="rounded-xl border border-border bg-card p-5 shadow-sm"
+            >
+              <div className="h-9 w-9 rounded-lg bg-muted animate-pulse" />
+              <div className="mt-4 h-7 w-16 rounded-md bg-muted animate-pulse" />
+              <div className="mt-2 h-3 w-20 rounded-md bg-muted/60 animate-pulse" />
+            </div>
+          ))}
+        </div>
+
+        {/* Body skeleton */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {[0, 1].map((i) => (
+            <div
+              key={i}
+              className="rounded-xl border border-border bg-card p-6 shadow-sm"
+            >
+              <div className="h-4 w-32 rounded-md bg-muted animate-pulse" />
+              <div className="mt-4 h-[260px] rounded-lg bg-muted/40 animate-pulse" />
+            </div>
+          ))}
+        </div>
+        <span className="sr-only" role="status">
+          Loading analytics
+        </span>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="flex items-center justify-center h-96">
-        <div className="flex flex-col items-center gap-4">
-          <AlertTriangle className="h-12 w-12 text-rose-500" />
-          <p className="text-sm text-muted-foreground">{error}</p>
-          <Button variant="outline" onClick={handleRefresh}>
-            <RefreshCw className="h-4 w-4 mr-2" />
-            Try Again
+      <div className={cn('w-full', className)}>
+        <div
+          role="alert"
+          className="mx-auto flex max-w-md flex-col items-center gap-4 rounded-xl border border-border bg-card p-8 text-center shadow-sm"
+        >
+          <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-[var(--nous-mars)]/10">
+            <AlertTriangle
+              aria-hidden="true"
+              className="h-6 w-6 text-[var(--nous-mars)]"
+            />
+          </div>
+          <div className="space-y-1">
+            <p className="text-base font-semibold text-foreground">
+              Couldn&apos;t load analytics
+            </p>
+            <p className="text-sm text-muted-foreground">{error}</p>
+          </div>
+          <Button variant="outline" size="sm" onClick={handleRefresh}>
+            <RefreshCw aria-hidden="true" className="mr-2 h-4 w-4" />
+            Try again
           </Button>
         </div>
       </div>
@@ -310,446 +385,387 @@ export function AnalyticsDashboard({ className }: AnalyticsDashboardProps) {
   }
 
   return (
-    <div className={cn('w-full space-y-6', className)}>
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">
-            SYSTEM_METRICS_OBSERVATORY
-          </h1>
-          <p className="text-sm font-mono text-muted-foreground">
-            Real-time intelligence on pipeline throughput and operator activity
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={handleRefresh}>
-            <RefreshCw
-              className={cn('h-4 w-4 mr-2', loading && 'animate-spin')}
-            />
-            Refresh
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => handleExport('csv')}
-          >
-            <Download className="h-4 w-4 mr-2" />
-            Export CSV
-          </Button>
-        </div>
-      </div>
-
-      {/* Quick Stats Bar */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card className="bg-gradient-to-br from-amber-500/10 to-orange-500/10 border-amber-500/20">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <Users className="h-8 w-8 text-amber-500" />
-              <div>
-                <p className="text-2xl font-bold">
-                  {data.overview?.totalUsers}
-                </p>
-                <p className="text-xs font-mono text-muted-foreground tracking-wider">
-                  ACTIVE_OPERATORS
-                </p>
-              </div>
+    <MotionConfig reducedMotion="user">
+      <div className={cn('w-full space-y-6', className)}>
+        {/* Header */}
+        <motion.div
+          initial={{ opacity: 0, y: -8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between"
+        >
+          <div className="flex items-center gap-4">
+            <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10">
+              <BarChart3 aria-hidden="true" className="h-6 w-6 text-primary" />
             </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-gradient-to-br from-blue-500/10 to-cyan-500/10 border-blue-500/20">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <FileText className="h-8 w-8 text-blue-500" />
-              <div>
-                <p className="text-2xl font-bold">
-                  {data.overview?.documentsUploaded}
-                </p>
-                <p className="text-xs font-mono text-muted-foreground tracking-wider">
-                  CORPUS_SIZE
-                </p>
-              </div>
+            <div>
+              <h1 className="text-xl font-semibold tracking-tight text-foreground">
+                Analytics
+              </h1>
+              <p className="mt-0.5 text-sm text-muted-foreground">
+                Pipeline throughput and activity across your knowledge base
+              </p>
             </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-[var(--nous-sol)]/10 border-[var(--nous-sol)]/20">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <Search className="h-8 w-8 text-[var(--nous-sol)]" />
-              <div>
-                <p className="text-2xl font-bold">
-                  {data.overview?.searchesPerformed}
-                </p>
-                <p className="text-xs font-mono text-muted-foreground tracking-wider">
-                  NEURAL_QUERIES
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-gradient-to-br from-green-500/10 to-emerald-500/10 border-green-500/20">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <MessageSquare className="h-8 w-8 text-green-500" />
-              <div>
-                <p className="text-2xl font-bold">
-                  {data.overview?.chatsInitiated}
-                </p>
-                <p className="text-xs font-mono text-muted-foreground tracking-wider">
-                  AGENT_SESSIONS
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Main Content Tabs */}
-      <Tabs
-        value={activeTab}
-        onValueChange={setActiveTab}
-        className="space-y-6"
-      >
-        <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="overview" className="flex items-center gap-2">
-            <BarChart3 className="h-4 w-4" />
-            Overview
-          </TabsTrigger>
-          <TabsTrigger value="documents" className="flex items-center gap-2">
-            <FileText className="h-4 w-4" />
-            Documents
-          </TabsTrigger>
-          <TabsTrigger value="search" className="flex items-center gap-2">
-            <Search className="h-4 w-4" />
-            Search
-          </TabsTrigger>
-          <TabsTrigger value="realtime" className="flex items-center gap-2">
-            <Activity className="h-4 w-4" />
-            Real-time
-          </TabsTrigger>
-        </TabsList>
-
-        {/* Overview Tab */}
-        <TabsContent value="overview" className="space-y-6">
-          <AnalyticsOverview
-            data={data.overview}
-            loading={loading}
-            onRefresh={handleRefresh}
-            onExport={() => handleExport('csv')}
-            onMetricClick={handleMetricClick}
-          />
-
-          {/* Charts Grid */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <AnalyticsChart
-              title="Page Views Trend"
-              description="Daily page views over the last 30 days"
-              data={data.chartData}
-              dataKeys={['pageViews', 'uniqueVisitors']}
-              labels={{
-                pageViews: 'Page Views',
-                uniqueVisitors: 'Unique Visitors',
-              }}
-              height={300}
-            />
-
-            <AnalyticsChart
-              title="User Activity"
-              description="Document uploads and search activity"
-              data={data.chartData}
-              type="bar"
-              dataKeys={['documentsUploaded', 'searchesPerformed']}
-              labels={{
-                documentsUploaded: 'Documents',
-                searchesPerformed: 'Searches',
-              }}
-              height={300}
-            />
           </div>
-        </TabsContent>
 
-        {/* Documents Tab */}
-        <TabsContent value="documents" className="space-y-6">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2">
-              <AnalyticsTable
-                title="Document Analytics"
-                description="Recent document uploads and their processing status"
-                data={data.documents}
-                columns={documentTableConfig.columns}
-                loading={loading}
-                pagination={{
-                  page: 1,
-                  pageSize: 10,
-                  total: data.documents.length,
-                  onPageChange: () => {},
-                  onPageSizeChange: () => {},
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleRefresh}
+              disabled={loading}
+            >
+              <RefreshCw
+                aria-hidden="true"
+                className={cn('mr-2 h-4 w-4', loading && 'animate-spin')}
+              />
+              Refresh
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handleExport('csv')}
+            >
+              <Download aria-hidden="true" className="mr-2 h-4 w-4" />
+              Export CSV
+            </Button>
+          </div>
+        </motion.div>
+
+        {/* Quick stats */}
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+          className="grid grid-cols-2 gap-4 md:grid-cols-4"
+        >
+          {summaryStats.map((stat) => (
+            <div
+              key={stat.label}
+              className="rounded-xl border border-border bg-card p-5 shadow-sm"
+            >
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-muted text-primary">
+                <stat.icon aria-hidden="true" className="h-4 w-4" />
+              </div>
+              <p className="mt-4 text-2xl font-semibold tabular-nums text-foreground">
+                {stat.value}
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">{stat.label}</p>
+            </div>
+          ))}
+        </motion.div>
+
+        {/* Main Content Tabs */}
+        <Tabs
+          value={activeTab}
+          onValueChange={setActiveTab}
+          className="space-y-6"
+        >
+          <TabsList className="grid w-full grid-cols-4">
+            <TabsTrigger value="overview" className="flex items-center gap-2">
+              <BarChart3 aria-hidden="true" className="h-4 w-4" />
+              Overview
+            </TabsTrigger>
+            <TabsTrigger value="documents" className="flex items-center gap-2">
+              <FileText aria-hidden="true" className="h-4 w-4" />
+              Documents
+            </TabsTrigger>
+            <TabsTrigger value="search" className="flex items-center gap-2">
+              <Search aria-hidden="true" className="h-4 w-4" />
+              Search
+            </TabsTrigger>
+            <TabsTrigger value="realtime" className="flex items-center gap-2">
+              <Activity aria-hidden="true" className="h-4 w-4" />
+              Real-time
+            </TabsTrigger>
+          </TabsList>
+
+          {/* Overview Tab */}
+          <TabsContent value="overview" className="space-y-6">
+            <AnalyticsOverview
+              data={data.overview}
+              loading={loading}
+              onRefresh={handleRefresh}
+              onExport={() => handleExport('csv')}
+              onMetricClick={handleMetricClick}
+            />
+
+            {/* Charts Grid */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <AnalyticsChart
+                title="Page views trend"
+                description="Daily page views over the last 30 days"
+                data={data.chartData}
+                dataKeys={['pageViews', 'uniqueVisitors']}
+                labels={{
+                  pageViews: 'Page views',
+                  uniqueVisitors: 'Unique visitors',
                 }}
-                search={{
-                  placeholder: 'Search documents...',
-                  onSearch: () => {},
+                height={300}
+              />
+
+              <AnalyticsChart
+                title="User activity"
+                description="Document uploads and search activity"
+                data={data.chartData}
+                type="bar"
+                dataKeys={['documentsUploaded', 'searchesPerformed']}
+                labels={{
+                  documentsUploaded: 'Documents',
+                  searchesPerformed: 'Searches',
                 }}
-                filters={{
-                  options: [
-                    { value: 'pdf', label: 'PDF' },
-                    { value: 'txt', label: 'Text' },
-                    { value: 'jpg', label: 'Image' },
-                  ],
-                  onFilter: () => {},
-                }}
+                height={300}
               />
             </div>
+          </TabsContent>
 
-            <div className="space-y-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">
-                    File Type Distribution
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {data.fileTypeDistribution.length > 0 ? (
-                    <AnalyticsChart
-                      title="File Types"
-                      data={data.fileTypeDistribution}
-                      type="pie"
-                      height={250}
-                      showLegend={true}
-                      showGrid={false}
-                    />
-                  ) : (
-                    <div className="flex items-center justify-center h-[250px] text-muted-foreground">
-                      <p className="text-sm">No documents uploaded yet</p>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
+          {/* Documents Tab */}
+          <TabsContent value="documents" className="space-y-6">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className="lg:col-span-2">
+                <AnalyticsTable
+                  title="Document analytics"
+                  description="Recent document uploads and their processing status"
+                  data={data.documents}
+                  columns={documentTableConfig.columns}
+                  loading={loading}
+                  pagination={{
+                    page: 1,
+                    pageSize: 10,
+                    total: data.documents.length,
+                    onPageChange: () => {},
+                    onPageSizeChange: () => {},
+                  }}
+                  search={{
+                    placeholder: 'Search documents...',
+                    onSearch: () => {},
+                  }}
+                  filters={{
+                    options: [
+                      { value: 'pdf', label: 'PDF' },
+                      { value: 'txt', label: 'Text' },
+                      { value: 'jpg', label: 'Image' },
+                    ],
+                    onFilter: () => {},
+                  }}
+                />
+              </div>
 
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">Processing Status</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {data.processingStats.length > 0 ? (
-                    data.processingStats.map((item: any) => (
-                      <div
-                        key={item.status}
-                        className="flex items-center justify-between"
-                      >
-                        <div className="flex items-center gap-2">
-                          <item.icon className={cn('h-4 w-4', item.color)} />
-                          <span className="text-sm font-medium">
-                            {item.status}
-                          </span>
-                        </div>
-                        <Badge variant="secondary">{item.count}</Badge>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="flex items-center justify-center py-4 text-muted-foreground">
-                      <p className="text-sm">No processing data available</p>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </div>
-          </div>
-        </TabsContent>
-
-        {/* Search Tab */}
-        <TabsContent value="search" className="space-y-6">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2">
-              <AnalyticsTable
-                title="Search Analytics"
-                description="Popular search queries and their performance"
-                data={data.searches}
-                columns={searchTableConfig.columns}
-                loading={loading}
-                pagination={{
-                  page: 1,
-                  pageSize: 10,
-                  total: data.searches.length,
-                  onPageChange: () => {},
-                  onPageSizeChange: () => {},
-                }}
-                search={{
-                  placeholder: 'Search queries...',
-                  onSearch: () => {},
-                }}
-                filters={{
-                  options: [
-                    { value: 'semantic', label: 'Semantic Search' },
-                    { value: 'keyword', label: 'Keyword Search' },
-                    { value: 'hybrid', label: 'Hybrid Search' },
-                  ],
-                  onFilter: () => {},
-                }}
-              />
-            </div>
-
-            <div className="space-y-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">Search Types</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {data.searchTypes && data.searchTypes.length > 0 ? (
-                    <AnalyticsChart
-                      title="Search Types"
-                      data={data.searchTypes}
-                      type="donut"
-                      height={250}
-                      showLegend={true}
-                      showGrid={false}
-                    />
-                  ) : (
-                    <div className="flex items-center justify-center h-[250px] text-muted-foreground">
-                      <p className="text-sm">No search data available</p>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg flex items-center gap-2">
-                    <TrendingUp className="h-5 w-5" />
-                    Top Insights
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <div className="p-3 rounded-lg bg-blue-50 border border-blue-200">
-                    <p className="text-sm font-medium text-blue-900">
-                      Most searches return results
-                    </p>
-                    <p className="text-xs text-blue-700">
-                      87% of searches find relevant documents
-                    </p>
-                  </div>
-                  <div className="p-3 rounded-lg bg-green-50 border border-green-200">
-                    <p className="text-sm font-medium text-green-900">
-                      High click-through rate
-                    </p>
-                    <p className="text-xs text-green-700">
-                      Average CTR of 42% above industry standard
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          </div>
-        </TabsContent>
-
-        {/* Real-time Tab */}
-        <TabsContent value="realtime" className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {[
-              {
-                label: 'Active Users',
-                value:
-                  data.realtimeMetrics?.activeUsers ||
-                  data.overview?.activeUsers ||
-                  0,
-                change: data.realtimeMetrics?.activeUsers > 0 ? 'Live' : '-',
-                icon: Users,
-              },
-              {
-                label: 'Current Searches',
-                value: data.realtimeMetrics?.currentSearches || 0,
-                change:
-                  data.realtimeMetrics?.currentSearches > 0 ? 'Active' : '-',
-                icon: Search,
-              },
-              {
-                label: 'Processing Files',
-                value: data.realtimeMetrics?.processingFiles || 0,
-                change:
-                  data.realtimeMetrics?.processingFiles > 0 ? 'In Queue' : '-',
-                icon: FileText,
-              },
-              {
-                label: 'API Requests/min',
-                value: data.realtimeMetrics?.requestsPerMinute || 0,
-                change:
-                  data.realtimeMetrics?.requestsPerMinute > 0 ? 'Active' : '-',
-                icon: Activity,
-              },
-            ].map((metric) => (
-              <Card key={metric.label}>
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between">
-                    <metric.icon className="h-8 w-8 text-muted-foreground" />
-                    <Badge variant="secondary">{metric.change}</Badge>
-                  </div>
-                  <p className="text-2xl font-bold mt-2">{metric.value}</p>
-                  <p className="text-sm text-muted-foreground">
-                    {metric.label}
-                  </p>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Live Activity Feed</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ScrollArea className="h-[400px] pr-4">
-                <div className="space-y-3">
-                  {[
-                    {
-                      action: 'User logged in',
-                      user: 'john@example.com',
-                      time: '2 seconds ago',
-                    },
-                    {
-                      action: 'Document uploaded',
-                      user: 'sarah@example.com',
-                      time: '15 seconds ago',
-                    },
-                    {
-                      action: 'Search performed',
-                      user: 'mike@example.com',
-                      time: '32 seconds ago',
-                    },
-                    {
-                      action: 'Chat session started',
-                      user: 'emma@example.com',
-                      time: '1 minute ago',
-                    },
-                    {
-                      action: 'Document processed',
-                      user: 'alex@example.com',
-                      time: '2 minutes ago',
-                    },
-                  ].map((activity, index) => (
-                    <div
-                      key={index}
-                      className="flex items-center justify-between p-3 rounded-lg border"
-                    >
-                      <div>
-                        <p className="text-sm font-medium">{activity.action}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {activity.user}
+              <div className="space-y-6">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-base font-medium">
+                      File type distribution
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {data.fileTypeDistribution.length > 0 ? (
+                      <AnalyticsChart
+                        title="File types"
+                        data={data.fileTypeDistribution}
+                        type="pie"
+                        height={250}
+                        showLegend={true}
+                        showGrid={false}
+                      />
+                    ) : (
+                      <div className="flex h-[250px] items-center justify-center text-center text-muted-foreground">
+                        <p className="text-sm">
+                          No documents indexed yet. Upload a document to see the
+                          breakdown here.
                         </p>
                       </div>
-                      <span className="text-xs text-muted-foreground">
-                        {activity.time}
-                      </span>
+                    )}
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-base font-medium">
+                      Processing status
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {data.processingStats.length > 0 ? (
+                      data.processingStats.map((item: any) => (
+                        <div
+                          key={item.status}
+                          className="flex items-center justify-between"
+                        >
+                          <div className="flex items-center gap-2">
+                            <item.icon
+                              aria-hidden="true"
+                              className={cn('h-4 w-4', item.color)}
+                            />
+                            <span className="text-sm font-medium text-foreground">
+                              {item.status}
+                            </span>
+                          </div>
+                          <Badge variant="secondary">{item.count}</Badge>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="flex items-center justify-center py-4 text-muted-foreground">
+                        <p className="text-sm">No processing data yet.</p>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+            </div>
+          </TabsContent>
+
+          {/* Search Tab */}
+          <TabsContent value="search" className="space-y-6">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className="lg:col-span-2">
+                <AnalyticsTable
+                  title="Search analytics"
+                  description="Popular search queries and their performance"
+                  data={data.searches}
+                  columns={searchTableConfig.columns}
+                  loading={loading}
+                  pagination={{
+                    page: 1,
+                    pageSize: 10,
+                    total: data.searches.length,
+                    onPageChange: () => {},
+                    onPageSizeChange: () => {},
+                  }}
+                  search={{
+                    placeholder: 'Search queries...',
+                    onSearch: () => {},
+                  }}
+                  filters={{
+                    options: [
+                      { value: 'semantic', label: 'Semantic search' },
+                      { value: 'keyword', label: 'Keyword search' },
+                      { value: 'hybrid', label: 'Hybrid search' },
+                    ],
+                    onFilter: () => {},
+                  }}
+                />
+              </div>
+
+              <div className="space-y-6">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-base font-medium">
+                      Search types
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {data.searchTypes && data.searchTypes.length > 0 ? (
+                      <AnalyticsChart
+                        title="Search types"
+                        data={data.searchTypes}
+                        type="donut"
+                        height={250}
+                        showLegend={true}
+                        showGrid={false}
+                      />
+                    ) : (
+                      <div className="flex h-[250px] items-center justify-center text-center text-muted-foreground">
+                        <p className="text-sm">
+                          No search data yet. Run a few searches to see how they
+                          break down.
+                        </p>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-base font-medium">
+                      <TrendingUp
+                        aria-hidden="true"
+                        className="h-4 w-4 text-primary"
+                      />
+                      Search quality
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-sm leading-relaxed text-muted-foreground">
+                      Result relevance and click-through metrics appear here
+                      once enough queries have run to measure them reliably.
+                    </p>
+                  </CardContent>
+                </Card>
+              </div>
+            </div>
+          </TabsContent>
+
+          {/* Real-time Tab */}
+          <TabsContent value="realtime" className="space-y-6">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+              {[
+                {
+                  label: 'Active users',
+                  value:
+                    data.realtimeMetrics?.activeUsers ||
+                    data.overview?.activeUsers ||
+                    0,
+                  icon: Users,
+                },
+                {
+                  label: 'Current searches',
+                  value: data.realtimeMetrics?.currentSearches || 0,
+                  icon: Search,
+                },
+                {
+                  label: 'Processing files',
+                  value: data.realtimeMetrics?.processingFiles || 0,
+                  icon: FileText,
+                },
+                {
+                  label: 'Requests / min',
+                  value: data.realtimeMetrics?.requestsPerMinute || 0,
+                  icon: Activity,
+                },
+              ].map((metric) => (
+                <Card key={metric.label}>
+                  <CardContent className="p-5">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-muted text-primary">
+                      <metric.icon aria-hidden="true" className="h-4 w-4" />
                     </div>
-                  ))}
-                </div>
-              </ScrollArea>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
-    </div>
+                    <p className="mt-4 text-2xl font-semibold tabular-nums text-foreground">
+                      {metric.value}
+                    </p>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      {metric.label}
+                    </p>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base font-medium">
+                  Activity feed
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ScrollArea className="h-[400px] pr-4">
+                  <div className="flex h-[360px] flex-col items-center justify-center gap-2 text-center">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+                      <Activity aria-hidden="true" className="h-5 w-5" />
+                    </div>
+                    <p className="text-sm font-medium text-foreground">
+                      No recent activity
+                    </p>
+                    <p className="max-w-xs text-sm text-muted-foreground">
+                      Uploads, searches, and conversations will appear here as
+                      they happen across your workspace.
+                    </p>
+                  </div>
+                </ScrollArea>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
+      </div>
+    </MotionConfig>
   );
 }
 

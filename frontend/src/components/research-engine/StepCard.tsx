@@ -17,11 +17,11 @@ import {
 import type { BlueprintStepDef } from '@/services/researchEngineService';
 
 const STEP_TYPE_ICONS: Record<string, React.ReactNode> = {
-  search: <Search className="h-4 w-4" />,
-  extract: <FileText className="h-4 w-4" />,
-  analyze: <Brain className="h-4 w-4" />,
-  synthesize: <Layers className="h-4 w-4" />,
-  filter: <Filter className="h-4 w-4" />,
+  search: <Search aria-hidden="true" className="h-4 w-4" />,
+  extract: <FileText aria-hidden="true" className="h-4 w-4" />,
+  analyze: <Brain aria-hidden="true" className="h-4 w-4" />,
+  synthesize: <Layers aria-hidden="true" className="h-4 w-4" />,
+  filter: <Filter aria-hidden="true" className="h-4 w-4" />,
 };
 
 const MODEL_OPTIONS = [
@@ -56,12 +56,16 @@ export function StepCard({
   );
   const [paramsError, setParamsError] = useState<string | null>(null);
 
-  const icon = STEP_TYPE_ICONS[step.type] || <Zap className="h-4 w-4" />;
+  const icon = STEP_TYPE_ICONS[step.type] || (
+    <Zap aria-hidden="true" className="h-4 w-4" />
+  );
 
-  const modeColor =
+  // One accent only: deterministic reads as the warm Sol primary;
+  // exploratory reads as a quieter neutral chip.
+  const modeChip =
     step.mode === 'deterministic'
-      ? 'bg-sol/10 text-sol border-sol/30'
-      : 'bg-helios/10 text-helios border-helios/30';
+      ? 'bg-primary/10 text-primary border-primary/30'
+      : 'bg-muted text-muted-foreground border-border';
 
   const handleParamsChange = (value: string) => {
     setParamsText(value);
@@ -85,64 +89,80 @@ export function StepCard({
   };
 
   return (
-    <div className="bg-card border border-border rounded-lg overflow-hidden">
+    <div className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
       {/* Header */}
-      <div
-        className="flex items-center gap-3 p-3 cursor-pointer hover:bg-muted/50 transition-colors"
+      <button
+        type="button"
+        className="flex items-center gap-3 w-full p-3 text-left hover:bg-muted/40 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
         onClick={() => setExpanded(!expanded)}
+        aria-expanded={expanded}
       >
-        <span className="flex items-center justify-center w-7 h-7 rounded bg-muted text-xs font-mono text-muted-foreground shrink-0">
+        <span className="flex items-center justify-center w-7 h-7 rounded-lg bg-muted text-xs font-medium text-muted-foreground tabular-nums shrink-0">
           {index + 1}
         </span>
 
-        <span className="text-brand-cyan">{icon}</span>
+        <span className="text-muted-foreground shrink-0">{icon}</span>
 
-        <span className="px-2 py-0.5 border rounded text-[10px] uppercase font-mono bg-brand-cyan/10 text-brand-cyan border-brand-cyan/30">
+        <span className="px-2 py-0.5 rounded border text-[11px] font-medium bg-muted text-foreground border-border shrink-0">
           {step.type}
         </span>
 
-        <span className="font-mono text-sm text-foreground truncate flex-1">
-          {step.name || 'Untitled Step'}
+        <span className="text-sm text-foreground truncate flex-1">
+          {step.name || 'Untitled step'}
         </span>
 
         <span
-          className={`px-2 py-0.5 border rounded text-[10px] uppercase font-mono ${modeColor}`}
+          className={`px-2 py-0.5 border rounded text-[11px] font-medium shrink-0 ${modeChip}`}
         >
           {step.mode}
         </span>
 
         {expanded ? (
-          <ChevronUp className="h-4 w-4 text-muted-foreground shrink-0" />
+          <ChevronUp
+            aria-hidden="true"
+            className="h-4 w-4 text-muted-foreground shrink-0"
+          />
         ) : (
-          <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
+          <ChevronDown
+            aria-hidden="true"
+            className="h-4 w-4 text-muted-foreground shrink-0"
+          />
         )}
-      </div>
+      </button>
 
       {/* Expanded body */}
       {expanded && (
         <div className="border-t border-border p-4 space-y-4">
           {/* Name */}
           <div>
-            <label className="block text-xs text-muted-foreground font-mono uppercase tracking-wide mb-1">
-              Step Name
+            <label
+              htmlFor={`step-${index}-name`}
+              className="block text-xs font-medium text-muted-foreground mb-1"
+            >
+              Step name
             </label>
             <input
+              id={`step-${index}-name`}
               type="text"
               value={step.name}
               onChange={(e) => onChange({ ...step, name: e.target.value })}
-              className="w-full px-3 py-2 bg-muted border border-border rounded text-sm font-mono text-foreground focus:outline-none focus:border-primary"
+              className="w-full px-3 py-2 rounded-lg bg-background border border-border text-sm text-foreground focus:outline-none focus:border-primary focus-visible:ring-2 focus-visible:ring-ring transition-colors"
             />
           </div>
 
           {/* Type */}
           <div>
-            <label className="block text-xs text-muted-foreground font-mono uppercase tracking-wide mb-1">
-              Step Type
+            <label
+              htmlFor={`step-${index}-type`}
+              className="block text-xs font-medium text-muted-foreground mb-1"
+            >
+              Step type
             </label>
             <select
+              id={`step-${index}-type`}
               value={step.type}
               onChange={(e) => onChange({ ...step, type: e.target.value })}
-              className="w-full px-3 py-2 bg-muted border border-border rounded text-sm font-mono text-foreground focus:outline-none focus:border-primary"
+              className="w-full px-3 py-2 rounded-lg bg-background border border-border text-sm text-foreground focus:outline-none focus:border-primary focus-visible:ring-2 focus-visible:ring-ring transition-colors"
             >
               <option value="search">Search</option>
               <option value="extract">Extract</option>
@@ -154,37 +174,46 @@ export function StepCard({
 
           {/* Description */}
           <div>
-            <label className="block text-xs text-muted-foreground font-mono uppercase tracking-wide mb-1">
+            <label
+              htmlFor={`step-${index}-description`}
+              className="block text-xs font-medium text-muted-foreground mb-1"
+            >
               Description
             </label>
             <textarea
+              id={`step-${index}-description`}
               value={step.description || ''}
               onChange={(e) =>
                 onChange({ ...step, description: e.target.value || undefined })
               }
               rows={2}
-              className="w-full px-3 py-2 bg-muted border border-border rounded text-sm font-mono text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary resize-none"
-              placeholder="What this step does..."
+              className="w-full px-3 py-2 rounded-lg bg-background border border-border text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:border-primary focus-visible:ring-2 focus-visible:ring-ring resize-none transition-colors"
+              placeholder="What this step does"
             />
           </div>
 
           {/* Parameters JSON */}
           <div>
-            <label className="block text-xs text-muted-foreground font-mono uppercase tracking-wide mb-1">
+            <label
+              htmlFor={`step-${index}-params`}
+              className="block text-xs font-medium text-muted-foreground mb-1"
+            >
               Parameters (JSON)
             </label>
             <textarea
+              id={`step-${index}-params`}
               value={paramsText}
               onChange={(e) => handleParamsChange(e.target.value)}
               rows={4}
-              className={`w-full px-3 py-2 bg-muted border rounded text-sm font-mono text-foreground focus:outline-none resize-none ${
+              aria-invalid={!!paramsError}
+              className={`w-full px-3 py-2 rounded-lg bg-background border text-sm font-mono text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-none transition-colors ${
                 paramsError
-                  ? 'border-red-500/50 focus:border-red-500'
+                  ? 'border-destructive/50 focus:border-destructive'
                   : 'border-border focus:border-primary'
               }`}
             />
             {paramsError && (
-              <p className="mt-1 text-xs text-red-400 font-mono">
+              <p role="alert" className="mt-1 text-xs text-destructive">
                 {paramsError}
               </p>
             )}
@@ -192,15 +221,19 @@ export function StepCard({
 
           {/* Model selector */}
           <div>
-            <label className="block text-xs text-muted-foreground font-mono uppercase tracking-wide mb-1">
+            <label
+              htmlFor={`step-${index}-model`}
+              className="block text-xs font-medium text-muted-foreground mb-1"
+            >
               Model
             </label>
             <select
+              id={`step-${index}-model`}
               value={step.model_id || ''}
               onChange={(e) =>
                 onChange({ ...step, model_id: e.target.value || undefined })
               }
-              className="w-full px-3 py-2 bg-muted border border-border rounded text-sm font-mono text-foreground focus:outline-none focus:border-primary"
+              className="w-full px-3 py-2 rounded-lg bg-background border border-border text-sm text-foreground focus:outline-none focus:border-primary focus-visible:ring-2 focus-visible:ring-ring transition-colors"
             >
               <option value="">Default</option>
               {MODEL_OPTIONS.map((m) => (
@@ -213,12 +246,14 @@ export function StepCard({
 
           {/* Mode toggle */}
           <div>
-            <label className="block text-xs text-muted-foreground font-mono uppercase tracking-wide mb-1">
+            <span className="block text-xs font-medium text-muted-foreground mb-1">
               Mode
-            </label>
+            </span>
             <button
+              type="button"
               onClick={handleModeToggle}
-              className={`px-3 py-1.5 border rounded text-xs uppercase font-mono transition-colors ${modeColor}`}
+              aria-pressed={step.mode === 'exploratory'}
+              className={`px-3 py-1.5 border rounded-lg text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${modeChip}`}
             >
               {step.mode}
             </button>
@@ -226,14 +261,18 @@ export function StepCard({
 
           {/* Temperature slider */}
           <div>
-            <label className="block text-xs text-muted-foreground font-mono uppercase tracking-wide mb-1">
+            <label
+              htmlFor={`step-${index}-temperature`}
+              className="block text-xs font-medium text-muted-foreground mb-1"
+            >
               Temperature{' '}
               {step.mode === 'deterministic' && (
-                <span className="text-foreground">(disabled)</span>
+                <span className="text-muted-foreground/60">(disabled)</span>
               )}
             </label>
             <div className="flex items-center gap-3">
               <input
+                id={`step-${index}-temperature`}
                 type="range"
                 min={0}
                 max={2}
@@ -243,9 +282,9 @@ export function StepCard({
                   onChange({ ...step, temperature: parseFloat(e.target.value) })
                 }
                 disabled={step.mode === 'deterministic'}
-                className="flex-1 accent-helios disabled:opacity-30"
+                className="flex-1 accent-primary disabled:opacity-30"
               />
-              <span className="text-xs font-mono text-muted-foreground w-8 text-right">
+              <span className="text-xs text-muted-foreground tabular-nums w-8 text-right">
                 {(step.temperature ?? 0.7).toFixed(1)}
               </span>
             </div>
@@ -253,10 +292,14 @@ export function StepCard({
 
           {/* Seed input */}
           <div>
-            <label className="block text-xs text-muted-foreground font-mono uppercase tracking-wide mb-1">
+            <label
+              htmlFor={`step-${index}-seed`}
+              className="block text-xs font-medium text-muted-foreground mb-1"
+            >
               Seed
             </label>
             <input
+              id={`step-${index}-seed`}
               type="number"
               value={step.seed ?? ''}
               onChange={(e) =>
@@ -268,35 +311,38 @@ export function StepCard({
                 })
               }
               placeholder="Optional seed for reproducibility"
-              className="w-full px-3 py-2 bg-muted border border-border rounded text-sm font-mono text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary"
+              className="w-full px-3 py-2 rounded-lg bg-background border border-border text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:border-primary focus-visible:ring-2 focus-visible:ring-ring transition-colors"
             />
           </div>
 
           {/* Action buttons */}
           <div className="flex items-center gap-2 pt-2 border-t border-border">
             <button
+              type="button"
               onClick={onMoveUp}
               disabled={index === 0}
-              className="p-1.5 text-muted-foreground hover:text-primary disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               aria-label="Move step up"
             >
-              <ArrowUp className="h-4 w-4" />
+              <ArrowUp aria-hidden="true" className="h-4 w-4" />
             </button>
             <button
+              type="button"
               onClick={onMoveDown}
               disabled={index === totalSteps - 1}
-              className="p-1.5 text-muted-foreground hover:text-primary disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               aria-label="Move step down"
             >
-              <ArrowDown className="h-4 w-4" />
+              <ArrowDown aria-hidden="true" className="h-4 w-4" />
             </button>
             <div className="flex-1" />
             <button
+              type="button"
               onClick={onRemove}
-              className="p-1.5 text-muted-foreground hover:text-red-400 transition-colors"
+              className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               aria-label="Remove step"
             >
-              <Trash2 className="h-4 w-4" />
+              <Trash2 aria-hidden="true" className="h-4 w-4" />
             </button>
           </div>
         </div>

@@ -3,7 +3,7 @@
 import { useAuth } from '@/hooks/useAuth';
 import { createClient } from '@/lib/supabase/client';
 import { motion } from 'framer-motion';
-import { AlertTriangle, CheckCircle, RefreshCw } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import React, { Suspense, useEffect, useRef, useState } from 'react';
@@ -11,7 +11,6 @@ import React, { Suspense, useEffect, useRef, useState } from 'react';
 const VERIFIED_REDIRECT_PATH = '/dashboard';
 const VERIFIED_REDIRECT_DELAY_MS = 2500;
 const PENDING_AUTH_TIMEOUT_MS = 6000;
-const NOUS_EASE: [number, number, number, number] = [0.16, 1, 0.3, 1];
 
 type ViewState = 'pending' | 'verified' | 'error';
 
@@ -101,6 +100,7 @@ function VerifyEmailContent(): React.JSX.Element | null {
       return;
     }
 
+    // Token-hash flow drives its own state above.
     if (tokenHash && tokenType) return;
 
     if (isLoading) return;
@@ -110,6 +110,8 @@ function VerifyEmailContent(): React.JSX.Element | null {
       return;
     }
 
+    // Auth finished loading but no session — give the SIGNED_IN listener
+    // a brief window in case it is still propagating, then show an error.
     const timer = setTimeout(() => {
       if (!isAuthenticatedRef.current) {
         setView('error');
@@ -119,6 +121,7 @@ function VerifyEmailContent(): React.JSX.Element | null {
     return () => clearTimeout(timer);
   }, [errorCode, tokenHash, tokenType, isAuthenticated, isLoading]);
 
+  // Once verified, redirect to the dashboard.
   useEffect(() => {
     if (view !== 'verified') return;
     const timer = setTimeout(
@@ -134,44 +137,40 @@ function VerifyEmailContent(): React.JSX.Element | null {
     const message =
       otpErrorMessage ?? describeError(errorCode, errorDescription);
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[var(--nous-bg-1)] px-6">
+      <div className="min-h-screen flex items-center justify-center bg-background px-6">
         <motion.div
-          initial={{ opacity: 0, y: 8 }}
+          initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, ease: NOUS_EASE }}
+          transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
           className="w-full max-w-md"
         >
-          <div className="rounded-2xl border border-[var(--nous-mars)]/30 bg-[var(--nous-bg-2)] p-10 text-center">
-            <div className="mx-auto mb-6 flex h-14 w-14 items-center justify-center rounded-full border border-[var(--nous-mars)]/30 bg-[var(--nous-mars)]/10">
+          <div className="rounded-2xl border border-border bg-card p-10 text-center shadow-sm">
+            <div className="flex items-center justify-center w-14 h-14 rounded-full bg-destructive/10 border border-destructive/30 mx-auto mb-6">
               <AlertTriangle
-                className="h-6 w-6 text-[var(--nous-mars)]"
-                strokeWidth={1.8}
+                className="w-7 h-7 text-destructive"
+                aria-hidden="true"
               />
             </div>
-            <h1
-              className="mb-3 text-2xl font-semibold tracking-tight text-[var(--nous-fg-1)]"
-              style={{ fontFamily: 'var(--nous-font-heading)' }}
-            >
-              Verification failed
+            <h1 className="text-2xl font-semibold text-foreground mb-3">
+              We couldn&apos;t confirm your email
             </h1>
             <p
-              className="mx-auto mb-8 max-w-sm text-[0.9375rem] leading-relaxed text-[var(--nous-fg-2)]"
+              role="alert"
+              className="text-sm text-muted-foreground mb-8 leading-relaxed"
               style={{ fontFamily: 'var(--nous-font-body)' }}
             >
               {message}
             </p>
-            <div className="flex flex-col items-center gap-3">
+            <div className="flex flex-col gap-4 items-center">
               <Link
                 href="/register"
-                className="text-sm font-medium text-[var(--nous-sol)] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/40 rounded"
-                style={{ fontFamily: 'var(--nous-font-ui)' }}
+                className="inline-flex items-center justify-center w-full rounded-xl bg-primary px-5 py-3 text-sm font-medium text-primary-foreground transition-colors hover:bg-[var(--nous-helios)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
               >
                 Request a new confirmation link
               </Link>
               <Link
                 href="/login"
-                className="text-sm text-[var(--nous-fg-3)] transition-colors hover:text-[var(--nous-fg-1)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/40 rounded"
-                style={{ fontFamily: 'var(--nous-font-ui)' }}
+                className="text-sm text-muted-foreground transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background rounded"
               >
                 Back to sign in
               </Link>
@@ -184,31 +183,29 @@ function VerifyEmailContent(): React.JSX.Element | null {
 
   if (view === 'pending') {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[var(--nous-bg-1)] px-6">
+      <div className="min-h-screen flex items-center justify-center bg-background px-6">
         <motion.div
-          initial={{ opacity: 0, y: 8 }}
+          initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, ease: NOUS_EASE }}
+          transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
           className="w-full max-w-md"
         >
-          <div className="rounded-2xl border border-[var(--nous-border-1)] bg-[var(--nous-bg-2)] p-10 text-center">
-            <div className="mx-auto mb-6 flex h-14 w-14 items-center justify-center rounded-full border border-[var(--nous-sol)]/30 bg-[var(--nous-sol)]/10">
-              <RefreshCw
-                className="h-6 w-6 animate-spin text-[var(--nous-sol)]"
-                strokeWidth={1.8}
+          <div className="rounded-2xl border border-border bg-card p-10 text-center shadow-sm">
+            <div className="flex items-center justify-center w-14 h-14 rounded-full bg-primary/10 border border-primary/30 mx-auto mb-6">
+              <Loader2
+                className="w-7 h-7 text-primary motion-safe:animate-spin"
+                aria-hidden="true"
               />
             </div>
-            <h1
-              className="mb-3 text-2xl font-semibold tracking-tight text-[var(--nous-fg-1)]"
-              style={{ fontFamily: 'var(--nous-font-heading)' }}
-            >
-              Verifying your account…
+            <h1 className="text-2xl font-semibold text-foreground mb-3">
+              Confirming your email
             </h1>
             <p
-              className="text-[0.9375rem] leading-relaxed text-[var(--nous-fg-2)]"
+              role="status"
+              className="text-sm text-muted-foreground leading-relaxed"
               style={{ fontFamily: 'var(--nous-font-body)' }}
             >
-              Establishing your session. This only takes a moment.
+              Setting up your session. This only takes a moment.
             </p>
           </div>
         </motion.div>
@@ -217,49 +214,40 @@ function VerifyEmailContent(): React.JSX.Element | null {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[var(--nous-bg-1)] px-6">
+    <div className="min-h-screen flex items-center justify-center bg-background px-6">
       <motion.div
-        initial={{ opacity: 0, y: 8 }}
+        initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4, ease: NOUS_EASE }}
+        transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
         className="w-full max-w-md"
       >
-        <div className="rounded-2xl border border-[var(--nous-border-1)] bg-[var(--nous-bg-2)] p-10 text-center">
-          <div className="mx-auto mb-6 flex h-14 w-14 items-center justify-center rounded-full border border-[var(--nous-sol)]/30 bg-[var(--nous-sol)]/10">
-            <CheckCircle
-              className="h-6 w-6 text-[var(--nous-sol)]"
-              strokeWidth={1.8}
-            />
+        <div className="rounded-2xl border border-border bg-card p-10 text-center shadow-sm">
+          <div className="flex items-center justify-center w-14 h-14 rounded-full bg-primary/10 border border-primary/30 mx-auto mb-6">
+            <CheckCircle2 className="w-7 h-7 text-primary" aria-hidden="true" />
           </div>
-          <h1
-            className="mb-3 text-2xl font-semibold tracking-tight text-[var(--nous-fg-1)]"
-            style={{ fontFamily: 'var(--nous-font-heading)' }}
-          >
-            You&apos;re signed in
+          <h1 className="text-2xl font-semibold text-foreground mb-3">
+            Your email is confirmed
           </h1>
           <p
-            className="mb-6 text-[0.9375rem] leading-relaxed text-[var(--nous-fg-2)]"
+            role="status"
+            className="text-sm text-muted-foreground mb-6 leading-relaxed"
             style={{ fontFamily: 'var(--nous-font-body)' }}
           >
-            Your account is verified. Redirecting to your workspace…
+            Your account is active. Taking you to your workspace.
           </p>
-          <div className="mx-auto mb-6 h-1 w-24 overflow-hidden rounded-full bg-[var(--nous-border-1)]">
+          <div className="h-1 w-24 mx-auto rounded-full bg-muted overflow-hidden mb-8">
             <motion.div
               initial={{ width: 0 }}
               animate={{ width: '100%' }}
-              transition={{
-                duration: VERIFIED_REDIRECT_DELAY_MS / 1000,
-                ease: 'linear',
-              }}
-              className="h-full bg-[var(--nous-sol)]"
+              transition={{ duration: VERIFIED_REDIRECT_DELAY_MS / 1000 }}
+              className="h-full bg-primary"
             />
           </div>
           <Link
             href={VERIFIED_REDIRECT_PATH}
-            className="text-sm text-[var(--nous-fg-3)] transition-colors hover:text-[var(--nous-fg-1)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/40 rounded"
-            style={{ fontFamily: 'var(--nous-font-ui)' }}
+            className="inline-flex items-center justify-center w-full rounded-xl bg-primary px-5 py-3 text-sm font-medium text-primary-foreground transition-colors hover:bg-[var(--nous-helios)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
           >
-            Continue to dashboard
+            Go to workspace
           </Link>
         </div>
       </motion.div>

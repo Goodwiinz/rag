@@ -2,7 +2,7 @@
 
 import { useAuthStore } from '@/stores/authStore';
 import { useDocuments } from '@/hooks/useDocuments';
-import { Upload, RefreshCw, Folder, AlertTriangle } from 'lucide-react';
+import { Upload, RefreshCw, FolderOpen, AlertTriangle } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useState, useMemo } from 'react';
 import { Pagination } from '../../components/Pagination';
@@ -113,48 +113,54 @@ export default function DocumentsPage() {
   if (!mounted) return null;
 
   return (
-    <div className="flex flex-col min-h-full bg-[var(--nous-bg-1)]">
+    <div className="flex flex-col min-h-full bg-background">
       <div className="p-4 md:p-6 space-y-6 flex-1">
         {/* Header */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-lg bg-[var(--nous-sol)]/10 border border-[var(--nous-sol)]/20 flex items-center justify-center relative overflow-hidden group">
-              <div className="absolute inset-0 bg-[var(--nous-sol)]/10 translate-y-full group-hover:translate-y-0 transition-transform duration-300" />
-              <Folder className="w-6 h-6 text-[var(--nous-sol)] relative z-10" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-mono font-bold text-[var(--nous-fg-1)] tracking-wider flex items-center gap-2">
-                DOCUMENT_REPOSITORY
-                <span className="text-xs px-2 py-0.5 rounded-full bg-[var(--nous-bg-3)] text-[var(--nous-fg-3)] border border-[var(--nous-border-1)]">
-                  v2.0
-                </span>
-              </h1>
-              <p className="text-xs font-mono text-[var(--nous-fg-3)] mt-0.5 uppercase tracking-widest">
-                Knowledge Base Management System
-              </p>
-            </div>
-          </div>
+        <div className="rounded-xl border border-border bg-card shadow-sm">
+          <div className="p-6">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center">
+                  <FolderOpen
+                    aria-hidden="true"
+                    className="w-6 h-6 text-primary"
+                  />
+                </div>
+                <div>
+                  <h1 className="text-xl font-semibold text-foreground">
+                    Documents
+                  </h1>
+                  <p className="text-sm text-muted-foreground mt-0.5">
+                    Your knowledge base library
+                  </p>
+                </div>
+              </div>
 
-          <div className="flex items-center gap-3">
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={() => refreshDocuments()}
-              className="border-[var(--nous-border-1)] bg-[var(--nous-bg-2)] text-[var(--nous-fg-3)] hover:text-[var(--nous-sol)] hover:border-[var(--nous-sol)]/30"
-              title="Refresh Documents"
-            >
-              <RefreshCw className={cn('w-4 h-4', loading && 'animate-spin')} />
-            </Button>
-            <Link href="/documents/upload">
-              <Button className="gap-2 bg-[var(--nous-sol)] text-[var(--nous-bg-1)] font-mono text-xs font-bold hover:shadow-[0_0_20px_var(--nous-sol-glow)] hover:bg-[var(--nous-sol)]/90">
-                <Upload className="w-3.5 h-3.5" />
-                UPLOAD_FILES
-              </Button>
-            </Link>
+              <div className="flex items-center gap-3">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => refreshDocuments()}
+                  disabled={loading}
+                  aria-label="Refresh documents"
+                >
+                  <RefreshCw
+                    aria-hidden="true"
+                    className={cn('w-4 h-4', loading && 'animate-spin')}
+                  />
+                </Button>
+                <Button asChild className="gap-2">
+                  <Link href="/documents/upload">
+                    <Upload aria-hidden="true" className="w-4 h-4" />
+                    Upload files
+                  </Link>
+                </Button>
+              </div>
+            </div>
           </div>
         </div>
 
-        {/* Stats Grid */}
+        {/* Stats */}
         <DocumentStats stats={stats} />
 
         {/* Filters */}
@@ -169,15 +175,21 @@ export default function DocumentsPage() {
           isBulkDeleting={isBulkDeleting}
         />
 
-        {/* Error Banner */}
+        {/* Error */}
         {error && (
-          <div className="flex items-center gap-3 px-4 py-3 rounded-lg border border-red-500/30 bg-red-500/5">
-            <AlertTriangle className="w-4 h-4 text-red-400 shrink-0" />
-            <p className="text-red-400 font-mono text-sm">{error}</p>
+          <div
+            role="alert"
+            className="flex items-center gap-3 px-4 py-3 rounded-xl border border-destructive/40 bg-destructive/5"
+          >
+            <AlertTriangle
+              aria-hidden="true"
+              className="w-4 h-4 text-destructive shrink-0"
+            />
+            <p className="text-sm text-foreground">{error}</p>
           </div>
         )}
 
-        {/* Document List */}
+        {/* Document list */}
         <DocumentList
           documents={rawDocuments.map((doc) => ({
             ...doc,
@@ -196,7 +208,7 @@ export default function DocumentsPage() {
 
         {/* Pagination */}
         {!loading && pagination.total > 0 && (
-          <div className="mt-6 border-t border-[var(--nous-border-1)]/50 pt-4">
+          <div className="mt-6 border-t border-border pt-4">
             <Pagination
               currentPage={pagination.page}
               totalPages={pagination.totalPages}

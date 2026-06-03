@@ -6,7 +6,6 @@ import { Bell } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useNotificationStore } from '@/store/notificationStore';
 import type { NotificationChannel } from './types';
-import { ChannelTag } from './NotificationBadge';
 import { NotificationCard } from './NotificationCard';
 
 const CHANNELS: { key: NotificationChannel | 'all'; label: string }[] = [
@@ -37,66 +36,93 @@ export function NotificationList() {
   return (
     <div className="flex flex-col gap-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-end justify-between gap-4">
         <div>
-          <h1 className="font-[family-name:var(--nous-font-heading)] text-2xl font-semibold tracking-tight text-[var(--nous-fg-1)]">
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">
             Notifications
           </h1>
-          <p className="mt-1 font-[family-name:var(--nous-font-body)] text-sm text-[var(--nous-fg-3)]">
-            {unreadCount > 0 ? `${unreadCount} unread` : 'All caught up'}
+          <p className="mt-1 text-sm text-muted-foreground">
+            {unreadCount > 0 ? `${unreadCount} unread` : "You're all caught up"}
           </p>
         </div>
         {unreadCount > 0 && (
           <button
             type="button"
             onClick={markAllRead}
-            className="font-[family-name:var(--nous-font-ui)] text-xs font-medium text-[var(--nous-sol-safe)] dark:text-[var(--nous-helios)] hover:underline underline-offset-2"
+            className={cn(
+              'rounded-md px-2 py-1 text-sm font-medium text-primary',
+              'underline-offset-4 transition-colors hover:underline',
+              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2'
+            )}
           >
             Mark all read
           </button>
         )}
       </div>
 
-      {/* Channel filter pills */}
-      <div className="flex flex-wrap items-center gap-2">
-        {CHANNELS.map((ch) => (
-          <button
-            key={ch.key}
-            type="button"
-            onClick={() => setFilter(ch.key)}
-            className={cn(
-              'inline-flex items-center gap-1.5',
-              'px-2.5 py-[3px] rounded-full',
-              'font-[family-name:var(--nous-font-mono)] text-[10px] tracking-[0.12em] uppercase font-medium',
-              'border transition-all duration-150',
-              filter === ch.key
-                ? 'bg-[var(--nous-aurum)] text-[var(--nous-sol-safe)] border-[rgba(212,160,57,0.28)] dark:bg-[var(--nous-ember)] dark:text-[var(--nous-helios)] dark:border-[rgba(232,184,74,0.22)]'
-                : 'bg-transparent text-[var(--nous-fg-3)] border-[var(--nous-border-1)] hover:text-[var(--nous-fg-1)] hover:border-[var(--nous-border-2)]'
-            )}
-          >
-            {ch.label}
-          </button>
-        ))}
+      {/* Channel filter */}
+      <div
+        className="flex flex-wrap items-center gap-2"
+        role="group"
+        aria-label="Filter notifications by channel"
+      >
+        {CHANNELS.map((ch) => {
+          const active = filter === ch.key;
+          return (
+            <button
+              key={ch.key}
+              type="button"
+              onClick={() => setFilter(ch.key)}
+              aria-pressed={active}
+              className={cn(
+                'rounded-full border px-3 py-1 text-xs font-medium',
+                'transition-colors duration-150',
+                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+                active
+                  ? 'border-primary/40 bg-primary/10 text-primary'
+                  : 'border-border bg-card text-muted-foreground hover:border-border hover:text-foreground hover:bg-muted'
+              )}
+            >
+              {ch.label}
+            </button>
+          );
+        })}
       </div>
 
       {/* Notification list */}
       {filtered.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-16 text-center">
-          <div className="grid place-items-center h-12 w-12 rounded-full bg-[var(--nous-aurum)] dark:bg-[var(--nous-ember)] mb-4">
-            <Bell className="h-5 w-5 text-[var(--nous-sol-safe)] dark:text-[var(--nous-helios)]" />
+        <div className="flex flex-col items-center justify-center rounded-xl border border-border bg-card py-16 text-center shadow-sm">
+          <div className="mb-4 grid h-12 w-12 place-items-center rounded-full bg-primary/10">
+            <Bell aria-hidden="true" className="h-5 w-5 text-primary" />
           </div>
-          <h3 className="font-[family-name:var(--nous-font-heading)] text-sm font-medium text-[var(--nous-fg-1)]">
-            No notifications
-          </h3>
-          <p className="mt-1 font-[family-name:var(--nous-font-body)] text-sm text-[var(--nous-fg-3)]">
+          <h3 className="text-sm font-semibold text-foreground">
             {filter === 'all'
-              ? "You're all caught up."
-              : `No ${filter} notifications.`}
+              ? 'No notifications yet'
+              : `No ${filter} notifications`}
+          </h3>
+          <p className="mt-1 max-w-xs text-sm text-muted-foreground">
+            {filter === 'all'
+              ? 'Updates about your documents, agents, and account will show up here.'
+              : 'Try another channel, or switch back to all notifications.'}
           </p>
+          {filter !== 'all' && (
+            <button
+              type="button"
+              onClick={() => setFilter('all')}
+              className={cn(
+                'mt-4 rounded-md px-2 py-1 text-sm font-medium text-primary',
+                'underline-offset-4 transition-colors hover:underline',
+                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2'
+              )}
+            >
+              Show all notifications
+            </button>
+          )}
         </div>
       ) : (
         <div className="flex flex-col gap-3">
           {filtered
+            .slice()
             .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
             .map((n) => (
               <NotificationCard
