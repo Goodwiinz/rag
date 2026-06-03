@@ -178,7 +178,7 @@ async def multi_agent_search(
     except Exception as e:
         logger.error(f"Multi-agent search failed: {e}")
         raise HTTPException(
-            status_code=500, detail=f"Multi-agent search failed: {str(e)}"
+            status_code=500, detail="Internal server error"
         )
 
 
@@ -203,7 +203,7 @@ async def get_agent_status(current_user: User = Depends(get_current_user)):
     except Exception as e:
         logger.error(f"Error getting agent status: {e}")
         raise HTTPException(
-            status_code=500, detail=f"Failed to get agent status: {str(e)}"
+            status_code=500, detail="Internal server error"
         )
 
 
@@ -544,7 +544,7 @@ async def get_performance_metrics(
     except Exception as e:
         logger.error(f"Error getting performance metrics: {e}")
         raise HTTPException(
-            status_code=500, detail=f"Failed to retrieve performance metrics: {str(e)}"
+            status_code=500, detail="Internal server error"
         )
 
 
@@ -630,7 +630,7 @@ async def compare_search_methods(
     except Exception as e:
         logger.error(f"Search comparison failed: {e}")
         raise HTTPException(
-            status_code=500, detail=f"Search comparison failed: {str(e)}"
+            status_code=500, detail="Internal server error"
         )
 
 
