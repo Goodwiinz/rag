@@ -152,6 +152,7 @@ function CliAuthPageContent(): React.JSX.Element {
         <div className="flex flex-col gap-3 sm:flex-row">
           <button
             type="button"
+            aria-label="Approve CLI login"
             onClick={handleApprove}
             disabled={
               !sessionId || !verificationCode || isSubmitting || isConnected
