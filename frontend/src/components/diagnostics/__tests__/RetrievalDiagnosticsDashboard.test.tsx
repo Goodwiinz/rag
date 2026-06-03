@@ -84,7 +84,7 @@ describe('RetrievalDiagnosticsDashboard', () => {
       expect(mockGetRecentTraces).toHaveBeenCalledTimes(1);
     });
 
-    fireEvent.click(screen.getAllByRole('button', { name: 'Refresh' })[0]);
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh' }));
 
     await waitFor(() => {
       expect(mockGetRecentTraces).toHaveBeenCalledTimes(2);
