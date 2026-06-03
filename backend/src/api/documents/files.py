@@ -239,8 +239,9 @@ async def list_files(
         )
 
     except Exception as e:
+        logger.error(f"Error in list_files: {e}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal server error"
         )
 
 
@@ -568,9 +569,10 @@ async def cancel_upload(
         raise
     except Exception as e:
         db.rollback()
+        logger.error(f"Failed to cancel upload: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to cancel upload: {str(e)}",
+            detail="Internal server error",
         )
 
 
@@ -586,8 +588,9 @@ async def get_file_statistics(
         stats = await file_service.get_file_stats(str(organization.id))
         return FileStatsResponse(**stats)
     except Exception as e:
+        logger.error(f"Error getting file statistics: {e}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal server error"
         )
 
 
