@@ -10,3 +10,6 @@
 ## 2024-05-18 - Stylized Button Accessibility
 **Learning:** Custom semantic buttons with unconventional or stylized visible text (e.g., 'TRANSMIT' or 'HALT') fail to provide clear context for screen reader users relying on standard labels.
 **Action:** Always ensure explicitly declared `aria-label`s (like 'Send message' or 'Stop generation') are applied for screen reader compatibility, rather than relying solely on `title` attributes or the visible text.
+## 2024-05-19 - Focus-Visible Utility Usage
+**Learning:** Native `<button>` elements, especially those styled as dropdown items, interactive list items, or toggle badges, often lose their default browser outlines due to custom Tailwind styles. When this happens, they become difficult or impossible to navigate via keyboard.
+**Action:** When working with raw `<button>` elements, always explicitly define `type="button"` and add `focus-visible` utility classes (e.g., `focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1`) to ensure keyboard focus states remain accessible and visible.
