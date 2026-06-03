@@ -61,7 +61,8 @@ describe('CliAuthPage', () => {
   });
 
   it('approves the CLI login and shows the connected state', async () => {
-    const postSpy = vi.spyOn(api, 'post')
+    const postSpy = vi
+      .spyOn(api, 'post')
       .mockResolvedValue({ status: 'approved' } as never);
 
     render(<CliAuthPage />);
@@ -77,7 +78,9 @@ describe('CliAuthPage', () => {
       })
     );
     expect(
-      await screen.findByText(/cli connected, return to terminal/i)
+      await screen.findByText(
+        /cli connected\. you can return to your terminal/i
+      )
     ).toBeInTheDocument();
   });
 });
