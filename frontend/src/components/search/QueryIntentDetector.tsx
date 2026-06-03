@@ -18,7 +18,12 @@ import { QueryIntent } from '@/types/search';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 
 interface QueryIntentDetectorProps {
   query: string;
@@ -34,7 +39,11 @@ interface IntentDetailProps {
   onClose: () => void;
 }
 
-const IntentDetail: React.FC<IntentDetailProps> = ({ intent, isOpen, onClose }) => {
+const IntentDetail: React.FC<IntentDetailProps> = ({
+  intent,
+  isOpen,
+  onClose,
+}) => {
   const getIntentColor = (intentType: string) => {
     switch (intentType) {
       case 'factual_lookup':
@@ -48,7 +57,7 @@ const IntentDetail: React.FC<IntentDetailProps> = ({ intent, isOpen, onClose }) 
       case 'exploration':
         return 'bg-indigo-100 text-indigo-800';
       default:
-        return 'bg-gray-100 text-gray-800';
+        return 'bg-gray-100 text-foreground';
     }
   };
 
@@ -61,7 +70,7 @@ const IntentDetail: React.FC<IntentDetailProps> = ({ intent, isOpen, onClose }) 
       case 'complex':
         return 'bg-red-100 text-red-800';
       default:
-        return 'bg-gray-100 text-gray-800';
+        return 'bg-gray-100 text-foreground';
     }
   };
 
@@ -74,9 +83,9 @@ const IntentDetail: React.FC<IntentDetailProps> = ({ intent, isOpen, onClose }) 
       case 'future':
         return 'bg-purple-100 text-purple-800';
       case 'timeless':
-        return 'bg-gray-100 text-gray-800';
+        return 'bg-gray-100 text-foreground';
       default:
-        return 'bg-gray-100 text-gray-800';
+        return 'bg-gray-100 text-foreground';
     }
   };
 
@@ -89,39 +98,43 @@ const IntentDetail: React.FC<IntentDetailProps> = ({ intent, isOpen, onClose }) 
       case 'domain_expert':
         return 'bg-red-100 text-red-800';
       default:
-        return 'bg-gray-100 text-gray-800';
+        return 'bg-gray-100 text-foreground';
     }
   };
 
   const getEntityIcon = (entityType: string) => {
-    const iconClass = "h-4 w-4";
+    const iconClass = 'h-4 w-4';
     switch (entityType.toLowerCase()) {
       case 'person':
-        return <UserGroupIcon className={cn(iconClass, "text-blue-600")} />;
+        return <UserGroupIcon className={cn(iconClass, 'text-blue-600')} />;
       case 'location':
-        return <MapPinIcon className={cn(iconClass, "text-green-600")} />;
+        return <MapPinIcon className={cn(iconClass, 'text-green-600')} />;
       case 'date':
-        return <CalendarIcon className={cn(iconClass, "text-purple-600")} />;
+        return <CalendarIcon className={cn(iconClass, 'text-purple-600')} />;
       case 'organization':
-        return <DocumentTextIcon className={cn(iconClass, "text-orange-600")} />;
+        return (
+          <DocumentTextIcon className={cn(iconClass, 'text-orange-600')} />
+        );
       default:
-        return <LightBulbIcon className={cn(iconClass, "text-gray-600")} />;
+        return <LightBulbIcon className={cn(iconClass, 'text-foreground')} />;
     }
   };
 
   const getModalityIcon = (modality: string) => {
-    const iconClass = "h-4 w-4";
+    const iconClass = 'h-4 w-4';
     switch (modality) {
       case 'text':
-        return <DocumentTextIcon className={cn(iconClass, "text-blue-600")} />;
+        return <DocumentTextIcon className={cn(iconClass, 'text-blue-600')} />;
       case 'image':
-        return <PhotoIcon className={cn(iconClass, "text-green-600")} />;
+        return <PhotoIcon className={cn(iconClass, 'text-green-600')} />;
       case 'audio':
-        return <MusicalNoteIcon className={cn(iconClass, "text-purple-600")} />;
+        return <MusicalNoteIcon className={cn(iconClass, 'text-purple-600')} />;
       case 'video':
-        return <VideoCameraIcon className={cn(iconClass, "text-orange-600")} />;
+        return <VideoCameraIcon className={cn(iconClass, 'text-orange-600')} />;
       default:
-        return <DocumentTextIcon className={cn(iconClass, "text-gray-600")} />;
+        return (
+          <DocumentTextIcon className={cn(iconClass, 'text-foreground')} />
+        );
     }
   };
 
@@ -135,12 +148,16 @@ const IntentDetail: React.FC<IntentDetailProps> = ({ intent, isOpen, onClose }) 
         <div className="space-y-6">
           {/* Primary Intent */}
           <div>
-            <h3 className="text-lg font-semibold text-gray-900 mb-3">Primary Intent</h3>
+            <h3 className="text-lg font-semibold text-foreground mb-3">
+              Primary Intent
+            </h3>
             <div className="flex items-center space-x-3">
-              <Badge className={cn("text-sm", getIntentColor(intent.primary_intent))}>
+              <Badge
+                className={cn('text-sm', getIntentColor(intent.primary_intent))}
+              >
                 {intent.primary_intent.replace('_', ' ')}
               </Badge>
-              <span className="text-sm text-gray-600">
+              <span className="text-sm text-foreground">
                 Confidence: {Math.round(intent.confidence * 100)}%
               </span>
             </div>
@@ -148,30 +165,40 @@ const IntentDetail: React.FC<IntentDetailProps> = ({ intent, isOpen, onClose }) 
 
           {/* Query Characteristics */}
           <div>
-            <h3 className="text-lg font-semibold text-gray-900 mb-3">Query Characteristics</h3>
+            <h3 className="text-lg font-semibold text-foreground mb-3">
+              Query Characteristics
+            </h3>
             <div className="grid grid-cols-2 gap-4">
               <div className="flex items-center space-x-2">
-                <span className="text-sm font-medium text-gray-700">Complexity:</span>
+                <span className="text-sm font-medium text-foreground">
+                  Complexity:
+                </span>
                 <Badge className={getComplexityColor(intent.complexity)}>
                   {intent.complexity}
                 </Badge>
               </div>
               <div className="flex items-center space-x-2">
-                <span className="text-sm font-medium text-gray-700">Temporal:</span>
+                <span className="text-sm font-medium text-foreground">
+                  Temporal:
+                </span>
                 <Badge className={getTemporalColor(intent.temporal_aspect)}>
                   {intent.temporal_aspect}
                 </Badge>
               </div>
               <div className="flex items-center space-x-2">
-                <span className="text-sm font-medium text-gray-700">Domain:</span>
+                <span className="text-sm font-medium text-foreground">
+                  Domain:
+                </span>
                 <Badge className={getDomainColor(intent.domain_specificity)}>
                   {intent.domain_specificity.replace('_', ' ')}
                 </Badge>
               </div>
               {intent.question_type && (
                 <div className="flex items-center space-x-2">
-                  <span className="text-sm font-medium text-gray-700">Question Type:</span>
-                  <Badge className="bg-gray-100 text-gray-800">
+                  <span className="text-sm font-medium text-foreground">
+                    Question Type:
+                  </span>
+                  <Badge className="bg-gray-100 text-foreground">
                     {intent.question_type.replace('_', ' ')}
                   </Badge>
                 </div>
@@ -181,12 +208,17 @@ const IntentDetail: React.FC<IntentDetailProps> = ({ intent, isOpen, onClose }) 
 
           {/* Modality Preferences */}
           <div>
-            <h3 className="text-lg font-semibold text-gray-900 mb-3">Modality Preferences</h3>
+            <h3 className="text-lg font-semibold text-foreground mb-3">
+              Modality Preferences
+            </h3>
             <div className="flex flex-wrap gap-2">
               {intent.modality_preference.map((modality) => (
-                <div key={modality} className="flex items-center space-x-1 bg-gray-100 rounded-full px-3 py-1">
+                <div
+                  key={modality}
+                  className="flex items-center space-x-1 bg-gray-100 rounded-full px-3 py-1"
+                >
                   {getModalityIcon(modality)}
-                  <span className="text-sm font-medium text-gray-700 capitalize">
+                  <span className="text-sm font-medium text-foreground capitalize">
                     {modality}
                   </span>
                 </div>
@@ -197,18 +229,27 @@ const IntentDetail: React.FC<IntentDetailProps> = ({ intent, isOpen, onClose }) 
           {/* Detected Entities */}
           {intent.entities.length > 0 && (
             <div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-3">Detected Entities ({intent.entities.length})</h3>
+              <h3 className="text-lg font-semibold text-foreground mb-3">
+                Detected Entities ({intent.entities.length})
+              </h3>
               <div className="space-y-2">
                 {intent.entities.map((entity, index) => (
-                  <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                  <div
+                    key={index}
+                    className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
+                  >
                     <div className="flex items-center space-x-3">
                       {getEntityIcon(entity.type)}
                       <div>
-                        <span className="font-medium text-gray-900">{entity.name}</span>
-                        <span className="ml-2 text-sm text-gray-600 capitalize">{entity.type}</span>
+                        <span className="font-medium text-foreground">
+                          {entity.name}
+                        </span>
+                        <span className="ml-2 text-sm text-foreground capitalize">
+                          {entity.type}
+                        </span>
                       </div>
                     </div>
-                    <span className="text-sm text-gray-500">
+                    <span className="text-sm text-muted-foreground">
                       {Math.round(entity.confidence * 100)}%
                     </span>
                   </div>
@@ -220,11 +261,18 @@ const IntentDetail: React.FC<IntentDetailProps> = ({ intent, isOpen, onClose }) 
           {/* Keywords */}
           {intent.keywords.length > 0 && (
             <div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-3">Key Terms ({intent.keywords.length})</h3>
+              <h3 className="text-lg font-semibold text-foreground mb-3">
+                Key Terms ({intent.keywords.length})
+              </h3>
               <div className="flex flex-wrap gap-2">
                 {intent.keywords.map((keyword, index) => (
-                  <div key={index} className="flex items-center space-x-2 bg-blue-50 rounded-lg px-3 py-2">
-                    <span className="text-sm font-medium text-blue-900">{keyword.term}</span>
+                  <div
+                    key={index}
+                    className="flex items-center space-x-2 bg-blue-50 rounded-lg px-3 py-2"
+                  >
+                    <span className="text-sm font-medium text-blue-900">
+                      {keyword.term}
+                    </span>
                     <span className="text-xs text-blue-600">
                       {Math.round(keyword.importance * 100)}%
                     </span>
@@ -250,131 +298,244 @@ export const QueryIntentDetector: React.FC<QueryIntentDetectorProps> = ({
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [showDetailDialog, setShowDetailDialog] = useState(false);
 
-  const detectIntent = useCallback(async (queryText: string): Promise<QueryIntent> => {
-    // Simulate intent detection with rule-based logic
-    const lowerQuery = queryText.toLowerCase().trim();
+  const detectIntent = useCallback(
+    async (queryText: string): Promise<QueryIntent> => {
+      // Simulate intent detection with rule-based logic
+      const lowerQuery = queryText.toLowerCase().trim();
 
-    // Detect question type
-    let questionType: QueryIntent['question_type'] = undefined;
-    if (lowerQuery.startsWith('what ')) questionType = 'what';
-    else if (lowerQuery.startsWith('who ')) questionType = 'who';
-    else if (lowerQuery.startsWith('when ')) questionType = 'when';
-    else if (lowerQuery.startsWith('where ')) questionType = 'where';
-    else if (lowerQuery.startsWith('why ')) questionType = 'why';
-    else if (lowerQuery.startsWith('how ')) questionType = 'how';
-    else if (lowerQuery.startsWith('which ')) questionType = 'which';
-    else if (lowerQuery.match(/\b(is|are|do|does|can|will|should)\b/)) questionType = 'yes_no';
+      // Detect question type
+      let questionType: QueryIntent['question_type'] = undefined;
+      if (lowerQuery.startsWith('what ')) questionType = 'what';
+      else if (lowerQuery.startsWith('who ')) questionType = 'who';
+      else if (lowerQuery.startsWith('when ')) questionType = 'when';
+      else if (lowerQuery.startsWith('where ')) questionType = 'where';
+      else if (lowerQuery.startsWith('why ')) questionType = 'why';
+      else if (lowerQuery.startsWith('how ')) questionType = 'how';
+      else if (lowerQuery.startsWith('which ')) questionType = 'which';
+      else if (lowerQuery.match(/\b(is|are|do|does|can|will|should)\b/))
+        questionType = 'yes_no';
 
-    // Detect primary intent
-    let primaryIntent: QueryIntent['primary_intent'] = 'factual_lookup';
-    let confidence = 0.8;
+      // Detect primary intent
+      let primaryIntent: QueryIntent['primary_intent'] = 'factual_lookup';
+      let confidence = 0.8;
 
-    if (lowerQuery.includes('compare') || lowerQuery.includes('difference') || lowerQuery.includes('versus') || lowerQuery.includes('vs')) {
-      primaryIntent = 'comparison';
-      confidence = 0.9;
-    } else if (lowerQuery.includes('summarize') || lowerQuery.includes('summary') || lowerQuery.includes('overview') || lowerQuery.includes('recap')) {
-      primaryIntent = 'summarization';
-      confidence = 0.85;
-    } else if (lowerQuery.includes('why') || lowerQuery.includes('explain') || lowerQuery.includes('reason') || lowerQuery.includes('analyze')) {
-      primaryIntent = 'reasoning';
-      confidence = 0.8;
-    } else if (lowerQuery.includes('explore') || lowerQuery.includes('find') || lowerQuery.includes('search') || lowerQuery.includes('show me')) {
-      primaryIntent = 'exploration';
-      confidence = 0.75;
-    }
-
-    // Detect complexity
-    let complexity: QueryIntent['complexity'] = 'simple';
-    if (lowerQuery.split(' ').length > 15 || lowerQuery.includes('complex') || lowerQuery.includes('detailed')) {
-      complexity = 'complex';
-    } else if (lowerQuery.split(' ').length > 8 || lowerQuery.includes('because') || lowerQuery.includes('however')) {
-      complexity = 'moderate';
-    }
-
-    // Detect temporal aspect
-    let temporalAspect: QueryIntent['temporal_aspect'] = 'timeless';
-    if (lowerQuery.includes('current') || lowerQuery.includes('now') || lowerQuery.includes('today') || lowerQuery.includes('present')) {
-      temporalAspect = 'current';
-    } else if (lowerQuery.includes('past') || lowerQuery.includes('history') || lowerQuery.includes('previous') || lowerQuery.includes('before')) {
-      temporalAspect = 'historical';
-    } else if (lowerQuery.includes('future') || lowerQuery.includes('will') || lowerQuery.includes('predict') || lowerQuery.includes('upcoming')) {
-      temporalAspect = 'future';
-    }
-
-    // Detect domain specificity
-    let domainSpecificity: QueryIntent['domain_specificity'] = 'general';
-    const technicalTerms = ['algorithm', 'api', 'database', 'framework', 'protocol', 'architecture', 'system'];
-    const domainTerms = ['medical', 'legal', 'financial', 'scientific', 'engineering', 'academic'];
-
-    if (technicalTerms.some(term => lowerQuery.includes(term))) {
-      domainSpecificity = 'technical';
-      confidence += 0.05;
-    } else if (domainTerms.some(term => lowerQuery.includes(term))) {
-      domainSpecificity = 'domain_expert';
-      confidence += 0.1;
-    }
-
-    // Detect modality preferences
-    const modalityPreference: QueryIntent['modality_preference'] = ['text'];
-    if (lowerQuery.includes('image') || lowerQuery.includes('picture') || lowerQuery.includes('photo') || lowerQuery.includes('visual')) {
-      modalityPreference.push('image');
-    }
-    if (lowerQuery.includes('audio') || lowerQuery.includes('sound') || lowerQuery.includes('music') || lowerQuery.includes('podcast')) {
-      modalityPreference.push('audio');
-    }
-    if (lowerQuery.includes('video') || lowerQuery.includes('movie') || lowerQuery.includes('clip') || lowerQuery.includes('recording')) {
-      modalityPreference.push('video');
-    }
-
-    // Extract entities (simplified regex-based extraction)
-    const entities: QueryIntent['entities'] = [];
-
-    // Extract dates
-    const datePattern = /\b\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{2,4}\b|\b\d{4}\b/g;
-    const dateMatches = lowerQuery.match(datePattern);
-    const dates: string[] = dateMatches || [];
-    dates.forEach(date => {
-      entities.push({
-        name: date,
-        type: 'date',
-        confidence: 0.9
-      });
-    });
-
-    // Extract capitalized words (potential entities)
-    const capitalizedPattern = /\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*\b/g;
-    const capitalizedWords = queryText.match(capitalizedPattern) || [];
-    capitalizedWords.forEach(word => {
-      if (word.length > 2 && !dates.includes(word)) {
-        entities.push({
-          name: word,
-          type: word.includes(' ') ? 'organization' : 'person',
-          confidence: 0.7
-        });
+      if (
+        lowerQuery.includes('compare') ||
+        lowerQuery.includes('difference') ||
+        lowerQuery.includes('versus') ||
+        lowerQuery.includes('vs')
+      ) {
+        primaryIntent = 'comparison';
+        confidence = 0.9;
+      } else if (
+        lowerQuery.includes('summarize') ||
+        lowerQuery.includes('summary') ||
+        lowerQuery.includes('overview') ||
+        lowerQuery.includes('recap')
+      ) {
+        primaryIntent = 'summarization';
+        confidence = 0.85;
+      } else if (
+        lowerQuery.includes('why') ||
+        lowerQuery.includes('explain') ||
+        lowerQuery.includes('reason') ||
+        lowerQuery.includes('analyze')
+      ) {
+        primaryIntent = 'reasoning';
+        confidence = 0.8;
+      } else if (
+        lowerQuery.includes('explore') ||
+        lowerQuery.includes('find') ||
+        lowerQuery.includes('search') ||
+        lowerQuery.includes('show me')
+      ) {
+        primaryIntent = 'exploration';
+        confidence = 0.75;
       }
-    });
 
-    // Extract keywords and calculate importance
-    const stopWords = ['the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'is', 'are', 'was', 'were', 'be', 'been', 'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could', 'should'];
-    const words = lowerQuery.split(/\s+/).filter(word => word.length > 2 && !stopWords.includes(word));
+      // Detect complexity
+      let complexity: QueryIntent['complexity'] = 'simple';
+      if (
+        lowerQuery.split(' ').length > 15 ||
+        lowerQuery.includes('complex') ||
+        lowerQuery.includes('detailed')
+      ) {
+        complexity = 'complex';
+      } else if (
+        lowerQuery.split(' ').length > 8 ||
+        lowerQuery.includes('because') ||
+        lowerQuery.includes('however')
+      ) {
+        complexity = 'moderate';
+      }
 
-    const keywords: QueryIntent['keywords'] = words.slice(0, 10).map((word, index) => ({
-      term: word,
-      importance: Math.max(0.1, 1 - (index * 0.1))
-    }));
+      // Detect temporal aspect
+      let temporalAspect: QueryIntent['temporal_aspect'] = 'timeless';
+      if (
+        lowerQuery.includes('current') ||
+        lowerQuery.includes('now') ||
+        lowerQuery.includes('today') ||
+        lowerQuery.includes('present')
+      ) {
+        temporalAspect = 'current';
+      } else if (
+        lowerQuery.includes('past') ||
+        lowerQuery.includes('history') ||
+        lowerQuery.includes('previous') ||
+        lowerQuery.includes('before')
+      ) {
+        temporalAspect = 'historical';
+      } else if (
+        lowerQuery.includes('future') ||
+        lowerQuery.includes('will') ||
+        lowerQuery.includes('predict') ||
+        lowerQuery.includes('upcoming')
+      ) {
+        temporalAspect = 'future';
+      }
 
-    return {
-      primary_intent: primaryIntent,
-      confidence: Math.min(1, confidence),
-      entities: entities.slice(0, 5),
-      keywords: keywords,
-      complexity,
-      modality_preference: modalityPreference,
-      temporal_aspect: temporalAspect,
-      domain_specificity: domainSpecificity,
-      question_type: questionType
-    };
-  }, []);
+      // Detect domain specificity
+      let domainSpecificity: QueryIntent['domain_specificity'] = 'general';
+      const technicalTerms = [
+        'algorithm',
+        'api',
+        'database',
+        'framework',
+        'protocol',
+        'architecture',
+        'system',
+      ];
+      const domainTerms = [
+        'medical',
+        'legal',
+        'financial',
+        'scientific',
+        'engineering',
+        'academic',
+      ];
+
+      if (technicalTerms.some((term) => lowerQuery.includes(term))) {
+        domainSpecificity = 'technical';
+        confidence += 0.05;
+      } else if (domainTerms.some((term) => lowerQuery.includes(term))) {
+        domainSpecificity = 'domain_expert';
+        confidence += 0.1;
+      }
+
+      // Detect modality preferences
+      const modalityPreference: QueryIntent['modality_preference'] = ['text'];
+      if (
+        lowerQuery.includes('image') ||
+        lowerQuery.includes('picture') ||
+        lowerQuery.includes('photo') ||
+        lowerQuery.includes('visual')
+      ) {
+        modalityPreference.push('image');
+      }
+      if (
+        lowerQuery.includes('audio') ||
+        lowerQuery.includes('sound') ||
+        lowerQuery.includes('music') ||
+        lowerQuery.includes('podcast')
+      ) {
+        modalityPreference.push('audio');
+      }
+      if (
+        lowerQuery.includes('video') ||
+        lowerQuery.includes('movie') ||
+        lowerQuery.includes('clip') ||
+        lowerQuery.includes('recording')
+      ) {
+        modalityPreference.push('video');
+      }
+
+      // Extract entities (simplified regex-based extraction)
+      const entities: QueryIntent['entities'] = [];
+
+      // Extract dates
+      const datePattern =
+        /\b\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{2,4}\b|\b\d{4}\b/g;
+      const dateMatches = lowerQuery.match(datePattern);
+      const dates: string[] = dateMatches || [];
+      dates.forEach((date) => {
+        entities.push({
+          name: date,
+          type: 'date',
+          confidence: 0.9,
+        });
+      });
+
+      // Extract capitalized words (potential entities)
+      const capitalizedPattern = /\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*\b/g;
+      const capitalizedWords = queryText.match(capitalizedPattern) || [];
+      capitalizedWords.forEach((word) => {
+        if (word.length > 2 && !dates.includes(word)) {
+          entities.push({
+            name: word,
+            type: word.includes(' ') ? 'organization' : 'person',
+            confidence: 0.7,
+          });
+        }
+      });
+
+      // Extract keywords and calculate importance
+      const stopWords = [
+        'the',
+        'a',
+        'an',
+        'and',
+        'or',
+        'but',
+        'in',
+        'on',
+        'at',
+        'to',
+        'for',
+        'of',
+        'with',
+        'by',
+        'is',
+        'are',
+        'was',
+        'were',
+        'be',
+        'been',
+        'have',
+        'has',
+        'had',
+        'do',
+        'does',
+        'did',
+        'will',
+        'would',
+        'could',
+        'should',
+      ];
+      const words = lowerQuery
+        .split(/\s+/)
+        .filter((word) => word.length > 2 && !stopWords.includes(word));
+
+      const keywords: QueryIntent['keywords'] = words
+        .slice(0, 10)
+        .map((word, index) => ({
+          term: word,
+          importance: Math.max(0.1, 1 - index * 0.1),
+        }));
+
+      return {
+        primary_intent: primaryIntent,
+        confidence: Math.min(1, confidence),
+        entities: entities.slice(0, 5),
+        keywords: keywords,
+        complexity,
+        modality_preference: modalityPreference,
+        temporal_aspect: temporalAspect,
+        domain_specificity: domainSpecificity,
+        question_type: questionType,
+      };
+    },
+    []
+  );
 
   useEffect(() => {
     if (query && query.trim().length > 0) {
@@ -400,7 +561,9 @@ export const QueryIntentDetector: React.FC<QueryIntentDetectorProps> = ({
 
   const getIntentIcon = () => {
     if (isAnalyzing) {
-      return <div className="h-4 w-4 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />;
+      return (
+        <div className="h-4 w-4 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
+      );
     }
 
     switch (intent?.primary_intent) {
@@ -415,7 +578,7 @@ export const QueryIntentDetector: React.FC<QueryIntentDetectorProps> = ({
       case 'exploration':
         return <SparklesIcon className="h-4 w-4 text-indigo-600" />;
       default:
-        return <DocumentTextIcon className="h-4 w-4 text-gray-600" />;
+        return <DocumentTextIcon className="h-4 w-4 text-foreground" />;
     }
   };
 
@@ -432,7 +595,7 @@ export const QueryIntentDetector: React.FC<QueryIntentDetectorProps> = ({
       case 'exploration':
         return 'text-indigo-600';
       default:
-        return 'text-gray-600';
+        return 'text-foreground';
     }
   };
 
@@ -441,19 +604,30 @@ export const QueryIntentDetector: React.FC<QueryIntentDetectorProps> = ({
   }
 
   return (
-    <div className={cn("space-y-3", className)}>
+    <div className={cn('space-y-3', className)}>
       {/* Intent Summary */}
       <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
         <div className="flex items-center space-x-3">
           {getIntentIcon()}
           <div>
             <div className="flex items-center space-x-2">
-              <span className="text-sm font-medium text-gray-900">Intent:</span>
-              <span className={cn("text-sm font-semibold", getIntentColor(intent?.primary_intent))}>
-                {intent ? intent.primary_intent.replace('_', ' ') : (isAnalyzing ? 'Analyzing...' : 'Unknown')}
+              <span className="text-sm font-medium text-foreground">
+                Intent:
+              </span>
+              <span
+                className={cn(
+                  'text-sm font-semibold',
+                  getIntentColor(intent?.primary_intent)
+                )}
+              >
+                {intent
+                  ? intent.primary_intent.replace('_', ' ')
+                  : isAnalyzing
+                    ? 'Analyzing...'
+                    : 'Unknown'}
               </span>
               {intent && (
-                <span className="text-xs text-gray-500">
+                <span className="text-xs text-muted-foreground">
                   ({Math.round(intent.confidence * 100)}% confidence)
                 </span>
               )}
@@ -491,19 +665,27 @@ export const QueryIntentDetector: React.FC<QueryIntentDetectorProps> = ({
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
           <div className="flex items-center space-x-1 p-2 bg-blue-50 rounded">
             <DocumentTextIcon className="h-3 w-3 text-blue-600" />
-            <span className="text-blue-800 font-medium">{intent.entities.length} entities</span>
+            <span className="text-blue-800 font-medium">
+              {intent.entities.length} entities
+            </span>
           </div>
           <div className="flex items-center space-x-1 p-2 bg-green-50 rounded">
             <SparklesIcon className="h-3 w-3 text-green-600" />
-            <span className="text-green-800 font-medium">{intent.keywords.length} keywords</span>
+            <span className="text-green-800 font-medium">
+              {intent.keywords.length} keywords
+            </span>
           </div>
           <div className="flex items-center space-x-1 p-2 bg-purple-50 rounded">
             <PhotoIcon className="h-3 w-3 text-purple-600" />
-            <span className="text-purple-800 font-medium">{intent.modality_preference.length} modalities</span>
+            <span className="text-purple-800 font-medium">
+              {intent.modality_preference.length} modalities
+            </span>
           </div>
           <div className="flex items-center space-x-1 p-2 bg-orange-50 rounded">
             <ClockIcon className="h-3 w-3 text-orange-600" />
-            <span className="text-orange-800 font-medium">{intent.question_type || 'statement'}</span>
+            <span className="text-orange-800 font-medium">
+              {intent.question_type || 'statement'}
+            </span>
           </div>
         </div>
       )}

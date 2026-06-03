@@ -335,11 +335,25 @@ export function useChatSession(): UseChatSessionReturn {
 
   // Initialize workspace and conversation from database
   useEffect(() => {
+    // Watchdog: a hung request (socket open, no response) leaves init awaiting
+    // forever and the UI stuck on "Initializing…". Surface a recoverable error
+    // if init has not settled in time. Cleared once init resolves or unmounts.
+    let settled = false;
+    const watchdog = setTimeout(() => {
+      if (settled) return;
+      setInitError(
+        'Connecting is taking longer than expected. Check your connection, then retry.'
+      );
+      setIsInitializing(false);
+    }, 15000);
+
     const initializeFromDb = async () => {
       if (!isAuthenticated) {
         console.log(
           '[Chat] Not authenticated, skipping database initialization'
         );
+        settled = true;
+        clearTimeout(watchdog);
         setIsInitializing(false);
         return;
       }
@@ -505,11 +519,22 @@ export function useChatSession(): UseChatSessionReturn {
           error instanceof Error ? error.message : 'Failed to load chat data'
         );
       } finally {
-        setIsInitializing(false);
+        // Init settled (success or handled error): stand down the watchdog so a
+        // slow-but-successful load doesn't flip to the timeout error.
+        if (!settled) {
+          settled = true;
+          clearTimeout(watchdog);
+          setIsInitializing(false);
+        }
       }
     };
 
     initializeFromDb();
+
+    return () => {
+      settled = true;
+      clearTimeout(watchdog);
+    };
   }, [isAuthenticated, loadThreadsFromDb, mapDbMessageToUiMessage]);
 
   // Load messages when active conversation changes (lazy-load from API)

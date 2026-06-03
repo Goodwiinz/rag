@@ -75,7 +75,7 @@ export const CitationGraphControls: React.FC<CitationGraphControlsProps> = ({
           <button
             onClick={onRefresh}
             disabled={loading}
-            className="p-2 text-gray-500 hover:text-sol transition-colors disabled:opacity-50"
+            className="p-2 text-muted-foreground hover:text-sol transition-colors disabled:opacity-50"
             title="Refresh Graph"
             aria-label="Refresh citation graph"
           >
@@ -87,7 +87,7 @@ export const CitationGraphControls: React.FC<CitationGraphControlsProps> = ({
       <div className="space-y-4">
         {/* Year Range */}
         <div>
-          <label className="text-xs text-gray-500 font-mono uppercase tracking-wide block mb-2">
+          <label className="text-xs text-muted-foreground font-mono uppercase tracking-wide block mb-2">
             Year Range
           </label>
           <div className="flex items-center gap-2">
@@ -97,16 +97,16 @@ export const CitationGraphControls: React.FC<CitationGraphControlsProps> = ({
               onChange={handleYearMinChange}
               min={minYear}
               max={filters.yearRange[1]}
-              className="w-20 px-2 py-1.5 bg-[#1a1a1a] border border-[#333] rounded text-sm font-mono text-gray-300 focus:outline-none focus:border-sol"
+              className="w-20 px-2 py-1.5 bg-[#1a1a1a] border border-[#333] rounded text-sm font-mono text-muted-foreground focus:outline-none focus:border-sol"
             />
-            <span className="text-gray-500">—</span>
+            <span className="text-muted-foreground">—</span>
             <input
               type="number"
               value={filters.yearRange[1]}
               onChange={handleYearMaxChange}
               min={filters.yearRange[0]}
               max={maxYear}
-              className="w-20 px-2 py-1.5 bg-[#1a1a1a] border border-[#333] rounded text-sm font-mono text-gray-300 focus:outline-none focus:border-sol"
+              className="w-20 px-2 py-1.5 bg-[#1a1a1a] border border-[#333] rounded text-sm font-mono text-muted-foreground focus:outline-none focus:border-sol"
             />
           </div>
           <div className="mt-2">
@@ -123,7 +123,7 @@ export const CitationGraphControls: React.FC<CitationGraphControlsProps> = ({
 
         {/* Depth Selector */}
         <div>
-          <label className="text-xs text-gray-500 font-mono uppercase tracking-wide block mb-2">
+          <label className="text-xs text-muted-foreground font-mono uppercase tracking-wide block mb-2">
             Traversal Depth: <span className="text-sol">{filters.depth}</span>
           </label>
           <input
@@ -134,7 +134,7 @@ export const CitationGraphControls: React.FC<CitationGraphControlsProps> = ({
             onChange={handleDepthChange}
             className="w-full h-1 bg-[#333] rounded-lg appearance-none cursor-pointer accent-sol"
           />
-          <div className="flex justify-between text-xs text-gray-500 font-mono mt-1">
+          <div className="flex justify-between text-xs text-muted-foreground font-mono mt-1">
             <span>1</span>
             <span>2</span>
             <span>3</span>
@@ -147,7 +147,7 @@ export const CitationGraphControls: React.FC<CitationGraphControlsProps> = ({
         <div className="flex items-center justify-between">
           <label
             id="external-papers-label"
-            className="text-xs text-gray-500 font-mono uppercase tracking-wide"
+            className="text-xs text-muted-foreground font-mono uppercase tracking-wide"
           >
             Include External Papers
           </label>
@@ -175,7 +175,7 @@ export const CitationGraphControls: React.FC<CitationGraphControlsProps> = ({
 
         {/* Quick Filters */}
         <div>
-          <label className="text-xs text-gray-500 font-mono uppercase tracking-wide block mb-2">
+          <label className="text-xs text-muted-foreground font-mono uppercase tracking-wide block mb-2">
             Quick Filters
           </label>
           <div className="flex flex-wrap gap-2">

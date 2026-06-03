@@ -41,13 +41,16 @@ vi.mock('@statsig/react-bindings', () => ({
 
 describe('StatsigClientProvider lifecycle', () => {
   beforeEach(() => {
+    vi.resetModules();
     process.env.NEXT_PUBLIC_STATSIG_CLIENT_KEY = 'client-test-key';
     mockInitializeAsync.mockClear();
     mockUpdateUserAsync.mockClear();
     mockUseClientAsyncInit.mockClear();
   });
 
-  it('does not use Statsig async initialization during render', async () => {
+  it('does not initialize Statsig when the SDK key is missing', async () => {
+    delete process.env.NEXT_PUBLIC_STATSIG_CLIENT_KEY;
+
     const { StatsigClientProvider } =
       await import('../../../../app/statsig-provider');
 
@@ -59,5 +62,47 @@ describe('StatsigClientProvider lifecycle', () => {
 
     expect(screen.getByText('Application shell')).toBeInTheDocument();
     expect(mockUseClientAsyncInit).not.toHaveBeenCalled();
+  });
+
+  it('initializes Statsig after client mount when the SDK key is set', async () => {
+    const { StatsigClientProvider } =
+      await import('../../../../app/statsig-provider');
+
+    render(
+      <StatsigClientProvider>
+        <span>Application shell</span>
+      </StatsigClientProvider>
+    );
+
+    expect(screen.getByText('Application shell')).toBeInTheDocument();
+
+    await vi.waitFor(() => {
+      expect(mockUseClientAsyncInit).toHaveBeenCalledWith(
+        'client-test-key',
+        expect.objectContaining({ userID: 'anonymous' }),
+        expect.objectContaining({ plugins: expect.any(Array) })
+      );
+    });
+  });
+
+  it('trims whitespace from the SDK key before initializing', async () => {
+    process.env.NEXT_PUBLIC_STATSIG_CLIENT_KEY = '  client-test-key\n  ';
+
+    const { StatsigClientProvider } =
+      await import('../../../../app/statsig-provider');
+
+    render(
+      <StatsigClientProvider>
+        <span>Application shell</span>
+      </StatsigClientProvider>
+    );
+
+    await vi.waitFor(() => {
+      expect(mockUseClientAsyncInit).toHaveBeenCalledWith(
+        'client-test-key',
+        expect.any(Object),
+        expect.any(Object)
+      );
+    });
   });
 });

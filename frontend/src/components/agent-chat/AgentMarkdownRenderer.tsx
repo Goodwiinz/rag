@@ -9,7 +9,7 @@ const SyntaxHighlighter = dynamic(
   () => import('react-syntax-highlighter/dist/esm/prism').then((mod) => mod.default),
   {
     loading: () => (
-      <pre className="p-4 rounded bg-[var(--terminal-bg)] text-xs font-mono overflow-x-auto">
+      <pre className="p-4 rounded bg-[var(--nous-bg-1)] text-xs font-mono overflow-x-auto">
         <code>Loading...</code>
       </pre>
     ),

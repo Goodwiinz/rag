@@ -4,7 +4,13 @@
  */
 
 import React, { useState } from 'react';
-import { Search, Filter, X, ChevronDown, SlidersHorizontal } from 'lucide-react';
+import {
+  Search,
+  Filter,
+  X,
+  ChevronDown,
+  SlidersHorizontal,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { IconButtonSm } from '@/components/ui/icon-button';
 import { Input } from '@/components/ui/input';
@@ -73,7 +79,7 @@ const typeColors: Record<string, string> = {
   TECHNOLOGY: 'bg-cyan-400/20 text-cyan-400 border-cyan-400/30',
   DOCUMENT: 'bg-orange-400/20 text-orange-400 border-orange-400/30',
   TOPIC: 'bg-pink-400/20 text-pink-400 border-pink-400/30',
-  OTHER: 'bg-gray-400/20 text-gray-400 border-gray-400/30',
+  OTHER: 'bg-gray-400/20 text-muted-foreground border-border/30',
 };
 
 export const EntityFilters: React.FC<EntityFiltersProps> = ({
@@ -97,7 +103,7 @@ export const EntityFilters: React.FC<EntityFiltersProps> = ({
 
   // Special filter for null/unknown types
   const SPECIAL_FILTERS = [
-    { value: '__null__', label: 'Unknown Type', isSpecial: true }
+    { value: '__null__', label: 'Unknown Type', isSpecial: true },
   ];
 
   // Use available types from props or fall back to defaults
@@ -107,7 +113,7 @@ export const EntityFilters: React.FC<EntityFiltersProps> = ({
   const allFilterOptions = [...SPECIAL_FILTERS, ...entityTypes];
 
   // Filter types based on search query
-  const filteredTypes = allFilterOptions.filter(item => {
+  const filteredTypes = allFilterOptions.filter((item) => {
     const label = typeof item === 'string' ? item : item.label;
     return label.toLowerCase().includes(typeSearchQuery.toLowerCase());
   });
@@ -115,7 +121,11 @@ export const EntityFilters: React.FC<EntityFiltersProps> = ({
   // Calculate null type count (total entities - sum of known type counts)
   const nullTypeCount = typeCounts
     ? Object.keys(typeCounts).length > 0
-      ? Math.max(0, totalCount - Object.values(typeCounts).reduce((sum, count) => sum + count, 0))
+      ? Math.max(
+          0,
+          totalCount -
+            Object.values(typeCounts).reduce((sum, count) => sum + count, 0)
+        )
       : 0
     : 0;
 
@@ -151,12 +161,12 @@ export const EntityFilters: React.FC<EntityFiltersProps> = ({
       <div className="flex flex-col md:flex-row gap-3">
         {/* Search Input */}
         <div className="flex-1 relative group">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--terminal-text-dim)] group-focus-within:text-[var(--phosphor-green)] h-4 w-4 transition-colors" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--nous-fg-3)] group-focus-within:text-[var(--nous-sol)] h-4 w-4 transition-colors" />
           <Input
             placeholder="Search entities by name..."
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
-            className="pl-10 bg-[var(--terminal-bg)] border-[var(--terminal-border)] focus:border-[var(--phosphor-green)]/30 font-mono text-sm h-10"
+            className="pl-10 bg-[var(--nous-bg-1)] border-[var(--nous-border-1)] focus:border-[var(--nous-sol)]/30 font-mono text-sm h-10"
           />
           {searchQuery && (
             <IconButtonSm
@@ -164,7 +174,7 @@ export const EntityFilters: React.FC<EntityFiltersProps> = ({
               icon={<X className="h-3 w-3" />}
               label="Clear search"
               onClick={() => onSearchChange('')}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--terminal-text-dim)] hover:text-white hover:bg-transparent h-6 w-6"
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--nous-fg-3)] hover:text-white hover:bg-transparent h-6 w-6"
             />
           )}
         </div>
@@ -175,29 +185,29 @@ export const EntityFilters: React.FC<EntityFiltersProps> = ({
             <Button
               variant="outline"
               className={cn(
-                'w-48 justify-between font-mono text-xs border-[var(--terminal-border)] bg-[var(--terminal-bg)] h-10',
-                selectedTypes.length > 0 && 'border-[var(--phosphor-green)]/30'
+                'w-48 justify-between font-mono text-xs border-[var(--nous-border-1)] bg-[var(--nous-bg-1)] h-10',
+                selectedTypes.length > 0 && 'border-[var(--nous-sol)]/30'
               )}
             >
               <div className="flex items-center gap-2">
-                <Filter className="h-3.5 w-3.5 text-[var(--terminal-text-dim)]" />
+                <Filter className="h-3.5 w-3.5 text-[var(--nous-fg-3)]" />
                 <span>
                   {selectedTypes.length === 0
                     ? 'All Types'
                     : `${selectedTypes.length} Types`}
                 </span>
               </div>
-              <ChevronDown className="h-3.5 w-3.5 text-[var(--terminal-text-dim)]" />
+              <ChevronDown className="h-3.5 w-3.5 text-[var(--nous-fg-3)]" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent
-            className="w-64 bg-[var(--terminal-surface)] border-[var(--terminal-border)]"
+            className="w-64 bg-[var(--nous-bg-2)] border-[var(--nous-border-1)]"
             align="start"
           >
-            <DropdownMenuLabel className="font-mono text-[10px] uppercase tracking-widest text-[var(--terminal-text-dim)]">
+            <DropdownMenuLabel className="font-mono text-[10px] uppercase tracking-widest text-[var(--nous-fg-3)]">
               Entity Types
             </DropdownMenuLabel>
-            <DropdownMenuSeparator className="bg-[var(--terminal-border)]" />
+            <DropdownMenuSeparator className="bg-[var(--nous-border-1)]" />
 
             {/* Search input for type filtering */}
             <div className="px-2 py-1.5">
@@ -205,36 +215,42 @@ export const EntityFilters: React.FC<EntityFiltersProps> = ({
                 placeholder="Search types..."
                 value={typeSearchQuery}
                 onChange={(e) => setTypeSearchQuery(e.target.value)}
-                className="h-8 font-mono text-xs bg-[var(--terminal-bg)] border-[var(--terminal-border)]"
+                className="h-8 font-mono text-xs bg-[var(--nous-bg-1)] border-[var(--nous-border-1)]"
               />
             </div>
 
-            <DropdownMenuSeparator className="bg-[var(--terminal-border)]" />
+            <DropdownMenuSeparator className="bg-[var(--nous-border-1)]" />
             <DropdownMenuCheckboxItem
               checked={selectedTypes.length === entityTypes.length}
               onCheckedChange={handleSelectAllTypes}
-              className="font-mono text-xs focus:bg-[var(--terminal-elevated)] focus:text-[var(--phosphor-green)]"
+              className="font-mono text-xs focus:bg-[var(--nous-bg-3)] focus:text-[var(--nous-sol)]"
             >
               Select All
             </DropdownMenuCheckboxItem>
-            <DropdownMenuSeparator className="bg-[var(--terminal-border)]" />
+            <DropdownMenuSeparator className="bg-[var(--nous-border-1)]" />
 
             {/* Scrollable type list */}
             <div className="max-h-64 overflow-y-auto">
               {filteredTypes.length === 0 ? (
-                <div className="px-3 py-2 text-xs text-[var(--terminal-text-dim)] font-mono">
+                <div className="px-3 py-2 text-xs text-[var(--nous-fg-3)] font-mono">
                   No types found
                 </div>
               ) : (
                 filteredTypes.map((item) => {
                   // Handle special filters (like null type)
-                  if (typeof item === 'object' && 'isSpecial' in item && item.isSpecial) {
+                  if (
+                    typeof item === 'object' &&
+                    'isSpecial' in item &&
+                    item.isSpecial
+                  ) {
                     return (
                       <DropdownMenuCheckboxItem
                         key={item.value}
                         checked={selectedTypes.includes(item.value as any)}
-                        onCheckedChange={() => handleTypeToggle(item.value as any)}
-                        className="font-mono text-xs focus:bg-[var(--terminal-elevated)] focus:text-[var(--amber)] bg-amber-400/10"
+                        onCheckedChange={() =>
+                          handleTypeToggle(item.value as any)
+                        }
+                        className="font-mono text-xs focus:bg-[var(--nous-bg-3)] focus:text-[var(--amber)] bg-amber-400/10"
                       >
                         <div className="flex items-center justify-between w-full">
                           <div className="flex items-center">
@@ -258,20 +274,21 @@ export const EntityFilters: React.FC<EntityFiltersProps> = ({
                       key={type}
                       checked={selectedTypes.includes(type)}
                       onCheckedChange={() => handleTypeToggle(type)}
-                      className="font-mono text-xs focus:bg-[var(--terminal-elevated)] focus:text-[var(--phosphor-green)]"
+                      className="font-mono text-xs focus:bg-[var(--nous-bg-3)] focus:text-[var(--nous-sol)]"
                     >
                       <div className="flex items-center justify-between w-full">
                         <div className="flex items-center">
                           <span
                             className={cn(
                               'inline-block w-2 h-2 rounded-full mr-2',
-                              typeColors[type]?.split(' ')[0] || 'bg-gray-400/20'
+                              typeColors[type]?.split(' ')[0] ||
+                                'bg-gray-400/20'
                             )}
                           />
                           {type}
                         </div>
                         {typeCounts && typeCounts[type] !== undefined && (
-                          <span className="text-[10px] text-[var(--terminal-text-dim)] ml-2">
+                          <span className="text-[10px] text-[var(--nous-fg-3)] ml-2">
                             ({typeCounts[type].toLocaleString()})
                           </span>
                         )}
@@ -290,26 +307,26 @@ export const EntityFilters: React.FC<EntityFiltersProps> = ({
             <Button
               variant="outline"
               className={cn(
-                'w-48 justify-between font-mono text-xs border-[var(--terminal-border)] bg-[var(--terminal-bg)] h-10',
+                'w-48 justify-between font-mono text-xs border-[var(--nous-border-1)] bg-[var(--nous-bg-1)] h-10',
                 (confidenceRange[0] > 0 || confidenceRange[1] < 100) &&
-                  'border-[var(--phosphor-green)]/30'
+                  'border-[var(--nous-sol)]/30'
               )}
             >
               <div className="flex items-center gap-2">
-                <SlidersHorizontal className="h-3.5 w-3.5 text-[var(--terminal-text-dim)]" />
+                <SlidersHorizontal className="h-3.5 w-3.5 text-[var(--nous-fg-3)]" />
                 <span>
                   {confidenceRange[0]}% - {confidenceRange[1]}%
                 </span>
               </div>
-              <ChevronDown className="h-3.5 w-3.5 text-[var(--terminal-text-dim)]" />
+              <ChevronDown className="h-3.5 w-3.5 text-[var(--nous-fg-3)]" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent
-            className="w-64 p-4 bg-[var(--terminal-surface)] border-[var(--terminal-border)]"
+            className="w-64 p-4 bg-[var(--nous-bg-2)] border-[var(--nous-border-1)]"
             align="start"
           >
             <div className="space-y-4">
-              <div className="font-mono text-[10px] uppercase tracking-widest text-[var(--terminal-text-dim)]">
+              <div className="font-mono text-[10px] uppercase tracking-widest text-[var(--nous-fg-3)]">
                 Confidence Range
               </div>
               <Slider
@@ -322,7 +339,7 @@ export const EntityFilters: React.FC<EntityFiltersProps> = ({
                 step={5}
                 className="w-full"
               />
-              <div className="flex justify-between text-xs font-mono text-[var(--terminal-text-muted)]">
+              <div className="flex justify-between text-xs font-mono text-[var(--nous-fg-3)]">
                 <span>{confidenceRange[0]}%</span>
                 <span>{confidenceRange[1]}%</span>
               </div>
@@ -356,49 +373,49 @@ export const EntityFilters: React.FC<EntityFiltersProps> = ({
             onSortChange(field, order);
           }}
         >
-          <SelectTrigger className="w-48 bg-[var(--terminal-bg)] border-[var(--terminal-border)] font-mono text-xs h-10">
+          <SelectTrigger className="w-48 bg-[var(--nous-bg-1)] border-[var(--nous-border-1)] font-mono text-xs h-10">
             <SelectValue placeholder="Sort by..." />
           </SelectTrigger>
-          <SelectContent className="bg-[var(--terminal-surface)] border-[var(--terminal-border)]">
+          <SelectContent className="bg-[var(--nous-bg-2)] border-[var(--nous-border-1)]">
             <SelectItem
               value="name-asc"
-              className="font-mono text-xs focus:bg-[var(--terminal-elevated)]"
+              className="font-mono text-xs focus:bg-[var(--nous-bg-3)]"
             >
               Name A-Z
             </SelectItem>
             <SelectItem
               value="name-desc"
-              className="font-mono text-xs focus:bg-[var(--terminal-elevated)]"
+              className="font-mono text-xs focus:bg-[var(--nous-bg-3)]"
             >
               Name Z-A
             </SelectItem>
             <SelectItem
               value="confidence-desc"
-              className="font-mono text-xs focus:bg-[var(--terminal-elevated)]"
+              className="font-mono text-xs focus:bg-[var(--nous-bg-3)]"
             >
               Confidence High-Low
             </SelectItem>
             <SelectItem
               value="confidence-asc"
-              className="font-mono text-xs focus:bg-[var(--terminal-elevated)]"
+              className="font-mono text-xs focus:bg-[var(--nous-bg-3)]"
             >
               Confidence Low-High
             </SelectItem>
             <SelectItem
               value="created_at-desc"
-              className="font-mono text-xs focus:bg-[var(--terminal-elevated)]"
+              className="font-mono text-xs focus:bg-[var(--nous-bg-3)]"
             >
               Newest First
             </SelectItem>
             <SelectItem
               value="created_at-asc"
-              className="font-mono text-xs focus:bg-[var(--terminal-elevated)]"
+              className="font-mono text-xs focus:bg-[var(--nous-bg-3)]"
             >
               Oldest First
             </SelectItem>
             <SelectItem
               value="type-asc"
-              className="font-mono text-xs focus:bg-[var(--terminal-elevated)]"
+              className="font-mono text-xs focus:bg-[var(--nous-bg-3)]"
             >
               Type A-Z
             </SelectItem>
@@ -406,7 +423,7 @@ export const EntityFilters: React.FC<EntityFiltersProps> = ({
         </Select>
 
         {/* Results Count */}
-        <div className="px-3 py-2 rounded-lg bg-[var(--terminal-bg)] border border-[var(--terminal-border)] text-[10px] font-mono text-[var(--terminal-text-dim)] uppercase font-bold shrink-0 flex items-center h-10">
+        <div className="px-3 py-2 rounded-lg bg-[var(--nous-bg-1)] border border-[var(--nous-border-1)] text-[10px] font-mono text-[var(--nous-fg-3)] uppercase font-bold shrink-0 flex items-center h-10">
           {filteredCount === totalCount
             ? `${totalCount} NODES`
             : `${filteredCount} / ${totalCount}`}
@@ -416,14 +433,14 @@ export const EntityFilters: React.FC<EntityFiltersProps> = ({
       {/* Active Filters Row */}
       {hasActiveFilters && (
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-[10px] font-mono text-[var(--terminal-text-muted)] uppercase">
+          <span className="text-[10px] font-mono text-[var(--nous-fg-3)] uppercase">
             Active:
           </span>
 
           {searchQuery && (
             <Badge
               variant="outline"
-              className="font-mono text-[10px] border-[var(--phosphor-green)]/30 text-[var(--phosphor-green)] bg-[var(--phosphor-green)]/5 gap-1"
+              className="font-mono text-[10px] border-[var(--nous-sol)]/30 text-[var(--nous-sol)] bg-[var(--nous-sol)]/5 gap-1"
             >
               Search: "{searchQuery}"
               <X
@@ -453,7 +470,7 @@ export const EntityFilters: React.FC<EntityFiltersProps> = ({
           {(confidenceRange[0] > 0 || confidenceRange[1] < 100) && (
             <Badge
               variant="outline"
-              className="font-mono text-[10px] border-[var(--cyan)]/30 text-[var(--cyan)] bg-[var(--cyan)]/5 gap-1"
+              className="font-mono text-[10px] border-[var(--nous-helios)]/30 text-[var(--nous-helios)] bg-[var(--nous-helios)]/5 gap-1"
             >
               Conf: {confidenceRange[0]}%-{confidenceRange[1]}%
               <X
@@ -467,7 +484,7 @@ export const EntityFilters: React.FC<EntityFiltersProps> = ({
             variant="ghost"
             size="sm"
             onClick={onClearFilters}
-            className="h-6 text-[10px] font-mono text-[var(--terminal-text-dim)] hover:text-red-400"
+            className="h-6 text-[10px] font-mono text-[var(--nous-fg-3)] hover:text-red-400"
           >
             Clear All
           </Button>

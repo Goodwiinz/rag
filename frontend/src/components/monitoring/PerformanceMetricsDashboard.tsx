@@ -7,7 +7,13 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
 import { useMonitoringStore } from '@/stores/monitoringStore';
@@ -18,7 +24,7 @@ import {
   ThroughputMetrics,
   ErrorRateMetrics,
   ResourceMetrics,
-  TimeRangePreset
+  TimeRangePreset,
 } from '@/types/monitoring';
 import {
   ClockIcon,
@@ -30,7 +36,7 @@ import {
   SignalIcon,
   ArrowPathIcon,
   ArrowTrendingUpIcon,
-  ArrowTrendingDownIcon
+  ArrowTrendingDownIcon,
 } from '@heroicons/react/24/outline';
 import {
   LineChart,
@@ -46,7 +52,7 @@ import {
   Bar,
   PieChart,
   Pie,
-  Cell
+  Cell,
 } from 'recharts';
 
 interface PerformanceMetricsDashboardProps {
@@ -57,150 +63,168 @@ interface PerformanceMetricsDashboardProps {
   onTimeRangeChange?: (range: TimeRangePreset) => void;
 }
 
-const PerformanceMetricsDashboard: React.FC<PerformanceMetricsDashboardProps> = ({
+const PerformanceMetricsDashboard: React.FC<
+  PerformanceMetricsDashboardProps
+> = ({
   className,
   timeRange = '24h',
   showDetails = true,
   refreshInterval = 30000,
-  onTimeRangeChange
+  onTimeRangeChange,
 }) => {
   // Store hooks
-  const performanceMetrics = useMonitoringStore((state) => state.performanceMetrics);
-  const performanceLoading = useMonitoringStore((state) => state.performanceLoading);
-  const performanceTimeRange = useMonitoringStore((state) => state.performanceTimeRange);
+  const performanceMetrics = useMonitoringStore(
+    (state) => state.performanceMetrics
+  );
+  const performanceLoading = useMonitoringStore(
+    (state) => state.performanceLoading
+  );
+  const performanceTimeRange = useMonitoringStore(
+    (state) => state.performanceTimeRange
+  );
   const setTimeRange = useMonitoringStore((state) => state.setTimeRange);
 
   // Local state
-  const [selectedTimeRange, setSelectedTimeRange] = useState<TimeRangePreset>(timeRange);
+  const [selectedTimeRange, setSelectedTimeRange] =
+    useState<TimeRangePreset>(timeRange);
   const [selectedMetric, setSelectedMetric] = useState('latency');
 
   // Mock performance data
-  const mockPerformanceData: PerformanceMetrics = useMemo(() => ({
-    latency: {
-      average_ms: 245,
-      p50_ms: 180,
-      p90_ms: 420,
-      p95_ms: 680,
-      p99_ms: 1200,
-      max_ms: 2500,
-      trend: {
-        direction: 'stable',
-        percentage: 2.5,
-        period: '24h',
-        is_significant: false
-      }
-    },
-    throughput: {
-      requests_per_second: 1250,
-      queries_per_minute: 45000,
-      peak_throughput: 2100,
-      trend: {
-        direction: 'up',
-        percentage: 8.3,
-        period: '24h',
-        is_significant: true
-      }
-    },
-    error_rates: {
-      total_errors: 47,
-      error_rate: 0.38,
-      errors_by_type: {
-        'timeout': 15,
-        'connection_failed': 12,
-        'rate_limit': 8,
-        'server_error': 7,
-        'validation_error': 5
+  const mockPerformanceData: PerformanceMetrics = useMemo(
+    () => ({
+      latency: {
+        average_ms: 245,
+        p50_ms: 180,
+        p90_ms: 420,
+        p95_ms: 680,
+        p99_ms: 1200,
+        max_ms: 2500,
+        trend: {
+          direction: 'stable',
+          percentage: 2.5,
+          period: '24h',
+          is_significant: false,
+        },
       },
-      errors_by_service: {
-        'api_gateway': 18,
-        'search_engine': 12,
-        'document_processor': 10,
-        'vector_database': 7
+      throughput: {
+        requests_per_second: 1250,
+        queries_per_minute: 45000,
+        peak_throughput: 2100,
+        trend: {
+          direction: 'up',
+          percentage: 8.3,
+          period: '24h',
+          is_significant: true,
+        },
       },
-      critical_errors: 3,
-      trend: {
-        direction: 'down',
-        percentage: -15.2,
-        period: '24h',
-        is_significant: true
-      }
-    },
-    resource_utilization: {
-      cpu: {
-        usage_percentage: 68,
-        cores_available: 16,
-        load_average: [2.1, 2.3, 2.0]
+      error_rates: {
+        total_errors: 47,
+        error_rate: 0.38,
+        errors_by_type: {
+          timeout: 15,
+          connection_failed: 12,
+          rate_limit: 8,
+          server_error: 7,
+          validation_error: 5,
+        },
+        errors_by_service: {
+          api_gateway: 18,
+          search_engine: 12,
+          document_processor: 10,
+          vector_database: 7,
+        },
+        critical_errors: 3,
+        trend: {
+          direction: 'down',
+          percentage: -15.2,
+          period: '24h',
+          is_significant: true,
+        },
       },
-      memory: {
-        used_percentage: 72,
-        used_gb: 11.5,
-        total_gb: 16,
-        available_gb: 4.5
+      resource_utilization: {
+        cpu: {
+          usage_percentage: 68,
+          cores_available: 16,
+          load_average: [2.1, 2.3, 2.0],
+        },
+        memory: {
+          used_percentage: 72,
+          used_gb: 11.5,
+          total_gb: 16,
+          available_gb: 4.5,
+        },
+        disk: {
+          used_percentage: 45,
+          used_gb: 225,
+          total_gb: 500,
+          read_iops: 1250,
+          write_iops: 890,
+        },
+        network: {
+          incoming_mbps: 45,
+          outgoing_mbps: 32,
+        },
       },
-      disk: {
-        used_percentage: 45,
-        used_gb: 225,
-        total_gb: 500,
-        read_iops: 1250,
-        write_iops: 890
+      cache_performance: {
+        hit_rate_percentage: 84,
+        miss_rate_percentage: 16,
+        eviction_rate: 2.1,
+        size_mb: 1024,
+        max_size_mb: 2048,
       },
-      network: {
-        incoming_mbps: 45,
-        outgoing_mbps: 32
-      }
-    },
-    cache_performance: {
-      hit_rate_percentage: 84,
-      miss_rate_percentage: 16,
-      eviction_rate: 2.1,
-      size_mb: 1024,
-      max_size_mb: 2048
-    },
-    database_performance: {
-      connection_pool: {
-        active_connections: 24,
-        idle_connections: 56,
-        max_connections: 100
+      database_performance: {
+        connection_pool: {
+          active_connections: 24,
+          idle_connections: 56,
+          max_connections: 100,
+        },
+        query_performance: {
+          average_query_time_ms: 125,
+          slow_queries_count: 8,
+          total_queries_count: 12500,
+        },
+        replication_lag_ms: 45,
       },
-      query_performance: {
-        average_query_time_ms: 125,
-        slow_queries_count: 8,
-        total_queries_count: 12500
-      },
-      replication_lag_ms: 45
-    },
-    timestamp: new Date().toISOString()
-  }), []);
+      timestamp: new Date().toISOString(),
+    }),
+    []
+  );
 
   // Mock time series data
   const mockTimeSeriesData = useMemo(() => {
     return Array.from({ length: 24 }, (_, i) => ({
-      time: new Date(Date.now() - (23 - i) * 60 * 60 * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      time: new Date(Date.now() - (23 - i) * 60 * 60 * 1000).toLocaleTimeString(
+        [],
+        { hour: '2-digit', minute: '2-digit' }
+      ),
       latency_p95: 600 + Math.random() * 200,
       latency_p99: 1000 + Math.random() * 400,
       throughput_rps: 1000 + Math.random() * 500,
       error_rate: Math.random() * 2,
       cpu_usage: 50 + Math.random() * 30,
-      memory_usage: 60 + Math.random() * 20
+      memory_usage: 60 + Math.random() * 20,
     }));
   }, []);
 
   // Mock latency distribution data
-  const latencyDistribution = useMemo(() => [
-    { range: '0-100ms', count: 1250, percentage: 35.2 },
-    { range: '100-250ms', count: 980, percentage: 27.6 },
-    { range: '250-500ms', count: 765, percentage: 21.5 },
-    { range: '500ms-1s', count: 420, percentage: 11.8 },
-    { range: '1s-2s', count: 95, percentage: 2.7 },
-    { range: '2s+', count: 40, percentage: 1.2 }
-  ], []);
+  const latencyDistribution = useMemo(
+    () => [
+      { range: '0-100ms', count: 1250, percentage: 35.2 },
+      { range: '100-250ms', count: 980, percentage: 27.6 },
+      { range: '250-500ms', count: 765, percentage: 21.5 },
+      { range: '500ms-1s', count: 420, percentage: 11.8 },
+      { range: '1s-2s', count: 95, percentage: 2.7 },
+      { range: '2s+', count: 40, percentage: 1.2 },
+    ],
+    []
+  );
 
   // Error type distribution for pie chart
   const errorTypeData = useMemo(() => {
     const errors = mockPerformanceData.error_rates.errors_by_type;
     return Object.entries(errors).map(([type, count]) => ({
       name: type.replace(/_/g, ' '),
-      value: count
+      value: count,
     }));
   }, [mockPerformanceData]);
 
@@ -228,19 +252,25 @@ const PerformanceMetricsDashboard: React.FC<PerformanceMetricsDashboardProps> = 
   };
 
   // Get status based on thresholds
-  const getLatencyStatus = (latency: number): 'success' | 'warning' | 'error' => {
+  const getLatencyStatus = (
+    latency: number
+  ): 'success' | 'warning' | 'error' => {
     if (latency < 500) return 'success';
     if (latency < 1000) return 'warning';
     return 'error';
   };
 
-  const getErrorRateStatus = (rate: number): 'success' | 'warning' | 'error' => {
+  const getErrorRateStatus = (
+    rate: number
+  ): 'success' | 'warning' | 'error' => {
     if (rate < 1) return 'success';
     if (rate < 5) return 'warning';
     return 'error';
   };
 
-  const getResourceStatus = (usage: number): 'success' | 'warning' | 'error' => {
+  const getResourceStatus = (
+    usage: number
+  ): 'success' | 'warning' | 'error' => {
     if (usage < 70) return 'success';
     if (usage < 90) return 'warning';
     return 'error';
@@ -251,13 +281,18 @@ const PerformanceMetricsDashboard: React.FC<PerformanceMetricsDashboardProps> = 
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900">Performance Metrics</h2>
-          <p className="text-gray-600 mt-1">
+          <h2 className="text-2xl font-bold text-foreground">
+            Performance Metrics
+          </h2>
+          <p className="text-foreground mt-1">
             System performance and resource utilization monitoring
           </p>
         </div>
         <div className="flex items-center space-x-3">
-          <Select value={selectedTimeRange} onValueChange={handleTimeRangeChange}>
+          <Select
+            value={selectedTimeRange}
+            onValueChange={handleTimeRangeChange}
+          >
             <SelectTrigger className="w-32">
               <SelectValue />
             </SelectTrigger>
@@ -313,7 +348,9 @@ const PerformanceMetricsDashboard: React.FC<PerformanceMetricsDashboardProps> = 
           title="CPU Usage"
           value={metrics.resource_utilization.cpu.usage_percentage}
           unit="%"
-          status={getResourceStatus(metrics.resource_utilization.cpu.usage_percentage)}
+          status={getResourceStatus(
+            metrics.resource_utilization.cpu.usage_percentage
+          )}
           description="Current CPU utilization"
           icon={<CpuChipIcon className="h-6 w-6" />}
           threshold={{ value: 80, type: 'lte' }}
@@ -545,13 +582,18 @@ const PerformanceMetricsDashboard: React.FC<PerformanceMetricsDashboardProps> = 
                         cx="50%"
                         cy="50%"
                         labelLine={false}
-                        label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                        label={({ name, percent }) =>
+                          `${name} ${(percent * 100).toFixed(0)}%`
+                        }
                         outerRadius={80}
                         fill="#8884d8"
                         dataKey="value"
                       >
                         {errorTypeData.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                          <Cell
+                            key={`cell-${index}`}
+                            fill={COLORS[index % COLORS.length]}
+                          />
                         ))}
                       </Pie>
                       <Tooltip />
@@ -572,23 +614,31 @@ const PerformanceMetricsDashboard: React.FC<PerformanceMetricsDashboardProps> = 
                 <div>
                   <h4 className="font-semibold mb-3">By Type</h4>
                   <div className="space-y-2">
-                    {Object.entries(metrics.error_rates.errors_by_type).map(([type, count]) => (
-                      <div key={type} className="flex justify-between">
-                        <span className="capitalize">{type.replace(/_/g, ' ')}</span>
-                        <span className="font-medium">{count}</span>
-                      </div>
-                    ))}
+                    {Object.entries(metrics.error_rates.errors_by_type).map(
+                      ([type, count]) => (
+                        <div key={type} className="flex justify-between">
+                          <span className="capitalize">
+                            {type.replace(/_/g, ' ')}
+                          </span>
+                          <span className="font-medium">{count}</span>
+                        </div>
+                      )
+                    )}
                   </div>
                 </div>
                 <div>
                   <h4 className="font-semibold mb-3">By Service</h4>
                   <div className="space-y-2">
-                    {Object.entries(metrics.error_rates.errors_by_service).map(([service, count]) => (
-                      <div key={service} className="flex justify-between">
-                        <span className="capitalize">{service.replace(/_/g, ' ')}</span>
-                        <span className="font-medium">{count}</span>
-                      </div>
-                    ))}
+                    {Object.entries(metrics.error_rates.errors_by_service).map(
+                      ([service, count]) => (
+                        <div key={service} className="flex justify-between">
+                          <span className="capitalize">
+                            {service.replace(/_/g, ' ')}
+                          </span>
+                          <span className="font-medium">{count}</span>
+                        </div>
+                      )
+                    )}
                   </div>
                 </div>
               </div>
@@ -603,7 +653,9 @@ const PerformanceMetricsDashboard: React.FC<PerformanceMetricsDashboardProps> = 
               title="CPU Usage"
               value={metrics.resource_utilization.cpu.usage_percentage}
               unit="%"
-              status={getResourceStatus(metrics.resource_utilization.cpu.usage_percentage)}
+              status={getResourceStatus(
+                metrics.resource_utilization.cpu.usage_percentage
+              )}
               icon={<CpuChipIcon className="h-6 w-6" />}
               threshold={{ value: 80, type: 'lte' }}
             />
@@ -611,7 +663,9 @@ const PerformanceMetricsDashboard: React.FC<PerformanceMetricsDashboardProps> = 
               title="Memory Usage"
               value={metrics.resource_utilization.memory.used_percentage}
               unit="%"
-              status={getResourceStatus(metrics.resource_utilization.memory.used_percentage)}
+              status={getResourceStatus(
+                metrics.resource_utilization.memory.used_percentage
+              )}
               icon={<CircleStackIcon className="h-6 w-6" />}
               threshold={{ value: 85, type: 'lte' }}
             />
@@ -619,7 +673,9 @@ const PerformanceMetricsDashboard: React.FC<PerformanceMetricsDashboardProps> = 
               title="Disk Usage"
               value={metrics.resource_utilization.disk.used_percentage}
               unit="%"
-              status={getResourceStatus(metrics.resource_utilization.disk.used_percentage)}
+              status={getResourceStatus(
+                metrics.resource_utilization.disk.used_percentage
+              )}
               icon={<ServerIcon className="h-6 w-6" />}
             />
             <MetricCard
@@ -678,21 +734,36 @@ const PerformanceMetricsDashboard: React.FC<PerformanceMetricsDashboardProps> = 
               <CardContent className="space-y-4">
                 <div className="flex justify-between items-center">
                   <span>Active Connections</span>
-                  <span className="font-semibold">{metrics.database_performance.connection_pool.active_connections}</span>
+                  <span className="font-semibold">
+                    {
+                      metrics.database_performance.connection_pool
+                        .active_connections
+                    }
+                  </span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span>Idle Connections</span>
-                  <span className="font-semibold">{metrics.database_performance.connection_pool.idle_connections}</span>
+                  <span className="font-semibold">
+                    {
+                      metrics.database_performance.connection_pool
+                        .idle_connections
+                    }
+                  </span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span>Max Connections</span>
-                  <span className="font-semibold">{metrics.database_performance.connection_pool.max_connections}</span>
+                  <span className="font-semibold">
+                    {
+                      metrics.database_performance.connection_pool
+                        .max_connections
+                    }
+                  </span>
                 </div>
                 <div className="w-full bg-gray-200 rounded-full h-2">
                   <div
                     className="bg-blue-600 h-2 rounded-full"
                     style={{
-                      width: `${(metrics.database_performance.connection_pool.active_connections / metrics.database_performance.connection_pool.max_connections) * 100}%`
+                      width: `${(metrics.database_performance.connection_pool.active_connections / metrics.database_performance.connection_pool.max_connections) * 100}%`,
                     }}
                   />
                 </div>
@@ -706,7 +777,10 @@ const PerformanceMetricsDashboard: React.FC<PerformanceMetricsDashboardProps> = 
               <CardContent className="space-y-4">
                 <MetricCard
                   title="Avg Query Time"
-                  value={metrics.database_performance.query_performance.average_query_time_ms}
+                  value={
+                    metrics.database_performance.query_performance
+                      .average_query_time_ms
+                  }
                   unit="ms"
                   icon={<ClockIcon className="h-5 w-5" />}
                   size="sm"
@@ -714,14 +788,20 @@ const PerformanceMetricsDashboard: React.FC<PerformanceMetricsDashboardProps> = 
                 />
                 <MetricCard
                   title="Slow Queries"
-                  value={metrics.database_performance.query_performance.slow_queries_count}
+                  value={
+                    metrics.database_performance.query_performance
+                      .slow_queries_count
+                  }
                   icon={<ExclamationTriangleIcon className="h-5 w-5" />}
                   size="sm"
                   variant="compact"
                 />
                 <MetricCard
                   title="Total Queries"
-                  value={metrics.database_performance.query_performance.total_queries_count}
+                  value={
+                    metrics.database_performance.query_performance
+                      .total_queries_count
+                  }
                   icon={<ChartBarIcon className="h-5 w-5" />}
                   size="sm"
                   variant="compact"

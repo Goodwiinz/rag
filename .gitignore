@@ -289,3 +289,14 @@ data/archives/
 
 # Trigger.dev
 .trigger
+
+# pnpm local store
+.pnpm-store/
+
+# Vercel
+.vercel/
+**/.vercel/
+
+# Local scratch artifacts
+picker-check.png
+picker-snapshot.txt

@@ -3,24 +3,17 @@
 import { useAuth } from '@/hooks/useAuth';
 import { cn } from '@/lib/utils';
 import { downloadStoredNousCliAuth } from '@/services/nousCliAuth';
-import { AnimatePresence, motion } from 'framer-motion';
-import { Lock, Mail, Terminal } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { Lock, Mail } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import React, { useEffect, useState } from 'react';
 
-const Activity = dynamic(
-  () => import('lucide-react').then((mod) => mod.Activity),
-  { ssr: false }
-);
 const ArrowRight = dynamic(
   () => import('lucide-react').then((mod) => mod.ArrowRight),
   { ssr: false }
 );
-const Cpu = dynamic(() => import('lucide-react').then((mod) => mod.Cpu), {
-  ssr: false,
-});
 const Database = dynamic(
   () => import('lucide-react').then((mod) => mod.Database),
   { ssr: false }
@@ -31,20 +24,6 @@ const Eye = dynamic(() => import('lucide-react').then((mod) => mod.Eye), {
 const EyeOff = dynamic(() => import('lucide-react').then((mod) => mod.EyeOff), {
   ssr: false,
 });
-const RefreshCw = dynamic(
-  () => import('lucide-react').then((mod) => mod.RefreshCw),
-  { ssr: false }
-);
-const Shield = dynamic(() => import('lucide-react').then((mod) => mod.Shield), {
-  ssr: false,
-});
-const Sparkles = dynamic(
-  () => import('lucide-react').then((mod) => mod.Sparkles),
-  { ssr: false }
-);
-const Zap = dynamic(() => import('lucide-react').then((mod) => mod.Zap), {
-  ssr: false,
-});
 
 interface LoginFormData {
   email: string;
@@ -52,15 +31,11 @@ interface LoginFormData {
   downloadCliAuth: boolean;
 }
 
-const SYSTEM_LOGS = [
-  'Initializing secure handshake...',
-  'Verifying biometric signatures...',
-  'Loading neural interface modules...',
-  'Establishing encrypted tunnel...',
-  'Syncing with distributed ledger...',
-  'Calibrating quantum sensors...',
-  'Optimizing bandwidth allocation...',
-  'Scanning for unauthorized nodes...',
+const CAPABILITIES = [
+  'Semantic search across your sources',
+  'Multimodal document understanding',
+  'Knowledge graph synthesis',
+  'Private by default, yours to control',
 ];
 
 function resolvePostLoginPath(rawNextPath: string | null): string {
@@ -116,15 +91,9 @@ function LoginPageContent(): React.JSX.Element | null {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [mounted, setMounted] = useState(false);
-  const [logIndex, setLogIndex] = useState(0);
+
   useEffect(() => {
     setMounted(true);
-    const interval = setInterval(() => {
-      setLogIndex((prev) => (prev + 1) % SYSTEM_LOGS.length);
-    }, 2000);
-    return () => {
-      clearInterval(interval);
-    };
   }, []);
 
   useEffect(() => {
@@ -163,61 +132,52 @@ function LoginPageContent(): React.JSX.Element | null {
     }));
   };
 
-  const features = React.useMemo(
-    () => [
-      { icon: Sparkles, text: 'Neural Semantic Search' },
-      { icon: Database, text: 'Multimodal Stream Processing' },
-      { icon: Zap, text: 'Knowledge Graph Synthesis' },
-      { icon: Shield, text: 'Zero-Trust Protocol' },
-    ],
-    []
+  const inputClass =
+    'w-full rounded-[var(--nous-radius-md)] border border-[var(--nous-border-1)] bg-[var(--nous-nyx)] py-3 text-sm text-[var(--nous-fg-1)] placeholder:text-[var(--nous-fg-3)] outline-none transition-colors focus-visible:border-[var(--nous-sol)] focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/40';
+
+  const Brand = (
+    <div className="flex items-center gap-3">
+      <div className="flex h-10 w-10 items-center justify-center rounded-[var(--nous-radius-md)] border border-[var(--nous-border-1)] bg-[var(--nous-obsidian)]">
+        <span
+          aria-hidden="true"
+          className="text-base font-semibold text-[var(--nous-sol)]"
+        >
+          N
+        </span>
+      </div>
+      <span className="text-lg font-semibold tracking-[0.04em] text-[var(--nous-fg-1)]">
+        NOUS
+      </span>
+    </div>
   );
 
-  // SSR-friendly skeleton to improve LCP - render static content while hydrating
+  // SSR-friendly skeleton to keep LCP stable while hydrating.
   if (!mounted) {
     return (
-      <div className="min-h-screen flex bg-[var(--terminal-bg)] font-sans">
-        {/* Left Panel - Static Branding (matches final layout) */}
-        <div className="hidden lg:flex lg:w-1/2 relative z-10 flex-col justify-center px-16 lg:px-24 border-r border-[var(--terminal-border)] bg-[var(--terminal-bg)]/30">
-          <div className="flex items-center gap-4 mb-16">
-            <div className="flex items-center justify-center w-16 h-16 rounded-2xl border border-[var(--phosphor-green)]/30 bg-[var(--terminal-elevated)]">
-              <Terminal className="w-8 h-8 text-[var(--phosphor-green)]" />
-            </div>
-            <div>
-              <h1 className="text-4xl font-mono font-bold text-[var(--terminal-text)] tracking-tighter">
-                NOUS
-              </h1>
-            </div>
-          </div>
-          <h2 className="text-6xl font-mono font-bold text-[var(--terminal-text)] leading-[0.9] mb-8 tracking-tight">
-            NEURAL DATA
-            <br />
-            <span className="text-[var(--phosphor-green)]">SYNTHESIS</span>
-          </h2>
-          <p className="text-sm font-mono text-[var(--terminal-text-muted)] max-w-md leading-relaxed uppercase tracking-wide border-l-2 border-[var(--phosphor-green)]/30 pl-4 py-2">
-            Transforming unstructured streams into actionable intelligence
-            protocols using advanced vector quantization.
+      <div className="flex min-h-screen bg-[var(--nous-nyx)] text-[var(--nous-fg-1)]">
+        <div className="hidden flex-col justify-center border-r border-[var(--nous-border-1)] px-16 lg:flex lg:w-1/2 lg:px-24">
+          <div className="mb-12">{Brand}</div>
+          <h1 className="mb-6 max-w-md text-4xl font-semibold leading-tight tracking-tight text-[var(--nous-fg-1)]">
+            Turn your sources into answers you can trust.
+          </h1>
+          <p
+            className="max-w-md text-base leading-relaxed text-[var(--nous-fg-2)]"
+            style={{ fontFamily: 'var(--nous-font-body)' }}
+          >
+            NOUS reads your documents the way a careful researcher would, and
+            shows its work.
           </p>
         </div>
-        {/* Right Panel - Loading Form */}
-        <div className="flex-1 flex items-center justify-center px-6 lg:px-8 relative z-10">
+        <div className="flex flex-1 items-center justify-center px-6 lg:px-8">
           <div className="w-full max-w-md">
-            <div className="rounded-2xl border border-[var(--terminal-border)] bg-[var(--terminal-surface)]/90 p-8">
-              <div className="text-center mb-8">
-                <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-[var(--terminal-elevated)] border border-[var(--terminal-border)] mb-4">
-                  <Lock className="w-5 h-5 text-[var(--phosphor-green)]" />
-                </div>
-                <h2 className="text-xl font-mono font-bold text-[var(--terminal-text)] uppercase tracking-[0.2em]">
-                  Access Protocol
-                </h2>
-                <p className="text-[10px] text-[var(--terminal-text-muted)] uppercase tracking-wider">
-                  Secure Connection Required
-                </p>
-              </div>
-              <div className="space-y-5 animate-pulse">
-                <div className="h-12 rounded-lg bg-[var(--terminal-bg)]" />
-                <div className="h-12 rounded-lg bg-[var(--terminal-bg)]" />
-                <div className="h-12 rounded-lg bg-[var(--phosphor-green)]/20" />
+            <div className="rounded-[var(--nous-radius-xl)] border border-[var(--nous-border-1)] bg-[var(--nous-obsidian)] p-8">
+              <h2 className="mb-6 text-xl font-semibold text-[var(--nous-fg-1)]">
+                Sign in
+              </h2>
+              <div className="space-y-5">
+                <div className="h-12 rounded-[var(--nous-radius-md)] bg-[var(--nous-nyx)]" />
+                <div className="h-12 rounded-[var(--nous-radius-md)] bg-[var(--nous-nyx)]" />
+                <div className="h-12 rounded-[var(--nous-radius-md)] bg-[var(--nous-sol)]/20" />
               </div>
             </div>
           </div>
@@ -227,214 +187,88 @@ function LoginPageContent(): React.JSX.Element | null {
   }
 
   return (
-    <div className="min-h-screen flex bg-[var(--terminal-bg)] relative overflow-hidden terminal-scanlines crt-flicker font-sans text-foreground selection:bg-[var(--phosphor-green)] selection:text-[var(--terminal-bg)]">
-      {/* Star Field & Noise */}
-      <div className="absolute inset-0 star-field opacity-60 pointer-events-none" />
-      <div className="absolute inset-0 noise-texture opacity-[0.03] pointer-events-none" />
-
-      {/* Ambient Orbs */}
-      <div className="absolute top-[-20%] left-[-10%] w-[60%] h-[60%] bg-[var(--phosphor-green)]/5 rounded-full blur-[150px] ambient-orb pointer-events-none mix-blend-screen" />
-      <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-[var(--amber-gold)]/5 rounded-full blur-[120px] ambient-orb-delayed pointer-events-none mix-blend-screen" />
-
-      {/* Dynamic Data Stream Background */}
-      <div className="absolute inset-0 opacity-[0.03] pointer-events-none overflow-hidden">
-        <div
-          className="absolute top-0 left-[20%] w-[1px] h-full bg-gradient-to-b from-transparent via-[var(--phosphor-green)] to-transparent data-flow-line"
-          style={{ animationDuration: '7s', animationDelay: '1s' }}
-        />
-        <div
-          className="absolute top-0 left-[50%] w-[1px] h-full bg-gradient-to-b from-transparent via-[var(--phosphor-green)] to-transparent data-flow-line"
-          style={{ animationDuration: '5s', animationDelay: '3s' }}
-        />
-        <div
-          className="absolute top-0 left-[80%] w-[1px] h-full bg-gradient-to-b from-transparent via-[var(--phosphor-green)] to-transparent data-flow-line"
-          style={{ animationDuration: '8s', animationDelay: '0s' }}
-        />
-      </div>
-
-      {/* Left Panel - Branding */}
-      <div className="hidden lg:flex lg:w-1/2 relative z-10 flex-col justify-center px-16 lg:px-24 border-r border-[var(--terminal-border)] bg-[var(--terminal-bg)]/30 backdrop-blur-[2px]">
-        {/* Animated Radar - Decorative */}
-        <div className="absolute right-[-100px] top-[20%] w-[300px] h-[300px] border border-[var(--phosphor-green)]/10 rounded-full flex items-center justify-center opacity-30 pointer-events-none">
-          <div className="w-[80%] h-[80%] border border-[var(--phosphor-green)]/10 rounded-full" />
-          <div className="w-[60%] h-[60%] border border-[var(--phosphor-green)]/10 rounded-full" />
-          <div className="absolute w-full h-1 bg-gradient-to-r from-transparent via-[var(--phosphor-green)]/20 to-transparent rotate-45 animate-spin-slow" />
-        </div>
-
+    <div className="flex min-h-screen bg-[var(--nous-nyx)] text-[var(--nous-fg-1)]">
+      {/* Left panel — editorial */}
+      <div className="hidden flex-col justify-center border-r border-[var(--nous-border-1)] px-16 lg:flex lg:w-1/2 lg:px-24">
         <motion.div
-          initial={{ opacity: 0, x: -20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.6 }}
-          className="relative z-20"
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
         >
-          <div className="flex items-center gap-4 mb-16">
-            <div className="relative group">
-              <div className="absolute inset-0 bg-[var(--phosphor-green)]/20 blur-xl rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-              <div className="relative flex items-center justify-center w-16 h-16 rounded-2xl border border-[var(--phosphor-green)]/30 bg-[var(--terminal-elevated)] shadow-[0_0_30px_rgba(212,160,57,0.1)] overflow-hidden">
-                <div className="absolute inset-0 bg-gradient-to-br from-[var(--phosphor-green)]/10 to-transparent" />
-                <Terminal className="w-8 h-8 text-[var(--phosphor-green)] relative z-10" />
-              </div>
-            </div>
-            <div>
-              <h1
-                className="text-4xl font-mono font-bold text-[var(--terminal-text)] tracking-tighter glitch-text"
-                data-text="NOUS"
-              >
-                NOUS
-              </h1>
-            </div>
-          </div>
+          <div className="mb-12">{Brand}</div>
 
-          <h2 className="text-6xl font-mono font-bold text-[var(--terminal-text)] leading-[0.9] mb-8 tracking-tight">
-            NEURAL DATA
-            <br />
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-[var(--phosphor-green)] via-[var(--amber-gold)] to-[var(--phosphor-green)] bg-[length:200%_auto]">
-              SYNTHESIS
-            </span>
-          </h2>
-          <p className="text-sm font-mono text-[var(--terminal-text-muted)] max-w-md mb-12 leading-relaxed uppercase tracking-wide border-l-2 border-[var(--phosphor-green)]/30 pl-4 py-2">
-            Transforming unstructured streams into actionable intelligence
-            protocols using advanced vector quantization.
+          <h1 className="mb-6 max-w-lg text-4xl font-semibold leading-tight tracking-tight text-[var(--nous-fg-1)]">
+            Turn your sources into answers you can trust.
+          </h1>
+          <p
+            className="mb-10 max-w-md text-base leading-relaxed text-[var(--nous-fg-2)]"
+            style={{ fontFamily: 'var(--nous-font-body)' }}
+          >
+            NOUS reads your documents the way a careful researcher would, and
+            shows its work. Sign in to pick up where you left off.
           </p>
 
-          <div className="grid grid-cols-2 gap-6">
-            {features.map((feature, i) => (
-              <motion.div
-                key={i}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.4 + i * 0.1 }}
-                className="flex items-center gap-3 group p-3 rounded-lg border border-transparent hover:border-[var(--terminal-border)] hover:bg-[var(--terminal-surface)] transition-all duration-300"
-              >
-                <div className="flex items-center justify-center w-8 h-8 rounded-md bg-[var(--terminal-elevated)] border border-[var(--terminal-border)] group-hover:border-[var(--phosphor-green)]/50 group-hover:shadow-[0_0_15px_rgba(212,160,57,0.15)] transition-all">
-                  <feature.icon className="w-4 h-4 text-[var(--phosphor-green)] group-hover:scale-110 transition-transform" />
-                </div>
-                <span className="text-[10px] font-mono font-bold text-[var(--terminal-text-dim)] uppercase tracking-widest group-hover:text-[var(--terminal-text)] transition-colors">
-                  {feature.text}
+          <ul className="space-y-3">
+            {CAPABILITIES.map((text, i) => (
+              <li key={i} className="flex items-center gap-3">
+                <span
+                  aria-hidden="true"
+                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[var(--nous-radius-sm)] border border-[var(--nous-border-1)] bg-[var(--nous-obsidian)]"
+                >
+                  <Database className="h-3.5 w-3.5 text-[var(--nous-sol)]" />
                 </span>
-              </motion.div>
+                <span className="text-sm text-[var(--nous-fg-2)]">{text}</span>
+              </li>
             ))}
-          </div>
-
-          {/* System Logs */}
-          <div className="mt-16 font-mono text-[9px] text-[var(--terminal-text-muted)] border-t border-[var(--terminal-border)] pt-4 opacity-70">
-            <div className="flex justify-between items-center mb-2">
-              <span className="uppercase tracking-wider">
-                System Activity Log
-              </span>
-              <span className="animate-pulse text-[var(--phosphor-green)]">
-                ● LIVE
-              </span>
-            </div>
-            <div className="space-y-1 h-16 overflow-hidden relative">
-              <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-[var(--terminal-bg)] z-10" />
-              <AnimatePresence mode="popLayout">
-                <motion.div
-                  key={logIndex}
-                  initial={{ opacity: 0, x: -10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  className="flex items-center gap-2"
-                >
-                  <span className="text-[var(--phosphor-green)] opacity-50">
-                    {'>'}
-                  </span>
-                  <span>{SYSTEM_LOGS[logIndex]}</span>
-                </motion.div>
-                <motion.div
-                  key={logIndex - 1}
-                  initial={{ opacity: 0.5 }}
-                  animate={{ opacity: 0.3, y: -15 }}
-                  className="flex items-center gap-2 absolute top-0 w-full"
-                >
-                  <span className="text-[var(--phosphor-green)] opacity-30">
-                    {'>'}
-                  </span>
-                  <span>
-                    {
-                      SYSTEM_LOGS[
-                        (logIndex - 1 + SYSTEM_LOGS.length) % SYSTEM_LOGS.length
-                      ]
-                    }
-                  </span>
-                </motion.div>
-              </AnimatePresence>
-            </div>
-          </div>
+          </ul>
         </motion.div>
       </div>
 
-      {/* Right Panel - Login Form */}
-      <div className="flex-1 flex items-center justify-center px-6 lg:px-8 relative z-10">
+      {/* Right panel — sign-in form */}
+      <div className="flex flex-1 items-center justify-center px-6 lg:px-8">
         <div className="w-full max-w-md">
           <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: 20 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            transition={{ duration: 0.5 }}
-            className="relative group"
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
           >
-            {/* Mobile Logo */}
-            <div className="lg:hidden flex items-center justify-center gap-4 mb-8">
-              <div className="flex items-center justify-center w-10 h-10 rounded-lg border border-[var(--phosphor-green)]/30 bg-[var(--phosphor-green)]/10">
-                <Terminal className="w-5 h-5 text-[var(--phosphor-green)]" />
-              </div>
-              <span className="text-xl font-mono font-bold text-[var(--terminal-text)]">
-                RAG_SYS
-              </span>
-            </div>
+            {/* Mobile brand */}
+            <div className="mb-8 flex justify-center lg:hidden">{Brand}</div>
 
-            {/* Holographic Form Container */}
-            <div className="rounded-2xl border border-[var(--terminal-border)] bg-[var(--terminal-surface)]/90 backdrop-blur-xl p-8 shadow-[0_20px_50px_rgba(0,0,0,0.5)] relative overflow-hidden">
-              {/* Decorative Elements */}
-              <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-bl from-[var(--phosphor-green)]/10 to-transparent pointer-events-none" />
-              <div className="absolute bottom-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-[var(--phosphor-green)]/20 to-transparent" />
-              <div className="scan-beam opacity-30" />
-
-              {/* Form Header */}
-              <div className="text-center mb-8 relative">
-                <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-[var(--terminal-elevated)] border border-[var(--terminal-border)] mb-4 shadow-inner">
-                  <Lock className="w-5 h-5 text-[var(--phosphor-green)]" />
-                </div>
-                <h2 className="text-xl font-mono font-bold text-[var(--terminal-text)] uppercase tracking-[0.2em] mb-1">
-                  Access Protocol
+            <div className="rounded-[var(--nous-radius-xl)] border border-[var(--nous-border-1)] bg-[var(--nous-obsidian)] p-8 shadow-[var(--nous-shadow-xl)]">
+              <div className="mb-6">
+                <h2 className="text-xl font-semibold text-[var(--nous-fg-1)]">
+                  Sign in
                 </h2>
-                <p className="text-[10px] text-[var(--terminal-text-muted)] uppercase tracking-wider">
-                  Secure Connection Required
+                <p className="mt-1 text-sm text-[var(--nous-fg-3)]">
+                  Welcome back to NOUS.
                 </p>
               </div>
 
-              {/* Form */}
-              <form onSubmit={handleSubmit} className="space-y-5 relative z-10">
+              <form onSubmit={handleSubmit} className="space-y-5">
                 {error && (
-                  <motion.div
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: 'auto' }}
-                    className="rounded-lg border border-red-500/30 bg-red-500/10 p-3 flex items-start gap-3"
+                  <div
+                    role="alert"
+                    className="rounded-[var(--nous-radius-md)] border border-[var(--nous-mars)]/40 bg-[var(--nous-mars)]/10 p-3"
                   >
-                    <Activity className="w-4 h-4 text-red-500 mt-0.5 shrink-0" />
-                    <div>
-                      <p className="text-[10px] font-mono text-red-400 font-bold uppercase tracking-tighter">
-                        Authentication Error
-                      </p>
-                      <p className="text-[11px] text-red-300/80">{error}</p>
-                    </div>
-                  </motion.div>
+                    <p className="text-sm text-[var(--nous-mars)]">{error}</p>
+                  </div>
                 )}
 
-                {/* Email Field */}
+                {/* Email */}
                 <div className="space-y-1.5">
                   <label
                     htmlFor="email"
-                    className="flex items-center justify-between text-[10px] font-mono text-[var(--terminal-text-dim)] uppercase tracking-[0.2em] font-bold pl-1"
+                    className="block text-sm font-medium text-[var(--nous-fg-2)]"
                   >
-                    <span>User Identifier</span>
-                    <span className="text-[var(--phosphor-green)] opacity-50 text-[8px]">
-                      {formData.email.length > 0 ? 'ACTIVE' : 'REQUIRED'}
-                    </span>
+                    Email
                   </label>
-                  <div className="relative group/input">
-                    <div className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none transition-colors group-focus-within/input:text-[var(--phosphor-green)]">
-                      <Mail className="w-4 h-4 text-[var(--terminal-text-muted)] group-focus-within/input:text-[var(--phosphor-green)] transition-colors" />
+                  <div className="relative">
+                    <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5">
+                      <Mail
+                        aria-hidden="true"
+                        className="h-4 w-4 text-[var(--nous-fg-3)]"
+                      />
                     </div>
                     <input
                       id="email"
@@ -444,33 +278,35 @@ function LoginPageContent(): React.JSX.Element | null {
                       required
                       value={formData.email}
                       onChange={handleChange}
-                      className="w-full pl-11 pr-4 py-3 rounded-lg bg-[var(--terminal-bg)] border border-[var(--terminal-border)] font-mono text-sm text-[var(--terminal-text)] placeholder:text-[var(--terminal-text-muted)]/30 focus:border-[var(--phosphor-green)]/50 focus:ring-1 focus:ring-[var(--phosphor-green)]/20 transition-all outline-none group-hover/input:border-[var(--terminal-border-glow)]"
-                      placeholder="UID@DOMAIN.COM"
+                      className={cn(inputClass, 'pl-11 pr-4')}
+                      placeholder="you@example.com"
                       autoComplete="email"
                     />
-                    <div className="absolute inset-0 rounded-lg bg-[var(--phosphor-green)]/5 opacity-0 group-focus-within/input:opacity-100 pointer-events-none transition-opacity duration-500" />
                   </div>
                 </div>
 
-                {/* Password Field */}
+                {/* Password */}
                 <div className="space-y-1.5">
-                  <div className="flex items-center justify-between pl-1">
+                  <div className="flex items-center justify-between">
                     <label
                       htmlFor="password"
-                      className="block text-[10px] font-mono text-[var(--terminal-text-dim)] uppercase tracking-[0.2em] font-bold"
+                      className="block text-sm font-medium text-[var(--nous-fg-2)]"
                     >
-                      Security Key
+                      Password
                     </label>
                     <Link
                       href="/forgot-password"
-                      className="text-[9px] text-[var(--terminal-text-muted)] hover:text-[var(--phosphor-green)] transition-colors"
+                      className="rounded-sm text-sm text-[var(--nous-sol)] underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/40"
                     >
-                      RECOVER_KEY?
+                      Forgot password?
                     </Link>
                   </div>
-                  <div className="relative group/input">
-                    <div className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none">
-                      <Lock className="w-4 h-4 text-[var(--terminal-text-muted)] group-focus-within/input:text-[var(--phosphor-green)] transition-colors" />
+                  <div className="relative">
+                    <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5">
+                      <Lock
+                        aria-hidden="true"
+                        className="h-4 w-4 text-[var(--nous-fg-3)]"
+                      />
                     </div>
                     <input
                       id="password"
@@ -480,94 +316,76 @@ function LoginPageContent(): React.JSX.Element | null {
                       required
                       value={formData.password}
                       onChange={handleChange}
-                      className="w-full pl-11 pr-12 py-3 rounded-lg bg-[var(--terminal-bg)] border border-[var(--terminal-border)] font-mono text-sm text-[var(--terminal-text)] placeholder:text-[var(--terminal-text-muted)]/30 focus:border-[var(--phosphor-green)]/50 focus:ring-1 focus:ring-[var(--phosphor-green)]/20 transition-all outline-none group-hover/input:border-[var(--terminal-border-glow)]"
-                      placeholder="••••••••••••"
+                      className={cn(inputClass, 'pl-11 pr-12')}
+                      placeholder="Your password"
                       autoComplete="current-password"
                     />
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
-                      className="absolute inset-y-0 right-0 flex items-center pr-3.5 text-[var(--terminal-text-muted)] hover:text-[var(--phosphor-green)] transition-colors"
+                      className="absolute inset-y-0 right-0 flex items-center rounded-sm pr-3.5 text-[var(--nous-fg-3)] transition-colors hover:text-[var(--nous-sol)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/40"
                       aria-label={
                         showPassword ? 'Hide password' : 'Show password'
                       }
                     >
                       {showPassword ? (
-                        <EyeOff className="w-4 h-4" />
+                        <EyeOff aria-hidden="true" className="h-4 w-4" />
                       ) : (
-                        <Eye className="w-4 h-4" />
+                        <Eye aria-hidden="true" className="h-4 w-4" />
                       )}
                     </button>
-                    <div className="absolute inset-0 rounded-lg bg-[var(--phosphor-green)]/5 opacity-0 group-focus-within/input:opacity-100 pointer-events-none transition-opacity duration-500" />
                   </div>
                 </div>
 
-                <div className="flex items-center justify-between rounded-lg border border-[var(--terminal-border)] bg-[var(--terminal-bg)]/60 px-3.5 py-3">
-                  <label
-                    htmlFor="downloadCliAuth"
-                    className="flex items-center gap-3 cursor-pointer"
-                  >
-                    <input
-                      id="downloadCliAuth"
-                      name="downloadCliAuth"
-                      type="checkbox"
-                      checked={formData.downloadCliAuth}
-                      onChange={handleChange}
-                      className="h-4 w-4 rounded border border-[var(--terminal-border)] bg-[var(--terminal-bg)] text-[var(--phosphor-green)] focus:ring-[var(--phosphor-green)]/30"
-                    />
-                    <span className="text-[10px] font-mono text-[var(--terminal-text-dim)] uppercase tracking-[0.18em]">
-                      Download NOUS CLI auth after sign in
+                {/* CLI auth export */}
+                <label
+                  htmlFor="downloadCliAuth"
+                  className="flex cursor-pointer items-start gap-3 rounded-[var(--nous-radius-md)] border border-[var(--nous-border-1)] bg-[var(--nous-nyx)] px-3.5 py-3"
+                >
+                  <input
+                    id="downloadCliAuth"
+                    name="downloadCliAuth"
+                    type="checkbox"
+                    checked={formData.downloadCliAuth}
+                    onChange={handleChange}
+                    className="mt-0.5 h-4 w-4 rounded border-[var(--nous-border-1)] bg-[var(--nous-nyx)] accent-[var(--nous-sol)] focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/40"
+                  />
+                  <span className="text-sm leading-snug text-[var(--nous-fg-2)]">
+                    Download NOUS CLI credentials after signing in
+                    <span className="mt-0.5 block text-xs text-[var(--nous-fg-3)]">
+                      Optional
                     </span>
-                  </label>
-                  <span className="text-[8px] font-mono text-[var(--terminal-text-muted)] uppercase tracking-[0.2em]">
-                    Optional
                   </span>
-                </div>
+                </label>
 
-                {/* Submit Button */}
-                <div className="pt-2">
-                  <button
-                    type="submit"
-                    data-testid="login-button"
-                    disabled={isSubmitting}
-                    className={cn(
-                      'group w-full flex items-center justify-center gap-3 py-3.5 px-4 rounded-lg font-mono text-xs font-bold uppercase tracking-[0.2em] relative overflow-hidden',
-                      'bg-[var(--phosphor-green)] text-[var(--terminal-bg)]',
-                      'hover:shadow-[0_0_20px_var(--phosphor-green-glow)] transform active:scale-[0.98]',
-                      'disabled:opacity-70 disabled:cursor-not-allowed transition-all duration-300'
-                    )}
-                  >
-                    <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300" />
-
-                    {isSubmitting ? (
-                      <>
-                        <RefreshCw className="w-4 h-4 animate-spin" />
-                        <span>Processing...</span>
-                      </>
-                    ) : (
-                      <>
-                        <span>Initiate Link</span>
-                        <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-                      </>
-                    )}
-                  </button>
-                </div>
+                {/* Submit */}
+                <button
+                  type="submit"
+                  data-testid="login-button"
+                  disabled={isSubmitting}
+                  className="group flex w-full items-center justify-center gap-2 rounded-[var(--nous-radius-md)] bg-[var(--nous-sol)] py-3 text-sm font-semibold text-[var(--nous-erebus)] transition-colors hover:bg-[var(--nous-helios)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--nous-obsidian)] disabled:cursor-not-allowed disabled:opacity-70"
+                >
+                  {isSubmitting ? (
+                    <span>Signing in…</span>
+                  ) : (
+                    <>
+                      <span>Sign in</span>
+                      <ArrowRight
+                        aria-hidden="true"
+                        className="h-4 w-4 transition-transform group-hover:translate-x-0.5"
+                      />
+                    </>
+                  )}
+                </button>
               </form>
 
-              {/* Footer Links */}
-              <div className="mt-8 flex items-center justify-between pt-6 border-t border-[var(--terminal-border)]">
-                <div className="flex items-center gap-2 text-[9px] text-[var(--terminal-text-dim)]">
-                  <Cpu className="w-3 h-3" />
-                  <span>SECURE_ENCLAVE_ACTIVE</span>
-                </div>
+              <div className="mt-6 border-t border-[var(--nous-border-1)] pt-5 text-center text-sm text-[var(--nous-fg-3)]">
+                New to NOUS?{' '}
                 <Link
                   href="/register"
-                  className="text-[10px] font-mono text-[var(--terminal-text-dim)] uppercase tracking-widest hover:text-[var(--phosphor-green)] transition-colors flex items-center gap-1 group"
+                  className="rounded-sm font-medium text-[var(--nous-sol)] underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/40"
                 >
-                  <span>New Node Registration</span>
-                  <span className="opacity-0 group-hover:opacity-100 transition-opacity">
-                    →
-                  </span>
+                  Create an account
                 </Link>
               </div>
             </div>

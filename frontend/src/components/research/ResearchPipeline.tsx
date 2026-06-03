@@ -103,7 +103,7 @@ export const ResearchPipeline: React.FC<ResearchPipelineProps> = ({
         <div className="flex justify-end mb-2">
           <button
             onClick={handleReset}
-            className="flex items-center gap-1.5 px-3 py-1 text-gray-500 hover:text-gray-300 font-mono text-xs transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1 text-muted-foreground hover:text-foreground font-mono text-xs transition-colors"
           >
             <RotateCcw className="h-3 w-3" />
             Reset Pipeline

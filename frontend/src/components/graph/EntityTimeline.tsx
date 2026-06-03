@@ -19,7 +19,13 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 
 interface EntityTimelineProps {
@@ -37,7 +43,11 @@ interface EntityTimelineProps {
 interface TimelineEvent {
   id: string;
   timestamp: string;
-  type: 'entity_created' | 'entity_mentioned' | 'relationship_formed' | 'document_added';
+  type:
+    | 'entity_created'
+    | 'entity_mentioned'
+    | 'relationship_formed'
+    | 'document_added';
   title: string;
   description: string;
   entityId?: string;
@@ -79,14 +89,16 @@ export const EntityTimeline: React.FC<EntityTimelineProps> = ({
 
   const [isPlaying, setIsPlaying] = useState(autoPlay);
   const [currentDateIndex, setCurrentDateIndex] = useState(0);
-  const [selectedEvent, setSelectedEvent] = useState<TimelineEvent | null>(null);
+  const [selectedEvent, setSelectedEvent] = useState<TimelineEvent | null>(
+    null
+  );
 
   // Generate timeline events from entities, relationships, and documents
   const timelineEvents = useMemo((): TimelineEvent[] => {
     const events: TimelineEvent[] = [];
 
     // Entity creation events
-    entities.forEach(entity => {
+    entities.forEach((entity) => {
       events.push({
         id: `entity-created-${entity.id}`,
         timestamp: entity.first_seen,
@@ -94,7 +106,12 @@ export const EntityTimeline: React.FC<EntityTimelineProps> = ({
         title: `Entity "${entity.name}" appeared`,
         description: `New ${entity.type} entity detected with ${entity.confidence * 100}% confidence`,
         entityId: entity.id,
-        importance: entity.confidence > 0.8 ? 'high' : entity.confidence > 0.6 ? 'medium' : 'low',
+        importance:
+          entity.confidence > 0.8
+            ? 'high'
+            : entity.confidence > 0.6
+              ? 'medium'
+              : 'low',
         metadata: {
           entityType: entity.type,
           confidence: entity.confidence,
@@ -104,9 +121,13 @@ export const EntityTimeline: React.FC<EntityTimelineProps> = ({
     });
 
     // Relationship formation events
-    relationships.forEach(relationship => {
-      const sourceEntity = entities.find(e => e.id === relationship.source_entity_id);
-      const targetEntity = entities.find(e => e.id === relationship.target_entity_id);
+    relationships.forEach((relationship) => {
+      const sourceEntity = entities.find(
+        (e) => e.id === relationship.source_entity_id
+      );
+      const targetEntity = entities.find(
+        (e) => e.id === relationship.target_entity_id
+      );
 
       events.push({
         id: `relationship-formed-${relationship.id}`,
@@ -115,7 +136,12 @@ export const EntityTimeline: React.FC<EntityTimelineProps> = ({
         title: `Relationship "${relationship.relationship_type}" formed`,
         description: `Connected ${sourceEntity?.name || 'Unknown'} and ${targetEntity?.name || 'Unknown'}`,
         relationshipId: relationship.id,
-        importance: relationship.confidence > 0.8 ? 'high' : relationship.confidence > 0.6 ? 'medium' : 'low',
+        importance:
+          relationship.confidence > 0.8
+            ? 'high'
+            : relationship.confidence > 0.6
+              ? 'medium'
+              : 'low',
         metadata: {
           sourceEntityId: relationship.source_entity_id,
           targetEntityId: relationship.target_entity_id,
@@ -127,7 +153,7 @@ export const EntityTimeline: React.FC<EntityTimelineProps> = ({
     });
 
     // Document addition events
-    documents.forEach(document => {
+    documents.forEach((document) => {
       events.push({
         id: `document-added-${document.id}`,
         timestamp: document.upload_timestamp,
@@ -145,7 +171,10 @@ export const EntityTimeline: React.FC<EntityTimelineProps> = ({
     });
 
     // Sort events by timestamp (newest first)
-    return events.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+    return events.sort(
+      (a, b) =>
+        new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+    );
   }, [entities, relationships, documents]);
 
   // Filter timeline events
@@ -154,14 +183,16 @@ export const EntityTimeline: React.FC<EntityTimelineProps> = ({
 
     // Filter by event types
     if (filters.eventTypes.length > 0) {
-      filtered = filtered.filter(event => filters.eventTypes.includes(event.type));
+      filtered = filtered.filter((event) =>
+        filters.eventTypes.includes(event.type)
+      );
     }
 
     // Filter by entity types
     if (filters.entityTypes.length > 0) {
-      filtered = filtered.filter(event => {
+      filtered = filtered.filter((event) => {
         if (event.entityId) {
-          const entity = entities.find(e => e.id === event.entityId);
+          const entity = entities.find((e) => e.id === event.entityId);
           return entity && filters.entityTypes.includes(entity.type);
         }
         return true; // Keep non-entity events
@@ -170,14 +201,16 @@ export const EntityTimeline: React.FC<EntityTimelineProps> = ({
 
     // Filter by importance
     if (filters.importance.length > 0) {
-      filtered = filtered.filter(event => filters.importance.includes(event.importance));
+      filtered = filtered.filter((event) =>
+        filters.importance.includes(event.importance)
+      );
     }
 
     // Filter by date range
     if (filters.dateRange) {
       const start = new Date(filters.dateRange.start);
       const end = new Date(filters.dateRange.end);
-      filtered = filtered.filter(event => {
+      filtered = filtered.filter((event) => {
         const eventDate = new Date(event.timestamp);
         return eventDate >= start && eventDate <= end;
       });
@@ -186,9 +219,10 @@ export const EntityTimeline: React.FC<EntityTimelineProps> = ({
     // Filter by search term
     if (filters.searchTerm) {
       const term = filters.searchTerm.toLowerCase();
-      filtered = filtered.filter(event =>
-        event.title.toLowerCase().includes(term) ||
-        event.description.toLowerCase().includes(term)
+      filtered = filtered.filter(
+        (event) =>
+          event.title.toLowerCase().includes(term) ||
+          event.description.toLowerCase().includes(term)
       );
     }
 
@@ -198,38 +232,40 @@ export const EntityTimeline: React.FC<EntityTimelineProps> = ({
   // Get unique dates for timeline navigation
   const uniqueDates = useMemo(() => {
     const dates = new Set<string>();
-    filteredEvents.forEach(event => {
+    filteredEvents.forEach((event) => {
       dates.add(new Date(event.timestamp).toDateString());
     });
-    return Array.from(dates).sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
+    return Array.from(dates).sort(
+      (a, b) => new Date(b).getTime() - new Date(a).getTime()
+    );
   }, [filteredEvents]);
 
   // Get events for current date
   const eventsForCurrentDate = useMemo(() => {
     if (currentDateIndex >= uniqueDates.length) return [];
     const currentDate = uniqueDates[currentDateIndex];
-    return filteredEvents.filter(event =>
-      new Date(event.timestamp).toDateString() === currentDate
+    return filteredEvents.filter(
+      (event) => new Date(event.timestamp).toDateString() === currentDate
     );
   }, [filteredEvents, uniqueDates, currentDateIndex]);
 
   // Update filters
   const updateFilters = useCallback((newFilters: Partial<TimelineFilter>) => {
-    setFilters(prev => ({ ...prev, ...newFilters }));
+    setFilters((prev) => ({ ...prev, ...newFilters }));
   }, []);
 
   // Play/pause animation
   const togglePlay = useCallback(() => {
-    setIsPlaying(prev => !prev);
+    setIsPlaying((prev) => !prev);
   }, []);
 
   // Navigate timeline
   const goToNextDate = useCallback(() => {
-    setCurrentDateIndex(prev => Math.max(0, prev - 1));
+    setCurrentDateIndex((prev) => Math.max(0, prev - 1));
   }, []);
 
   const goToPreviousDate = useCallback(() => {
-    setCurrentDateIndex(prev => Math.min(uniqueDates.length - 1, prev + 1));
+    setCurrentDateIndex((prev) => Math.min(uniqueDates.length - 1, prev + 1));
   }, [uniqueDates.length]);
 
   // Auto-play effect
@@ -237,7 +273,7 @@ export const EntityTimeline: React.FC<EntityTimelineProps> = ({
     if (!isPlaying) return;
 
     const interval = setInterval(() => {
-      setCurrentDateIndex(prev => {
+      setCurrentDateIndex((prev) => {
         if (prev >= uniqueDates.length - 1) {
           setIsPlaying(false);
           return 0; // Loop back to start
@@ -259,7 +295,7 @@ export const EntityTimeline: React.FC<EntityTimelineProps> = ({
       case 'document_added':
         return <DocumentTextIcon className="h-5 w-5 text-purple-500" />;
       default:
-        return <ClockIcon className="h-5 w-5 text-gray-500" />;
+        return <ClockIcon className="h-5 w-5 text-muted-foreground" />;
     }
   };
 
@@ -271,7 +307,7 @@ export const EntityTimeline: React.FC<EntityTimelineProps> = ({
       case 'medium':
         return 'border-yellow-200 bg-yellow-50';
       case 'low':
-        return 'border-gray-200 bg-gray-50';
+        return 'border-border bg-gray-50';
     }
   };
 
@@ -300,12 +336,12 @@ export const EntityTimeline: React.FC<EntityTimelineProps> = ({
       case 'medium':
         return 'bg-yellow-100 text-yellow-800';
       case 'low':
-        return 'bg-gray-100 text-gray-800';
+        return 'bg-gray-100 text-foreground';
     }
   };
 
   return (
-    <div className={cn("space-y-6", className)}>
+    <div className={cn('space-y-6', className)}>
       {/* Timeline Controls */}
       <Card>
         <CardHeader>
@@ -351,10 +387,12 @@ export const EntityTimeline: React.FC<EntityTimelineProps> = ({
           {uniqueDates.length > 0 && (
             <div className="mb-6">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-medium text-gray-700">
-                  {formatDate(uniqueDates[currentDateIndex] || new Date().toISOString())}
+                <span className="text-sm font-medium text-foreground">
+                  {formatDate(
+                    uniqueDates[currentDateIndex] || new Date().toISOString()
+                  )}
                 </span>
-                <span className="text-sm text-gray-500">
+                <span className="text-sm text-muted-foreground">
                   {currentDateIndex + 1} of {uniqueDates.length} dates
                 </span>
               </div>
@@ -369,7 +407,7 @@ export const EntityTimeline: React.FC<EntityTimelineProps> = ({
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             {/* Search */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-foreground mb-2">
                 <MagnifyingGlassIcon className="h-4 w-4 inline mr-1" />
                 Search Events
               </label>
@@ -378,17 +416,21 @@ export const EntityTimeline: React.FC<EntityTimelineProps> = ({
                 value={filters.searchTerm}
                 onChange={(e) => updateFilters({ searchTerm: e.target.value })}
                 placeholder="Search events..."
-                className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                className="w-full px-3 py-2 border border-border rounded-md text-sm"
               />
             </div>
 
             {/* Event Type Filter */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-foreground mb-2">
                 Event Types
               </label>
               <div className="space-y-1">
-                {['entity_created', 'relationship_formed', 'document_added'].map(type => (
+                {[
+                  'entity_created',
+                  'relationship_formed',
+                  'document_added',
+                ].map((type) => (
                   <label key={type} className="flex items-center">
                     <input
                       type="checkbox"
@@ -396,13 +438,15 @@ export const EntityTimeline: React.FC<EntityTimelineProps> = ({
                       onChange={(e) => {
                         const newTypes = e.target.checked
                           ? [...filters.eventTypes, type as any]
-                          : filters.eventTypes.filter(t => t !== type);
+                          : filters.eventTypes.filter((t) => t !== type);
                         updateFilters({ eventTypes: newTypes });
                       }}
-                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 mr-2"
+                      className="rounded border-border text-blue-600 focus:ring-blue-500 mr-2"
                     />
                     <span className="text-sm">
-                      {type.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                      {type
+                        .replace('_', ' ')
+                        .replace(/\b\w/g, (l) => l.toUpperCase())}
                     </span>
                   </label>
                 ))}
@@ -411,11 +455,18 @@ export const EntityTimeline: React.FC<EntityTimelineProps> = ({
 
             {/* Entity Type Filter */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-foreground mb-2">
                 Entity Types
               </label>
               <div className="space-y-1">
-                {['person', 'organization', 'location', 'concept', 'date', 'product'].map(type => (
+                {[
+                  'person',
+                  'organization',
+                  'location',
+                  'concept',
+                  'date',
+                  'product',
+                ].map((type) => (
                   <label key={type} className="flex items-center">
                     <input
                       type="checkbox"
@@ -423,10 +474,10 @@ export const EntityTimeline: React.FC<EntityTimelineProps> = ({
                       onChange={(e) => {
                         const newTypes = e.target.checked
                           ? [...filters.entityTypes, type as any]
-                          : filters.entityTypes.filter(t => t !== type);
+                          : filters.entityTypes.filter((t) => t !== type);
                         updateFilters({ entityTypes: newTypes });
                       }}
-                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 mr-2"
+                      className="rounded border-border text-blue-600 focus:ring-blue-500 mr-2"
                     />
                     <span className="text-sm capitalize">{type}</span>
                   </label>
@@ -436,11 +487,11 @@ export const EntityTimeline: React.FC<EntityTimelineProps> = ({
 
             {/* Importance Filter */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-foreground mb-2">
                 Importance
               </label>
               <div className="space-y-1">
-                {['high', 'medium', 'low'].map(importance => (
+                {['high', 'medium', 'low'].map((importance) => (
                   <label key={importance} className="flex items-center">
                     <input
                       type="checkbox"
@@ -448,10 +499,10 @@ export const EntityTimeline: React.FC<EntityTimelineProps> = ({
                       onChange={(e) => {
                         const newImportance = e.target.checked
                           ? [...filters.importance, importance as any]
-                          : filters.importance.filter(i => i !== importance);
+                          : filters.importance.filter((i) => i !== importance);
                         updateFilters({ importance: newImportance });
                       }}
-                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 mr-2"
+                      className="rounded border-border text-blue-600 focus:ring-blue-500 mr-2"
                     />
                     <span className="text-sm capitalize">{importance}</span>
                   </label>
@@ -462,19 +513,21 @@ export const EntityTimeline: React.FC<EntityTimelineProps> = ({
 
           {/* Filter Summary */}
           <div className="mt-4 flex items-center justify-between">
-            <div className="text-sm text-gray-600">
+            <div className="text-sm text-foreground">
               Showing {filteredEvents.length} of {timelineEvents.length} events
             </div>
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => setFilters({
-                eventTypes: [],
-                entityTypes: [],
-                dateRange: null,
-                importance: [],
-                searchTerm: '',
-              })}
+              onClick={() =>
+                setFilters({
+                  eventTypes: [],
+                  entityTypes: [],
+                  dateRange: null,
+                  importance: [],
+                  searchTerm: '',
+                })
+              }
             >
               <FunnelIcon className="h-4 w-4 mr-2" />
               Clear Filters
@@ -487,8 +540,10 @@ export const EntityTimeline: React.FC<EntityTimelineProps> = ({
       {uniqueDates.length === 0 ? (
         <Card>
           <CardContent className="text-center py-8">
-            <ClockIcon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-            <p className="text-gray-500">No events found in the current timeline.</p>
+            <ClockIcon className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+            <p className="text-muted-foreground">
+              No events found in the current timeline.
+            </p>
           </CardContent>
         </Card>
       ) : (
@@ -496,7 +551,9 @@ export const EntityTimeline: React.FC<EntityTimelineProps> = ({
           <CardHeader>
             <CardTitle className="flex items-center">
               <CalendarIcon className="h-5 w-5 mr-2" />
-              {formatDate(uniqueDates[currentDateIndex] || new Date().toISOString())}
+              {formatDate(
+                uniqueDates[currentDateIndex] || new Date().toISOString()
+              )}
               <Badge variant="outline" className="ml-3">
                 {eventsForCurrentDate.length} events
               </Badge>
@@ -508,9 +565,9 @@ export const EntityTimeline: React.FC<EntityTimelineProps> = ({
                 <div
                   key={event.id}
                   className={cn(
-                    "flex items-start space-x-4 p-4 rounded-lg border cursor-pointer hover:shadow-md transition-shadow",
+                    'flex items-start space-x-4 p-4 rounded-lg border cursor-pointer hover:shadow-md transition-shadow',
                     getEventColor(event.importance),
-                    selectedEvent?.id === event.id && "ring-2 ring-blue-500"
+                    selectedEvent?.id === event.id && 'ring-2 ring-blue-500'
                   )}
                   onClick={() => setSelectedEvent(event)}
                 >
@@ -522,20 +579,22 @@ export const EntityTimeline: React.FC<EntityTimelineProps> = ({
                   {/* Event Content */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between mb-2">
-                      <h4 className="text-sm font-medium text-gray-900">
+                      <h4 className="text-sm font-medium text-foreground">
                         {event.title}
                       </h4>
                       <div className="flex items-center space-x-2">
-                        <Badge className={getImportanceBadgeColor(event.importance)}>
+                        <Badge
+                          className={getImportanceBadgeColor(event.importance)}
+                        >
                           {event.importance}
                         </Badge>
-                        <span className="text-xs text-gray-500">
+                        <span className="text-xs text-muted-foreground">
                           {formatTime(event.timestamp)}
                         </span>
                       </div>
                     </div>
 
-                    <p className="text-sm text-gray-700 mb-2">
+                    <p className="text-sm text-foreground mb-2">
                       {event.description}
                     </p>
 
@@ -547,7 +606,9 @@ export const EntityTimeline: React.FC<EntityTimelineProps> = ({
                           size="sm"
                           onClick={(e) => {
                             e.stopPropagation();
-                            const entity = entities.find(ent => ent.id === event.entityId);
+                            const entity = entities.find(
+                              (ent) => ent.id === event.entityId
+                            );
                             if (entity) onEntityClick?.(entity);
                           }}
                         >
@@ -561,8 +622,11 @@ export const EntityTimeline: React.FC<EntityTimelineProps> = ({
                           size="sm"
                           onClick={(e) => {
                             e.stopPropagation();
-                            const relationship = relationships.find(rel => rel.id === event.relationshipId);
-                            if (relationship) onRelationshipClick?.(relationship);
+                            const relationship = relationships.find(
+                              (rel) => rel.id === event.relationshipId
+                            );
+                            if (relationship)
+                              onRelationshipClick?.(relationship);
                           }}
                         >
                           <EyeIcon className="h-4 w-4 mr-1" />
@@ -575,7 +639,9 @@ export const EntityTimeline: React.FC<EntityTimelineProps> = ({
                           size="sm"
                           onClick={(e) => {
                             e.stopPropagation();
-                            const document = documents.find(doc => doc.id === event.documentId);
+                            const document = documents.find(
+                              (doc) => doc.id === event.documentId
+                            );
                             if (document) onDocumentClick?.(document);
                           }}
                         >
@@ -586,17 +652,27 @@ export const EntityTimeline: React.FC<EntityTimelineProps> = ({
                     </div>
 
                     {/* Event Metadata */}
-                    {event.metadata && Object.keys(event.metadata).length > 0 && (
-                      <div className="mt-3 pt-3 border-t border-gray-200">
-                        <div className="flex flex-wrap gap-2">
-                          {Object.entries(event.metadata).map(([key, value]) => (
-                            <Badge key={key} variant="secondary" className="text-xs">
-                              {key}: {typeof value === 'object' ? JSON.stringify(value) : value}
-                            </Badge>
-                          ))}
+                    {event.metadata &&
+                      Object.keys(event.metadata).length > 0 && (
+                        <div className="mt-3 pt-3 border-t border-border">
+                          <div className="flex flex-wrap gap-2">
+                            {Object.entries(event.metadata).map(
+                              ([key, value]) => (
+                                <Badge
+                                  key={key}
+                                  variant="secondary"
+                                  className="text-xs"
+                                >
+                                  {key}:{' '}
+                                  {typeof value === 'object'
+                                    ? JSON.stringify(value)
+                                    : value}
+                                </Badge>
+                              )
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    )}
+                      )}
                   </div>
                 </div>
               ))}
@@ -604,8 +680,10 @@ export const EntityTimeline: React.FC<EntityTimelineProps> = ({
 
             {eventsForCurrentDate.length === 0 && (
               <div className="text-center py-8">
-                <CalendarIcon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                <p className="text-gray-500">No events found for this date.</p>
+                <CalendarIcon className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                <p className="text-muted-foreground">
+                  No events found for this date.
+                </p>
               </div>
             )}
           </CardContent>
@@ -630,18 +708,33 @@ export const EntityTimeline: React.FC<EntityTimelineProps> = ({
           <CardContent>
             <div className="space-y-4">
               <div>
-                <h4 className="font-medium text-gray-900 mb-2">{selectedEvent.title}</h4>
-                <p className="text-sm text-gray-700">{selectedEvent.description}</p>
+                <h4 className="font-medium text-foreground mb-2">
+                  {selectedEvent.title}
+                </h4>
+                <p className="text-sm text-foreground">
+                  {selectedEvent.description}
+                </p>
               </div>
 
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div>
-                  <span className="font-medium text-gray-700">Timestamp:</span>
-                  <div>{formatDate(selectedEvent.timestamp)} at {formatTime(selectedEvent.timestamp)}</div>
+                  <span className="font-medium text-foreground">
+                    Timestamp:
+                  </span>
+                  <div>
+                    {formatDate(selectedEvent.timestamp)} at{' '}
+                    {formatTime(selectedEvent.timestamp)}
+                  </div>
                 </div>
                 <div>
-                  <span className="font-medium text-gray-700">Importance:</span>
-                  <Badge className={getImportanceBadgeColor(selectedEvent.importance)}>
+                  <span className="font-medium text-foreground">
+                    Importance:
+                  </span>
+                  <Badge
+                    className={getImportanceBadgeColor(
+                      selectedEvent.importance
+                    )}
+                  >
                     {selectedEvent.importance}
                   </Badge>
                 </div>
@@ -649,13 +742,20 @@ export const EntityTimeline: React.FC<EntityTimelineProps> = ({
 
               {selectedEvent.metadata && (
                 <div>
-                  <h5 className="font-medium text-gray-900 mb-2">Metadata:</h5>
+                  <h5 className="font-medium text-foreground mb-2">
+                    Metadata:
+                  </h5>
                   <div className="bg-gray-50 rounded p-3 text-sm">
-                    {Object.entries(selectedEvent.metadata).map(([key, value]) => (
-                      <div key={key}>
-                        <span className="font-medium">{key}:</span> {typeof value === 'object' ? JSON.stringify(value) : value}
-                      </div>
-                    ))}
+                    {Object.entries(selectedEvent.metadata).map(
+                      ([key, value]) => (
+                        <div key={key}>
+                          <span className="font-medium">{key}:</span>{' '}
+                          {typeof value === 'object'
+                            ? JSON.stringify(value)
+                            : value}
+                        </div>
+                      )
+                    )}
                   </div>
                 </div>
               )}

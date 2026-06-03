@@ -23,7 +23,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
 import { Progress } from '@/components/ui/progress';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
 import {
   Table,
   TableBody,
@@ -89,12 +96,25 @@ interface AlertRule {
   id: string;
   name: string;
   description: string;
-  category: 'performance' | 'quality' | 'availability' | 'security' | 'business';
+  category:
+    | 'performance'
+    | 'quality'
+    | 'availability'
+    | 'security'
+    | 'business';
   severity: 'low' | 'medium' | 'high' | 'critical';
   isActive: boolean;
   condition: {
     metric: string;
-    operator: 'gt' | 'gte' | 'lt' | 'lte' | 'eq' | 'ne' | 'contains' | 'not_contains';
+    operator:
+      | 'gt'
+      | 'gte'
+      | 'lt'
+      | 'lte'
+      | 'eq'
+      | 'ne'
+      | 'contains'
+      | 'not_contains';
     threshold: number | string;
     duration?: number; // minutes
     aggregation?: 'avg' | 'min' | 'max' | 'sum' | 'count';
@@ -123,7 +143,11 @@ interface AlertRule {
     };
   };
   actions?: {
-    type: 'auto_remediation' | 'run_playbook' | 'scale_resources' | 'notify_on_call';
+    type:
+      | 'auto_remediation'
+      | 'run_playbook'
+      | 'scale_resources'
+      | 'notify_on_call';
     config: Record<string, any>;
   };
   metadata: {
@@ -212,7 +236,8 @@ const mockAlertRules: AlertRule[] = [
   {
     id: 'rule-001',
     name: 'High Response Latency',
-    description: 'Alert when average response latency exceeds 2000ms for 5 minutes',
+    description:
+      'Alert when average response latency exceeds 2000ms for 5 minutes',
     category: 'performance',
     severity: 'high',
     isActive: true,
@@ -235,8 +260,16 @@ const mockAlertRules: AlertRule[] = [
       escalationPolicy: {
         enabled: true,
         levels: [
-          { delay: 10, severity: 'high', additionalRecipients: ['manager@company.com'] },
-          { delay: 30, severity: 'critical', additionalRecipients: ['cto@company.com'] },
+          {
+            delay: 10,
+            severity: 'high',
+            additionalRecipients: ['manager@company.com'],
+          },
+          {
+            delay: 30,
+            severity: 'critical',
+            additionalRecipients: ['cto@company.com'],
+          },
         ],
       },
     },
@@ -298,12 +331,20 @@ const mockAlertRules: AlertRule[] = [
     filters: {},
     notifications: {
       channels: ['email', 'slack', 'sms', 'webhook'],
-      recipients: ['ops-team@company.com', 'on-call@company.com', 'emergency@company.com'],
+      recipients: [
+        'ops-team@company.com',
+        'on-call@company.com',
+        'emergency@company.com',
+      ],
       cooldownPeriod: 5,
       escalationPolicy: {
         enabled: true,
         levels: [
-          { delay: 5, severity: 'critical', additionalRecipients: ['cto@company.com'] },
+          {
+            delay: 5,
+            severity: 'critical',
+            additionalRecipients: ['cto@company.com'],
+          },
         ],
       },
     },
@@ -366,7 +407,8 @@ const mockAlerts: Alert[] = [
     status: 'firing',
     startedAt: '2025-10-17T11:30:00Z',
     duration: 45,
-    message: 'Average response latency is 2450ms, exceeding threshold of 2000ms',
+    message:
+      'Average response latency is 2450ms, exceeding threshold of 2000ms',
     details: {
       metric: 'response_latency',
       currentValue: 2450,
@@ -378,8 +420,18 @@ const mockAlerts: Alert[] = [
       incidentId: 'INC-2025-001',
     },
     notifications: [
-      { channel: 'email', recipient: 'ops-team@company.com', sentAt: '2025-10-17T11:30:30Z', status: 'sent' },
-      { channel: 'slack', recipient: '#ops-alerts', sentAt: '2025-10-17T11:30:35Z', status: 'sent' },
+      {
+        channel: 'email',
+        recipient: 'ops-team@company.com',
+        sentAt: '2025-10-17T11:30:30Z',
+        status: 'sent',
+      },
+      {
+        channel: 'slack',
+        recipient: '#ops-alerts',
+        sentAt: '2025-10-17T11:30:35Z',
+        status: 'sent',
+      },
     ],
   },
   {
@@ -403,7 +455,12 @@ const mockAlerts: Alert[] = [
       affectedEntities: ['rag-service'],
     },
     notifications: [
-      { channel: 'email', recipient: 'qa-team@company.com', sentAt: '2025-10-16T14:20:30Z', status: 'sent' },
+      {
+        channel: 'email',
+        recipient: 'qa-team@company.com',
+        sentAt: '2025-10-16T14:20:30Z',
+        status: 'sent',
+      },
     ],
   },
   {
@@ -427,9 +484,24 @@ const mockAlerts: Alert[] = [
       incidentId: 'INC-2025-002',
     },
     notifications: [
-      { channel: 'email', recipient: 'ops-team@company.com', sentAt: '2025-10-12T03:45:15Z', status: 'sent' },
-      { channel: 'sms', recipient: '+1234567890', sentAt: '2025-10-12T03:45:20Z', status: 'sent' },
-      { channel: 'webhook', recipient: 'incident-management', sentAt: '2025-10-12T03:45:25Z', status: 'sent' },
+      {
+        channel: 'email',
+        recipient: 'ops-team@company.com',
+        sentAt: '2025-10-12T03:45:15Z',
+        status: 'sent',
+      },
+      {
+        channel: 'sms',
+        recipient: '+1234567890',
+        sentAt: '2025-10-12T03:45:20Z',
+        status: 'sent',
+      },
+      {
+        channel: 'webhook',
+        recipient: 'incident-management',
+        sentAt: '2025-10-12T03:45:25Z',
+        status: 'sent',
+      },
     ],
     resolution: {
       method: 'auto',
@@ -439,13 +511,25 @@ const mockAlerts: Alert[] = [
 ];
 
 const generateMockDashboard = (timeRange: string): AlertDashboard => {
-  const hours = timeRange === '1h' ? 1 : timeRange === '6h' ? 6 : timeRange === '24h' ? 24 : timeRange === '7d' ? 168 : 720;
+  const hours =
+    timeRange === '1h'
+      ? 1
+      : timeRange === '6h'
+        ? 6
+        : timeRange === '24h'
+          ? 24
+          : timeRange === '7d'
+            ? 168
+            : 720;
   const now = new Date();
 
   const alertsByTime = Array.from({ length: Math.min(hours, 24) }, (_, i) => {
     const timestamp = new Date(now.getTime() - (hours - i) * 60 * 60 * 1000);
     return {
-      timestamp: timestamp.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+      timestamp: timestamp.toLocaleTimeString('en-US', {
+        hour: '2-digit',
+        minute: '2-digit',
+      }),
       critical: Math.floor(Math.random() * 3),
       high: Math.floor(Math.random() * 5),
       medium: Math.floor(Math.random() * 8),
@@ -457,10 +541,12 @@ const generateMockDashboard = (timeRange: string): AlertDashboard => {
     timeRange: timeRange as AlertDashboard['timeRange'],
     summary: {
       totalAlerts: mockAlerts.length + Math.floor(Math.random() * 20),
-      activeAlerts: mockAlerts.filter(a => a.status === 'firing').length,
-      resolvedAlerts: mockAlerts.filter(a => a.status === 'resolved').length,
+      activeAlerts: mockAlerts.filter((a) => a.status === 'firing').length,
+      resolvedAlerts: mockAlerts.filter((a) => a.status === 'resolved').length,
       suppressedAlerts: Math.floor(Math.random() * 3),
-      criticalAlerts: mockAlerts.filter(a => a.severity === 'critical' && a.status === 'firing').length,
+      criticalAlerts: mockAlerts.filter(
+        (a) => a.severity === 'critical' && a.status === 'firing'
+      ).length,
       mttr: 12.5,
     },
     trends: {
@@ -488,17 +574,57 @@ const generateMockDashboard = (timeRange: string): AlertDashboard => {
 };
 
 const availableMetrics = [
-  { id: 'response_latency', name: 'Response Latency', unit: 'ms', category: 'performance' },
+  {
+    id: 'response_latency',
+    name: 'Response Latency',
+    unit: 'ms',
+    category: 'performance',
+  },
   { id: 'error_rate', name: 'Error Rate', unit: '%', category: 'performance' },
-  { id: 'throughput', name: 'Throughput', unit: 'req/s', category: 'performance' },
-  { id: 'answer_relevancy', name: 'Answer Relevancy', unit: '%', category: 'quality' },
+  {
+    id: 'throughput',
+    name: 'Throughput',
+    unit: 'req/s',
+    category: 'performance',
+  },
+  {
+    id: 'answer_relevancy',
+    name: 'Answer Relevancy',
+    unit: '%',
+    category: 'quality',
+  },
   { id: 'faithfulness', name: 'Faithfulness', unit: '%', category: 'quality' },
-  { id: 'contextual_relevancy', name: 'Contextual Relevancy', unit: '%', category: 'quality' },
-  { id: 'system_health', name: 'System Health', unit: 'status', category: 'availability' },
-  { id: 'success_rate', name: 'Success Rate', unit: '%', category: 'availability' },
-  { id: 'cache_hit_rate', name: 'Cache Hit Rate', unit: '%', category: 'performance' },
+  {
+    id: 'contextual_relevancy',
+    name: 'Contextual Relevancy',
+    unit: '%',
+    category: 'quality',
+  },
+  {
+    id: 'system_health',
+    name: 'System Health',
+    unit: 'status',
+    category: 'availability',
+  },
+  {
+    id: 'success_rate',
+    name: 'Success Rate',
+    unit: '%',
+    category: 'availability',
+  },
+  {
+    id: 'cache_hit_rate',
+    name: 'Cache Hit Rate',
+    unit: '%',
+    category: 'performance',
+  },
   { id: 'cpu_usage', name: 'CPU Usage', unit: '%', category: 'performance' },
-  { id: 'memory_usage', name: 'Memory Usage', unit: '%', category: 'performance' },
+  {
+    id: 'memory_usage',
+    name: 'Memory Usage',
+    unit: '%',
+    category: 'performance',
+  },
   { id: 'disk_usage', name: 'Disk Usage', unit: '%', category: 'performance' },
 ];
 
@@ -520,7 +646,9 @@ const PerformanceAlertingSystem: React.FC<PerformanceAlertingSystemProps> = ({
 }) => {
   const [alertRules, setAlertRules] = useState<AlertRule[]>(mockAlertRules);
   const [alerts, setAlerts] = useState<Alert[]>(mockAlerts);
-  const [dashboard, setDashboard] = useState<AlertDashboard>(() => generateMockDashboard('24h'));
+  const [dashboard, setDashboard] = useState<AlertDashboard>(() =>
+    generateMockDashboard('24h')
+  );
   const [selectedRule, setSelectedRule] = useState<AlertRule | null>(null);
   const [selectedAlert, setSelectedAlert] = useState<Alert | null>(null);
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -538,11 +666,14 @@ const PerformanceAlertingSystem: React.FC<PerformanceAlertingSystemProps> = ({
 
   // Filter alerts
   const filteredAlerts = useMemo(() => {
-    return alerts.filter(alert => {
-      const matchesSearch = alert.ruleName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           alert.message.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesSeverity = filterSeverity === 'all' || alert.severity === filterSeverity;
-      const matchesStatus = filterStatus === 'all' || alert.status === filterStatus;
+    return alerts.filter((alert) => {
+      const matchesSearch =
+        alert.ruleName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        alert.message.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesSeverity =
+        filterSeverity === 'all' || alert.severity === filterSeverity;
+      const matchesStatus =
+        filterStatus === 'all' || alert.status === filterStatus;
       return matchesSearch && matchesSeverity && matchesStatus;
     });
   }, [alerts, searchTerm, filterSeverity, filterStatus]);
@@ -550,162 +681,203 @@ const PerformanceAlertingSystem: React.FC<PerformanceAlertingSystemProps> = ({
   // Get severity color
   const getSeverityColor = (severity: string) => {
     switch (severity) {
-      case 'critical': return 'bg-red-100 text-red-800 border-red-200';
-      case 'high': return 'bg-orange-100 text-orange-800 border-orange-200';
-      case 'medium': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
-      case 'low': return 'bg-blue-100 text-blue-800 border-blue-200';
-      default: return 'bg-gray-100 text-gray-800 border-gray-200';
+      case 'critical':
+        return 'bg-red-100 text-red-800 border-red-200';
+      case 'high':
+        return 'bg-orange-100 text-orange-800 border-orange-200';
+      case 'medium':
+        return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+      case 'low':
+        return 'bg-blue-100 text-blue-800 border-blue-200';
+      default:
+        return 'bg-gray-100 text-foreground border-border';
     }
   };
 
   // Get severity icon
   const getSeverityIcon = (severity: string) => {
     switch (severity) {
-      case 'critical': return <AlertCircle className="h-4 w-4" />;
-      case 'high': return <AlertTriangle className="h-4 w-4" />;
-      case 'medium': return <AlertTriangle className="h-4 w-4" />;
-      case 'low': return <Info className="h-4 w-4" />;
-      default: return <Bell className="h-4 w-4" />;
+      case 'critical':
+        return <AlertCircle className="h-4 w-4" />;
+      case 'high':
+        return <AlertTriangle className="h-4 w-4" />;
+      case 'medium':
+        return <AlertTriangle className="h-4 w-4" />;
+      case 'low':
+        return <Info className="h-4 w-4" />;
+      default:
+        return <Bell className="h-4 w-4" />;
     }
   };
 
   // Get status icon
   const getStatusIcon = (status: string) => {
     switch (status) {
-      case 'firing': return <XCircle className="h-4 w-4 text-red-500" />;
-      case 'resolved': return <CheckCircle className="h-4 w-4 text-green-500" />;
-      case 'acknowledged': return <Eye className="h-4 w-4 text-blue-500" />;
-      case 'suppressed': return <VolumeX className="h-4 w-4 text-gray-500" />;
-      default: return <Clock className="h-4 w-4 text-gray-500" />;
+      case 'firing':
+        return <XCircle className="h-4 w-4 text-red-500" />;
+      case 'resolved':
+        return <CheckCircle className="h-4 w-4 text-green-500" />;
+      case 'acknowledged':
+        return <Eye className="h-4 w-4 text-blue-500" />;
+      case 'suppressed':
+        return <VolumeX className="h-4 w-4 text-muted-foreground" />;
+      default:
+        return <Clock className="h-4 w-4 text-muted-foreground" />;
     }
   };
 
   // Get category icon
   const getCategoryIcon = (category: string) => {
     switch (category) {
-      case 'performance': return <Zap className="h-4 w-4" />;
-      case 'quality': return <Target className="h-4 w-4" />;
-      case 'availability': return <CheckCircle className="h-4 w-4" />;
-      case 'security': return <AlertTriangle className="h-4 w-4" />;
-      case 'business': return <TrendingUp className="h-4 w-4" />;
-      default: return <Activity className="h-4 w-4" />;
+      case 'performance':
+        return <Zap className="h-4 w-4" />;
+      case 'quality':
+        return <Target className="h-4 w-4" />;
+      case 'availability':
+        return <CheckCircle className="h-4 w-4" />;
+      case 'security':
+        return <AlertTriangle className="h-4 w-4" />;
+      case 'business':
+        return <TrendingUp className="h-4 w-4" />;
+      default:
+        return <Activity className="h-4 w-4" />;
     }
   };
 
   // Toggle rule status
   const toggleRuleStatus = useCallback((ruleId: string) => {
-    setAlertRules(prev => prev.map(rule =>
-      rule.id === ruleId
-        ? {
-            ...rule,
-            isActive: !rule.isActive,
-            metadata: { ...rule.metadata, updated: new Date().toISOString() }
-          }
-        : rule
-    ));
+    setAlertRules((prev) =>
+      prev.map((rule) =>
+        rule.id === ruleId
+          ? {
+              ...rule,
+              isActive: !rule.isActive,
+              metadata: { ...rule.metadata, updated: new Date().toISOString() },
+            }
+          : rule
+      )
+    );
   }, []);
 
   // Acknowledge alert
-  const acknowledgeAlert = useCallback((alertId: string) => {
-    setAlerts(prev => prev.map(alert =>
-      alert.id === alertId
-        ? {
-            ...alert,
-            status: 'acknowledged',
-            acknowledgedAt: new Date().toISOString(),
-            acknowledgedBy: 'current-user',
-          }
-        : alert
-    ));
-    onAlertAcknowledge?.(alertId);
-  }, [onAlertAcknowledge]);
+  const acknowledgeAlert = useCallback(
+    (alertId: string) => {
+      setAlerts((prev) =>
+        prev.map((alert) =>
+          alert.id === alertId
+            ? {
+                ...alert,
+                status: 'acknowledged',
+                acknowledgedAt: new Date().toISOString(),
+                acknowledgedBy: 'current-user',
+              }
+            : alert
+        )
+      );
+      onAlertAcknowledge?.(alertId);
+    },
+    [onAlertAcknowledge]
+  );
 
   // Resolve alert
-  const resolveAlert = useCallback((alertId: string, notes?: string) => {
-    setAlerts(prev => prev.map(alert =>
-      alert.id === alertId
-        ? {
-            ...alert,
-            status: 'resolved',
-            resolvedAt: new Date().toISOString(),
-            resolution: {
-              method: 'manual',
-              resolvedBy: 'current-user',
-              notes,
-            },
-          }
-        : alert
-    ));
-    onAlertResolve?.(alertId, notes);
-  }, [onAlertResolve]);
+  const resolveAlert = useCallback(
+    (alertId: string, notes?: string) => {
+      setAlerts((prev) =>
+        prev.map((alert) =>
+          alert.id === alertId
+            ? {
+                ...alert,
+                status: 'resolved',
+                resolvedAt: new Date().toISOString(),
+                resolution: {
+                  method: 'manual',
+                  resolvedBy: 'current-user',
+                  notes,
+                },
+              }
+            : alert
+        )
+      );
+      onAlertResolve?.(alertId, notes);
+    },
+    [onAlertResolve]
+  );
 
   // Delete rule
-  const handleDeleteRule = useCallback((ruleId: string) => {
-    setAlertRules(prev => prev.filter(r => r.id !== ruleId));
-    onAlertRuleDelete?.(ruleId);
-  }, [onAlertRuleDelete]);
+  const handleDeleteRule = useCallback(
+    (ruleId: string) => {
+      setAlertRules((prev) => prev.filter((r) => r.id !== ruleId));
+      onAlertRuleDelete?.(ruleId);
+    },
+    [onAlertRuleDelete]
+  );
 
   // Save rule
-  const handleSaveRule = useCallback((ruleData: Partial<AlertRule>) => {
-    if (editingRule) {
-      // Update existing rule
-      const updatedRule = {
-        ...editingRule,
-        ...ruleData,
-        metadata: {
-          ...editingRule.metadata,
-          ...ruleData.metadata,
-          updated: new Date().toISOString()
-        }
-      };
-      setAlertRules(prev => prev.map(r =>
-        r.id === editingRule.id
-          ? updatedRule
-          : r
-      ));
-      onAlertRuleUpdate?.(updatedRule);
-      setEditingRule(null);
-    } else {
-      // Create new rule
-      const newRule: AlertRule = {
-        id: `rule-${Date.now()}`,
-        name: ruleData.name || 'New Alert Rule',
-        description: ruleData.description || '',
-        category: ruleData.category || 'performance',
-        severity: ruleData.severity || 'medium',
-        isActive: ruleData.isActive ?? true,
-        condition: ruleData.condition || {
-          metric: 'response_latency',
-          operator: 'gt',
-          threshold: 2000,
-        },
-        filters: ruleData.filters || {},
-        notifications: ruleData.notifications || {
-          channels: ['email'],
-          recipients: [],
-          cooldownPeriod: 15,
-        },
-        metadata: {
-          created: new Date().toISOString(),
-          updated: new Date().toISOString(),
-          createdBy: 'current-user',
-          triggerCount: 0,
-          resolutionCount: 0,
-        },
-      };
-      setAlertRules(prev => [...prev, newRule]);
-      onAlertRuleCreate?.(newRule);
-    }
-    setIsCreateRuleDialogOpen(false);
-  }, [editingRule, onAlertRuleCreate]);
+  const handleSaveRule = useCallback(
+    (ruleData: Partial<AlertRule>) => {
+      if (editingRule) {
+        // Update existing rule
+        const updatedRule = {
+          ...editingRule,
+          ...ruleData,
+          metadata: {
+            ...editingRule.metadata,
+            ...ruleData.metadata,
+            updated: new Date().toISOString(),
+          },
+        };
+        setAlertRules((prev) =>
+          prev.map((r) => (r.id === editingRule.id ? updatedRule : r))
+        );
+        onAlertRuleUpdate?.(updatedRule);
+        setEditingRule(null);
+      } else {
+        // Create new rule
+        const newRule: AlertRule = {
+          id: `rule-${Date.now()}`,
+          name: ruleData.name || 'New Alert Rule',
+          description: ruleData.description || '',
+          category: ruleData.category || 'performance',
+          severity: ruleData.severity || 'medium',
+          isActive: ruleData.isActive ?? true,
+          condition: ruleData.condition || {
+            metric: 'response_latency',
+            operator: 'gt',
+            threshold: 2000,
+          },
+          filters: ruleData.filters || {},
+          notifications: ruleData.notifications || {
+            channels: ['email'],
+            recipients: [],
+            cooldownPeriod: 15,
+          },
+          metadata: {
+            created: new Date().toISOString(),
+            updated: new Date().toISOString(),
+            createdBy: 'current-user',
+            triggerCount: 0,
+            resolutionCount: 0,
+          },
+        };
+        setAlertRules((prev) => [...prev, newRule]);
+        onAlertRuleCreate?.(newRule);
+      }
+      setIsCreateRuleDialogOpen(false);
+    },
+    [editingRule, onAlertRuleCreate]
+  );
 
   return (
     <div className={`space-y-6 ${className}`}>
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Performance Alerting</h2>
-          <p className="text-gray-600 dark:text-gray-400">Monitor system performance and get notified about issues</p>
+          <h2 className="text-2xl font-bold text-foreground">
+            Performance Alerting
+          </h2>
+          <p className="text-foreground">
+            Monitor system performance and get notified about issues
+          </p>
         </div>
         <div className="flex items-center space-x-2">
           <Select value={timeRange} onValueChange={setTimeRange}>
@@ -720,7 +892,10 @@ const PerformanceAlertingSystem: React.FC<PerformanceAlertingSystemProps> = ({
               <SelectItem value="30d">Last 30 days</SelectItem>
             </SelectContent>
           </Select>
-          <Dialog open={isCreateRuleDialogOpen} onOpenChange={setIsCreateRuleDialogOpen}>
+          <Dialog
+            open={isCreateRuleDialogOpen}
+            onOpenChange={setIsCreateRuleDialogOpen}
+          >
             <DialogTrigger asChild>
               <Button>
                 <Plus className="h-4 w-4 mr-2" />
@@ -729,7 +904,9 @@ const PerformanceAlertingSystem: React.FC<PerformanceAlertingSystemProps> = ({
             </DialogTrigger>
             <DialogContent className="max-w-4xl">
               <DialogHeader>
-                <DialogTitle>{editingRule ? 'Edit Alert Rule' : 'Create Alert Rule'}</DialogTitle>
+                <DialogTitle>
+                  {editingRule ? 'Edit Alert Rule' : 'Create Alert Rule'}
+                </DialogTitle>
                 <DialogDescription>
                   Define conditions for triggering automated alerts
                 </DialogDescription>
@@ -754,8 +931,10 @@ const PerformanceAlertingSystem: React.FC<PerformanceAlertingSystemProps> = ({
             <div className="flex items-center space-x-2">
               <Bell className="h-5 w-5 text-blue-500" />
               <div>
-                <div className="text-2xl font-bold">{dashboard.summary.totalAlerts}</div>
-                <div className="text-sm text-gray-600 dark:text-gray-400">Total Alerts</div>
+                <div className="text-2xl font-bold">
+                  {dashboard.summary.totalAlerts}
+                </div>
+                <div className="text-sm text-foreground">Total Alerts</div>
               </div>
             </div>
           </CardContent>
@@ -765,8 +944,10 @@ const PerformanceAlertingSystem: React.FC<PerformanceAlertingSystemProps> = ({
             <div className="flex items-center space-x-2">
               <XCircle className="h-5 w-5 text-red-500" />
               <div>
-                <div className="text-2xl font-bold">{dashboard.summary.activeAlerts}</div>
-                <div className="text-sm text-gray-600 dark:text-gray-400">Active</div>
+                <div className="text-2xl font-bold">
+                  {dashboard.summary.activeAlerts}
+                </div>
+                <div className="text-sm text-foreground">Active</div>
               </div>
             </div>
           </CardContent>
@@ -776,8 +957,10 @@ const PerformanceAlertingSystem: React.FC<PerformanceAlertingSystemProps> = ({
             <div className="flex items-center space-x-2">
               <CheckCircle className="h-5 w-5 text-green-500" />
               <div>
-                <div className="text-2xl font-bold">{dashboard.summary.resolvedAlerts}</div>
-                <div className="text-sm text-gray-600 dark:text-gray-400">Resolved</div>
+                <div className="text-2xl font-bold">
+                  {dashboard.summary.resolvedAlerts}
+                </div>
+                <div className="text-sm text-foreground">Resolved</div>
               </div>
             </div>
           </CardContent>
@@ -787,8 +970,10 @@ const PerformanceAlertingSystem: React.FC<PerformanceAlertingSystemProps> = ({
             <div className="flex items-center space-x-2">
               <AlertCircle className="h-5 w-5 text-red-500" />
               <div>
-                <div className="text-2xl font-bold">{dashboard.summary.criticalAlerts}</div>
-                <div className="text-sm text-gray-600 dark:text-gray-400">Critical</div>
+                <div className="text-2xl font-bold">
+                  {dashboard.summary.criticalAlerts}
+                </div>
+                <div className="text-sm text-foreground">Critical</div>
               </div>
             </div>
           </CardContent>
@@ -798,8 +983,10 @@ const PerformanceAlertingSystem: React.FC<PerformanceAlertingSystemProps> = ({
             <div className="flex items-center space-x-2">
               <Clock className="h-5 w-5 text-purple-500" />
               <div>
-                <div className="text-2xl font-bold">{dashboard.summary.mttr}m</div>
-                <div className="text-sm text-gray-600 dark:text-gray-400">MTTR</div>
+                <div className="text-2xl font-bold">
+                  {dashboard.summary.mttr}m
+                </div>
+                <div className="text-sm text-foreground">MTTR</div>
               </div>
             </div>
           </CardContent>
@@ -809,7 +996,10 @@ const PerformanceAlertingSystem: React.FC<PerformanceAlertingSystemProps> = ({
       {/* Main Content */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="dashboard" className="flex items-center space-x-2">
+          <TabsTrigger
+            value="dashboard"
+            className="flex items-center space-x-2"
+          >
             <Activity className="h-4 w-4" />
             <span>Dashboard</span>
           </TabsTrigger>
@@ -821,7 +1011,10 @@ const PerformanceAlertingSystem: React.FC<PerformanceAlertingSystemProps> = ({
             <Settings className="h-4 w-4" />
             <span>Rules</span>
           </TabsTrigger>
-          <TabsTrigger value="performance" className="flex items-center space-x-2">
+          <TabsTrigger
+            value="performance"
+            className="flex items-center space-x-2"
+          >
             <TrendingUp className="h-4 w-4" />
             <span>Performance</span>
           </TabsTrigger>
@@ -844,10 +1037,34 @@ const PerformanceAlertingSystem: React.FC<PerformanceAlertingSystemProps> = ({
                       <YAxis tick={{ fontSize: 12 }} />
                       <Tooltip />
                       <Legend />
-                      <Area type="monotone" dataKey="critical" stackId="1" stroke="#ef4444" fill="#ef4444" />
-                      <Area type="monotone" dataKey="high" stackId="1" stroke="#f59e0b" fill="#f59e0b" />
-                      <Area type="monotone" dataKey="medium" stackId="1" stroke="#eab308" fill="#eab308" />
-                      <Area type="monotone" dataKey="low" stackId="1" stroke="#3b82f6" fill="#3b82f6" />
+                      <Area
+                        type="monotone"
+                        dataKey="critical"
+                        stackId="1"
+                        stroke="#ef4444"
+                        fill="#ef4444"
+                      />
+                      <Area
+                        type="monotone"
+                        dataKey="high"
+                        stackId="1"
+                        stroke="#f59e0b"
+                        fill="#f59e0b"
+                      />
+                      <Area
+                        type="monotone"
+                        dataKey="medium"
+                        stackId="1"
+                        stroke="#eab308"
+                        fill="#eab308"
+                      />
+                      <Area
+                        type="monotone"
+                        dataKey="low"
+                        stackId="1"
+                        stroke="#3b82f6"
+                        fill="#3b82f6"
+                      />
                     </AreaChart>
                   </ResponsiveContainer>
                 </div>
@@ -857,7 +1074,9 @@ const PerformanceAlertingSystem: React.FC<PerformanceAlertingSystemProps> = ({
             <Card>
               <CardHeader>
                 <CardTitle>Alerts by Category</CardTitle>
-                <CardDescription>Distribution across different categories</CardDescription>
+                <CardDescription>
+                  Distribution across different categories
+                </CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="h-80">
@@ -879,15 +1098,22 @@ const PerformanceAlertingSystem: React.FC<PerformanceAlertingSystemProps> = ({
             <Card>
               <CardHeader>
                 <CardTitle>Top Alert Rules</CardTitle>
-                <CardDescription>Most frequently triggered rules</CardDescription>
+                <CardDescription>
+                  Most frequently triggered rules
+                </CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
                   {dashboard.trends.topAlertRules.map((rule, index) => (
-                    <div key={rule.ruleName} className="flex items-center justify-between p-3 border rounded-lg">
+                    <div
+                      key={rule.ruleName}
+                      className="flex items-center justify-between p-3 border rounded-lg"
+                    >
                       <div className="flex items-center space-x-3">
                         <div className="w-8 h-8 bg-blue-100 dark:bg-blue-900/20 rounded-full flex items-center justify-center">
-                          <span className="text-sm font-medium">#{index + 1}</span>
+                          <span className="text-sm font-medium">
+                            #{index + 1}
+                          </span>
                         </div>
                         <span className="font-medium">{rule.ruleName}</span>
                       </div>
@@ -901,30 +1127,51 @@ const PerformanceAlertingSystem: React.FC<PerformanceAlertingSystemProps> = ({
             <Card>
               <CardHeader>
                 <CardTitle>Notification Performance</CardTitle>
-                <CardDescription>Alert system performance metrics</CardDescription>
+                <CardDescription>
+                  Alert system performance metrics
+                </CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
                   <div>
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-sm font-medium">Alert Latency</span>
-                      <span className="text-sm">{dashboard.performance.alertLatency}s</span>
+                      <span className="text-sm">
+                        {dashboard.performance.alertLatency}s
+                      </span>
                     </div>
-                    <Progress value={(dashboard.performance.alertLatency / 5) * 100} className="h-2" />
+                    <Progress
+                      value={(dashboard.performance.alertLatency / 5) * 100}
+                      className="h-2"
+                    />
                   </div>
                   <div>
                     <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm font-medium">Notification Success</span>
-                      <span className="text-sm">{dashboard.performance.notificationSuccess}%</span>
+                      <span className="text-sm font-medium">
+                        Notification Success
+                      </span>
+                      <span className="text-sm">
+                        {dashboard.performance.notificationSuccess}%
+                      </span>
                     </div>
-                    <Progress value={dashboard.performance.notificationSuccess} className="h-2" />
+                    <Progress
+                      value={dashboard.performance.notificationSuccess}
+                      className="h-2"
+                    />
                   </div>
                   <div>
                     <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm font-medium">False Positive Rate</span>
-                      <span className="text-sm">{dashboard.performance.falsePositiveRate}%</span>
+                      <span className="text-sm font-medium">
+                        False Positive Rate
+                      </span>
+                      <span className="text-sm">
+                        {dashboard.performance.falsePositiveRate}%
+                      </span>
                     </div>
-                    <Progress value={dashboard.performance.falsePositiveRate} className="h-2" />
+                    <Progress
+                      value={dashboard.performance.falsePositiveRate}
+                      className="h-2"
+                    />
                   </div>
                 </div>
               </CardContent>
@@ -939,7 +1186,7 @@ const PerformanceAlertingSystem: React.FC<PerformanceAlertingSystemProps> = ({
               <div className="flex items-center space-x-4 mb-4">
                 <div className="flex-1">
                   <div className="relative">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
                       placeholder="Search alerts..."
                       value={searchTerm}
@@ -948,7 +1195,10 @@ const PerformanceAlertingSystem: React.FC<PerformanceAlertingSystemProps> = ({
                     />
                   </div>
                 </div>
-                <Select value={filterSeverity} onValueChange={setFilterSeverity}>
+                <Select
+                  value={filterSeverity}
+                  onValueChange={setFilterSeverity}
+                >
                   <SelectTrigger className="w-32">
                     <SelectValue placeholder="Severity" />
                   </SelectTrigger>
@@ -975,7 +1225,7 @@ const PerformanceAlertingSystem: React.FC<PerformanceAlertingSystemProps> = ({
               </div>
 
               <div className="space-y-3">
-                {filteredAlerts.map(alert => (
+                {filteredAlerts.map((alert) => (
                   <div key={alert.id} className="border rounded-lg p-4">
                     <div className="flex items-start justify-between">
                       <div className="flex items-start space-x-3">
@@ -991,22 +1241,28 @@ const PerformanceAlertingSystem: React.FC<PerformanceAlertingSystemProps> = ({
                               <span className="ml-1">{alert.status}</span>
                             </Badge>
                           </div>
-                          <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+                          <p className="text-sm text-foreground mb-2">
                             {alert.message}
                           </p>
-                          <div className="text-xs text-gray-500 space-y-1">
+                          <div className="text-xs text-muted-foreground space-y-1">
                             <div>
-                              Started: {new Date(alert.startedAt).toLocaleString()}
-                              {alert.duration && ` • Duration: ${alert.duration}m`}
+                              Started:{' '}
+                              {new Date(alert.startedAt).toLocaleString()}
+                              {alert.duration &&
+                                ` • Duration: ${alert.duration}m`}
                             </div>
                             {alert.acknowledgedAt && (
                               <div>
-                                Acknowledged by {alert.acknowledgedBy} at {new Date(alert.acknowledgedAt).toLocaleString()}
+                                Acknowledged by {alert.acknowledgedBy} at{' '}
+                                {new Date(
+                                  alert.acknowledgedAt
+                                ).toLocaleString()}
                               </div>
                             )}
                             {alert.resolvedAt && (
                               <div>
-                                Resolved at {new Date(alert.resolvedAt).toLocaleString()}
+                                Resolved at{' '}
+                                {new Date(alert.resolvedAt).toLocaleString()}
                               </div>
                             )}
                           </div>
@@ -1052,7 +1308,7 @@ const PerformanceAlertingSystem: React.FC<PerformanceAlertingSystemProps> = ({
         {/* Rules Tab */}
         <TabsContent value="rules" className="space-y-4">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {alertRules.map(rule => (
+            {alertRules.map((rule) => (
               <Card key={rule.id} className="hover:shadow-md transition-shadow">
                 <CardHeader className="pb-3">
                   <div className="flex items-start justify-between">
@@ -1060,7 +1316,9 @@ const PerformanceAlertingSystem: React.FC<PerformanceAlertingSystemProps> = ({
                       {getCategoryIcon(rule.category)}
                       <div>
                         <CardTitle className="text-lg">{rule.name}</CardTitle>
-                        <CardDescription className="mt-1">{rule.description}</CardDescription>
+                        <CardDescription className="mt-1">
+                          {rule.description}
+                        </CardDescription>
                       </div>
                     </div>
                     <div className="flex items-center space-x-2">
@@ -1077,19 +1335,31 @@ const PerformanceAlertingSystem: React.FC<PerformanceAlertingSystemProps> = ({
                 <CardContent className="space-y-4">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <div className="text-sm font-medium text-gray-600 dark:text-gray-400">Condition</div>
+                      <div className="text-sm font-medium text-foreground">
+                        Condition
+                      </div>
                       <div className="text-sm">
-                        {rule.condition.metric} {rule.condition.operator} {rule.condition.threshold}
-                        {rule.condition.duration && ` for ${rule.condition.duration}m`}
+                        {rule.condition.metric} {rule.condition.operator}{' '}
+                        {rule.condition.threshold}
+                        {rule.condition.duration &&
+                          ` for ${rule.condition.duration}m`}
                       </div>
                     </div>
                     <div>
-                      <div className="text-sm font-medium text-gray-600 dark:text-gray-400">Notifications</div>
+                      <div className="text-sm font-medium text-foreground">
+                        Notifications
+                      </div>
                       <div className="flex flex-wrap gap-1">
-                        {rule.notifications.channels.map(channel => {
-                          const ch = notificationChannels.find(c => c.id === channel);
+                        {rule.notifications.channels.map((channel) => {
+                          const ch = notificationChannels.find(
+                            (c) => c.id === channel
+                          );
                           return (
-                            <Badge key={channel} variant="outline" className="text-xs">
+                            <Badge
+                              key={channel}
+                              variant="outline"
+                              className="text-xs"
+                            >
                               {ch?.icon}
                               <span className="ml-1">{ch?.name}</span>
                             </Badge>
@@ -1099,23 +1369,29 @@ const PerformanceAlertingSystem: React.FC<PerformanceAlertingSystemProps> = ({
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-400">
+                  <div className="flex items-center justify-between text-sm text-foreground">
                     <div>
                       Triggered: {rule.metadata.triggerCount} times
                       {rule.metadata.lastTriggered && (
                         <>
-                          {' • '}Last: {new Date(rule.metadata.lastTriggered).toLocaleDateString()}
+                          {' • '}Last:{' '}
+                          {new Date(
+                            rule.metadata.lastTriggered
+                          ).toLocaleDateString()}
                         </>
                       )}
                     </div>
                     {rule.metadata.averageResolutionTime && (
-                      <div>Avg resolution: {rule.metadata.averageResolutionTime.toFixed(1)}m</div>
+                      <div>
+                        Avg resolution:{' '}
+                        {rule.metadata.averageResolutionTime.toFixed(1)}m
+                      </div>
                     )}
                   </div>
 
                   <div className="flex items-center justify-between">
                     <div className="flex flex-wrap gap-1">
-                      {rule.filters.tags?.map(tag => (
+                      {rule.filters.tags?.map((tag) => (
                         <Badge key={tag} variant="outline" className="text-xs">
                           {tag}
                         </Badge>
@@ -1161,41 +1437,77 @@ const PerformanceAlertingSystem: React.FC<PerformanceAlertingSystemProps> = ({
             <Card>
               <CardHeader>
                 <CardTitle>Alert System Performance</CardTitle>
-                <CardDescription>Key performance indicators for the alerting system</CardDescription>
+                <CardDescription>
+                  Key performance indicators for the alerting system
+                </CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-6">
                   <div>
                     <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm font-medium">Mean Time To Resolution (MTTR)</span>
-                      <span className="text-sm font-bold">{dashboard.summary.mttr} minutes</span>
+                      <span className="text-sm font-medium">
+                        Mean Time To Resolution (MTTR)
+                      </span>
+                      <span className="text-sm font-bold">
+                        {dashboard.summary.mttr} minutes
+                      </span>
                     </div>
-                    <Progress value={(dashboard.summary.mttr / 30) * 100} className="h-2" />
-                    <div className="text-xs text-gray-500 mt-1">Target: &lt; 30 minutes</div>
+                    <Progress
+                      value={(dashboard.summary.mttr / 30) * 100}
+                      className="h-2"
+                    />
+                    <div className="text-xs text-muted-foreground mt-1">
+                      Target: &lt; 30 minutes
+                    </div>
                   </div>
                   <div>
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-sm font-medium">Alert Latency</span>
-                      <span className="text-sm font-bold">{dashboard.performance.alertLatency}s</span>
+                      <span className="text-sm font-bold">
+                        {dashboard.performance.alertLatency}s
+                      </span>
                     </div>
-                    <Progress value={(dashboard.performance.alertLatency / 5) * 100} className="h-2" />
-                    <div className="text-xs text-gray-500 mt-1">Target: &lt; 5 seconds</div>
+                    <Progress
+                      value={(dashboard.performance.alertLatency / 5) * 100}
+                      className="h-2"
+                    />
+                    <div className="text-xs text-muted-foreground mt-1">
+                      Target: &lt; 5 seconds
+                    </div>
                   </div>
                   <div>
                     <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm font-medium">Notification Success Rate</span>
-                      <span className="text-sm font-bold">{dashboard.performance.notificationSuccess}%</span>
+                      <span className="text-sm font-medium">
+                        Notification Success Rate
+                      </span>
+                      <span className="text-sm font-bold">
+                        {dashboard.performance.notificationSuccess}%
+                      </span>
                     </div>
-                    <Progress value={dashboard.performance.notificationSuccess} className="h-2" />
-                    <div className="text-xs text-gray-500 mt-1">Target: &gt; 95%</div>
+                    <Progress
+                      value={dashboard.performance.notificationSuccess}
+                      className="h-2"
+                    />
+                    <div className="text-xs text-muted-foreground mt-1">
+                      Target: &gt; 95%
+                    </div>
                   </div>
                   <div>
                     <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm font-medium">False Positive Rate</span>
-                      <span className="text-sm font-bold">{dashboard.performance.falsePositiveRate}%</span>
+                      <span className="text-sm font-medium">
+                        False Positive Rate
+                      </span>
+                      <span className="text-sm font-bold">
+                        {dashboard.performance.falsePositiveRate}%
+                      </span>
                     </div>
-                    <Progress value={dashboard.performance.falsePositiveRate} className="h-2" />
-                    <div className="text-xs text-gray-500 mt-1">Target: &lt; 5%</div>
+                    <Progress
+                      value={dashboard.performance.falsePositiveRate}
+                      className="h-2"
+                    />
+                    <div className="text-xs text-muted-foreground mt-1">
+                      Target: &lt; 5%
+                    </div>
                   </div>
                 </div>
               </CardContent>
@@ -1204,29 +1516,42 @@ const PerformanceAlertingSystem: React.FC<PerformanceAlertingSystemProps> = ({
             <Card>
               <CardHeader>
                 <CardTitle>Rule Effectiveness</CardTitle>
-                <CardDescription>How well your alert rules are performing</CardDescription>
+                <CardDescription>
+                  How well your alert rules are performing
+                </CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
-                  {alertRules.slice(0, 5).map(rule => {
-                    const effectiveness = rule.metadata.triggerCount > 0
-                      ? (rule.metadata.resolutionCount / rule.metadata.triggerCount) * 100
-                      : 0;
+                  {alertRules.slice(0, 5).map((rule) => {
+                    const effectiveness =
+                      rule.metadata.triggerCount > 0
+                        ? (rule.metadata.resolutionCount /
+                            rule.metadata.triggerCount) *
+                          100
+                        : 0;
 
                     return (
-                      <div key={rule.id} className="flex items-center justify-between p-3 border rounded-lg">
+                      <div
+                        key={rule.id}
+                        className="flex items-center justify-between p-3 border rounded-lg"
+                      >
                         <div className="flex items-center space-x-3">
                           {getSeverityIcon(rule.severity)}
                           <div>
                             <div className="font-medium">{rule.name}</div>
-                            <div className="text-xs text-gray-500">
-                              {rule.metadata.triggerCount} triggered • {rule.metadata.resolutionCount} resolved
+                            <div className="text-xs text-muted-foreground">
+                              {rule.metadata.triggerCount} triggered •{' '}
+                              {rule.metadata.resolutionCount} resolved
                             </div>
                           </div>
                         </div>
                         <div className="text-right">
-                          <div className="font-bold">{effectiveness.toFixed(0)}%</div>
-                          <div className="text-xs text-gray-500">effective</div>
+                          <div className="font-bold">
+                            {effectiveness.toFixed(0)}%
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            effective
+                          </div>
                         </div>
                       </div>
                     );
@@ -1242,7 +1567,11 @@ const PerformanceAlertingSystem: React.FC<PerformanceAlertingSystemProps> = ({
 };
 
 // Alert Rule Form Component
-const AlertRuleForm: React.FC<AlertRuleFormProps> = ({ rule, onSubmit, onCancel }) => {
+const AlertRuleForm: React.FC<AlertRuleFormProps> = ({
+  rule,
+  onSubmit,
+  onCancel,
+}) => {
   const [formData, setFormData] = useState({
     name: rule?.name || '',
     description: rule?.description || '',
@@ -1275,7 +1604,9 @@ const AlertRuleForm: React.FC<AlertRuleFormProps> = ({ rule, onSubmit, onCancel 
       condition: {
         metric: formData.metric,
         operator: formData.operator as any,
-        threshold: isNaN(Number(formData.threshold)) ? formData.threshold : Number(formData.threshold),
+        threshold: isNaN(Number(formData.threshold))
+          ? formData.threshold
+          : Number(formData.threshold),
         duration: formData.duration,
         aggregation: formData.aggregation as any,
         evaluationWindow: formData.evaluationWindow,
@@ -1287,7 +1618,10 @@ const AlertRuleForm: React.FC<AlertRuleFormProps> = ({ rule, onSubmit, onCancel 
           ...(formData.notifySms ? ['sms'] : []),
           ...(formData.notifyWebhook ? ['webhook'] : []),
         ] as any,
-        recipients: formData.recipients.split(',').map(r => r.trim()).filter(Boolean),
+        recipients: formData.recipients
+          .split(',')
+          .map((r) => r.trim())
+          .filter(Boolean),
         cooldownPeriod: formData.cooldownPeriod,
       },
     };
@@ -1303,14 +1637,24 @@ const AlertRuleForm: React.FC<AlertRuleFormProps> = ({ rule, onSubmit, onCancel 
           <Input
             id="rule-name"
             value={formData.name}
-            onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+            onChange={(e) =>
+              setFormData((prev) => ({ ...prev, name: e.target.value }))
+            }
             placeholder="Enter alert rule name"
             required
           />
         </div>
         <div>
           <Label htmlFor="rule-severity">Severity *</Label>
-          <Select value={formData.severity} onValueChange={(value) => setFormData(prev => ({ ...prev, severity: value as 'low' | 'medium' | 'high' | 'critical' }))}>
+          <Select
+            value={formData.severity}
+            onValueChange={(value) =>
+              setFormData((prev) => ({
+                ...prev,
+                severity: value as 'low' | 'medium' | 'high' | 'critical',
+              }))
+            }
+          >
             <SelectTrigger>
               <SelectValue />
             </SelectTrigger>
@@ -1329,7 +1673,9 @@ const AlertRuleForm: React.FC<AlertRuleFormProps> = ({ rule, onSubmit, onCancel 
         <Textarea
           id="rule-description"
           value={formData.description}
-          onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+          onChange={(e) =>
+            setFormData((prev) => ({ ...prev, description: e.target.value }))
+          }
           placeholder="Describe when this alert should trigger"
           rows={3}
         />
@@ -1338,7 +1684,20 @@ const AlertRuleForm: React.FC<AlertRuleFormProps> = ({ rule, onSubmit, onCancel 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
           <Label htmlFor="rule-category">Category</Label>
-          <Select value={formData.category} onValueChange={(value) => setFormData(prev => ({ ...prev, category: value as 'performance' | 'quality' | 'availability' | 'security' | 'business' }))}>
+          <Select
+            value={formData.category}
+            onValueChange={(value) =>
+              setFormData((prev) => ({
+                ...prev,
+                category: value as
+                  | 'performance'
+                  | 'quality'
+                  | 'availability'
+                  | 'security'
+                  | 'business',
+              }))
+            }
+          >
             <SelectTrigger>
               <SelectValue />
             </SelectTrigger>
@@ -1353,12 +1712,17 @@ const AlertRuleForm: React.FC<AlertRuleFormProps> = ({ rule, onSubmit, onCancel 
         </div>
         <div>
           <Label htmlFor="rule-metric">Metric *</Label>
-          <Select value={formData.metric} onValueChange={(value) => setFormData(prev => ({ ...prev, metric: value }))}>
+          <Select
+            value={formData.metric}
+            onValueChange={(value) =>
+              setFormData((prev) => ({ ...prev, metric: value }))
+            }
+          >
             <SelectTrigger>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {availableMetrics.map(metric => (
+              {availableMetrics.map((metric) => (
                 <SelectItem key={metric.id} value={metric.id}>
                   {metric.name} ({metric.unit})
                 </SelectItem>
@@ -1373,7 +1737,23 @@ const AlertRuleForm: React.FC<AlertRuleFormProps> = ({ rule, onSubmit, onCancel 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
             <Label htmlFor="operator">Operator</Label>
-            <Select value={formData.operator} onValueChange={(value) => setFormData(prev => ({ ...prev, operator: value as 'gt' | 'gte' | 'lt' | 'lte' | 'eq' | 'ne' | 'contains' | 'not_contains' }))}>
+            <Select
+              value={formData.operator}
+              onValueChange={(value) =>
+                setFormData((prev) => ({
+                  ...prev,
+                  operator: value as
+                    | 'gt'
+                    | 'gte'
+                    | 'lt'
+                    | 'lte'
+                    | 'eq'
+                    | 'ne'
+                    | 'contains'
+                    | 'not_contains',
+                }))
+              }
+            >
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
@@ -1392,7 +1772,9 @@ const AlertRuleForm: React.FC<AlertRuleFormProps> = ({ rule, onSubmit, onCancel 
             <Input
               id="threshold"
               value={formData.threshold}
-              onChange={(e) => setFormData(prev => ({ ...prev, threshold: e.target.value }))}
+              onChange={(e) =>
+                setFormData((prev) => ({ ...prev, threshold: e.target.value }))
+              }
               placeholder="e.g., 2000 or unhealthy"
               required
             />
@@ -1404,14 +1786,27 @@ const AlertRuleForm: React.FC<AlertRuleFormProps> = ({ rule, onSubmit, onCancel 
               type="number"
               min="1"
               value={formData.duration}
-              onChange={(e) => setFormData(prev => ({ ...prev, duration: parseInt(e.target.value, 10) }))}
+              onChange={(e) =>
+                setFormData((prev) => ({
+                  ...prev,
+                  duration: parseInt(e.target.value, 10),
+                }))
+              }
             />
           </div>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
           <div>
             <Label htmlFor="aggregation">Aggregation</Label>
-            <Select value={formData.aggregation} onValueChange={(value) => setFormData(prev => ({ ...prev, aggregation: value as 'avg' | 'min' | 'max' | 'sum' | 'count' }))}>
+            <Select
+              value={formData.aggregation}
+              onValueChange={(value) =>
+                setFormData((prev) => ({
+                  ...prev,
+                  aggregation: value as 'avg' | 'min' | 'max' | 'sum' | 'count',
+                }))
+              }
+            >
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
@@ -1425,13 +1820,20 @@ const AlertRuleForm: React.FC<AlertRuleFormProps> = ({ rule, onSubmit, onCancel 
             </Select>
           </div>
           <div>
-            <Label htmlFor="evaluation-window">Evaluation Window (minutes)</Label>
+            <Label htmlFor="evaluation-window">
+              Evaluation Window (minutes)
+            </Label>
             <Input
               id="evaluation-window"
               type="number"
               min="1"
               value={formData.evaluationWindow}
-              onChange={(e) => setFormData(prev => ({ ...prev, evaluationWindow: parseInt(e.target.value, 10) }))}
+              onChange={(e) =>
+                setFormData((prev) => ({
+                  ...prev,
+                  evaluationWindow: parseInt(e.target.value, 10),
+                }))
+              }
             />
           </div>
         </div>
@@ -1445,7 +1847,9 @@ const AlertRuleForm: React.FC<AlertRuleFormProps> = ({ rule, onSubmit, onCancel 
               <Switch
                 id="notify-email"
                 checked={formData.notifyEmail}
-                onCheckedChange={(checked) => setFormData(prev => ({ ...prev, notifyEmail: checked }))}
+                onCheckedChange={(checked) =>
+                  setFormData((prev) => ({ ...prev, notifyEmail: checked }))
+                }
               />
               <Label htmlFor="notify-email">Email</Label>
             </div>
@@ -1453,7 +1857,9 @@ const AlertRuleForm: React.FC<AlertRuleFormProps> = ({ rule, onSubmit, onCancel 
               <Switch
                 id="notify-slack"
                 checked={formData.notifySlack}
-                onCheckedChange={(checked) => setFormData(prev => ({ ...prev, notifySlack: checked }))}
+                onCheckedChange={(checked) =>
+                  setFormData((prev) => ({ ...prev, notifySlack: checked }))
+                }
               />
               <Label htmlFor="notify-slack">Slack</Label>
             </div>
@@ -1461,7 +1867,9 @@ const AlertRuleForm: React.FC<AlertRuleFormProps> = ({ rule, onSubmit, onCancel 
               <Switch
                 id="notify-sms"
                 checked={formData.notifySms}
-                onCheckedChange={(checked) => setFormData(prev => ({ ...prev, notifySms: checked }))}
+                onCheckedChange={(checked) =>
+                  setFormData((prev) => ({ ...prev, notifySms: checked }))
+                }
               />
               <Label htmlFor="notify-sms">SMS</Label>
             </div>
@@ -1469,7 +1877,9 @@ const AlertRuleForm: React.FC<AlertRuleFormProps> = ({ rule, onSubmit, onCancel 
               <Switch
                 id="notify-webhook"
                 checked={formData.notifyWebhook}
-                onCheckedChange={(checked) => setFormData(prev => ({ ...prev, notifyWebhook: checked }))}
+                onCheckedChange={(checked) =>
+                  setFormData((prev) => ({ ...prev, notifyWebhook: checked }))
+                }
               />
               <Label htmlFor="notify-webhook">Webhook</Label>
             </div>
@@ -1479,7 +1889,9 @@ const AlertRuleForm: React.FC<AlertRuleFormProps> = ({ rule, onSubmit, onCancel 
             <Input
               id="recipients"
               value={formData.recipients}
-              onChange={(e) => setFormData(prev => ({ ...prev, recipients: e.target.value }))}
+              onChange={(e) =>
+                setFormData((prev) => ({ ...prev, recipients: e.target.value }))
+              }
               placeholder="email1@company.com, #slack-channel, +1234567890"
             />
           </div>
@@ -1490,9 +1902,16 @@ const AlertRuleForm: React.FC<AlertRuleFormProps> = ({ rule, onSubmit, onCancel 
               type="number"
               min="0"
               value={formData.cooldownPeriod}
-              onChange={(e) => setFormData(prev => ({ ...prev, cooldownPeriod: parseInt(e.target.value, 10) }))}
+              onChange={(e) =>
+                setFormData((prev) => ({
+                  ...prev,
+                  cooldownPeriod: parseInt(e.target.value, 10),
+                }))
+              }
             />
-            <p className="text-xs text-gray-500 mt-1">Minimum time between consecutive alerts for this rule</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Minimum time between consecutive alerts for this rule
+            </p>
           </div>
         </div>
       </div>
@@ -1501,7 +1920,9 @@ const AlertRuleForm: React.FC<AlertRuleFormProps> = ({ rule, onSubmit, onCancel 
         <Switch
           id="is-active"
           checked={formData.isActive}
-          onCheckedChange={(checked) => setFormData(prev => ({ ...prev, isActive: checked }))}
+          onCheckedChange={(checked) =>
+            setFormData((prev) => ({ ...prev, isActive: checked }))
+          }
         />
         <Label htmlFor="is-active">Activate Rule</Label>
       </div>

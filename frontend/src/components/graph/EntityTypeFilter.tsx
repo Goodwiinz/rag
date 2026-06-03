@@ -17,7 +17,13 @@ import { Entity, Relationship } from '@/types/search';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
@@ -87,45 +93,48 @@ export const EntityTypeFilter: React.FC<EntityTypeFilterProps> = ({
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
 
   // Entity type configuration
-  const entityTypeConfig = useMemo(() => ({
-    person: {
-      label: 'People',
-      color: 'bg-blue-100 text-blue-800 border-blue-200',
-      icon: () => <span className="text-lg">👤</span>,
-    },
-    organization: {
-      label: 'Organizations',
-      color: 'bg-green-100 text-green-800 border-green-200',
-      icon: () => <span className="text-lg">🏢</span>,
-    },
-    location: {
-      label: 'Locations',
-      color: 'bg-yellow-100 text-yellow-800 border-yellow-200',
-      icon: () => <span className="text-lg">📍</span>,
-    },
-    concept: {
-      label: 'Concepts',
-      color: 'bg-purple-100 text-purple-800 border-purple-200',
-      icon: () => <span className="text-lg">💡</span>,
-    },
-    date: {
-      label: 'Dates',
-      color: 'bg-orange-100 text-orange-800 border-orange-200',
-      icon: () => <span className="text-lg">📅</span>,
-    },
-    product: {
-      label: 'Products',
-      color: 'bg-pink-100 text-pink-800 border-pink-200',
-      icon: () => <span className="text-lg">📦</span>,
-    },
-  }), []);
+  const entityTypeConfig = useMemo(
+    () => ({
+      person: {
+        label: 'People',
+        color: 'bg-blue-100 text-blue-800 border-blue-200',
+        icon: () => <span className="text-lg">👤</span>,
+      },
+      organization: {
+        label: 'Organizations',
+        color: 'bg-green-100 text-green-800 border-green-200',
+        icon: () => <span className="text-lg">🏢</span>,
+      },
+      location: {
+        label: 'Locations',
+        color: 'bg-yellow-100 text-yellow-800 border-yellow-200',
+        icon: () => <span className="text-lg">📍</span>,
+      },
+      concept: {
+        label: 'Concepts',
+        color: 'bg-purple-100 text-purple-800 border-purple-200',
+        icon: () => <span className="text-lg">💡</span>,
+      },
+      date: {
+        label: 'Dates',
+        color: 'bg-orange-100 text-orange-800 border-orange-200',
+        icon: () => <span className="text-lg">📅</span>,
+      },
+      product: {
+        label: 'Products',
+        color: 'bg-pink-100 text-pink-800 border-pink-200',
+        icon: () => <span className="text-lg">📦</span>,
+      },
+    }),
+    []
+  );
 
   // Calculate statistics for each entity type
   const entityTypeStats = useMemo((): EntityTypeStats[] => {
     const stats: Record<Entity['type'], EntityTypeStats> = {} as any;
 
     // Initialize stats for all types
-    Object.keys(entityTypeConfig).forEach(type => {
+    Object.keys(entityTypeConfig).forEach((type) => {
       const config = entityTypeConfig[type as Entity['type']];
       stats[type as Entity['type']] = {
         type: type as Entity['type'],
@@ -139,27 +148,30 @@ export const EntityTypeFilter: React.FC<EntityTypeFilterProps> = ({
     });
 
     // Calculate actual stats
-    entities.forEach(entity => {
+    entities.forEach((entity) => {
       const stat = stats[entity.type];
       stat.count++;
       stat.totalMentions += entity.mentions;
     });
 
     // Calculate averages
-    Object.values(stats).forEach(stat => {
+    Object.values(stats).forEach((stat) => {
       if (stat.count > 0) {
-        const typeEntities = entities.filter(e => e.type === stat.type);
-        stat.avgConfidence = typeEntities.reduce((sum, e) => sum + e.confidence, 0) / stat.count;
+        const typeEntities = entities.filter((e) => e.type === stat.type);
+        stat.avgConfidence =
+          typeEntities.reduce((sum, e) => sum + e.confidence, 0) / stat.count;
 
         // Calculate average relationships per entity of this type
-        const totalRelationships = relationships.filter(r =>
-          typeEntities.some(e => e.id === r.source_entity_id || e.id === r.target_entity_id)
+        const totalRelationships = relationships.filter((r) =>
+          typeEntities.some(
+            (e) => e.id === r.source_entity_id || e.id === r.target_entity_id
+          )
         ).length;
         stat.avgRelationships = totalRelationships / stat.count;
       }
     });
 
-    return Object.values(stats).filter(stat => stat.count > 0);
+    return Object.values(stats).filter((stat) => stat.count > 0);
   }, [entities, relationships, entityTypeConfig]);
 
   // Filter entities based on current filters
@@ -169,32 +181,38 @@ export const EntityTypeFilter: React.FC<EntityTypeFilterProps> = ({
     // Search term filter
     if (filters.searchTerm) {
       const term = filters.searchTerm.toLowerCase();
-      filtered = filtered.filter(entity =>
-        entity.name.toLowerCase().includes(term) ||
-        entity.description?.toLowerCase().includes(term) ||
-        entity.aliases.some(alias => alias.toLowerCase().includes(term))
+      filtered = filtered.filter(
+        (entity) =>
+          entity.name.toLowerCase().includes(term) ||
+          entity.description?.toLowerCase().includes(term) ||
+          entity.aliases.some((alias) => alias.toLowerCase().includes(term))
       );
     }
 
     // Type filter
     if (filters.types.length > 0) {
-      filtered = filtered.filter(entity => filters.types.includes(entity.type));
+      filtered = filtered.filter((entity) =>
+        filters.types.includes(entity.type)
+      );
     }
 
     // Confidence filter
-    filtered = filtered.filter(entity =>
-      entity.confidence >= filters.minConfidence &&
-      entity.confidence <= filters.maxConfidence
+    filtered = filtered.filter(
+      (entity) =>
+        entity.confidence >= filters.minConfidence &&
+        entity.confidence <= filters.maxConfidence
     );
 
     // Mentions filter
-    filtered = filtered.filter(entity => entity.mentions >= filters.minMentions);
+    filtered = filtered.filter(
+      (entity) => entity.mentions >= filters.minMentions
+    );
 
     // Date range filter
     if (filters.dateRange) {
       const start = new Date(filters.dateRange.start);
       const end = new Date(filters.dateRange.end);
-      filtered = filtered.filter(entity => {
+      filtered = filtered.filter((entity) => {
         const entityDate = new Date(entity.first_seen);
         return entityDate >= start && entityDate <= end;
       });
@@ -202,8 +220,8 @@ export const EntityTypeFilter: React.FC<EntityTypeFilterProps> = ({
 
     // Document filter
     if (filters.documentIds.length > 0) {
-      filtered = filtered.filter(entity =>
-        entity.document_ids.some(docId => filters.documentIds.includes(docId))
+      filtered = filtered.filter((entity) =>
+        entity.document_ids.some((docId) => filters.documentIds.includes(docId))
       );
     }
 
@@ -238,49 +256,74 @@ export const EntityTypeFilter: React.FC<EntityTypeFilterProps> = ({
   }, [entities, filters, relationships]);
 
   // Update filters and notify parent
-  const updateFilters = useCallback((newFilters: Partial<EntityFilters>) => {
-    const updatedFilters = { ...filters, ...newFilters };
-    setFilters(updatedFilters);
-    onFilterChange?.(updatedFilters);
-  }, [filters, onFilterChange]);
+  const updateFilters = useCallback(
+    (newFilters: Partial<EntityFilters>) => {
+      const updatedFilters = { ...filters, ...newFilters };
+      setFilters(updatedFilters);
+      onFilterChange?.(updatedFilters);
+    },
+    [filters, onFilterChange]
+  );
 
   // Toggle entity type filter
-  const toggleTypeFilter = useCallback((type: Entity['type']) => {
-    const newTypes = filters.types.includes(type)
-      ? filters.types.filter(t => t !== type)
-      : [...filters.types, type];
-    updateFilters({ types: newTypes });
-  }, [filters.types, updateFilters]);
+  const toggleTypeFilter = useCallback(
+    (type: Entity['type']) => {
+      const newTypes = filters.types.includes(type)
+        ? filters.types.filter((t) => t !== type)
+        : [...filters.types, type];
+      updateFilters({ types: newTypes });
+    },
+    [filters.types, updateFilters]
+  );
 
   // Toggle entity selection
-  const toggleEntitySelection = useCallback((entityId: string) => {
-    if (!enableMultiSelect) {
-      const newSelected = [entityId];
+  const toggleEntitySelection = useCallback(
+    (entityId: string) => {
+      if (!enableMultiSelect) {
+        const newSelected = [entityId];
+        updateFilters({ selectedEntityIds: newSelected });
+        onEntitiesSelected?.(newSelected);
+        return;
+      }
+
+      const newSelected = filters.selectedEntityIds.includes(entityId)
+        ? filters.selectedEntityIds.filter((id) => id !== entityId)
+        : [...filters.selectedEntityIds, entityId];
+
       updateFilters({ selectedEntityIds: newSelected });
       onEntitiesSelected?.(newSelected);
-      return;
-    }
-
-    const newSelected = filters.selectedEntityIds.includes(entityId)
-      ? filters.selectedEntityIds.filter(id => id !== entityId)
-      : [...filters.selectedEntityIds, entityId];
-
-    updateFilters({ selectedEntityIds: newSelected });
-    onEntitiesSelected?.(newSelected);
-  }, [filters.selectedEntityIds, enableMultiSelect, updateFilters, onEntitiesSelected]);
+    },
+    [
+      filters.selectedEntityIds,
+      enableMultiSelect,
+      updateFilters,
+      onEntitiesSelected,
+    ]
+  );
 
   // Select all entities of a type
-  const selectAllOfType = useCallback((type: Entity['type']) => {
-    const typeEntityIds = filteredEntities
-      .filter(e => e.type === type)
-      .map(e => e.id);
+  const selectAllOfType = useCallback(
+    (type: Entity['type']) => {
+      const typeEntityIds = filteredEntities
+        .filter((e) => e.type === type)
+        .map((e) => e.id);
 
-    if (enableMultiSelect) {
-      const newSelected = Array.from(new Set([...filters.selectedEntityIds, ...typeEntityIds]));
-      updateFilters({ selectedEntityIds: newSelected });
-      onEntitiesSelected?.(newSelected);
-    }
-  }, [filteredEntities, filters.selectedEntityIds, enableMultiSelect, updateFilters, onEntitiesSelected]);
+      if (enableMultiSelect) {
+        const newSelected = Array.from(
+          new Set([...filters.selectedEntityIds, ...typeEntityIds])
+        );
+        updateFilters({ selectedEntityIds: newSelected });
+        onEntitiesSelected?.(newSelected);
+      }
+    },
+    [
+      filteredEntities,
+      filters.selectedEntityIds,
+      enableMultiSelect,
+      updateFilters,
+      onEntitiesSelected,
+    ]
+  );
 
   // Clear all filters
   const clearAllFilters = useCallback(() => {
@@ -303,7 +346,7 @@ export const EntityTypeFilter: React.FC<EntityTypeFilterProps> = ({
 
   // Toggle type expansion
   const toggleTypeExpansion = useCallback((type: string) => {
-    setExpandedTypes(prev => {
+    setExpandedTypes((prev) => {
       const newSet = new Set(prev);
       if (newSet.has(type)) {
         newSet.delete(type);
@@ -326,7 +369,7 @@ export const EntityTypeFilter: React.FC<EntityTypeFilterProps> = ({
   };
 
   return (
-    <div className={cn("space-y-6", className)}>
+    <div className={cn('space-y-6', className)}>
       {/* Quick Filters */}
       <Card>
         <CardHeader>
@@ -345,7 +388,7 @@ export const EntityTypeFilter: React.FC<EntityTypeFilterProps> = ({
           <div className="space-y-4">
             {/* Search */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-foreground mb-2">
                 <MagnifyingGlassIcon className="h-4 w-4 inline mr-1" />
                 Search Entities
               </label>
@@ -359,23 +402,29 @@ export const EntityTypeFilter: React.FC<EntityTypeFilterProps> = ({
 
             {/* Type Quick Filters */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-foreground mb-2">
                 <TagIcon className="h-4 w-4 inline mr-1" />
                 Entity Types
               </label>
               <div className="flex flex-wrap gap-2">
-                {entityTypeStats.map(stat => (
+                {entityTypeStats.map((stat) => (
                   <Button
                     key={stat.type}
-                    variant={filters.types.includes(stat.type) ? "default" : "outline"}
+                    variant={
+                      filters.types.includes(stat.type) ? 'default' : 'outline'
+                    }
                     size="sm"
                     onClick={() => toggleTypeFilter(stat.type)}
                     className={cn(
-                      "h-8",
-                      filters.types.includes(stat.type) ? "" : stat.color.replace('text-', 'border-')
+                      'h-8',
+                      filters.types.includes(stat.type)
+                        ? ''
+                        : stat.color.replace('text-', 'border-')
                     )}
                   >
-                    <span className="mr-2"><stat.icon /></span>
+                    <span className="mr-2">
+                      <stat.icon />
+                    </span>
                     {stat.type} ({stat.count})
                   </Button>
                 ))}
@@ -385,10 +434,15 @@ export const EntityTypeFilter: React.FC<EntityTypeFilterProps> = ({
             {/* Sort Controls */}
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-foreground mb-2">
                   Sort By
                 </label>
-                <Select value={filters.sortBy} onValueChange={(value: any) => updateFilters({ sortBy: value })}>
+                <Select
+                  value={filters.sortBy}
+                  onValueChange={(value: any) =>
+                    updateFilters({ sortBy: value })
+                  }
+                >
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
@@ -402,10 +456,15 @@ export const EntityTypeFilter: React.FC<EntityTypeFilterProps> = ({
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-foreground mb-2">
                   Order
                 </label>
-                <Select value={filters.sortOrder} onValueChange={(value: any) => updateFilters({ sortOrder: value })}>
+                <Select
+                  value={filters.sortOrder}
+                  onValueChange={(value: any) =>
+                    updateFilters({ sortOrder: value })
+                  }
+                >
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
@@ -426,7 +485,12 @@ export const EntityTypeFilter: React.FC<EntityTypeFilterProps> = ({
             >
               <AdjustmentsHorizontalIcon className="h-4 w-4 mr-2" />
               {showAdvancedFilters ? 'Hide' : 'Show'} Advanced Filters
-              <ChevronDownIcon className={cn("h-4 w-4 ml-2 transition-transform", showAdvancedFilters && "rotate-180")} />
+              <ChevronDownIcon
+                className={cn(
+                  'h-4 w-4 ml-2 transition-transform',
+                  showAdvancedFilters && 'rotate-180'
+                )}
+              />
             </Button>
 
             {/* Advanced Filters */}
@@ -434,18 +498,25 @@ export const EntityTypeFilter: React.FC<EntityTypeFilterProps> = ({
               <div className="space-y-4 pt-4 border-t">
                 {/* Confidence Range */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Confidence Range: {Math.round(filters.minConfidence * 100)}% - {Math.round(filters.maxConfidence * 100)}%
+                  <label className="block text-sm font-medium text-foreground mb-2">
+                    Confidence Range: {Math.round(filters.minConfidence * 100)}%
+                    - {Math.round(filters.maxConfidence * 100)}%
                   </label>
                   <div className="space-y-2">
-                    <Progress value={filters.minConfidence * 100} className="h-2" />
-                    <Progress value={filters.maxConfidence * 100} className="h-2" />
+                    <Progress
+                      value={filters.minConfidence * 100}
+                      className="h-2"
+                    />
+                    <Progress
+                      value={filters.maxConfidence * 100}
+                      className="h-2"
+                    />
                   </div>
                 </div>
 
                 {/* Minimum Mentions */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-foreground mb-2">
                     Minimum Mentions: {filters.minMentions}
                   </label>
                   <input
@@ -453,7 +524,9 @@ export const EntityTypeFilter: React.FC<EntityTypeFilterProps> = ({
                     min="0"
                     max="100"
                     value={filters.minMentions}
-                    onChange={(e) => updateFilters({ minMentions: parseInt(e.target.value) })}
+                    onChange={(e) =>
+                      updateFilters({ minMentions: parseInt(e.target.value) })
+                    }
                     className="w-full"
                   />
                 </div>
@@ -496,40 +569,61 @@ export const EntityTypeFilter: React.FC<EntityTypeFilterProps> = ({
           <CardContent>
             <div className="space-y-4">
               {/* Overall Stats */}
-              <div className="grid grid-cols-4 gap-4 text-center">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
                 <div>
-                  <div className="text-2xl font-bold text-gray-900">{entities.length}</div>
-                  <div className="text-sm text-gray-500">Total Entities</div>
+                  <div className="text-2xl font-bold text-foreground">
+                    {entities.length}
+                  </div>
+                  <div className="text-sm text-muted-foreground">
+                    Total Entities
+                  </div>
                 </div>
                 <div>
-                  <div className="text-2xl font-bold text-gray-900">{filteredEntities.length}</div>
-                  <div className="text-sm text-gray-500">Filtered</div>
+                  <div className="text-2xl font-bold text-foreground">
+                    {filteredEntities.length}
+                  </div>
+                  <div className="text-sm text-muted-foreground">Filtered</div>
                 </div>
                 <div>
-                  <div className="text-2xl font-bold text-gray-900">{entityTypeStats.length}</div>
-                  <div className="text-sm text-gray-500">Types</div>
+                  <div className="text-2xl font-bold text-foreground">
+                    {entityTypeStats.length}
+                  </div>
+                  <div className="text-sm text-muted-foreground">Types</div>
                 </div>
                 <div>
-                  <div className="text-2xl font-bold text-gray-900">
+                  <div className="text-2xl font-bold text-foreground">
                     {entities.reduce((sum, e) => sum + e.mentions, 0)}
                   </div>
-                  <div className="text-sm text-gray-500">Total Mentions</div>
+                  <div className="text-sm text-muted-foreground">
+                    Total Mentions
+                  </div>
                 </div>
               </div>
 
               {/* Type Breakdown */}
               <div>
-                <h4 className="font-medium text-gray-900 mb-3">Type Breakdown</h4>
+                <h4 className="font-medium text-foreground mb-3">
+                  Type Breakdown
+                </h4>
                 <div className="space-y-2">
-                  {entityTypeStats.map(stat => {
+                  {entityTypeStats.map((stat) => {
                     const percentage = (stat.count / entities.length) * 100;
                     return (
-                      <div key={stat.type} className="flex items-center space-x-3">
-                        <span className="text-lg"><stat.icon /></span>
+                      <div
+                        key={stat.type}
+                        className="flex items-center space-x-3"
+                      >
+                        <span className="text-lg">
+                          <stat.icon />
+                        </span>
                         <div className="flex-1">
                           <div className="flex items-center justify-between mb-1">
-                            <span className="text-sm font-medium">{stat.type}</span>
-                            <span className="text-sm text-gray-500">{stat.count} ({percentage.toFixed(1)}%)</span>
+                            <span className="text-sm font-medium">
+                              {stat.type}
+                            </span>
+                            <span className="text-sm text-muted-foreground">
+                              {stat.count} ({percentage.toFixed(1)}%)
+                            </span>
                           </div>
                           <Progress value={percentage} className="h-2" />
                         </div>
@@ -551,20 +645,28 @@ export const EntityTypeFilter: React.FC<EntityTypeFilterProps> = ({
               <SwatchIcon className="h-5 w-5 mr-2" />
               Entity Categories
             </div>
-            <span className="text-sm text-gray-500">
+            <span className="text-sm text-muted-foreground">
               Showing {filteredEntities.length} of {entities.length} entities
             </span>
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            {entityTypeStats.map(stat => {
-              const typeEntities = filteredEntities.filter(e => e.type === stat.type);
+            {entityTypeStats.map((stat) => {
+              const typeEntities = filteredEntities.filter(
+                (e) => e.type === stat.type
+              );
               const isExpanded = expandedTypes.has(stat.type);
-              const allOfTypeSelected = enableMultiSelect &&
-                typeEntities.every(e => filters.selectedEntityIds.includes(e.id));
-              const someOfTypeSelected = enableMultiSelect &&
-                typeEntities.some(e => filters.selectedEntityIds.includes(e.id));
+              const allOfTypeSelected =
+                enableMultiSelect &&
+                typeEntities.every((e) =>
+                  filters.selectedEntityIds.includes(e.id)
+                );
+              const someOfTypeSelected =
+                enableMultiSelect &&
+                typeEntities.some((e) =>
+                  filters.selectedEntityIds.includes(e.id)
+                );
 
               return (
                 <div key={stat.type} className="border rounded-lg">
@@ -574,17 +676,21 @@ export const EntityTypeFilter: React.FC<EntityTypeFilterProps> = ({
                     onClick={() => toggleTypeExpansion(stat.type)}
                   >
                     <div className="flex items-center space-x-3">
-                      <ChevronRightIcon className={cn(
-                        "h-4 w-4 transition-transform",
-                        isExpanded && "rotate-90"
-                      )} />
-                      <span className="text-lg"><stat.icon /></span>
+                      <ChevronRightIcon
+                        className={cn(
+                          'h-4 w-4 transition-transform',
+                          isExpanded && 'rotate-90'
+                        )}
+                      />
+                      <span className="text-lg">
+                        <stat.icon />
+                      </span>
                       <div>
                         <div className="font-medium">{stat.type}</div>
-                        <div className="text-sm text-gray-500">
-                          {typeEntities.length} entities •
-                          Avg. confidence: {Math.round(stat.avgConfidence * 100)}% •
-                          Total mentions: {formatNumber(stat.totalMentions)}
+                        <div className="text-sm text-muted-foreground">
+                          {typeEntities.length} entities • Avg. confidence:{' '}
+                          {Math.round(stat.avgConfidence * 100)}% • Total
+                          mentions: {formatNumber(stat.totalMentions)}
                         </div>
                       </div>
                     </div>
@@ -599,8 +705,8 @@ export const EntityTypeFilter: React.FC<EntityTypeFilterProps> = ({
                             selectAllOfType(stat.type);
                           }}
                           className={cn(
-                            "h-6 px-2",
-                            allOfTypeSelected && "text-blue-600"
+                            'h-6 px-2',
+                            allOfTypeSelected && 'text-blue-600'
                           )}
                         >
                           {allOfTypeSelected ? (
@@ -610,9 +716,7 @@ export const EntityTypeFilter: React.FC<EntityTypeFilterProps> = ({
                           )}
                         </Button>
                       )}
-                      <Badge className={stat.color}>
-                        {stat.count}
-                      </Badge>
+                      <Badge className={stat.color}>{stat.count}</Badge>
                     </div>
                   </div>
 
@@ -620,49 +724,64 @@ export const EntityTypeFilter: React.FC<EntityTypeFilterProps> = ({
                   {isExpanded && typeEntities.length > 0 && (
                     <div className="border-t max-h-96 overflow-auto">
                       <div className="p-2 space-y-1">
-                        {typeEntities.map(entity => {
-                          const isSelected = enableMultiSelect &&
+                        {typeEntities.map((entity) => {
+                          const isSelected =
+                            enableMultiSelect &&
                             filters.selectedEntityIds.includes(entity.id);
-                          const EntityIcon = entityTypeConfig[entity.type]?.icon || (() => <span>📄</span>);
+                          const EntityIcon =
+                            entityTypeConfig[entity.type]?.icon ||
+                            (() => <span>📄</span>);
 
                           return (
                             <div
                               key={entity.id}
                               className={cn(
-                                "flex items-center justify-between p-3 rounded-lg cursor-pointer hover:bg-gray-50",
-                                isSelected && "bg-blue-50 border border-blue-200"
+                                'flex items-center justify-between p-3 rounded-lg cursor-pointer hover:bg-gray-50',
+                                isSelected &&
+                                  'bg-blue-50 border border-blue-200'
                               )}
                               onClick={() => toggleEntitySelection(entity.id)}
                             >
                               <div className="flex items-center space-x-3">
                                 {enableMultiSelect && (
-                                  <div className={cn(
-                                    "w-4 h-4 rounded border-2 flex items-center justify-center",
-                                    isSelected
-                                      ? "bg-blue-600 border-blue-600"
-                                      : "border-gray-300"
-                                  )}>
+                                  <div
+                                    className={cn(
+                                      'w-4 h-4 rounded border-2 flex items-center justify-center',
+                                      isSelected
+                                        ? 'bg-blue-600 border-blue-600'
+                                        : 'border-border'
+                                    )}
+                                  >
                                     {isSelected && (
-                                      <span className="text-white text-xs">✓</span>
+                                      <span className="text-white text-xs">
+                                        ✓
+                                      </span>
                                     )}
                                   </div>
                                 )}
                                 <EntityIcon />
                                 <div>
-                                  <div className="font-medium text-sm">{entity.name}</div>
-                                  <div className="flex items-center space-x-2 text-xs text-gray-500">
-                                    <span>{Math.round(entity.confidence * 100)}% confidence</span>
+                                  <div className="font-medium text-sm">
+                                    {entity.name}
+                                  </div>
+                                  <div className="flex items-center space-x-2 text-xs text-muted-foreground">
+                                    <span>
+                                      {Math.round(entity.confidence * 100)}%
+                                      confidence
+                                    </span>
                                     <span>•</span>
                                     <span>{entity.mentions} mentions</span>
                                     {entity.aliases.length > 0 && (
                                       <>
                                         <span>•</span>
-                                        <span>{entity.aliases.length} aliases</span>
+                                        <span>
+                                          {entity.aliases.length} aliases
+                                        </span>
                                       </>
                                     )}
                                   </div>
                                   {entity.description && (
-                                    <div className="text-xs text-gray-600 mt-1 line-clamp-1">
+                                    <div className="text-xs text-foreground mt-1 line-clamp-1">
                                       {entity.description}
                                     </div>
                                   )}
@@ -680,7 +799,7 @@ export const EntityTypeFilter: React.FC<EntityTypeFilterProps> = ({
                   )}
 
                   {isExpanded && typeEntities.length === 0 && (
-                    <div className="border-t p-8 text-center text-gray-500">
+                    <div className="border-t p-8 text-center text-muted-foreground">
                       No entities of this type match the current filters.
                     </div>
                   )}

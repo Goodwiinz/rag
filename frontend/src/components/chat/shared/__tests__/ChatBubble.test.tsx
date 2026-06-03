@@ -72,7 +72,7 @@ describe('ChatBubble', () => {
     expect(onCitationClick).toHaveBeenCalledWith(citations, citations[0]);
   });
 
-  it('does not render citation chips when the assistant text has no inline citations', () => {
+  it('renders citation chips even when the assistant text has no inline citations', () => {
     render(
       <ChatBubble
         message={{
@@ -92,7 +92,7 @@ describe('ChatBubble', () => {
     );
 
     expect(
-      screen.queryByRole('button', { name: /a foundational paper/i })
-    ).not.toBeInTheDocument();
+      screen.getByRole('button', { name: /a foundational paper/i })
+    ).toBeInTheDocument();
   });
 });

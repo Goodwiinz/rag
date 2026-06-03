@@ -18,7 +18,7 @@ export const ToggleSwitch: React.FC<{
       'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background',
       checked
         ? 'border-primary/50 bg-primary/10 text-foreground'
-        : 'border-[var(--terminal-border)] bg-[var(--terminal-bg)]/40 text-muted-foreground hover:border-[var(--terminal-border)]'
+        : 'border-[var(--nous-border-1)] bg-[var(--nous-bg-1)]/40 text-muted-foreground hover:border-[var(--nous-border-1)]'
     )}
   >
     <span className="truncate pr-3 text-left">{label}</span>
@@ -27,7 +27,7 @@ export const ToggleSwitch: React.FC<{
         'relative inline-flex h-5 w-9 shrink-0 rounded-full border transition-colors',
         checked
           ? 'border-primary/60 bg-primary/20'
-          : 'border-[var(--terminal-border)] bg-[var(--terminal-surface)]'
+          : 'border-[var(--nous-border-1)] bg-[var(--nous-bg-2)]'
       )}
       aria-hidden="true"
     >
@@ -35,7 +35,7 @@ export const ToggleSwitch: React.FC<{
         className={cn(
           'mt-[2px] ml-[2px] block h-3.5 w-3.5 rounded-full transition-transform',
           checked
-            ? 'translate-x-4 bg-primary shadow-[0_0_8px_var(--phosphor-green-glow)]'
+            ? 'translate-x-4 bg-primary shadow-[0_0_8px_var(--nous-sol-glow)]'
             : 'translate-x-0 bg-muted-foreground'
         )}
       />
@@ -54,12 +54,12 @@ export const ProgressBar: React.FC<{ value: number; label?: string }> = ({
         <span className="font-bold text-primary">{Math.round(value)}%</span>
       </div>
     )}
-    <div className="h-1.5 w-full overflow-hidden rounded-full bg-[var(--terminal-border)]">
+    <div className="h-1.5 w-full overflow-hidden rounded-full bg-[var(--nous-border-1)]">
       <motion.div
         initial={{ width: 0 }}
         animate={{ width: `${value}%` }}
         transition={{ duration: 0.35, ease: 'easeOut' }}
-        className="h-full rounded-full bg-gradient-to-r from-primary/80 to-primary shadow-[0_0_10px_var(--phosphor-green-glow)]"
+        className="h-full rounded-full bg-gradient-to-r from-primary/80 to-primary shadow-[0_0_10px_var(--nous-sol-glow)]"
       />
     </div>
   </div>
@@ -89,7 +89,7 @@ export const CustomSlider: React.FC<{
       min={min}
       max={max}
       step={step}
-      className="h-1.5 w-full cursor-pointer appearance-none rounded-full bg-[var(--terminal-border)] accent-primary"
+      className="h-1.5 w-full cursor-pointer appearance-none rounded-full bg-[var(--nous-border-1)] accent-primary"
     />
   </div>
 );

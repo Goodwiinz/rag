@@ -1,7 +1,6 @@
 'use client';
 
 import { IconButton } from '@/components/ui/icon-button';
-import { SidebarTrigger } from '@/components/ui/sidebar';
 import {
   downloadFile,
   exportAsJson,
@@ -74,7 +73,7 @@ export const ChatHeader = memo(function ChatHeader({
   };
 
   return (
-    <div className="nous-glass flex h-12 sm:h-14 shrink-0 items-center gap-2 sm:gap-3 border-b border-[var(--nous-border-1)] px-3 sm:px-4 z-40">
+    <div className="bg-[var(--nous-bg-1)] flex h-12 sm:h-14 shrink-0 items-center gap-2 sm:gap-3 border-b border-[var(--nous-border-1)] px-3 sm:px-4 z-40">
       {/* Left: sidebar trigger + mobile menu + breadcrumb */}
       <div className="flex items-center gap-2 sm:gap-3 shrink-0 min-w-0">
         {onMobileSidebarToggle && (
@@ -87,8 +86,6 @@ export const ChatHeader = memo(function ChatHeader({
             <Menu className="w-5 h-5" />
           </button>
         )}
-
-        <SidebarTrigger className="hidden md:flex h-7 w-7 shrink-0 text-[var(--nous-fg-3)] hover:text-[var(--nous-sol)] hover:bg-[var(--nous-sol)]/8 transition-all rounded-lg" />
 
         {/* Mobile: show chat title */}
         <span
@@ -107,7 +104,6 @@ export const ChatHeader = memo(function ChatHeader({
             <span className="text-[var(--nous-fg-1)] font-medium">Chat</span>
           </span>
         </div>
-
       </div>
 
       {/* Command palette trigger */}
@@ -119,9 +115,7 @@ export const ChatHeader = memo(function ChatHeader({
         style={{ fontFamily: 'var(--nous-font-ui)' }}
       >
         <Search className="w-3.5 h-3.5 text-[var(--nous-fg-3)]" />
-        <span className="text-[11px] text-[var(--nous-fg-3)]">
-          Search
-        </span>
+        <span className="text-[11px] text-[var(--nous-fg-3)]">Search</span>
         <span className="px-1.5 py-0.5 rounded-md bg-[var(--nous-bg-1)] border border-[var(--nous-border-1)] text-[9px] text-[var(--nous-fg-3)] whitespace-nowrap">
           ⌘K
         </span>
@@ -175,7 +169,6 @@ export const ChatHeader = memo(function ChatHeader({
             </AnimatePresence>
           </div>
         )}
-
       </div>
     </div>
   );

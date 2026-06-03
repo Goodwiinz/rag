@@ -98,9 +98,9 @@ export const PathFinder: React.FC<PathFinderProps> = ({ entities, onEntityClick 
   return (
     <div className="space-y-4">
       {/* Path Finder Controls */}
-      <Card className="border-[var(--terminal-border)] bg-[var(--terminal-surface)]">
-        <CardHeader className="border-b border-[var(--terminal-border)] py-3">
-          <CardTitle className="text-xs font-mono font-bold uppercase tracking-widest text-[var(--terminal-text-dim)] flex items-center gap-2">
+      <Card className="border-[var(--nous-border-1)] bg-[var(--nous-bg-2)]">
+        <CardHeader className="border-b border-[var(--nous-border-1)] py-3">
+          <CardTitle className="text-xs font-mono font-bold uppercase tracking-widest text-[var(--nous-fg-3)] flex items-center gap-2">
             <GitBranch className="w-4 h-4" />
             Path Finder - How are entities connected?
           </CardTitle>
@@ -110,17 +110,17 @@ export const PathFinder: React.FC<PathFinderProps> = ({ entities, onEntityClick 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* Source Entity */}
             <div className="space-y-2">
-              <Label className="text-xs font-mono text-[var(--terminal-text-dim)]">
+              <Label className="text-xs font-mono text-[var(--nous-fg-3)]">
                 Source Entity
               </Label>
               <Input
                 placeholder="Search source entity..."
                 value={searchQuery.source}
                 onChange={(e) => setSearchQuery({ ...searchQuery, source: e.target.value })}
-                className="font-mono text-xs bg-[var(--terminal-bg)] border-[var(--terminal-border)] text-[var(--terminal-text)]"
+                className="font-mono text-xs bg-[var(--nous-bg-1)] border-[var(--nous-border-1)] text-[var(--nous-fg-1)]"
               />
               {searchQuery.source && filteredSourceEntities.length > 0 && (
-                <div className="max-h-40 overflow-y-auto border border-[var(--terminal-border)] rounded-md bg-[var(--terminal-bg)]">
+                <div className="max-h-40 overflow-y-auto border border-[var(--nous-border-1)] rounded-md bg-[var(--nous-bg-1)]">
                   {filteredSourceEntities.map(entity => (
                     <button
                       key={entity.id}
@@ -128,10 +128,10 @@ export const PathFinder: React.FC<PathFinderProps> = ({ entities, onEntityClick 
                         setSourceId(entity.id);
                         setSearchQuery({ ...searchQuery, source: entity.name });
                       }}
-                      className="w-full text-left px-3 py-2 text-xs font-mono hover:bg-[var(--terminal-elevated)] transition-colors"
+                      className="w-full text-left px-3 py-2 text-xs font-mono hover:bg-[var(--nous-bg-3)] transition-colors"
                     >
-                      <div className="text-[var(--terminal-text)]">{entity.name}</div>
-                      <div className="text-[var(--terminal-text-dim)]">{entity.type}</div>
+                      <div className="text-[var(--nous-fg-1)]">{entity.name}</div>
+                      <div className="text-[var(--nous-fg-3)]">{entity.type}</div>
                     </button>
                   ))}
                 </div>
@@ -140,17 +140,17 @@ export const PathFinder: React.FC<PathFinderProps> = ({ entities, onEntityClick 
 
             {/* Target Entity */}
             <div className="space-y-2">
-              <Label className="text-xs font-mono text-[var(--terminal-text-dim)]">
+              <Label className="text-xs font-mono text-[var(--nous-fg-3)]">
                 Target Entity
               </Label>
               <Input
                 placeholder="Search target entity..."
                 value={searchQuery.target}
                 onChange={(e) => setSearchQuery({ ...searchQuery, target: e.target.value })}
-                className="font-mono text-xs bg-[var(--terminal-bg)] border-[var(--terminal-border)] text-[var(--terminal-text)]"
+                className="font-mono text-xs bg-[var(--nous-bg-1)] border-[var(--nous-border-1)] text-[var(--nous-fg-1)]"
               />
               {searchQuery.target && filteredTargetEntities.length > 0 && (
-                <div className="max-h-40 overflow-y-auto border border-[var(--terminal-border)] rounded-md bg-[var(--terminal-bg)]">
+                <div className="max-h-40 overflow-y-auto border border-[var(--nous-border-1)] rounded-md bg-[var(--nous-bg-1)]">
                   {filteredTargetEntities.map(entity => (
                     <button
                       key={entity.id}
@@ -158,10 +158,10 @@ export const PathFinder: React.FC<PathFinderProps> = ({ entities, onEntityClick 
                         setTargetId(entity.id);
                         setSearchQuery({ ...searchQuery, target: entity.name });
                       }}
-                      className="w-full text-left px-3 py-2 text-xs font-mono hover:bg-[var(--terminal-elevated)] transition-colors"
+                      className="w-full text-left px-3 py-2 text-xs font-mono hover:bg-[var(--nous-bg-3)] transition-colors"
                     >
-                      <div className="text-[var(--terminal-text)]">{entity.name}</div>
-                      <div className="text-[var(--terminal-text-dim)]">{entity.type}</div>
+                      <div className="text-[var(--nous-fg-1)]">{entity.name}</div>
+                      <div className="text-[var(--nous-fg-3)]">{entity.type}</div>
                     </button>
                   ))}
                 </div>
@@ -173,7 +173,7 @@ export const PathFinder: React.FC<PathFinderProps> = ({ entities, onEntityClick 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* Max Depth */}
             <div className="space-y-2">
-              <Label className="text-xs font-mono text-[var(--terminal-text-dim)]">
+              <Label className="text-xs font-mono text-[var(--nous-fg-3)]">
                 Max Depth: {maxDepth}
               </Label>
               <Slider
@@ -188,7 +188,7 @@ export const PathFinder: React.FC<PathFinderProps> = ({ entities, onEntityClick 
 
             {/* Min Strength */}
             <div className="space-y-2">
-              <Label className="text-xs font-mono text-[var(--terminal-text-dim)]">
+              <Label className="text-xs font-mono text-[var(--nous-fg-3)]">
                 Min Strength: {minStrength.toFixed(2)}
               </Label>
               <Slider
@@ -206,7 +206,7 @@ export const PathFinder: React.FC<PathFinderProps> = ({ entities, onEntityClick 
           <Button
             onClick={handleFindPaths}
             disabled={loading || !sourceId || !targetId}
-            className="w-full font-mono text-xs font-bold bg-[var(--phosphor-green)] text-[var(--terminal-bg)] hover:shadow-[0_0_15px_var(--phosphor-green-glow)]"
+            className="w-full font-mono text-xs font-bold bg-[var(--nous-sol)] text-[var(--nous-bg-1)] hover:shadow-[0_0_15px_var(--nous-sol-glow)]"
           >
             {loading ? (
               <>
@@ -225,9 +225,9 @@ export const PathFinder: React.FC<PathFinderProps> = ({ entities, onEntityClick 
 
       {/* Path Results */}
       {paths.length > 0 && (
-        <Card className="border-[var(--terminal-border)] bg-[var(--terminal-surface)]">
-          <CardHeader className="border-b border-[var(--terminal-border)] py-3">
-            <CardTitle className="text-xs font-mono font-bold uppercase tracking-widest text-[var(--terminal-text-dim)]">
+        <Card className="border-[var(--nous-border-1)] bg-[var(--nous-bg-2)]">
+          <CardHeader className="border-b border-[var(--nous-border-1)] py-3">
+            <CardTitle className="text-xs font-mono font-bold uppercase tracking-widest text-[var(--nous-fg-3)]">
               Found {paths.length} Path{paths.length > 1 ? 's' : ''}
             </CardTitle>
           </CardHeader>
@@ -235,18 +235,18 @@ export const PathFinder: React.FC<PathFinderProps> = ({ entities, onEntityClick 
             {paths.map((path, pathIndex) => (
               <div
                 key={pathIndex}
-                className="border border-[var(--terminal-border)] rounded-lg p-3 bg-[var(--terminal-bg)]"
+                className="border border-[var(--nous-border-1)] rounded-lg p-3 bg-[var(--nous-bg-1)]"
               >
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-mono text-[var(--terminal-text-dim)]">
+                  <span className="text-xs font-mono text-[var(--nous-fg-3)]">
                     Path #{pathIndex + 1}
                   </span>
                   <div className="flex gap-4 text-xs font-mono">
-                    <span className="text-[var(--terminal-text-dim)]">
-                      Length: <span className="text-[var(--phosphor-green)]">{path.length}</span>
+                    <span className="text-[var(--nous-fg-3)]">
+                      Length: <span className="text-[var(--nous-sol)]">{path.length}</span>
                     </span>
-                    <span className="text-[var(--terminal-text-dim)]">
-                      Strength: <span className="text-[var(--amber-gold)]">
+                    <span className="text-[var(--nous-fg-3)]">
+                      Strength: <span className="text-[var(--nous-helios)]">
                         {path.total_strength.toFixed(2)}
                       </span>
                     </span>
@@ -260,23 +260,23 @@ export const PathFinder: React.FC<PathFinderProps> = ({ entities, onEntityClick 
                       {/* Entity Node */}
                       <button
                         onClick={() => onEntityClick?.(node.entity_id)}
-                        className="px-3 py-1.5 rounded-md bg-[var(--terminal-elevated)] border border-[var(--terminal-border)] hover:border-[var(--phosphor-green)] transition-colors"
+                        className="px-3 py-1.5 rounded-md bg-[var(--nous-bg-3)] border border-[var(--nous-border-1)] hover:border-[var(--nous-sol)] transition-colors"
                       >
-                        <div className="text-xs font-mono text-[var(--terminal-text)]">
+                        <div className="text-xs font-mono text-[var(--nous-fg-1)]">
                           {node.entity_name}
                         </div>
-                        <div className="text-[10px] font-mono text-[var(--terminal-text-dim)]">
+                        <div className="text-[10px] font-mono text-[var(--nous-fg-3)]">
                           {node.entity_type}
                         </div>
                       </button>
 
                       {/* Relationship Edge */}
                       {nodeIndex < path.edges.length && (
-                        <div className="flex items-center gap-1 text-xs font-mono text-[var(--terminal-text-dim)]">
+                        <div className="flex items-center gap-1 text-xs font-mono text-[var(--nous-fg-3)]">
                           <ArrowRight className="w-4 h-4" />
                           <span className="text-[10px]">
                             {path.edges[nodeIndex].relationship_type}
-                            <span className="text-[var(--amber-gold)] ml-1">
+                            <span className="text-[var(--nous-helios)] ml-1">
                               ({path.edges[nodeIndex].strength.toFixed(2)})
                             </span>
                           </span>

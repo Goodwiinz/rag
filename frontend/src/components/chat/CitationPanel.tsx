@@ -144,7 +144,7 @@ export function CitationPanel({
           {/* Search and Sort */}
           <div className="px-4 py-3 border-b border-border space-y-3 bg-background">
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-600" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-foreground" />
               <Input
                 type="text"
                 placeholder="Search sources..."
@@ -153,14 +153,14 @@ export function CitationPanel({
                 className={cn(
                   'pl-9 h-9 text-sm font-mono',
                   'bg-card border-border',
-                  'text-gray-300 placeholder:text-gray-600',
+                  'text-muted-foreground placeholder:text-foreground',
                   'focus:border-primary/30 focus:ring-primary/10'
                 )}
               />
             </div>
 
             <div className="flex items-center justify-between">
-              <span className="text-[10px] text-gray-600 font-mono">
+              <span className="text-[10px] text-foreground font-mono">
                 {filteredCitations.length} of {citations.length} sources
               </span>
               <Button
@@ -183,8 +183,8 @@ export function CitationPanel({
           <div className="flex-1 overflow-y-auto p-3 space-y-2 scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent">
             {filteredCitations.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-40 text-center">
-                <FileText className="w-10 h-10 text-gray-700 mb-2" />
-                <p className="text-xs text-gray-600 font-mono">
+                <FileText className="w-10 h-10 text-foreground mb-2" />
+                <p className="text-xs text-foreground font-mono">
                   {searchQuery
                     ? 'No sources match your search'
                     : 'No sources available'}

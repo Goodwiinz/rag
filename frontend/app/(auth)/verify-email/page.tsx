@@ -3,7 +3,7 @@
 import { useAuth } from '@/hooks/useAuth';
 import { createClient } from '@/lib/supabase/client';
 import { motion } from 'framer-motion';
-import { AlertTriangle, CheckCircle, RefreshCw } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import React, { Suspense, useEffect, useRef, useState } from 'react';
@@ -137,34 +137,42 @@ function VerifyEmailContent(): React.JSX.Element | null {
     const message =
       otpErrorMessage ?? describeError(errorCode, errorDescription);
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[var(--terminal-bg)]">
+      <div className="min-h-screen flex items-center justify-center bg-background px-6">
         <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="max-w-md w-full mx-6"
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+          className="w-full max-w-md"
         >
-          <div className="rounded-2xl border border-red-500/30 bg-[var(--terminal-surface)] p-10 text-center">
-            <div className="flex items-center justify-center w-16 h-16 rounded-full bg-red-500/10 border border-red-500/30 mx-auto mb-6">
-              <AlertTriangle className="w-8 h-8 text-red-400" />
+          <div className="rounded-2xl border border-border bg-card p-10 text-center shadow-sm">
+            <div className="flex items-center justify-center w-14 h-14 rounded-full bg-destructive/10 border border-destructive/30 mx-auto mb-6">
+              <AlertTriangle
+                className="w-7 h-7 text-destructive"
+                aria-hidden="true"
+              />
             </div>
-            <h2 className="text-xl font-mono font-bold text-[var(--terminal-text)] uppercase tracking-[0.15em] mb-3">
-              Verification Failed
-            </h2>
-            <p className="text-sm font-mono text-[var(--terminal-text-muted)] mb-8 leading-relaxed">
+            <h1 className="text-2xl font-semibold text-foreground mb-3">
+              We couldn&apos;t confirm your email
+            </h1>
+            <p
+              role="alert"
+              className="text-sm text-muted-foreground mb-8 leading-relaxed"
+              style={{ fontFamily: 'var(--nous-font-body)' }}
+            >
               {message}
             </p>
-            <div className="flex flex-col gap-3 items-center">
+            <div className="flex flex-col gap-4 items-center">
               <Link
                 href="/register"
-                className="text-[10px] font-mono text-[var(--phosphor-green)] uppercase tracking-widest hover:underline"
+                className="inline-flex items-center justify-center w-full rounded-xl bg-primary px-5 py-3 text-sm font-medium text-primary-foreground transition-colors hover:bg-[var(--nous-helios)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
               >
                 Request a new confirmation link
               </Link>
               <Link
                 href="/login"
-                className="text-[10px] font-mono text-[var(--terminal-text-dim)] uppercase tracking-widest hover:text-[var(--phosphor-green)] transition-colors"
+                className="text-sm text-muted-foreground transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background rounded"
               >
-                Return to Access Terminal
+                Back to sign in
               </Link>
             </div>
           </div>
@@ -175,21 +183,29 @@ function VerifyEmailContent(): React.JSX.Element | null {
 
   if (view === 'pending') {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[var(--terminal-bg)]">
+      <div className="min-h-screen flex items-center justify-center bg-background px-6">
         <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="max-w-md w-full mx-6"
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+          className="w-full max-w-md"
         >
-          <div className="rounded-2xl border border-[var(--terminal-border)] bg-[var(--terminal-surface)] p-10 text-center">
-            <div className="flex items-center justify-center w-16 h-16 rounded-full bg-[var(--phosphor-green)]/10 border border-[var(--phosphor-green)]/30 mx-auto mb-6">
-              <RefreshCw className="w-8 h-8 text-[var(--phosphor-green)] animate-spin" />
+          <div className="rounded-2xl border border-border bg-card p-10 text-center shadow-sm">
+            <div className="flex items-center justify-center w-14 h-14 rounded-full bg-primary/10 border border-primary/30 mx-auto mb-6">
+              <Loader2
+                className="w-7 h-7 text-primary motion-safe:animate-spin"
+                aria-hidden="true"
+              />
             </div>
-            <h2 className="text-xl font-mono font-bold text-[var(--terminal-text)] uppercase tracking-[0.15em] mb-3">
-              Verifying Identity
-            </h2>
-            <p className="text-sm font-mono text-[var(--terminal-text-muted)] mb-8 leading-relaxed">
-              Establishing your session. This only takes a moment...
+            <h1 className="text-2xl font-semibold text-foreground mb-3">
+              Confirming your email
+            </h1>
+            <p
+              role="status"
+              className="text-sm text-muted-foreground leading-relaxed"
+              style={{ fontFamily: 'var(--nous-font-body)' }}
+            >
+              Setting up your session. This only takes a moment.
             </p>
           </div>
         </motion.div>
@@ -198,35 +214,40 @@ function VerifyEmailContent(): React.JSX.Element | null {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[var(--terminal-bg)]">
+    <div className="min-h-screen flex items-center justify-center bg-background px-6">
       <motion.div
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
-        className="max-w-md w-full mx-6"
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+        className="w-full max-w-md"
       >
-        <div className="rounded-2xl border border-[var(--terminal-border)] bg-[var(--terminal-surface)] p-10 text-center">
-          <div className="flex items-center justify-center w-16 h-16 rounded-full bg-[var(--phosphor-green)]/10 border border-[var(--phosphor-green)]/30 mx-auto mb-6">
-            <CheckCircle className="w-8 h-8 text-[var(--phosphor-green)]" />
+        <div className="rounded-2xl border border-border bg-card p-10 text-center shadow-sm">
+          <div className="flex items-center justify-center w-14 h-14 rounded-full bg-primary/10 border border-primary/30 mx-auto mb-6">
+            <CheckCircle2 className="w-7 h-7 text-primary" aria-hidden="true" />
           </div>
-          <h2 className="text-xl font-mono font-bold text-[var(--terminal-text)] uppercase tracking-[0.15em] mb-3">
-            Identity Verified
-          </h2>
-          <p className="text-sm font-mono text-[var(--terminal-text-muted)] mb-6 leading-relaxed">
-            Your account has been activated. Redirecting to your workspace...
+          <h1 className="text-2xl font-semibold text-foreground mb-3">
+            Your email is confirmed
+          </h1>
+          <p
+            role="status"
+            className="text-sm text-muted-foreground mb-6 leading-relaxed"
+            style={{ fontFamily: 'var(--nous-font-body)' }}
+          >
+            Your account is active. Taking you to your workspace.
           </p>
-          <div className="h-1 w-24 mx-auto rounded-full bg-[var(--terminal-border)] overflow-hidden mb-6">
+          <div className="h-1 w-24 mx-auto rounded-full bg-muted overflow-hidden mb-8">
             <motion.div
               initial={{ width: 0 }}
               animate={{ width: '100%' }}
               transition={{ duration: VERIFIED_REDIRECT_DELAY_MS / 1000 }}
-              className="h-full bg-[var(--phosphor-green)]"
+              className="h-full bg-primary"
             />
           </div>
           <Link
             href={VERIFIED_REDIRECT_PATH}
-            className="text-[10px] font-mono text-[var(--terminal-text-dim)] uppercase tracking-widest hover:text-[var(--phosphor-green)] transition-colors"
+            className="inline-flex items-center justify-center w-full rounded-xl bg-primary px-5 py-3 text-sm font-medium text-primary-foreground transition-colors hover:bg-[var(--nous-helios)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
           >
-            Continue to Workspace
+            Go to workspace
           </Link>
         </div>
       </motion.div>

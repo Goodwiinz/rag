@@ -96,7 +96,7 @@ export const WriterToolbar: React.FC<WriterToolbarProps> = ({
             variant="ghost"
             size="sm"
             className={cn(
-              'h-8 gap-1.5 px-2.5 text-xs text-gray-300 hover:bg-[#1a1a1a] hover:text-gray-100',
+              'h-8 gap-1.5 px-2.5 text-xs text-muted-foreground hover:bg-[#1a1a1a] hover:text-foreground',
               isLoading && 'pointer-events-none opacity-70'
             )}
             disabled={loadingAction !== null}
@@ -118,7 +118,7 @@ export const WriterToolbar: React.FC<WriterToolbarProps> = ({
       <Button
         variant="ghost"
         size="sm"
-        className="h-7 w-7 p-0 text-gray-500 hover:bg-[#1a1a1a] hover:text-gray-300"
+        className="h-7 w-7 p-0 text-muted-foreground hover:bg-[#1a1a1a] hover:text-foreground"
         onClick={onClose}
         aria-label="Close toolbar"
       >

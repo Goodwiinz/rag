@@ -32,31 +32,33 @@ export function ProjectList({
           aria-label="View mode"
         >
           <button
+            type="button"
             onClick={() => onViewModeChange('grid')}
-            className={`px-3 py-2 text-xs font-mono flex items-center gap-1.5 ${
+            className={`px-3 py-2 text-xs flex items-center gap-1.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset ${
               viewMode === 'grid'
                 ? 'bg-primary/10 text-primary'
-                : 'bg-muted text-muted-foreground hover:text-foreground'
+                : 'bg-card text-muted-foreground hover:text-foreground'
             }`}
             title="Grid view"
             aria-label="Grid view"
             aria-pressed={viewMode === 'grid'}
           >
-            <LayoutGrid className="h-3.5 w-3.5" />
+            <LayoutGrid aria-hidden="true" className="h-3.5 w-3.5" />
             Grid
           </button>
           <button
+            type="button"
             onClick={() => onViewModeChange('list')}
-            className={`px-3 py-2 text-xs font-mono flex items-center gap-1.5 ${
+            className={`px-3 py-2 text-xs flex items-center gap-1.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset ${
               viewMode === 'list'
                 ? 'bg-primary/10 text-primary'
-                : 'bg-muted text-muted-foreground hover:text-foreground'
+                : 'bg-card text-muted-foreground hover:text-foreground'
             }`}
             title="List view"
             aria-label="List view"
             aria-pressed={viewMode === 'list'}
           >
-            <List className="h-3.5 w-3.5" />
+            <List aria-hidden="true" className="h-3.5 w-3.5" />
             List
           </button>
         </div>

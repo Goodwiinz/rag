@@ -5,16 +5,20 @@ import { cn } from '@/lib/utils';
 import type { LucideIcon } from 'lucide-react';
 import {
   BarChart3,
+  BookOpen,
   FileText,
+  FlaskConical,
   LayoutGrid,
+  LogOut,
   MessageSquare,
   Network,
   Search,
   Settings,
+  Workflow,
 } from 'lucide-react';
 import Link from 'next/link';
 import { BellPopover } from '@/components/notifications/BellPopover';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 
 interface RailButtonProps {
   icon: LucideIcon;
@@ -64,7 +68,8 @@ function RailButton({
 
 export function AppRail() {
   const pathname = usePathname();
-  const { user } = useAuth();
+  const router = useRouter();
+  const { user, logout } = useAuth();
 
   const isActive = (url: string) => {
     if (url === '/dashboard') return pathname === '/dashboard';
@@ -74,6 +79,11 @@ export function AppRail() {
   const getInitials = (email: string | undefined) => {
     if (!email) return 'U';
     return email.split('@')[0].slice(0, 2).toUpperCase();
+  };
+
+  const handleLogout = () => {
+    logout();
+    router.push('/login');
   };
 
   return (
@@ -102,7 +112,7 @@ export function AppRail() {
       {/* Divider */}
       <div className="w-[22px] h-px bg-[var(--nous-border-1)] dark:bg-[var(--nous-shade)] my-1.5" />
 
-      {/* Navigation */}
+      {/* Navigation — hub */}
       <RailButton
         icon={LayoutGrid}
         tip="Overview"
@@ -127,12 +137,38 @@ export function AppRail() {
         href="/search"
         active={isActive('/search')}
       />
+
+      {/* Divider — knowledge */}
+      <div className="w-[22px] h-px bg-[var(--nous-border-1)] dark:bg-[var(--nous-shade)] my-1.5" />
+
+      <RailButton
+        icon={BookOpen}
+        tip="ArXiv Papers"
+        href="/arxiv"
+        active={isActive('/arxiv')}
+      />
       <RailButton
         icon={Network}
         tip="Knowledge graph"
         href="/entities"
         active={isActive('/entities')}
       />
+      <RailButton
+        icon={FlaskConical}
+        tip="Research"
+        href="/research"
+        active={isActive('/research')}
+      />
+      <RailButton
+        icon={Workflow}
+        tip="Research Engine"
+        href="/research-engine"
+        active={isActive('/research-engine')}
+      />
+
+      {/* Divider — system */}
+      <div className="w-[22px] h-px bg-[var(--nous-border-1)] dark:bg-[var(--nous-shade)] my-1.5" />
+
       <RailButton
         icon={BarChart3}
         tip="Analytics"
@@ -153,6 +189,19 @@ export function AppRail() {
 
       {/* Spacer */}
       <div className="flex-1" />
+
+      <button
+        type="button"
+        aria-label="Sign out"
+        data-tip="Sign out"
+        onClick={handleLogout}
+        className={cn(
+          'rail-btn relative flex items-center justify-center w-9 h-9 rounded-lg transition-colors duration-150',
+          'text-red-400 hover:text-red-300 hover:bg-red-500/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400/50 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--nous-bg-2)] dark:focus-visible:ring-offset-[var(--nous-nyx)]'
+        )}
+      >
+        <LogOut className="w-4 h-4 rail-icon" />
+      </button>
 
       {/* User avatar */}
       <Link

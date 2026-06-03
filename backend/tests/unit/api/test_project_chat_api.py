@@ -253,6 +253,40 @@ class TestStartChatFromProject:
         assert request.initial_message == "Continue our discussion"
 
     @pytest.mark.asyncio
+    async def test_start_chat_rejects_cross_workspace_conversation(
+        self, mock_user, mock_project, mock_conversation, mock_db
+    ):
+        """Existing conversation must belong to the project workspace."""
+        from src.api.research.project_chat import start_chat_from_project
+
+        mock_conversation.workspace_id = uuid4()
+        request = StartChatFromProjectRequest(
+            initial_message="Wrong workspace",
+            conversation_id=mock_conversation.id,
+        )
+
+        doc_result = MagicMock()
+        doc_result.all.return_value = []
+        conv_result = MagicMock()
+        conv_result.scalar_one_or_none.return_value = mock_conversation
+        mock_db.execute.side_effect = [doc_result, conv_result]
+
+        with patch(
+            "src.api.research.project_chat._get_project_with_auth",
+            new=AsyncMock(return_value=mock_project),
+        ):
+            with pytest.raises(HTTPException) as exc_info:
+                await start_chat_from_project(
+                    mock_project.id,
+                    request,
+                    current_user=mock_user,
+                    db=mock_db,
+                )
+
+        assert exc_info.value.status_code == 400
+        assert "same workspace" in exc_info.value.detail
+
+    @pytest.mark.asyncio
     async def test_start_chat_logs_warning_for_empty_documents(self, mock_user, mock_project):
         """Test warning is logged when project has no documents"""
         # Verify the project has no documents
@@ -303,6 +337,48 @@ class TestLinkThreadToProject:
         # Verify both are in same workspace
         assert mock_thread.conversation.workspace_id == mock_workspace.id
         assert mock_project.workspace_id == mock_workspace.id
+
+    @pytest.mark.asyncio
+    async def test_link_sets_thread_active_project_context(
+        self, mock_user, mock_project, mock_thread, mock_db
+    ):
+        """Manual project links must persist active project context on thread."""
+        from src.api.research.project_chat import link_thread_to_project
+
+        mock_thread.source_project_id = None
+        mock_thread.rag_document_scope = None
+
+        existing_result = MagicMock()
+        existing_result.scalar_one_or_none.return_value = None
+        doc_id = uuid4()
+        doc_result = MagicMock()
+        doc_result.all.return_value = [(doc_id,)]
+        mock_db.execute.side_effect = [existing_result, doc_result]
+
+        async def _refresh(entity):
+            if getattr(entity, "id", None) is None:
+                entity.id = uuid4()
+            if getattr(entity, "linked_at", None) is None:
+                entity.linked_at = datetime.utcnow()
+
+        mock_db.refresh = AsyncMock(side_effect=_refresh)
+
+        with patch(
+            "src.api.research.project_chat._get_project_with_auth",
+            new=AsyncMock(return_value=mock_project),
+        ), patch(
+            "src.api.research.project_chat._get_thread_with_auth",
+            new=AsyncMock(return_value=mock_thread),
+        ):
+            await link_thread_to_project(
+                mock_project.id,
+                LinkThreadRequest(thread_id=mock_thread.id),
+                current_user=mock_user,
+                db=mock_db,
+            )
+
+        assert mock_thread.source_project_id == mock_project.id
+        assert mock_thread.rag_document_scope == {"document_ids": [str(doc_id)]}
 
 
 # ============================================================================

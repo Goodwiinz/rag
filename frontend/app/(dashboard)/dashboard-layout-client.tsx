@@ -3,7 +3,6 @@
 import dynamic from 'next/dynamic';
 import { SidebarLayout } from '@/components/layout/SidebarLayout';
 import { MobileTabBar } from '@/components/layout/MobileTabBar';
-import { AppRail } from '@/components/layout/AppRail';
 import { usePathname } from 'next/navigation';
 import { useNotificationBridge } from '@/hooks/useNotificationBridge';
 
@@ -31,20 +30,13 @@ export default function DashboardLayoutClient({
   );
 
   return (
-    <div className="flex h-svh overflow-hidden">
-      <div className="hidden lg:block h-full">
-        <AppRail />
-      </div>
-      <div className="flex-1 min-w-0 min-h-0">
-        <SidebarLayout
-          showBreadcrumb={shouldShowBreadcrumb}
-          showHeader={shouldShowHeader}
-          rightPanel={<GlobalAgentChat />}
-        >
-          {children}
-          <MobileTabBar />
-        </SidebarLayout>
-      </div>
-    </div>
+    <SidebarLayout
+      showBreadcrumb={shouldShowBreadcrumb}
+      showHeader={shouldShowHeader}
+      rightPanel={<GlobalAgentChat />}
+    >
+      {children}
+      <MobileTabBar />
+    </SidebarLayout>
   );
 }

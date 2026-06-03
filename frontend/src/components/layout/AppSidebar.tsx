@@ -40,6 +40,7 @@ import {
   Settings,
   Sparkles,
   Upload,
+  Workflow,
 } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -54,15 +55,13 @@ const mainNavItems = [
   { title: 'Search', url: '/search', icon: Search },
 ];
 
-const documentsNavItems = [
-  { title: 'All Documents', url: '/documents', icon: Files },
+const knowledgeNavItems = [
+  { title: 'Documents', url: '/documents', icon: Files },
   { title: 'Upload', url: '/documents/upload', icon: Upload },
-  { title: 'Entities', url: '/entities', icon: Network },
-];
-
-const researchNavItems = [
   { title: 'ArXiv Papers', url: '/arxiv', icon: BookOpen },
+  { title: 'Entities', url: '/entities', icon: Network },
   { title: 'Research', url: '/research', icon: FolderKanban },
+  { title: 'Research Engine', url: '/research-engine', icon: Workflow },
 ];
 
 const systemNavItems = [
@@ -148,11 +147,11 @@ export function AppSidebar() {
           isActive={active}
           tooltip={item.title}
           className={cn(
-            'group/nav font-mono text-xs transition-all duration-200 h-10 rounded-none border-l-2',
-            'group-data-[collapsible=icon]:!h-9 group-data-[collapsible=icon]:!w-9 group-data-[collapsible=icon]:!p-0 group-data-[collapsible=icon]:rounded-md group-data-[collapsible=icon]:border-l-0',
+            'group/nav font-mono text-xs transition-all duration-200 h-10 rounded-[var(--nous-radius-md)]',
+            'group-data-[collapsible=icon]:!h-9 group-data-[collapsible=icon]:!w-9 group-data-[collapsible=icon]:!p-0 group-data-[collapsible=icon]:rounded-md',
             active
-              ? 'bg-primary/10 text-sidebar-foreground border-l-primary group-data-[collapsible=icon]:bg-primary/15'
-              : 'text-muted-foreground border-l-transparent hover:text-sidebar-foreground hover:bg-sidebar-accent hover:border-l-primary/50 group-data-[collapsible=icon]:hover:bg-sidebar-accent'
+              ? 'bg-primary/10 text-sidebar-foreground group-data-[collapsible=icon]:bg-primary/15'
+              : 'text-muted-foreground hover:text-sidebar-foreground hover:bg-sidebar-accent group-data-[collapsible=icon]:hover:bg-sidebar-accent'
           )}
         >
           <Link
@@ -239,24 +238,12 @@ export function AppSidebar() {
             </SidebarGroupContent>
           </SidebarGroup>
 
-          {/* Documents Navigation */}
+          {/* Knowledge Navigation */}
           <SidebarGroup className="py-0 mt-4 group-data-[collapsible=icon]:mt-2 group-data-[collapsible=icon]:px-1">
-            <SectionLabel>DOCUMENTS</SectionLabel>
+            <SectionLabel>KNOWLEDGE</SectionLabel>
             <SidebarGroupContent>
               <SidebarMenu className="space-y-0.5 group-data-[collapsible=icon]:space-y-1">
-                {documentsNavItems.map((item) => (
-                  <NavItem key={item.title} item={item} />
-                ))}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-
-          {/* Research Navigation */}
-          <SidebarGroup className="py-0 mt-4 group-data-[collapsible=icon]:mt-2 group-data-[collapsible=icon]:px-1">
-            <SectionLabel>RESEARCH</SectionLabel>
-            <SidebarGroupContent>
-              <SidebarMenu className="space-y-0.5 group-data-[collapsible=icon]:space-y-1">
-                {researchNavItems.map((item) => (
+                {knowledgeNavItems.map((item) => (
                   <NavItem key={item.title} item={item} />
                 ))}
               </SidebarMenu>
@@ -301,7 +288,7 @@ export function AppSidebar() {
                 <span className="font-mono text-[10px] text-muted-foreground">
                   MEMORY
                 </span>
-                <span className="font-mono text-[10px] font-medium text-[var(--amber-gold)]">
+                <span className="font-mono text-[10px] font-medium text-[var(--nous-helios)]">
                   {metrics.memory}
                 </span>
               </div>
@@ -309,7 +296,7 @@ export function AppSidebar() {
                 <span className="font-mono text-[10px] text-muted-foreground">
                   QUERIES
                 </span>
-                <span className="font-mono text-[10px] font-medium text-[var(--cyan)]">
+                <span className="font-mono text-[10px] font-medium text-[var(--nous-helios)]">
                   {metrics.queries}
                 </span>
               </div>

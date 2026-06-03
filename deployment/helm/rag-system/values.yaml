@@ -58,53 +58,7 @@ backend:
     targetCPUUtilization: 70
     targetMemoryUtilization: 80
 
-# Configuration for UI service
-ui:
-  name: rag-ui
-  replicas: 2
-  image:
-    repository: ui
-    tag: latest
-    pullPolicy: IfNotPresent
-  service:
-    type: ClusterIP
-    port: 80
-    targetPort: 8501
-    annotations:
-      prometheus.io/scrape: "true"
-      prometheus.io/port: "8501"
-  resources:
-    requests:
-      memory: "512Mi"
-      cpu: "250m"
-    limits:
-      memory: "1Gi"
-      cpu: "500m"
-  livenessProbe:
-    httpGet:
-      path: /
-      port: 8501
-    initialDelaySeconds: 30
-    periodSeconds: 10
-    timeoutSeconds: 5
-    failureThreshold: 3
-  readinessProbe:
-    httpGet:
-      path: /
-      port: 8501
-    initialDelaySeconds: 15
-    periodSeconds: 5
-    timeoutSeconds: 3
-    failureThreshold: 2
-  env:
-    ENVIRONMENT: "production"
-    BACKEND_URL: "http://rag-backend:80"
-    LOG_LEVEL: "INFO"
-  scaling:
-    minReplicas: 2
-    maxReplicas: 10
-    targetCPUUtilization: 70
-    targetMemoryUtilization: 80
+# UI removed — frontend deployed via Vercel.
 
 # Configuration for API server service
 apiServer:

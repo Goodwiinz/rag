@@ -20,6 +20,16 @@
   --nous-mars: #ef4444;
   --nous-sol-safe: #996d1a;
 
+  /* Sol alpha steps (replace legacy --phosphor-green-{subtle,muted,glow}) */
+  --nous-sol-subtle: rgba(212, 160, 57, 0.08);
+  --nous-sol-muted: rgba(212, 160, 57, 0.05);
+  --nous-sol-glow: rgba(212, 160, 57, 0.12);
+  --nous-sol-intense: rgba(212, 160, 57, 0.3);
+
+  /* Helios alpha steps (replace legacy --amber-gold-{muted,glow}) */
+  --nous-helios-muted: rgba(232, 184, 74, 0.2);
+  --nous-helios-glow: rgba(232, 184, 74, 0.12);
+
   /* Semantic fg/bg */
   --nous-fg-1: var(--nous-erebus);
   --nous-fg-2: var(--nous-titan);
@@ -86,6 +96,14 @@
 
   --nous-border-1: var(--nous-shade);
   --nous-border-2: var(--nous-dusk);
+}
+
+/* ─── Optical sizing for Source Serif 4 (opsz axis 8..60) ─── */
+.nous-body,
+.nous-caption,
+.sb-conv-snippet,
+[style*='--nous-font-body'] {
+  font-optical-sizing: auto;
 }
 
 /* ─── Semantic type helpers (namespaced to avoid colliding with app utilities) ─── */
@@ -207,4 +225,45 @@
 }
 .nous-pulse {
   animation: nous-pulse 1.4s ease-in-out infinite;
+}
+
+/* ─── App Rail ─── */
+.rail-icon {
+  stroke-width: 1.6;
+}
+
+.rail-btn[data-tip]::after {
+  content: attr(data-tip);
+  position: absolute;
+  left: calc(100% + 12px);
+  top: 50%;
+  transform: translateY(-50%) translateX(-4px);
+  padding: 5px 9px;
+  background: var(--nous-erebus);
+  color: var(--nous-selene);
+  font-family: var(--nous-font-ui);
+  font-size: 11px;
+  font-weight: 500;
+  border-radius: 5px;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: all 160ms;
+  z-index: 50;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+}
+
+.rail-btn[data-tip]:hover::after,
+.rail-btn[data-tip]:focus-visible::after {
+  opacity: 1;
+  transform: translateY(-50%) translateX(0);
+}
+
+/* Hide scrollbar on filter chips */
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }

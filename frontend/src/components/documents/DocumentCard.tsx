@@ -60,7 +60,9 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
       case 'mp4':
         return <VideoCameraIcon className={cn(iconClass, 'text-orange-600')} />;
       default:
-        return <DocumentTextIcon className={cn(iconClass, 'text-gray-600')} />;
+        return (
+          <DocumentTextIcon className={cn(iconClass, 'text-foreground')} />
+        );
     }
   };
 
