@@ -7,6 +7,7 @@
 
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { Spinner } from '@/components/ui/spinner';
 import { entityService } from '../../services/entityService';
 import { EntityDetails, GraphNode, GraphEdge } from '../../types/graph-api';
 
@@ -80,7 +81,7 @@ export const EntityDetailsPanel: React.FC<EntityDetailsPanelProps> = ({
     return (
       <div className={`entity-details-panel ${className}`}>
         <div className="flex items-center justify-center p-8">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          <Spinner size="lg" className="text-primary" />
           <span className="ml-3 text-foreground">
             Loading entity details...
           </span>
@@ -92,7 +93,7 @@ export const EntityDetailsPanel: React.FC<EntityDetailsPanelProps> = ({
   if (error || !entityDetails) {
     return (
       <div className={`entity-details-panel ${className}`}>
-        <div className="p-4 text-red-600 text-center">
+        <div className="p-4 text-[var(--nous-mars)] text-center" role="alert">
           <h3 className="text-lg font-semibold mb-2">
             Failed to load entity details
           </h3>
@@ -116,12 +117,12 @@ export const EntityDetailsPanel: React.FC<EntityDetailsPanelProps> = ({
   const renderOverview = () => (
     <div className="space-y-4">
       {/* Basic Information */}
-      <div className="bg-gray-50 p-4 rounded-lg">
+      <div className="bg-muted p-4 rounded-lg">
         <h3 className="font-semibold text-lg mb-3">{entity.label}</h3>
         <div className="grid grid-cols-2 gap-3 text-sm">
           <div>
             <span className="font-medium text-foreground">Type:</span>
-            <span className="ml-2 px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs">
+            <span className="ml-2 px-2 py-1 bg-primary/10 text-primary rounded text-xs">
               {entity.type}
             </span>
           </div>
@@ -146,7 +147,7 @@ export const EntityDetailsPanel: React.FC<EntityDetailsPanelProps> = ({
       {Object.keys(entity.metadata || {}).length > 0 && (
         <div>
           <h4 className="font-semibold mb-2">Metadata</h4>
-          <div className="bg-gray-50 p-3 rounded-lg text-sm">
+          <div className="bg-muted p-3 rounded-lg text-sm">
             {Object.entries(entity.metadata).map(([key, value]) => (
               <div key={key} className="flex justify-between py-1">
                 <span className="font-medium text-foreground">{key}:</span>
@@ -172,7 +173,7 @@ export const EntityDetailsPanel: React.FC<EntityDetailsPanelProps> = ({
               }) => (
                 <div
                   key={similarEntity.id}
-                  className="flex items-center justify-between p-2 bg-gray-50 rounded hover:bg-gray-100 cursor-pointer"
+                  className="flex items-center justify-between p-2 bg-muted rounded hover:bg-accent cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/40"
                   onClick={() => onRelatedEntityClick?.(similarEntity.id)}
                 >
                   <div>
@@ -184,7 +185,7 @@ export const EntityDetailsPanel: React.FC<EntityDetailsPanelProps> = ({
                     </div>
                   </div>
                   <div className="text-right">
-                    <div className="text-sm font-semibold text-blue-600">
+                    <div className="text-sm font-semibold text-primary">
                       {(similarity * 100).toFixed(1)}%
                     </div>
                     <div className="text-xs text-muted-foreground">
@@ -210,7 +211,7 @@ export const EntityDetailsPanel: React.FC<EntityDetailsPanelProps> = ({
         relationships.map((relationship: GraphEdge) => (
           <div
             key={relationship.id}
-            className="border border-border rounded-lg p-3 hover:border-blue-300 cursor-pointer"
+            className="border border-border rounded-lg p-3 hover:border-primary/50 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/40"
             onClick={() => onRelationshipClick?.(relationship.id)}
           >
             <div className="flex items-center justify-between">
@@ -273,7 +274,7 @@ export const EntityDetailsPanel: React.FC<EntityDetailsPanelProps> = ({
               Relevance: {(doc.relevance_score * 100).toFixed(1)}%
             </div>
             {doc.snippet && (
-              <div className="text-sm text-foreground bg-gray-50 p-2 rounded italic">
+              <div className="text-sm text-foreground bg-muted p-2 rounded italic">
                 "{doc.snippet}"
               </div>
             )}
@@ -292,7 +293,7 @@ export const EntityDetailsPanel: React.FC<EntityDetailsPanelProps> = ({
       ) : (
         timeline.map((event: TimelineEvent, index: number) => (
           <div key={index} className="flex items-start space-x-3">
-            <div className="flex-shrink-0 w-2 h-2 bg-blue-600 rounded-full mt-2"></div>
+            <div className="flex-shrink-0 w-2 h-2 bg-primary rounded-full mt-2"></div>
             <div className="flex-1 min-w-0">
               <div className="text-sm font-medium text-foreground">
                 {event.type
@@ -320,7 +321,7 @@ export const EntityDetailsPanel: React.FC<EntityDetailsPanelProps> = ({
         {onClose && (
           <button
             onClick={onClose}
-            className="p-1 hover:bg-gray-100 rounded"
+            className="p-1 hover:bg-accent rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/40"
             aria-label="Close panel"
           >
             <svg
@@ -328,6 +329,7 @@ export const EntityDetailsPanel: React.FC<EntityDetailsPanelProps> = ({
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
+              aria-hidden="true"
             >
               <path
                 strokeLinecap="round"
@@ -355,15 +357,15 @@ export const EntityDetailsPanel: React.FC<EntityDetailsPanelProps> = ({
           <button
             key={tab.key}
             onClick={() => setActiveTab(tab.key as any)}
-            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/40 ${
               activeTab === tab.key
-                ? 'border-blue-500 text-blue-600'
+                ? 'border-primary text-primary'
                 : 'border-transparent text-muted-foreground hover:text-foreground'
             }`}
           >
             {tab.label}
             {tab.count !== undefined && (
-              <span className="ml-2 px-2 py-0.5 text-xs bg-gray-100 text-foreground rounded-full">
+              <span className="ml-2 px-2 py-0.5 text-xs bg-muted text-muted-foreground rounded-full">
                 {tab.count}
               </span>
             )}

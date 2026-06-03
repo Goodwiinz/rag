@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React from 'react';
+import { useState } from 'react';
 import {
   PlusIcon,
   PlayIcon,
@@ -32,6 +33,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
+import { Spinner } from '@/components/ui/spinner';
 import { cn } from '@/lib/utils';
 import {
   useEvaluations,
@@ -116,13 +118,13 @@ export const EvaluationManagement: React.FC = () => {
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'completed':
-        return 'text-green-600 bg-green-50';
+        return 'text-[var(--nous-terra)] bg-[var(--nous-terra)]/10';
       case 'running':
-        return 'text-blue-600 bg-blue-50';
+        return 'text-primary bg-primary/10';
       case 'failed':
-        return 'text-red-600 bg-red-50';
+        return 'text-[var(--nous-mars)] bg-[var(--nous-mars)]/10';
       default:
-        return 'text-foreground bg-gray-50';
+        return 'text-foreground bg-muted';
     }
   };
 
@@ -164,8 +166,11 @@ export const EvaluationManagement: React.FC = () => {
     return (
       <Card>
         <CardContent className="p-6">
-          <div className="text-center text-red-600">
-            <ExclamationTriangleIcon className="h-12 w-12 mx-auto mb-4" />
+          <div className="text-center text-[var(--nous-mars)]" role="alert">
+            <ExclamationTriangleIcon
+              className="h-12 w-12 mx-auto mb-4"
+              aria-hidden="true"
+            />
             <h3 className="text-lg font-medium mb-2">
               Error Loading Evaluations
             </h3>
@@ -200,7 +205,7 @@ export const EvaluationManagement: React.FC = () => {
         <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
           <DialogTrigger asChild>
             <Button>
-              <PlusIcon className="h-4 w-4 mr-2" />
+              <PlusIcon className="h-4 w-4 mr-2" aria-hidden="true" />
               New Evaluation
             </Button>
           </DialogTrigger>
@@ -227,7 +232,10 @@ export const EvaluationManagement: React.FC = () => {
                 </p>
                 <p className="text-2xl font-bold">{evaluationStats.total}</p>
               </div>
-              <DocumentTextIcon className="h-8 w-8 text-muted-foreground" />
+              <DocumentTextIcon
+                className="h-8 w-8 text-muted-foreground"
+                aria-hidden="true"
+              />
             </div>
           </CardContent>
         </Card>
@@ -236,11 +244,14 @@ export const EvaluationManagement: React.FC = () => {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-foreground">Completed</p>
-                <p className="text-2xl font-bold text-green-600">
+                <p className="text-2xl font-bold text-[var(--nous-terra)]">
                   {evaluationStats.completed}
                 </p>
               </div>
-              <CheckCircleIcon className="h-8 w-8 text-green-400" />
+              <CheckCircleIcon
+                className="h-8 w-8 text-[var(--nous-terra)]"
+                aria-hidden="true"
+              />
             </div>
           </CardContent>
         </Card>
@@ -249,11 +260,14 @@ export const EvaluationManagement: React.FC = () => {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-foreground">Running</p>
-                <p className="text-2xl font-bold text-blue-600">
+                <p className="text-2xl font-bold text-primary">
                   {evaluationStats.running}
                 </p>
               </div>
-              <ArrowPathIcon className="h-8 w-8 text-blue-400" />
+              <ArrowPathIcon
+                className="h-8 w-8 text-primary"
+                aria-hidden="true"
+              />
             </div>
           </CardContent>
         </Card>
@@ -262,11 +276,14 @@ export const EvaluationManagement: React.FC = () => {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-foreground">Failed</p>
-                <p className="text-2xl font-bold text-red-600">
+                <p className="text-2xl font-bold text-[var(--nous-mars)]">
                   {evaluationStats.failed}
                 </p>
               </div>
-              <ExclamationTriangleIcon className="h-8 w-8 text-red-400" />
+              <ExclamationTriangleIcon
+                className="h-8 w-8 text-[var(--nous-mars)]"
+                aria-hidden="true"
+              />
             </div>
           </CardContent>
         </Card>
@@ -320,11 +337,14 @@ export const EvaluationManagement: React.FC = () => {
         <CardContent>
           {isLoading ? (
             <div className="flex items-center justify-center h-32">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+              <Spinner size="lg" className="text-primary" />
             </div>
           ) : filteredEvaluations.length === 0 ? (
             <div className="text-center py-12">
-              <DocumentTextIcon className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+              <DocumentTextIcon
+                className="h-12 w-12 text-muted-foreground mx-auto mb-4"
+                aria-hidden="true"
+              />
               <h3 className="text-lg font-medium text-foreground mb-2">
                 No evaluations found
               </h3>
@@ -337,7 +357,7 @@ export const EvaluationManagement: React.FC = () => {
                 filterStatus === 'all' &&
                 filterType === 'all' && (
                   <Button onClick={() => setShowCreateDialog(true)}>
-                    <PlusIcon className="h-4 w-4 mr-2" />
+                    <PlusIcon className="h-4 w-4 mr-2" aria-hidden="true" />
                     Create Evaluation
                   </Button>
                 )}
@@ -352,9 +372,9 @@ export const EvaluationManagement: React.FC = () => {
                   <div
                     key={evaluation.id}
                     className={cn(
-                      'border rounded-lg p-4 hover:bg-gray-50 transition-colors',
+                      'border rounded-lg p-4 hover:bg-muted transition-colors',
                       selectedEvaluation === evaluation.id &&
-                        'border-blue-500 bg-blue-50'
+                        'border-primary bg-primary/5'
                     )}
                   >
                     <div className="flex items-start justify-between">
@@ -362,6 +382,7 @@ export const EvaluationManagement: React.FC = () => {
                         <div className="flex items-center space-x-3 mb-2">
                           {React.createElement(TypeIcon, {
                             className: 'h-5 w-5 text-muted-foreground',
+                            'aria-hidden': 'true',
                           })}
                           <h3 className="text-lg font-medium text-foreground">
                             {evaluation.name}
@@ -369,6 +390,7 @@ export const EvaluationManagement: React.FC = () => {
                           <Badge className={getStatusColor(evaluation.status)}>
                             {React.createElement(StatusIcon, {
                               className: 'h-3 w-3 mr-1',
+                              'aria-hidden': 'true',
                             })}
                             {evaluation.status}
                           </Badge>
@@ -383,7 +405,10 @@ export const EvaluationManagement: React.FC = () => {
                         )}
                         <div className="flex items-center space-x-6 text-sm text-muted-foreground">
                           <div className="flex items-center">
-                            <CalendarIcon className="h-4 w-4 mr-1" />
+                            <CalendarIcon
+                              className="h-4 w-4 mr-1"
+                              aria-hidden="true"
+                            />
                             Created{' '}
                             {new Date(
                               evaluation.created_at
@@ -391,7 +416,10 @@ export const EvaluationManagement: React.FC = () => {
                           </div>
                           {evaluation.last_run && (
                             <div className="flex items-center">
-                              <ClockIcon className="h-4 w-4 mr-1" />
+                              <ClockIcon
+                                className="h-4 w-4 mr-1"
+                                aria-hidden="true"
+                              />
                               Last run{' '}
                               {new Date(
                                 evaluation.last_run.started_at
@@ -400,7 +428,10 @@ export const EvaluationManagement: React.FC = () => {
                           )}
                           {evaluation.last_run?.results_summary && (
                             <div className="flex items-center">
-                              <ChartBarIcon className="h-4 w-4 mr-1" />
+                              <ChartBarIcon
+                                className="h-4 w-4 mr-1"
+                                aria-hidden="true"
+                              />
                               Score:{' '}
                               {evaluation.last_run.results_summary.average_score.toFixed(
                                 1
@@ -416,8 +447,9 @@ export const EvaluationManagement: React.FC = () => {
                           variant="ghost"
                           size="sm"
                           onClick={() => setSelectedEvaluation(evaluation.id)}
+                          aria-label="View evaluation"
                         >
-                          <EyeIcon className="h-4 w-4" />
+                          <EyeIcon className="h-4 w-4" aria-hidden="true" />
                         </Button>
                         {evaluation.status !== 'running' && (
                           <Button
@@ -425,8 +457,9 @@ export const EvaluationManagement: React.FC = () => {
                             size="sm"
                             onClick={() => handleRunEvaluation(evaluation.id)}
                             disabled={runEvaluationMutation.isPending}
+                            aria-label="Run evaluation"
                           >
-                            <PlayIcon className="h-4 w-4" />
+                            <PlayIcon className="h-4 w-4" aria-hidden="true" />
                           </Button>
                         )}
                         <Button
@@ -434,8 +467,9 @@ export const EvaluationManagement: React.FC = () => {
                           size="sm"
                           onClick={() => handleDeleteEvaluation(evaluation.id)}
                           disabled={deleteEvaluationMutation.isPending}
+                          aria-label="Delete evaluation"
                         >
-                          <TrashIcon className="h-4 w-4" />
+                          <TrashIcon className="h-4 w-4" aria-hidden="true" />
                         </Button>
                       </div>
                     </div>
