@@ -197,7 +197,7 @@ async def enhanced_multi_agent_search(
         )
     except Exception as e:
         logger.error(f"Enhanced multi-agent search failed: {e}")
-        raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/status")
@@ -251,7 +251,7 @@ async def get_service_status(current_user: User = Depends(get_current_user)):
     except Exception as e:
         logger.error(f"Failed to get service status: {e}")
         raise HTTPException(
-            status_code=500, detail=f"Failed to retrieve service status: {str(e)}"
+            status_code=500, detail="Internal server error"
         )
 
 
@@ -290,7 +290,7 @@ async def get_workflow_recommendations(
     except Exception as e:
         logger.error(f"Failed to get workflow recommendations: {e}")
         raise HTTPException(
-            status_code=500, detail=f"Failed to generate recommendations: {str(e)}"
+            status_code=500, detail="Internal server error"
         )
 
 
@@ -378,7 +378,7 @@ async def run_agent_benchmark(
     except Exception as e:
         logger.error(f"Benchmark failed: {e}")
         raise HTTPException(
-            status_code=500, detail=f"Benchmark execution failed: {str(e)}"
+            status_code=500, detail="Internal server error"
         )
 
 
@@ -431,7 +431,7 @@ async def get_performance_report(
     except Exception as e:
         logger.error(f"Failed to get performance report: {e}")
         raise HTTPException(
-            status_code=500, detail=f"Failed to generate performance report: {str(e)}"
+            status_code=500, detail="Internal server error"
         )
 
 
@@ -481,7 +481,7 @@ async def reset_performance_metrics(
     except Exception as e:
         logger.error(f"Failed to reset metrics: {e}")
         raise HTTPException(
-            status_code=500, detail=f"Failed to reset metrics: {str(e)}"
+            status_code=500, detail="Internal server error"
         )
 
 
@@ -521,7 +521,7 @@ async def get_query_history(
     except Exception as e:
         logger.error(f"Failed to get query history: {e}")
         raise HTTPException(
-            status_code=500, detail=f"Failed to retrieve query history: {str(e)}"
+            status_code=500, detail="Internal server error"
         )
 
 

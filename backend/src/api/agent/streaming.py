@@ -701,9 +701,10 @@ async def stream_confirm_event_generator(
             yield f"event: error\ndata: {_json.dumps({'error': 'Thread not found'})}\n\n"
             return
 
-        # Verify thread ownership — prevent users from resuming others' graphs
-        snapshot_user_id = current_snapshot.values.get("user_id", "")
-        if snapshot_user_id and snapshot_user_id != str(current_user.id):
+        # Verify thread ownership — checkpoints without an owner predate the
+        # ownership field and cannot be safely resumed from a public thread id.
+        snapshot_user_id = current_snapshot.values.get("user_id")
+        if not snapshot_user_id or snapshot_user_id != str(current_user.id):
             logger.warning(
                 "HITL ownership mismatch: thread %s owned by %s, requested by %s",
                 request_body.thread_id,

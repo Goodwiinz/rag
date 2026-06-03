@@ -5,12 +5,12 @@
 
 ## Entry points
 
-| File | Purpose |
-|---|---|
-| `app/layout.tsx` | Root layout — fonts, theme, providers |
-| `app/providers.tsx` | QueryClient, AuthProvider, ToastProvider |
-| `app/page.tsx` | Root redirect → dashboard |
-| `app/not-found.tsx` | 404 page |
+| File                    | Purpose                                        |
+| ----------------------- | ---------------------------------------------- |
+| `app/layout.tsx`        | Root layout — fonts, theme, providers          |
+| `app/providers.tsx`     | QueryClient, AuthProvider, ToastProvider       |
+| `app/page.tsx`          | Root redirect → dashboard                      |
+| `app/not-found.tsx`     | 404 page                                       |
 | `frontend/cli/index.ts` | Node.js REPL CLI (`./nous`) — separate package |
 
 ## App Router tree (`app/`)
@@ -94,36 +94,36 @@ src/
 
 Defined in `next.config.js → rewrites()`:
 
-| Next.js path | Destination |
-|---|---|
-| `/api/v1/*` | `${BACKEND_URL}/api/v1/*` |
-| `/api/v2/*` | `${BACKEND_URL}/api/v2/*` |
+| Next.js path | Destination                                        |
+| ------------ | -------------------------------------------------- |
+| `/api/v1/*`  | `${BACKEND_URL \|\| NEXT_PUBLIC_API_URL}/api/v1/*` |
+| `/api/v2/*`  | `${BACKEND_URL \|\| NEXT_PUBLIC_API_URL}/api/v2/*` |
 
-Set `BACKEND_URL` in env (defaults to `http://localhost:8000`). Do NOT set localhost fallbacks in `env:` block — they get baked into the prod bundle.
+Set `BACKEND_URL` in env for server-side rewrites. Vercel builds fail if neither `BACKEND_URL` nor `NEXT_PUBLIC_API_URL` is configured, because otherwise all API rewrites would target `http://localhost:8000`. Do NOT set localhost fallbacks in `env:` block — they get baked into the prod bundle.
 
 ## Store slices (src/store/)
 
-| File | State |
-|---|---|
-| `chat-store.ts` | Messages, streaming state, drafts, tool call results |
-| `agentChatStore.ts` | Agent job polling, HITL confirm flow |
-| `llm-chat-store.ts` | LLM-direct chat (non-agent) |
-| `projectChatStore.ts` | Project-scoped chat |
-| `citationStore.ts` | Citation list, selected citations |
-| `projectStore.ts` | Research project CRUD cache |
-| `pipelineStore.ts` | Multi-step pipeline wizard state |
-| `realtime-store.ts` | Document ingestion progress |
-| `research-engine-store.ts` | Research engine runs + results |
-| `sidebar-store.ts` | Sidebar open/collapsed |
+| File                       | State                                                |
+| -------------------------- | ---------------------------------------------------- |
+| `chat-store.ts`            | Messages, streaming state, drafts, tool call results |
+| `agentChatStore.ts`        | Agent job polling, HITL confirm flow                 |
+| `llm-chat-store.ts`        | LLM-direct chat (non-agent)                          |
+| `projectChatStore.ts`      | Project-scoped chat                                  |
+| `citationStore.ts`         | Citation list, selected citations                    |
+| `projectStore.ts`          | Research project CRUD cache                          |
+| `pipelineStore.ts`         | Multi-step pipeline wizard state                     |
+| `realtime-store.ts`        | Document ingestion progress                          |
+| `research-engine-store.ts` | Research engine runs + results                       |
+| `sidebar-store.ts`         | Sidebar open/collapsed                               |
 
 ## Known deduplication targets
 
-| Concept | Files | Target |
-|---|---|---|
-| REST client | `api.ts`, `api-client.ts`, `apiClient.ts` | Keep `api.ts` |
-| WebSocket | 4 implementations | Keep `websocketService.ts` |
-| Store root | `src/store/` + `src/stores/` | Keep `src/store/` |
-| Format utils | `lib/format-utils.ts`, `utils/formatUtils.ts`, `utils/analytics/formatUtils.ts` | `utils/format.ts` |
+| Concept      | Files                                                                           | Target                     |
+| ------------ | ------------------------------------------------------------------------------- | -------------------------- |
+| REST client  | `api.ts`, `api-client.ts`, `apiClient.ts`                                       | Keep `api.ts`              |
+| WebSocket    | 4 implementations                                                               | Keep `websocketService.ts` |
+| Store root   | `src/store/` + `src/stores/`                                                    | Keep `src/store/`          |
+| Format utils | `lib/format-utils.ts`, `utils/formatUtils.ts`, `utils/analytics/formatUtils.ts` | `utils/format.ts`          |
 
 ## Adding a new feature
 

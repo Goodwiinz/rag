@@ -509,7 +509,7 @@ async def chat_completions(
     except Exception as e:
         logger.error(f"Chat completion error: {str(e)}")
         raise HTTPException(
-            status_code=500, detail=f"Failed to get chat completion: {str(e)}"
+            status_code=500, detail="Internal server error"
         )
 
 

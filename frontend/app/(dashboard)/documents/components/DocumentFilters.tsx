@@ -1,4 +1,4 @@
-import { Search, Filter, X, ChevronDown, CheckCircle } from 'lucide-react';
+import { Search, Filter, X, ChevronDown, Check } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -22,6 +22,14 @@ interface DocumentFiltersProps {
   isBulkDeleting: boolean;
 }
 
+const STATUS_LABELS: Record<string, string> = {
+  all: 'All statuses',
+  indexed: 'Indexed',
+  processing: 'Processing',
+  queued: 'Queued',
+  failed: 'Failed',
+};
+
 export function DocumentFilters({
   searchQuery,
   onSearchChange,
@@ -37,45 +45,56 @@ export function DocumentFilters({
 
   return (
     <div className="space-y-4">
-      {/* Search and Filter Row */}
-      <div className="flex flex-col md:flex-row gap-4 bg-[var(--nous-bg-2)] p-1 rounded-xl border border-[var(--nous-border-1)]">
+      {/* Search and filter row */}
+      <div className="flex flex-col md:flex-row gap-3 md:items-center rounded-xl border border-border bg-card p-2 shadow-sm">
         <div className="flex-1 relative group">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--nous-fg-3)] group-focus-within:text-[var(--nous-sol)] transition-colors" />
+          <Search
+            aria-hidden="true"
+            className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground group-focus-within:text-primary transition-colors"
+          />
           <Input
             type="text"
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
-            placeholder="Search documents by name, content, or id..."
-            className="w-full pl-10 pr-4 py-2 border-none bg-transparent font-mono text-sm text-[var(--nous-fg-1)] focus-visible:ring-0 placeholder:text-[var(--nous-fg-3)] h-auto"
+            placeholder="Search by name, content, or id"
+            aria-label="Search documents"
+            className="w-full pl-10 pr-10 border-none bg-transparent text-sm text-foreground shadow-none focus-visible:ring-0 placeholder:text-muted-foreground h-9"
           />
           {searchQuery && (
             <Button
               variant="ghost"
               size="icon"
               onClick={() => onSearchChange('')}
-              className="absolute right-2 top-1/2 -translate-y-1/2 h-6 w-6 text-[var(--nous-fg-3)] hover:text-[var(--nous-fg-1)]"
+              aria-label="Clear search"
+              className="absolute right-1.5 top-1/2 -translate-y-1/2 h-7 w-7 text-muted-foreground hover:text-foreground"
             >
-              <X className="w-3 h-3" />
+              <X aria-hidden="true" className="w-3.5 h-3.5" />
             </Button>
           )}
         </div>
 
-        <div className="w-[1px] bg-[var(--nous-border-1)] my-1 hidden md:block" />
+        <div className="hidden md:block w-px self-stretch bg-border my-1" />
 
         <DropdownMenu open={showFilters} onOpenChange={setShowFilters}>
           <DropdownMenuTrigger asChild>
             <Button
               variant="ghost"
-              className="w-full md:w-auto justify-between gap-3 px-4 font-mono text-xs text-[var(--nous-fg-3)] hover:bg-[var(--nous-bg-3)] hover:text-[var(--nous-fg-1)]"
+              className="w-full md:w-auto justify-between gap-3 text-sm text-muted-foreground hover:text-foreground"
             >
-              <div className="flex items-center gap-2">
-                <Filter className="w-3.5 h-3.5" />
-                <span>{statusFilter === 'all' ? 'ALL STATUS' : statusFilter.toUpperCase()}</span>
-              </div>
-              <ChevronDown className={cn("w-3.5 h-3.5 transition-transform", showFilters && "rotate-180")} />
+              <span className="flex items-center gap-2">
+                <Filter aria-hidden="true" className="w-4 h-4" />
+                <span>{STATUS_LABELS[statusFilter] ?? statusFilter}</span>
+              </span>
+              <ChevronDown
+                aria-hidden="true"
+                className={cn(
+                  'w-4 h-4 transition-transform duration-200',
+                  showFilters && 'rotate-180'
+                )}
+              />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-48 bg-[var(--nous-bg-2)] border-[var(--nous-border-1)]">
+          <DropdownMenuContent align="end" className="w-48">
             {statuses.map((status) => (
               <DropdownMenuItem
                 key={status}
@@ -84,34 +103,37 @@ export function DocumentFilters({
                   setShowFilters(false);
                 }}
                 className={cn(
-                  "font-mono text-xs cursor-pointer flex items-center justify-between",
-                  statusFilter === status 
-                    ? "text-[var(--nous-sol)] focus:text-[var(--nous-sol)] bg-[var(--nous-sol)]/10" 
-                    : "text-[var(--nous-fg-3)] focus:text-[var(--nous-fg-1)]"
+                  'text-sm cursor-pointer flex items-center justify-between',
+                  statusFilter === status && 'text-primary'
                 )}
               >
-                {status.toUpperCase()}
-                {statusFilter === status && <CheckCircle className="w-3 h-3" />}
+                {STATUS_LABELS[status] ?? status}
+                {statusFilter === status && (
+                  <Check aria-hidden="true" className="w-4 h-4" />
+                )}
               </DropdownMenuItem>
             ))}
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
 
-      {/* Selection Bar */}
+      {/* Selection bar */}
       {selectedCount > 0 && (
-        <div className="flex items-center justify-between p-2 px-4 rounded-lg bg-[var(--nous-sol)]/10 border border-[var(--nous-sol)]/20 animate-in slide-in-from-top-2 fade-in duration-200">
+        <div className="flex items-center justify-between gap-3 px-4 py-2 rounded-xl border border-primary/30 bg-primary/5">
           <div className="flex items-center gap-3">
-            <Badge variant="outline" className="border-[var(--nous-sol)] text-[var(--nous-sol)] font-mono">
-              {selectedCount} Selected
+            <Badge
+              variant="outline"
+              className="border-primary/40 text-primary tabular-nums"
+            >
+              {selectedCount} selected
             </Badge>
             <Button
               variant="link"
               size="sm"
               onClick={onClearSelection}
-              className="text-[var(--nous-fg-3)] hover:text-[var(--nous-fg-1)] font-mono text-xs h-auto p-0"
+              className="text-muted-foreground hover:text-foreground text-sm h-auto p-0"
             >
-              Clear Selection
+              Clear selection
             </Button>
           </div>
           <Button
@@ -119,9 +141,9 @@ export function DocumentFilters({
             size="sm"
             onClick={onBulkDelete}
             disabled={isBulkDeleting}
-            className="h-8 font-mono text-xs"
+            className="h-8"
           >
-            {isBulkDeleting ? 'Deleting...' : 'Delete Selected'}
+            {isBulkDeleting ? 'Deleting…' : 'Delete selected'}
           </Button>
         </div>
       )}

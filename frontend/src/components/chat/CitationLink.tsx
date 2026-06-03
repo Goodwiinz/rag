@@ -194,19 +194,23 @@ export function CitationLink({
         {previewContent && previewContent.length > 10 && (
           <div className="px-3 py-2.5 border-b border-[var(--nous-border-1)]">
             <div className="flex items-center gap-1.5 mb-1.5">
-              <BookOpen className="w-3 h-3 text-[var(--nous-sol)]/60" />
+              <BookOpen
+                aria-hidden
+                className="w-3 h-3 text-[var(--nous-fg-3)]"
+                strokeWidth={1.8}
+              />
               <span
-                className="text-[9px] uppercase tracking-wider text-[var(--nous-fg-3)]"
-                style={{ fontFamily: 'var(--nous-font-mono)' }}
+                className="text-[11px] font-medium text-[var(--nous-fg-3)]"
+                style={{ fontFamily: 'var(--nous-font-ui)' }}
               >
                 Preview
               </span>
             </div>
             <p
-              className="text-[11px] text-[var(--nous-fg-2)] leading-relaxed line-clamp-3"
+              className="text-[12px] text-[var(--nous-fg-2)] leading-relaxed line-clamp-4"
               style={{ fontFamily: 'var(--nous-font-body)' }}
             >
-              {truncateText(previewContent, 200)}
+              {truncateText(previewContent, 240)}
             </p>
           </div>
         )}

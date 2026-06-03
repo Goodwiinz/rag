@@ -27,12 +27,20 @@ export interface ProjectCardProps {
   compact?: boolean;
 }
 
+// Status uses the single Sol accent for the active state; other states stay
+// neutral so color never carries meaning on its own (the label always does).
 const statusStyles: Record<string, string> = {
   active: 'bg-primary/10 text-primary border-primary/30',
-  paused:
-    'bg-[var(--nous-helios)]/10 text-[var(--nous-helios)] border-[var(--nous-helios)]/30',
-  completed: 'bg-[var(--nous-helios)]/10 text-[var(--nous-helios)] border-[var(--nous-helios)]/30',
-  archived: 'bg-gray-500/10 text-muted-foreground border-border/30',
+  paused: 'bg-muted text-foreground border-border',
+  completed: 'bg-muted text-foreground border-border',
+  archived: 'bg-muted text-muted-foreground border-border',
+};
+
+const statusLabels: Record<string, string> = {
+  active: 'Active',
+  paused: 'Paused',
+  completed: 'Completed',
+  archived: 'Archived',
 };
 
 export function ProjectCard({
@@ -46,6 +54,7 @@ export function ProjectCard({
   const status = project.research_status || 'active';
   const isArchived = status === 'archived';
   const statusClass = statusStyles[status] || statusStyles.active;
+  const statusLabel = statusLabels[status] || status;
   const createdLabel = project.updated_at
     ? new Date(project.updated_at).toLocaleDateString()
     : '';
@@ -53,37 +62,41 @@ export function ProjectCard({
   return (
     <div
       onClick={() => onOpen(project.id)}
-      className="group bg-card border border-border rounded-lg p-4 cursor-pointer hover:border-primary/50 transition-colors"
+      className="group bg-card border border-border rounded-lg p-4 cursor-pointer shadow-sm hover:border-primary/40 hover:shadow-md transition-all"
     >
       <div className="flex items-start justify-between gap-3 mb-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <FolderKanban className="h-5 w-5 text-primary shrink-0" />
-            <h3 className="font-mono font-medium text-foreground truncate group-hover:text-primary transition-colors">
+            <FolderKanban
+              aria-hidden="true"
+              className="h-5 w-5 text-primary shrink-0"
+            />
+            <h3 className="font-medium text-foreground truncate group-hover:text-primary transition-colors">
               {project.name}
             </h3>
           </div>
           <div className="mt-2">
             <span
-              className={`px-2 py-0.5 border rounded text-[11px] uppercase font-mono ${statusClass}`}
+              className={`px-2 py-0.5 border rounded-full text-[11px] font-medium ${statusClass}`}
             >
-              {status}
+              {statusLabel}
             </span>
           </div>
         </div>
 
         {(onDelete || onArchive || onRestore) && (
           <div
-            className="opacity-0 group-hover:opacity-100 transition-opacity"
+            className="opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity"
             onClick={(e) => e.stopPropagation()}
           >
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button
-                  className="p-1 text-muted-foreground hover:text-foreground transition-colors"
+                  type="button"
+                  className="p-1 rounded text-muted-foreground hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
                   aria-label="Project actions"
                 >
-                  <MoreHorizontal className="h-4 w-4" />
+                  <MoreHorizontal aria-hidden="true" className="h-4 w-4" />
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
@@ -92,7 +105,10 @@ export function ProjectCard({
                     onClick={() => onRestore(project.id)}
                     className="gap-2"
                   >
-                    <ArchiveRestore className="h-3.5 w-3.5" />
+                    <ArchiveRestore
+                      aria-hidden="true"
+                      className="h-3.5 w-3.5"
+                    />
                     Restore
                   </DropdownMenuItem>
                 ) : onArchive ? (
@@ -100,7 +116,7 @@ export function ProjectCard({
                     onClick={() => onArchive(project.id)}
                     className="gap-2"
                   >
-                    <Archive className="h-3.5 w-3.5" />
+                    <Archive aria-hidden="true" className="h-3.5 w-3.5" />
                     Archive
                   </DropdownMenuItem>
                 ) : null}
@@ -110,9 +126,9 @@ export function ProjectCard({
                 {onDelete && (
                   <DropdownMenuItem
                     onClick={() => onDelete(project.id)}
-                    className="gap-2 text-red-400 focus:text-red-400"
+                    className="gap-2 text-destructive focus:text-destructive"
                   >
-                    <Trash2 className="h-3.5 w-3.5" />
+                    <Trash2 aria-hidden="true" className="h-3.5 w-3.5" />
                     Delete
                   </DropdownMenuItem>
                 )}
@@ -130,15 +146,19 @@ export function ProjectCard({
         </p>
       )}
 
-      <div className="flex items-center gap-4 text-xs text-muted-foreground font-mono">
+      <div className="flex items-center gap-4 text-xs text-muted-foreground">
         <div className="flex items-center gap-1">
-          <FileText className="h-3 w-3" />
-          <span>{project.document_count || 0} docs</span>
+          <FileText aria-hidden="true" className="h-3 w-3" />
+          <span className="tabular-nums">
+            {project.document_count || 0} docs
+          </span>
         </div>
         {project.deadline && (
           <div className="flex items-center gap-1">
-            <Calendar className="h-3 w-3" />
-            <span>{new Date(project.deadline).toLocaleDateString()}</span>
+            <Calendar aria-hidden="true" className="h-3 w-3" />
+            <span className="tabular-nums">
+              {new Date(project.deadline).toLocaleDateString()}
+            </span>
           </div>
         )}
       </div>
@@ -148,20 +168,20 @@ export function ProjectCard({
           {project.tags.slice(0, 3).map((tag) => (
             <span
               key={tag}
-              className="px-1.5 py-0.5 rounded bg-muted text-muted-foreground text-[11px] font-mono"
+              className="px-1.5 py-0.5 rounded bg-muted text-muted-foreground text-[11px]"
             >
               {tag}
             </span>
           ))}
           {project.tags.length > 3 && (
-            <span className="text-[11px] text-muted-foreground font-mono">
+            <span className="text-[11px] text-muted-foreground">
               +{project.tags.length - 3}
             </span>
           )}
         </div>
       )}
 
-      <div className="mt-3 text-xs text-foreground font-mono">
+      <div className="mt-3 text-xs text-muted-foreground">
         Updated {createdLabel}
       </div>
     </div>
