@@ -47,13 +47,13 @@ describe('RegisterPage', () => {
     fireEvent.change(screen.getByLabelText(/last name/i), {
       target: { value: 'Lovelace' },
     });
-    fireEvent.change(screen.getByLabelText(/email/i), {
+    fireEvent.change(screen.getByLabelText(/^email$/i), {
       target: { value: 'ada@example.com' },
     });
     fireEvent.change(screen.getByLabelText(/organization/i), {
       target: { value: 'Analytical Engine' },
     });
-    fireEvent.change(screen.getByLabelText(/^password/i), {
+    fireEvent.change(screen.getByLabelText(/^password$/i), {
       target: { value: 'SecurePass123!' },
     });
     fireEvent.change(screen.getByLabelText(/confirm password/i), {
