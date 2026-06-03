@@ -167,21 +167,14 @@ export const ChatBubble = React.memo(function ChatBubble({
   const stripResponseMs = message.metadata?.responseTimeMs;
 
   return (
-    <div
-      className={cn(
-        'group relative mb-7 sm:mb-8 flex gap-3 sm:gap-[18px]',
-        isUser ? 'flex-row-reverse' : 'flex-row'
-      )}
-    >
+    <div className="group relative mb-7 sm:mb-8">
       {/* Content column */}
-      <div
-        className={cn('min-w-0 flex-1', isUser ? 'text-right' : 'text-left')}
-      >
+      <div className={cn('min-w-0', isUser ? 'text-right' : 'text-left')}>
         {/* Meta row — role + model pill + time */}
         <div
           className={cn(
             'mb-2 flex items-center gap-2.5',
-            isUser ? 'justify-end pr-1' : 'pl-1'
+            isUser ? 'justify-end' : ''
           )}
         >
           {!isUser && (

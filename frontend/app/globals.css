@@ -285,31 +285,6 @@
   animation-delay: 0.3s;
 }
 
-/* Message avatar — scholarly gradient (not bg-primary) */
-.nous-avatar-assistant {
-  background: linear-gradient(135deg, var(--nous-sol), var(--nous-helios));
-  color: white;
-  box-shadow:
-    0 0 0 3px var(--nous-bg-1),
-    0 2px 6px rgba(212, 160, 57, 0.18);
-}
-.dark .nous-avatar-assistant {
-  box-shadow:
-    0 0 0 3px var(--nous-bg-1),
-    0 2px 8px rgba(232, 184, 74, 0.25);
-}
-.nous-avatar-user {
-  background: var(--nous-bg-2);
-  color: var(--nous-fg-2);
-  border: 1px solid var(--nous-border-1);
-  box-shadow: 0 0 0 3px var(--nous-bg-1);
-}
-.dark .nous-avatar-user {
-  background: var(--nous-obsidian);
-  color: var(--nous-parchment);
-  border-color: var(--nous-shade);
-}
-
 /* Message action row — hidden until hover, scholarly style */
 .nous-msg-actions {
   display: flex;
