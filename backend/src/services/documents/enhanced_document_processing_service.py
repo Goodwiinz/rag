@@ -377,181 +377,6 @@ class MultimodalProcessor:
             logger.error(f"PDF OCR failed: {e}")
             return ""
 
-class EntityExtractor:
-    """Extracts entities and relationships from text"""
-
-    def __init__(self):
-        self.nlp = None
-        self._load_model()
-
-    def _load_model(self):
-        """Load spaCy model"""
-        try:
-            if spacy is None:
-                logger.warning("spaCy is not installed; entity extraction will use fallback mode")
-                return
-            self.nlp = spacy.load("en_core_web_sm")
-        except Exception as e:
-            logger.error(f"Failed to load spaCy model: {e}")
-
-    async def extract_entities(self, text: str, document_id: str) -> ProcessingResult:
-        """Extract entities from text using spaCy"""
-        start_time = datetime.now()
-
-        try:
-            if not self.nlp:
-                # Fallback to basic pattern matching
-                return await self._extract_entities_basic(text, document_id)
-
-            # Process text with spaCy
-            doc = self.nlp(text)
-
-            entities = []
-            for ent in doc.ents:
-                entity = {
-                    "text": ent.text,
-                    "label": ent.label_,
-                    "start": ent.start_char,
-                    "end": ent.end_char,
-                    "confidence": 1.0,  # spaCy doesn't provide confidence scores
-                    "context": text[max(0, ent.start_char-50):ent.end_char+50]
-                }
-                entities.append(entity)
-
-            processing_time = (datetime.now() - start_time).total_seconds() * 1000
-
-            return ProcessingResult(
-                success=True,
-                data={
-                    "entities": entities,
-                    "entity_count": len(entities),
-                    "entity_types": list(set([e["label"] for e in entities])),
-                    "processing_method": "spacy"
-                },
-                processing_time_ms=processing_time
-            )
-
-        except Exception as e:
-            logger.error(f"Entity extraction failed: {e}")
-            return ProcessingResult(
-                success=False,
-                data={},
-                error=str(e),
-                processing_time_ms=(datetime.now() - start_time).total_seconds() * 1000
-            )
-
-    async def extract_relationships(self, text: str, entities: List[Dict], document_id: str) -> ProcessingResult:
-        """Extract relationships between entities"""
-        start_time = datetime.now()
-
-        try:
-            relationships = []
-
-            # Simple pattern-based relationship extraction
-            # This can be enhanced with more sophisticated NLP techniques
-
-            # Define relationship patterns
-            relationship_patterns = [
-                (r"(\w+)\s+(works for|is employed by|is a member of)\s+(\w+)", "WORKS_FOR"),
-                (r"(\w+)\s+(is located in|is based in|is situated in)\s+(\w+)", "LOCATED_IN"),
-                (r"(\w+)\s+(is the CEO of|is the president of|is the director of)\s+(\w+)", "LEADS"),
-                (r"(\w+)\s+(owns|founded|established)\s+(\w+)", "OWNS"),
-                (r"(\w+)\s+(is a|is an|is the)\s+(\w+)\s+(at|in|for)\s+(\w+)", "RELATED_TO")
-            ]
-
-            for pattern, rel_type in relationship_patterns:
-                matches = re.finditer(pattern, text, re.IGNORECASE)
-                for match in matches:
-                    source_entity = match.group(1).strip()
-                    target_entity = match.group(3).strip()
-
-                    # Find corresponding entities
-                    source_found = False
-                    target_found = False
-
-                    for entity in entities:
-                        if source_entity.lower() in entity["text"].lower():
-                            source_found = True
-                        if target_entity.lower() in entity["text"].lower():
-                            target_found = True
-
-                    if source_found and target_found:
-                        relationship = {
-                            "source": source_entity,
-                            "target": target_entity,
-                            "type": rel_type,
-                            "context": text[max(0, match.start()-50):match.end()+50],
-                            "confidence": 0.8  # Default confidence for pattern-based extraction
-                        }
-                        relationships.append(relationship)
-
-            processing_time = (datetime.now() - start_time).total_seconds() * 1000
-
-            return ProcessingResult(
-                success=True,
-                data={
-                    "relationships": relationships,
-                    "relationship_count": len(relationships),
-                    "relationship_types": list(set([r["type"] for r in relationships])),
-                    "processing_method": "pattern_based"
-                },
-                processing_time_ms=processing_time
-            )
-
-        except Exception as e:
-            logger.error(f"Relationship extraction failed: {e}")
-            return ProcessingResult(
-                success=False,
-                data={},
-                error=str(e),
-                processing_time_ms=(datetime.now() - start_time).total_seconds() * 1000
-            )
-
-    async def _extract_entities_basic(self, text: str, document_id: str) -> ProcessingResult:
-        """Basic entity extraction using patterns"""
-        try:
-            # Define patterns for common entity types
-            patterns = {
-                "EMAIL": r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b',
-                "PHONE": r'\b\d{3}-\d{3}-\d{4}\b|\b\(\d{3}\)\s*\d{3}-\d{4}\b',
-                "DATE": r'\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b|\b\d{4}[/-]\d{1,2}[/-]\d{1,2}\b',
-                "MONEY": r'\$\d+(?:,\d{3})*(?:\.\d{2})?',
-                "URL": r'https?://(?:[-\w.])+(?:[:\d]+)?(?:/(?:[\w/_.])*(?:\?(?:[\w&=%.])*)?(?:#(?:\w*))?)?',
-            }
-
-            entities = []
-            for entity_type, pattern in patterns.items():
-                matches = re.finditer(pattern, text)
-                for match in matches:
-                    entity = {
-                        "text": match.group(),
-                        "label": entity_type,
-                        "start": match.start(),
-                        "end": match.end(),
-                        "confidence": 0.9,
-                        "context": text[max(0, match.start()-50):match.end()+50]
-                    }
-                    entities.append(entity)
-
-            return ProcessingResult(
-                success=True,
-                data={
-                    "entities": entities,
-                    "entity_count": len(entities),
-                    "entity_types": list(patterns.keys()),
-                    "processing_method": "pattern_based"
-                },
-                processing_time_ms=0
-            )
-
-        except Exception as e:
-            return ProcessingResult(
-                success=False,
-                data={},
-                error=str(e),
-                processing_time_ms=0
-            )
-
 class EnhancedDocumentProcessingService:
     """Enhanced document processing service with multimodal support"""
 
@@ -559,7 +384,6 @@ class EnhancedDocumentProcessingService:
         self.db = db
         self.minio_client = self._init_minio_client()
         self.multimodal_processor = MultimodalProcessor(self.minio_client)
-        self.entity_extractor = EntityExtractor()
         self.knowledge_graph_service = _kg_service_instance
         self.vector_store_service = VectorStoreService(db)
 
@@ -613,25 +437,32 @@ class EnhancedDocumentProcessingService:
             extracted_text = extraction_result.data.get("text", "")
 
             if extracted_text:
-                entity_result = await self.entity_extractor.extract_entities(
-                    extracted_text, str(document.id)
+                from src.services.processing.llm_entity_extraction import (
+                    LLMEntityExtractionService,
                 )
 
-                if entity_result.success:
-                    await self._save_entities(document, entity_result.data.get("entities", []))
-
-                current_step += 1
-
-                # Step 3: Relationship Extraction
-                await self._update_job_progress(job, 50, "Extracting relationships")
-                entities = entity_result.data.get("entities", [])
-
-                relationship_result = await self.entity_extractor.extract_relationships(
-                    extracted_text, entities, str(document.id)
+                llm_extractor = LLMEntityExtractionService()
+                llm_result = await llm_extractor.extract_entities(
+                    text=extracted_text,
+                    document_id=str(document.id),
+                    organization_id=str(getattr(document, "organization_id", "")),
+                )
+                entity_result = ProcessingResult(
+                    success=True,
+                    data={
+                        "entities": [e.model_dump() for e in llm_result.entities],
+                        "entity_count": len(llm_result.entities),
+                    },
+                )
+                relationship_result = ProcessingResult(
+                    success=True,
+                    data={
+                        "relationships": [r.model_dump() for r in llm_result.relationships],
+                        "relationship_count": len(llm_result.relationships),
+                    },
                 )
 
-                if relationship_result.success:
-                    await self._save_relationships(document, relationship_result.data.get("relationships", []))
+                current_step += 2  # Steps 2 and 3 handled together by LLM extraction
             else:
                 entity_result = ProcessingResult(success=True, data={"entities": []})
                 relationship_result = ProcessingResult(success=True, data={"relationships": []})
@@ -748,8 +579,8 @@ class EnhancedDocumentProcessingService:
                     start_position=entity_data.get("start"),
                     end_position=entity_data.get("end"),
                     context_text=entity_data.get("context"),
-                    extraction_method="spacy" if self.entity_extractor.nlp else "pattern_based",
-                    model_version="spacy_en_core_web_sm",
+                    extraction_method="llm",
+                    model_version="llm_entity_extraction",
                     metadata={
                         "document_id": str(document.id),
                         "extraction_timestamp": datetime.utcnow().isoformat()

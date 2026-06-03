@@ -88,11 +88,11 @@ describe('ChatInput streaming behavior', () => {
     });
   });
 
-  describe('shows NOUS label', () => {
+  describe('shows agent label', () => {
     it('displays the agent label in the input bar', () => {
       render(<ChatInput {...defaultProps} />);
 
-      expect(screen.getByText('NOUS')).toBeInTheDocument();
+      expect(screen.getByText('nous-agent')).toBeInTheDocument();
     });
   });
 });

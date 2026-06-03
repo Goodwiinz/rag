@@ -31,11 +31,10 @@ describe('WorkingFoldersPanel', () => {
     });
   });
 
-  it('renders only "This thread" and the attach CTA when no project is bound', () => {
+  it('renders empty state when no project is bound', () => {
     render(<WorkingFoldersPanel />);
-    expect(screen.getByText('This thread')).toBeInTheDocument();
     expect(
-      screen.getByText(/attach this chat to a project/i)
+      screen.getByText(/no files yet — cited sources will appear here/i)
     ).toBeInTheDocument();
     expect(screen.queryByText('Sources')).not.toBeInTheDocument();
     expect(screen.queryByText('Notes')).not.toBeInTheDocument();
@@ -67,7 +66,9 @@ describe('WorkingFoldersPanel', () => {
       errors: {},
     });
     render(<WorkingFoldersPanel projectId="p1" />);
-    expect(screen.getByText('This thread')).toBeInTheDocument();
+    expect(
+      screen.getByText(/no files yet — cited sources will appear here/i)
+    ).toBeInTheDocument();
     expect(screen.queryByText('Sources')).not.toBeInTheDocument();
     expect(screen.queryByText('Notes')).not.toBeInTheDocument();
     expect(screen.queryByText('Drafts')).not.toBeInTheDocument();

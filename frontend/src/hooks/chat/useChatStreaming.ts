@@ -3,15 +3,19 @@
 import type { ChatPageMessage } from '@/components/chat/shared/cloudMessageView';
 import { getSelectedThreadUrl } from '@/components/chat/shared/chatNavigation';
 import { buildThreadCreateRequest } from '@/components/chat/shared/threadCreation';
-import { ChatConversation, generateConversationTitle } from '@/hooks/chat/chatTypes';
+import {
+  ChatConversation,
+  generateConversationTitle,
+} from '@/hooks/chat/chatTypes';
 import { agentChatService } from '@/services/agentChatService';
 import { workspaceService } from '@/services/workspaceService';
 import { useChatStore } from '@/store/chat-store';
 import { useAgentActivityStore } from '@/stores/agentActivityStore';
 import { deriveAgentName, deriveTask } from '@/components/context-rail';
 import { Conversation as DBConversation, MessageRole } from '@/types/workspace';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useProjectStore } from '@/store/projectStore';
 import type { ChatMessage as DBChatMessage } from '@/types/workspace';
 
 // ============================================
@@ -78,6 +82,18 @@ export function useChatStreaming(
     enableRAG,
   } = params;
 
+  // ---- Project context (for agent page_context) ----
+  const searchParams = useSearchParams();
+  const boundProjectId = searchParams.get('projectId') ?? undefined;
+  const projectStoreProjects = useProjectStore((s) => s.projects);
+  const currentProject = useProjectStore((s) => s.currentProject);
+  const resolvedProjectName = boundProjectId
+    ? currentProject?.id === boundProjectId
+      ? currentProject.name
+      : (projectStoreProjects.find((p) => p.id === boundProjectId)?.name ??
+        undefined)
+    : undefined;
+
   // ---- State ----
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -90,6 +106,7 @@ export function useChatStreaming(
   const lastStreamedContentRef = useRef<string>('');
   const abortControllerRef = useRef<AbortController | null>(null);
   const chatInputRef = useRef<HTMLTextAreaElement>(null);
+  const submitLockRef = useRef(false);
   const streamingTimestampRef = useRef(Date.now());
   const streamingRafRef = useRef<number | null>(null);
   const pendingStreamContentRef = useRef<string | null>(null);
@@ -125,10 +142,12 @@ export function useChatStreaming(
 
   const handleSubmit = useCallback(
     async (contentOverride?: string) => {
+      if (submitLockRef.current) return;
       const rawContent =
         typeof contentOverride === 'string' ? contentOverride : input;
       const content = rawContent.trim();
       if (!content || isLoading || storeIsStreaming) return;
+      submitLockRef.current = true;
 
       const userMessage: ChatPageMessage = {
         role: 'user',
@@ -161,6 +180,7 @@ export function useChatStreaming(
             buildThreadCreateRequest({
               conversationId: dbConversation.id,
               title: dynamicTitle,
+              projectId: boundProjectId,
             })
           );
 
@@ -187,6 +207,7 @@ export function useChatStreaming(
           console.log('[Chat] Created new thread:', newThread.id);
         } catch (error) {
           console.error('[Chat] Failed to create thread:', error);
+          submitLockRef.current = false;
           setIsLoading(false);
           return;
         }
@@ -231,7 +252,13 @@ export function useChatStreaming(
               role: m.role,
               content: m.content,
             })),
-            page_context: { type: 'chat' },
+            page_context: {
+              type: boundProjectId ? 'project' : 'chat',
+              ...(boundProjectId && {
+                project_id: boundProjectId,
+                project_name: resolvedProjectName || '',
+              }),
+            },
             use_rag: enableRAG,
             thread_id: existingAgentThreadId,
             model: selectedModel,
@@ -453,6 +480,7 @@ export function useChatStreaming(
           },
         ]);
       } finally {
+        submitLockRef.current = false;
         setIsLoading(false);
         useChatStore.setState({
           isStreaming: false,

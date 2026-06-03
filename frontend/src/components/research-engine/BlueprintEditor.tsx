@@ -229,10 +229,25 @@ export function BlueprintEditor({ projectId }: BlueprintEditorProps) {
   // Loading state
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 className="h-6 w-6 animate-spin text-sol" />
-        <span className="ml-2 font-mono text-sm text-gray-500">
-          Loading project...
+      <div className="space-y-6">
+        <div className="h-4 w-32 rounded bg-muted animate-pulse" />
+        <div className="flex items-start justify-between gap-4">
+          <div className="space-y-2 flex-1">
+            <div className="h-7 w-1/3 rounded bg-muted animate-pulse" />
+            <div className="h-4 w-1/4 rounded bg-muted animate-pulse" />
+          </div>
+          <div className="h-9 w-20 rounded-lg bg-muted animate-pulse" />
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2 space-y-3">
+            <div className="h-14 rounded-lg bg-muted animate-pulse" />
+            <div className="h-14 rounded-lg bg-muted animate-pulse" />
+            <div className="h-14 rounded-lg bg-muted animate-pulse" />
+          </div>
+          <div className="h-64 rounded-xl bg-muted animate-pulse" />
+        </div>
+        <span className="sr-only" role="status">
+          Loading project
         </span>
       </div>
     );
@@ -243,14 +258,15 @@ export function BlueprintEditor({ projectId }: BlueprintEditorProps) {
     return (
       <div>
         <button
+          type="button"
           onClick={() => router.push('/research-engine')}
-          className="flex items-center gap-1 text-sm text-gray-500 hover:text-sol font-mono mb-6 transition-colors"
+          className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground mb-6 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded"
         >
-          <ArrowLeft className="h-4 w-4" />
-          Back to Projects
+          <ArrowLeft aria-hidden="true" className="h-4 w-4" />
+          Back to projects
         </button>
         {project && (
-          <h1 className="text-xl font-mono font-bold text-gray-200 mb-6">
+          <h1 className="text-xl font-semibold text-foreground mb-6">
             {project.name}
           </h1>
         )}
@@ -264,25 +280,30 @@ export function BlueprintEditor({ projectId }: BlueprintEditorProps) {
     <div>
       {/* Navigation */}
       <button
+        type="button"
         onClick={() => router.push('/research-engine')}
-        className="flex items-center gap-1 text-sm text-gray-500 hover:text-sol font-mono mb-6 transition-colors"
+        className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground mb-6 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded"
       >
-        <ArrowLeft className="h-4 w-4" />
-        Back to Projects
+        <ArrowLeft aria-hidden="true" className="h-4 w-4" />
+        Back to projects
       </button>
 
       {/* Header */}
-      <div className="flex items-start justify-between gap-4 mb-6">
+      <div className="flex flex-col md:flex-row md:items-start justify-between gap-4 mb-6">
         <div className="flex-1 min-w-0">
+          <label htmlFor="blueprint-name" className="sr-only">
+            Blueprint name
+          </label>
           <input
+            id="blueprint-name"
             type="text"
             value={blueprintName}
             onChange={(e) => setBlueprintName(e.target.value)}
-            className="text-xl font-mono font-bold bg-transparent text-gray-200 border-none outline-none w-full focus:text-sol transition-colors placeholder-gray-600"
-            placeholder="Blueprint name..."
+            className="text-xl font-semibold bg-transparent text-foreground border-none outline-none w-full focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded placeholder:text-muted-foreground/60 transition-colors"
+            placeholder="Blueprint name"
           />
           {project && (
-            <p className="text-sm text-gray-500 font-mono mt-1">
+            <p className="text-sm text-muted-foreground mt-1">
               Project: {project.name}
             </p>
           )}
@@ -290,30 +311,32 @@ export function BlueprintEditor({ projectId }: BlueprintEditorProps) {
 
         <div className="flex items-center gap-2 shrink-0">
           <button
+            type="button"
             onClick={handleSave}
             disabled={saving || !blueprintName.trim() || !!globalParamsError}
-            className="flex items-center gap-2 px-4 py-2 bg-sol/10 text-sol border border-sol/30 rounded font-mono text-sm hover:bg-sol/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex items-center gap-2 px-4 py-2 rounded-lg border border-border bg-card text-sm font-medium text-foreground hover:border-primary/40 hover:bg-muted/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           >
             {saving ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
+              <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />
             ) : (
-              <Save className="h-4 w-4" />
+              <Save aria-hidden="true" className="h-4 w-4" />
             )}
-            Save
+            {saving ? 'Saving' : 'Save'}
           </button>
 
           {blueprint && (
             <button
+              type="button"
               onClick={handleStartRun}
               disabled={starting || steps.length === 0}
-              className="flex items-center gap-2 px-4 py-2 bg-helios/10 text-helios border border-helios/30 rounded font-mono text-sm hover:bg-helios/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             >
               {starting ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
+                <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />
               ) : (
-                <Play className="h-4 w-4" />
+                <Play aria-hidden="true" className="h-4 w-4" />
               )}
-              Start Run
+              {starting ? 'Starting' : 'Start run'}
             </button>
           )}
         </div>
@@ -321,9 +344,24 @@ export function BlueprintEditor({ projectId }: BlueprintEditorProps) {
 
       {/* Error */}
       {error && (
-        <div className="flex items-center gap-2 p-4 bg-red-500/10 border border-red-500/30 rounded mb-6">
-          <AlertCircle className="h-5 w-5 text-red-400 shrink-0" />
-          <span className="text-sm text-red-400 font-mono">{error}</span>
+        <div
+          role="alert"
+          className="flex items-start gap-3 p-4 rounded-xl border border-destructive/30 bg-destructive/5 mb-6"
+        >
+          <AlertCircle
+            aria-hidden="true"
+            className="h-5 w-5 text-destructive shrink-0 mt-0.5"
+          />
+          <div className="flex-1">
+            <p className="text-sm text-foreground">{error}</p>
+            <button
+              type="button"
+              onClick={fetchData}
+              className="mt-1 text-sm font-medium text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded"
+            >
+              Retry
+            </button>
+          </div>
         </div>
       )}
 
@@ -331,28 +369,30 @@ export function BlueprintEditor({ projectId }: BlueprintEditorProps) {
         {/* Steps list */}
         <div className="lg:col-span-2 space-y-3">
           <div className="flex items-center justify-between mb-2">
-            <h2 className="text-sm font-mono text-gray-400 uppercase tracking-wide">
+            <h2 className="text-sm font-medium text-foreground">
               Steps ({steps.length})
             </h2>
             <button
+              type="button"
               onClick={handleAddStep}
-              className="flex items-center gap-1 px-3 py-1.5 text-xs font-mono text-sol border border-sol/30 rounded hover:bg-sol/10 transition-colors"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-primary rounded-lg border border-border hover:border-primary/40 hover:bg-primary/5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             >
-              <Plus className="h-3 w-3" />
-              Add Step
+              <Plus aria-hidden="true" className="h-3.5 w-3.5" />
+              Add step
             </button>
           </div>
 
           {steps.length === 0 ? (
-            <div className="text-center py-12 border border-dashed border-[#333] rounded-lg">
-              <p className="text-gray-600 font-mono text-sm mb-3">
-                No steps yet.
+            <div className="text-center py-12 rounded-xl border border-dashed border-border bg-muted/20">
+              <p className="text-sm text-muted-foreground mb-3">
+                No steps yet. Add a step to define what this blueprint does.
               </p>
               <button
+                type="button"
                 onClick={handleAddStep}
-                className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-mono text-sol border border-sol/30 rounded hover:bg-sol/10 transition-colors"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-primary rounded-lg border border-border hover:border-primary/40 hover:bg-primary/5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               >
-                <Plus className="h-3 w-3" />
+                <Plus aria-hidden="true" className="h-3.5 w-3.5" />
                 Add your first step
               </button>
             </div>
@@ -374,18 +414,22 @@ export function BlueprintEditor({ projectId }: BlueprintEditorProps) {
 
         {/* Global parameters sidebar */}
         <div className="space-y-4">
-          <div className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg p-4">
-            <h3 className="text-sm font-mono text-gray-400 uppercase tracking-wide mb-3">
-              Global Parameters
+          <div className="rounded-xl border border-border bg-card shadow-sm p-4">
+            <h3 className="text-sm font-medium text-foreground mb-3">
+              Global parameters
             </h3>
 
             {/* Quick fields for common params */}
             <div className="space-y-3 mb-4">
               <div>
-                <label className="block text-xs text-gray-500 font-mono mb-1">
+                <label
+                  htmlFor="param-topic"
+                  className="block text-xs font-medium text-muted-foreground mb-1"
+                >
                   Topic
                 </label>
                 <input
+                  id="param-topic"
                   type="text"
                   value={(globalParams.topic as string) ?? ''}
                   onChange={(e) =>
@@ -399,16 +443,20 @@ export function BlueprintEditor({ projectId }: BlueprintEditorProps) {
                       return next;
                     })
                   }
-                  placeholder="Research topic..."
-                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#333] rounded text-sm font-mono text-gray-300 placeholder-gray-600 focus:outline-none focus:border-sol"
+                  placeholder="Research topic"
+                  className="w-full px-3 py-2 rounded-lg bg-background border border-border text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:border-primary focus-visible:ring-2 focus-visible:ring-ring transition-colors"
                 />
               </div>
 
               <div>
-                <label className="block text-xs text-gray-500 font-mono mb-1">
-                  Date Range Start
+                <label
+                  htmlFor="param-date-start"
+                  className="block text-xs font-medium text-muted-foreground mb-1"
+                >
+                  Date range start
                 </label>
                 <input
+                  id="param-date-start"
                   type="date"
                   value={(globalParams.date_start as string) ?? ''}
                   onChange={(e) =>
@@ -422,15 +470,19 @@ export function BlueprintEditor({ projectId }: BlueprintEditorProps) {
                       return next;
                     })
                   }
-                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#333] rounded text-sm font-mono text-gray-300 focus:outline-none focus:border-sol"
+                  className="w-full px-3 py-2 rounded-lg bg-background border border-border text-sm text-foreground focus:outline-none focus:border-primary focus-visible:ring-2 focus-visible:ring-ring transition-colors"
                 />
               </div>
 
               <div>
-                <label className="block text-xs text-gray-500 font-mono mb-1">
-                  Date Range End
+                <label
+                  htmlFor="param-date-end"
+                  className="block text-xs font-medium text-muted-foreground mb-1"
+                >
+                  Date range end
                 </label>
                 <input
+                  id="param-date-end"
                   type="date"
                   value={(globalParams.date_end as string) ?? ''}
                   onChange={(e) =>
@@ -444,14 +496,14 @@ export function BlueprintEditor({ projectId }: BlueprintEditorProps) {
                       return next;
                     })
                   }
-                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#333] rounded text-sm font-mono text-gray-300 focus:outline-none focus:border-sol"
+                  className="w-full px-3 py-2 rounded-lg bg-background border border-border text-sm text-foreground focus:outline-none focus:border-primary focus-visible:ring-2 focus-visible:ring-ring transition-colors"
                 />
               </div>
 
               <div>
-                <label className="block text-xs text-gray-500 font-mono mb-1">
-                  Search Sources
-                </label>
+                <span className="block text-xs font-medium text-muted-foreground mb-1">
+                  Search sources
+                </span>
                 <SourceSelector
                   selected={
                     (Array.isArray(globalParams.sources)
@@ -476,21 +528,26 @@ export function BlueprintEditor({ projectId }: BlueprintEditorProps) {
 
             {/* Raw JSON editor */}
             <div>
-              <label className="block text-xs text-gray-500 font-mono mb-1">
+              <label
+                htmlFor="param-raw-json"
+                className="block text-xs font-medium text-muted-foreground mb-1"
+              >
                 Raw JSON
               </label>
               <textarea
+                id="param-raw-json"
                 value={globalParamsText}
                 onChange={(e) => handleGlobalParamsChange(e.target.value)}
                 rows={6}
-                className={`w-full px-3 py-2 bg-[#1a1a1a] border rounded text-xs font-mono text-gray-300 focus:outline-none resize-none ${
+                aria-invalid={!!globalParamsError}
+                className={`w-full px-3 py-2 rounded-lg bg-background border text-xs font-mono text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-none transition-colors ${
                   globalParamsError
-                    ? 'border-red-500/50 focus:border-red-500'
-                    : 'border-[#333] focus:border-sol'
+                    ? 'border-destructive/50 focus:border-destructive'
+                    : 'border-border focus:border-primary'
                 }`}
               />
               {globalParamsError && (
-                <p className="mt-1 text-xs text-red-400 font-mono">
+                <p role="alert" className="mt-1 text-xs text-destructive">
                   {globalParamsError}
                 </p>
               )}
@@ -499,23 +556,26 @@ export function BlueprintEditor({ projectId }: BlueprintEditorProps) {
 
           {/* Blueprint info */}
           {blueprint && (
-            <div className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg p-4">
-              <h3 className="text-sm font-mono text-gray-400 uppercase tracking-wide mb-2">
-                Blueprint Info
+            <div className="rounded-xl border border-border bg-card shadow-sm p-4">
+              <h3 className="text-sm font-medium text-foreground mb-2">
+                Blueprint info
               </h3>
-              <div className="space-y-1 text-xs font-mono text-gray-500">
-                <p>
-                  ID: <span className="text-gray-400">{blueprint.id}</span>
-                </p>
+              <dl className="space-y-1.5 text-xs text-muted-foreground">
+                <div className="flex items-center gap-2">
+                  <dt>ID</dt>
+                  <dd className="font-mono text-foreground truncate">
+                    {blueprint.id}
+                  </dd>
+                </div>
                 {blueprint.template_source && (
-                  <p>
-                    Template:{' '}
-                    <span className="text-brand-cyan">
+                  <div className="flex items-center gap-2">
+                    <dt>Template</dt>
+                    <dd className="text-foreground truncate">
                       {blueprint.template_source}
-                    </span>
-                  </p>
+                    </dd>
+                  </div>
                 )}
-              </div>
+              </dl>
             </div>
           )}
         </div>

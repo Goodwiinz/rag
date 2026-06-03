@@ -17,7 +17,8 @@ const mockConversations = [
     messages: [
       {
         role: 'assistant',
-        content: 'This is a longer message that should be truncated',
+        content:
+          'This is a longer message that should be truncated in the sidebar preview because it exceeds sixty characters easily',
       },
     ],
     threadId: 'thread-2',
@@ -68,14 +69,12 @@ describe('ChatSidebar', () => {
 
   it('filters conversations by search query', () => {
     render(<ChatSidebar {...defaultProps} />);
-    const searchInput = screen.getByPlaceholderText('Search chats...');
+    const searchInput = screen.getByPlaceholderText('Search threads...');
     fireEvent.change(searchInput, { target: { value: 'alpha' } });
 
     expect(screen.getByText('Alpha Chat')).toBeInTheDocument();
     expect(screen.queryByText('Beta Discussion')).not.toBeInTheDocument();
     expect(screen.queryByText('Gamma Query')).not.toBeInTheDocument();
-    // Count badge should update
-    expect(screen.getByText('1')).toBeInTheDocument();
   });
 
   it('shows "No messages yet" for empty conversations', () => {
@@ -148,16 +147,16 @@ describe('ChatSidebar', () => {
 
   it('truncates long preview text with ellipsis', () => {
     render(<ChatSidebar {...defaultProps} />);
-    // "This is a longer message that should be truncated" is > 30 chars
     expect(
-      screen.getByText(/This is a longer message that \.\.\.$/)
+      screen.getByText(/This is a longer message that should be truncated.*…$/)
     ).toBeInTheDocument();
   });
 
   it('highlights active conversation', () => {
     render(<ChatSidebar {...defaultProps} activeId="conv-1" />);
-    // Active conversation should show message count
-    expect(screen.getByText('1')).toBeInTheDocument();
+    const activeRow = screen.getByText('Alpha Chat').closest('button');
+    expect(activeRow?.className).toContain('sb-conv');
+    expect(activeRow?.className).toMatch(/aurum|ember/);
   });
 
   it('calls onRename when rename hover action clicked', () => {
@@ -178,19 +177,29 @@ describe('ChatSidebar', () => {
     expect(onDelete).toHaveBeenCalledWith('conv-1');
   });
 
+  const clickSelectModeToggle = () => {
+    const toggle = screen
+      .getAllByRole('button')
+      .find((button) => button.className.includes('ml-auto'));
+    if (!toggle) {
+      throw new Error('Select mode toggle not found');
+    }
+    fireEvent.click(toggle);
+  };
+
   it('enters multi-select mode when Select toolbar button clicked', () => {
     render(<ChatSidebar {...defaultProps} />);
-    fireEvent.click(screen.getByRole('button', { name: /^Select$/i }));
+    clickSelectModeToggle();
     expect(screen.getAllByRole('checkbox')).toHaveLength(3);
   });
 
   it('calls onBulkDelete with selected ids from multi-select mode', () => {
     const onBulkDelete = vi.fn();
     render(<ChatSidebar {...defaultProps} onBulkDelete={onBulkDelete} />);
-    fireEvent.click(screen.getByRole('button', { name: /^Select$/i }));
+    clickSelectModeToggle();
     fireEvent.click(screen.getAllByRole('checkbox')[0]);
     fireEvent.click(screen.getAllByRole('checkbox')[1]);
-    fireEvent.click(screen.getByRole('button', { name: /Delete \(2\)/i }));
+    fireEvent.click(screen.getByRole('button', { name: '2' }));
     expect(onBulkDelete).toHaveBeenCalledWith(['conv-1', 'conv-2']);
   });
 });

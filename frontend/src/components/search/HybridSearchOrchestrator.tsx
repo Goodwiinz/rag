@@ -16,10 +16,15 @@ import {
 } from '@heroicons/react/24/outline';
 import { HybridSearchConfig, SearchStageResult } from '@/types/search';
 import { cn } from '@/lib/utils';
-import { IconButton, IconButtonSm } from "@/components/ui/icon-button";
+import { IconButton, IconButtonSm } from '@/components/ui/icon-button';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 
 interface HybridSearchOrchestratorProps {
   query: string;
@@ -39,10 +44,18 @@ interface SearchStageProps {
   onRetry?: () => void;
 }
 
-const SearchStage: React.FC<SearchStageProps> = ({ stage, isActive, isCompleted, hasError, onRetry }) => {
+const SearchStage: React.FC<SearchStageProps> = ({
+  stage,
+  isActive,
+  isCompleted,
+  hasError,
+  onRetry,
+}) => {
   const getStageIcon = () => {
     if (isActive && !isCompleted) {
-      return <div className="h-5 w-5 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />;
+      return (
+        <div className="h-5 w-5 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
+      );
     }
 
     if (hasError) {
@@ -61,7 +74,7 @@ const SearchStage: React.FC<SearchStageProps> = ({ stage, isActive, isCompleted,
       case 'keyword':
         return <MagnifyingGlassIcon className="h-5 w-5 text-green-600" />;
       default:
-        return <MagnifyingGlassIcon className="h-5 w-5 text-gray-600" />;
+        return <MagnifyingGlassIcon className="h-5 w-5 text-foreground" />;
     }
   };
 
@@ -69,7 +82,7 @@ const SearchStage: React.FC<SearchStageProps> = ({ stage, isActive, isCompleted,
     if (hasError) return 'border-red-200 bg-red-50';
     if (isCompleted) return 'border-green-200 bg-green-50';
     if (isActive) return 'border-blue-200 bg-blue-50';
-    return 'border-gray-200 bg-gray-50';
+    return 'border-border bg-gray-50';
   };
 
   const getScoreColor = (score: number) => {
@@ -80,13 +93,17 @@ const SearchStage: React.FC<SearchStageProps> = ({ stage, isActive, isCompleted,
   };
 
   return (
-    <div className={cn("border rounded-lg p-4 transition-colors", getStageColor())}>
+    <div
+      className={cn('border rounded-lg p-4 transition-colors', getStageColor())}
+    >
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center space-x-3">
           {getStageIcon()}
           <div>
-            <h4 className="font-medium text-gray-900 capitalize">{stage.stage} Search</h4>
-            <p className="text-sm text-gray-600">
+            <h4 className="font-medium text-foreground capitalize">
+              {stage.stage} Search
+            </h4>
+            <p className="text-sm text-foreground">
               {stage.latency_ms}ms latency
             </p>
           </div>
@@ -94,7 +111,12 @@ const SearchStage: React.FC<SearchStageProps> = ({ stage, isActive, isCompleted,
 
         <div className="flex items-center space-x-2">
           {stage.confidence_score && (
-            <span className={cn("text-sm font-medium", getScoreColor(stage.confidence_score))}>
+            <span
+              className={cn(
+                'text-sm font-medium',
+                getScoreColor(stage.confidence_score)
+              )}
+            >
               {Math.round(stage.confidence_score * 100)}%
             </span>
           )}
@@ -110,7 +132,7 @@ const SearchStage: React.FC<SearchStageProps> = ({ stage, isActive, isCompleted,
       </div>
 
       <div className="flex items-center justify-between text-sm">
-        <span className="text-gray-600">
+        <span className="text-foreground">
           {stage.results.length} result{stage.results.length !== 1 ? 's' : ''}
         </span>
         {stage.error && (
@@ -122,7 +144,10 @@ const SearchStage: React.FC<SearchStageProps> = ({ stage, isActive, isCompleted,
       {isActive && !isCompleted && (
         <div className="mt-3">
           <div className="w-full bg-gray-200 rounded-full h-1">
-            <div className="bg-blue-600 h-1 rounded-full animate-pulse" style={{ width: '60%' }} />
+            <div
+              className="bg-blue-600 h-1 rounded-full animate-pulse"
+              style={{ width: '60%' }}
+            />
           </div>
         </div>
       )}
@@ -137,10 +162,21 @@ interface SearchDetailProps {
   onClose: () => void;
 }
 
-const SearchDetail: React.FC<SearchDetailProps> = ({ results, config, isOpen, onClose }) => {
-  const totalLatency = results.reduce((sum, result) => sum + result.latency_ms, 0);
-  const totalResults = results.reduce((sum, result) => sum + result.results.length, 0);
-  const successfulStages = results.filter(result => !result.error).length;
+const SearchDetail: React.FC<SearchDetailProps> = ({
+  results,
+  config,
+  isOpen,
+  onClose,
+}) => {
+  const totalLatency = results.reduce(
+    (sum, result) => sum + result.latency_ms,
+    0
+  );
+  const totalResults = results.reduce(
+    (sum, result) => sum + result.results.length,
+    0
+  );
+  const successfulStages = results.filter((result) => !result.error).length;
 
   const getFusionStrategyDescription = (strategy: string) => {
     switch (strategy) {
@@ -167,22 +203,32 @@ const SearchDetail: React.FC<SearchDetailProps> = ({ results, config, isOpen, on
         <div className="space-y-6">
           {/* Configuration */}
           <div>
-            <h3 className="text-lg font-semibold text-gray-900 mb-3">Search Configuration</h3>
+            <h3 className="text-lg font-semibold text-foreground mb-3">
+              Search Configuration
+            </h3>
             <div className="grid grid-cols-3 gap-4">
               <div className="p-3 bg-purple-50 rounded-lg">
-                <h4 className="font-medium text-purple-900 mb-2">Vector Search</h4>
+                <h4 className="font-medium text-purple-900 mb-2">
+                  Vector Search
+                </h4>
                 <div className="space-y-1 text-sm">
                   <div className="flex justify-between">
                     <span>Weight:</span>
-                    <span className="font-medium">{config.vector_search.weight}</span>
+                    <span className="font-medium">
+                      {config.vector_search.weight}
+                    </span>
                   </div>
                   <div className="flex justify-between">
                     <span>Threshold:</span>
-                    <span className="font-medium">{config.vector_search.similarity_threshold}</span>
+                    <span className="font-medium">
+                      {config.vector_search.similarity_threshold}
+                    </span>
                   </div>
                   <div className="flex justify-between">
                     <span>Max Results:</span>
-                    <span className="font-medium">{config.vector_search.max_results}</span>
+                    <span className="font-medium">
+                      {config.vector_search.max_results}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -192,33 +238,47 @@ const SearchDetail: React.FC<SearchDetailProps> = ({ results, config, isOpen, on
                 <div className="space-y-1 text-sm">
                   <div className="flex justify-between">
                     <span>Weight:</span>
-                    <span className="font-medium">{config.graph_search.weight}</span>
+                    <span className="font-medium">
+                      {config.graph_search.weight}
+                    </span>
                   </div>
                   <div className="flex justify-between">
                     <span>Max Depth:</span>
-                    <span className="font-medium">{config.graph_search.max_depth}</span>
+                    <span className="font-medium">
+                      {config.graph_search.max_depth}
+                    </span>
                   </div>
                   <div className="flex justify-between">
                     <span>Relationships:</span>
-                    <span className="font-medium">{config.graph_search.relationship_types.length}</span>
+                    <span className="font-medium">
+                      {config.graph_search.relationship_types.length}
+                    </span>
                   </div>
                 </div>
               </div>
 
               <div className="p-3 bg-green-50 rounded-lg">
-                <h4 className="font-medium text-green-900 mb-2">Keyword Search</h4>
+                <h4 className="font-medium text-green-900 mb-2">
+                  Keyword Search
+                </h4>
                 <div className="space-y-1 text-sm">
                   <div className="flex justify-between">
                     <span>Weight:</span>
-                    <span className="font-medium">{config.keyword_search.weight}</span>
+                    <span className="font-medium">
+                      {config.keyword_search.weight}
+                    </span>
                   </div>
                   <div className="flex justify-between">
                     <span>Fuzzy:</span>
-                    <span className="font-medium">{config.keyword_search.fuzzy_threshold}</span>
+                    <span className="font-medium">
+                      {config.keyword_search.fuzzy_threshold}
+                    </span>
                   </div>
                   <div className="flex justify-between">
                     <span>Max Results:</span>
-                    <span className="font-medium">{config.keyword_search.max_results}</span>
+                    <span className="font-medium">
+                      {config.keyword_search.max_results}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -227,60 +287,85 @@ const SearchDetail: React.FC<SearchDetailProps> = ({ results, config, isOpen, on
 
           {/* Fusion Strategy */}
           <div>
-            <h3 className="text-lg font-semibold text-gray-900 mb-3">Fusion Strategy</h3>
+            <h3 className="text-lg font-semibold text-foreground mb-3">
+              Fusion Strategy
+            </h3>
             <div className="p-4 bg-gray-50 rounded-lg">
               <div className="flex items-center justify-between mb-2">
-                <span className="font-medium text-gray-900 capitalize">{config.fusion_strategy}</span>
+                <span className="font-medium text-foreground capitalize">
+                  {config.fusion_strategy}
+                </span>
                 <Badge className="bg-blue-100 text-blue-800">
                   Max {config.max_total_results} results
                 </Badge>
               </div>
-              <p className="text-sm text-gray-600">{getFusionStrategyDescription(config.fusion_strategy)}</p>
+              <p className="text-sm text-foreground">
+                {getFusionStrategyDescription(config.fusion_strategy)}
+              </p>
             </div>
           </div>
 
           {/* Performance Summary */}
           <div>
-            <h3 className="text-lg font-semibold text-gray-900 mb-3">Performance Summary</h3>
+            <h3 className="text-lg font-semibold text-foreground mb-3">
+              Performance Summary
+            </h3>
             <div className="grid grid-cols-4 gap-3">
               <div className="p-3 bg-gray-50 rounded-lg text-center">
-                <div className="text-2xl font-bold text-gray-900">{totalLatency}ms</div>
-                <div className="text-sm text-gray-600">Total Latency</div>
+                <div className="text-2xl font-bold text-foreground">
+                  {totalLatency}ms
+                </div>
+                <div className="text-sm text-foreground">Total Latency</div>
               </div>
               <div className="p-3 bg-gray-50 rounded-lg text-center">
-                <div className="text-2xl font-bold text-gray-900">{totalResults}</div>
-                <div className="text-sm text-gray-600">Total Results</div>
+                <div className="text-2xl font-bold text-foreground">
+                  {totalResults}
+                </div>
+                <div className="text-sm text-foreground">Total Results</div>
               </div>
               <div className="p-3 bg-gray-50 rounded-lg text-center">
-                <div className="text-2xl font-bold text-gray-900">{successfulStages}/{results.length}</div>
-                <div className="text-sm text-gray-600">Successful Stages</div>
+                <div className="text-2xl font-bold text-foreground">
+                  {successfulStages}/{results.length}
+                </div>
+                <div className="text-sm text-foreground">Successful Stages</div>
               </div>
               <div className="p-3 bg-gray-50 rounded-lg text-center">
-                <div className="text-2xl font-bold text-gray-900">
+                <div className="text-2xl font-bold text-foreground">
                   {Math.round(totalLatency / results.length)}ms
                 </div>
-                <div className="text-sm text-gray-600">Avg Stage Latency</div>
+                <div className="text-sm text-foreground">Avg Stage Latency</div>
               </div>
             </div>
           </div>
 
           {/* Stage Details */}
           <div>
-            <h3 className="text-lg font-semibold text-gray-900 mb-3">Stage Details</h3>
+            <h3 className="text-lg font-semibold text-foreground mb-3">
+              Stage Details
+            </h3>
             <div className="space-y-3">
               {results.map((result, index) => (
-                <div key={index} className="border border-gray-200 rounded-lg p-4">
+                <div
+                  key={index}
+                  className="border border-border rounded-lg p-4"
+                >
                   <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center space-x-3">
-                      <h4 className="font-medium text-gray-900 capitalize">{result.stage} Search</h4>
+                      <h4 className="font-medium text-foreground capitalize">
+                        {result.stage} Search
+                      </h4>
                       {result.error && (
-                        <Badge className="bg-red-100 text-red-800">Failed</Badge>
+                        <Badge className="bg-red-100 text-red-800">
+                          Failed
+                        </Badge>
                       )}
                       {!result.error && (
-                        <Badge className="bg-green-100 text-green-800">Success</Badge>
+                        <Badge className="bg-green-100 text-green-800">
+                          Success
+                        </Badge>
                       )}
                     </div>
-                    <div className="text-sm text-gray-600">
+                    <div className="text-sm text-foreground">
                       {result.latency_ms}ms • {result.results.length} results
                     </div>
                   </div>
@@ -297,13 +382,15 @@ const SearchDetail: React.FC<SearchDetailProps> = ({ results, config, isOpen, on
 
                   <div className="grid grid-cols-2 gap-4 text-sm">
                     <div>
-                      <span className="text-gray-600">Confidence Score:</span>
+                      <span className="text-foreground">Confidence Score:</span>
                       <span className="ml-2 font-medium">
-                        {result.confidence_score ? `${Math.round(result.confidence_score * 100)}%` : 'N/A'}
+                        {result.confidence_score
+                          ? `${Math.round(result.confidence_score * 100)}%`
+                          : 'N/A'}
                       </span>
                     </div>
                     <div>
-                      <span className="text-gray-600">Metadata:</span>
+                      <span className="text-foreground">Metadata:</span>
                       <span className="ml-2 font-medium">
                         {Object.keys(result.metadata).length} items
                       </span>
@@ -313,7 +400,7 @@ const SearchDetail: React.FC<SearchDetailProps> = ({ results, config, isOpen, on
                   {Object.keys(result.metadata).length > 0 && (
                     <div className="mt-3">
                       <details className="text-sm">
-                        <summary className="cursor-pointer text-gray-600 hover:text-gray-900">
+                        <summary className="cursor-pointer text-foreground hover:text-foreground">
                           View metadata
                         </summary>
                         <div className="mt-2 p-3 bg-gray-50 rounded text-xs font-mono">
@@ -332,7 +419,9 @@ const SearchDetail: React.FC<SearchDetailProps> = ({ results, config, isOpen, on
   );
 };
 
-export const HybridSearchOrchestrator: React.FC<HybridSearchOrchestratorProps> = ({
+export const HybridSearchOrchestrator: React.FC<
+  HybridSearchOrchestratorProps
+> = ({
   query,
   config: userConfig,
   onSearchComplete,
@@ -369,64 +458,67 @@ export const HybridSearchOrchestrator: React.FC<HybridSearchOrchestratorProps> =
     ...userConfig,
   });
 
-  const executeSearchStage = useCallback(async (
-    stage: 'vector' | 'graph' | 'keyword',
-    queryText: string
-  ): Promise<SearchStageResult> => {
-    // Simulate different latencies for different search types
-    const baseLatency = {
-      vector: 200 + Math.random() * 300,
-      graph: 150 + Math.random() * 250,
-      keyword: 50 + Math.random() * 150,
-    };
+  const executeSearchStage = useCallback(
+    async (
+      stage: 'vector' | 'graph' | 'keyword',
+      queryText: string
+    ): Promise<SearchStageResult> => {
+      // Simulate different latencies for different search types
+      const baseLatency = {
+        vector: 200 + Math.random() * 300,
+        graph: 150 + Math.random() * 250,
+        keyword: 50 + Math.random() * 150,
+      };
 
-    const latency = Math.round(baseLatency[stage]);
+      const latency = Math.round(baseLatency[stage]);
 
-    // Simulate search execution
-    await new Promise(resolve => setTimeout(resolve, latency));
+      // Simulate search execution
+      await new Promise((resolve) => setTimeout(resolve, latency));
 
-    // Simulate potential failures (10% chance)
-    if (Math.random() < 0.1) {
+      // Simulate potential failures (10% chance)
+      if (Math.random() < 0.1) {
+        return {
+          stage,
+          results: [],
+          latency_ms: latency,
+          confidence_score: 0,
+          error: `Search service temporarily unavailable for ${stage} search`,
+          metadata: { error_type: 'service_unavailable', retry_count: 0 },
+        };
+      }
+
+      // Simulate search results based on stage
+      const resultCounts = {
+        vector: Math.floor(Math.random() * 30) + 10,
+        graph: Math.floor(Math.random() * 20) + 5,
+        keyword: Math.floor(Math.random() * 50) + 20,
+      };
+
+      const confidenceScores = {
+        vector: 0.7 + Math.random() * 0.3,
+        graph: 0.6 + Math.random() * 0.4,
+        keyword: 0.5 + Math.random() * 0.5,
+      };
+
       return {
         stage,
-        results: [],
+        results: Array.from({ length: resultCounts[stage] }, (_, i) => ({
+          id: `${stage}_${i}`,
+          title: `${stage} result ${i + 1}`,
+          score: Math.random(),
+        })),
         latency_ms: latency,
-        confidence_score: 0,
-        error: `Search service temporarily unavailable for ${stage} search`,
-        metadata: { error_type: 'service_unavailable', retry_count: 0 }
+        confidence_score: confidenceScores[stage],
+        metadata: {
+          query_length: queryText.length,
+          timestamp: new Date().toISOString(),
+          search_type: stage,
+          index_size: Math.floor(Math.random() * 100000) + 10000,
+        },
       };
-    }
-
-    // Simulate search results based on stage
-    const resultCounts = {
-      vector: Math.floor(Math.random() * 30) + 10,
-      graph: Math.floor(Math.random() * 20) + 5,
-      keyword: Math.floor(Math.random() * 50) + 20,
-    };
-
-    const confidenceScores = {
-      vector: 0.7 + Math.random() * 0.3,
-      graph: 0.6 + Math.random() * 0.4,
-      keyword: 0.5 + Math.random() * 0.5,
-    };
-
-    return {
-      stage,
-      results: Array.from({ length: resultCounts[stage] }, (_, i) => ({
-        id: `${stage}_${i}`,
-        title: `${stage} result ${i + 1}`,
-        score: Math.random(),
-      })),
-      latency_ms: latency,
-      confidence_score: confidenceScores[stage],
-      metadata: {
-        query_length: queryText.length,
-        timestamp: new Date().toISOString(),
-        search_type: stage,
-        index_size: Math.floor(Math.random() * 100000) + 10000,
-      }
-    };
-  }, []);
+    },
+    []
+  );
 
   const runHybridSearch = useCallback(async () => {
     if (!query?.trim()) return;
@@ -447,11 +539,11 @@ export const HybridSearchOrchestrator: React.FC<HybridSearchOrchestratorProps> =
       try {
         const result = await executeSearchStage(stage, query);
         results.push(result);
-        setSearchResults(prev => [...prev, result]);
+        setSearchResults((prev) => [...prev, result]);
         onStageUpdate?.(stage, result);
 
         // Small delay between stages for better UX
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await new Promise((resolve) => setTimeout(resolve, 100));
       } catch (error) {
         console.error(`${stage} search failed:`, error);
         const errorResult: SearchStageResult = {
@@ -460,10 +552,10 @@ export const HybridSearchOrchestrator: React.FC<HybridSearchOrchestratorProps> =
           latency_ms: 0,
           confidence_score: 0,
           error: error instanceof Error ? error.message : 'Unknown error',
-          metadata: { error_type: 'exception' }
+          metadata: { error_type: 'exception' },
         };
         results.push(errorResult);
-        setSearchResults(prev => [...prev, errorResult]);
+        setSearchResults((prev) => [...prev, errorResult]);
       }
     }
 
@@ -478,32 +570,46 @@ export const HybridSearchOrchestrator: React.FC<HybridSearchOrchestratorProps> =
     }
   }, [autoStart, query, runHybridSearch]);
 
-  const handleRetryStage = useCallback(async (stage: string) => {
-    setCurrentStage(stage);
-    try {
-      const result = await executeSearchStage(stage as 'vector' | 'graph' | 'keyword', query);
-      setSearchResults(prev =>
-        prev.map(r => r.stage === stage ? result : r)
-      );
-      onStageUpdate?.(stage, result);
-    } catch (error) {
-      console.error(`Retry ${stage} search failed:`, error);
-    } finally {
-      setCurrentStage(null);
-    }
-  }, [query, executeSearchStage, onStageUpdate]);
+  const handleRetryStage = useCallback(
+    async (stage: string) => {
+      setCurrentStage(stage);
+      try {
+        const result = await executeSearchStage(
+          stage as 'vector' | 'graph' | 'keyword',
+          query
+        );
+        setSearchResults((prev) =>
+          prev.map((r) => (r.stage === stage ? result : r))
+        );
+        onStageUpdate?.(stage, result);
+      } catch (error) {
+        console.error(`Retry ${stage} search failed:`, error);
+      } finally {
+        setCurrentStage(null);
+      }
+    },
+    [query, executeSearchStage, onStageUpdate]
+  );
 
-  const totalLatency = searchResults.reduce((sum, result) => sum + result.latency_ms, 0);
-  const totalResults = searchResults.reduce((sum, result) => sum + result.results.length, 0);
-  const successfulStages = searchResults.filter(result => !result.error).length;
-  const hasErrors = searchResults.some(result => result.error);
+  const totalLatency = searchResults.reduce(
+    (sum, result) => sum + result.latency_ms,
+    0
+  );
+  const totalResults = searchResults.reduce(
+    (sum, result) => sum + result.results.length,
+    0
+  );
+  const successfulStages = searchResults.filter(
+    (result) => !result.error
+  ).length;
+  const hasErrors = searchResults.some((result) => result.error);
 
   if (!query) {
     return null;
   }
 
   return (
-    <div className={cn("space-y-4", className)}>
+    <div className={cn('space-y-4', className)}>
       {/* Search Header */}
       <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
         <div className="flex items-center space-x-3">
@@ -513,12 +619,12 @@ export const HybridSearchOrchestrator: React.FC<HybridSearchOrchestratorProps> =
             <BoltIcon className="h-5 w-5 text-blue-600" />
           )}
           <div>
-            <h3 className="font-medium text-gray-900">Hybrid Search</h3>
-            <p className="text-sm text-gray-600">
+            <h3 className="font-medium text-foreground">Hybrid Search</h3>
+            <p className="text-sm text-foreground">
               {config.vector_search.enabled && 'Vector'}{' '}
               {config.graph_search.enabled && '+ Graph'}{' '}
-              {config.keyword_search.enabled && '+ Keyword'}{' '}
-              ({config.fusion_strategy.toUpperCase()})
+              {config.keyword_search.enabled && '+ Keyword'} (
+              {config.fusion_strategy.toUpperCase()})
             </p>
           </div>
         </div>
@@ -526,10 +632,10 @@ export const HybridSearchOrchestrator: React.FC<HybridSearchOrchestratorProps> =
         <div className="flex items-center space-x-3">
           {searchResults.length > 0 && (
             <div className="text-right">
-              <div className="text-sm font-medium text-gray-900">
+              <div className="text-sm font-medium text-foreground">
                 {totalResults} results
               </div>
-              <div className="text-xs text-gray-600">
+              <div className="text-xs text-foreground">
                 {totalLatency}ms total
               </div>
             </div>
@@ -576,9 +682,13 @@ export const HybridSearchOrchestrator: React.FC<HybridSearchOrchestratorProps> =
       {searchResults.length > 0 && (
         <div className="space-y-3">
           {['vector', 'graph', 'keyword'].map((stage) => {
-            const result = searchResults.find(r => r.stage === stage);
-            const stageConfig = config[`${stage}_search` as keyof HybridSearchConfig];
-            if (!result || (typeof stageConfig === 'object' && !stageConfig.enabled)) {
+            const result = searchResults.find((r) => r.stage === stage);
+            const stageConfig =
+              config[`${stage}_search` as keyof HybridSearchConfig];
+            if (
+              !result ||
+              (typeof stageConfig === 'object' && !stageConfig.enabled)
+            ) {
               return null;
             }
 
@@ -601,7 +711,9 @@ export const HybridSearchOrchestrator: React.FC<HybridSearchOrchestratorProps> =
         <div className="flex items-center space-x-2 p-3 bg-blue-50 rounded-lg">
           <div className="h-4 w-4 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
           <span className="text-sm text-blue-800">
-            {currentStage ? `Executing ${currentStage} search...` : 'Initializing hybrid search...'}
+            {currentStage
+              ? `Executing ${currentStage} search...`
+              : 'Initializing hybrid search...'}
           </span>
         </div>
       )}
@@ -611,7 +723,8 @@ export const HybridSearchOrchestrator: React.FC<HybridSearchOrchestratorProps> =
         <div className="flex items-center space-x-2 p-3 bg-yellow-50 rounded-lg">
           <ExclamationTriangleIcon className="h-4 w-4 text-yellow-600" />
           <span className="text-sm text-yellow-800">
-            {successfulStages}/{searchResults.length} search stages completed successfully
+            {successfulStages}/{searchResults.length} search stages completed
+            successfully
           </span>
         </div>
       )}

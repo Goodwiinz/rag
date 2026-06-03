@@ -259,8 +259,9 @@ backend/evaluation_results.json
 backend/test_env/
 *.disabled
 
-# Duplicate lock files (using npm)
-pnpm-lock.yaml
+# Duplicate lock files (frontend uses pnpm, not npm)
+package-lock.json
+tests/e2e/package-lock.json
 
 # Supabase CLI temp state
 supabase/.temp/
@@ -277,6 +278,7 @@ backend/graphify-out/
 
 # Claude Code ephemeral worktrees
 .claude/worktrees/
+.claude/*.local.md
 
 # Runtime artifact directories (generated outputs, downloaded data)
 outputs/
@@ -287,3 +289,14 @@ data/archives/
 
 # Trigger.dev
 .trigger
+
+# pnpm local store
+.pnpm-store/
+
+# Vercel
+.vercel/
+**/.vercel/
+
+# Local scratch artifacts
+picker-check.png
+picker-snapshot.txt

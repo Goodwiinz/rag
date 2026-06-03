@@ -20,7 +20,7 @@ export default function AnalyticsPage() {
   return (
     <div
       data-testid="analytics-dashboard"
-      className="min-h-screen bg-[#0a0a0f] p-6 text-[#fafafa]"
+      className="min-h-screen bg-background p-6 text-foreground"
     >
       <AnalyticsDashboard />
     </div>

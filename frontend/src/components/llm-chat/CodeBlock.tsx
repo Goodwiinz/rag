@@ -5,10 +5,13 @@ import dynamic from 'next/dynamic';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 
 const SyntaxHighlighter = dynamic(
-  () => import('react-syntax-highlighter/dist/esm/prism').then((mod) => mod.default),
+  () =>
+    import('react-syntax-highlighter/dist/esm/prism').then(
+      (mod) => mod.default
+    ),
   {
     loading: () => (
-      <pre className="p-4 rounded bg-[var(--terminal-bg)] text-xs font-mono overflow-x-auto">
+      <pre className="p-4 rounded bg-[var(--nous-bg-1)] text-xs font-mono overflow-x-auto">
         <code>Loading...</code>
       </pre>
     ),
@@ -16,7 +19,12 @@ const SyntaxHighlighter = dynamic(
   }
 );
 import { Button } from '@/components/ui/button';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { Copy, Check } from 'lucide-react';
 
 interface CodeBlockProps {
@@ -45,7 +53,9 @@ export function CodeBlock({ language, value, inline }: CodeBlockProps) {
   return (
     <div className="my-4 rounded-lg overflow-hidden border border-[#27272A] shadow-lg">
       <div className="flex items-center justify-between px-4 py-2 bg-[#1A1A1A] border-b border-[#27272A]">
-        <span className="text-xs text-gray-400 font-mono uppercase">{language || 'text'}</span>
+        <span className="text-xs text-muted-foreground font-mono uppercase">
+          {language || 'text'}
+        </span>
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
@@ -53,7 +63,7 @@ export function CodeBlock({ language, value, inline }: CodeBlockProps) {
                 onClick={handleCopy}
                 variant="ghost"
                 size="sm"
-                className="h-7 px-2 text-xs text-gray-400 hover:text-white hover:bg-white/5"
+                className="h-7 px-2 text-xs text-muted-foreground hover:text-white hover:bg-white/5"
               >
                 {copied ? (
                   <>

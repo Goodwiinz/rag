@@ -203,6 +203,41 @@ async def test_resume_proceeds_when_interrupt_present():
     graph.ainvoke.assert_awaited_once()
 
 
+@pytest.mark.asyncio
+async def test_resume_rejects_ownerless_checkpoint():
+    """Ownerless legacy checkpoints must not be resumable from a thread id."""
+    user = _make_mock_user()
+    job_id = str(uuid4())
+    _set_job(
+        job_id,
+        {
+            "status": "running",
+            "user_id": str(user.id),
+            "tool_executions": [],
+        },
+    )
+
+    graph = _make_graph(
+        {"pending_confirmation": {"tools": [{"name": "ingest_arxiv_papers"}]}}
+    )
+
+    with (
+        patch("src.services.agent.graph.compile_agent_graph", return_value=graph),
+        patch(
+            "src.services.agent.checkpointer.get_checkpointer",
+            new=AsyncMock(return_value=None),
+        ),
+        patch("src.api.agent.jobs.AsyncSessionLocal", return_value=_async_session_cm()),
+    ):
+        await _resume_agent_graph(job_id, confirmed=True, current_user=user)
+
+    graph.ainvoke.assert_not_called()
+    job = _get_job(job_id)
+    assert job is not None
+    assert job["status"] == "error"
+    assert job["error"] == "Thread not found"
+
+
 # ---------------------------------------------------------------------------
 # Existing double-confirm invariant — protected by _jobs_lock
 # ---------------------------------------------------------------------------
@@ -270,3 +305,35 @@ def test_double_confirm_second_request_returns_400(confirm_client):
     assert first.status_code == 200
     assert first.json()["status"] == "running"
     assert second.status_code == 400
+
+
+def test_confirm_falls_back_to_redis_after_l1_eviction(confirm_client):
+    """A pending job in Redis should still be confirmable after L1 eviction."""
+    client, user = confirm_client
+    job_id = str(uuid4())
+    redis_job = {
+        "status": "awaiting_confirmation",
+        "confirmation": {"tools": [], "message": "Confirm?"},
+        "tool_executions": [],
+        "user_id": str(user.id),
+    }
+
+    with (
+        patch(
+            "src.services.agent.job_store.get_job",
+            new=AsyncMock(return_value=redis_job),
+        ),
+        patch(
+            "src.services.agent.job_store.set_job",
+            new=AsyncMock(),
+        ) as mock_set_job,
+        patch("src.api.agent.execute._resume_agent_graph", new_callable=AsyncMock),
+    ):
+        response = client.post(
+            f"/api/v1/agent/confirm/{job_id}", json={"confirmed": True}
+        )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "running"
+    assert redis_job["status"] == "running"
+    mock_set_job.assert_awaited_once()

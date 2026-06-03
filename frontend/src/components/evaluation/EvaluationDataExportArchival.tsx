@@ -23,7 +23,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
 import { Progress } from '@/components/ui/progress';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
 import {
   Table,
   TableBody,
@@ -80,7 +87,14 @@ interface ExportJob {
   status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
   priority: 'low' | 'medium' | 'high' | 'urgent';
   config: {
-    dataType: 'evaluation_results' | 'test_suites' | 'metrics' | 'alerts' | 'analytics' | 'audit_logs' | 'all';
+    dataType:
+      | 'evaluation_results'
+      | 'test_suites'
+      | 'metrics'
+      | 'alerts'
+      | 'analytics'
+      | 'audit_logs'
+      | 'all';
     dateRange: {
       start: string;
       end: string;
@@ -497,25 +511,81 @@ const mockStorageStats: StorageStats = {
 };
 
 const dataTypes = [
-  { id: 'evaluation_results', name: 'Evaluation Results', description: 'Individual evaluation results and metrics' },
-  { id: 'test_suites', name: 'Test Suites', description: 'Test suite configurations and results' },
-  { id: 'metrics', name: 'Metrics', description: 'Custom and system metrics data' },
-  { id: 'alerts', name: 'Alerts', description: 'Alert rules and alert history' },
-  { id: 'analytics', name: 'Analytics', description: 'Analytics reports and dashboards' },
-  { id: 'audit_logs', name: 'Audit Logs', description: 'System audit logs and activities' },
+  {
+    id: 'evaluation_results',
+    name: 'Evaluation Results',
+    description: 'Individual evaluation results and metrics',
+  },
+  {
+    id: 'test_suites',
+    name: 'Test Suites',
+    description: 'Test suite configurations and results',
+  },
+  {
+    id: 'metrics',
+    name: 'Metrics',
+    description: 'Custom and system metrics data',
+  },
+  {
+    id: 'alerts',
+    name: 'Alerts',
+    description: 'Alert rules and alert history',
+  },
+  {
+    id: 'analytics',
+    name: 'Analytics',
+    description: 'Analytics reports and dashboards',
+  },
+  {
+    id: 'audit_logs',
+    name: 'Audit Logs',
+    description: 'System audit logs and activities',
+  },
   { id: 'all', name: 'All Data', description: 'Complete system data export' },
 ];
 
 const exportFormats = [
-  { id: 'json', name: 'JSON', description: 'Structured data format', icon: <FileText className="h-4 w-4" /> },
-  { id: 'csv', name: 'CSV', description: 'Comma-separated values', icon: <FileSpreadsheet className="h-4 w-4" /> },
-  { id: 'excel', name: 'Excel', description: 'Microsoft Excel format', icon: <FileSpreadsheet className="h-4 w-4" /> },
-  { id: 'pdf', name: 'PDF', description: 'Portable Document Format', icon: <FileText className="h-4 w-4" /> },
-  { id: 'xml', name: 'XML', description: 'eXtensible Markup Language', icon: <FileText className="h-4 w-4" /> },
-  { id: 'parquet', name: 'Parquet', description: 'Columnar storage format', icon: <Database className="h-4 w-4" /> },
+  {
+    id: 'json',
+    name: 'JSON',
+    description: 'Structured data format',
+    icon: <FileText className="h-4 w-4" />,
+  },
+  {
+    id: 'csv',
+    name: 'CSV',
+    description: 'Comma-separated values',
+    icon: <FileSpreadsheet className="h-4 w-4" />,
+  },
+  {
+    id: 'excel',
+    name: 'Excel',
+    description: 'Microsoft Excel format',
+    icon: <FileSpreadsheet className="h-4 w-4" />,
+  },
+  {
+    id: 'pdf',
+    name: 'PDF',
+    description: 'Portable Document Format',
+    icon: <FileText className="h-4 w-4" />,
+  },
+  {
+    id: 'xml',
+    name: 'XML',
+    description: 'eXtensible Markup Language',
+    icon: <FileText className="h-4 w-4" />,
+  },
+  {
+    id: 'parquet',
+    name: 'Parquet',
+    description: 'Columnar storage format',
+    icon: <Database className="h-4 w-4" />,
+  },
 ];
 
-const EvaluationDataExportArchival: React.FC<EvaluationDataExportArchivalProps> = ({
+const EvaluationDataExportArchival: React.FC<
+  EvaluationDataExportArchivalProps
+> = ({
   onExportJobCreate,
   onExportJobCancel,
   onArchivePolicyCreate,
@@ -523,23 +593,31 @@ const EvaluationDataExportArchival: React.FC<EvaluationDataExportArchivalProps> 
   className,
 }) => {
   const [exportJobs, setExportJobs] = useState<ExportJob[]>(mockExportJobs);
-  const [archivePolicies, setArchivePolicies] = useState<ArchivePolicy[]>(mockArchivePolicies);
-  const [storageStats, setStorageStats] = useState<StorageStats>(mockStorageStats);
+  const [archivePolicies, setArchivePolicies] =
+    useState<ArchivePolicy[]>(mockArchivePolicies);
+  const [storageStats, setStorageStats] =
+    useState<StorageStats>(mockStorageStats);
   const [selectedJob, setSelectedJob] = useState<ExportJob | null>(null);
-  const [selectedPolicy, setSelectedPolicy] = useState<ArchivePolicy | null>(null);
+  const [selectedPolicy, setSelectedPolicy] = useState<ArchivePolicy | null>(
+    null
+  );
   const [activeTab, setActiveTab] = useState('overview');
-  const [isCreateExportDialogOpen, setIsCreateExportDialogOpen] = useState(false);
-  const [isCreatePolicyDialogOpen, setIsCreatePolicyDialogOpen] = useState(false);
+  const [isCreateExportDialogOpen, setIsCreateExportDialogOpen] =
+    useState(false);
+  const [isCreatePolicyDialogOpen, setIsCreatePolicyDialogOpen] =
+    useState(false);
   const [filterStatus, setFilterStatus] = useState('all');
   const [filterType, setFilterType] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
 
   // Filter export jobs
   const filteredJobs = useMemo(() => {
-    return exportJobs.filter(job => {
-      const matchesSearch = job.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           job.description.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesStatus = filterStatus === 'all' || job.status === filterStatus;
+    return exportJobs.filter((job) => {
+      const matchesSearch =
+        job.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        job.description.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesStatus =
+        filterStatus === 'all' || job.status === filterStatus;
       const matchesType = filterType === 'all' || job.type === filterType;
       return matchesSearch && matchesStatus && matchesType;
     });
@@ -557,24 +635,29 @@ const EvaluationDataExportArchival: React.FC<EvaluationDataExportArchivalProps> 
       case 'cancelled':
         return <AlertTriangle className="h-4 w-4 text-yellow-500" />;
       default:
-        return <Clock className="h-4 w-4 text-gray-500" />;
+        return <Clock className="h-4 w-4 text-muted-foreground" />;
     }
   };
 
   // Get priority color
   const getPriorityColor = (priority: string) => {
     switch (priority) {
-      case 'urgent': return 'bg-red-100 text-red-800 border-red-200';
-      case 'high': return 'bg-orange-100 text-orange-800 border-orange-200';
-      case 'medium': return 'bg-blue-100 text-blue-800 border-blue-200';
-      case 'low': return 'bg-gray-100 text-gray-800 border-gray-200';
-      default: return 'bg-gray-100 text-gray-800 border-gray-200';
+      case 'urgent':
+        return 'bg-red-100 text-red-800 border-red-200';
+      case 'high':
+        return 'bg-orange-100 text-orange-800 border-orange-200';
+      case 'medium':
+        return 'bg-blue-100 text-blue-800 border-blue-200';
+      case 'low':
+        return 'bg-gray-100 text-foreground border-border';
+      default:
+        return 'bg-gray-100 text-foreground border-border';
     }
   };
 
   // Get format icon
   const getFormatIcon = (format: string) => {
-    const formatConfig = exportFormats.find(f => f.id === format);
+    const formatConfig = exportFormats.find((f) => f.id === format);
     return formatConfig?.icon || <FileText className="h-4 w-4" />;
   };
 
@@ -587,90 +670,115 @@ const EvaluationDataExportArchival: React.FC<EvaluationDataExportArchivalProps> 
   };
 
   // Cancel export job
-  const cancelExportJob = useCallback((jobId: string) => {
-    setExportJobs(prev => prev.map(job =>
-      job.id === jobId
-        ? { ...job, status: 'cancelled', updated: new Date().toISOString() }
-        : job
-    ));
-    onExportJobCancel?.(jobId);
-  }, [onExportJobCancel]);
+  const cancelExportJob = useCallback(
+    (jobId: string) => {
+      setExportJobs((prev) =>
+        prev.map((job) =>
+          job.id === jobId
+            ? { ...job, status: 'cancelled', updated: new Date().toISOString() }
+            : job
+        )
+      );
+      onExportJobCancel?.(jobId);
+    },
+    [onExportJobCancel]
+  );
 
   // Delete export job
   const deleteExportJob = useCallback((jobId: string) => {
-    setExportJobs(prev => prev.filter(job => job.id !== jobId));
+    setExportJobs((prev) => prev.filter((job) => job.id !== jobId));
   }, []);
 
   // Toggle archive policy status
   const togglePolicyStatus = useCallback((policyId: string) => {
-    setArchivePolicies(prev => prev.map(policy =>
-      policy.id === policyId
-        ? { ...policy, isActive: !policy.isActive, updated: new Date().toISOString() }
-        : policy
-    ));
+    setArchivePolicies((prev) =>
+      prev.map((policy) =>
+        policy.id === policyId
+          ? {
+              ...policy,
+              isActive: !policy.isActive,
+              updated: new Date().toISOString(),
+            }
+          : policy
+      )
+    );
   }, []);
 
   // Delete archive policy
   const deleteArchivePolicy = useCallback((policyId: string) => {
-    setArchivePolicies(prev => prev.filter(policy => policy.id !== policyId));
+    setArchivePolicies((prev) =>
+      prev.filter((policy) => policy.id !== policyId)
+    );
   }, []);
 
   // Save export job
-  const handleSaveExportJob = useCallback((jobData: Partial<ExportJob>) => {
-    const newJob: ExportJob = {
-      id: `export-${Date.now()}`,
-      name: jobData.name || 'New Export Job',
-      description: jobData.description || '',
-      type: 'manual',
-      status: 'pending',
-      priority: jobData.priority || 'medium',
-      config: jobData.config || {
-        dataType: 'evaluation_results',
-        dateRange: {
-          start: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
-          end: new Date().toISOString(),
+  const handleSaveExportJob = useCallback(
+    (jobData: Partial<ExportJob>) => {
+      const newJob: ExportJob = {
+        id: `export-${Date.now()}`,
+        name: jobData.name || 'New Export Job',
+        description: jobData.description || '',
+        type: 'manual',
+        status: 'pending',
+        priority: jobData.priority || 'medium',
+        config: jobData.config || {
+          dataType: 'evaluation_results',
+          dateRange: {
+            start: new Date(
+              Date.now() - 30 * 24 * 60 * 60 * 1000
+            ).toISOString(),
+            end: new Date().toISOString(),
+          },
+          filters: {},
+          format: 'json',
+          compression: 'none',
+          encryption: { enabled: false },
+          destination: { type: 'download', config: {} },
+          retention: { enabled: false, period: 30, autoDelete: false },
         },
-        filters: {},
-        format: 'json',
-        compression: 'none',
-        encryption: { enabled: false },
-        destination: { type: 'download', config: {} },
-        retention: { enabled: false, period: 30, autoDelete: false },
-      },
-      progress: {
-        percentage: 0,
-        currentStep: 'Queued',
-        totalSteps: 1,
-        recordsProcessed: 0,
-        totalRecords: 0,
-      },
-      result: {
-        fileSize: 0,
-        recordCount: 0,
-        fileCount: 0,
-        checksum: '',
-      },
-      metadata: {
-        created: new Date().toISOString(),
-        updated: new Date().toISOString(),
-        createdBy: 'current-user',
-      },
-    };
-    setExportJobs(prev => [newJob, ...prev]);
-    onExportJobCreate?.(newJob);
-    setIsCreateExportDialogOpen(false);
-  }, [onExportJobCreate]);
+        progress: {
+          percentage: 0,
+          currentStep: 'Queued',
+          totalSteps: 1,
+          recordsProcessed: 0,
+          totalRecords: 0,
+        },
+        result: {
+          fileSize: 0,
+          recordCount: 0,
+          fileCount: 0,
+          checksum: '',
+        },
+        metadata: {
+          created: new Date().toISOString(),
+          updated: new Date().toISOString(),
+          createdBy: 'current-user',
+        },
+      };
+      setExportJobs((prev) => [newJob, ...prev]);
+      onExportJobCreate?.(newJob);
+      setIsCreateExportDialogOpen(false);
+    },
+    [onExportJobCreate]
+  );
 
   return (
     <div className={`space-y-6 ${className}`}>
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Data Export & Archival</h2>
-          <p className="text-gray-600 dark:text-gray-400">Export evaluation data and manage archival policies</p>
+          <h2 className="text-2xl font-bold text-foreground">
+            Data Export & Archival
+          </h2>
+          <p className="text-foreground">
+            Export evaluation data and manage archival policies
+          </p>
         </div>
         <div className="flex items-center space-x-2">
-          <Dialog open={isCreatePolicyDialogOpen} onOpenChange={setIsCreatePolicyDialogOpen}>
+          <Dialog
+            open={isCreatePolicyDialogOpen}
+            onOpenChange={setIsCreatePolicyDialogOpen}
+          >
             <DialogTrigger asChild>
               <Button variant="outline">
                 <Archive className="h-4 w-4 mr-2" />
@@ -698,7 +806,7 @@ const EvaluationDataExportArchival: React.FC<EvaluationDataExportArchivalProps> 
                       totalSpaceSaved: 0,
                     },
                   } as ArchivePolicy;
-                  setArchivePolicies(prev => [...prev, newPolicy]);
+                  setArchivePolicies((prev) => [...prev, newPolicy]);
                   onArchivePolicyCreate?.(newPolicy);
                   setIsCreatePolicyDialogOpen(false);
                 }}
@@ -706,7 +814,10 @@ const EvaluationDataExportArchival: React.FC<EvaluationDataExportArchivalProps> 
               />
             </DialogContent>
           </Dialog>
-          <Dialog open={isCreateExportDialogOpen} onOpenChange={setIsCreateExportDialogOpen}>
+          <Dialog
+            open={isCreateExportDialogOpen}
+            onOpenChange={setIsCreateExportDialogOpen}
+          >
             <DialogTrigger asChild>
               <Button>
                 <Download className="h-4 w-4 mr-2" />
@@ -736,8 +847,10 @@ const EvaluationDataExportArchival: React.FC<EvaluationDataExportArchivalProps> 
             <div className="flex items-center space-x-2">
               <Database className="h-5 w-5 text-blue-500" />
               <div>
-                <div className="text-2xl font-bold">{storageStats.totalData.size} GB</div>
-                <div className="text-sm text-gray-600 dark:text-gray-400">Total Storage</div>
+                <div className="text-2xl font-bold">
+                  {storageStats.totalData.size} GB
+                </div>
+                <div className="text-sm text-foreground">Total Storage</div>
               </div>
             </div>
           </CardContent>
@@ -747,8 +860,10 @@ const EvaluationDataExportArchival: React.FC<EvaluationDataExportArchivalProps> 
             <div className="flex items-center space-x-2">
               <Archive className="h-5 w-5 text-green-500" />
               <div>
-                <div className="text-2xl font-bold">{storageStats.archived.size} GB</div>
-                <div className="text-sm text-gray-600 dark:text-gray-400">Archived</div>
+                <div className="text-2xl font-bold">
+                  {storageStats.archived.size} GB
+                </div>
+                <div className="text-sm text-foreground">Archived</div>
               </div>
             </div>
           </CardContent>
@@ -758,8 +873,10 @@ const EvaluationDataExportArchival: React.FC<EvaluationDataExportArchivalProps> 
             <div className="flex items-center space-x-2">
               <Activity className="h-5 w-5 text-purple-500" />
               <div>
-                <div className="text-2xl font-bold">{storageStats.growth.daily} GB</div>
-                <div className="text-sm text-gray-600 dark:text-gray-400">Daily Growth</div>
+                <div className="text-2xl font-bold">
+                  {storageStats.growth.daily} GB
+                </div>
+                <div className="text-sm text-foreground">Daily Growth</div>
               </div>
             </div>
           </CardContent>
@@ -769,8 +886,10 @@ const EvaluationDataExportArchival: React.FC<EvaluationDataExportArchivalProps> 
             <div className="flex items-center space-x-2">
               <TrendingUp className="h-5 w-5 text-orange-500" />
               <div>
-                <div className="text-2xl font-bold">{storageStats.archived.compressionRatio}%</div>
-                <div className="text-sm text-gray-600 dark:text-gray-400">Compression</div>
+                <div className="text-2xl font-bold">
+                  {storageStats.archived.compressionRatio}%
+                </div>
+                <div className="text-sm text-foreground">Compression</div>
               </div>
             </div>
           </CardContent>
@@ -804,18 +923,26 @@ const EvaluationDataExportArchival: React.FC<EvaluationDataExportArchivalProps> 
             <Card>
               <CardHeader>
                 <CardTitle>Data Distribution by Type</CardTitle>
-                <CardDescription>Storage usage across different data types</CardDescription>
+                <CardDescription>
+                  Storage usage across different data types
+                </CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
                   {Object.entries(storageStats.byType).map(([type, stats]) => (
-                    <div key={type} className="flex items-center justify-between">
+                    <div
+                      key={type}
+                      className="flex items-center justify-between"
+                    >
                       <div className="flex items-center space-x-2">
                         <div className="w-4 h-4 bg-blue-500 rounded" />
-                        <span className="text-sm font-medium capitalize">{type.replace('_', ' ')}</span>
+                        <span className="text-sm font-medium capitalize">
+                          {type.replace('_', ' ')}
+                        </span>
                       </div>
                       <div className="text-sm">
-                        {stats.size} GB • {stats.records.toLocaleString()} records
+                        {stats.size} GB • {stats.records.toLocaleString()}{' '}
+                        records
                       </div>
                     </div>
                   ))}
@@ -833,7 +960,11 @@ const EvaluationDataExportArchival: React.FC<EvaluationDataExportArchivalProps> 
                   {Object.entries(storageStats.byAge).map(([age, stats]) => (
                     <div key={age} className="space-y-2">
                       <div className="flex items-center justify-between text-sm">
-                        <span className="font-medium capitalize">{age.replace(/(\d+)/, ' $1').replace('last ', 'Last ')}</span>
+                        <span className="font-medium capitalize">
+                          {age
+                            .replace(/(\d+)/, ' $1')
+                            .replace('last ', 'Last ')}
+                        </span>
                         <span>{stats.size} GB</span>
                       </div>
                       <Progress
@@ -850,28 +981,37 @@ const EvaluationDataExportArchival: React.FC<EvaluationDataExportArchivalProps> 
           <Card>
             <CardHeader>
               <CardTitle>Recent Export Activity</CardTitle>
-              <CardDescription>Latest export jobs and their status</CardDescription>
+              <CardDescription>
+                Latest export jobs and their status
+              </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {exportJobs.slice(0, 5).map(job => (
-                  <div key={job.id} className="flex items-center justify-between p-3 border rounded-lg">
+                {exportJobs.slice(0, 5).map((job) => (
+                  <div
+                    key={job.id}
+                    className="flex items-center justify-between p-3 border rounded-lg"
+                  >
                     <div className="flex items-center space-x-3">
                       {getStatusIcon(job.status)}
                       <div>
                         <div className="font-medium">{job.name}</div>
-                        <div className="text-sm text-gray-500">
-                          {job.config.dataType.replace('_', ' ')} • {job.config.format.toUpperCase()}
+                        <div className="text-sm text-muted-foreground">
+                          {job.config.dataType.replace('_', ' ')} •{' '}
+                          {job.config.format.toUpperCase()}
                         </div>
                       </div>
                     </div>
                     <div className="text-right">
-                      <div className="text-sm font-medium">{formatFileSize(job.result.fileSize)}</div>
-                      <div className="text-xs text-gray-500">
+                      <div className="text-sm font-medium">
+                        {formatFileSize(job.result.fileSize)}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
                         {job.metadata.completedAt
-                          ? new Date(job.metadata.completedAt).toLocaleDateString()
-                          : new Date(job.metadata.created).toLocaleDateString()
-                        }
+                          ? new Date(
+                              job.metadata.completedAt
+                            ).toLocaleDateString()
+                          : new Date(job.metadata.created).toLocaleDateString()}
                       </div>
                     </div>
                   </div>
@@ -888,7 +1028,7 @@ const EvaluationDataExportArchival: React.FC<EvaluationDataExportArchivalProps> 
               <div className="flex items-center space-x-4 mb-4">
                 <div className="flex-1">
                   <div className="relative">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
                       placeholder="Search export jobs..."
                       value={searchTerm}
@@ -924,7 +1064,7 @@ const EvaluationDataExportArchival: React.FC<EvaluationDataExportArchivalProps> 
               </div>
 
               <div className="space-y-3">
-                {filteredJobs.map(job => (
+                {filteredJobs.map((job) => (
                   <div key={job.id} className="border rounded-lg p-4">
                     <div className="flex items-start justify-between">
                       <div className="flex items-start space-x-3">
@@ -937,19 +1077,32 @@ const EvaluationDataExportArchival: React.FC<EvaluationDataExportArchivalProps> 
                             </Badge>
                             <Badge variant="outline">{job.type}</Badge>
                           </div>
-                          <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+                          <p className="text-sm text-foreground mb-2">
                             {job.description}
                           </p>
-                          <div className="flex items-center space-x-4 text-xs text-gray-500">
+                          <div className="flex items-center space-x-4 text-xs text-muted-foreground">
                             <span>{job.config.dataType.replace('_', ' ')}</span>
                             <span>•</span>
-                            <span>{getFormatIcon(job.config.format)} {job.config.format.toUpperCase()}</span>
+                            <span>
+                              {getFormatIcon(job.config.format)}{' '}
+                              {job.config.format.toUpperCase()}
+                            </span>
                             <span>•</span>
-                            <span>Created: {new Date(job.metadata.created).toLocaleDateString()}</span>
+                            <span>
+                              Created:{' '}
+                              {new Date(
+                                job.metadata.created
+                              ).toLocaleDateString()}
+                            </span>
                             {job.metadata.completedAt && (
                               <>
                                 <span>•</span>
-                                <span>Completed: {new Date(job.metadata.completedAt).toLocaleDateString()}</span>
+                                <span>
+                                  Completed:{' '}
+                                  {new Date(
+                                    job.metadata.completedAt
+                                  ).toLocaleDateString()}
+                                </span>
                               </>
                             )}
                           </div>
@@ -990,12 +1143,20 @@ const EvaluationDataExportArchival: React.FC<EvaluationDataExportArchivalProps> 
                           <span>{job.progress.currentStep}</span>
                           <span>{job.progress.percentage}%</span>
                         </div>
-                        <Progress value={job.progress.percentage} className="h-2" />
-                        <div className="text-xs text-gray-500">
-                          {job.progress.recordsProcessed.toLocaleString()} / {job.progress.totalRecords.toLocaleString()} records
+                        <Progress
+                          value={job.progress.percentage}
+                          className="h-2"
+                        />
+                        <div className="text-xs text-muted-foreground">
+                          {job.progress.recordsProcessed.toLocaleString()} /{' '}
+                          {job.progress.totalRecords.toLocaleString()} records
                           {job.progress.estimatedTimeRemaining && (
                             <>
-                              {' • '}~{Math.ceil(job.progress.estimatedTimeRemaining / 60)} min remaining
+                              {' • '}~
+                              {Math.ceil(
+                                job.progress.estimatedTimeRemaining / 60
+                              )}{' '}
+                              min remaining
                             </>
                           )}
                         </div>
@@ -1006,9 +1167,12 @@ const EvaluationDataExportArchival: React.FC<EvaluationDataExportArchivalProps> 
                       <div className="mt-4 p-3 bg-green-50 dark:bg-green-900/20 rounded">
                         <div className="flex items-center justify-between">
                           <div className="text-sm">
-                            <span className="font-medium">Export completed successfully</span>
-                            <span className="text-gray-600 dark:text-gray-400 ml-2">
-                              {formatFileSize(job.result.fileSize)} • {job.result.recordCount.toLocaleString()} records
+                            <span className="font-medium">
+                              Export completed successfully
+                            </span>
+                            <span className="text-foreground ml-2">
+                              {formatFileSize(job.result.fileSize)} •{' '}
+                              {job.result.recordCount.toLocaleString()} records
                             </span>
                           </div>
                           <Button size="sm" variant="outline">
@@ -1036,16 +1200,23 @@ const EvaluationDataExportArchival: React.FC<EvaluationDataExportArchivalProps> 
         {/* Archive Policies Tab */}
         <TabsContent value="policies" className="space-y-4">
           <div className="space-y-4">
-            {archivePolicies.map(policy => (
-              <Card key={policy.id} className="hover:shadow-md transition-shadow">
+            {archivePolicies.map((policy) => (
+              <Card
+                key={policy.id}
+                className="hover:shadow-md transition-shadow"
+              >
                 <CardHeader className="pb-3">
                   <div className="flex items-start justify-between">
                     <div>
                       <CardTitle className="text-lg">{policy.name}</CardTitle>
-                      <CardDescription className="mt-1">{policy.description}</CardDescription>
+                      <CardDescription className="mt-1">
+                        {policy.description}
+                      </CardDescription>
                     </div>
                     <div className="flex items-center space-x-2">
-                      <Badge variant={policy.isActive ? 'default' : 'secondary'}>
+                      <Badge
+                        variant={policy.isActive ? 'default' : 'secondary'}
+                      >
                         {policy.isActive ? 'Active' : 'Inactive'}
                       </Badge>
                       <Switch
@@ -1058,40 +1229,51 @@ const EvaluationDataExportArchival: React.FC<EvaluationDataExportArchivalProps> 
                 <CardContent className="space-y-4">
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
-                      <div className="text-sm font-medium text-gray-600 dark:text-gray-400">Conditions</div>
+                      <div className="text-sm font-medium text-foreground">
+                        Conditions
+                      </div>
                       <div className="text-sm">
                         Archive data older than {policy.conditions.dataAge} days
                         {policy.conditions.categories && (
-                          <div>Categories: {policy.conditions.categories.join(', ')}</div>
+                          <div>
+                            Categories:{' '}
+                            {policy.conditions.categories.join(', ')}
+                          </div>
                         )}
                       </div>
                     </div>
                     <div>
-                      <div className="text-sm font-medium text-gray-600 dark:text-gray-400">Schedule</div>
+                      <div className="text-sm font-medium text-foreground">
+                        Schedule
+                      </div>
                       <div className="text-sm">
                         {policy.schedule.enabled
                           ? `${policy.schedule.frequency} at ${policy.schedule.time} (${policy.schedule.timezone})`
-                          : 'Disabled'
-                        }
+                          : 'Disabled'}
                       </div>
                     </div>
                     <div>
-                      <div className="text-sm font-medium text-gray-600 dark:text-gray-400">Results</div>
+                      <div className="text-sm font-medium text-foreground">
+                        Results
+                      </div>
                       <div className="text-sm">
-                        {policy.metadata.totalArchived.toLocaleString()} records archived
+                        {policy.metadata.totalArchived.toLocaleString()} records
+                        archived
                         {policy.metadata.totalSpaceSaved > 0 && (
-                          <div>• {policy.metadata.totalSpaceSaved} GB saved</div>
+                          <div>
+                            • {policy.metadata.totalSpaceSaved} GB saved
+                          </div>
                         )}
                       </div>
                     </div>
                   </div>
 
                   <div className="flex items-center justify-between">
-                    <div className="text-xs text-gray-500">
-                      Last run: {policy.metadata.lastRun
+                    <div className="text-xs text-muted-foreground">
+                      Last run:{' '}
+                      {policy.metadata.lastRun
                         ? new Date(policy.metadata.lastRun).toLocaleString()
-                        : 'Never'
-                      }
+                        : 'Never'}
                     </div>
                     <div className="flex items-center space-x-1">
                       <Button
@@ -1129,19 +1311,26 @@ const EvaluationDataExportArchival: React.FC<EvaluationDataExportArchivalProps> 
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium">Daily Growth</span>
-                    <span className="text-sm font-bold">{storageStats.growth.daily} GB/day</span>
+                    <span className="text-sm font-bold">
+                      {storageStats.growth.daily} GB/day
+                    </span>
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium">Weekly Growth</span>
-                    <span className="text-sm font-bold">{storageStats.growth.weekly} GB/week</span>
+                    <span className="text-sm font-bold">
+                      {storageStats.growth.weekly} GB/week
+                    </span>
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium">Monthly Growth</span>
-                    <span className="text-sm font-bold">{storageStats.growth.monthly} GB/month</span>
+                    <span className="text-sm font-bold">
+                      {storageStats.growth.monthly} GB/month
+                    </span>
                   </div>
                   <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded">
                     <div className="text-sm text-blue-600 dark:text-blue-400">
-                      <strong>Projected Annual Growth:</strong> ~{(storageStats.growth.monthly * 12).toFixed(0)} GB
+                      <strong>Projected Annual Growth:</strong> ~
+                      {(storageStats.growth.monthly * 12).toFixed(0)} GB
                     </div>
                   </div>
                 </div>
@@ -1151,28 +1340,47 @@ const EvaluationDataExportArchival: React.FC<EvaluationDataExportArchivalProps> 
             <Card>
               <CardHeader>
                 <CardTitle>Archive Performance</CardTitle>
-                <CardDescription>Archival system performance metrics</CardDescription>
+                <CardDescription>
+                  Archival system performance metrics
+                </CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
                   <div>
                     <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm font-medium">Compression Ratio</span>
-                      <span className="text-sm font-bold">{storageStats.archived.compressionRatio}%</span>
+                      <span className="text-sm font-medium">
+                        Compression Ratio
+                      </span>
+                      <span className="text-sm font-bold">
+                        {storageStats.archived.compressionRatio}%
+                      </span>
                     </div>
-                    <Progress value={storageStats.archived.compressionRatio} className="h-2" />
+                    <Progress
+                      value={storageStats.archived.compressionRatio}
+                      className="h-2"
+                    />
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium">Total Space Saved</span>
-                    <span className="text-sm font-bold">{storageStats.archived.size} GB</span>
+                    <span className="text-sm font-medium">
+                      Total Space Saved
+                    </span>
+                    <span className="text-sm font-bold">
+                      {storageStats.archived.size} GB
+                    </span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium">Archived Records</span>
-                    <span className="text-sm font-bold">{storageStats.archived.records.toLocaleString()}</span>
+                    <span className="text-sm font-medium">
+                      Archived Records
+                    </span>
+                    <span className="text-sm font-bold">
+                      {storageStats.archived.records.toLocaleString()}
+                    </span>
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium">Archive Files</span>
-                    <span className="text-sm font-bold">{storageStats.archived.files.toLocaleString()}</span>
+                    <span className="text-sm font-bold">
+                      {storageStats.archived.files.toLocaleString()}
+                    </span>
                   </div>
                 </div>
               </CardContent>
@@ -1185,12 +1393,17 @@ const EvaluationDataExportArchival: React.FC<EvaluationDataExportArchivalProps> 
 };
 
 // Export Job Form Component
-const ExportJobForm: React.FC<ExportJobFormProps> = ({ onSubmit, onCancel }) => {
+const ExportJobForm: React.FC<ExportJobFormProps> = ({
+  onSubmit,
+  onCancel,
+}) => {
   const [formData, setFormData] = useState({
     name: '',
     description: '',
     dataType: 'evaluation_results',
-    startDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    startDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+      .toISOString()
+      .split('T')[0],
     endDate: new Date().toISOString().split('T')[0],
     format: 'json',
     compression: 'none',
@@ -1225,9 +1438,15 @@ const ExportJobForm: React.FC<ExportJobFormProps> = ({ onSubmit, onCancel }) => 
         },
         destination: {
           type: formData.destinationType as any,
-          config: formData.destinationType === 'email' ? {
-            recipients: formData.recipients.split(',').map(r => r.trim()).filter(Boolean),
-          } : {},
+          config:
+            formData.destinationType === 'email'
+              ? {
+                  recipients: formData.recipients
+                    .split(',')
+                    .map((r) => r.trim())
+                    .filter(Boolean),
+                }
+              : {},
         },
         retention: {
           enabled: formData.retentionEnabled,
@@ -1248,14 +1467,21 @@ const ExportJobForm: React.FC<ExportJobFormProps> = ({ onSubmit, onCancel }) => 
           <Input
             id="job-name"
             value={formData.name}
-            onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+            onChange={(e) =>
+              setFormData((prev) => ({ ...prev, name: e.target.value }))
+            }
             placeholder="Enter export job name"
             required
           />
         </div>
         <div>
           <Label htmlFor="job-priority">Priority</Label>
-          <Select value={formData.priority} onValueChange={(value) => setFormData(prev => ({ ...prev, priority: value }))}>
+          <Select
+            value={formData.priority}
+            onValueChange={(value) =>
+              setFormData((prev) => ({ ...prev, priority: value }))
+            }
+          >
             <SelectTrigger>
               <SelectValue />
             </SelectTrigger>
@@ -1274,7 +1500,9 @@ const ExportJobForm: React.FC<ExportJobFormProps> = ({ onSubmit, onCancel }) => 
         <Textarea
           id="job-description"
           value={formData.description}
-          onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+          onChange={(e) =>
+            setFormData((prev) => ({ ...prev, description: e.target.value }))
+          }
           placeholder="Describe what this export job does"
           rows={3}
         />
@@ -1283,12 +1511,17 @@ const ExportJobForm: React.FC<ExportJobFormProps> = ({ onSubmit, onCancel }) => 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
           <Label htmlFor="data-type">Data Type *</Label>
-          <Select value={formData.dataType} onValueChange={(value) => setFormData(prev => ({ ...prev, dataType: value }))}>
+          <Select
+            value={formData.dataType}
+            onValueChange={(value) =>
+              setFormData((prev) => ({ ...prev, dataType: value }))
+            }
+          >
             <SelectTrigger>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {dataTypes.map(type => (
+              {dataTypes.map((type) => (
                 <SelectItem key={type.id} value={type.id}>
                   {type.name}
                 </SelectItem>
@@ -1298,12 +1531,17 @@ const ExportJobForm: React.FC<ExportJobFormProps> = ({ onSubmit, onCancel }) => 
         </div>
         <div>
           <Label htmlFor="format">Export Format *</Label>
-          <Select value={formData.format} onValueChange={(value) => setFormData(prev => ({ ...prev, format: value }))}>
+          <Select
+            value={formData.format}
+            onValueChange={(value) =>
+              setFormData((prev) => ({ ...prev, format: value }))
+            }
+          >
             <SelectTrigger>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {exportFormats.map(format => (
+              {exportFormats.map((format) => (
                 <SelectItem key={format.id} value={format.id}>
                   <div className="flex items-center space-x-2">
                     {format.icon}
@@ -1323,7 +1561,9 @@ const ExportJobForm: React.FC<ExportJobFormProps> = ({ onSubmit, onCancel }) => 
             id="start-date"
             type="date"
             value={formData.startDate}
-            onChange={(e) => setFormData(prev => ({ ...prev, startDate: e.target.value }))}
+            onChange={(e) =>
+              setFormData((prev) => ({ ...prev, startDate: e.target.value }))
+            }
             required
           />
         </div>
@@ -1333,7 +1573,9 @@ const ExportJobForm: React.FC<ExportJobFormProps> = ({ onSubmit, onCancel }) => 
             id="end-date"
             type="date"
             value={formData.endDate}
-            onChange={(e) => setFormData(prev => ({ ...prev, endDate: e.target.value }))}
+            onChange={(e) =>
+              setFormData((prev) => ({ ...prev, endDate: e.target.value }))
+            }
             required
           />
         </div>
@@ -1342,7 +1584,12 @@ const ExportJobForm: React.FC<ExportJobFormProps> = ({ onSubmit, onCancel }) => 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
           <Label htmlFor="compression">Compression</Label>
-          <Select value={formData.compression} onValueChange={(value) => setFormData(prev => ({ ...prev, compression: value }))}>
+          <Select
+            value={formData.compression}
+            onValueChange={(value) =>
+              setFormData((prev) => ({ ...prev, compression: value }))
+            }
+          >
             <SelectTrigger>
               <SelectValue />
             </SelectTrigger>
@@ -1355,7 +1602,12 @@ const ExportJobForm: React.FC<ExportJobFormProps> = ({ onSubmit, onCancel }) => 
         </div>
         <div>
           <Label htmlFor="destination-type">Destination</Label>
-          <Select value={formData.destinationType} onValueChange={(value) => setFormData(prev => ({ ...prev, destinationType: value }))}>
+          <Select
+            value={formData.destinationType}
+            onValueChange={(value) =>
+              setFormData((prev) => ({ ...prev, destinationType: value }))
+            }
+          >
             <SelectTrigger>
               <SelectValue />
             </SelectTrigger>
@@ -1376,7 +1628,9 @@ const ExportJobForm: React.FC<ExportJobFormProps> = ({ onSubmit, onCancel }) => 
           <Input
             id="recipients"
             value={formData.recipients}
-            onChange={(e) => setFormData(prev => ({ ...prev, recipients: e.target.value }))}
+            onChange={(e) =>
+              setFormData((prev) => ({ ...prev, recipients: e.target.value }))
+            }
             placeholder="email1@company.com, email2@company.com"
           />
         </div>
@@ -1387,7 +1641,9 @@ const ExportJobForm: React.FC<ExportJobFormProps> = ({ onSubmit, onCancel }) => 
           <Switch
             id="encrypt-enabled"
             checked={formData.encryptEnabled}
-            onCheckedChange={(checked) => setFormData(prev => ({ ...prev, encryptEnabled: checked }))}
+            onCheckedChange={(checked) =>
+              setFormData((prev) => ({ ...prev, encryptEnabled: checked }))
+            }
           />
           <Label htmlFor="encrypt-enabled">Enable Encryption</Label>
         </div>
@@ -1395,7 +1651,9 @@ const ExportJobForm: React.FC<ExportJobFormProps> = ({ onSubmit, onCancel }) => 
           <Switch
             id="retention-enabled"
             checked={formData.retentionEnabled}
-            onCheckedChange={(checked) => setFormData(prev => ({ ...prev, retentionEnabled: checked }))}
+            onCheckedChange={(checked) =>
+              setFormData((prev) => ({ ...prev, retentionEnabled: checked }))
+            }
           />
           <Label htmlFor="retention-enabled">Enable Retention Policy</Label>
         </div>
@@ -1410,16 +1668,25 @@ const ExportJobForm: React.FC<ExportJobFormProps> = ({ onSubmit, onCancel }) => 
               type="number"
               min="1"
               value={formData.retentionPeriod}
-              onChange={(e) => setFormData(prev => ({ ...prev, retentionPeriod: parseInt(e.target.value) }))}
+              onChange={(e) =>
+                setFormData((prev) => ({
+                  ...prev,
+                  retentionPeriod: parseInt(e.target.value),
+                }))
+              }
             />
           </div>
           <div className="flex items-center space-x-2 pt-6">
             <Switch
               id="auto-delete"
               checked={formData.autoDelete}
-              onCheckedChange={(checked) => setFormData(prev => ({ ...prev, autoDelete: checked }))}
+              onCheckedChange={(checked) =>
+                setFormData((prev) => ({ ...prev, autoDelete: checked }))
+              }
             />
-            <Label htmlFor="auto-delete">Auto-delete after retention period</Label>
+            <Label htmlFor="auto-delete">
+              Auto-delete after retention period
+            </Label>
           </div>
         </div>
       )}
@@ -1438,7 +1705,10 @@ const ExportJobForm: React.FC<ExportJobFormProps> = ({ onSubmit, onCancel }) => 
 };
 
 // Archive Policy Form Component
-const ArchivePolicyForm: React.FC<ArchivePolicyFormProps> = ({ onSubmit, onCancel }) => {
+const ArchivePolicyForm: React.FC<ArchivePolicyFormProps> = ({
+  onSubmit,
+  onCancel,
+}) => {
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -1503,7 +1773,9 @@ const ArchivePolicyForm: React.FC<ArchivePolicyFormProps> = ({ onSubmit, onCance
         <Input
           id="policy-name"
           value={formData.name}
-          onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+          onChange={(e) =>
+            setFormData((prev) => ({ ...prev, name: e.target.value }))
+          }
           placeholder="Enter archive policy name"
           required
         />
@@ -1514,7 +1786,9 @@ const ArchivePolicyForm: React.FC<ArchivePolicyFormProps> = ({ onSubmit, onCance
         <Textarea
           id="policy-description"
           value={formData.description}
-          onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+          onChange={(e) =>
+            setFormData((prev) => ({ ...prev, description: e.target.value }))
+          }
           placeholder="Describe when this archive policy should run"
           rows={3}
         />
@@ -1530,23 +1804,41 @@ const ArchivePolicyForm: React.FC<ArchivePolicyFormProps> = ({ onSubmit, onCance
               type="number"
               min="1"
               value={formData.dataAge}
-              onChange={(e) => setFormData(prev => ({ ...prev, dataAge: parseInt(e.target.value) }))}
+              onChange={(e) =>
+                setFormData((prev) => ({
+                  ...prev,
+                  dataAge: parseInt(e.target.value),
+                }))
+              }
               required
             />
           </div>
           <div>
             <Label>Data Types to Archive</Label>
             <div className="space-y-2 mt-2">
-              {['evaluation_results', 'test_suites', 'metrics', 'alerts', 'analytics', 'audit_logs'].map(type => (
+              {[
+                'evaluation_results',
+                'test_suites',
+                'metrics',
+                'alerts',
+                'analytics',
+                'audit_logs',
+              ].map((type) => (
                 <div key={type} className="flex items-center space-x-2">
                   <Switch
                     id={`data-type-${type}`}
                     checked={formData.dataTypes.includes(type)}
                     onCheckedChange={(checked) => {
                       if (checked) {
-                        setFormData(prev => ({ ...prev, dataTypes: [...prev.dataTypes, type] }));
+                        setFormData((prev) => ({
+                          ...prev,
+                          dataTypes: [...prev.dataTypes, type],
+                        }));
                       } else {
-                        setFormData(prev => ({ ...prev, dataTypes: prev.dataTypes.filter(t => t !== type) }));
+                        setFormData((prev) => ({
+                          ...prev,
+                          dataTypes: prev.dataTypes.filter((t) => t !== type),
+                        }));
                       }
                     }}
                   />
@@ -1567,7 +1859,9 @@ const ArchivePolicyForm: React.FC<ArchivePolicyFormProps> = ({ onSubmit, onCance
             <Switch
               id="archive-action"
               checked={formData.archive}
-              onCheckedChange={(checked) => setFormData(prev => ({ ...prev, archive: checked }))}
+              onCheckedChange={(checked) =>
+                setFormData((prev) => ({ ...prev, archive: checked }))
+              }
             />
             <Label htmlFor="archive-action">Archive data</Label>
           </div>
@@ -1575,7 +1869,9 @@ const ArchivePolicyForm: React.FC<ArchivePolicyFormProps> = ({ onSubmit, onCance
             <Switch
               id="compress-action"
               checked={formData.compress}
-              onCheckedChange={(checked) => setFormData(prev => ({ ...prev, compress: checked }))}
+              onCheckedChange={(checked) =>
+                setFormData((prev) => ({ ...prev, compress: checked }))
+              }
             />
             <Label htmlFor="compress-action">Compress archived data</Label>
           </div>
@@ -1583,7 +1879,9 @@ const ArchivePolicyForm: React.FC<ArchivePolicyFormProps> = ({ onSubmit, onCance
             <Switch
               id="encrypt-action"
               checked={formData.encrypt}
-              onCheckedChange={(checked) => setFormData(prev => ({ ...prev, encrypt: checked }))}
+              onCheckedChange={(checked) =>
+                setFormData((prev) => ({ ...prev, encrypt: checked }))
+              }
             />
             <Label htmlFor="encrypt-action">Encrypt archived data</Label>
           </div>
@@ -1591,7 +1889,9 @@ const ArchivePolicyForm: React.FC<ArchivePolicyFormProps> = ({ onSubmit, onCance
             <Switch
               id="cold-storage-action"
               checked={formData.moveToColdStorage}
-              onCheckedChange={(checked) => setFormData(prev => ({ ...prev, moveToColdStorage: checked }))}
+              onCheckedChange={(checked) =>
+                setFormData((prev) => ({ ...prev, moveToColdStorage: checked }))
+              }
             />
             <Label htmlFor="cold-storage-action">Move to cold storage</Label>
           </div>
@@ -1604,7 +1904,9 @@ const ArchivePolicyForm: React.FC<ArchivePolicyFormProps> = ({ onSubmit, onCance
           <Switch
             id="schedule-enabled"
             checked={formData.scheduleEnabled}
-            onCheckedChange={(checked) => setFormData(prev => ({ ...prev, scheduleEnabled: checked }))}
+            onCheckedChange={(checked) =>
+              setFormData((prev) => ({ ...prev, scheduleEnabled: checked }))
+            }
           />
           <Label htmlFor="schedule-enabled">Enable scheduled archiving</Label>
         </div>
@@ -1612,7 +1914,12 @@ const ArchivePolicyForm: React.FC<ArchivePolicyFormProps> = ({ onSubmit, onCance
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <Label htmlFor="frequency">Frequency</Label>
-              <Select value={formData.frequency} onValueChange={(value) => setFormData(prev => ({ ...prev, frequency: value }))}>
+              <Select
+                value={formData.frequency}
+                onValueChange={(value) =>
+                  setFormData((prev) => ({ ...prev, frequency: value }))
+                }
+              >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -1629,19 +1936,31 @@ const ArchivePolicyForm: React.FC<ArchivePolicyFormProps> = ({ onSubmit, onCance
                 id="schedule-time"
                 type="time"
                 value={formData.scheduleTime}
-                onChange={(e) => setFormData(prev => ({ ...prev, scheduleTime: e.target.value }))}
+                onChange={(e) =>
+                  setFormData((prev) => ({
+                    ...prev,
+                    scheduleTime: e.target.value,
+                  }))
+                }
               />
             </div>
             <div>
               <Label htmlFor="timezone">Timezone</Label>
-              <Select value={formData.timezone} onValueChange={(value) => setFormData(prev => ({ ...prev, timezone: value }))}>
+              <Select
+                value={formData.timezone}
+                onValueChange={(value) =>
+                  setFormData((prev) => ({ ...prev, timezone: value }))
+                }
+              >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="UTC">UTC</SelectItem>
                   <SelectItem value="America/New_York">Eastern Time</SelectItem>
-                  <SelectItem value="America/Los_Angeles">Pacific Time</SelectItem>
+                  <SelectItem value="America/Los_Angeles">
+                    Pacific Time
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -1659,7 +1978,12 @@ const ArchivePolicyForm: React.FC<ArchivePolicyFormProps> = ({ onSubmit, onCance
               type="number"
               min="1"
               value={formData.retentionDays}
-              onChange={(e) => setFormData(prev => ({ ...prev, retentionDays: parseInt(e.target.value) }))}
+              onChange={(e) =>
+                setFormData((prev) => ({
+                  ...prev,
+                  retentionDays: parseInt(e.target.value),
+                }))
+              }
             />
           </div>
           <div>
@@ -1667,7 +1991,12 @@ const ArchivePolicyForm: React.FC<ArchivePolicyFormProps> = ({ onSubmit, onCance
             <Input
               id="archive-destination"
               value={formData.archiveDestination}
-              onChange={(e) => setFormData(prev => ({ ...prev, archiveDestination: e.target.value }))}
+              onChange={(e) =>
+                setFormData((prev) => ({
+                  ...prev,
+                  archiveDestination: e.target.value,
+                }))
+              }
               placeholder="s3://bucket/path/"
             />
           </div>
@@ -1675,21 +2004,35 @@ const ArchivePolicyForm: React.FC<ArchivePolicyFormProps> = ({ onSubmit, onCance
         {formData.moveToColdStorage && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
             <div>
-              <Label htmlFor="cold-storage-days">Cold Storage Retention (days)</Label>
+              <Label htmlFor="cold-storage-days">
+                Cold Storage Retention (days)
+              </Label>
               <Input
                 id="cold-storage-days"
                 type="number"
                 min="0"
                 value={formData.coldStorageDays}
-                onChange={(e) => setFormData(prev => ({ ...prev, coldStorageDays: parseInt(e.target.value) }))}
+                onChange={(e) =>
+                  setFormData((prev) => ({
+                    ...prev,
+                    coldStorageDays: parseInt(e.target.value),
+                  }))
+                }
               />
             </div>
             <div>
-              <Label htmlFor="cold-storage-destination">Cold Storage Destination</Label>
+              <Label htmlFor="cold-storage-destination">
+                Cold Storage Destination
+              </Label>
               <Input
                 id="cold-storage-destination"
                 value={formData.coldStorageDestination}
-                onChange={(e) => setFormData(prev => ({ ...prev, coldStorageDestination: e.target.value }))}
+                onChange={(e) =>
+                  setFormData((prev) => ({
+                    ...prev,
+                    coldStorageDestination: e.target.value,
+                  }))
+                }
                 placeholder="glacier://bucket/path/"
               />
             </div>

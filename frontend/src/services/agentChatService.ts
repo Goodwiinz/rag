@@ -1,5 +1,11 @@
 import { api } from '@/services/api-client';
 import { createClient } from '@/lib/supabase/client';
+import { getPublicApiBaseUrl } from '@/utils/publicEndpoints';
+
+function agentStreamUrl(path: 'stream' | 'stream/confirm'): string {
+  const base = getPublicApiBaseUrl('/api/v1').replace(/\/$/, '');
+  return `${base}/agent/${path}`;
+}
 
 async function getStreamAuthHeaders(): Promise<Record<string, string>> {
   const headers: Record<string, string> = {
@@ -170,7 +176,7 @@ class AgentChatService {
 
     let response: Response;
     try {
-      response = await fetch('/api/v1/agent/stream', {
+      response = await fetch(agentStreamUrl('stream'), {
         method: 'POST',
         headers,
         body: JSON.stringify(request),
@@ -190,8 +196,12 @@ class AgentChatService {
         if (text) {
           try {
             const parsed = JSON.parse(text);
-            const raw = parsed?.detail || parsed?.error || parsed?.message || text;
-            backendMessage = typeof raw === 'string' ? raw : (raw?.message || JSON.stringify(raw));
+            const raw =
+              parsed?.detail || parsed?.error || parsed?.message || text;
+            backendMessage =
+              typeof raw === 'string'
+                ? raw
+                : raw?.message || JSON.stringify(raw);
           } catch {
             backendMessage = text.slice(0, 500);
           }
@@ -271,7 +281,13 @@ class AgentChatService {
                   callbacks.onDone?.();
                   break;
                 case 'error':
-                  callbacks.onError?.(typeof data.error === 'string' ? data.error : String(data.error?.message || JSON.stringify(data.error)));
+                  callbacks.onError?.(
+                    typeof data.error === 'string'
+                      ? data.error
+                      : String(
+                          data.error?.message || JSON.stringify(data.error)
+                        )
+                  );
                   break;
               }
             } catch {
@@ -307,7 +323,7 @@ class AgentChatService {
 
     let response: Response;
     try {
-      response = await fetch('/api/v1/agent/stream/confirm', {
+      response = await fetch(agentStreamUrl('stream/confirm'), {
         method: 'POST',
         headers,
         body: JSON.stringify(request),
@@ -325,8 +341,12 @@ class AgentChatService {
         if (text) {
           try {
             const parsed = JSON.parse(text);
-            const raw = parsed?.detail || parsed?.error || parsed?.message || text;
-            backendMessage = typeof raw === 'string' ? raw : (raw?.message || JSON.stringify(raw));
+            const raw =
+              parsed?.detail || parsed?.error || parsed?.message || text;
+            backendMessage =
+              typeof raw === 'string'
+                ? raw
+                : raw?.message || JSON.stringify(raw);
           } catch {
             backendMessage = text.slice(0, 500);
           }
@@ -390,7 +410,13 @@ class AgentChatService {
                   callbacks.onDone?.();
                   break;
                 case 'error':
-                  callbacks.onError?.(typeof data.error === 'string' ? data.error : String(data.error?.message || JSON.stringify(data.error)));
+                  callbacks.onError?.(
+                    typeof data.error === 'string'
+                      ? data.error
+                      : String(
+                          data.error?.message || JSON.stringify(data.error)
+                        )
+                  );
                   break;
               }
             } catch {

@@ -45,7 +45,7 @@ function StageHealth({ stage, health }: { stage: string; health: string }) {
     health === 'green'
       ? 'bg-primary'
       : health === 'yellow'
-        ? 'bg-[var(--amber-gold)]'
+        ? 'bg-[var(--nous-helios)]'
         : 'bg-red-500';
   return (
     <div className="flex items-center gap-2">
@@ -356,7 +356,7 @@ function FindingCard({ finding }: { finding: Finding }) {
     finding.severity === 'high'
       ? 'border-red-500/50'
       : finding.severity === 'medium'
-        ? 'border-[var(--amber-gold)]/50'
+        ? 'border-[var(--nous-helios)]/50'
         : 'border-border';
 
   return (
@@ -870,7 +870,7 @@ export function RetrievalDiagnosticsDashboard({
   return (
     <div className={cn('space-y-6', className)}>
       <div>
-        <h1 className="text-2xl font-mono font-bold text-[var(--terminal-text)] tracking-wider">
+        <h1 className="text-2xl font-mono font-bold text-[var(--nous-fg-1)] tracking-wider">
           RETRIEVAL_DIAGNOSTICS
         </h1>
         <p className="text-xs font-mono text-muted-foreground mt-0.5 uppercase tracking-widest">

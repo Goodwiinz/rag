@@ -305,7 +305,7 @@ export function ExtractionMatrix({
     return (
       <div className="flex items-center justify-center py-16">
         <Loader2 className="h-6 w-6 animate-spin text-brand-cyan" />
-        <span className="ml-2 text-sm font-mono text-gray-500">
+        <span className="ml-2 text-sm font-mono text-muted-foreground">
           Loading matrix...
         </span>
       </div>
@@ -339,7 +339,7 @@ export function ExtractionMatrix({
           </h3>
           <div className="space-y-4">
             <div>
-              <Label className="text-xs text-gray-500 font-mono uppercase tracking-wide">
+              <Label className="text-xs text-muted-foreground font-mono uppercase tracking-wide">
                 Matrix Name
               </Label>
               <Input
@@ -492,13 +492,13 @@ export function ExtractionMatrix({
         <Table>
           <TableHeader>
             <TableRow className="border-border hover:bg-transparent">
-              <TableHead className="text-xs font-mono text-gray-500 uppercase tracking-wide bg-card min-w-[200px]">
+              <TableHead className="text-xs font-mono text-muted-foreground uppercase tracking-wide bg-card min-w-[200px]">
                 Document
               </TableHead>
               {matrix.columns.map((col) => (
                 <TableHead
                   key={col.name}
-                  className="text-xs font-mono text-gray-500 uppercase tracking-wide bg-card min-w-[150px]"
+                  className="text-xs font-mono text-muted-foreground uppercase tracking-wide bg-card min-w-[150px]"
                   title={col.description}
                 >
                   {col.name}
@@ -522,7 +522,7 @@ export function ExtractionMatrix({
                   key={doc.id}
                   className="border-border hover:bg-white/[0.02]"
                 >
-                  <TableCell className="text-sm font-mono text-gray-300 font-medium">
+                  <TableCell className="text-sm font-mono text-muted-foreground font-medium">
                     {doc.title}
                   </TableCell>
                   {matrix.columns.map((col) => {
@@ -530,7 +530,7 @@ export function ExtractionMatrix({
                     return (
                       <TableCell
                         key={col.name}
-                        className="text-sm font-mono text-gray-400"
+                        className="text-sm font-mono text-muted-foreground"
                       >
                         <div className="flex items-start gap-1.5">
                           <span className="flex-1">{cell?.value ?? ''}</span>
@@ -552,10 +552,10 @@ export function ExtractionMatrix({
       <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <DialogContent className="bg-card border-border">
           <DialogHeader>
-            <DialogTitle className="font-mono text-gray-300">
+            <DialogTitle className="font-mono text-muted-foreground">
               Delete Matrix
             </DialogTitle>
-            <DialogDescription className="font-mono text-gray-500">
+            <DialogDescription className="font-mono text-muted-foreground">
               This will permanently delete &quot;{matrix.name}&quot; and all
               extracted data. This action cannot be undone.
             </DialogDescription>

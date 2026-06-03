@@ -50,8 +50,9 @@ export class ResearchErrorBoundary extends Component<Props, State> {
           <h3 className="font-mono font-bold text-red-400 text-lg mb-2">
             Something went wrong
           </h3>
-          <p className="text-sm text-gray-500 font-mono mb-6 max-w-md mx-auto">
-            {this.state.error?.message || 'An unexpected error occurred in the research component'}
+          <p className="text-sm text-muted-foreground font-mono mb-6 max-w-md mx-auto">
+            {this.state.error?.message ||
+              'An unexpected error occurred in the research component'}
           </p>
           <div className="flex items-center justify-center gap-3">
             <button
@@ -64,7 +65,7 @@ export class ResearchErrorBoundary extends Component<Props, State> {
             {/* eslint-disable-next-line @next/next/no-html-link-for-pages -- Class component error boundary intentionally uses native anchor for reliable navigation during error states */}
             <a
               href="/projects"
-              className="inline-flex items-center gap-2 px-4 py-2 bg-[#1a1a1a] text-gray-400 border border-[#333] rounded font-mono text-sm hover:border-[#555] transition-colors"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-[#1a1a1a] text-muted-foreground border border-[#333] rounded font-mono text-sm hover:border-[#555] transition-colors"
             >
               <Home className="h-4 w-4" />
               Back to Projects

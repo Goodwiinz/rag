@@ -115,7 +115,7 @@ class TestGeneratePlan:
         mock_llm = _mock_llm_structured(expected_plan)
 
         with patch(
-            "src.services.agent.graph._build_llm", return_value=mock_llm
+            "src.services.agent.planner._build_planner_llm", return_value=mock_llm
         ):
             result = await generate_plan(
                 "Find transformer papers, ingest them, create a summary note",
@@ -202,16 +202,15 @@ class TestPlannerNode:
 
         mock_llm_complexity = _mock_llm_structured(ComplexityCheck(step_count=5))
         mock_llm_plan = _mock_llm_structured(expected_plan)
+        build_calls = {"n": 0}
 
-        with (
-            patch(
-                "src.services.agent.planner._build_planner_llm",
-                return_value=mock_llm_complexity,
-            ),
-            patch(
-                "src.services.agent.graph._build_llm",
-                return_value=mock_llm_plan,
-            ),
+        def _planner_llm_side_effect(*_args, **_kwargs):
+            build_calls["n"] += 1
+            return mock_llm_complexity if build_calls["n"] == 1 else mock_llm_plan
+
+        with patch(
+            "src.services.agent.planner._build_planner_llm",
+            side_effect=_planner_llm_side_effect,
         ):
             node_fn = make_planner_node(TOOL_NAMES)
 

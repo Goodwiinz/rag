@@ -166,7 +166,7 @@ export function CitationPreview({
             animate={{ rotate: isExpanded ? 180 : 0 }}
             transition={{ duration: 0.2 }}
           >
-            <ChevronDown className="w-4 h-4 text-gray-500" />
+            <ChevronDown className="w-4 h-4 text-muted-foreground" />
           </motion.div>
 
           {/* Close button */}
@@ -226,7 +226,7 @@ export function CitationPreview({
                     'scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-transparent'
                   )}
                 >
-                  <p className="text-xs text-gray-300 leading-relaxed whitespace-pre-wrap font-mono">
+                  <p className="text-xs text-muted-foreground leading-relaxed whitespace-pre-wrap font-mono">
                     {citation.content}
                   </p>
                 </div>
@@ -235,7 +235,7 @@ export function CitationPreview({
 
             {/* Footer with ID and actions */}
             <div className="px-3 py-2.5 flex items-center justify-between border-t border-border bg-background">
-              <div className="flex items-center gap-2 text-[10px] text-gray-600">
+              <div className="flex items-center gap-2 text-[10px] text-foreground">
                 <span className="font-mono">REF:</span>
                 <code className="px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-mono">
                   {getCitationIdentifier(citation).slice(0, 16)}

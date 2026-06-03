@@ -1,114 +1,108 @@
 'use client';
 
-import { motion } from 'framer-motion';
-import { ArrowRight, BookOpen, Code2, Search, Sparkles } from 'lucide-react';
+import { motion, useReducedMotion } from 'framer-motion';
+import {
+  CornerDownLeft,
+  GitCompare,
+  ListChecks,
+  Quote,
+  Workflow,
+} from 'lucide-react';
 import React from 'react';
 
 export interface WelcomeStateProps {
   onPromptSelect: (prompt: string) => void;
+  /** Accepted for API compatibility; the empty state renders the same regardless. */
   selectedModel?: string;
 }
 
-const SUGGESTED_PROMPTS = [
-  {
-    icon: Search,
-    label: 'Research a topic',
-    prompt: 'Help me research ',
-  },
-  {
-    icon: BookOpen,
-    label: 'Summarize a document',
-    prompt: 'Summarize the key points of ',
-  },
-  {
-    icon: Code2,
-    label: 'Explain code',
-    prompt: 'Explain how this code works: ',
-  },
-  {
-    icon: Sparkles,
-    label: 'Generate ideas',
-    prompt: 'Help me brainstorm ideas for ',
-  },
+interface Starter {
+  icon: typeof ListChecks;
+  prompt: string;
+}
+
+// Researcher tasks, not feature boasts. Each populates the composer verbatim.
+const STARTERS: Starter[] = [
+  { icon: ListChecks, prompt: 'Summarize this document in three points' },
+  { icon: Quote, prompt: 'Show the sources behind this claim' },
+  { icon: Workflow, prompt: 'How do the entities in my graph relate?' },
+  { icon: GitCompare, prompt: 'Compare these two findings' },
 ];
 
-export function WelcomeState({
-  onPromptSelect,
-  selectedModel,
-}: WelcomeStateProps) {
+const NOUS_EASE: [number, number, number, number] = [0.16, 1, 0.3, 1];
+
+export function WelcomeState({ onPromptSelect }: WelcomeStateProps) {
+  const reduceMotion = useReducedMotion();
+
   return (
-    <div className="flex-1 flex flex-col items-center justify-center p-4 sm:p-8">
+    <div className="flex min-h-full flex-col items-center justify-center px-6 py-16">
       <motion.div
-        initial={{ opacity: 0, y: 16 }}
+        initial={reduceMotion ? false : { opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-        className="text-center max-w-lg w-full"
+        transition={{ duration: 0.4, ease: NOUS_EASE }}
+        className="w-full max-w-xl"
       >
-        {/* Brand mark */}
-        <motion.div
-          initial={{ scale: 0.8, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          transition={{ delay: 0.1, duration: 0.5 }}
-          className="mb-6 sm:mb-10 flex items-center justify-center"
+        <h2
+          className="text-[1.625rem] font-semibold leading-tight tracking-[-0.02em] text-[var(--nous-fg-1)]"
+          style={{ fontFamily: 'var(--nous-font-heading)' }}
         >
-          <div className="relative w-16 h-16 sm:w-20 sm:h-20 flex items-center justify-center">
-            <div className="absolute inset-0 rounded-full bg-[var(--nous-sol)]/10 animate-pulse" style={{ animationDuration: '3s' }} />
-            <div className="absolute inset-2 rounded-full bg-[var(--nous-sol)]/5" />
-            <span
-              className="text-2xl sm:text-3xl font-semibold text-[var(--nous-sol)]"
-              style={{ fontFamily: 'var(--nous-font-heading)' }}
-            >
-              N
-            </span>
-          </div>
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2, duration: 0.5 }}
+          What would you like to find out?
+        </h2>
+        <p
+          className="mt-3 max-w-[46ch] text-[0.9375rem] leading-relaxed text-[var(--nous-fg-2)]"
+          style={{ fontFamily: 'var(--nous-font-body)' }}
         >
-          <h2
-            className="text-xl sm:text-2xl font-medium text-[var(--nous-fg-1)] mb-2"
-            style={{ fontFamily: 'var(--nous-font-heading)' }}
-          >
-            {selectedModel ? 'How can I help?' : 'Select a model to begin'}
-          </h2>
-          <p
-            className="text-sm sm:text-base text-[var(--nous-fg-3)] max-w-sm mx-auto"
-            style={{ fontFamily: 'var(--nous-font-body)', lineHeight: '1.6' }}
-          >
-            {selectedModel
-              ? 'Ask anything — I can research, summarize, and reason across your documents.'
-              : 'Choose a model from the toolbar above to start a conversation.'}
-          </p>
-        </motion.div>
+          Ask a question and NOUS answers from your corpus, tracing every claim
+          back to the source passage it came from.
+        </p>
 
-        {selectedModel && (
-          <motion.div
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.4, duration: 0.5 }}
-            className="mt-6 sm:mt-10 grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3"
-          >
-            {SUGGESTED_PROMPTS.map((item, idx) => (
+        <p
+          className="mt-9 mb-2.5 text-xs font-medium text-[var(--nous-fg-3)]"
+          style={{ fontFamily: 'var(--nous-font-ui)' }}
+        >
+          Start with
+        </p>
+
+        <ul className="overflow-hidden rounded-[var(--nous-radius-lg)] border border-[var(--nous-border-1)] bg-[var(--nous-bg-2)]">
+          {STARTERS.map(({ icon: Icon, prompt }, idx) => (
+            <li key={prompt}>
               <button
-                key={idx}
-                onClick={() => onPromptSelect(item.prompt)}
-                className="group flex items-center gap-3 p-3.5 sm:p-4 rounded-xl border border-[var(--nous-border-1)] bg-[var(--nous-bg-2)]/50 text-left transition-all duration-200 hover:border-[var(--nous-sol)]/30 hover:bg-[var(--nous-sol)]/5 active:scale-[0.98]"
+                type="button"
+                onClick={() => onPromptSelect(prompt)}
+                className="group flex w-full items-center gap-3.5 px-3.5 py-3 text-left transition-colors duration-150 hover:bg-[var(--nous-sol-subtle)] focus-visible:bg-[var(--nous-sol-subtle)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/40 focus-visible:ring-inset"
+                style={{
+                  borderTop:
+                    idx === 0 ? undefined : '1px solid var(--nous-border-1)',
+                }}
               >
-                <item.icon className="w-4 h-4 text-[var(--nous-fg-3)] group-hover:text-[var(--nous-sol)] transition-colors shrink-0" />
                 <span
-                  className="text-[13px] sm:text-sm text-[var(--nous-fg-2)] group-hover:text-[var(--nous-fg-1)] transition-colors flex-1"
+                  aria-hidden
+                  className="grid h-8 w-8 shrink-0 place-items-center rounded-[var(--nous-radius-md)] bg-[var(--nous-bg-3)] text-[var(--nous-fg-3)] transition-colors duration-150 group-hover:text-[var(--nous-sol)] group-focus-visible:text-[var(--nous-sol)]"
+                >
+                  <Icon className="h-4 w-4" strokeWidth={1.8} />
+                </span>
+                <span
+                  className="flex-1 text-[0.9375rem] text-[var(--nous-fg-1)]"
                   style={{ fontFamily: 'var(--nous-font-ui)' }}
                 >
-                  {item.label}
+                  {prompt}
                 </span>
-                <ArrowRight className="w-3.5 h-3.5 text-[var(--nous-fg-3)]/0 group-hover:text-[var(--nous-sol)] transition-all translate-x-0 group-hover:translate-x-0.5" />
+                <CornerDownLeft
+                  aria-hidden
+                  className="h-4 w-4 shrink-0 text-[var(--nous-fg-3)] opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100"
+                  strokeWidth={1.8}
+                />
               </button>
-            ))}
-          </motion.div>
-        )}
+            </li>
+          ))}
+        </ul>
+
+        <p
+          className="mt-4 text-xs text-[var(--nous-fg-3)]"
+          style={{ fontFamily: 'var(--nous-font-ui)' }}
+        >
+          Press Enter to send, Shift + Enter for a new line.
+        </p>
       </motion.div>
     </div>
   );

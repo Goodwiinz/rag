@@ -240,6 +240,12 @@ circuit_breakers: dict[str, ServiceCircuitBreaker] = {
         recovery_timeout=60.0,
         half_open_max_calls=2,
     ),
+    "llm_entity_extraction": ServiceCircuitBreaker(
+        "llm_entity_extraction",
+        failure_threshold=5,
+        recovery_timeout=60.0,
+        half_open_max_calls=2,
+    ),
 }
 
 

@@ -157,16 +157,17 @@ export const LinkThreadModal: React.FC<LinkThreadModalProps> = ({
         <div className="flex items-center justify-between p-4 border-b border-[#1a1a1a] shrink-0">
           <div className="flex items-center gap-2">
             <Link2 className="h-5 w-5 text-sol" />
-            <h2 className="font-mono font-bold text-gray-200">
+            <h2 className="font-mono font-bold text-muted-foreground">
               Link Existing Thread
             </h2>
           </div>
           <button
+            aria-label="Close"
             onClick={handleClose}
             disabled={isSubmitting}
-            className="p-1 text-gray-500 hover:text-gray-300 transition-colors disabled:opacity-50"
+            className="p-1 text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
           >
-            <X className="h-5 w-5" />
+            <X className="h-5 w-5" aria-hidden="true" />
           </button>
         </div>
 
@@ -178,14 +179,14 @@ export const LinkThreadModal: React.FC<LinkThreadModalProps> = ({
           <div className="p-4 space-y-4 overflow-y-auto flex-1">
             {/* Search */}
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search threads..."
                 disabled={isSubmitting}
-                className="w-full pl-10 pr-3 py-2 bg-[#1a1a1a] border border-[#333] rounded text-gray-200 font-mono text-sm placeholder:text-gray-600 focus:outline-none focus:border-sol/50 disabled:opacity-50"
+                className="w-full pl-10 pr-3 py-2 bg-[#1a1a1a] border border-[#333] rounded text-muted-foreground font-mono text-sm placeholder:text-foreground focus:outline-none focus:border-sol/50 disabled:opacity-50"
               />
             </div>
 
@@ -196,7 +197,7 @@ export const LinkThreadModal: React.FC<LinkThreadModalProps> = ({
                   <Loader2 className="h-6 w-6 animate-spin text-sol" />
                 </div>
               ) : filteredThreads.length === 0 ? (
-                <div className="text-center py-8 text-gray-500 font-mono text-sm">
+                <div className="text-center py-8 text-muted-foreground font-mono text-sm">
                   {threads.length === 0
                     ? 'No threads found in this workspace'
                     : 'No threads match your search'}
@@ -219,7 +220,7 @@ export const LinkThreadModal: React.FC<LinkThreadModalProps> = ({
                         className={`h-4 w-4 mt-0.5 shrink-0 ${
                           selectedThreadId === thread.id
                             ? 'text-sol'
-                            : 'text-gray-500'
+                            : 'text-muted-foreground'
                         }`}
                       />
                       <div className="flex-1 min-w-0">
@@ -227,12 +228,12 @@ export const LinkThreadModal: React.FC<LinkThreadModalProps> = ({
                           className={`font-mono text-sm truncate ${
                             selectedThreadId === thread.id
                               ? 'text-sol'
-                              : 'text-gray-200'
+                              : 'text-muted-foreground'
                           }`}
                         >
                           {thread.title || 'Untitled Thread'}
                         </p>
-                        <div className="flex items-center gap-3 mt-1 text-xs text-gray-500 font-mono">
+                        <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground font-mono">
                           <span>{thread.message_count} messages</span>
                           <span className="flex items-center gap-1">
                             <Clock className="h-3 w-3" />
@@ -253,8 +254,8 @@ export const LinkThreadModal: React.FC<LinkThreadModalProps> = ({
 
             {/* Context Note */}
             <div>
-              <label className="block text-xs text-gray-500 font-mono uppercase tracking-wide mb-2">
-                Context Note <span className="text-gray-600">(optional)</span>
+              <label className="block text-xs text-muted-foreground font-mono uppercase tracking-wide mb-2">
+                Context Note <span className="text-foreground">(optional)</span>
               </label>
               <textarea
                 value={contextNote}
@@ -262,16 +263,19 @@ export const LinkThreadModal: React.FC<LinkThreadModalProps> = ({
                 placeholder="Add a note about why this thread is linked..."
                 disabled={isSubmitting}
                 maxLength={500}
-                className="w-full h-20 px-3 py-2 bg-[#1a1a1a] border border-[#333] rounded text-gray-200 font-mono text-sm placeholder:text-gray-600 focus:outline-none focus:border-sol/50 disabled:opacity-50 resize-none"
+                className="w-full h-20 px-3 py-2 bg-[#1a1a1a] border border-[#333] rounded text-muted-foreground font-mono text-sm placeholder:text-foreground focus:outline-none focus:border-sol/50 disabled:opacity-50 resize-none"
               />
-              <p className="text-xs text-gray-600 font-mono mt-1 text-right">
+              <p className="text-xs text-foreground font-mono mt-1 text-right">
                 {contextNote.length}/500
               </p>
             </div>
 
             {/* Error Display */}
             {error && (
-              <div className="p-3 bg-red-500/10 border border-red-500/30 rounded text-sm font-mono text-red-400">
+              <div
+                role="alert"
+                className="p-3 bg-red-500/10 border border-red-500/30 rounded text-sm font-mono text-red-400"
+              >
                 {error}
               </div>
             )}
@@ -283,7 +287,7 @@ export const LinkThreadModal: React.FC<LinkThreadModalProps> = ({
               type="button"
               onClick={handleClose}
               disabled={isSubmitting}
-              className="px-4 py-2 text-sm font-mono text-gray-400 hover:text-gray-300 transition-colors disabled:opacity-50"
+              className="px-4 py-2 text-sm font-mono text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
             >
               Cancel
             </button>

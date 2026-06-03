@@ -1,7 +1,12 @@
 'use client';
 
 import { Button } from '@/components/ui/button';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { Copy, Check, Pencil, Trash2, RotateCcw } from 'lucide-react';
 import type { Message } from '@/types/llm-chat';
 
@@ -32,9 +37,13 @@ export function ChatMessageActions({
               onClick={onCopy}
               variant="ghost"
               size="sm"
-              className="h-8 w-8 p-0 text-gray-500 hover:text-white hover:bg-white/5"
+              className="h-8 w-8 p-0 text-muted-foreground hover:text-white hover:bg-white/5"
             >
-              {isCopied ? <Check className="w-3.5 h-3.5 text-green-400" /> : <Copy className="w-3.5 h-3.5" />}
+              {isCopied ? (
+                <Check className="w-3.5 h-3.5 text-green-400" />
+              ) : (
+                <Copy className="w-3.5 h-3.5" />
+              )}
             </Button>
           </TooltipTrigger>
           <TooltipContent>{isCopied ? 'Copied!' : 'Copy'}</TooltipContent>
@@ -49,7 +58,7 @@ export function ChatMessageActions({
                 onClick={onEdit}
                 variant="ghost"
                 size="sm"
-                className="h-8 w-8 p-0 text-gray-500 hover:text-white hover:bg-white/5"
+                className="h-8 w-8 p-0 text-muted-foreground hover:text-white hover:bg-white/5"
               >
                 <Pencil className="w-3.5 h-3.5" />
               </Button>
@@ -67,7 +76,7 @@ export function ChatMessageActions({
                 onClick={onDelete}
                 variant="ghost"
                 size="sm"
-                className="h-8 w-8 p-0 text-gray-500 hover:text-red-400 hover:bg-red-500/10"
+                className="h-8 w-8 p-0 text-muted-foreground hover:text-red-400 hover:bg-red-500/10"
               >
                 <Trash2 className="w-3.5 h-3.5" />
               </Button>
@@ -85,7 +94,7 @@ export function ChatMessageActions({
                 onClick={onRegenerate}
                 variant="ghost"
                 size="sm"
-                className="h-8 w-8 p-0 text-gray-500 hover:text-white hover:bg-white/5"
+                className="h-8 w-8 p-0 text-muted-foreground hover:text-white hover:bg-white/5"
               >
                 <RotateCcw className="w-3.5 h-3.5" />
               </Button>

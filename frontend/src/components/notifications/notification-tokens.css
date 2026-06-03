@@ -1,0 +1,88 @@
+/* ============================================================
+   NOUS Notification channel tokens
+   Sets --type-fg / --type-bg / --type-border / --type-marker
+   via [data-notif-type] cascade. Light + dark.
+   ============================================================ */
+
+[data-notif-type='document'] {
+  --type-fg: #6b4d12;
+  --type-bg: rgba(212, 160, 57, 0.1);
+  --type-border: rgba(212, 160, 57, 0.32);
+  --type-marker: var(--nous-sol-safe);
+}
+.dark [data-notif-type='document'],
+[data-theme='dark'] [data-notif-type='document'] {
+  --type-fg: var(--nous-helios);
+  --type-bg: rgba(232, 184, 74, 0.1);
+  --type-border: rgba(232, 184, 74, 0.28);
+  --type-marker: var(--nous-helios);
+}
+
+[data-notif-type='agent'] {
+  --type-fg: #4838a8;
+  --type-bg: rgba(99, 102, 241, 0.1);
+  --type-border: rgba(99, 102, 241, 0.3);
+  --type-marker: #6366f1;
+}
+.dark [data-notif-type='agent'],
+[data-theme='dark'] [data-notif-type='agent'] {
+  --type-fg: #a5b4fc;
+  --type-bg: rgba(165, 180, 252, 0.1);
+  --type-border: rgba(165, 180, 252, 0.28);
+  --type-marker: #a5b4fc;
+}
+
+[data-notif-type='system'] {
+  --type-fg: #b76b00;
+  --type-bg: rgba(245, 158, 11, 0.1);
+  --type-border: rgba(245, 158, 11, 0.32);
+  --type-marker: var(--nous-corona);
+}
+.dark [data-notif-type='system'],
+[data-theme='dark'] [data-notif-type='system'] {
+  --type-fg: #fbbf24;
+  --type-bg: rgba(251, 191, 36, 0.1);
+  --type-border: rgba(251, 191, 36, 0.28);
+  --type-marker: #fbbf24;
+}
+
+[data-notif-type='collab'] {
+  --type-fg: #1a8a5e;
+  --type-bg: rgba(52, 211, 153, 0.1);
+  --type-border: rgba(52, 211, 153, 0.3);
+  --type-marker: var(--nous-terra);
+}
+.dark [data-notif-type='collab'],
+[data-theme='dark'] [data-notif-type='collab'] {
+  --type-fg: #6ee7b7;
+  --type-bg: rgba(110, 231, 183, 0.1);
+  --type-border: rgba(110, 231, 183, 0.28);
+  --type-marker: #6ee7b7;
+}
+
+[data-notif-type='security'] {
+  --type-fg: #c93434;
+  --type-bg: rgba(239, 68, 68, 0.1);
+  --type-border: rgba(239, 68, 68, 0.3);
+  --type-marker: var(--nous-mars);
+}
+.dark [data-notif-type='security'],
+[data-theme='dark'] [data-notif-type='security'] {
+  --type-fg: #fca5a5;
+  --type-bg: rgba(252, 165, 165, 0.1);
+  --type-border: rgba(252, 165, 165, 0.28);
+  --type-marker: #fca5a5;
+}
+
+/* Ping animation for live pills */
+@keyframes nous-notif-ping {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.55;
+    transform: scale(0.8);
+  }
+}

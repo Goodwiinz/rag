@@ -114,17 +114,18 @@ export const OutlineDialog: React.FC<OutlineDialogProps> = ({
             </h2>
           </div>
           <button
+            aria-label="Close"
             onClick={handleClose}
-            className="p-1 text-gray-500 hover:text-gray-300"
+            className="p-1 text-muted-foreground hover:text-foreground"
           >
-            <X className="h-5 w-5" />
+            <X className="h-5 w-5" aria-hidden="true" />
           </button>
         </div>
 
         <div className="max-h-[60vh] space-y-4 overflow-y-auto p-4">
           {/* Research Question */}
           <div>
-            <label className="mb-1 block font-mono text-xs uppercase tracking-wide text-gray-500">
+            <label className="mb-1 block font-mono text-xs uppercase tracking-wide text-muted-foreground">
               Research Question *
             </label>
             <textarea
@@ -132,13 +133,13 @@ export const OutlineDialog: React.FC<OutlineDialogProps> = ({
               onChange={(e) => setQuestion(e.target.value)}
               placeholder="What is your research question? (min 10 characters)"
               rows={3}
-              className="w-full resize-none rounded border border-[#333] bg-[#1a1a1a] px-3 py-2 font-mono text-sm text-gray-300 placeholder-gray-600 focus:border-sol focus:outline-none"
+              className="w-full resize-none rounded border border-[#333] bg-[#1a1a1a] px-3 py-2 font-mono text-sm text-muted-foreground placeholder-gray-600 focus:border-sol focus:outline-none"
             />
           </div>
 
           {/* Style Selector */}
           <div>
-            <label className="mb-1 block font-mono text-xs uppercase tracking-wide text-gray-500">
+            <label className="mb-1 block font-mono text-xs uppercase tracking-wide text-muted-foreground">
               Style
             </label>
             <div className="flex gap-2">
@@ -150,7 +151,7 @@ export const OutlineDialog: React.FC<OutlineDialogProps> = ({
                     'rounded border px-3 py-1.5 font-mono text-xs transition-colors',
                     style === opt.value
                       ? 'border-sol/50 bg-sol/10 text-sol'
-                      : 'border-[#333] text-gray-400 hover:border-sol/30'
+                      : 'border-[#333] text-muted-foreground hover:border-sol/30'
                   )}
                 >
                   {opt.label}
@@ -161,7 +162,7 @@ export const OutlineDialog: React.FC<OutlineDialogProps> = ({
 
           {/* Section Types */}
           <div>
-            <label className="mb-1 block font-mono text-xs uppercase tracking-wide text-gray-500">
+            <label className="mb-1 block font-mono text-xs uppercase tracking-wide text-muted-foreground">
               Sections (optional — leave empty for all)
             </label>
             <div className="flex flex-wrap gap-2">
@@ -176,7 +177,7 @@ export const OutlineDialog: React.FC<OutlineDialogProps> = ({
                     onChange={() => toggleSectionType(opt.value)}
                     className="accent-sol"
                   />
-                  <span className="font-mono text-xs text-gray-300">
+                  <span className="font-mono text-xs text-muted-foreground">
                     {opt.label}
                   </span>
                 </label>
@@ -187,14 +188,14 @@ export const OutlineDialog: React.FC<OutlineDialogProps> = ({
           {/* Document Scope */}
           {documents.length > 0 && (
             <div>
-              <label className="mb-2 block font-mono text-xs uppercase tracking-wide text-gray-500">
+              <label className="mb-2 block font-mono text-xs uppercase tracking-wide text-muted-foreground">
                 Document Scope (optional)
               </label>
               <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
                 {documents.map((doc) => (
                   <label
                     key={doc.id}
-                    className="flex items-center gap-2 rounded border border-[#333] px-3 py-2 text-sm text-gray-300"
+                    className="flex items-center gap-2 rounded border border-[#333] px-3 py-2 text-sm text-muted-foreground"
                   >
                     <input
                       type="checkbox"
@@ -232,7 +233,7 @@ export const OutlineDialog: React.FC<OutlineDialogProps> = ({
           {result && (
             <div className="space-y-3 rounded-lg border border-[#1a1a1a] bg-[#111] p-4">
               <div className="flex items-center justify-between">
-                <span className="font-mono text-xs text-gray-500">
+                <span className="font-mono text-xs text-muted-foreground">
                   {result.sections.length} sections ~
                   {result.total_suggested_words.toLocaleString()} words
                 </span>
@@ -243,14 +244,14 @@ export const OutlineDialog: React.FC<OutlineDialogProps> = ({
                   className="rounded border border-[#1a1a1a] bg-[#0a0a0a] p-3"
                 >
                   <div className="flex items-center justify-between">
-                    <h4 className="font-mono text-sm font-bold text-gray-200">
+                    <h4 className="font-mono text-sm font-bold text-muted-foreground">
                       {section.title}
                     </h4>
-                    <span className="font-mono text-[10px] text-gray-500">
+                    <span className="font-mono text-[10px] text-muted-foreground">
                       ~{section.suggested_word_count} words
                     </span>
                   </div>
-                  <p className="mt-1 text-xs leading-relaxed text-gray-400">
+                  <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
                     {section.description}
                   </p>
                 </div>
@@ -264,7 +265,7 @@ export const OutlineDialog: React.FC<OutlineDialogProps> = ({
           <Button
             variant="ghost"
             size="sm"
-            className="text-gray-400 hover:bg-[#1a1a1a] hover:text-gray-200"
+            className="text-muted-foreground hover:bg-[#1a1a1a] hover:text-foreground"
             onClick={handleClose}
           >
             Cancel

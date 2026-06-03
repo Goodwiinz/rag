@@ -1,0 +1,1742 @@
+{
+  "run_count": 14,
+  "runs": [
+    {
+      "costs": null,
+      "custom_metadata": {
+        "LANGSMITH_PROJECT": "rag-agent-dev",
+        "LANGSMITH_TRACING": "true",
+        "ls_integration": "langgraph",
+        "ls_run_depth": 0,
+        "thread_id": "37d8b159-1708-43ce-a3bc-a1eb9aff1c7b"
+      },
+      "duration_ms": 29720,
+      "end_time": "2026-05-27T15:02:06.287743Z",
+      "error": "CancelledError(\"Cancelled via cancel scope 7efd46b3a510 by \u003cTask pending name='starlette.middleware.base.BaseHTTPMiddleware.__call__.\u003clocals\u003e.call_next.\u003clocals\u003e.coro' coro=\u003cBaseHTTPMiddleware.__call__.\u003clocals\u003e.call_next.\u003clocals\u003e.coro() running at /usr/local/lib/python3.11/site-packages/starlette/middleware/base.py:144\u003e cb=[TaskGroup._spawn.\u003clocals\u003e.task_done() at /usr/local/lib/python3.11/site-packages/anyio/_backends/_asyncio.py:821]\u003e\", \u003cTask cancelled name='Task-77740' coro=\u003cAsyncExitStack.__aexit__() done, defined at /usr/local/lib/python3.11/contextlib.py:698\u003e\u003e)Traceback (most recent call last):\n\n\n  File \"/usr/local/lib/python3.11/asyncio/tasks.py\", line 476, in wait_for\n    await waiter\n\n\nasyncio.exceptions.CancelledError: Cancelled via cancel scope 7efd46b3a510 by \u003cTask pending name='starlette.middleware.base.BaseHTTPMiddleware.__call__.\u003clocals\u003e.call_next.\u003clocals\u003e.coro' coro=\u003cBaseHTTPMiddleware.__call__.\u003clocals\u003e.call_next.\u003clocals\u003e.coro() running at /usr/local/lib/python3.11/site-packages/starlette/middleware/base.py:144\u003e cb=[TaskGroup._spawn.\u003clocals\u003e.task_done() at /usr/local/lib/python3.11/site-packages/anyio/_backends/_asyncio.py:821]\u003e\n\n\n\nDuring handling of the above exception, another exception occurred:\n\n\n\nTraceback (most recent call last):\n\n\n  File \"/usr/local/lib/python3.11/site-packages/langchain_core/runnables/base.py\", line 3375, in ainvoke\n    input_ = await coro_with_context(part(), context, create_task=True)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n\n\n  File \"/usr/local/lib/python3.11/site-packages/langchain_core/runnables/base.py\", line 5894, in ainvoke\n    return await self.bound.ainvoke(\n           ^^^^^^^^^^^^^^^^^^^^^^^^^\n\n\n  File \"/usr/local/lib/python3.11/site-packages/langchain_core/language_models/chat_models.py\", line 497, in ainvoke\n    llm_result = await self.agenerate_prompt(\n                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n\n\n  File \"/usr/local/lib/python3.11/site-packages/langchain_core/language_models/chat_models.py\", line 1834, in agenerate_prompt\n    return await self.agenerate(\n           ^^^^^^^^^^^^^^^^^^^^^\n\n\n  File \"/usr/local/lib/python3.11/site-packages/langchain_core/language_models/chat_models.py\", line 1754, in agenerate\n    results = await asyncio.gather(\n              ^^^^^^^^^^^^^^^^^^^^^\n\n\n  File \"/usr/local/lib/python3.11/site-packages/langchain_core/language_models/chat_models.py\", line 2084, in _agenerate_with_cache\n    async for chunk in self._astream(messages, stop=stop, **kwargs):\n\n\n  File \"/usr/local/lib/python3.11/site-packages/langchain_openai/chat_models/azure.py\", line 835, in _astream\n    async for chunk in super()._astream(*args, **kwargs):\n\n\n  File \"/usr/local/lib/python3.11/site-packages/langchain_openai/chat_models/base.py\", line 1838, in _astream\n    async for chunk in _astream_with_chunk_timeout(\n\n\n  File \"/usr/local/lib/python3.11/site-packages/langchain_openai/chat_models/_client_utils.py\", line 652, in _astream_with_chunk_timeout\n    chunk = await asyncio.wait_for(it.__anext__(), timeout=timeout)\n            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n\n\n  File \"/usr/local/lib/python3.11/asyncio/tasks.py\", line 485, in wait_for\n    await _cancel_and_wait(fut, loop=loop)\n\n\n  File \"/usr/local/lib/python3.11/asyncio/tasks.py\", line 562, in _cancel_and_wait\n    await waiter\n\n\nasyncio.exceptions.CancelledError: Cancelled via cancel scope 7efd46b3a510 by \u003cTask pending name='starlette.middleware.base.BaseHTTPMiddleware.__call__.\u003clocals\u003e.call_next.\u003clocals\u003e.coro' coro=\u003cBaseHTTPMiddleware.__call__.\u003clocals\u003e.call_next.\u003clocals\u003e.coro() running at /usr/local/lib/python3.11/site-packages/starlette/middleware/base.py:144\u003e cb=[TaskGroup._spawn.\u003clocals\u003e.task_done() at /usr/local/lib/python3.11/site-packages/anyio/_backends/_asyncio.py:821]\u003e\n\n\n\nDuring handling of the above exception, another exception occurred:\n\n\n\nTraceback (most recent call last):\n\n\n  File \"/usr/local/lib/python3.11/site-packages/langgraph/_internal/_runnable.py\", line 867, in astream\n    output = await asyncio.create_task(\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^\n\n\n  File \"/usr/local/lib/python3.11/site-packages/langgraph/_internal/_runnable.py\", line 932, in _consume_aiter\n    async for chunk in it:\n\n\n  File \"/usr/local/lib/python3.11/site-packages/langchain_core/tracers/event_stream.py\", line 199, in tap_output_aiter\n    first = await anext(output, sentinel)\n            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n\n\n  File \"/usr/local/lib/python3.11/site-packages/langchain_core/runnables/base.py\", line 1767, in atransform\n    async for ichunk in input:\n\n\n  File \"/usr/local/lib/python3.11/site-packages/langchain_core/runnables/base.py\", line 1171, in astream\n    yield await self.ainvoke(input, config, **kwargs)\n          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n\n\n  File \"/usr/local/lib/python3.11/site-packages/langgraph/_internal/_runnable.py\", line 501, in ainvoke\n    ret = await self.afunc(*args, **kwargs)\n          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n\n\n  File \"/app/src/services/agent/planner.py\", line 235, in planner_node\n    plan = await generate_plan(query, tool_names, page_context)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n\n\n  File \"/app/src/services/agent/planner.py\", line 153, in generate_plan\n    result = await structured_llm.ainvoke([HumanMessage(content=prompt)])\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n\n\n  File \"/usr/local/lib/python3.11/site-packages/langchain_core/runnables/base.py\", line 3378, in ainvoke\n    await run_manager.on_chain_error(e)\n\n\n  File \"/usr/local/lib/python3.11/site-packages/langchain_core/callbacks/manager.py\", line 245, in wrapped\n    return await asyncio.shield(task)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^\n\n\nasyncio.exceptions.CancelledError: Cancelled via cancel scope 7efd46b3a510 by \u003cTask pending name='starlette.middleware.base.BaseHTTPMiddleware.__call__.\u003clocals\u003e.call_next.\u003clocals\u003e.coro' coro=\u003cBaseHTTPMiddleware.__call__.\u003clocals\u003e.call_next.\u003clocals\u003e.coro() running at /usr/local/lib/python3.11/site-packages/starlette/middleware/base.py:144\u003e cb=[TaskGroup._spawn.\u003clocals\u003e.task_done() at /usr/local/lib/python3.11/site-packages/anyio/_backends/_asyncio.py:821]\u003e\n\n\n\nDuring handling of the above exception, another exception occurred:\n\n\n\nTraceback (most recent call last):\n\n\n  File \"/usr/local/lib/python3.11/site-packages/langgraph/pregel/main.py\", line 3407, in astream\n    async for _ in runner.atick(\n\n\n  File \"/usr/local/lib/python3.11/site-packages/langgraph/pregel/_runner.py\", line 396, in atick\n    await arun_with_retry(\n\n\n  File \"/usr/local/lib/python3.11/site-packages/langgraph/pregel/_retry.py\", line 703, in arun_with_retry\n    async for _ in task.proc.astream(task.input, config):\n\n\n  File \"/usr/local/lib/python3.11/site-packages/langgraph/_internal/_runnable.py\", line 873, in astream\n    await run_manager.on_chain_error(e)\n\n\n  File \"/usr/local/lib/python3.11/site-packages/langchain_core/callbacks/manager.py\", line 245, in wrapped\n    return await asyncio.shield(task)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^\n\n\nasyncio.exceptions.CancelledError: Cancelled via cancel scope 7efd46b3a510 by \u003cTask pending name='starlette.middleware.base.BaseHTTPMiddleware.__call__.\u003clocals\u003e.call_next.\u003clocals\u003e.coro' coro=\u003cBaseHTTPMiddleware.__call__.\u003clocals\u003e.call_next.\u003clocals\u003e.coro() running at /usr/local/lib/python3.11/site-packages/starlette/middleware/base.py:144\u003e cb=[TaskGroup._spawn.\u003clocals\u003e.task_done() at /usr/local/lib/python3.11/site-packages/anyio/_backends/_asyncio.py:821]\u003e\n\n\n\nDuring handling of the above exception, another exception occurred:\n\n\n\nTraceback (most recent call last):\n\n\n  File \"/usr/local/lib/python3.11/site-packages/langgraph/pregel/main.py\", line 3320, in astream\n    async with AsyncPregelLoop(\n\n\n  File \"/usr/local/lib/python3.11/site-packages/langgraph/pregel/_loop.py\", line 1949, in __aexit__\n    return await exit_task\n           ^^^^^^^^^^^^^^^\n\n\n  File \"/usr/local/lib/python3.11/contextlib.py\", line 698, in __aexit__\n    async def __aexit__(self, *exc_details):\n\n\nasyncio.exceptions.CancelledError: (\"Cancelled via cancel scope 7efd46b3a510 by \u003cTask pending name='starlette.middleware.base.BaseHTTPMiddleware.__call__.\u003clocals\u003e.call_next.\u003clocals\u003e.coro' coro=\u003cBaseHTTPMiddleware.__call__.\u003clocals\u003e.call_next.\u003clocals\u003e.coro() running at /usr/local/lib/python3.11/site-packages/starlette/middleware/base.py:144\u003e cb=[TaskGroup._spawn.\u003clocals\u003e.task_done() at /usr/local/lib/python3.11/site-packages/anyio/_backends/_asyncio.py:821]\u003e\", \u003cTask cancelled name='Task-77733' coro=\u003cAsyncExitStack.__aexit__() done, defined at /usr/local/lib/python3.11/contextlib.py:698\u003e\u003e)\n\n\n\nDuring handling of the above exception, another exception occurred:\n\n\n\nTraceback (most recent call last):\n\n\n  File \"/usr/local/lib/python3.11/site-packages/langgraph/_internal/_runnable.py\", line 867, in astream\n    output = await asyncio.create_task(\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^\n\n\n  File \"/usr/local/lib/python3.11/site-packages/langgraph/_internal/_runnable.py\", line 932, in _consume_aiter\n    async for chunk in it:\n\n\n  File \"/usr/local/lib/python3.11/site-packages/langchain_core/tracers/event_stream.py\", line 199, in tap_output_aiter\n    first = await anext(output, sentinel)\n            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n\n\n  File \"/usr/local/lib/python3.11/site-packages/langchain_core/runnables/base.py\", line 1767, in atransform\n    async for ichunk in input:\n\n\n  File \"/usr/local/lib/python3.11/site-packages/langgraph/pregel/main.py\", line 3468, in astream\n    await asyncio.shield(run_manager.on_chain_error(e))\n\n\nasyncio.exceptions.CancelledError: Cancelled via cancel scope 7efd46b3a510 by \u003cTask pending name='starlette.middleware.base.BaseHTTPMiddleware.__call__.\u003clocals\u003e.call_next.\u003clocals\u003e.coro' coro=\u003cBaseHTTPMiddleware.__call__.\u003clocals\u003e.call_next.\u003clocals\u003e.coro() running at /usr/local/lib/python3.11/site-packages/starlette/middleware/base.py:144\u003e cb=[TaskGroup._spawn.\u003clocals\u003e.task_done() at /usr/local/lib/python3.11/site-packages/anyio/_backends/_asyncio.py:821]\u003e\n\n\n\nDuring handling of the above exception, another exception occurred:\n\n\n\nTraceback (most recent call last):\n\n\n  File \"/usr/local/lib/python3.11/site-packages/langgraph/pregel/main.py\", line 3407, in astream\n    async for _ in runner.atick(\n\n\n  File \"/usr/local/lib/python3.11/site-packages/langgraph/pregel/_runner.py\", line 396, in atick\n    await arun_with_retry(\n\n\n  File \"/usr/local/lib/python3.11/site-packages/langgraph/pregel/_retry.py\", line 703, in arun_with_retry\n    async for _ in task.proc.astream(task.input, config):\n\n\n  File \"/usr/local/lib/python3.11/site-packages/langgraph/_internal/_runnable.py\", line 873, in astream\n    await run_manager.on_chain_error(e)\n\n\n  File \"/usr/local/lib/python3.11/site-packages/langchain_core/callbacks/manager.py\", line 245, in wrapped\n    return await asyncio.shield(task)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^\n\n\nasyncio.exceptions.CancelledError: Cancelled via cancel scope 7efd46b3a510 by \u003cTask pending name='starlette.middleware.base.BaseHTTPMiddleware.__call__.\u003clocals\u003e.call_next.\u003clocals\u003e.coro' coro=\u003cBaseHTTPMiddleware.__call__.\u003clocals\u003e.call_next.\u003clocals\u003e.coro() running at /usr/local/lib/python3.11/site-packages/starlette/middleware/base.py:144\u003e cb=[TaskGroup._spawn.\u003clocals\u003e.task_done() at /usr/local/lib/python3.11/site-packages/anyio/_backends/_asyncio.py:821]\u003e\n\n\n\nDuring handling of the above exception, another exception occurred:\n\n\n\nTraceback (most recent call last):\n\n\n  File \"/usr/local/lib/python3.11/site-packages/langgraph/pregel/main.py\", line 3320, in astream\n    async with AsyncPregelLoop(\n\n\n  File \"/usr/local/lib/python3.11/site-packages/langgraph/pregel/_loop.py\", line 1949, in __aexit__\n    return await exit_task\n           ^^^^^^^^^^^^^^^\n\n\n  File \"/usr/local/lib/python3.11/contextlib.py\", line 698, in __aexit__\n    async def __aexit__(self, *exc_details):\n\n\nasyncio.exceptions.CancelledError: (\"Cancelled via cancel scope 7efd46b3a510 by \u003cTask pending name='starlette.middleware.base.BaseHTTPMiddleware.__call__.\u003clocals\u003e.call_next.\u003clocals\u003e.coro' coro=\u003cBaseHTTPMiddleware.__call__.\u003clocals\u003e.call_next.\u003clocals\u003e.coro() running at /usr/local/lib/python3.11/site-packages/starlette/middleware/base.py:144\u003e cb=[TaskGroup._spawn.\u003clocals\u003e.task_done() at /usr/local/lib/python3.11/site-packages/anyio/_backends/_asyncio.py:821]\u003e\", \u003cTask cancelled name='Task-77740' coro=\u003cAsyncExitStack.__aexit__() done, defined at /usr/local/lib/python3.11/contextlib.py:698\u003e\u003e)",
+      "feedback_stats": null,
+      "inputs": {
+        "compaction_count": 0,
+        "error_count": 0,
+        "intent": "",
+        "intent_confidence": 0,
+        "last_error": "",
+        "last_error_info": {},
+        "messages": [
+          {
+            "additional_kwargs": {},
+            "content": "Add arXiv 2401.12345 to project My Project",
+            "id": "0d73dc2d-af2e-4d47-af4f-efcfad697ffb",
+            "response_metadata": {},
+            "type": "human"
+          },
+          {
+            "additional_kwargs": {},
+            "content": "Add arXiv 2401.12345 to project My Project",
+            "id": "dc0f3966-95f1-4398-9f06-7faa506fbf3d",
+            "response_metadata": {},
+            "type": "human"
+          },
+          {
+            "additional_kwargs": {},
+            "content": "Add arXiv 2401.12345 to project My Project",
+            "id": "92c8d550-44ed-4482-8765-52d8aa612ed2",
+            "response_metadata": {},
+            "type": "human"
+          }
+        ],
+        "model": "model-router",
+        "page_context": {
+          "label": null,
+          "metadata": null,
+          "project_id": "6bef011c-7bca-4174-97e2-33b83e0cfd5c",
+          "project_name": "Cyber Agents",
+          "type": "project"
+        },
+        "pending_confirmation": {},
+        "plan": [],
+        "reflection_count": 0,
+        "retrieved_contexts": [],
+        "thread_id": "37d8b159-1708-43ce-a3bc-a1eb9aff1c7b",
+        "tool_executions": [],
+        "tool_loop_count": 0,
+        "user_confirmed": false,
+        "user_id": "87d4b23a-dc89-4c9a-817e-e9ca9e42fd2a",
+        "user_memories": []
+      },
+      "name": "LangGraph",
+      "outputs": null,
+      "parent_run_id": null,
+      "run_id": "019e69f4-92a8-73c1-9c84-ea6fe28893ee",
+      "run_type": "chain",
+      "start_time": "2026-05-27T15:01:36.566772Z",
+      "status": "error",
+      "tags": null,
+      "token_usage": {
+        "completion_tokens": 42,
+        "prompt_tokens": 991,
+        "total_tokens": 3486
+      },
+      "trace_id": "019e69f4-92a8-73c1-9c84-ea6fe28893ee"
+    },
+    {
+      "costs": null,
+      "custom_metadata": {
+        "LANGSMITH_PROJECT": "rag-agent-dev",
+        "LANGSMITH_TRACING": "true",
+        "langgraph_checkpoint_ns": "preprocessing_node:7bd3bcc2-f231-9612-deeb-2afffda2f89c",
+        "langgraph_node": "preprocessing_node",
+        "langgraph_path": [
+          "__pregel_pull",
+          "preprocessing_node"
+        ],
+        "langgraph_step": 1,
+        "langgraph_triggers": [
+          "branch:to:preprocessing_node"
+        ],
+        "ls_integration": "langgraph",
+        "ls_run_depth": 1,
+        "thread_id": "37d8b159-1708-43ce-a3bc-a1eb9aff1c7b"
+      },
+      "duration_ms": 3840,
+      "end_time": "2026-05-27T15:01:40.987788Z",
+      "error": null,
+      "feedback_stats": null,
+      "inputs": {
+        "compaction_count": 0,
+        "error_count": 0,
+        "intent": "",
+        "intent_confidence": 0,
+        "last_error": "",
+        "last_error_info": {},
+        "messages": [
+          {
+            "additional_kwargs": {},
+            "content": "Add arXiv 2401.12345 to project My Project",
+            "id": "0d73dc2d-af2e-4d47-af4f-efcfad697ffb",
+            "response_metadata": {},
+            "type": "human"
+          },
+          {
+            "additional_kwargs": {},
+            "content": "Add arXiv 2401.12345 to project My Project",
+            "id": "dc0f3966-95f1-4398-9f06-7faa506fbf3d",
+            "response_metadata": {},
+            "type": "human"
+          },
+          {
+            "additional_kwargs": {},
+            "content": "Add arXiv 2401.12345 to project My Project",
+            "id": "92c8d550-44ed-4482-8765-52d8aa612ed2",
+            "response_metadata": {},
+            "type": "human"
+          }
+        ],
+        "model": "model-router",
+        "page_context": {
+          "label": null,
+          "metadata": null,
+          "project_id": "6bef011c-7bca-4174-97e2-33b83e0cfd5c",
+          "project_name": "Cyber Agents",
+          "type": "project"
+        },
+        "pending_confirmation": {},
+        "plan": [],
+        "reflection_count": 0,
+        "retrieved_contexts": [],
+        "thread_id": "37d8b159-1708-43ce-a3bc-a1eb9aff1c7b",
+        "tool_executions": [],
+        "tool_loop_count": 0,
+        "user_confirmed": false,
+        "user_id": "87d4b23a-dc89-4c9a-817e-e9ca9e42fd2a",
+        "user_memories": []
+      },
+      "name": "preprocessing_node",
+      "outputs": {
+        "_reflection_result": null,
+        "current_project_id": "6bef011c-7bca-4174-97e2-33b83e0cfd5c",
+        "error_count": 0,
+        "intent": "research",
+        "intent_confidence": 0.95,
+        "last_error": "",
+        "last_error_info": {},
+        "pending_confirmation": {},
+        "plan": [],
+        "reflection_count": 0,
+        "retrieved_contexts": [],
+        "tool_loop_count": 0,
+        "user_confirmed": false,
+        "user_memories": [
+          {
+            "key": "d60eb47ea083",
+            "score": 1,
+            "value": {
+              "created_at": "2026-05-27T06:09:41.833436+00:00",
+              "intent": "research",
+              "query": "Add arXiv 2401.12345 to project My Project",
+              "thread_id": "ee5bcbad-2d9f-4311-b6e6-346d85923e5f",
+              "tools_used": [
+                "list_projects"
+              ],
+              "turn_index": 2
+            }
+          },
+          {
+            "key": "a00f3e229453",
+            "score": 0.4241381128331333,
+            "value": {
+              "created_at": "2026-05-27T05:49:09.541568+00:00",
+              "intent": "research",
+              "query": "can you add this paper to this project",
+              "thread_id": "ba2b907a-aed0-449e-b105-228253fe2b52",
+              "tools_used": [],
+              "turn_index": 4
+            }
+          },
+          {
+            "key": "725d8affc228",
+            "score": 0.24068534520137574,
+            "value": {
+              "created_at": "2026-05-26T23:58:59.333185+00:00",
+              "intent": "research",
+              "query": "\"find papers on transformer architectures\"",
+              "thread_id": "53493dfe-85f2-4e23-b1e8-b685b9410975",
+              "tools_used": [
+                "search_arxiv"
+              ],
+              "turn_index": 2
+            }
+          },
+          {
+            "key": "53060292ebc2",
+            "score": 0.21611902183728293,
+            "value": {
+              "created_at": "2026-05-26T21:42:41.839485+00:00",
+              "intent": "research",
+              "query": "Walk me through the citations supporting about rag",
+              "thread_id": "79de7f03-3bbb-42be-8435-7144085a0297",
+              "tools_used": [
+                "search_arxiv",
+                "search_arxiv"
+              ],
+              "turn_index": 1
+            }
+          },
+          {
+            "key": "fd2b1b626217",
+            "score": 0.19157587971625056,
+            "value": {
+              "created_at": "2026-05-26T00:35:53.654141+00:00",
+              "intent": "research",
+              "query": "what is the best paper about attention",
+              "thread_id": "9730637c-4c0d-4b2a-9211-68632fbc4008",
+              "tools_used": [
+                "search_arxiv"
+              ],
+              "turn_index": 1
+            }
+          }
+        ]
+      },
+      "parent_run_id": "019e69f4-92a8-73c1-9c84-ea6fe28893ee",
+      "run_id": "019e69f4-94fb-7c71-a537-99f73924bbb8",
+      "run_type": "chain",
+      "start_time": "2026-05-27T15:01:37.147413Z",
+      "status": "success",
+      "tags": [
+        "graph:step:1"
+      ],
+      "token_usage": {
+        "completion_tokens": 36,
+        "prompt_tokens": 771,
+        "total_tokens": 1057
+      },
+      "trace_id": "019e69f4-92a8-73c1-9c84-ea6fe28893ee"
+    },
+    {
+      "costs": null,
+      "custom_metadata": {
+        "LANGSMITH_PROJECT": "rag-agent-dev",
+        "LANGSMITH_TRACING": "true",
+        "checkpoint_ns": "preprocessing_node:7bd3bcc2-f231-9612-deeb-2afffda2f89c",
+        "langgraph_checkpoint_ns": "preprocessing_node:7bd3bcc2-f231-9612-deeb-2afffda2f89c",
+        "langgraph_node": "preprocessing_node",
+        "langgraph_path": [
+          "__pregel_pull",
+          "preprocessing_node"
+        ],
+        "langgraph_step": 1,
+        "langgraph_triggers": [
+          "branch:to:preprocessing_node"
+        ],
+        "ls_integration": "langgraph",
+        "ls_run_depth": 2,
+        "thread_id": "37d8b159-1708-43ce-a3bc-a1eb9aff1c7b"
+      },
+      "duration_ms": 3769,
+      "end_time": "2026-05-27T15:01:40.980627Z",
+      "error": null,
+      "feedback_stats": null,
+      "inputs": {
+        "input": [
+          {
+            "additional_kwargs": {},
+            "content": "You are an intent classifier for a RAG-powered academic research platform.\nGiven the user's query, classify it into exactly ONE of these intents:\n\n- **research**: Searching, finding, discovering, or ingesting papers and documents. Includes \"knowledge base\", \"KB\", \"our docs\", \"our library\", \"our documents\" — these refer to the indexed document corpus, NOT a graph.\n- **writing**: Drafting, summarizing, creating notes, literature reviews, bibliographies.\n- **knowledge_graph**: Extracting entities, exploring relationships, ontology queries over the Neo4j entity graph.\n- **general**: Anything that doesn't clearly fit the above categories.\n\nReturn your classification with a confidence score (0.0-1.0) and brief reasoning.\n\n## Few-shot examples\n\nQuery: \"Find recent papers on transformer architectures\"\n→ intent: research, confidence: 0.95, reasoning: \"Explicit search request for papers.\"\n\nQuery: \"Summarize the key findings of this document\"\n→ intent: writing, confidence: 0.92, reasoning: \"Summarization is a writing task.\"\n\nQuery: \"What entities are mentioned in this paper?\"\n→ intent: knowledge_graph, confidence: 0.90, reasoning: \"Entity extraction is a knowledge graph task.\"\n\nQuery: \"What does our knowledge base say about transformer attention?\"\n→ intent: research, confidence: 0.92, reasoning: \"KB lookup over indexed docs — research/retrieval, not graph entity extraction.\"\n\nQuery: \"Search our docs for RLHF\"\n→ intent: research, confidence: 0.93, reasoning: \"Document corpus search — research.\"\n\nQuery: \"Hello, can you help me?\"\n→ intent: general, confidence: 0.85, reasoning: \"Greeting with no specific task.\"\n\nQuery: \"try again\"\nPrevious tool: ingest_arxiv_papers (status: skipped)\n→ intent: research, confidence: 0.85, reasoning: \"Retry of the prior failed ingest call — same intent as the original tool.\"\n\n## Common confusions\n\n- \"knowledge base\" / \"KB\" / \"our docs\" / \"our library\" → research (NOT knowledge_graph — these refer to the indexed document corpus, not the entity graph)\n- \"knowledge graph\" / \"entity graph\" → knowledge_graph\n- \"search the knowledge graph\" → knowledge_graph (NOT research)\n- \"find entities\" → knowledge_graph (NOT research)\n- \"write about papers I found\" → writing (NOT research)\n- \"create a note summarizing...\" → writing (NOT general)\n- \"import papers\" or \"ingest\" → research (ingestion pipeline)\n- Short retry phrases (\"try again\", \"retry\", \"do it\", \"again\") inherit the intent of the previous tool call when one is shown below.\n\n## Page context\nUser is on a project page (project_id=6bef011c-7bca-4174-97e2-33b83e0cfd5c).\n\n## Previous assistant turn\nNone\n\n## Previous tool call\nNone\n",
+            "response_metadata": {},
+            "type": "system"
+          },
+          {
+            "additional_kwargs": {},
+            "content": "Add arXiv 2401.12345 to project My Project",
+            "response_metadata": {},
+            "type": "human"
+          }
+        ]
+      },
+      "name": "RunnableSequence",
+      "outputs": {
+        "output": {
+          "confidence": 0.95,
+          "intent": "research",
+          "reasoning": "Request to add/ingest an arXiv paper to the project — ingestion pipeline is a research task."
+        }
+      },
+      "parent_run_id": "019e69f4-94fb-7c71-a537-99f73924bbb8",
+      "run_id": "019e69f4-953b-72a1-b0b0-51cb76d83183",
+      "run_type": "chain",
+      "start_time": "2026-05-27T15:01:37.211417Z",
+      "status": "success",
+      "tags": [
+        "seq:step:1"
+      ],
+      "token_usage": {
+        "completion_tokens": 36,
+        "prompt_tokens": 771,
+        "total_tokens": 1057
+      },
+      "trace_id": "019e69f4-92a8-73c1-9c84-ea6fe28893ee"
+    },
+    {
+      "costs": null,
+      "custom_metadata": {
+        "LANGSMITH_PROJECT": "rag-agent-dev",
+        "LANGSMITH_TRACING": "true",
+        "_type": "azure-openai-chat",
+        "azure_deployment": "model-router",
+        "checkpoint_ns": "preprocessing_node:7bd3bcc2-f231-9612-deeb-2afffda2f89c",
+        "langgraph_checkpoint_ns": "preprocessing_node:7bd3bcc2-f231-9612-deeb-2afffda2f89c",
+        "langgraph_node": "preprocessing_node",
+        "langgraph_path": [
+          "__pregel_pull",
+          "preprocessing_node"
+        ],
+        "langgraph_step": 1,
+        "langgraph_triggers": [
+          "branch:to:preprocessing_node"
+        ],
+        "ls_integration": "langchain_chat_model",
+        "ls_max_tokens": 4096,
+        "ls_model_name": "model-router",
+        "ls_model_type": "chat",
+        "ls_provider": "azure",
+        "ls_run_depth": 3,
+        "ls_temperature": 0,
+        "max_completion_tokens": 4096,
+        "model": null,
+        "model_name": null,
+        "stop": null,
+        "stream": false,
+        "temperature": 0,
+        "thread_id": "37d8b159-1708-43ce-a3bc-a1eb9aff1c7b",
+        "usage_metadata": {
+          "input_token_details": {
+            "audio": 0,
+            "cache_read": 0
+          },
+          "input_tokens": 771,
+          "output_token_details": {
+            "audio": 0,
+            "reasoning": 250
+          },
+          "output_tokens": 36,
+          "total_tokens": 1057
+        }
+      },
+      "duration_ms": 3730,
+      "end_time": "2026-05-27T15:01:40.970336Z",
+      "error": null,
+      "feedback_stats": null,
+      "inputs": {
+        "messages": [
+          [
+            {
+              "id": [
+                "langchain",
+                "schema",
+                "messages",
+                "SystemMessage"
+              ],
+              "kwargs": {
+                "content": "You are an intent classifier for a RAG-powered academic research platform.\nGiven the user's query, classify it into exactly ONE of these intents:\n\n- **research**: Searching, finding, discovering, or ingesting papers and documents. Includes \"knowledge base\", \"KB\", \"our docs\", \"our library\", \"our documents\" — these refer to the indexed document corpus, NOT a graph.\n- **writing**: Drafting, summarizing, creating notes, literature reviews, bibliographies.\n- **knowledge_graph**: Extracting entities, exploring relationships, ontology queries over the Neo4j entity graph.\n- **general**: Anything that doesn't clearly fit the above categories.\n\nReturn your classification with a confidence score (0.0-1.0) and brief reasoning.\n\n## Few-shot examples\n\nQuery: \"Find recent papers on transformer architectures\"\n→ intent: research, confidence: 0.95, reasoning: \"Explicit search request for papers.\"\n\nQuery: \"Summarize the key findings of this document\"\n→ intent: writing, confidence: 0.92, reasoning: \"Summarization is a writing task.\"\n\nQuery: \"What entities are mentioned in this paper?\"\n→ intent: knowledge_graph, confidence: 0.90, reasoning: \"Entity extraction is a knowledge graph task.\"\n\nQuery: \"What does our knowledge base say about transformer attention?\"\n→ intent: research, confidence: 0.92, reasoning: \"KB lookup over indexed docs — research/retrieval, not graph entity extraction.\"\n\nQuery: \"Search our docs for RLHF\"\n→ intent: research, confidence: 0.93, reasoning: \"Document corpus search — research.\"\n\nQuery: \"Hello, can you help me?\"\n→ intent: general, confidence: 0.85, reasoning: \"Greeting with no specific task.\"\n\nQuery: \"try again\"\nPrevious tool: ingest_arxiv_papers (status: skipped)\n→ intent: research, confidence: 0.85, reasoning: \"Retry of the prior failed ingest call — same intent as the original tool.\"\n\n## Common confusions\n\n- \"knowledge base\" / \"KB\" / \"our docs\" / \"our library\" → research (NOT knowledge_graph — these refer to the indexed document corpus, not the entity graph)\n- \"knowledge graph\" / \"entity graph\" → knowledge_graph\n- \"search the knowledge graph\" → knowledge_graph (NOT research)\n- \"find entities\" → knowledge_graph (NOT research)\n- \"write about papers I found\" → writing (NOT research)\n- \"create a note summarizing...\" → writing (NOT general)\n- \"import papers\" or \"ingest\" → research (ingestion pipeline)\n- Short retry phrases (\"try again\", \"retry\", \"do it\", \"again\") inherit the intent of the previous tool call when one is shown below.\n\n## Page context\nUser is on a project page (project_id=6bef011c-7bca-4174-97e2-33b83e0cfd5c).\n\n## Previous assistant turn\nNone\n\n## Previous tool call\nNone\n",
+                "type": "system"
+              },
+              "lc": 1,
+              "type": "constructor"
+            },
+            {
+              "id": [
+                "langchain",
+                "schema",
+                "messages",
+                "HumanMessage"
+              ],
+              "kwargs": {
+                "content": "Add arXiv 2401.12345 to project My Project",
+                "type": "human"
+              },
+              "lc": 1,
+              "type": "constructor"
+            }
+          ]
+        ]
+      },
+      "name": "AzureChatOpenAI",
+      "outputs": {
+        "generations": [
+          [
+            {
+              "generation_info": {
+                "finish_reason": "stop",
+                "id": "0832b685-1ba9-4611-92ee-51317fa8510c",
+                "model_name": "grok-4-1-fast-reasoning",
+                "model_provider": "openai",
+                "system_fingerprint": "fp_39c5j0a324",
+                "token_usage": {
+                  "completion_tokens": 36,
+                  "completion_tokens_details": {
+                    "accepted_prediction_tokens": 0,
+                    "audio_tokens": 0,
+                    "reasoning_tokens": 250,
+                    "rejected_prediction_tokens": 0
+                  },
+                  "cost_in_usd_ticks": 0,
+                  "num_sources_used": 0,
+                  "prompt_tokens": 771,
+                  "prompt_tokens_details": {
+                    "audio_tokens": 0,
+                    "cached_tokens": 0,
+                    "image_tokens": 0,
+                    "text_tokens": 771
+                  },
+                  "total_tokens": 1057
+                }
+              },
+              "message": {
+                "id": [
+                  "langchain",
+                  "schema",
+                  "messages",
+                  "AIMessage"
+                ],
+                "kwargs": {
+                  "additional_kwargs": {
+                    "parsed": {
+                      "id": [
+                        "src",
+                        "services",
+                        "agent",
+                        "classifier",
+                        "IntentClassification"
+                      ],
+                      "lc": 1,
+                      "repr": "IntentClassification(intent='research', confidence=0.95, reasoning='Request to add/ingest an arXiv paper to the project — ingestion pipeline is a research task.')",
+                      "type": "not_implemented"
+                    },
+                    "refusal": null
+                  },
+                  "content": " {\"intent\":\"research\",\"confidence\":0.95,\"reasoning\":\"Request to add/ingest an arXiv paper to the project — ingestion pipeline is a research task.\"}",
+                  "id": "lc_run--019e69f4-9558-7c40-99fd-0fe263c06adf",
+                  "invalid_tool_calls": [],
+                  "response_metadata": {
+                    "finish_reason": "stop",
+                    "id": "0832b685-1ba9-4611-92ee-51317fa8510c",
+                    "model_name": "grok-4-1-fast-reasoning",
+                    "model_provider": "openai",
+                    "system_fingerprint": "fp_39c5j0a324",
+                    "token_usage": {
+                      "completion_tokens": 36,
+                      "completion_tokens_details": {
+                        "accepted_prediction_tokens": 0,
+                        "audio_tokens": 0,
+                        "reasoning_tokens": 250,
+                        "rejected_prediction_tokens": 0
+                      },
+                      "cost_in_usd_ticks": 0,
+                      "num_sources_used": 0,
+                      "prompt_tokens": 771,
+                      "prompt_tokens_details": {
+                        "audio_tokens": 0,
+                        "cached_tokens": 0,
+                        "image_tokens": 0,
+                        "text_tokens": 771
+                      },
+                      "total_tokens": 1057
+                    }
+                  },
+                  "tool_calls": [],
+                  "type": "ai",
+                  "usage_metadata": {
+                    "input_token_details": {
+                      "audio": 0,
+                      "cache_read": 0
+                    },
+                    "input_tokens": 771,
+                    "output_token_details": {
+                      "audio": 0,
+                      "reasoning": 250
+                    },
+                    "output_tokens": 36,
+                    "total_tokens": 1057
+                  }
+                },
+                "lc": 1,
+                "type": "constructor"
+              },
+              "text": " {\"intent\":\"research\",\"confidence\":0.95,\"reasoning\":\"Request to add/ingest an arXiv paper to the project — ingestion pipeline is a research task.\"}",
+              "type": "ChatGeneration"
+            }
+          ]
+        ],
+        "llm_output": null,
+        "run": null,
+        "type": "LLMResult"
+      },
+      "parent_run_id": "019e69f4-953b-72a1-b0b0-51cb76d83183",
+      "run_id": "019e69f4-9558-7c40-99fd-0fe263c06adf",
+      "run_type": "llm",
+      "start_time": "2026-05-27T15:01:37.240141Z",
+      "status": "success",
+      "tags": [
+        "seq:step:1"
+      ],
+      "token_usage": {
+        "completion_tokens": 36,
+        "prompt_tokens": 771,
+        "total_tokens": 1057
+      },
+      "trace_id": "019e69f4-92a8-73c1-9c84-ea6fe28893ee"
+    },
+    {
+      "costs": null,
+      "custom_metadata": {
+        "LANGSMITH_PROJECT": "rag-agent-dev",
+        "LANGSMITH_TRACING": "true",
+        "checkpoint_ns": "preprocessing_node:7bd3bcc2-f231-9612-deeb-2afffda2f89c",
+        "langgraph_checkpoint_ns": "preprocessing_node:7bd3bcc2-f231-9612-deeb-2afffda2f89c",
+        "langgraph_node": "preprocessing_node",
+        "langgraph_path": [
+          "__pregel_pull",
+          "preprocessing_node"
+        ],
+        "langgraph_step": 1,
+        "langgraph_triggers": [
+          "branch:to:preprocessing_node"
+        ],
+        "ls_integration": "langgraph",
+        "ls_run_depth": 3,
+        "thread_id": "37d8b159-1708-43ce-a3bc-a1eb9aff1c7b"
+      },
+      "duration_ms": 4,
+      "end_time": "2026-05-27T15:01:40.978347Z",
+      "error": null,
+      "feedback_stats": null,
+      "inputs": {
+        "input": {
+          "additional_kwargs": {
+            "parsed": {
+              "confidence": 0.95,
+              "intent": "research",
+              "reasoning": "Request to add/ingest an arXiv paper to the project — ingestion pipeline is a research task."
+            },
+            "refusal": null
+          },
+          "content": " {\"intent\":\"research\",\"confidence\":0.95,\"reasoning\":\"Request to add/ingest an arXiv paper to the project — ingestion pipeline is a research task.\"}",
+          "id": "lc_run--019e69f4-9558-7c40-99fd-0fe263c06adf",
+          "invalid_tool_calls": [],
+          "response_metadata": {
+            "finish_reason": "stop",
+            "id": "0832b685-1ba9-4611-92ee-51317fa8510c",
+            "model_name": "grok-4-1-fast-reasoning",
+            "model_provider": "openai",
+            "system_fingerprint": "fp_39c5j0a324",
+            "token_usage": {
+              "completion_tokens": 36,
+              "completion_tokens_details": {
+                "accepted_prediction_tokens": 0,
+                "audio_tokens": 0,
+                "reasoning_tokens": 250,
+                "rejected_prediction_tokens": 0
+              },
+              "cost_in_usd_ticks": 0,
+              "num_sources_used": 0,
+              "prompt_tokens": 771,
+              "prompt_tokens_details": {
+                "audio_tokens": 0,
+                "cached_tokens": 0,
+                "image_tokens": 0,
+                "text_tokens": 771
+              },
+              "total_tokens": 1057
+            }
+          },
+          "tool_calls": [],
+          "type": "ai",
+          "usage_metadata": {
+            "input_token_details": {
+              "audio": 0,
+              "cache_read": 0
+            },
+            "input_tokens": 771,
+            "output_token_details": {
+              "audio": 0,
+              "reasoning": 250
+            },
+            "output_tokens": 36,
+            "total_tokens": 1057
+          }
+        }
+      },
+      "name": "RunnableLambda",
+      "outputs": {
+        "output": {
+          "confidence": 0.95,
+          "intent": "research",
+          "reasoning": "Request to add/ingest an arXiv paper to the project — ingestion pipeline is a research task."
+        }
+      },
+      "parent_run_id": "019e69f4-953b-72a1-b0b0-51cb76d83183",
+      "run_id": "019e69f4-a3ee-7043-af76-9fae16929aae",
+      "run_type": "chain",
+      "start_time": "2026-05-27T15:01:40.974161Z",
+      "status": "success",
+      "tags": [
+        "seq:step:2"
+      ],
+      "token_usage": null,
+      "trace_id": "019e69f4-92a8-73c1-9c84-ea6fe28893ee"
+    },
+    {
+      "costs": null,
+      "custom_metadata": {
+        "LANGSMITH_PROJECT": "rag-agent-dev",
+        "LANGSMITH_TRACING": "true",
+        "langgraph_checkpoint_ns": "preprocessing_node:7bd3bcc2-f231-9612-deeb-2afffda2f89c",
+        "langgraph_node": "preprocessing_node",
+        "langgraph_path": [
+          "__pregel_pull",
+          "preprocessing_node"
+        ],
+        "langgraph_step": 1,
+        "langgraph_triggers": [
+          "branch:to:preprocessing_node"
+        ],
+        "ls_integration": "langgraph",
+        "ls_run_depth": 2,
+        "thread_id": "37d8b159-1708-43ce-a3bc-a1eb9aff1c7b"
+      },
+      "duration_ms": 2,
+      "end_time": "2026-05-27T15:01:40.986108Z",
+      "error": null,
+      "feedback_stats": null,
+      "inputs": {
+        "_reflection_result": null,
+        "compaction_count": 0,
+        "current_project_id": "6bef011c-7bca-4174-97e2-33b83e0cfd5c",
+        "error_count": 0,
+        "intent": "research",
+        "intent_confidence": 0.95,
+        "last_error": "",
+        "last_error_info": {},
+        "messages": [
+          {
+            "additional_kwargs": {},
+            "content": "Add arXiv 2401.12345 to project My Project",
+            "id": "0d73dc2d-af2e-4d47-af4f-efcfad697ffb",
+            "response_metadata": {},
+            "type": "human"
+          },
+          {
+            "additional_kwargs": {},
+            "content": "Add arXiv 2401.12345 to project My Project",
+            "id": "dc0f3966-95f1-4398-9f06-7faa506fbf3d",
+            "response_metadata": {},
+            "type": "human"
+          },
+          {
+            "additional_kwargs": {},
+            "content": "Add arXiv 2401.12345 to project My Project",
+            "id": "92c8d550-44ed-4482-8765-52d8aa612ed2",
+            "response_metadata": {},
+            "type": "human"
+          }
+        ],
+        "model": "model-router",
+        "page_context": {
+          "label": null,
+          "metadata": null,
+          "project_id": "6bef011c-7bca-4174-97e2-33b83e0cfd5c",
+          "project_name": "Cyber Agents",
+          "type": "project"
+        },
+        "pending_confirmation": {},
+        "plan": [],
+        "reflection_count": 0,
+        "retrieved_contexts": [],
+        "thread_id": "37d8b159-1708-43ce-a3bc-a1eb9aff1c7b",
+        "tool_executions": [],
+        "tool_loop_count": 0,
+        "user_confirmed": false,
+        "user_id": "87d4b23a-dc89-4c9a-817e-e9ca9e42fd2a",
+        "user_memories": [
+          {
+            "key": "d60eb47ea083",
+            "score": 1,
+            "value": {
+              "created_at": "2026-05-27T06:09:41.833436+00:00",
+              "intent": "research",
+              "query": "Add arXiv 2401.12345 to project My Project",
+              "thread_id": "ee5bcbad-2d9f-4311-b6e6-346d85923e5f",
+              "tools_used": [
+                "list_projects"
+              ],
+              "turn_index": 2
+            }
+          },
+          {
+            "key": "a00f3e229453",
+            "score": 0.4241381128331333,
+            "value": {
+              "created_at": "2026-05-27T05:49:09.541568+00:00",
+              "intent": "research",
+              "query": "can you add this paper to this project",
+              "thread_id": "ba2b907a-aed0-449e-b105-228253fe2b52",
+              "tools_used": [],
+              "turn_index": 4
+            }
+          },
+          {
+            "key": "725d8affc228",
+            "score": 0.24068534520137574,
+            "value": {
+              "created_at": "2026-05-26T23:58:59.333185+00:00",
+              "intent": "research",
+              "query": "\"find papers on transformer architectures\"",
+              "thread_id": "53493dfe-85f2-4e23-b1e8-b685b9410975",
+              "tools_used": [
+                "search_arxiv"
+              ],
+              "turn_index": 2
+            }
+          },
+          {
+            "key": "53060292ebc2",
+            "score": 0.21611902183728293,
+            "value": {
+              "created_at": "2026-05-26T21:42:41.839485+00:00",
+              "intent": "research",
+              "query": "Walk me through the citations supporting about rag",
+              "thread_id": "79de7f03-3bbb-42be-8435-7144085a0297",
+              "tools_used": [
+                "search_arxiv",
+                "search_arxiv"
+              ],
+              "turn_index": 1
+            }
+          },
+          {
+            "key": "fd2b1b626217",
+            "score": 0.19157587971625056,
+            "value": {
+              "created_at": "2026-05-26T00:35:53.654141+00:00",
+              "intent": "research",
+              "query": "what is the best paper about attention",
+              "thread_id": "9730637c-4c0d-4b2a-9211-68632fbc4008",
+              "tools_used": [
+                "search_arxiv"
+              ],
+              "turn_index": 1
+            }
+          }
+        ]
+      },
+      "name": "route_by_intent",
+      "outputs": {
+        "output": "research_subgraph"
+      },
+      "parent_run_id": "019e69f4-94fb-7c71-a537-99f73924bbb8",
+      "run_id": "019e69f4-a3f7-7ab1-a85d-8f81f2c831de",
+      "run_type": "chain",
+      "start_time": "2026-05-27T15:01:40.983449Z",
+      "status": "success",
+      "tags": [
+        "seq:step:3"
+      ],
+      "token_usage": null,
+      "trace_id": "019e69f4-92a8-73c1-9c84-ea6fe28893ee"
+    },
+    {
+      "costs": null,
+      "custom_metadata": {
+        "LANGSMITH_PROJECT": "rag-agent-dev",
+        "LANGSMITH_TRACING": "true",
+        "langgraph_checkpoint_ns": "research_subgraph:b5f1649d-fda7-3eab-27ca-661bc02e61e4",
+        "langgraph_node": "research_subgraph",
+        "langgraph_path": [
+          "__pregel_pull",
+          "research_subgraph"
+        ],
+        "langgraph_step": 2,
+        "langgraph_triggers": [
+          "branch:to:research_subgraph"
+        ],
+        "ls_integration": "langgraph",
+        "ls_run_depth": 1,
+        "thread_id": "37d8b159-1708-43ce-a3bc-a1eb9aff1c7b"
+      },
+      "duration_ms": 25286,
+      "end_time": "2026-05-27T15:02:06.278643Z",
+      "error": "CancelledError(\"Cancelled via cancel scope 7efd46b3a510 by \u003cTask pending name='starlette.middleware.base.BaseHTTPMiddleware.__call__.\u003clocals\u003e.call_next.\u003clocals\u003e.coro' coro=\u003cBaseHTTPMiddleware.__call__.\u003clocals\u003e.call_next.\u003clocals\u003e.coro() running at /usr/local/lib/python3.11/site-packages/starlette/middleware/base.py:144\u003e cb=[TaskGroup._spawn.\u003clocals\u003e.task_done() at /usr/local/lib/python3.11/site-packages/anyio/_backends/_asyncio.py:821]\u003e\")Traceback (most recent call last):\n\n\n  File \"/usr/local/lib/python3.11/asyncio/tasks.py\", line 476, in wait_for\n    await waiter\n\n\nasyncio.exceptions.CancelledError: Cancelled via cancel scope 7efd46b3a510 by \u003cTask pending name='starlette.middleware.base.BaseHTTPMiddleware.__call__.\u003clocals\u003e.call_next.\u003clocals\u003e.coro' coro=\u003cBaseHTTPMiddleware.__call__.\u003clocals\u003e.call_next.\u003clocals\u003e.coro() running at /usr/local/lib/python3.11/site-packages/starlette/middleware/base.py:144\u003e cb=[TaskGroup._spawn.\u003clocals\u003e.task_done() at /usr/local/lib/python3.11/site-packages/anyio/_backends/_asyncio.py:821]\u003e\n\n\n\nDuring handling of the above exception, another exception occurred:\n\n\n\nTraceback (most recent call last):\n\n\n  File \"/usr/local/lib/python3.11/site-packages/langchain_core/runnables/base.py\", line 3375, in ainvoke\n    input_ = await coro_with_context(part(), context, create_task=True)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n\n\n  File \"/usr/local/lib/python3.11/site-packages/langchain_core/runnables/base.py\", line 5894, in ainvoke\n    return await self.bound.ainvoke(\n           ^^^^^^^^^^^^^^^^^^^^^^^^^\n\n\n  File \"/usr/local/lib/python3.11/site-packages/langchain_core/language_models/chat_models.py\", line 497, in ainvoke\n    llm_result = await self.agenerate_prompt(\n                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n\n\n  File \"/usr/local/lib/python3.11/site-packages/langchain_core/language_models/chat_models.py\", line 1834, in agenerate_prompt\n    return await self.agenerate(\n           ^^^^^^^^^^^^^^^^^^^^^\n\n\n  File \"/usr/local/lib/python3.11/site-packages/langchain_core/language_models/chat_models.py\", line 1754, in agenerate\n    results = await asyncio.gather(\n              ^^^^^^^^^^^^^^^^^^^^^\n\n\n  File \"/usr/local/lib/python3.11/site-packages/langchain_core/language_models/chat_models.py\", line 2084, in _agenerate_with_cache\n    async for chunk in self._astream(messages, stop=stop, **kwargs):\n\n\n  File \"/usr/local/lib/python3.11/site-packages/langchain_openai/chat_models/azure.py\", line 835, in _astream\n    async for chunk in super()._astream(*args, **kwargs):\n\n\n  File \"/usr/local/lib/python3.11/site-packages/langchain_openai/chat_models/base.py\", line 1838, in _astream\n    async for chunk in _astream_with_chunk_timeout(\n\n\n  File \"/usr/local/lib/python3.11/site-packages/langchain_openai/chat_models/_client_utils.py\", line 652, in _astream_with_chunk_timeout\n    chunk = await asyncio.wait_for(it.__anext__(), timeout=timeout)\n            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n\n\n  File \"/usr/local/lib/python3.11/asyncio/tasks.py\", line 485, in wait_for\n    await _cancel_and_wait(fut, loop=loop)\n\n\n  File \"/usr/local/lib/python3.11/asyncio/tasks.py\", line 562, in _cancel_and_wait\n    await waiter\n\n\nasyncio.exceptions.CancelledError: Cancelled via cancel scope 7efd46b3a510 by \u003cTask pending name='starlette.middleware.base.BaseHTTPMiddleware.__call__.\u003clocals\u003e.call_next.\u003clocals\u003e.coro' coro=\u003cBaseHTTPMiddleware.__call__.\u003clocals\u003e.call_next.\u003clocals\u003e.coro() running at /usr/local/lib/python3.11/site-packages/starlette/middleware/base.py:144\u003e cb=[TaskGroup._spawn.\u003clocals\u003e.task_done() at /usr/local/lib/python3.11/site-packages/anyio/_backends/_asyncio.py:821]\u003e\n\n\n\nDuring handling of the above exception, another exception occurred:\n\n\n\nTraceback (most recent call last):\n\n\n  File \"/usr/local/lib/python3.11/site-packages/langgraph/_internal/_runnable.py\", line 867, in astream\n    output = await asyncio.create_task(\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^\n\n\n  File \"/usr/local/lib/python3.11/site-packages/langgraph/_internal/_runnable.py\", line 932, in _consume_aiter\n    async for chunk in it:\n\n\n  File \"/usr/local/lib/python3.11/site-packages/langchain_core/tracers/event_stream.py\", line 199, in tap_output_aiter\n    first = await anext(output, sentinel)\n            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n\n\n  File \"/usr/local/lib/python3.11/site-packages/langchain_core/runnables/base.py\", line 1767, in atransform\n    async for ichunk in input:\n\n\n  File \"/usr/local/lib/python3.11/site-packages/langchain_core/runnables/base.py\", line 1171, in astream\n    yield await self.ainvoke(input, config, **kwargs)\n          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n\n\n  File \"/usr/local/lib/python3.11/site-packages/langgraph/_internal/_runnable.py\", line 501, in ainvoke\n    ret = await self.afunc(*args, **kwargs)\n          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n\n\n  File \"/app/src/services/agent/planner.py\", line 235, in planner_node\n    plan = await generate_plan(query, tool_names, page_context)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n\n\n  File \"/app/src/services/agent/planner.py\", line 153, in generate_plan\n    result = await structured_llm.ainvoke([HumanMessage(content=prompt)])\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n\n\n  File \"/usr/local/lib/python3.11/site-packages/langchain_core/runnables/base.py\", line 3378, in ainvoke\n    await run_manager.on_chain_error(e)\n\n\n  File \"/usr/local/lib/python3.11/site-packages/langchain_core/callbacks/manager.py\", line 245, in wrapped\n    return await asyncio.shield(task)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^\n\n\nasyncio.exceptions.CancelledError: Cancelled via cancel scope 7efd46b3a510 by \u003cTask pending name='starlette.middleware.base.BaseHTTPMiddleware.__call__.\u003clocals\u003e.call_next.\u003clocals\u003e.coro' coro=\u003cBaseHTTPMiddleware.__call__.\u003clocals\u003e.call_next.\u003clocals\u003e.coro() running at /usr/local/lib/python3.11/site-packages/starlette/middleware/base.py:144\u003e cb=[TaskGroup._spawn.\u003clocals\u003e.task_done() at /usr/local/lib/python3.11/site-packages/anyio/_backends/_asyncio.py:821]\u003e\n\n\n\nDuring handling of the above exception, another exception occurred:\n\n\n\nTraceback (most recent call last):\n\n\n  File \"/usr/local/lib/python3.11/site-packages/langgraph/pregel/main.py\", line 3407, in astream\n    async for _ in runner.atick(\n\n\n  File \"/usr/local/lib/python3.11/site-packages/langgraph/pregel/_runner.py\", line 396, in atick\n    await arun_with_retry(\n\n\n  File \"/usr/local/lib/python3.11/site-packages/langgraph/pregel/_retry.py\", line 703, in arun_with_retry\n    async for _ in task.proc.astream(task.input, config):\n\n\n  File \"/usr/local/lib/python3.11/site-packages/langgraph/_internal/_runnable.py\", line 873, in astream\n    await run_manager.on_chain_error(e)\n\n\n  File \"/usr/local/lib/python3.11/site-packages/langchain_core/callbacks/manager.py\", line 245, in wrapped\n    return await asyncio.shield(task)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^\n\n\nasyncio.exceptions.CancelledError: Cancelled via cancel scope 7efd46b3a510 by \u003cTask pending name='starlette.middleware.base.BaseHTTPMiddleware.__call__.\u003clocals\u003e.call_next.\u003clocals\u003e.coro' coro=\u003cBaseHTTPMiddleware.__call__.\u003clocals\u003e.call_next.\u003clocals\u003e.coro() running at /usr/local/lib/python3.11/site-packages/starlette/middleware/base.py:144\u003e cb=[TaskGroup._spawn.\u003clocals\u003e.task_done() at /usr/local/lib/python3.11/site-packages/anyio/_backends/_asyncio.py:821]\u003e\n\n\n\nDuring handling of the above exception, another exception occurred:\n\n\n\nTraceback (most recent call last):\n\n\n  File \"/usr/local/lib/python3.11/site-packages/langgraph/pregel/main.py\", line 3320, in astream\n    async with AsyncPregelLoop(\n\n\n  File \"/usr/local/lib/python3.11/site-packages/langgraph/pregel/_loop.py\", line 1949, in __aexit__\n    return await exit_task\n           ^^^^^^^^^^^^^^^\n\n\n  File \"/usr/local/lib/python3.11/contextlib.py\", line 698, in __aexit__\n    async def __aexit__(self, *exc_details):\n\n\nasyncio.exceptions.CancelledError: (\"Cancelled via cancel scope 7efd46b3a510 by \u003cTask pending name='starlette.middleware.base.BaseHTTPMiddleware.__call__.\u003clocals\u003e.call_next.\u003clocals\u003e.coro' coro=\u003cBaseHTTPMiddleware.__call__.\u003clocals\u003e.call_next.\u003clocals\u003e.coro() running at /usr/local/lib/python3.11/site-packages/starlette/middleware/base.py:144\u003e cb=[TaskGroup._spawn.\u003clocals\u003e.task_done() at /usr/local/lib/python3.11/site-packages/anyio/_backends/_asyncio.py:821]\u003e\", \u003cTask cancelled name='Task-77733' coro=\u003cAsyncExitStack.__aexit__() done, defined at /usr/local/lib/python3.11/contextlib.py:698\u003e\u003e)\n\n\n\nDuring handling of the above exception, another exception occurred:\n\n\n\nTraceback (most recent call last):\n\n\n  File \"/usr/local/lib/python3.11/site-packages/langgraph/_internal/_runnable.py\", line 867, in astream\n    output = await asyncio.create_task(\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^\n\n\n  File \"/usr/local/lib/python3.11/site-packages/langgraph/_internal/_runnable.py\", line 932, in _consume_aiter\n    async for chunk in it:\n\n\n  File \"/usr/local/lib/python3.11/site-packages/langchain_core/tracers/event_stream.py\", line 199, in tap_output_aiter\n    first = await anext(output, sentinel)\n            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n\n\n  File \"/usr/local/lib/python3.11/site-packages/langchain_core/runnables/base.py\", line 1767, in atransform\n    async for ichunk in input:\n\n\n  File \"/usr/local/lib/python3.11/site-packages/langgraph/pregel/main.py\", line 3468, in astream\n    await asyncio.shield(run_manager.on_chain_error(e))\n\n\nasyncio.exceptions.CancelledError: Cancelled via cancel scope 7efd46b3a510 by \u003cTask pending name='starlette.middleware.base.BaseHTTPMiddleware.__call__.\u003clocals\u003e.call_next.\u003clocals\u003e.coro' coro=\u003cBaseHTTPMiddleware.__call__.\u003clocals\u003e.call_next.\u003clocals\u003e.coro() running at /usr/local/lib/python3.11/site-packages/starlette/middleware/base.py:144\u003e cb=[TaskGroup._spawn.\u003clocals\u003e.task_done() at /usr/local/lib/python3.11/site-packages/anyio/_backends/_asyncio.py:821]\u003e",
+      "feedback_stats": null,
+      "inputs": {
+        "_reflection_result": null,
+        "compaction_count": 0,
+        "current_project_id": "6bef011c-7bca-4174-97e2-33b83e0cfd5c",
+        "error_count": 0,
+        "intent": "research",
+        "intent_confidence": 0.95,
+        "last_error": "",
+        "last_error_info": {},
+        "messages": [
+          {
+            "additional_kwargs": {},
+            "content": "Add arXiv 2401.12345 to project My Project",
+            "id": "0d73dc2d-af2e-4d47-af4f-efcfad697ffb",
+            "response_metadata": {},
+            "type": "human"
+          },
+          {
+            "additional_kwargs": {},
+            "content": "Add arXiv 2401.12345 to project My Project",
+            "id": "dc0f3966-95f1-4398-9f06-7faa506fbf3d",
+            "response_metadata": {},
+            "type": "human"
+          },
+          {
+            "additional_kwargs": {},
+            "content": "Add arXiv 2401.12345 to project My Project",
+            "id": "92c8d550-44ed-4482-8765-52d8aa612ed2",
+            "response_metadata": {},
+            "type": "human"
+          }
+        ],
+        "model": "model-router",
+        "page_context": {
+          "label": null,
+          "metadata": null,
+          "project_id": "6bef011c-7bca-4174-97e2-33b83e0cfd5c",
+          "project_name": "Cyber Agents",
+          "type": "project"
+        },
+        "pending_confirmation": {},
+        "plan": [],
+        "reflection_count": 0,
+        "retrieved_contexts": [],
+        "thread_id": "37d8b159-1708-43ce-a3bc-a1eb9aff1c7b",
+        "tool_executions": [],
+        "tool_loop_count": 0,
+        "user_confirmed": false,
+        "user_id": "87d4b23a-dc89-4c9a-817e-e9ca9e42fd2a",
+        "user_memories": [
+          {
+            "key": "d60eb47ea083",
+            "score": 1,
+            "value": {
+              "created_at": "2026-05-27T06:09:41.833436+00:00",
+              "intent": "research",
+              "query": "Add arXiv 2401.12345 to project My Project",
+              "thread_id": "ee5bcbad-2d9f-4311-b6e6-346d85923e5f",
+              "tools_used": [
+                "list_projects"
+              ],
+              "turn_index": 2
+            }
+          },
+          {
+            "key": "a00f3e229453",
+            "score": 0.4241381128331333,
+            "value": {
+              "created_at": "2026-05-27T05:49:09.541568+00:00",
+              "intent": "research",
+              "query": "can you add this paper to this project",
+              "thread_id": "ba2b907a-aed0-449e-b105-228253fe2b52",
+              "tools_used": [],
+              "turn_index": 4
+            }
+          },
+          {
+            "key": "725d8affc228",
+            "score": 0.24068534520137574,
+            "value": {
+              "created_at": "2026-05-26T23:58:59.333185+00:00",
+              "intent": "research",
+              "query": "\"find papers on transformer architectures\"",
+              "thread_id": "53493dfe-85f2-4e23-b1e8-b685b9410975",
+              "tools_used": [
+                "search_arxiv"
+              ],
+              "turn_index": 2
+            }
+          },
+          {
+            "key": "53060292ebc2",
+            "score": 0.21611902183728293,
+            "value": {
+              "created_at": "2026-05-26T21:42:41.839485+00:00",
+              "intent": "research",
+              "query": "Walk me through the citations supporting about rag",
+              "thread_id": "79de7f03-3bbb-42be-8435-7144085a0297",
+              "tools_used": [
+                "search_arxiv",
+                "search_arxiv"
+              ],
+              "turn_index": 1
+            }
+          },
+          {
+            "key": "fd2b1b626217",
+            "score": 0.19157587971625056,
+            "value": {
+              "created_at": "2026-05-26T00:35:53.654141+00:00",
+              "intent": "research",
+              "query": "what is the best paper about attention",
+              "thread_id": "9730637c-4c0d-4b2a-9211-68632fbc4008",
+              "tools_used": [
+                "search_arxiv"
+              ],
+              "turn_index": 1
+            }
+          }
+        ]
+      },
+      "name": "research_subgraph",
+      "outputs": null,
+      "parent_run_id": "019e69f4-92a8-73c1-9c84-ea6fe28893ee",
+      "run_id": "019e69f4-a400-7261-a3c8-bd35ee43c517",
+      "run_type": "chain",
+      "start_time": "2026-05-27T15:01:40.992305Z",
+      "status": "error",
+      "tags": [
+        "graph:step:2"
+      ],
+      "token_usage": {
+        "completion_tokens": 6,
+        "prompt_tokens": 220,
+        "total_tokens": 2429
+      },
+      "trace_id": "019e69f4-92a8-73c1-9c84-ea6fe28893ee"
+    },
+    {
+      "costs": null,
+      "custom_metadata": {
+        "LANGSMITH_PROJECT": "rag-agent-dev",
+        "LANGSMITH_TRACING": "true",
+        "checkpoint_ns": "research_subgraph:b5f1649d-fda7-3eab-27ca-661bc02e61e4",
+        "langgraph_checkpoint_ns": "research_subgraph:b5f1649d-fda7-3eab-27ca-661bc02e61e4",
+        "langgraph_node": "research_subgraph",
+        "langgraph_path": [
+          "__pregel_pull",
+          "research_subgraph"
+        ],
+        "langgraph_step": 2,
+        "langgraph_triggers": [
+          "branch:to:research_subgraph"
+        ],
+        "ls_integration": "langgraph",
+        "ls_run_depth": 2,
+        "thread_id": "37d8b159-1708-43ce-a3bc-a1eb9aff1c7b"
+      },
+      "duration_ms": 25276,
+      "end_time": "2026-05-27T15:02:06.271609Z",
+      "error": "CancelledError(\"Cancelled via cancel scope 7efd46b3a510 by \u003cTask pending name='starlette.middleware.base.BaseHTTPMiddleware.__call__.\u003clocals\u003e.call_next.\u003clocals\u003e.coro' coro=\u003cBaseHTTPMiddleware.__call__.\u003clocals\u003e.call_next.\u003clocals\u003e.coro() running at /usr/local/lib/python3.11/site-packages/starlette/middleware/base.py:144\u003e cb=[TaskGroup._spawn.\u003clocals\u003e.task_done() at /usr/local/lib/python3.11/site-packages/anyio/_backends/_asyncio.py:821]\u003e\", \u003cTask cancelled name='Task-77733' coro=\u003cAsyncExitStack.__aexit__() done, defined at /usr/local/lib/python3.11/contextlib.py:698\u003e\u003e)Traceback (most recent call last):\n\n\n  File \"/usr/local/lib/python3.11/asyncio/tasks.py\", line 476, in wait_for\n    await waiter\n\n\nasyncio.exceptions.CancelledError: Cancelled via cancel scope 7efd46b3a510 by \u003cTask pending name='starlette.middleware.base.BaseHTTPMiddleware.__call__.\u003clocals\u003e.call_next.\u003clocals\u003e.coro' coro=\u003cBaseHTTPMiddleware.__call__.\u003clocals\u003e.call_next.\u003clocals\u003e.coro() running at /usr/local/lib/python3.11/site-packages/starlette/middleware/base.py:144\u003e cb=[TaskGroup._spawn.\u003clocals\u003e.task_done() at /usr/local/lib/python3.11/site-packages/anyio/_backends/_asyncio.py:821]\u003e\n\n\n\nDuring handling of the above exception, another exception occurred:\n\n\n\nTraceback (most recent call last):\n\n\n  File \"/usr/local/lib/python3.11/site-packages/langchain_core/runnables/base.py\", line 3375, in ainvoke\n    input_ = await coro_with_context(part(), context, create_task=True)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n\n\n  File \"/usr/local/lib/python3.11/site-packages/langchain_core/runnables/base.py\", line 5894, in ainvoke\n    return await self.bound.ainvoke(\n           ^^^^^^^^^^^^^^^^^^^^^^^^^\n\n\n  File \"/usr/local/lib/python3.11/site-packages/langchain_core/language_models/chat_models.py\", line 497, in ainvoke\n    llm_result = await self.agenerate_prompt(\n                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n\n\n  File \"/usr/local/lib/python3.11/site-packages/langchain_core/language_models/chat_models.py\", line 1834, in agenerate_prompt\n    return await self.agenerate(\n           ^^^^^^^^^^^^^^^^^^^^^\n\n\n  File \"/usr/local/lib/python3.11/site-packages/langchain_core/language_models/chat_models.py\", line 1754, in agenerate\n    results = await asyncio.gather(\n              ^^^^^^^^^^^^^^^^^^^^^\n\n\n  File \"/usr/local/lib/python3.11/site-packages/langchain_core/language_models/chat_models.py\", line 2084, in _agenerate_with_cache\n    async for chunk in self._astream(messages, stop=stop, **kwargs):\n\n\n  File \"/usr/local/lib/python3.11/site-packages/langchain_openai/chat_models/azure.py\", line 835, in _astream\n    async for chunk in super()._astream(*args, **kwargs):\n\n\n  File \"/usr/local/lib/python3.11/site-packages/langchain_openai/chat_models/base.py\", line 1838, in _astream\n    async for chunk in _astream_with_chunk_timeout(\n\n\n  File \"/usr/local/lib/python3.11/site-packages/langchain_openai/chat_models/_client_utils.py\", line 652, in _astream_with_chunk_timeout\n    chunk = await asyncio.wait_for(it.__anext__(), timeout=timeout)\n            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n\n\n  File \"/usr/local/lib/python3.11/asyncio/tasks.py\", line 485, in wait_for\n    await _cancel_and_wait(fut, loop=loop)\n\n\n  File \"/usr/local/lib/python3.11/asyncio/tasks.py\", line 562, in _cancel_and_wait\n    await waiter\n\n\nasyncio.exceptions.CancelledError: Cancelled via cancel scope 7efd46b3a510 by \u003cTask pending name='starlette.middleware.base.BaseHTTPMiddleware.__call__.\u003clocals\u003e.call_next.\u003clocals\u003e.coro' coro=\u003cBaseHTTPMiddleware.__call__.\u003clocals\u003e.call_next.\u003clocals\u003e.coro() running at /usr/local/lib/python3.11/site-packages/starlette/middleware/base.py:144\u003e cb=[TaskGroup._spawn.\u003clocals\u003e.task_done() at /usr/local/lib/python3.11/site-packages/anyio/_backends/_asyncio.py:821]\u003e\n\n\n\nDuring handling of the above exception, another exception occurred:\n\n\n\nTraceback (most recent call last):\n\n\n  File \"/usr/local/lib/python3.11/site-packages/langgraph/_internal/_runnable.py\", line 867, in astream\n    output = await asyncio.create_task(\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^\n\n\n  File \"/usr/local/lib/python3.11/site-packages/langgraph/_internal/_runnable.py\", line 932, in _consume_aiter\n    async for chunk in it:\n\n\n  File \"/usr/local/lib/python3.11/site-packages/langchain_core/tracers/event_stream.py\", line 199, in tap_output_aiter\n    first = await anext(output, sentinel)\n            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n\n\n  File \"/usr/local/lib/python3.11/site-packages/langchain_core/runnables/base.py\", line 1767, in atransform\n    async for ichunk in input:\n\n\n  File \"/usr/local/lib/python3.11/site-packages/langchain_core/runnables/base.py\", line 1171, in astream\n    yield await self.ainvoke(input, config, **kwargs)\n          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n\n\n  File \"/usr/local/lib/python3.11/site-packages/langgraph/_internal/_runnable.py\", line 501, in ainvoke\n    ret = await self.afunc(*args, **kwargs)\n          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n\n\n  File \"/app/src/services/agent/planner.py\", line 235, in planner_node\n    plan = await generate_plan(query, tool_names, page_context)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n\n\n  File \"/app/src/services/agent/planner.py\", line 153, in generate_plan\n    result = await structured_llm.ainvoke([HumanMessage(content=prompt)])\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n\n\n  File \"/usr/local/lib/python3.11/site-packages/langchain_core/runnables/base.py\", line 3378, in ainvoke\n    await run_manager.on_chain_error(e)\n\n\n  File \"/usr/local/lib/python3.11/site-packages/langchain_core/callbacks/manager.py\", line 245, in wrapped\n    return await asyncio.shield(task)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^\n\n\nasyncio.exceptions.CancelledError: Cancelled via cancel scope 7efd46b3a510 by \u003cTask pending name='starlette.middleware.base.BaseHTTPMiddleware.__call__.\u003clocals\u003e.call_next.\u003clocals\u003e.coro' coro=\u003cBaseHTTPMiddleware.__call__.\u003clocals\u003e.call_next.\u003clocals\u003e.coro() running at /usr/local/lib/python3.11/site-packages/starlette/middleware/base.py:144\u003e cb=[TaskGroup._spawn.\u003clocals\u003e.task_done() at /usr/local/lib/python3.11/site-packages/anyio/_backends/_asyncio.py:821]\u003e\n\n\n\nDuring handling of the above exception, another exception occurred:\n\n\n\nTraceback (most recent call last):\n\n\n  File \"/usr/local/lib/python3.11/site-packages/langgraph/pregel/main.py\", line 3407, in astream\n    async for _ in runner.atick(\n\n\n  File \"/usr/local/lib/python3.11/site-packages/langgraph/pregel/_runner.py\", line 396, in atick\n    await arun_with_retry(\n\n\n  File \"/usr/local/lib/python3.11/site-packages/langgraph/pregel/_retry.py\", line 703, in arun_with_retry\n    async for _ in task.proc.astream(task.input, config):\n\n\n  File \"/usr/local/lib/python3.11/site-packages/langgraph/_internal/_runnable.py\", line 873, in astream\n    await run_manager.on_chain_error(e)\n\n\n  File \"/usr/local/lib/python3.11/site-packages/langchain_core/callbacks/manager.py\", line 245, in wrapped\n    return await asyncio.shield(task)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^\n\n\nasyncio.exceptions.CancelledError: Cancelled via cancel scope 7efd46b3a510 by \u003cTask pending name='starlette.middleware.base.BaseHTTPMiddleware.__call__.\u003clocals\u003e.call_next.\u003clocals\u003e.coro' coro=\u003cBaseHTTPMiddleware.__call__.\u003clocals\u003e.call_next.\u003clocals\u003e.coro() running at /usr/local/lib/python3.11/site-packages/starlette/middleware/base.py:144\u003e cb=[TaskGroup._spawn.\u003clocals\u003e.task_done() at /usr/local/lib/python3.11/site-packages/anyio/_backends/_asyncio.py:821]\u003e\n\n\n\nDuring handling of the above exception, another exception occurred:\n\n\n\nTraceback (most recent call last):\n\n\n  File \"/usr/local/lib/python3.11/site-packages/langgraph/pregel/main.py\", line 3320, in astream\n    async with AsyncPregelLoop(\n\n\n  File \"/usr/local/lib/python3.11/site-packages/langgraph/pregel/_loop.py\", line 1949, in __aexit__\n    return await exit_task\n           ^^^^^^^^^^^^^^^\n\n\n  File \"/usr/local/lib/python3.11/contextlib.py\", line 698, in __aexit__\n    async def __aexit__(self, *exc_details):\n\n\nasyncio.exceptions.CancelledError: (\"Cancelled via cancel scope 7efd46b3a510 by \u003cTask pending name='starlette.middleware.base.BaseHTTPMiddleware.__call__.\u003clocals\u003e.call_next.\u003clocals\u003e.coro' coro=\u003cBaseHTTPMiddleware.__call__.\u003clocals\u003e.call_next.\u003clocals\u003e.coro() running at /usr/local/lib/python3.11/site-packages/starlette/middleware/base.py:144\u003e cb=[TaskGroup._spawn.\u003clocals\u003e.task_done() at /usr/local/lib/python3.11/site-packages/anyio/_backends/_asyncio.py:821]\u003e\", \u003cTask cancelled name='Task-77733' coro=\u003cAsyncExitStack.__aexit__() done, defined at /usr/local/lib/python3.11/contextlib.py:698\u003e\u003e)",
+      "feedback_stats": null,
+      "inputs": {
+        "_reflection_result": null,
+        "compaction_count": 0,
+        "current_project_id": "6bef011c-7bca-4174-97e2-33b83e0cfd5c",
+        "error_count": 0,
+        "intent": "research",
+        "intent_confidence": 0.95,
+        "last_error": "",
+        "last_error_info": {},
+        "messages": [
+          {
+            "additional_kwargs": {},
+            "content": "Add arXiv 2401.12345 to project My Project",
+            "id": "0d73dc2d-af2e-4d47-af4f-efcfad697ffb",
+            "response_metadata": {},
+            "type": "human"
+          },
+          {
+            "additional_kwargs": {},
+            "content": "Add arXiv 2401.12345 to project My Project",
+            "id": "dc0f3966-95f1-4398-9f06-7faa506fbf3d",
+            "response_metadata": {},
+            "type": "human"
+          },
+          {
+            "additional_kwargs": {},
+            "content": "Add arXiv 2401.12345 to project My Project",
+            "id": "92c8d550-44ed-4482-8765-52d8aa612ed2",
+            "response_metadata": {},
+            "type": "human"
+          }
+        ],
+        "model": "model-router",
+        "page_context": {
+          "label": null,
+          "metadata": null,
+          "project_id": "6bef011c-7bca-4174-97e2-33b83e0cfd5c",
+          "project_name": "Cyber Agents",
+          "type": "project"
+        },
+        "pending_confirmation": {},
+        "plan": [],
+        "reflection_count": 0,
+        "retrieved_contexts": [],
+        "thread_id": "37d8b159-1708-43ce-a3bc-a1eb9aff1c7b",
+        "tool_executions": [],
+        "tool_loop_count": 0,
+        "user_confirmed": false,
+        "user_id": "87d4b23a-dc89-4c9a-817e-e9ca9e42fd2a",
+        "user_memories": [
+          {
+            "key": "d60eb47ea083",
+            "score": 1,
+            "value": {
+              "created_at": "2026-05-27T06:09:41.833436+00:00",
+              "intent": "research",
+              "query": "Add arXiv 2401.12345 to project My Project",
+              "thread_id": "ee5bcbad-2d9f-4311-b6e6-346d85923e5f",
+              "tools_used": [
+                "list_projects"
+              ],
+              "turn_index": 2
+            }
+          },
+          {
+            "key": "a00f3e229453",
+            "score": 0.4241381128331333,
+            "value": {
+              "created_at": "2026-05-27T05:49:09.541568+00:00",
+              "intent": "research",
+              "query": "can you add this paper to this project",
+              "thread_id": "ba2b907a-aed0-449e-b105-228253fe2b52",
+              "tools_used": [],
+              "turn_index": 4
+            }
+          },
+          {
+            "key": "725d8affc228",
+            "score": 0.24068534520137574,
+            "value": {
+              "created_at": "2026-05-26T23:58:59.333185+00:00",
+              "intent": "research",
+              "query": "\"find papers on transformer architectures\"",
+              "thread_id": "53493dfe-85f2-4e23-b1e8-b685b9410975",
+              "tools_used": [
+                "search_arxiv"
+              ],
+              "turn_index": 2
+            }
+          },
+          {
+            "key": "53060292ebc2",
+            "score": 0.21611902183728293,
+            "value": {
+              "created_at": "2026-05-26T21:42:41.839485+00:00",
+              "intent": "research",
+              "query": "Walk me through the citations supporting about rag",
+              "thread_id": "79de7f03-3bbb-42be-8435-7144085a0297",
+              "tools_used": [
+                "search_arxiv",
+                "search_arxiv"
+              ],
+              "turn_index": 1
+            }
+          },
+          {
+            "key": "fd2b1b626217",
+            "score": 0.19157587971625056,
+            "value": {
+              "created_at": "2026-05-26T00:35:53.654141+00:00",
+              "intent": "research",
+              "query": "what is the best paper about attention",
+              "thread_id": "9730637c-4c0d-4b2a-9211-68632fbc4008",
+              "tools_used": [
+                "search_arxiv"
+              ],
+              "turn_index": 1
+            }
+          }
+        ]
+      },
+      "name": "LangGraph",
+      "outputs": null,
+      "parent_run_id": "019e69f4-a400-7261-a3c8-bd35ee43c517",
+      "run_id": "019e69f4-a403-7a51-a407-7b77581b5b92",
+      "run_type": "chain",
+      "start_time": "2026-05-27T15:01:40.995404Z",
+      "status": "error",
+      "tags": [
+        "seq:step:1"
+      ],
+      "token_usage": {
+        "completion_tokens": 6,
+        "prompt_tokens": 220,
+        "total_tokens": 2429
+      },
+      "trace_id": "019e69f4-92a8-73c1-9c84-ea6fe28893ee"
+    },
+    {
+      "costs": null,
+      "custom_metadata": {
+        "LANGSMITH_PROJECT": "rag-agent-dev",
+        "LANGSMITH_TRACING": "true",
+        "checkpoint_ns": "research_subgraph:b5f1649d-fda7-3eab-27ca-661bc02e61e4",
+        "langgraph_checkpoint_ns": "research_subgraph:b5f1649d-fda7-3eab-27ca-661bc02e61e4|research_planner_node:1ba9e982-1a72-af55-0490-fcbab8939f3c",
+        "langgraph_node": "research_planner_node",
+        "langgraph_path": [
+          "__pregel_pull",
+          "research_planner_node"
+        ],
+        "langgraph_step": 1,
+        "langgraph_triggers": [
+          "branch:to:research_planner_node"
+        ],
+        "ls_integration": "langgraph",
+        "ls_run_depth": 3,
+        "thread_id": "37d8b159-1708-43ce-a3bc-a1eb9aff1c7b"
+      },
+      "duration_ms": 24906,
+      "end_time": "2026-05-27T15:02:06.262602Z",
+      "error": "CancelledError(\"Cancelled via cancel scope 7efd46b3a510 by \u003cTask pending name='starlette.middleware.base.BaseHTTPMiddleware.__call__.\u003clocals\u003e.call_next.\u003clocals\u003e.coro' coro=\u003cBaseHTTPMiddleware.__call__.\u003clocals\u003e.call_next.\u003clocals\u003e.coro() running at /usr/local/lib/python3.11/site-packages/starlette/middleware/base.py:144\u003e cb=[TaskGroup._spawn.\u003clocals\u003e.task_done() at /usr/local/lib/python3.11/site-packages/anyio/_backends/_asyncio.py:821]\u003e\")Traceback (most recent call last):\n\n\n  File \"/usr/local/lib/python3.11/asyncio/tasks.py\", line 476, in wait_for\n    await waiter\n\n\nasyncio.exceptions.CancelledError: Cancelled via cancel scope 7efd46b3a510 by \u003cTask pending name='starlette.middleware.base.BaseHTTPMiddleware.__call__.\u003clocals\u003e.call_next.\u003clocals\u003e.coro' coro=\u003cBaseHTTPMiddleware.__call__.\u003clocals\u003e.call_next.\u003clocals\u003e.coro() running at /usr/local/lib/python3.11/site-packages/starlette/middleware/base.py:144\u003e cb=[TaskGroup._spawn.\u003clocals\u003e.task_done() at /usr/local/lib/python3.11/site-packages/anyio/_backends/_asyncio.py:821]\u003e\n\n\n\nDuring handling of the above exception, another exception occurred:\n\n\n\nTraceback (most recent call last):\n\n\n  File \"/usr/local/lib/python3.11/site-packages/langchain_core/runnables/base.py\", line 3375, in ainvoke\n    input_ = await coro_with_context(part(), context, create_task=True)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n\n\n  File \"/usr/local/lib/python3.11/site-packages/langchain_core/runnables/base.py\", line 5894, in ainvoke\n    return await self.bound.ainvoke(\n           ^^^^^^^^^^^^^^^^^^^^^^^^^\n\n\n  File \"/usr/local/lib/python3.11/site-packages/langchain_core/language_models/chat_models.py\", line 497, in ainvoke\n    llm_result = await self.agenerate_prompt(\n                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n\n\n  File \"/usr/local/lib/python3.11/site-packages/langchain_core/language_models/chat_models.py\", line 1834, in agenerate_prompt\n    return await self.agenerate(\n           ^^^^^^^^^^^^^^^^^^^^^\n\n\n  File \"/usr/local/lib/python3.11/site-packages/langchain_core/language_models/chat_models.py\", line 1754, in agenerate\n    results = await asyncio.gather(\n              ^^^^^^^^^^^^^^^^^^^^^\n\n\n  File \"/usr/local/lib/python3.11/site-packages/langchain_core/language_models/chat_models.py\", line 2084, in _agenerate_with_cache\n    async for chunk in self._astream(messages, stop=stop, **kwargs):\n\n\n  File \"/usr/local/lib/python3.11/site-packages/langchain_openai/chat_models/azure.py\", line 835, in _astream\n    async for chunk in super()._astream(*args, **kwargs):\n\n\n  File \"/usr/local/lib/python3.11/site-packages/langchain_openai/chat_models/base.py\", line 1838, in _astream\n    async for chunk in _astream_with_chunk_timeout(\n\n\n  File \"/usr/local/lib/python3.11/site-packages/langchain_openai/chat_models/_client_utils.py\", line 652, in _astream_with_chunk_timeout\n    chunk = await asyncio.wait_for(it.__anext__(), timeout=timeout)\n            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n\n\n  File \"/usr/local/lib/python3.11/asyncio/tasks.py\", line 485, in wait_for\n    await _cancel_and_wait(fut, loop=loop)\n\n\n  File \"/usr/local/lib/python3.11/asyncio/tasks.py\", line 562, in _cancel_and_wait\n    await waiter\n\n\nasyncio.exceptions.CancelledError: Cancelled via cancel scope 7efd46b3a510 by \u003cTask pending name='starlette.middleware.base.BaseHTTPMiddleware.__call__.\u003clocals\u003e.call_next.\u003clocals\u003e.coro' coro=\u003cBaseHTTPMiddleware.__call__.\u003clocals\u003e.call_next.\u003clocals\u003e.coro() running at /usr/local/lib/python3.11/site-packages/starlette/middleware/base.py:144\u003e cb=[TaskGroup._spawn.\u003clocals\u003e.task_done() at /usr/local/lib/python3.11/site-packages/anyio/_backends/_asyncio.py:821]\u003e\n\n\n\nDuring handling of the above exception, another exception occurred:\n\n\n\nTraceback (most recent call last):\n\n\n  File \"/usr/local/lib/python3.11/site-packages/langgraph/_internal/_runnable.py\", line 867, in astream\n    output = await asyncio.create_task(\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^\n\n\n  File \"/usr/local/lib/python3.11/site-packages/langgraph/_internal/_runnable.py\", line 932, in _consume_aiter\n    async for chunk in it:\n\n\n  File \"/usr/local/lib/python3.11/site-packages/langchain_core/tracers/event_stream.py\", line 199, in tap_output_aiter\n    first = await anext(output, sentinel)\n            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n\n\n  File \"/usr/local/lib/python3.11/site-packages/langchain_core/runnables/base.py\", line 1767, in atransform\n    async for ichunk in input:\n\n\n  File \"/usr/local/lib/python3.11/site-packages/langchain_core/runnables/base.py\", line 1171, in astream\n    yield await self.ainvoke(input, config, **kwargs)\n          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n\n\n  File \"/usr/local/lib/python3.11/site-packages/langgraph/_internal/_runnable.py\", line 501, in ainvoke\n    ret = await self.afunc(*args, **kwargs)\n          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n\n\n  File \"/app/src/services/agent/planner.py\", line 235, in planner_node\n    plan = await generate_plan(query, tool_names, page_context)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n\n\n  File \"/app/src/services/agent/planner.py\", line 153, in generate_plan\n    result = await structured_llm.ainvoke([HumanMessage(content=prompt)])\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n\n\n  File \"/usr/local/lib/python3.11/site-packages/langchain_core/runnables/base.py\", line 3378, in ainvoke\n    await run_manager.on_chain_error(e)\n\n\n  File \"/usr/local/lib/python3.11/site-packages/langchain_core/callbacks/manager.py\", line 245, in wrapped\n    return await asyncio.shield(task)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^\n\n\nasyncio.exceptions.CancelledError: Cancelled via cancel scope 7efd46b3a510 by \u003cTask pending name='starlette.middleware.base.BaseHTTPMiddleware.__call__.\u003clocals\u003e.call_next.\u003clocals\u003e.coro' coro=\u003cBaseHTTPMiddleware.__call__.\u003clocals\u003e.call_next.\u003clocals\u003e.coro() running at /usr/local/lib/python3.11/site-packages/starlette/middleware/base.py:144\u003e cb=[TaskGroup._spawn.\u003clocals\u003e.task_done() at /usr/local/lib/python3.11/site-packages/anyio/_backends/_asyncio.py:821]\u003e",
+      "feedback_stats": null,
+      "inputs": {
+        "_reflection_result": null,
+        "compaction_count": 0,
+        "current_project_id": "6bef011c-7bca-4174-97e2-33b83e0cfd5c",
+        "error_count": 0,
+        "intent": "research",
+        "intent_confidence": 0.95,
+        "last_error": "",
+        "last_error_info": {},
+        "messages": [
+          {
+            "additional_kwargs": {},
+            "content": "Add arXiv 2401.12345 to project My Project",
+            "id": "0d73dc2d-af2e-4d47-af4f-efcfad697ffb",
+            "response_metadata": {},
+            "type": "human"
+          },
+          {
+            "additional_kwargs": {},
+            "content": "Add arXiv 2401.12345 to project My Project",
+            "id": "dc0f3966-95f1-4398-9f06-7faa506fbf3d",
+            "response_metadata": {},
+            "type": "human"
+          },
+          {
+            "additional_kwargs": {},
+            "content": "Add arXiv 2401.12345 to project My Project",
+            "id": "92c8d550-44ed-4482-8765-52d8aa612ed2",
+            "response_metadata": {},
+            "type": "human"
+          }
+        ],
+        "model": "model-router",
+        "page_context": {
+          "label": null,
+          "metadata": null,
+          "project_id": "6bef011c-7bca-4174-97e2-33b83e0cfd5c",
+          "project_name": "Cyber Agents",
+          "type": "project"
+        },
+        "pending_confirmation": {},
+        "plan": [],
+        "reflection_count": 0,
+        "retrieved_contexts": [],
+        "thread_id": "37d8b159-1708-43ce-a3bc-a1eb9aff1c7b",
+        "tool_executions": [],
+        "tool_loop_count": 0,
+        "user_confirmed": false,
+        "user_id": "87d4b23a-dc89-4c9a-817e-e9ca9e42fd2a",
+        "user_memories": [
+          {
+            "key": "d60eb47ea083",
+            "score": 1,
+            "value": {
+              "created_at": "2026-05-27T06:09:41.833436+00:00",
+              "intent": "research",
+              "query": "Add arXiv 2401.12345 to project My Project",
+              "thread_id": "ee5bcbad-2d9f-4311-b6e6-346d85923e5f",
+              "tools_used": [
+                "list_projects"
+              ],
+              "turn_index": 2
+            }
+          },
+          {
+            "key": "a00f3e229453",
+            "score": 0.4241381128331333,
+            "value": {
+              "created_at": "2026-05-27T05:49:09.541568+00:00",
+              "intent": "research",
+              "query": "can you add this paper to this project",
+              "thread_id": "ba2b907a-aed0-449e-b105-228253fe2b52",
+              "tools_used": [],
+              "turn_index": 4
+            }
+          },
+          {
+            "key": "725d8affc228",
+            "score": 0.24068534520137574,
+            "value": {
+              "created_at": "2026-05-26T23:58:59.333185+00:00",
+              "intent": "research",
+              "query": "\"find papers on transformer architectures\"",
+              "thread_id": "53493dfe-85f2-4e23-b1e8-b685b9410975",
+              "tools_used": [
+                "search_arxiv"
+              ],
+              "turn_index": 2
+            }
+          },
+          {
+            "key": "53060292ebc2",
+            "score": 0.21611902183728293,
+            "value": {
+              "created_at": "2026-05-26T21:42:41.839485+00:00",
+              "intent": "research",
+              "query": "Walk me through the citations supporting about rag",
+              "thread_id": "79de7f03-3bbb-42be-8435-7144085a0297",
+              "tools_used": [
+                "search_arxiv",
+                "search_arxiv"
+              ],
+              "turn_index": 1
+            }
+          },
+          {
+            "key": "fd2b1b626217",
+            "score": 0.19157587971625056,
+            "value": {
+              "created_at": "2026-05-26T00:35:53.654141+00:00",
+              "intent": "research",
+              "query": "what is the best paper about attention",
+              "thread_id": "9730637c-4c0d-4b2a-9211-68632fbc4008",
+              "tools_used": [
+                "search_arxiv"
+              ],
+              "turn_index": 1
+            }
+          }
+        ]
+      },
+      "name": "research_planner_node",
+      "outputs": null,
+      "parent_run_id": "019e69f4-a403-7a51-a407-7b77581b5b92",
+      "run_id": "019e69f4-a56b-7452-b85a-b92cdab6f42f",
+      "run_type": "chain",
+      "start_time": "2026-05-27T15:01:41.355747Z",
+      "status": "error",
+      "tags": [
+        "graph:step:1"
+      ],
+      "token_usage": {
+        "completion_tokens": 6,
+        "prompt_tokens": 220,
+        "total_tokens": 2429
+      },
+      "trace_id": "019e69f4-92a8-73c1-9c84-ea6fe28893ee"
+    },
+    {
+      "costs": null,
+      "custom_metadata": {
+        "LANGSMITH_PROJECT": "rag-agent-dev",
+        "LANGSMITH_TRACING": "true",
+        "checkpoint_ns": "research_subgraph:b5f1649d-fda7-3eab-27ca-661bc02e61e4",
+        "langgraph_checkpoint_ns": "research_subgraph:b5f1649d-fda7-3eab-27ca-661bc02e61e4|research_planner_node:1ba9e982-1a72-af55-0490-fcbab8939f3c",
+        "langgraph_node": "research_planner_node",
+        "langgraph_path": [
+          "__pregel_pull",
+          "research_planner_node"
+        ],
+        "langgraph_step": 1,
+        "langgraph_triggers": [
+          "branch:to:research_planner_node"
+        ],
+        "ls_integration": "langgraph",
+        "ls_run_depth": 4,
+        "thread_id": "37d8b159-1708-43ce-a3bc-a1eb9aff1c7b"
+      },
+      "duration_ms": 17062,
+      "end_time": "2026-05-27T15:01:58.466447Z",
+      "error": null,
+      "feedback_stats": null,
+      "inputs": {
+        "input": [
+          {
+            "additional_kwargs": {},
+            "content": "Estimate the number of tool calls needed to answer the following user query.\n\nAvailable tools: search_arxiv, ingest_arxiv_papers, search_documents, do_kb_retrieve, create_project, list_projects, add_document_to_project, list_project_documents\nPage context: {'type': 'project', 'project_id': '6bef011c-7bca-4174-97e2-33b83e0cfd5c', 'project_name': 'Cyber Agents', 'label': None, 'metadata': None}\n\nUser query: Add arXiv 2401.12345 to project My Project\n\nReturn only the estimated step_count (integer).",
+            "response_metadata": {},
+            "type": "human"
+          }
+        ]
+      },
+      "name": "RunnableSequence",
+      "outputs": {
+        "output": {
+          "step_count": 3
+        }
+      },
+      "parent_run_id": "019e69f4-a56b-7452-b85a-b92cdab6f42f",
+      "run_id": "019e69f4-a59c-7c33-ba45-361442b67692",
+      "run_type": "chain",
+      "start_time": "2026-05-27T15:01:41.404259Z",
+      "status": "success",
+      "tags": [
+        "seq:step:1"
+      ],
+      "token_usage": {
+        "completion_tokens": 6,
+        "prompt_tokens": 220,
+        "total_tokens": 2429
+      },
+      "trace_id": "019e69f4-92a8-73c1-9c84-ea6fe28893ee"
+    },
+    {
+      "costs": null,
+      "custom_metadata": {
+        "LANGSMITH_PROJECT": "rag-agent-dev",
+        "LANGSMITH_TRACING": "true",
+        "_type": "azure-openai-chat",
+        "azure_deployment": "model-router",
+        "checkpoint_ns": "research_subgraph:b5f1649d-fda7-3eab-27ca-661bc02e61e4",
+        "langgraph_checkpoint_ns": "research_subgraph:b5f1649d-fda7-3eab-27ca-661bc02e61e4|research_planner_node:1ba9e982-1a72-af55-0490-fcbab8939f3c",
+        "langgraph_node": "research_planner_node",
+        "langgraph_path": [
+          "__pregel_pull",
+          "research_planner_node"
+        ],
+        "langgraph_step": 1,
+        "langgraph_triggers": [
+          "branch:to:research_planner_node"
+        ],
+        "ls_integration": "langchain_chat_model",
+        "ls_max_tokens": 2048,
+        "ls_model_name": "model-router",
+        "ls_model_type": "chat",
+        "ls_provider": "azure",
+        "ls_run_depth": 5,
+        "ls_temperature": 0,
+        "max_completion_tokens": 2048,
+        "model": null,
+        "model_name": null,
+        "stop": null,
+        "stream": false,
+        "temperature": 0,
+        "thread_id": "37d8b159-1708-43ce-a3bc-a1eb9aff1c7b",
+        "usage_metadata": {
+          "input_token_details": {
+            "audio": 0,
+            "cache_read": 0
+          },
+          "input_tokens": 220,
+          "output_token_details": {
+            "audio": 0,
+            "reasoning": 2203
+          },
+          "output_tokens": 6,
+          "total_tokens": 2429
+        }
+      },
+      "duration_ms": 17044,
+      "end_time": "2026-05-27T15:01:58.454179Z",
+      "error": null,
+      "feedback_stats": null,
+      "inputs": {
+        "messages": [
+          [
+            {
+              "id": [
+                "langchain",
+                "schema",
+                "messages",
+                "HumanMessage"
+              ],
+              "kwargs": {
+                "content": "Estimate the number of tool calls needed to answer the following user query.\n\nAvailable tools: search_arxiv, ingest_arxiv_papers, search_documents, do_kb_retrieve, create_project, list_projects, add_document_to_project, list_project_documents\nPage context: {'type': 'project', 'project_id': '6bef011c-7bca-4174-97e2-33b83e0cfd5c', 'project_name': 'Cyber Agents', 'label': None, 'metadata': None}\n\nUser query: Add arXiv 2401.12345 to project My Project\n\nReturn only the estimated step_count (integer).",
+                "type": "human"
+              },
+              "lc": 1,
+              "type": "constructor"
+            }
+          ]
+        ]
+      },
+      "name": "AzureChatOpenAI",
+      "outputs": {
+        "generations": [
+          [
+            {
+              "generation_info": {
+                "finish_reason": "stop",
+                "id": "859ef941-c1ec-42bf-bcee-e6b422d3f83d",
+                "model_name": "grok-4-1-fast-reasoning",
+                "model_provider": "openai",
+                "system_fingerprint": "fp_39c5j0a324",
+                "token_usage": {
+                  "completion_tokens": 6,
+                  "completion_tokens_details": {
+                    "accepted_prediction_tokens": 0,
+                    "audio_tokens": 0,
+                    "reasoning_tokens": 2203,
+                    "rejected_prediction_tokens": 0
+                  },
+                  "cost_in_usd_ticks": 0,
+                  "num_sources_used": 0,
+                  "prompt_tokens": 220,
+                  "prompt_tokens_details": {
+                    "audio_tokens": 0,
+                    "cached_tokens": 0,
+                    "image_tokens": 0,
+                    "text_tokens": 220
+                  },
+                  "total_tokens": 2429
+                }
+              },
+              "message": {
+                "id": [
+                  "langchain",
+                  "schema",
+                  "messages",
+                  "AIMessage"
+                ],
+                "kwargs": {
+                  "additional_kwargs": {
+                    "parsed": {
+                      "id": [
+                        "src",
+                        "services",
+                        "agent",
+                        "planner",
+                        "ComplexityCheck"
+                      ],
+                      "lc": 1,
+                      "repr": "ComplexityCheck(step_count=3)",
+                      "type": "not_implemented"
+                    },
+                    "refusal": null
+                  },
+                  "content": " {\"step_count\":3}",
+                  "id": "lc_run--019e69f4-a5a1-79b2-a3e1-e8f5b749f6fe",
+                  "invalid_tool_calls": [],
+                  "response_metadata": {
+                    "finish_reason": "stop",
+                    "id": "859ef941-c1ec-42bf-bcee-e6b422d3f83d",
+                    "model_name": "grok-4-1-fast-reasoning",
+                    "model_provider": "openai",
+                    "system_fingerprint": "fp_39c5j0a324",
+                    "token_usage": {
+                      "completion_tokens": 6,
+                      "completion_tokens_details": {
+                        "accepted_prediction_tokens": 0,
+                        "audio_tokens": 0,
+                        "reasoning_tokens": 2203,
+                        "rejected_prediction_tokens": 0
+                      },
+                      "cost_in_usd_ticks": 0,
+                      "num_sources_used": 0,
+                      "prompt_tokens": 220,
+                      "prompt_tokens_details": {
+                        "audio_tokens": 0,
+                        "cached_tokens": 0,
+                        "image_tokens": 0,
+                        "text_tokens": 220
+                      },
+                      "total_tokens": 2429
+                    }
+                  },
+                  "tool_calls": [],
+                  "type": "ai",
+                  "usage_metadata": {
+                    "input_token_details": {
+                      "audio": 0,
+                      "cache_read": 0
+                    },
+                    "input_tokens": 220,
+                    "output_token_details": {
+                      "audio": 0,
+                      "reasoning": 2203
+                    },
+                    "output_tokens": 6,
+                    "total_tokens": 2429
+                  }
+                },
+                "lc": 1,
+                "type": "constructor"
+              },
+              "text": " {\"step_count\":3}",
+              "type": "ChatGeneration"
+            }
+          ]
+        ],
+        "llm_output": null,
+        "run": null,
+        "type": "LLMResult"
+      },
+      "parent_run_id": "019e69f4-a59c-7c33-ba45-361442b67692",
+      "run_id": "019e69f4-a5a1-79b2-a3e1-e8f5b749f6fe",
+      "run_type": "llm",
+      "start_time": "2026-05-27T15:01:41.409741Z",
+      "status": "success",
+      "tags": [
+        "seq:step:1"
+      ],
+      "token_usage": {
+        "completion_tokens": 6,
+        "prompt_tokens": 220,
+        "total_tokens": 2429
+      },
+      "trace_id": "019e69f4-92a8-73c1-9c84-ea6fe28893ee"
+    },
+    {
+      "costs": null,
+      "custom_metadata": {
+        "LANGSMITH_PROJECT": "rag-agent-dev",
+        "LANGSMITH_TRACING": "true",
+        "checkpoint_ns": "research_subgraph:b5f1649d-fda7-3eab-27ca-661bc02e61e4",
+        "langgraph_checkpoint_ns": "research_subgraph:b5f1649d-fda7-3eab-27ca-661bc02e61e4|research_planner_node:1ba9e982-1a72-af55-0490-fcbab8939f3c",
+        "langgraph_node": "research_planner_node",
+        "langgraph_path": [
+          "__pregel_pull",
+          "research_planner_node"
+        ],
+        "langgraph_step": 1,
+        "langgraph_triggers": [
+          "branch:to:research_planner_node"
+        ],
+        "ls_integration": "langgraph",
+        "ls_run_depth": 5,
+        "thread_id": "37d8b159-1708-43ce-a3bc-a1eb9aff1c7b"
+      },
+      "duration_ms": 4,
+      "end_time": "2026-05-27T15:01:58.464042Z",
+      "error": null,
+      "feedback_stats": null,
+      "inputs": {
+        "input": {
+          "additional_kwargs": {
+            "parsed": {
+              "step_count": 3
+            },
+            "refusal": null
+          },
+          "content": " {\"step_count\":3}",
+          "id": "lc_run--019e69f4-a5a1-79b2-a3e1-e8f5b749f6fe",
+          "invalid_tool_calls": [],
+          "response_metadata": {
+            "finish_reason": "stop",
+            "id": "859ef941-c1ec-42bf-bcee-e6b422d3f83d",
+            "model_name": "grok-4-1-fast-reasoning",
+            "model_provider": "openai",
+            "system_fingerprint": "fp_39c5j0a324",
+            "token_usage": {
+              "completion_tokens": 6,
+              "completion_tokens_details": {
+                "accepted_prediction_tokens": 0,
+                "audio_tokens": 0,
+                "reasoning_tokens": 2203,
+                "rejected_prediction_tokens": 0
+              },
+              "cost_in_usd_ticks": 0,
+              "num_sources_used": 0,
+              "prompt_tokens": 220,
+              "prompt_tokens_details": {
+                "audio_tokens": 0,
+                "cached_tokens": 0,
+                "image_tokens": 0,
+                "text_tokens": 220
+              },
+              "total_tokens": 2429
+            }
+          },
+          "tool_calls": [],
+          "type": "ai",
+          "usage_metadata": {
+            "input_token_details": {
+              "audio": 0,
+              "cache_read": 0
+            },
+            "input_tokens": 220,
+            "output_token_details": {
+              "audio": 0,
+              "reasoning": 2203
+            },
+            "output_tokens": 6,
+            "total_tokens": 2429
+          }
+        }
+      },
+      "name": "RunnableLambda",
+      "outputs": {
+        "output": {
+          "step_count": 3
+        }
+      },
+      "parent_run_id": "019e69f4-a59c-7c33-ba45-361442b67692",
+      "run_id": "019e69f4-e83b-7703-bcba-500c439ec9b1",
+      "run_type": "chain",
+      "start_time": "2026-05-27T15:01:58.459696Z",
+      "status": "success",
+      "tags": [
+        "seq:step:2"
+      ],
+      "token_usage": null,
+      "trace_id": "019e69f4-92a8-73c1-9c84-ea6fe28893ee"
+    },
+    {
+      "costs": null,
+      "custom_metadata": {
+        "LANGSMITH_PROJECT": "rag-agent-dev",
+        "LANGSMITH_TRACING": "true",
+        "checkpoint_ns": "research_subgraph:b5f1649d-fda7-3eab-27ca-661bc02e61e4",
+        "langgraph_checkpoint_ns": "research_subgraph:b5f1649d-fda7-3eab-27ca-661bc02e61e4|research_planner_node:1ba9e982-1a72-af55-0490-fcbab8939f3c",
+        "langgraph_node": "research_planner_node",
+        "langgraph_path": [
+          "__pregel_pull",
+          "research_planner_node"
+        ],
+        "langgraph_step": 1,
+        "langgraph_triggers": [
+          "branch:to:research_planner_node"
+        ],
+        "ls_integration": "langgraph",
+        "ls_run_depth": 4,
+        "thread_id": "37d8b159-1708-43ce-a3bc-a1eb9aff1c7b"
+      },
+      "duration_ms": 7740,
+      "end_time": "2026-05-27T15:02:06.256927Z",
+      "error": "CancelledError(\"Cancelled via cancel scope 7efd46b3a510 by \u003cTask pending name='starlette.middleware.base.BaseHTTPMiddleware.__call__.\u003clocals\u003e.call_next.\u003clocals\u003e.coro' coro=\u003cBaseHTTPMiddleware.__call__.\u003clocals\u003e.call_next.\u003clocals\u003e.coro() running at /usr/local/lib/python3.11/site-packages/starlette/middleware/base.py:144\u003e cb=[TaskGroup._spawn.\u003clocals\u003e.task_done() at /usr/local/lib/python3.11/site-packages/anyio/_backends/_asyncio.py:821]\u003e\")Traceback (most recent call last):\n\n\n  File \"/usr/local/lib/python3.11/asyncio/tasks.py\", line 476, in wait_for\n    await waiter\n\n\nasyncio.exceptions.CancelledError: Cancelled via cancel scope 7efd46b3a510 by \u003cTask pending name='starlette.middleware.base.BaseHTTPMiddleware.__call__.\u003clocals\u003e.call_next.\u003clocals\u003e.coro' coro=\u003cBaseHTTPMiddleware.__call__.\u003clocals\u003e.call_next.\u003clocals\u003e.coro() running at /usr/local/lib/python3.11/site-packages/starlette/middleware/base.py:144\u003e cb=[TaskGroup._spawn.\u003clocals\u003e.task_done() at /usr/local/lib/python3.11/site-packages/anyio/_backends/_asyncio.py:821]\u003e\n\n\n\nDuring handling of the above exception, another exception occurred:\n\n\n\nTraceback (most recent call last):\n\n\n  File \"/usr/local/lib/python3.11/site-packages/langchain_core/runnables/base.py\", line 3375, in ainvoke\n    input_ = await coro_with_context(part(), context, create_task=True)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n\n\n  File \"/usr/local/lib/python3.11/site-packages/langchain_core/runnables/base.py\", line 5894, in ainvoke\n    return await self.bound.ainvoke(\n           ^^^^^^^^^^^^^^^^^^^^^^^^^\n\n\n  File \"/usr/local/lib/python3.11/site-packages/langchain_core/language_models/chat_models.py\", line 497, in ainvoke\n    llm_result = await self.agenerate_prompt(\n                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n\n\n  File \"/usr/local/lib/python3.11/site-packages/langchain_core/language_models/chat_models.py\", line 1834, in agenerate_prompt\n    return await self.agenerate(\n           ^^^^^^^^^^^^^^^^^^^^^\n\n\n  File \"/usr/local/lib/python3.11/site-packages/langchain_core/language_models/chat_models.py\", line 1754, in agenerate\n    results = await asyncio.gather(\n              ^^^^^^^^^^^^^^^^^^^^^\n\n\n  File \"/usr/local/lib/python3.11/site-packages/langchain_core/language_models/chat_models.py\", line 2084, in _agenerate_with_cache\n    async for chunk in self._astream(messages, stop=stop, **kwargs):\n\n\n  File \"/usr/local/lib/python3.11/site-packages/langchain_openai/chat_models/azure.py\", line 835, in _astream\n    async for chunk in super()._astream(*args, **kwargs):\n\n\n  File \"/usr/local/lib/python3.11/site-packages/langchain_openai/chat_models/base.py\", line 1838, in _astream\n    async for chunk in _astream_with_chunk_timeout(\n\n\n  File \"/usr/local/lib/python3.11/site-packages/langchain_openai/chat_models/_client_utils.py\", line 652, in _astream_with_chunk_timeout\n    chunk = await asyncio.wait_for(it.__anext__(), timeout=timeout)\n            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n\n\n  File \"/usr/local/lib/python3.11/asyncio/tasks.py\", line 485, in wait_for\n    await _cancel_and_wait(fut, loop=loop)\n\n\n  File \"/usr/local/lib/python3.11/asyncio/tasks.py\", line 562, in _cancel_and_wait\n    await waiter\n\n\nasyncio.exceptions.CancelledError: Cancelled via cancel scope 7efd46b3a510 by \u003cTask pending name='starlette.middleware.base.BaseHTTPMiddleware.__call__.\u003clocals\u003e.call_next.\u003clocals\u003e.coro' coro=\u003cBaseHTTPMiddleware.__call__.\u003clocals\u003e.call_next.\u003clocals\u003e.coro() running at /usr/local/lib/python3.11/site-packages/starlette/middleware/base.py:144\u003e cb=[TaskGroup._spawn.\u003clocals\u003e.task_done() at /usr/local/lib/python3.11/site-packages/anyio/_backends/_asyncio.py:821]\u003e",
+      "feedback_stats": null,
+      "inputs": {
+        "input": [
+          {
+            "additional_kwargs": {},
+            "content": "Given the user query and available tools, generate a step-by-step execution plan.\n\nAvailable tools: search_arxiv, ingest_arxiv_papers, search_documents, do_kb_retrieve, create_project, list_projects, add_document_to_project, list_project_documents\nPage context: {'type': 'project', 'project_id': '6bef011c-7bca-4174-97e2-33b83e0cfd5c', 'project_name': 'Cyber Agents', 'label': None, 'metadata': None}\n\nUser query: Add arXiv 2401.12345 to project My Project\n\nFor each step, specify:\n- step: sequential step number starting at 1\n- description: what this step does\n- tool: which tool to use — MUST be one of the available tools listed above; do not invent tool names; do not leave blank. If a step is purely summarisation with no tool call, omit it from the plan entirely.\n- args_hint: suggested arguments (can reference prior steps)\n- depends_on: list of step numbers this step depends on\n\nAlso provide a top-level ``reasoning`` string explaining the overall approach (required).",
+            "response_metadata": {},
+            "type": "human"
+          }
+        ]
+      },
+      "name": "RunnableSequence",
+      "outputs": null,
+      "parent_run_id": "019e69f4-a56b-7452-b85a-b92cdab6f42f",
+      "run_id": "019e69f4-e874-7352-8c57-9a7b82f35fa5",
+      "run_type": "chain",
+      "start_time": "2026-05-27T15:01:58.516204Z",
+      "status": "error",
+      "tags": [
+        "seq:step:1"
+      ],
+      "token_usage": null,
+      "trace_id": "019e69f4-92a8-73c1-9c84-ea6fe28893ee"
+    },
+    {
+      "costs": null,
+      "custom_metadata": {
+        "LANGSMITH_PROJECT": "rag-agent-dev",
+        "LANGSMITH_TRACING": "true",
+        "_type": "azure-openai-chat",
+        "azure_deployment": "model-router",
+        "checkpoint_ns": "research_subgraph:b5f1649d-fda7-3eab-27ca-661bc02e61e4",
+        "langgraph_checkpoint_ns": "research_subgraph:b5f1649d-fda7-3eab-27ca-661bc02e61e4|research_planner_node:1ba9e982-1a72-af55-0490-fcbab8939f3c",
+        "langgraph_node": "research_planner_node",
+        "langgraph_path": [
+          "__pregel_pull",
+          "research_planner_node"
+        ],
+        "langgraph_step": 1,
+        "langgraph_triggers": [
+          "branch:to:research_planner_node"
+        ],
+        "ls_integration": "langchain_chat_model",
+        "ls_max_tokens": 4096,
+        "ls_model_name": "model-router",
+        "ls_model_type": "chat",
+        "ls_provider": "azure",
+        "ls_run_depth": 5,
+        "ls_temperature": 0.7,
+        "max_completion_tokens": 4096,
+        "model": null,
+        "model_name": null,
+        "stop": null,
+        "stream": false,
+        "temperature": 0.7,
+        "thread_id": "37d8b159-1708-43ce-a3bc-a1eb9aff1c7b",
+        "tool_choice": {
+          "function": {
+            "name": "AgentPlan"
+          },
+          "type": "function"
+        }
+      },
+      "duration_ms": null,
+      "end_time": null,
+      "error": null,
+      "feedback_stats": null,
+      "inputs": {
+        "messages": [
+          [
+            {
+              "id": [
+                "langchain",
+                "schema",
+                "messages",
+                "HumanMessage"
+              ],
+              "kwargs": {
+                "content": "Given the user query and available tools, generate a step-by-step execution plan.\n\nAvailable tools: search_arxiv, ingest_arxiv_papers, search_documents, do_kb_retrieve, create_project, list_projects, add_document_to_project, list_project_documents\nPage context: {'type': 'project', 'project_id': '6bef011c-7bca-4174-97e2-33b83e0cfd5c', 'project_name': 'Cyber Agents', 'label': None, 'metadata': None}\n\nUser query: Add arXiv 2401.12345 to project My Project\n\nFor each step, specify:\n- step: sequential step number starting at 1\n- description: what this step does\n- tool: which tool to use — MUST be one of the available tools listed above; do not invent tool names; do not leave blank. If a step is purely summarisation with no tool call, omit it from the plan entirely.\n- args_hint: suggested arguments (can reference prior steps)\n- depends_on: list of step numbers this step depends on\n\nAlso provide a top-level ``reasoning`` string explaining the overall approach (required).",
+                "type": "human"
+              },
+              "lc": 1,
+              "type": "constructor"
+            }
+          ]
+        ]
+      },
+      "name": "AzureChatOpenAI",
+      "outputs": null,
+      "parent_run_id": "019e69f4-e874-7352-8c57-9a7b82f35fa5",
+      "run_id": "019e69f4-e87c-7a42-a1bd-5a279fa81884",
+      "run_type": "llm",
+      "start_time": "2026-05-27T15:01:58.524311Z",
+      "status": "pending",
+      "tags": [
+        "seq:step:1"
+      ],
+      "token_usage": null,
+      "trace_id": "019e69f4-92a8-73c1-9c84-ea6fe28893ee"
+    }
+  ],
+  "trace_id": "019e69f4-92a8-73c1-9c84-ea6fe28893ee"
+}
