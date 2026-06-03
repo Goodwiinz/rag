@@ -24,36 +24,41 @@ interface RunViewProps {
 
 const STATUS_BADGE: Record<
   string,
-  { bg: string; text: string; border: string; label: string }
+  { bg: string; text: string; border: string; dot: string; label: string }
 > = {
   pending: {
-    bg: 'bg-gray-500/10',
+    bg: 'bg-muted',
     text: 'text-muted-foreground',
-    border: 'border-border/30',
+    border: 'border-border',
+    dot: 'bg-muted-foreground/60',
     label: 'Pending',
   },
   running: {
-    bg: 'bg-brand-cyan/10',
-    text: 'text-brand-cyan',
-    border: 'border-brand-cyan/30',
+    bg: 'bg-primary/10',
+    text: 'text-primary',
+    border: 'border-primary/30',
+    dot: 'bg-primary',
     label: 'Running',
   },
   paused: {
-    bg: 'bg-helios/10',
-    text: 'text-helios',
-    border: 'border-helios/30',
+    bg: 'bg-[var(--nous-helios)]/10',
+    text: 'text-[var(--nous-helios)]',
+    border: 'border-[var(--nous-helios)]/30',
+    dot: 'bg-[var(--nous-helios)]',
     label: 'Paused',
   },
   completed: {
-    bg: 'bg-sol/10',
-    text: 'text-sol',
-    border: 'border-sol/30',
+    bg: 'bg-[var(--nous-terra)]/10',
+    text: 'text-[var(--nous-terra)]',
+    border: 'border-[var(--nous-terra)]/30',
+    dot: 'bg-[var(--nous-terra)]',
     label: 'Completed',
   },
   failed: {
-    bg: 'bg-red-500/10',
-    text: 'text-red-400',
-    border: 'border-red-500/30',
+    bg: 'bg-[var(--nous-mars)]/10',
+    text: 'text-[var(--nous-mars)]',
+    border: 'border-[var(--nous-mars)]/30',
+    dot: 'bg-[var(--nous-mars)]',
     label: 'Failed',
   },
 };
@@ -236,22 +241,51 @@ export function RunView({ runId }: RunViewProps) {
 
   const badge = STATUS_BADGE[activeRun?.status ?? 'pending'];
 
+  // Loading: skeleton placeholders, not a center spinner.
   if (isLoading && !activeRun) {
     return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 className="h-6 w-6 animate-spin text-sol" />
-        <span className="ml-2 font-mono text-sm text-muted-foreground">
-          Loading run...
-        </span>
+      <div className="space-y-6" role="status" aria-label="Loading run">
+        <div className="flex items-center gap-4">
+          <div className="h-8 w-8 rounded-lg bg-muted animate-pulse" />
+          <div className="flex-1 space-y-2">
+            <div className="h-5 w-40 rounded bg-muted animate-pulse" />
+            <div className="h-3 w-56 rounded bg-muted animate-pulse" />
+          </div>
+          <div className="h-6 w-20 rounded-full bg-muted animate-pulse" />
+        </div>
+        <div className="space-y-2">
+          {[0, 1, 2].map((i) => (
+            <div
+              key={i}
+              className="h-14 rounded-xl border border-border bg-card animate-pulse"
+            />
+          ))}
+        </div>
+        <span className="sr-only">Loading run details…</span>
       </div>
     );
   }
 
   if (error && !activeRun) {
     return (
-      <div className="flex items-center gap-2 p-4 bg-red-500/10 border border-red-500/30 rounded">
-        <AlertCircle className="h-5 w-5 text-red-400 shrink-0" />
-        <span className="text-sm text-red-400 font-mono">{error}</span>
+      <div
+        role="alert"
+        className="flex flex-col items-start gap-3 rounded-xl border border-[var(--nous-mars)]/30 bg-[var(--nous-mars)]/10 p-4"
+      >
+        <div className="flex items-start gap-2">
+          <AlertCircle
+            aria-hidden="true"
+            className="h-5 w-5 shrink-0 text-[var(--nous-mars)]"
+          />
+          <span className="text-sm text-foreground">{error}</span>
+        </div>
+        <button
+          type="button"
+          onClick={() => fetchRun()}
+          className="rounded text-sm font-medium text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+        >
+          Retry
+        </button>
       </div>
     );
   }
@@ -259,64 +293,83 @@ export function RunView({ runId }: RunViewProps) {
   return (
     <div>
       {/* Header */}
-      <div className="flex items-center gap-4 mb-6">
+      <div className="mb-6 flex flex-wrap items-center gap-4 rounded-xl border border-border bg-card p-5 shadow-sm">
         <button
+          type="button"
           onClick={() => router.back()}
-          className="p-1.5 rounded hover:bg-white/5 text-muted-foreground hover:text-foreground transition-colors"
+          className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           aria-label="Go back"
         >
-          <ArrowLeft className="h-5 w-5" />
+          <ArrowLeft aria-hidden="true" className="h-5 w-5" />
         </button>
 
-        <div className="flex-1">
-          <h1 className="text-xl font-mono font-bold text-muted-foreground">
-            Run <span className="text-brand-cyan">{runId.slice(0, 8)}</span>
+        <div className="min-w-0 flex-1">
+          <h1 className="text-xl font-semibold text-foreground">
+            Run{' '}
+            <span className="text-primary tabular-nums">
+              {runId.slice(0, 8)}
+            </span>
           </h1>
           {activeRun?.started_at && (
-            <p className="text-xs font-mono text-muted-foreground mt-0.5">
+            <p className="mt-0.5 text-xs text-muted-foreground">
               Started {new Date(activeRun.started_at).toLocaleString()}
             </p>
           )}
         </div>
 
-        {/* Status badge */}
+        {/* Status badge — status conveyed by label, not color alone */}
         <span
-          className={`px-3 py-1 text-xs font-mono rounded border ${badge.bg} ${badge.text} ${badge.border}`}
+          role="status"
+          className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-medium ${badge.bg} ${badge.text} ${badge.border}`}
         >
+          <span
+            aria-hidden="true"
+            className={`inline-flex h-2 w-2 rounded-full ${badge.dot} ${
+              activeRun?.status === 'running' ? 'motion-safe:animate-pulse' : ''
+            }`}
+          />
           {badge.label}
         </span>
 
         {/* Total tokens */}
-        <div className="flex items-center gap-1.5 text-xs font-mono text-muted-foreground">
-          <Coins className="h-3.5 w-3.5" />
+        <div className="flex items-center gap-1.5 text-xs text-muted-foreground tabular-nums">
+          <Coins aria-hidden="true" className="h-3.5 w-3.5" />
           {totalTokens.toLocaleString()} tokens
         </div>
 
         {/* Pause/Resume */}
         {activeRun?.status === 'running' && (
           <button
+            type="button"
             onClick={handlePause}
             disabled={actionLoading}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono bg-helios/10 text-helios border border-helios/30 rounded hover:bg-helios/20 transition-colors disabled:opacity-50"
+            className="flex items-center gap-1.5 rounded-lg border border-[var(--nous-helios)]/30 bg-[var(--nous-helios)]/10 px-3 py-1.5 text-xs font-medium text-[var(--nous-helios)] transition-colors hover:bg-[var(--nous-helios)]/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50"
           >
             {actionLoading ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              <Loader2
+                aria-hidden="true"
+                className="h-3.5 w-3.5 animate-spin"
+              />
             ) : (
-              <Pause className="h-3.5 w-3.5" />
+              <Pause aria-hidden="true" className="h-3.5 w-3.5" />
             )}
             Pause
           </button>
         )}
         {activeRun?.status === 'paused' && (
           <button
+            type="button"
             onClick={handleResume}
             disabled={actionLoading}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono bg-sol/10 text-sol border border-sol/30 rounded hover:bg-sol/20 transition-colors disabled:opacity-50"
+            className="flex items-center gap-1.5 rounded-lg border border-primary/30 bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary transition-colors hover:bg-primary/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50"
           >
             {actionLoading ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              <Loader2
+                aria-hidden="true"
+                className="h-3.5 w-3.5 animate-spin"
+              />
             ) : (
-              <Play className="h-3.5 w-3.5" />
+              <Play aria-hidden="true" className="h-3.5 w-3.5" />
             )}
             Resume
           </button>
@@ -325,11 +378,16 @@ export function RunView({ runId }: RunViewProps) {
 
       {/* Steps list */}
       {steps.length === 0 && !isLoading ? (
-        <div className="text-center py-16">
-          <p className="text-muted-foreground font-mono text-sm">
+        <div className="rounded-xl border border-border bg-card px-6 py-16 text-center">
+          <p className="text-sm text-foreground">
             {activeRun?.status === 'pending'
-              ? 'Waiting for run to start...'
+              ? 'Waiting for the run to start.'
               : 'No steps received yet.'}
+          </p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {activeRun?.status === 'pending'
+              ? 'Steps will appear here as soon as the run begins.'
+              : 'Steps stream in here as the run progresses.'}
           </p>
         </div>
       ) : (

@@ -3,7 +3,7 @@
 import { useAuth } from '@/hooks/useAuth';
 import { cn } from '@/lib/utils';
 import { api } from '@/services/api-client';
-import { ArrowLeft, CheckCircle2, Shield } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, ShieldCheck } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import React, { useEffect, useState } from 'react';
@@ -53,99 +53,77 @@ function CliAuthPageContent(): React.JSX.Element {
   };
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-[var(--nous-bg-1)] px-6 py-12 text-[var(--nous-fg-1)]">
-      <section className="w-full max-w-xl rounded-2xl border border-[var(--nous-border-1)] bg-[var(--nous-bg-2)] p-8">
-        <div className="mb-7 flex items-center gap-4">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-[var(--nous-sol)]/30 bg-[var(--nous-bg-3)]">
-            <Shield
-              className="h-5 w-5 text-[var(--nous-sol)]"
-              strokeWidth={1.8}
-            />
+    <main className="flex min-h-screen items-center justify-center bg-background px-6 py-12 text-foreground">
+      <section className="w-full max-w-xl rounded-2xl border border-border bg-card p-8 shadow-lg">
+        <div className="mb-7 flex items-start gap-4">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-primary/30 bg-primary/10">
+            <ShieldCheck className="h-6 w-6 text-primary" aria-hidden="true" />
           </div>
           <div>
-            <p
-              className="text-xs font-medium text-[var(--nous-fg-3)]"
-              style={{ fontFamily: 'var(--nous-font-ui)' }}
-            >
-              NOUS CLI
+            <p className="text-sm font-medium text-muted-foreground">
+              NOUS command line
             </p>
-            <h1
-              className="text-2xl font-semibold tracking-tight text-[var(--nous-fg-1)]"
-              style={{ fontFamily: 'var(--nous-font-heading)' }}
-            >
-              Authorize CLI access
+            <h1 className="mt-0.5 text-2xl font-semibold tracking-tight text-foreground">
+              Connect the CLI to your account
             </h1>
           </div>
         </div>
 
         <p
-          className="mb-6 max-w-lg text-[0.9375rem] leading-relaxed text-[var(--nous-fg-2)]"
+          className="mb-7 max-w-lg text-[0.95rem] leading-7 text-muted-foreground"
           style={{ fontFamily: 'var(--nous-font-body)' }}
         >
-          Approve this request to let the NOUS command line connect to your
-          current account and organization.
+          Approving this request lets the NOUS command line sign in as you and
+          act on your current organization. Check the code below matches the one
+          shown in your terminal.
         </p>
 
-        <dl className="mb-8 space-y-4 rounded-xl border border-[var(--nous-border-1)] bg-[var(--nous-bg-1)]/60 p-5">
+        <dl className="mb-7 space-y-4 rounded-xl border border-border bg-background/60 p-5">
           <div>
-            <dt
-              className="text-xs font-medium text-[var(--nous-fg-3)]"
-              style={{ fontFamily: 'var(--nous-font-ui)' }}
-            >
+            <dt className="text-sm font-medium text-muted-foreground">
               Session ID
             </dt>
-            <dd
-              className="mt-1.5 break-all text-sm text-[var(--nous-fg-1)]"
-              style={{ fontFamily: 'var(--nous-font-mono)' }}
-            >
-              {sessionId || 'missing-session-id'}
+            <dd className="mt-1.5 break-all font-mono text-sm text-foreground">
+              {sessionId || 'No session ID provided'}
             </dd>
           </div>
           <div>
-            <dt
-              className="text-xs font-medium text-[var(--nous-fg-3)]"
-              style={{ fontFamily: 'var(--nous-font-ui)' }}
-            >
+            <dt className="text-sm font-medium text-muted-foreground">
               Verification code
             </dt>
-            <dd
-              className="mt-1.5 text-lg tracking-[0.25em] text-[var(--nous-fg-accent)]"
-              style={{ fontFamily: 'var(--nous-font-mono)' }}
-            >
-              {verificationCode || 'missing'}
+            <dd className="mt-1.5 font-mono text-lg tracking-[0.3em] text-primary">
+              {verificationCode || 'Missing'}
             </dd>
           </div>
         </dl>
 
         {isConnected ? (
-          <div className="mb-6 rounded-xl border border-[var(--nous-sol)]/30 bg-[var(--nous-sol)]/10 p-5">
-            <p
-              className="text-sm font-medium text-[var(--nous-fg-1)]"
-              style={{ fontFamily: 'var(--nous-font-ui)' }}
-            >
-              CLI connected. You can return to your terminal.
-            </p>
-            <p
-              className="mt-2 text-sm leading-relaxed text-[var(--nous-fg-2)]"
-              style={{ fontFamily: 'var(--nous-font-body)' }}
-            >
-              The pending NOUS terminal session will finish sign-in
-              automatically.
-            </p>
+          <div
+            role="status"
+            className="mb-6 flex items-start gap-3 rounded-xl border border-primary/30 bg-primary/10 p-5"
+          >
+            <CheckCircle2
+              className="mt-0.5 h-5 w-5 shrink-0 text-primary"
+              aria-hidden="true"
+            />
+            <div>
+              <p className="text-sm font-semibold text-foreground">
+                CLI connected. You can return to your terminal.
+              </p>
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                The pending NOUS terminal session will finish signing in
+                automatically.
+              </p>
+            </div>
           </div>
         ) : null}
 
         {error ? (
           <div
             role="alert"
-            className="mb-6 rounded-xl border border-[var(--nous-mars)]/30 bg-[var(--nous-mars)]/5 p-4"
+            className="mb-6 rounded-xl border border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive"
           >
-            <p
-              className="text-sm text-[var(--nous-mars)]"
-              style={{ fontFamily: 'var(--nous-font-ui)' }}
-            >
-              {error}
-            </p>
+            {error}
           </div>
         ) : null}
 
@@ -159,25 +137,25 @@ function CliAuthPageContent(): React.JSX.Element {
             }
             className={cn(
               'inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl',
-              'bg-[var(--nous-sol)] px-5 text-sm font-medium text-[var(--nous-erebus)]',
-              'transition-colors hover:bg-[var(--nous-helios)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/50',
-              'disabled:cursor-not-allowed disabled:opacity-50'
+              'bg-primary px-5 text-sm font-semibold text-primary-foreground',
+              'transition-colors hover:bg-primary/90',
+              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card',
+              'disabled:cursor-not-allowed disabled:opacity-60'
             )}
-            style={{ fontFamily: 'var(--nous-font-ui)' }}
           >
-            <CheckCircle2 className="h-4 w-4" strokeWidth={1.8} />
-            {isSubmitting ? 'Approving…' : 'Approve'}
+            <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+            {isSubmitting ? 'Approving…' : 'Approve sign-in'}
           </button>
           <Link
             href="/login"
             className={cn(
-              'inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl border border-[var(--nous-border-1)]',
-              'bg-transparent px-5 text-sm font-medium text-[var(--nous-fg-2)]',
-              'transition-colors hover:border-[var(--nous-fg-3)] hover:text-[var(--nous-fg-1)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/40'
+              'inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl border border-border',
+              'bg-transparent px-5 text-sm font-semibold text-muted-foreground',
+              'transition-colors hover:border-foreground/30 hover:text-foreground',
+              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card'
             )}
-            style={{ fontFamily: 'var(--nous-font-ui)' }}
           >
-            <ArrowLeft className="h-4 w-4" strokeWidth={1.8} />
+            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
             Cancel
           </Link>
         </div>

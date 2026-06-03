@@ -1,73 +1,17 @@
-'use client';
+"use client";
 
-import React, { useState, useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import {
-  Search,
-  FileText,
-  Image,
-  Video,
-  Music,
-  Clock,
-  TrendingUp,
-} from 'lucide-react';
-import { useRouter } from 'next/navigation';
+import React, { useState, useEffect, useRef } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Search, CornerDownLeft } from "lucide-react";
+import { useRouter } from "next/navigation";
 
 interface QuickSearchProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
-interface SearchResult {
-  id: string;
-  title: string;
-  type: 'document' | 'image' | 'video' | 'audio';
-  url: string;
-  lastViewed: string;
-  popularity: number;
-}
-
-const mockSearchResults: SearchResult[] = [
-  {
-    id: '1',
-    title: 'Q4 Financial Report 2024',
-    type: 'document',
-    url: '/documents/1',
-    lastViewed: '2 hours ago',
-    popularity: 95,
-  },
-  {
-    id: '2',
-    title: 'Product Demo Video',
-    type: 'video',
-    url: '/documents/2',
-    lastViewed: '1 day ago',
-    popularity: 87,
-  },
-  {
-    id: '3',
-    title: 'Team Meeting Notes',
-    type: 'document',
-    url: '/documents/3',
-    lastViewed: '3 hours ago',
-    popularity: 76,
-  },
-  {
-    id: '4',
-    title: 'Design Mockups',
-    type: 'image',
-    url: '/documents/4',
-    lastViewed: '1 week ago',
-    popularity: 65,
-  },
-];
-
-export const QuickSearch: React.FC<QuickSearchProps> = ({
-  isOpen,
-  onClose,
-}) => {
-  const [query, setQuery] = useState('');
-  const [results, setResults] = useState<SearchResult[]>(mockSearchResults);
+export const QuickSearch: React.FC<QuickSearchProps> = ({ isOpen, onClose }) => {
+  const [query, setQuery] = useState("");
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -77,50 +21,22 @@ export const QuickSearch: React.FC<QuickSearchProps> = ({
     }
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
-        e.preventDefault();
-        if (!isOpen) {
-          onClose();
-        }
-      }
-      if (e.key === 'Escape' && isOpen) {
+      if (e.key === "Escape" && isOpen) {
         onClose();
-        setQuery('');
+        setQuery("");
       }
     };
 
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isOpen, onClose]);
 
-  useEffect(() => {
-    if (query.trim() === '') {
-      setResults(mockSearchResults);
-    } else {
-      const filtered = mockSearchResults.filter((result) =>
-        result.title.toLowerCase().includes(query.toLowerCase())
-      );
-      setResults(filtered);
-    }
-  }, [query]);
-
-  const getTypeIcon = (type: SearchResult['type']) => {
-    switch (type) {
-      case 'document':
-        return <FileText className="h-4 w-4 text-blue-500" />;
-      case 'image':
-        return <Image className="h-4 w-4 text-green-500" />;
-      case 'video':
-        return <Video className="h-4 w-4 text-purple-500" />;
-      case 'audio':
-        return <Music className="h-4 w-4 text-orange-500" />;
-    }
-  };
-
-  const handleResultClick = (url: string) => {
-    router.push(url);
+  const runSearch = () => {
+    const q = query.trim();
+    if (!q) return;
+    router.push(`/search?q=${encodeURIComponent(q)}`);
     onClose();
-    setQuery('');
+    setQuery("");
   };
 
   return (
@@ -140,90 +56,68 @@ export const QuickSearch: React.FC<QuickSearchProps> = ({
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: -20 }}
             transition={{ duration: 0.2 }}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Quick search"
             className="fixed top-20 left-1/2 -translate-x-1/2 z-50 w-full max-w-2xl"
           >
             <div className="relative overflow-hidden rounded-2xl bg-white/95 backdrop-blur-xl border border-amber-200/20 shadow-2xl">
               <div className="absolute inset-0 bg-gradient-to-br from-amber-50/50 to-orange-50/30" />
               <div className="relative">
-                <div className="p-4 border-b border-border/50">
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    runSearch();
+                  }}
+                  className="p-4 border-b border-gray-200/50"
+                >
                   <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                    <Search
+                      aria-hidden="true"
+                      className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400"
+                    />
                     <input
                       ref={inputRef}
                       type="text"
                       value={query}
                       onChange={(e) => setQuery(e.target.value)}
-                      placeholder="Search documents, images, videos..."
-                      className="w-full pl-10 pr-4 py-3 bg-white/50 border border-border/50 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 transition-all"
+                      placeholder="Search all documents…"
+                      aria-label="Search query"
+                      className="w-full pl-10 pr-16 py-3 bg-white/50 border border-gray-200/50 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 transition-all"
                     />
-                    <kbd className="absolute right-3 top-1/2 -translate-y-1/2 px-2 py-1 text-xs font-mono rounded-md bg-gray-100 border border-border">
+                    <kbd className="absolute right-3 top-1/2 -translate-y-1/2 px-2 py-1 text-xs font-mono rounded-md bg-gray-100 border border-gray-200">
                       ESC
                     </kbd>
                   </div>
-                </div>
+                </form>
 
-                <div className="max-h-96 overflow-y-auto">
-                  <AnimatePresence mode="wait">
-                    {results.length > 0 ? (
-                      <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        className="p-2"
-                      >
-                        {results.map((result, index) => (
-                          <motion.button
-                            key={result.id}
-                            initial={{ opacity: 0, x: -20 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            transition={{ delay: index * 0.05 }}
-                            onClick={() => handleResultClick(result.url)}
-                            className="w-full p-3 rounded-xl hover:bg-white/50 transition-colors group text-left"
-                          >
-                            <div className="flex items-center gap-3">
-                              <div className="p-2 rounded-lg bg-gray-100/50 group-hover:bg-gray-100 transition-colors">
-                                {getTypeIcon(result.type)}
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <h3 className="font-medium text-foreground truncate">
-                                  {result.title}
-                                </h3>
-                                <div className="flex items-center gap-3 mt-1">
-                                  <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                                    <Clock className="h-3 w-3" />
-                                    {result.lastViewed}
-                                  </span>
-                                  {result.popularity > 80 && (
-                                    <span className="flex items-center gap-1 text-xs text-amber-600">
-                                      <TrendingUp className="h-3 w-3" />
-                                      Popular
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                          </motion.button>
-                        ))}
-                      </motion.div>
-                    ) : (
-                      <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        className="p-8 text-center"
-                      >
-                        <div className="text-muted-foreground mb-2">
-                          <Search className="h-12 w-12 mx-auto" />
-                        </div>
-                        <p className="text-muted-foreground">
-                          No results found
-                        </p>
-                        <p className="text-sm text-muted-foreground mt-1">
-                          Try adjusting your search terms
-                        </p>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
+                <div className="p-2">
+                  {query.trim() ? (
+                    <button
+                      type="button"
+                      onClick={runSearch}
+                      className="w-full p-3 rounded-xl hover:bg-white/50 transition-colors group text-left flex items-center gap-3"
+                    >
+                      <div className="p-2 rounded-lg bg-gray-100/50 group-hover:bg-gray-100 transition-colors">
+                        <Search
+                          aria-hidden="true"
+                          className="h-4 w-4 text-amber-600"
+                        />
+                      </div>
+                      <span className="flex-1 min-w-0 truncate font-medium text-gray-800">
+                        Search documents for “{query.trim()}”
+                      </span>
+                      <span className="flex items-center gap-1 text-xs text-gray-500">
+                        <CornerDownLeft aria-hidden="true" className="h-3 w-3" />
+                        Enter
+                      </span>
+                    </button>
+                  ) : (
+                    <p className="p-6 text-center text-sm text-gray-500">
+                      Type a query and press Enter to search across your
+                      documents.
+                    </p>
+                  )}
                 </div>
               </div>
             </div>

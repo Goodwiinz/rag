@@ -16,6 +16,7 @@ class _FakeGraph:
     async def aget_state(self, config):
         return SimpleNamespace(
             values={
+                "user_id": "user-1",
                 "messages": [SimpleNamespace(type="ai", content="hello")],
                 "tool_executions": [],
             },

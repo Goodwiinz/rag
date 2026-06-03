@@ -56,7 +56,7 @@ describe('CliAuthPage', () => {
     render(<CliAuthPage />);
 
     expect(
-      await screen.findByRole('button', { name: /approve cli login/i })
+      await screen.findByRole('button', { name: /approve/i })
     ).toBeInTheDocument();
   });
 
@@ -67,9 +67,7 @@ describe('CliAuthPage', () => {
 
     render(<CliAuthPage />);
 
-    fireEvent.click(
-      await screen.findByRole('button', { name: /approve cli login/i })
-    );
+    fireEvent.click(await screen.findByRole('button', { name: /approve/i }));
 
     await waitFor(() =>
       expect(postSpy).toHaveBeenCalledWith('/cli-auth/approve', {
