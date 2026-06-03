@@ -22,6 +22,7 @@ import { Document, ProcessingStatus } from '@/types/api';
 import { useWebSocketConnection } from '@/hooks/useWebSocketConnection';
 import { performanceMonitor } from '@/utils/performance';
 import { api } from '@/services/api-client';
+import { Spinner } from '@/components/ui/spinner';
 
 // Lazy load heavy components
 const DocumentRow = lazy(() => import('./DocumentRow'));
@@ -177,7 +178,7 @@ const VirtualizedDocumentList = memo<{
         {/* Loading indicator for infinite scroll */}
         {isLoading && documents.length > 0 && (
           <div className="flex justify-center py-4">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" />
+            <Spinner size="lg" className="text-primary" />
           </div>
         )}
 
@@ -371,14 +372,17 @@ export const OptimizedDocumentList: React.FC<OptimizedDocumentListProps> = ({
   // Error boundary fallback
   if (isError) {
     return (
-      <div className="flex flex-col items-center justify-center h-full text-red-500">
+      <div
+        role="alert"
+        className="flex flex-col items-center justify-center h-full text-[var(--nous-mars)]"
+      >
         <div className="text-lg font-semibold">Error loading documents</div>
         <div className="text-sm">{error?.message || 'Unknown error'}</div>
         <button
           onClick={() =>
             queryClient.invalidateQueries(['documents', organizationId])
           }
-          className="mt-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+          className="mt-4 px-4 py-2 bg-primary text-primary-foreground rounded hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
         >
           Retry
         </button>
@@ -402,12 +406,12 @@ export const OptimizedDocumentList: React.FC<OptimizedDocumentListProps> = ({
   return (
     <div className="h-full flex flex-col">
       {/* Search and filter bar */}
-      <div className="p-4 border-b border-border bg-white">
+      <div className="p-4 border-b border-border bg-card">
         <input
           type="text"
           placeholder="Search documents..."
           onChange={(e) => handleSearchChange(e.target.value)}
-          className="w-full px-4 py-2 border border-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          className="w-full px-4 py-2 border border-border rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:border-transparent"
         />
       </div>
 
@@ -425,17 +429,26 @@ export const OptimizedDocumentList: React.FC<OptimizedDocumentListProps> = ({
       </div>
 
       {/* Connection status indicator */}
-      <div className="p-2 border-t border-border bg-gray-50">
+      <div className="p-2 border-t border-border bg-muted">
         <div className="flex items-center justify-between text-xs text-muted-foreground">
           <span>
             {documents.length} documents loaded
             {isFetchingNextPage && ' (loading more...)'}
           </span>
           <span
-            className={`flex items-center ${isConnected ? 'text-green-500' : 'text-red-500'}`}
+            className="flex items-center"
+            style={{
+              color: isConnected ? 'var(--nous-terra)' : 'var(--nous-mars)',
+            }}
           >
             <span
-              className={`w-2 h-2 rounded-full mr-1 ${isConnected ? 'bg-green-500' : 'bg-red-500'}`}
+              aria-hidden="true"
+              className="w-2 h-2 rounded-full mr-1"
+              style={{
+                backgroundColor: isConnected
+                  ? 'var(--nous-terra)'
+                  : 'var(--nous-mars)',
+              }}
             />
             {isConnected ? 'Connected' : 'Disconnected'}
           </span>

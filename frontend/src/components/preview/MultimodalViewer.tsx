@@ -19,7 +19,13 @@ import {
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Spinner } from '@/components/ui/spinner';
 
 interface MultimodalViewerProps {
   document: {
@@ -83,8 +89,12 @@ export const MultimodalViewer: React.FC<MultimodalViewerProps> = ({
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [pages, setPages] = useState<DocumentPage[]>([]);
-  const [audioMetadata, setAudioMetadata] = useState<AudioMetadata | null>(null);
-  const [videoMetadata, setVideoMetadata] = useState<VideoMetadata | null>(null);
+  const [audioMetadata, setAudioMetadata] = useState<AudioMetadata | null>(
+    null
+  );
+  const [videoMetadata, setVideoMetadata] = useState<VideoMetadata | null>(
+    null
+  );
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -151,7 +161,9 @@ export const MultimodalViewer: React.FC<MultimodalViewerProps> = ({
             throw new Error('Unsupported document type');
         }
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load document');
+        setError(
+          err instanceof Error ? err.message : 'Failed to load document'
+        );
       } finally {
         setIsLoading(false);
       }
@@ -166,7 +178,9 @@ export const MultimodalViewer: React.FC<MultimodalViewerProps> = ({
     const mockPages: DocumentPage[] = [
       {
         number: 1,
-        content: document.extracted_text_preview || 'PDF content would be displayed here...',
+        content:
+          document.extracted_text_preview ||
+          'PDF content would be displayed here...',
       },
     ];
     setPages(mockPages);
@@ -179,7 +193,9 @@ export const MultimodalViewer: React.FC<MultimodalViewerProps> = ({
     const mockPages: DocumentPage[] = [
       {
         number: 1,
-        content: document.extracted_text_preview || 'Text content would be displayed here...',
+        content:
+          document.extracted_text_preview ||
+          'Text content would be displayed here...',
       },
     ];
     setPages(mockPages);
@@ -189,7 +205,12 @@ export const MultimodalViewer: React.FC<MultimodalViewerProps> = ({
   // Load image document
   const loadImageDocument = async () => {
     // Image will be loaded via img tag
-    setImageState({ scale: 1, position: { x: 0, y: 0 }, isDragging: false, dragStart: { x: 0, y: 0 } });
+    setImageState({
+      scale: 1,
+      position: { x: 0, y: 0 },
+      isDragging: false,
+      dragStart: { x: 0, y: 0 },
+    });
   };
 
   // Load audio document
@@ -240,14 +261,17 @@ export const MultimodalViewer: React.FC<MultimodalViewerProps> = ({
     }
   }, []);
 
-  const handleVolumeChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const newVolume = parseFloat(e.target.value);
-    setVolume(newVolume);
-    setIsMuted(newVolume === 0);
-    if (audioRef.current) {
-      audioRef.current.volume = newVolume;
-    }
-  }, []);
+  const handleVolumeChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const newVolume = parseFloat(e.target.value);
+      setVolume(newVolume);
+      setIsMuted(newVolume === 0);
+      if (audioRef.current) {
+        audioRef.current.volume = newVolume;
+      }
+    },
+    []
+  );
 
   const toggleMute = useCallback(() => {
     if (audioRef.current) {
@@ -258,7 +282,7 @@ export const MultimodalViewer: React.FC<MultimodalViewerProps> = ({
 
   // Image viewer controls
   const handleImageZoom = useCallback((delta: number) => {
-    setImageState(prev => ({
+    setImageState((prev) => ({
       ...prev,
       scale: Math.max(0.1, Math.min(5, prev.scale + delta)),
     }));
@@ -273,36 +297,48 @@ export const MultimodalViewer: React.FC<MultimodalViewerProps> = ({
     });
   }, []);
 
-  const handleImageMouseDown = useCallback((e: React.MouseEvent) => {
-    if (imageState.scale > 1) {
-      setImageState(prev => ({
-        ...prev,
-        isDragging: true,
-        dragStart: { x: e.clientX - prev.position.x, y: e.clientY - prev.position.y },
-      }));
-    }
-  }, [imageState.scale]);
+  const handleImageMouseDown = useCallback(
+    (e: React.MouseEvent) => {
+      if (imageState.scale > 1) {
+        setImageState((prev) => ({
+          ...prev,
+          isDragging: true,
+          dragStart: {
+            x: e.clientX - prev.position.x,
+            y: e.clientY - prev.position.y,
+          },
+        }));
+      }
+    },
+    [imageState.scale]
+  );
 
-  const handleImageMouseMove = useCallback((e: React.MouseEvent) => {
-    if (imageState.isDragging) {
-      setImageState(prev => ({
-        ...prev,
-        position: {
-          x: e.clientX - prev.dragStart.x,
-          y: e.clientY - prev.dragStart.y,
-        },
-      }));
-    }
-  }, [imageState.isDragging]);
+  const handleImageMouseMove = useCallback(
+    (e: React.MouseEvent) => {
+      if (imageState.isDragging) {
+        setImageState((prev) => ({
+          ...prev,
+          position: {
+            x: e.clientX - prev.dragStart.x,
+            y: e.clientY - prev.dragStart.y,
+          },
+        }));
+      }
+    },
+    [imageState.isDragging]
+  );
 
   const handleImageMouseUp = useCallback(() => {
-    setImageState(prev => ({ ...prev, isDragging: false }));
+    setImageState((prev) => ({ ...prev, isDragging: false }));
   }, []);
 
   // Page navigation
-  const goToPage = useCallback((page: number) => {
-    setCurrentPage(Math.max(1, Math.min(totalPages, page)));
-  }, [totalPages]);
+  const goToPage = useCallback(
+    (page: number) => {
+      setCurrentPage(Math.max(1, Math.min(totalPages, page)));
+    },
+    [totalPages]
+  );
 
   const goToPreviousPage = useCallback(() => {
     goToPage(currentPage - 1);
@@ -344,16 +380,16 @@ export const MultimodalViewer: React.FC<MultimodalViewerProps> = ({
     switch (document.file_type) {
       case 'pdf':
       case 'txt':
-        return <DocumentTextIcon className="h-6 w-6" />;
+        return <DocumentTextIcon className="h-6 w-6" aria-hidden="true" />;
       case 'jpg':
       case 'png':
-        return <PhotoIcon className="h-6 w-6" />;
+        return <PhotoIcon className="h-6 w-6" aria-hidden="true" />;
       case 'mp3':
-        return <MusicalNoteIcon className="h-6 w-6" />;
+        return <MusicalNoteIcon className="h-6 w-6" aria-hidden="true" />;
       case 'mp4':
-        return <VideoCameraIcon className="h-6 w-6" />;
+        return <VideoCameraIcon className="h-6 w-6" aria-hidden="true" />;
       default:
-        return <DocumentTextIcon className="h-6 w-6" />;
+        return <DocumentTextIcon className="h-6 w-6" aria-hidden="true" />;
     }
   };
 
@@ -378,9 +414,16 @@ export const MultimodalViewer: React.FC<MultimodalViewerProps> = ({
 
   if (error) {
     return (
-      <div className={cn("flex flex-col items-center justify-center p-8 bg-card border rounded-lg", className)}>
-        <div className="text-center">
-          <p className="text-red-600 mb-4">Failed to load document</p>
+      <div
+        className={cn(
+          'flex flex-col items-center justify-center p-8 bg-card border rounded-lg',
+          className
+        )}
+      >
+        <div className="text-center" role="alert">
+          <p className="text-[var(--nous-mars)] mb-4">
+            Failed to load document
+          </p>
           <p className="text-sm text-muted-foreground">{error}</p>
         </div>
       </div>
@@ -388,7 +431,7 @@ export const MultimodalViewer: React.FC<MultimodalViewerProps> = ({
   }
 
   return (
-    <div className={cn("flex flex-col space-y-4", className)}>
+    <div className={cn('flex flex-col space-y-4', className)}>
       {/* Header */}
       <div className="flex items-center justify-between p-4 bg-card border rounded-lg">
         <div className="flex items-center space-x-3">
@@ -402,7 +445,12 @@ export const MultimodalViewer: React.FC<MultimodalViewerProps> = ({
               {document.processing_completed_at && (
                 <>
                   <span>•</span>
-                  <span>Processed {new Date(document.processing_completed_at).toLocaleDateString()}</span>
+                  <span>
+                    Processed{' '}
+                    {new Date(
+                      document.processing_completed_at
+                    ).toLocaleDateString()}
+                  </span>
                 </>
               )}
             </div>
@@ -413,7 +461,10 @@ export const MultimodalViewer: React.FC<MultimodalViewerProps> = ({
           <div className="flex items-center space-x-2">
             {allowDownload && (
               <Button variant="outline" size="sm" onClick={handleDownload}>
-                <ArrowDownTrayIcon className="h-4 w-4 mr-2" />
+                <ArrowDownTrayIcon
+                  className="h-4 w-4 mr-2"
+                  aria-hidden="true"
+                />
                 Download
               </Button>
             )}
@@ -421,11 +472,24 @@ export const MultimodalViewer: React.FC<MultimodalViewerProps> = ({
               Share
             </Button>
             {allowFullscreen && (
-              <Button variant="outline" size="sm" onClick={() => setIsFullscreen(!isFullscreen)}>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsFullscreen(!isFullscreen)}
+                aria-label={
+                  isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'
+                }
+              >
                 {isFullscreen ? (
-                  <ArrowsPointingInIcon className="h-4 w-4" />
+                  <ArrowsPointingInIcon
+                    className="h-4 w-4"
+                    aria-hidden="true"
+                  />
                 ) : (
-                  <ArrowsPointingOutIcon className="h-4 w-4" />
+                  <ArrowsPointingOutIcon
+                    className="h-4 w-4"
+                    aria-hidden="true"
+                  />
                 )}
               </Button>
             )}
@@ -434,11 +498,14 @@ export const MultimodalViewer: React.FC<MultimodalViewerProps> = ({
       </div>
 
       {/* Document Content */}
-      <div className="bg-card border rounded-lg overflow-hidden" style={{ maxHeight }}>
+      <div
+        className="bg-card border rounded-lg overflow-hidden"
+        style={{ maxHeight }}
+      >
         {isLoading ? (
           <div className="flex items-center justify-center p-16">
             <div className="text-center">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+              <Spinner size="lg" className="text-primary mx-auto mb-4" />
               <p className="text-muted-foreground">Loading document...</p>
             </div>
           </div>
@@ -456,7 +523,10 @@ export const MultimodalViewer: React.FC<MultimodalViewerProps> = ({
                       onClick={goToPreviousPage}
                       disabled={currentPage === 1}
                     >
-                      <ChevronLeftIcon className="h-4 w-4 mr-2" />
+                      <ChevronLeftIcon
+                        className="h-4 w-4 mr-2"
+                        aria-hidden="true"
+                      />
                       Previous
                     </Button>
                     <span className="text-sm text-muted-foreground">
@@ -469,7 +539,10 @@ export const MultimodalViewer: React.FC<MultimodalViewerProps> = ({
                       disabled={currentPage === totalPages}
                     >
                       Next
-                      <ChevronRightIcon className="h-4 w-4 ml-2" />
+                      <ChevronRightIcon
+                        className="h-4 w-4 ml-2"
+                        aria-hidden="true"
+                      />
                     </Button>
                   </div>
                 )}
@@ -492,15 +565,23 @@ export const MultimodalViewer: React.FC<MultimodalViewerProps> = ({
                     variant="outline"
                     size="sm"
                     onClick={() => handleImageZoom(0.1)}
+                    aria-label="Zoom in"
                   >
-                    <MagnifyingGlassPlusIcon className="h-4 w-4" />
+                    <MagnifyingGlassPlusIcon
+                      className="h-4 w-4"
+                      aria-hidden="true"
+                    />
                   </Button>
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={() => handleImageZoom(-0.1)}
+                    aria-label="Zoom out"
                   >
-                    <MagnifyingGlassMinusIcon className="h-4 w-4" />
+                    <MagnifyingGlassMinusIcon
+                      className="h-4 w-4"
+                      aria-hidden="true"
+                    />
                   </Button>
                   <Button
                     variant="outline"
@@ -521,11 +602,16 @@ export const MultimodalViewer: React.FC<MultimodalViewerProps> = ({
                   onMouseLeave={handleImageMouseUp}
                   style={{
                     transform: `translate(${imageState.position.x}px, ${imageState.position.y}px) scale(${imageState.scale})`,
-                    transition: imageState.isDragging ? 'none' : 'transform 0.2s',
+                    transition: imageState.isDragging
+                      ? 'none'
+                      : 'transform 0.2s',
                   }}
                 >
                   <img
-                    src={document.thumbnail_url || `https://via.placeholder.com/800x600?text=${document.filename}`}
+                    src={
+                      document.thumbnail_url ||
+                      `https://via.placeholder.com/800x600?text=${document.filename}`
+                    }
                     alt={document.title}
                     className="max-w-full max-h-full object-contain"
                     draggable={false}
@@ -539,8 +625,11 @@ export const MultimodalViewer: React.FC<MultimodalViewerProps> = ({
               <div className="p-6">
                 <div className="max-w-2xl mx-auto">
                   {/* Audio Visualizer */}
-                  <div className="bg-gradient-to-r from-blue-500 to-purple-500 h-32 rounded-lg mb-6 flex items-center justify-center">
-                    <MusicalNoteIcon className="h-12 w-12 text-white animate-pulse" />
+                  <div className="bg-muted h-32 rounded-lg mb-6 flex items-center justify-center">
+                    <MusicalNoteIcon
+                      className="h-12 w-12 text-muted-foreground animate-pulse"
+                      aria-hidden="true"
+                    />
                   </div>
 
                   {/* Audio Controls */}
@@ -550,11 +639,12 @@ export const MultimodalViewer: React.FC<MultimodalViewerProps> = ({
                         variant="outline"
                         size="sm"
                         onClick={togglePlayPause}
+                        aria-label={isPlaying ? 'Pause' : 'Play'}
                       >
                         {isPlaying ? (
-                          <PauseIcon className="h-4 w-4" />
+                          <PauseIcon className="h-4 w-4" aria-hidden="true" />
                         ) : (
-                          <PlayIcon className="h-4 w-4" />
+                          <PlayIcon className="h-4 w-4" aria-hidden="true" />
                         )}
                       </Button>
                       <div className="flex-1">
@@ -564,7 +654,8 @@ export const MultimodalViewer: React.FC<MultimodalViewerProps> = ({
                           max={duration}
                           value={currentTime}
                           onChange={handleSeek}
-                          className="w-full"
+                          aria-label="Seek"
+                          className="w-full accent-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/40"
                         />
                         <div className="flex justify-between text-xs text-muted-foreground mt-1">
                           <span>{formatTime(currentTime)}</span>
@@ -576,11 +667,18 @@ export const MultimodalViewer: React.FC<MultimodalViewerProps> = ({
                           variant="ghost"
                           size="sm"
                           onClick={toggleMute}
+                          aria-label={isMuted ? 'Unmute' : 'Mute'}
                         >
                           {isMuted ? (
-                            <SpeakerXMarkIcon className="h-4 w-4" />
+                            <SpeakerXMarkIcon
+                              className="h-4 w-4"
+                              aria-hidden="true"
+                            />
                           ) : (
-                            <SpeakerWaveIcon className="h-4 w-4" />
+                            <SpeakerWaveIcon
+                              className="h-4 w-4"
+                              aria-hidden="true"
+                            />
                           )}
                         </Button>
                         <input
@@ -590,7 +688,8 @@ export const MultimodalViewer: React.FC<MultimodalViewerProps> = ({
                           step="0.1"
                           value={volume}
                           onChange={handleVolumeChange}
-                          className="w-20"
+                          aria-label="Volume"
+                          className="w-20 accent-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/40"
                         />
                       </div>
                     </div>
@@ -607,7 +706,9 @@ export const MultimodalViewer: React.FC<MultimodalViewerProps> = ({
                         </Button>
                         {showTranscript && (
                           <div className="mt-4 p-4 bg-muted rounded-lg max-h-48 overflow-y-auto">
-                            <p className="text-sm">{audioMetadata.transcript}</p>
+                            <p className="text-sm">
+                              {audioMetadata.transcript}
+                            </p>
                           </div>
                         )}
                       </div>
